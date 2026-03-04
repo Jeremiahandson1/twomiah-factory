@@ -22,8 +22,8 @@ const uploadsDir = appPaths.uploads;
 const BASE_URL = process.env.BASE_URL || '{{SITE_URL}}';
 
 // Check if we have a build directory
-const buildDir = path.join(__dirname, 'build');
-const hasBuild = fs.existsSync(buildDir);
+const buildDir = path.join(__dirname, 'admin', 'dist');
+const hasBuild = fs.existsSync(path.join(buildDir, 'index.html'));
 
 // ===========================================
 // MIDDLEWARE
@@ -95,7 +95,7 @@ if (hasBuild && process.env.NODE_ENV === 'production') {
   app.use(express.static(buildDir));
   
   // Admin panel (React SPA)
-  const frontendDist = path.join(__dirname, '../frontend/dist');
+  const frontendDist = path.join(__dirname, 'admin', 'dist');
   if (fs.existsSync(frontendDist)) {
     app.use('/admin', express.static(frontendDist));
     
@@ -115,7 +115,7 @@ if (hasBuild && process.env.NODE_ENV === 'production') {
   });
 } else {
   // Development mode - serve React app
-  const distPath = path.join(__dirname, '../frontend/dist');
+  const distPath = path.join(__dirname, 'admin', 'dist');
   if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
     

@@ -27,8 +27,6 @@ const CONTRACTOR_SERVICES = [
   { id: 'insulation', name: 'Insulation', desc: 'Energy-efficient insulation solutions' },
 ]
 
-const API_BASE = 'VITE_PLACEHOLDER'
-
 export default function StepContent({ config, setConfig, onNext, onBack }: Props) {
   const [generating, setGenerating] = useState(false)
   const [customServiceName, setCustomServiceName] = useState('')
@@ -64,7 +62,7 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
     setGenerating(true)
     try {
       const apiUrl = (import.meta as any).env.VITE_API_URL || ''
-      const res = await fetch(apiUrl + '/api/factory/generate-content', {
+      const res = await fetch(apiUrl + '/api/v1/factory/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

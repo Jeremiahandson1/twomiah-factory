@@ -36,7 +36,6 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')
-      await supabase.from('factory_jobs').insert([{ tenant_id: config.tenant_id || null, template: config.products.join('+'), deployment_model: 'owned', status: 'complete', features: config.features.crm, branding: config.branding, github_repo: data.githubRepo || null, render_url: data.deployedUrl || null }])
       setResult(data)
     } catch (err: any) { setError(err.message) }
     setGenerating(false)

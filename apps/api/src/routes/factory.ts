@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { authenticate, supabase } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer } from '../services/deploy'
+import factoryStripe from '../services/factoryStripe'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
@@ -10,8 +11,8 @@ const factory = new Hono()
 
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
-  const pub = ['/templates', '/features', '/health']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/download/')) return next()
+  const pub = ['/templates', '/features', '/health', '/plans']
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/download/') || c.req.path.includes('/stripe/webhook')) return next()
   return authenticate(c, next)
 })
 
@@ -337,5 +338,242 @@ factory.post('/cleanup', async (c) => {
   const cleaned = cleanOldBuilds(maxAge || 24 * 60 * 60 * 1000)
   return c.json({ cleaned, message: 'Removed ' + cleaned + ' old builds' })
 })
+
+
+// ─── Regenerate ──────────────────────────────────────────────────────────────
+factory.post('/customers/:id/regenerate', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+    const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).single()
+    if (!job?.config) return c.json({ error: 'No saved config found. Generate a package first.' }, 400)
+
+    console.log('[Factory] Regenerating for', tenant.slug)
+    const result = await generate(job.config as GenerateConfig)
+
+    await supabase.from('factory_jobs').insert({
+      tenant_id: tenantId,
+      template: job.template,
+      deployment_model: 'owned',
+      status: 'generated',
+      features: job.features || [],
+      branding: job.branding,
+      config: job.config,
+      build_id: result.buildId,
+      zip_name: result.zipName,
+    })
+
+    // If deploy is configured, auto-deploy
+    if (isConfigured()) {
+      const { data: freshJob } = await supabase.from('factory_jobs').select('*').eq('build_id', result.buildId).single()
+      if (freshJob) {
+        await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
+        runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
+      }
+    }
+
+    return c.json({ success: true, buildId: result.buildId, message: 'Regenerated and deploying' })
+  } catch (err: any) {
+    console.error('[Factory] Regenerate failed:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Delete Job ──────────────────────────────────────────────────────────────
+factory.delete('/jobs/:id', async (c) => {
+  try {
+    const jobId = c.req.param('id')
+    const { data: job } = await supabase.from('factory_jobs').select('*').eq('id', jobId).single()
+    if (!job) return c.json({ error: 'Job not found' }, 404)
+
+    if (job.zip_name) {
+      const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
+      const zipPath = path.join(OUTPUT_DIR, job.zip_name)
+      if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath)
+    }
+
+    await supabase.from('factory_jobs').delete().eq('id', jobId)
+    return c.json({ success: true })
+  } catch (err: any) {
+    console.error('[Factory] Delete job error:', err)
+    return c.json({ error: 'Failed to delete build' }, 500)
+  }
+})
+
+
+// ─── Stripe Config ───────────────────────────────────────────────────────────
+factory.get('/stripe/config', (c) => {
+  return c.json({ configured: factoryStripe.isConfigured(), publishableKey: factoryStripe.getPublishableKey() })
+})
+
+
+// ─── Checkout: Subscription ─────────────────────────────────────────────────
+factory.post('/customers/:id/checkout/subscription', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+    const { planId, monthlyAmount, billingCycle, trialDays } = await c.req.json()
+    const result = await factoryStripe.createSubscriptionCheckout(
+      { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id },
+      { planId, monthlyAmount: monthlyAmount || 149, billingCycle, trialDays }
+    )
+
+    if (result.stripeCustomerId && !tenant.stripe_customer_id) {
+      await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenantId)
+    }
+
+    return c.json({ url: result.url, sessionId: result.sessionId })
+  } catch (err: any) {
+    console.error('[Stripe] Subscription checkout error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Checkout: License ──────────────────────────────────────────────────────
+factory.post('/customers/:id/checkout/license', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+    const { planId, amount } = await c.req.json()
+    const result = await factoryStripe.createLicenseCheckout(
+      { id: tenant.id, email: tenant.email, name: tenant.name, stripeCustomerId: tenant.stripe_customer_id },
+      { planId, amount: amount || 2497 }
+    )
+
+    if (result.stripeCustomerId && !tenant.stripe_customer_id) {
+      await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenantId)
+    }
+
+    return c.json({ url: result.url, sessionId: result.sessionId })
+  } catch (err: any) {
+    console.error('[Stripe] License checkout error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Stripe Webhook ─────────────────────────────────────────────────────────
+factory.post('/stripe/webhook', async (c) => {
+  try {
+    const body = await c.req.text()
+    const sig = c.req.header('stripe-signature')
+    if (!sig) return c.json({ error: 'Missing signature' }, 400)
+
+    const event = factoryStripe.verifyWebhookSignature(body, sig)
+    const result = await factoryStripe.handleFactoryWebhook(event)
+
+    if (result.handled && result.factoryCustomerId && result.updates) {
+      await supabase.from('tenants').update(result.updates).eq('id', result.factoryCustomerId)
+    } else if (result.handled && result.lookupField && result.lookupValue && result.updates) {
+      await supabase.from('tenants').update(result.updates).eq(result.lookupField, result.lookupValue)
+    }
+
+    return c.json({ received: true })
+  } catch (err: any) {
+    console.error('[Stripe] Webhook error:', err.message)
+    return c.json({ error: err.message }, 400)
+  }
+})
+
+
+// ─── Billing Summary ────────────────────────────────────────────────────────
+factory.get('/billing/summary', async (c) => {
+  try {
+    const { data: subscriptions } = await supabase.from('tenants')
+      .select('name, monthly_amount, plan')
+      .eq('billing_type', 'subscription').eq('billing_status', 'active')
+
+    const { data: oneTime } = await supabase.from('tenants')
+      .select('name, one_time_amount, paid_at')
+      .eq('billing_type', 'one_time')
+
+    const { data: pastDue } = await supabase.from('tenants')
+      .select('name, monthly_amount, email')
+      .eq('billing_status', 'past_due')
+
+    const mrr = (subscriptions || []).reduce((sum: number, t: any) => sum + (parseFloat(t.monthly_amount) || 0), 0)
+    const totalOneTime = (oneTime || []).reduce((sum: number, t: any) => sum + (parseFloat(t.one_time_amount) || 0), 0)
+
+    return c.json({
+      mrr,
+      arr: mrr * 12,
+      totalOneTimeRevenue: totalOneTime,
+      activeSubscriptions: (subscriptions || []).length,
+      pastDueCount: (pastDue || []).length,
+      pastDueCustomers: pastDue || [],
+      subscriptions: subscriptions || [],
+      oneTimeCustomers: oneTime || [],
+    })
+  } catch (err: any) {
+    console.error('[Billing] Summary error:', err)
+    return c.json({ mrr: 0, arr: 0, totalOneTimeRevenue: 0, activeSubscriptions: 0, pastDueCount: 0 })
+  }
+})
+
+
+// ─── Plans (public) ─────────────────────────────────────────────────────────
+factory.get('/plans', (c) => {
+  return c.json({
+    plans: [
+      { id: 'starter', name: 'Starter', monthlyPrice: 97, annualPrice: 970, features: ['CRM Core', 'Website', 'Up to 2 users'] },
+      { id: 'professional', name: 'Professional', monthlyPrice: 197, annualPrice: 1970, features: ['CRM Core + Pro Features', 'Website + CMS', 'Up to 5 users', 'SMS & Email'] },
+      { id: 'growth', name: 'Growth', monthlyPrice: 297, annualPrice: 2970, features: ['All Features', 'Website + CMS', 'Up to 15 users', 'Paid Ads Hub'] },
+    ],
+    selfHosted: [
+      { id: 'starter', name: 'Starter License', price: 997 },
+      { id: 'pro', name: 'Pro License', price: 2497 },
+      { id: 'business', name: 'Business License', price: 4997 },
+      { id: 'construction', name: 'Construction License', price: 9997 },
+      { id: 'full', name: 'Full Platform License', price: 14997 },
+    ],
+  })
+})
+
+
+// ─── Preview ────────────────────────────────────────────────────────────────
+factory.post('/preview', async (c) => {
+  try {
+    const { config } = await c.req.json()
+    if (!config) return c.json({ error: 'config required' }, 400)
+
+    const name = config.company?.name || 'Your Company'
+    const primary = config.branding?.primaryColor || '#f97316'
+    const hero = config.content?.heroTagline || 'Quality You Can Trust'
+    const about = config.content?.aboutText || ''
+    const cta = config.content?.ctaText || 'Get a free estimate today.'
+    const html = '<!DOCTYPE html><html><head><title>' + name + ' Preview</title>' +
+      '<style>body{font-family:system-ui,sans-serif;margin:0;} .hero{background:' + primary + ';color:white;padding:80px 40px;text-align:center;} .hero h1{font-size:2.5rem;margin:0 0 16px;} .content{max-width:800px;margin:40px auto;padding:0 20px;} .cta{background:#f5f5f5;text-align:center;padding:40px;margin-top:40px;}</style>' +
+      '</head><body><div class="hero"><div style="font-size:0.9rem;text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;">' + hero + '</div><h1>' + name + '</h1></div>' +
+      '<div class="content"><p>' + about + '</p></div><div class="cta"><p>' + cta + '</p></div></body></html>'
+    return new Response(html, { headers: { 'Content-Type': 'text/html' } })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Customer Domain ────────────────────────────────────────────────────────
+factory.post('/customers/:id/domain', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    const { domain } = await c.req.json()
+    if (!domain) return c.json({ error: 'domain is required' }, 400)
+
+    const { error } = await supabase.from('tenants').update({ domain }).eq('id', tenantId)
+    if (error) throw error
+    return c.json({ success: true, domain })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 
 export default factory

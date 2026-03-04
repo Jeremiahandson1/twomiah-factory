@@ -5,6 +5,10 @@ node_modules
 out
 dist
 *.tgz
+*.zip
+
+# generated builds
+generated/
 
 # code coverage
 coverage

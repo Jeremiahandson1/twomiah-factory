@@ -394,12 +394,18 @@ function loadManifest(crmDir: string): any {
 }
 
 function injectCSSColors(websiteDir: string, branding: GenerateConfig['branding'], _industry: string) {
-  const cssFile = path.join(websiteDir, 'build', 'css', 'style.css')
-  if (!fs.existsSync(cssFile)) return
-  let css = fs.readFileSync(cssFile, 'utf8')
-  if (branding.primaryColor) css = css.replace(/var\(--primary-color\)/g, branding.primaryColor)
-  if (branding.secondaryColor) css = css.replace(/var\(--secondary-color\)/g, branding.secondaryColor)
-  fs.writeFileSync(cssFile, css, 'utf8')
+  const cssPaths = [
+    path.join(websiteDir, 'build', 'styles', 'main.css'),
+    path.join(websiteDir, 'build', 'css', 'style.css'),
+    path.join(websiteDir, 'public', 'css', 'style.css'),
+  ]
+  for (const cssFile of cssPaths) {
+    if (!fs.existsSync(cssFile)) continue
+    let css = fs.readFileSync(cssFile, 'utf8')
+    if (branding.primaryColor) css = css.replace(/var\(--primary-color\)/g, branding.primaryColor)
+    if (branding.secondaryColor) css = css.replace(/var\(--secondary-color\)/g, branding.secondaryColor)
+    fs.writeFileSync(cssFile, css, 'utf8')
+  }
 }
 
 function stripWebsiteFeatures(websiteDir: string, enabledFeatures: string[]) {
