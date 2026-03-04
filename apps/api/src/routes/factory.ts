@@ -9,6 +9,9 @@ import crypto from 'crypto'
 
 const factory = new Hono()
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
+
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
@@ -132,7 +135,7 @@ factory.post('/generate-content', async (c) => {
     const { default: Anthropic } = await import('@anthropic-ai/sdk')
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     })
@@ -257,6 +260,7 @@ factory.post('/customers/:id/deploy', async (c) => {
     }
 
     const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     console.log('[Deploy] Looking up tenant:', tenantId)
 
     const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
@@ -282,7 +286,7 @@ factory.post('/customers/:id/deploy', async (c) => {
     // Run deploy in background
     runDeploy(tenant, job).catch(err => console.error('[Deploy] Background error:', err.message))
 
-    return c.json({ message: 'Deployment started', status: 'deploying' })
+    return c.json({ success: true, message: 'Deployment started', status: 'deploying' })
   } catch (err: any) {
     console.error('[Deploy] endpoint error:', err)
     return c.json({ error: err.message }, 500)
@@ -379,7 +383,9 @@ async function runDeploy(tenant: any, job: any) {
 
 // ─── Deploy Status ────────────────────────────────────────────────────────────
 factory.get('/customers/:id/deploy/status', async (c) => {
-  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job) return c.json({ status: 'not_deployed', services: {} })
   const serviceIds = job.render_service_ids
   if (!serviceIds || Object.keys(serviceIds).length === 0) {
@@ -393,7 +399,9 @@ factory.get('/customers/:id/deploy/status', async (c) => {
 // ─── Redeploy ─────────────────────────────────────────────────────────────────
 factory.post('/customers/:id/redeploy', async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
-  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job) return c.json({ error: 'No deployed services found' }, 400)
   const serviceIds = job.render_service_ids
   if (!serviceIds || Object.keys(serviceIds).length === 0) {
@@ -416,6 +424,7 @@ factory.post('/cleanup', async (c) => {
 factory.post('/customers/:id/regenerate', async (c) => {
   try {
     const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
 
@@ -446,16 +455,22 @@ factory.post('/customers/:id/regenerate', async (c) => {
       }
     }
 
-    // If deploy is configured, auto-deploy
+    // If deploy is configured, auto-deploy (but not if a deploy is already running)
     if (isConfigured()) {
       const { data: freshJob } = await supabase.from('factory_jobs').select('*').eq('build_id', result.buildId).maybeSingle()
-      if (freshJob) {
-        await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
-        runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
+      if (freshJob && freshJob.status !== 'deploying') {
+        // Check no other deploy is in progress for this tenant
+        const { data: activeJobs } = await supabase.from('factory_jobs').select('id').eq('tenant_id', tenantId).eq('status', 'deploying')
+        if (!activeJobs?.length) {
+          await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
+          runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
+        } else {
+          console.log('[Factory] Skipping auto-deploy — another deploy is already running for tenant', tenantId)
+        }
       }
     }
 
-    return c.json({ success: true, buildId: result.buildId, message: 'Regenerated and deploying' })
+    return c.json({ success: true, buildId: result.buildId, zipName: result.zipName, message: 'Regenerated and deploying' })
   } catch (err: any) {
     console.error('[Factory] Regenerate failed:', err)
     return c.json({ error: err.message }, 500)
@@ -495,6 +510,7 @@ factory.get('/stripe/config', (c) => {
 factory.post('/customers/:id/checkout/subscription', async (c) => {
   try {
     const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
 
@@ -520,6 +536,7 @@ factory.post('/customers/:id/checkout/subscription', async (c) => {
 factory.post('/customers/:id/checkout/license', async (c) => {
   try {
     const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
 
@@ -543,12 +560,18 @@ factory.post('/customers/:id/checkout/license', async (c) => {
 
 // ─── Stripe Webhook ─────────────────────────────────────────────────────────
 factory.post('/stripe/webhook', async (c) => {
+  let event: any
   try {
     const body = await c.req.text()
     const sig = c.req.header('stripe-signature')
     if (!sig) return c.json({ error: 'Missing signature' }, 400)
+    event = factoryStripe.verifyWebhookSignature(body, sig)
+  } catch (err: any) {
+    console.error('[Stripe] Webhook signature verification failed:', err.message)
+    return c.json({ error: 'Signature verification failed' }, 400)
+  }
 
-    const event = factoryStripe.verifyWebhookSignature(body, sig)
+  try {
     const result = await factoryStripe.handleFactoryWebhook(event)
 
     if (result.handled && result.factoryCustomerId && result.updates) {
@@ -559,8 +582,8 @@ factory.post('/stripe/webhook', async (c) => {
 
     return c.json({ received: true })
   } catch (err: any) {
-    console.error('[Stripe] Webhook error:', err.message)
-    return c.json({ error: err.message }, 400)
+    console.error('[Stripe] Webhook handler error:', err.message)
+    return c.json({ error: 'Webhook processing failed' }, 500)
   }
 })
 
@@ -645,8 +668,10 @@ factory.post('/preview', async (c) => {
 factory.post('/customers/:id/domain', async (c) => {
   try {
     const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { domain } = await c.req.json()
     if (!domain) return c.json({ error: 'domain is required' }, 400)
+    if (!DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format. Expected format: example.com' }, 400)
 
     const { error } = await supabase.from('tenants').update({ domain }).eq('id', tenantId)
     if (error) throw error
