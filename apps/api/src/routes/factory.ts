@@ -37,23 +37,31 @@ factory.post('/generate', async (c) => {
     console.log('[Factory] Build complete in ' + elapsed + 's — ' + result.zipName)
 
     // Track factory_job in Supabase
-    const userId = c.get('userId')
-    if (config.tenant_id) {
+    const tenantId = config.tenant_id || (config as any).tenantId
+    console.log('[Factory] tenant_id for job insert:', tenantId || 'NONE — skipping insert')
+    if (tenantId) {
       const jobRecord: Record<string, any> = {
-        tenant_id: config.tenant_id,
+        tenant_id: tenantId,
         template: config.products.join('+'),
         deployment_model: 'owned',
-        status: 'generated',
+        status: 'pending',
         features: config.features?.crm || [],
         branding: config.branding,
         build_id: result.buildId,
         zip_name: result.zipName,
       }
-      // Include config column if it exists in the table
+      // Try with config column first, fall back without it
       const { error: insertErr } = await supabase.from('factory_jobs').insert({ ...jobRecord, config })
-      if (insertErr?.message?.includes('config')) {
-        // Column doesn't exist yet — insert without it
-        await supabase.from('factory_jobs').insert(jobRecord)
+      if (insertErr) {
+        console.error('[Factory] Job insert error (with config):', insertErr.message, insertErr.code)
+        // If the error is about the config column, retry without it
+        if (insertErr.code === '42703') {
+          const { error: fallbackErr } = await supabase.from('factory_jobs').insert(jobRecord)
+          if (fallbackErr) console.error('[Factory] Job insert error (fallback):', fallbackErr.message, fallbackErr.code)
+          else console.log('[Factory] Job saved (without config column)')
+        }
+      } else {
+        console.log('[Factory] Job saved with config for tenant', tenantId)
       }
     }
 
@@ -329,7 +337,7 @@ async function runDeploy(tenant: any, job: any) {
     console.log('[Deploy] Errors:', JSON.stringify(result.errors))
 
     await supabase.from('factory_jobs').update({
-      status: result.success ? 'deployed' : 'generated',
+      status: result.success ? 'complete' : 'failed',
       github_repo: result.repoUrl || null,
       render_url: result.deployedUrl || result.siteUrl || null,
     }).eq('id', job.id)
@@ -390,15 +398,19 @@ factory.post('/customers/:id/regenerate', async (c) => {
       tenant_id: tenantId,
       template: job.template,
       deployment_model: 'owned',
-      status: 'generated',
+      status: 'pending',
       features: job.features || [],
       branding: job.branding,
       build_id: result.buildId,
       zip_name: result.zipName,
     }
     const { error: insertErr } = await supabase.from('factory_jobs').insert({ ...jobRecord, config })
-    if (insertErr?.message?.includes('config')) {
-      await supabase.from('factory_jobs').insert(jobRecord)
+    if (insertErr) {
+      console.error('[Factory] Regenerate job insert error:', insertErr.message, insertErr.code)
+      if (insertErr.code === '42703') {
+        const { error: fallbackErr } = await supabase.from('factory_jobs').insert(jobRecord)
+        if (fallbackErr) console.error('[Factory] Regenerate job fallback error:', fallbackErr.message, fallbackErr.code)
+      }
     }
 
     // If deploy is configured, auto-deploy

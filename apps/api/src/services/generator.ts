@@ -21,6 +21,7 @@ const TEXT_EXTS = new Set([
 const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', '.DS_Store']
 
 export interface GenerateConfig {
+  tenant_id?: string
   products: string[]
   company: {
     name: string
