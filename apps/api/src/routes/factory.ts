@@ -115,6 +115,7 @@ factory.post('/generate-content', async (c) => {
   try {
     const { companyName, city, state, industry, services, serviceRegion, ownerName } = await c.req.json()
     if (!companyName) return c.json({ error: 'companyName is required' }, 400)
+    if (!process.env.ANTHROPIC_API_KEY) return c.json({ error: 'AI content generation not configured (missing ANTHROPIC_API_KEY)' }, 503)
 
     const isHomeCare = industry === 'home_care'
     const location = [city, state].filter(Boolean).join(', ') || 'your area'
@@ -336,13 +337,37 @@ async function runDeploy(tenant: any, job: any) {
     console.log('[Deploy] Result steps:', JSON.stringify(result.steps))
     console.log('[Deploy] Errors:', JSON.stringify(result.errors))
 
-    await supabase.from('factory_jobs').update({
+    // Build render_service_ids map from deploy result
+    const renderServiceIds: Record<string, string> = {}
+    if (result.services.backend?.id) renderServiceIds.backend = result.services.backend.id
+    if (result.services.frontend?.id) renderServiceIds.frontend = result.services.frontend.id
+    if (result.services.site?.id) renderServiceIds.site = result.services.site.id
+    if (result.services.database?.id) renderServiceIds.database = result.services.database.id
+
+    const jobUpdate: Record<string, any> = {
       status: result.success ? 'complete' : 'failed',
       github_repo: result.repoUrl || null,
       render_url: result.deployedUrl || result.siteUrl || null,
-    }).eq('id', job.id)
+    }
+    if (Object.keys(renderServiceIds).length > 0) jobUpdate.render_service_ids = renderServiceIds
 
-    if (result.repoUrl) await supabase.from('tenants').update({ status: 'active' }).eq('id', tenant.id)
+    const { error: updateErr } = await supabase.from('factory_jobs').update(jobUpdate).eq('id', job.id)
+    if (updateErr) {
+      console.error('[Deploy] Job update error:', updateErr.message, updateErr.code)
+      // If render_service_ids column doesn't exist, retry without it
+      if (updateErr.code === '42703') {
+        delete jobUpdate.render_service_ids
+        await supabase.from('factory_jobs').update(jobUpdate).eq('id', job.id)
+      }
+    }
+
+    if (result.repoUrl) {
+      const tenantUpdate: Record<string, any> = { status: 'active' }
+      if (result.deployedUrl) tenantUpdate.render_frontend_url = result.deployedUrl
+      if (result.apiUrl) tenantUpdate.render_backend_url = result.apiUrl
+      if (result.siteUrl) tenantUpdate.website_url = result.siteUrl
+      await supabase.from('tenants').update(tenantUpdate).eq('id', tenant.id)
+    }
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
   } catch (err: any) {
@@ -354,9 +379,13 @@ async function runDeploy(tenant: any, job: any) {
 
 // ─── Deploy Status ────────────────────────────────────────────────────────────
 factory.get('/customers/:id/deploy/status', async (c) => {
-  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
-  if (!job?.render_service_ids) return c.json({ status: 'not_deployed', services: {} })
-  const result = await checkDeployStatus({ renderServiceIds: job.render_service_ids })
+  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (!job) return c.json({ status: 'not_deployed', services: {} })
+  const serviceIds = job.render_service_ids
+  if (!serviceIds || Object.keys(serviceIds).length === 0) {
+    return c.json({ status: job.status === 'complete' ? 'deployed' : job.status, services: {} })
+  }
+  const result = await checkDeployStatus({ renderServiceIds: serviceIds })
   return c.json(result)
 })
 
@@ -364,9 +393,13 @@ factory.get('/customers/:id/deploy/status', async (c) => {
 // ─── Redeploy ─────────────────────────────────────────────────────────────────
 factory.post('/customers/:id/redeploy', async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
-  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
-  if (!job?.render_service_ids) return c.json({ error: 'No deployed services found' }, 400)
-  const result = await redeployCustomer({ renderServiceIds: job.render_service_ids })
+  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (!job) return c.json({ error: 'No deployed services found' }, 400)
+  const serviceIds = job.render_service_ids
+  if (!serviceIds || Object.keys(serviceIds).length === 0) {
+    return c.json({ error: 'No Render service IDs saved. Deploy again to populate them.' }, 400)
+  }
+  const result = await redeployCustomer({ renderServiceIds: serviceIds })
   return c.json(result)
 })
 

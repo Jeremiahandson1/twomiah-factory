@@ -578,7 +578,7 @@ export default function CustomerDetailPage() {
               <div className="space-y-2">
                 {jobs.map((job, i) => {
                   const zipName = job.zip_name || (tenant.slug + '-twomiah-build.zip')
-                  const downloadUrl = API + '/api/v1/factory/download/' + (job.build_id || job.id) + '/' + zipName
+                  const downloadUrl = job.build_id ? API + '/api/v1/factory/download/' + job.build_id + '/' + zipName : ''
                   return (
                     <div key={job.id} className="flex items-center justify-between py-3 border-b border-gray-800 last:border-0">
                       <div className="flex items-center gap-3">
@@ -595,10 +595,16 @@ export default function CustomerDetailPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <StatusBadge status={job.status} />
-                        <a href={downloadUrl}
-                          className="flex items-center gap-1.5 text-gray-400 hover:text-white text-xs transition-colors px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700">
-                          <Download size={13} /> ZIP
-                        </a>
+                        {downloadUrl ? (
+                          <a href={downloadUrl}
+                            className="flex items-center gap-1.5 text-gray-400 hover:text-white text-xs transition-colors px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700">
+                            <Download size={13} /> ZIP
+                          </a>
+                        ) : (
+                          <span className="flex items-center gap-1.5 text-gray-600 text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 cursor-not-allowed">
+                            <Download size={13} /> ZIP
+                          </span>
+                        )}
                         <button
                           onClick={() => deleteJob(job.id)}
                           disabled={deletingJob === job.id}
