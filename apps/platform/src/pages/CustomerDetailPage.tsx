@@ -403,10 +403,16 @@ export default function CustomerDetailPage() {
             {deployConfigured ? (
               <div className="space-y-2">
                 {(tenant.status === 'generated' || !latestDeployed) && (
-                  <button onClick={() => setShowDeployModal(true)} disabled={deploying}
-                    className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors">
-                    <Rocket size={14} /> {deploying ? 'Deploying...' : 'Deploy to Render'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowDeployModal(true)} disabled={deploying}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors">
+                      <Rocket size={14} /> {deploying ? 'Deploying...' : 'Deploy to Render'}
+                    </button>
+                    <button onClick={regenerate} disabled={deploying}
+                      className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-orange-400 border border-orange-900 rounded-lg hover:bg-orange-900/20 disabled:opacity-50 transition-colors">
+                      <RefreshCw size={14} /> Regenerate
+                    </button>
+                  </div>
                 )}
                 {latestDeployed && (
                   <div className="flex items-center gap-2 text-sm text-emerald-400 mb-2">
