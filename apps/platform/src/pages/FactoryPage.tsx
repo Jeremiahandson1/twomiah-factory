@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { CheckCircle, Users, Package, Building2, Palette, Settings2, Zap, Sparkles, Download } from 'lucide-react'
+import { supabase } from '../supabase'
 import { DEFAULT_CONFIG, type FactoryConfig } from '../components/factory/types'
 import StepCustomer from '../components/factory/StepCustomer'
 import StepProducts from '../components/factory/StepProducts'
@@ -22,8 +24,26 @@ const STEPS = [
 ]
 
 export default function FactoryPage() {
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState(0)
   const [config, setConfig] = useState<FactoryConfig>(DEFAULT_CONFIG)
+
+  useEffect(() => {
+    const tenantId = searchParams.get('tenant')
+    if (tenantId) {
+      supabase.from('tenants').select('*').eq('id', tenantId).single().then(({ data }) => {
+        if (data) {
+          setConfig(prev => ({
+            ...prev,
+            tenant_id: data.id,
+            tenant_name: data.name,
+            tenant_slug: data.slug,
+            company: { ...prev.company, name: data.name, email: data.email || '', phone: data.phone || '', city: data.city || '', state: data.state || '', industry: data.industry || '' },
+          }))
+        }
+      })
+    }
+  }, [searchParams])
 
   const update = (patch: Partial<FactoryConfig>) =>
     setConfig(prev => ({ ...prev, ...patch }))

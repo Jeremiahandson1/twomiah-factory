@@ -78,8 +78,8 @@ export async function createSubscriptionCheckout(
       },
       quantity: 1,
     }],
-    success_url: FRONTEND_URL + '/customers/' + factoryCustomer.id + '?payment=success',
-    cancel_url: FRONTEND_URL + '/customers/' + factoryCustomer.id + '?payment=canceled',
+    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
+    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
     metadata: {
       factory_customer_id: factoryCustomer.id,
       plan_id: planId,
@@ -128,8 +128,8 @@ export async function createLicenseCheckout(
       price_data: { currency: 'usd', product: productId, unit_amount: amountCents },
       quantity: 1,
     }],
-    success_url: FRONTEND_URL + '/customers/' + factoryCustomer.id + '?payment=success',
-    cancel_url: FRONTEND_URL + '/customers/' + factoryCustomer.id + '?payment=canceled',
+    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
+    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
     metadata: {
       factory_customer_id: factoryCustomer.id,
       plan_id: planId,

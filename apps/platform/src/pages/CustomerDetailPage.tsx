@@ -5,7 +5,7 @@ import {
   ArrowLeft, Download, Rocket, RefreshCw, ExternalLink,
   Globe, Clock, CheckCircle, XCircle, AlertCircle,
   Copy, ChevronRight, DollarSign, CreditCard, Package,
-  Save, Trash2, Edit3, Database, Palette, Calendar
+  Save, Trash2, Edit3, Database, Palette
 } from 'lucide-react'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'

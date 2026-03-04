@@ -49,7 +49,7 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
       const res = await fetch(apiUrl + '/api/v1/factory/customers/' + result.customerId + '/deploy', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + session?.access_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ dbPlan: 'basic-256mb' }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Deploy failed')

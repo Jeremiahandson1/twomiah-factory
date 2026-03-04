@@ -25,7 +25,7 @@ export type FactoryConfig = {
   }
   content: {
     services: string[]; customServices: { id: string; name: string; desc: string }[]
-    heroTagline: string; aboutText: string; ctaText: string; serviceArea: string
+    heroTagline: string; aboutText: string; ctaText: string
   }
 }
 
@@ -36,5 +36,5 @@ export const DEFAULT_CONFIG: FactoryConfig = {
   branding: { primaryColor: '#f97316', secondaryColor: '#1e3a5f', logo: null, logoFilename: null, favicon: null, faviconFilename: null, heroPhoto: null, heroPhotoFilename: null },
   features: { website: [], crm: [], paid_ads: false },
   integrations: { twilio: { accountSid: '', authToken: '', phoneNumber: '' }, sendgrid: { apiKey: '' }, stripe: { secretKey: '', publishableKey: '', webhookSecret: '' }, googleMaps: { apiKey: '' }, sentry: { dsn: '' } },
-  content: { services: [], customServices: [], heroTagline: '', aboutText: '', ctaText: '', serviceArea: '' },
+  content: { services: [], customServices: [], heroTagline: '', aboutText: '', ctaText: '' },
 }

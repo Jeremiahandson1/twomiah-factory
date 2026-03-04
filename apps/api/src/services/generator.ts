@@ -226,6 +226,11 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{PRODUCTS_JSON}}': JSON.stringify(config.products || ['crm']),
     '{{CMS_URL}}': (config.products || []).includes('cms') ? 'https://' + slug + '-site.onrender.com/admin' : '',
     '{{JWT_SECRET}}': crypto.randomBytes(32).toString('hex'),
+    '{{JWT_REFRESH_SECRET}}': crypto.randomBytes(32).toString('hex'),
+    '{{ENCRYPTION_KEY}}': crypto.randomBytes(32).toString('hex'),
+    '{{ENABLE_SANDATA_EVV}}': 'false',
+    '{{ENABLE_GUSTO}}': 'false',
+    '{{ENABLE_WORCS}}': 'false',
     '{{DATABASE_URL}}': 'postgresql://user:pass@localhost:5432/' + slug + '_crm',
     '{{TWILIO_ACCOUNT_SID}}': (config.integrations?.twilio?.accountSid || '').trim(),
     '{{TWILIO_AUTH_TOKEN}}': (config.integrations?.twilio?.authToken || '').trim(),
@@ -628,8 +633,9 @@ function pascalCase(name: string): string {
 
 function generatePassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  const bytes = crypto.randomBytes(8)
   let pw = ''
-  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)]
+  for (let i = 0; i < 8; i++) pw += chars[bytes[i] % chars.length]
   return pw + '!'
 }
 

@@ -5,8 +5,6 @@ import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, rede
 import factoryStripe from '../services/factoryStripe'
 import fs from 'fs'
 import path from 'path'
-import crypto from 'crypto'
-
 const factory = new Hono()
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -400,7 +398,7 @@ factory.get('/customers/:id/deploy/status', async (c) => {
   if (!job) return c.json({ status: 'not_deployed', services: {} })
   const serviceIds = job.render_service_ids
   if (!serviceIds || Object.keys(serviceIds).length === 0) {
-    return c.json({ status: job.status === 'complete' ? 'deployed' : job.status, services: {} })
+    return c.json({ status: job.status, services: {} })
   }
   const result = await checkDeployStatus({ renderServiceIds: serviceIds })
   return c.json(result)

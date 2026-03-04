@@ -8,7 +8,6 @@
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
-import { execSync } from 'child_process'
 import AdmZip from 'adm-zip'
 
 const RENDER_API = 'https://api.render.com/v1'
@@ -438,7 +437,7 @@ export async function deployCustomer(
       try {
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
-          buildCommand: 'npm install && cd admin && npm install --include=dev && npm run build',
+          buildCommand: 'npm install',
           startCommand: 'NODE_ENV=production node server-static.js',
           envVars: [{ key: 'NODE_ENV', value: 'production' }, { key: 'PORT', value: '10000' }, { key: 'JWT_SECRET', value: jwtSecret }],
           plan, region, projectId,
