@@ -39,17 +39,22 @@ factory.post('/generate', async (c) => {
     // Track factory_job in Supabase
     const userId = c.get('userId')
     if (config.tenant_id) {
-      await supabase.from('factory_jobs').insert({
+      const jobRecord: Record<string, any> = {
         tenant_id: config.tenant_id,
         template: config.products.join('+'),
         deployment_model: 'owned',
         status: 'generated',
         features: config.features?.crm || [],
         branding: config.branding,
-        config: config,
         build_id: result.buildId,
         zip_name: result.zipName,
-      })
+      }
+      // Include config column if it exists in the table
+      const { error: insertErr } = await supabase.from('factory_jobs').insert({ ...jobRecord, config })
+      if (insertErr?.message?.includes('config')) {
+        // Column doesn't exist yet — insert without it
+        await supabase.from('factory_jobs').insert(jobRecord)
+      }
     }
 
     return c.json({
@@ -275,11 +280,37 @@ factory.post('/customers/:id/deploy', async (c) => {
   }
 })
 
+function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
+  return {
+    tenant_id: tenant.id,
+    products: job.template?.split('+') || tenant.products || ['crm'],
+    company: {
+      name: tenant.name,
+      email: tenant.email || undefined,
+      adminEmail: tenant.admin_email || undefined,
+      phone: tenant.phone || undefined,
+      address: tenant.address || undefined,
+      city: tenant.city || undefined,
+      state: tenant.state || undefined,
+      zip: tenant.zip || undefined,
+      domain: tenant.domain || undefined,
+      industry: tenant.industry || undefined,
+      defaultPassword: tenant.admin_password || undefined,
+    },
+    branding: job.branding || {
+      primaryColor: tenant.primary_color || '#f97316',
+      secondaryColor: tenant.secondary_color || '#1e3a5f',
+    },
+    features: {
+      crm: job.features || tenant.features || [],
+    },
+  } as GenerateConfig
+}
+
 async function runDeploy(tenant: any, job: any) {
   try {
-    // Regenerate a fresh zip from the stored config
-    const config: GenerateConfig = job.config
-    if (!config) throw new Error('No config stored in job. Re-generate the package first.')
+    // Use stored config if available, otherwise reconstruct from tenant + job
+    const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
 
     console.log('[Deploy] Regenerating fresh zip for', tenant.slug)
     const genResult = await generate(config)
@@ -348,22 +379,27 @@ factory.post('/customers/:id/regenerate', async (c) => {
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
 
     const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
-    if (!job?.config) return c.json({ error: 'No saved config found. Generate a package first.' }, 400)
+    if (!job) return c.json({ error: 'No previous build found. Generate a package first.' }, 400)
+
+    const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
 
     console.log('[Factory] Regenerating for', tenant.slug)
-    const result = await generate(job.config as GenerateConfig)
+    const result = await generate(config)
 
-    await supabase.from('factory_jobs').insert({
+    const jobRecord: Record<string, any> = {
       tenant_id: tenantId,
       template: job.template,
       deployment_model: 'owned',
       status: 'generated',
       features: job.features || [],
       branding: job.branding,
-      config: job.config,
       build_id: result.buildId,
       zip_name: result.zipName,
-    })
+    }
+    const { error: insertErr } = await supabase.from('factory_jobs').insert({ ...jobRecord, config })
+    if (insertErr?.message?.includes('config')) {
+      await supabase.from('factory_jobs').insert(jobRecord)
+    }
 
     // If deploy is configured, auto-deploy
     if (isConfigured()) {
