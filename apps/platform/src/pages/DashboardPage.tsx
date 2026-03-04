@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import { Users, Factory, TrendingUp, Activity } from 'lucide-react'
+import { Users, Factory, TrendingUp, Activity, DollarSign, AlertCircle } from 'lucide-react'
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({ tenants: 0, active: 0, saas: 0, owned: 0 })
+  const [billing, setBilling] = useState<{ mrr: number; arr: number; activeSubscriptions: number; pastDueCount: number } | null>(null)
 
   const [error, setError] = useState('')
 
@@ -17,6 +20,14 @@ export default function DashboardPage() {
         saas: data.filter(t => t.deployment_model === 'saas').length,
         owned: data.filter(t => t.deployment_model === 'owned').length,
       })
+    })
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return
+      fetch(API + '/api/v1/factory/billing/summary', { headers: { Authorization: 'Bearer ' + session.access_token } })
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setBilling(d) })
+        .catch(() => {})
     })
   }, [])
 
@@ -43,6 +54,32 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+      {billing && (
+        <div className="grid grid-cols-3 gap-4 mt-6">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-400">MRR</span>
+              <DollarSign size={18} className="text-emerald-400" />
+            </div>
+            <span className="text-3xl font-bold text-white">${billing.mrr.toLocaleString()}</span>
+            <p className="text-gray-500 text-xs mt-1">ARR: ${billing.arr.toLocaleString()}</p>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-400">Active Subscriptions</span>
+              <TrendingUp size={18} className="text-blue-400" />
+            </div>
+            <span className="text-3xl font-bold text-white">{billing.activeSubscriptions}</span>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-400">Past Due</span>
+              <AlertCircle size={18} className={billing.pastDueCount > 0 ? 'text-red-400' : 'text-gray-600'} />
+            </div>
+            <span className={'text-3xl font-bold ' + (billing.pastDueCount > 0 ? 'text-red-400' : 'text-white')}>{billing.pastDueCount}</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

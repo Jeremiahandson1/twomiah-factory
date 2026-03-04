@@ -139,7 +139,7 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
         })
       }
     })
-  }, [mapsReady])
+  }, [mapsReady, updateNested])
 
   // Search nearby cities
   async function findNearbyCities() {

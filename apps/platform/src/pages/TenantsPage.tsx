@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import { Plus, Building2, Globe, Server, MoreVertical } from 'lucide-react'
+import { Plus, Building2, Globe, Server } from 'lucide-react'
 import NewTenantModal from '../components/NewTenantModal'
 import { useNavigate } from 'react-router-dom'
 
@@ -31,10 +31,12 @@ export default function TenantsPage() {
   useEffect(() => { fetchTenants() }, [])
 
   const statusColors: Record<string, string> = {
+    pending: 'bg-blue-500/20 text-blue-400',
+    deploying: 'bg-yellow-500/20 text-yellow-400',
     trial: 'bg-yellow-500/20 text-yellow-400',
     active: 'bg-green-500/20 text-green-400',
     suspended: 'bg-red-500/20 text-red-400',
-    cancelled: 'bg-gray-500/20 text-gray-400',
+    canceled: 'bg-gray-500/20 text-gray-400',
   }
 
   return (
@@ -78,7 +80,6 @@ export default function TenantsPage() {
                 <th className="text-left text-xs text-gray-500 font-medium px-6 py-3">Plan</th>
                 <th className="text-left text-xs text-gray-500 font-medium px-6 py-3">Status</th>
                 <th className="text-left text-xs text-gray-500 font-medium px-6 py-3">Created</th>
-                <th className="px-6 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -108,11 +109,6 @@ export default function TenantsPage() {
                   </td>
                   <td className="px-6 py-4 text-gray-500 text-sm">
                     {new Date(t.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="text-gray-600 hover:text-gray-400 transition-colors">
-                      <MoreVertical size={16} />
-                    </button>
                   </td>
                 </tr>
               ))}

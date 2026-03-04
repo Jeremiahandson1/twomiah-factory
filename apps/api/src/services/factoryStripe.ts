@@ -223,11 +223,9 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
 
 export function verifyWebhookSignature(payload: string | Buffer, signature: string): Stripe.Event {
   if (!stripe) throw new Error('Stripe not configured')
-  return stripe.webhooks.constructEvent(
-    payload,
-    signature,
-    process.env.STRIPE_FACTORY_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET || ''
-  )
+  const secret = process.env.STRIPE_FACTORY_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET
+  if (!secret) throw new Error('Stripe webhook secret not configured (set STRIPE_FACTORY_WEBHOOK_SECRET or STRIPE_WEBHOOK_SECRET)')
+  return stripe.webhooks.constructEvent(payload, signature, secret)
 }
 
 export function isConfigured(): boolean {

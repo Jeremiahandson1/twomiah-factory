@@ -3,6 +3,7 @@ import { authenticate, supabase } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
+import { uploadZip, getZipDownloadUrl, deleteZip, downloadZip } from '../services/factoryStorage'
 import fs from 'fs'
 import path from 'path'
 const factory = new Hono()
@@ -37,6 +38,9 @@ factory.post('/generate', async (c) => {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
     console.log('[Factory] Build complete in ' + elapsed + 's — ' + result.zipName)
 
+    // Upload to storage (S3/R2 if configured, otherwise stays local)
+    const storage = await uploadZip(result.zipPath, result.zipName)
+
     // Track factory_job in Supabase
     const tenantId = config.tenant_id || (config as any).tenantId
     console.log('[Factory] tenant_id for job insert:', tenantId || 'NONE — skipping insert')
@@ -50,6 +54,8 @@ factory.post('/generate', async (c) => {
         branding: config.branding,
         build_id: result.buildId,
         zip_name: result.zipName,
+        storage_key: storage.storageKey,
+        storage_type: storage.storageType,
       }
       // Try with config column first, fall back without it
       const { error: insertErr } = await supabase.from('factory_jobs').insert({ ...jobRecord, config })
@@ -89,13 +95,37 @@ factory.post('/generate', async (c) => {
 // ─── Download ─────────────────────────────────────────────────────────────────
 factory.get('/download/:buildId/:filename', async (c) => {
   const { buildId, filename } = c.req.param()
-  if (!/^[a-f0-9-]+$/.test(buildId) || !/^[a-zA-Z0-9_-]+\.zip$/.test(filename)) {
+  if (!UUID_RE.test(buildId) || !/^[a-zA-Z0-9_-]+\.zip$/.test(filename)) {
     return c.json({ error: 'Invalid download parameters' }, 400)
   }
 
+  // Validate buildId exists in database and filename matches
+  const { data: job } = await supabase.from('factory_jobs').select('zip_name, storage_key, storage_type').eq('build_id', buildId).maybeSingle()
+  if (!job) return c.json({ error: 'Build not found' }, 404)
+  if (job.zip_name && job.zip_name !== filename) return c.json({ error: 'Filename mismatch' }, 400)
+
+  // Try storage service first (supports S3/R2 and local)
+  const storageKey = job.storage_key
+  const storageType = job.storage_type || 'local'
+  if (storageKey) {
+    if (storageType === 's3') {
+      const url = await getZipDownloadUrl(storageKey, storageType)
+      if (url) return c.redirect(url)
+    } else if (fs.existsSync(storageKey)) {
+      const fileData = fs.readFileSync(storageKey)
+      return new Response(fileData, {
+        headers: {
+          'Content-Type': 'application/zip',
+          'Content-Disposition': 'attachment; filename="' + filename + '"',
+          'Content-Length': String(fileData.length),
+        },
+      })
+    }
+  }
+
+  // Fallback: look in output dir by filename
   const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
   const zipPath = path.join(OUTPUT_DIR, filename)
-
   if (!fs.existsSync(zipPath)) {
     return c.json({ error: 'Build not found or expired' }, 404)
   }
@@ -495,7 +525,9 @@ factory.delete('/jobs/:id', async (c) => {
     const { data: job } = await supabase.from('factory_jobs').select('*').eq('id', jobId).single()
     if (!job) return c.json({ error: 'Job not found' }, 404)
 
-    if (job.zip_name) {
+    if (job.storage_key) {
+      await deleteZip(job.storage_key, job.storage_type || 'local')
+    } else if (job.zip_name) {
       const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
       const zipPath = path.join(OUTPUT_DIR, job.zip_name)
       if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath)
@@ -657,8 +689,8 @@ function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
-function escapeAttr(str: string): string {
-  return str.replace(/[^a-zA-Z0-9#.,() -]/g, '')
+function sanitizeCSSColor(str: string): string {
+  return /^#[0-9a-fA-F]{3,8}$/.test(str.trim()) ? str.trim() : '#f97316'
 }
 
 factory.post('/preview', async (c) => {
@@ -667,7 +699,7 @@ factory.post('/preview', async (c) => {
     if (!config) return c.json({ error: 'config required' }, 400)
 
     const name = escapeHtml(config.company?.name || 'Your Company')
-    const primary = escapeAttr(config.branding?.primaryColor || '#f97316')
+    const primary = sanitizeCSSColor(config.branding?.primaryColor || '#f97316')
     const hero = escapeHtml(config.content?.heroTagline || 'Quality You Can Trust')
     const about = escapeHtml(config.content?.aboutText || '')
     const cta = escapeHtml(config.content?.ctaText || 'Get a free estimate today.')

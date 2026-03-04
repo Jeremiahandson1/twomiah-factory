@@ -540,7 +540,7 @@ function writeBrandingAssets(targetDir: string, branding: GenerateConfig['brandi
 }
 
 function getExtFromDataUrl(dataUrl: string): string | null {
-  const match = dataUrl.match(/data:image\/(\w+)/)
+  const match = dataUrl.match(/data:image\/([\w+.-]+)/)
   if (match) {
     const type = match[1].toLowerCase()
     if (type === 'jpeg') return 'jpg'
@@ -633,9 +633,12 @@ function pascalCase(name: string): string {
 
 function generatePassword(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  const bytes = crypto.randomBytes(8)
+  const max = 256 - (256 % chars.length) // reject values >= max to avoid modulo bias
   let pw = ''
-  for (let i = 0; i < 8; i++) pw += chars[bytes[i] % chars.length]
+  while (pw.length < 8) {
+    const byte = crypto.randomBytes(1)[0]
+    if (byte < max) pw += chars[byte % chars.length]
+  }
   return pw + '!'
 }
 

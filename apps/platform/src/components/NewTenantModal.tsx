@@ -108,6 +108,11 @@ export default function NewTenantModal({ onClose, onCreated }: Props) {
               <input name="primary_color" type="color" value={form.primary_color} onChange={handleChange}
                 className="w-full h-9 bg-gray-800 border border-gray-700 rounded-lg px-1 py-1 cursor-pointer focus:outline-none focus:border-blue-500" />
             </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">Secondary Color</label>
+              <input name="secondary_color" type="color" value={form.secondary_color} onChange={handleChange}
+                className="w-full h-9 bg-gray-800 border border-gray-700 rounded-lg px-1 py-1 cursor-pointer focus:outline-none focus:border-blue-500" />
+            </div>
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}

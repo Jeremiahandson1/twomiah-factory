@@ -158,9 +158,11 @@ export default function StepFeatures({ config, setConfig, onNext, onBack }: Prop
             Website ({config.features.website.length})
           </button>
         )}
-        <button onClick={() => setTab('ads')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'ads' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
-          📣 Ads {config.features.paid_ads ? '✓' : ''}
-        </button>
+        {(hasCRM || hasWebsite) && (
+          <button onClick={() => setTab('ads')} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${tab === 'ads' ? 'bg-green-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            📣 Ads {config.features.paid_ads ? '✓' : ''}
+          </button>
+        )}
       </div>
 
       {tab === 'crm' && hasCRM && (

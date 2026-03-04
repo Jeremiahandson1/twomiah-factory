@@ -42,7 +42,7 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
   }
 
   const handleDeploy = async () => {
-    if (!result?.customerId) return
+    if (!result?.customerId) { setError('No customer linked. Create a customer first, then generate a build from their detail page.'); return }
     setDeploying(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
