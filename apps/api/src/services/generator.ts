@@ -32,6 +32,7 @@ export interface GenerateConfig {
     address?: string
     city?: string
     state?: string
+    stateFull?: string
     zip?: string
     domain?: string
     ownerName?: string

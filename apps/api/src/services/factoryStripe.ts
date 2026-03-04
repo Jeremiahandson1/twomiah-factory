@@ -34,7 +34,7 @@ async function getOrCreateProduct(planId: string, planName: string, description:
   }
 
   const product = await stripe.products.create({
-    name: 'Twomiah Build ' + planName + (type === 'license' ? ' License' : ''),
+    name: 'Twomiah Factory ' + planName + (type === 'license' ? ' License' : ''),
     description,
     metadata: { twomiah_build_plan_id: planId, twomiah_build_type: type },
   })
@@ -53,7 +53,7 @@ export async function createSubscriptionCheckout(
   const amountCents = Math.round(monthlyAmount * 100)
   const planName = planId.charAt(0).toUpperCase() + planId.slice(1)
 
-  const productId = await getOrCreateProduct(planId, planName, 'Twomiah Build ' + planName + ' — ' + (factoryCustomer.products?.join(', ') || 'CRM'), 'subscription')
+  const productId = await getOrCreateProduct(planId, planName, 'Twomiah Factory ' + planName + ' — ' + (factoryCustomer.products?.join(', ') || 'CRM'), 'subscription')
 
   let stripeCustomerId = factoryCustomer.stripeCustomerId
   if (!stripeCustomerId) {
@@ -109,7 +109,7 @@ export async function createLicenseCheckout(
   const amountCents = Math.round(amount * 100)
   const planName = planId.charAt(0).toUpperCase() + planId.slice(1)
 
-  const productId = await getOrCreateProduct(planId, planName, description || 'Twomiah Build ' + planName + ' License', 'license')
+  const productId = await getOrCreateProduct(planId, planName, description || 'Twomiah Factory ' + planName + ' License', 'license')
 
   let stripeCustomerId = factoryCustomer.stripeCustomerId
   if (!stripeCustomerId) {

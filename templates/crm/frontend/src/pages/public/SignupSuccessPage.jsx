@@ -94,7 +94,7 @@ export default function SignupSuccessPage() {
             <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
               <Building className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">Twomiah Build</span>
+            <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
           </Link>
         </div>
       </header>
@@ -107,7 +107,7 @@ export default function SignupSuccessPage() {
           </div>
           
           <h1 className="text-3xl font-bold text-gray-900 mb-3">
-            Welcome to Twomiah Build!
+            Welcome to {{COMPANY_NAME}}!
           </h1>
           <p className="text-gray-600 mb-8 text-lg">
             Your account has been created successfully. You're ready to start managing your business.

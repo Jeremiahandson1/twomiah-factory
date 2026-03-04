@@ -4,7 +4,7 @@
   "description": "Backend API for {{COMPANY_NAME}} with CMS",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node server-static.js",
     "dev": "nodemon server.js",
     "build:static": "node build-static.js",
     "serve:static": "cross-env NODE_ENV=production node server-static.js",

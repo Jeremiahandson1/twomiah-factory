@@ -353,7 +353,7 @@ export function AddressInput({
       // Using Nominatim (free, no API key)
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=us&limit=5`,
-        { headers: { 'User-Agent': 'Twomiah Build CRM' } }
+        { headers: { 'User-Agent': '{{COMPANY_NAME}} CRM' } }
       );
       const data = await response.json();
       setSuggestions(data.map(item => ({
@@ -432,7 +432,7 @@ export async function geocodeAddress(address) {
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-      { headers: { 'User-Agent': 'Twomiah Build CRM' } }
+      { headers: { 'User-Agent': '{{COMPANY_NAME}} CRM' } }
     );
     const data = await response.json();
     if (data.length > 0) {

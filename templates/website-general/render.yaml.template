@@ -3,7 +3,7 @@
 
 services:
   - type: web
-    name: {{COMPANY_SLUG}}-website
+    name: {{COMPANY_SLUG}}-site
     runtime: node
     plan: starter
     buildCommand: npm install

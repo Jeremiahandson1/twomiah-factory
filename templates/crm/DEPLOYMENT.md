@@ -1,4 +1,4 @@
-# Twomiah Build Deployment Guide
+# {{COMPANY_NAME}} Deployment Guide
 
 ## Prerequisites
 

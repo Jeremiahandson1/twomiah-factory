@@ -1,4 +1,4 @@
-// Complete Twomiah Build Feature Definitions
+// Complete {{COMPANY_NAME}} Feature Definitions
 // All 85+ features from the comparison document
 
 export const FEATURE_CATEGORIES = [

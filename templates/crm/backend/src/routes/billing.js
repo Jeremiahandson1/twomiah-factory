@@ -222,7 +222,7 @@ router.post('/create-checkout', authenticate, async (req, res, next) => {
               price_data: {
                 currency: 'usd',
                 product_data: {
-                  name: `Twomiah Build ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
+                  name: `{{COMPANY_NAME}} ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
                   description: billingCycle === 'annual' ? 'Billed annually' : 'Billed monthly',
                 },
                 unit_amount: amount,
@@ -644,7 +644,7 @@ router.post('/addons/purchase', authenticate, async (req, res, next) => {
         price_data: {
           currency: 'usd',
           product_data: {
-            name: `Twomiah Build ${addon.name}`,
+            name: `{{COMPANY_NAME}} ${addon.name}`,
             description: `Monthly add-on subscription`,
           },
           unit_amount: addon.price,
@@ -745,7 +745,7 @@ router.post('/self-hosted/purchase', async (req, res, next) => {
         price_data: {
           currency: 'usd',
           product_data: {
-            name: `Twomiah Build ${license.name}`,
+            name: `{{COMPANY_NAME}} ${license.name}`,
             description: 'Self-hosted perpetual license',
           },
           unit_amount: license.price,
@@ -762,7 +762,7 @@ router.post('/self-hosted/purchase', async (req, res, next) => {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: `Twomiah Build ${addon.name}`,
+              name: `{{COMPANY_NAME}} ${addon.name}`,
               description: addon.recurring ? 'Recurring service' : 'One-time service',
             },
             unit_amount: addon.price,

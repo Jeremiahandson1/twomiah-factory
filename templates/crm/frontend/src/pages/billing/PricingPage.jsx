@@ -188,7 +188,7 @@ export default function PricingPage() {
             <div>
               <h3 className="text-2xl font-bold mb-2">Prefer a One-Time Purchase?</h3>
               <p className="text-orange-100">
-                Own Twomiah Build forever with our lifetime license. No monthly fees, self-hosted option available.
+                Own {{COMPANY_NAME}} forever with our lifetime license. No monthly fees, self-hosted option available.
               </p>
             </div>
             <div className="text-right">
@@ -225,7 +225,7 @@ export default function PricingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <AddonCard
               name="White Label"
-              description="Remove Twomiah Build branding, use your own"
+              description="Remove {{COMPANY_NAME}} branding, use your own"
               monthlyPrice={99}
               oneTimePrice={990}
             />

@@ -1,5 +1,5 @@
 {
-  "_comment": "Twomiah Build Factory — feature manifest for crm-homecare template. Maps feature IDs (as selected in the wizard) to the backend route and service files they require. The generator strips any route/service file NOT listed here for the selected feature set.",
+  "_comment": "Twomiah Factory — feature manifest for crm-homecare template. Maps feature IDs (as selected in the wizard) to the backend route and service files they require. The generator strips any route/service file NOT listed here for the selected feature set.",
 
   "core": {
     "description": "Always-included core modules",

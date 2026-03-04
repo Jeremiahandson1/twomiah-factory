@@ -363,11 +363,11 @@ function generateConfirmationCode() {
  * Generate embed code for website
  */
 export function getEmbedCode(companyId, companySlug) {
-  return `<!-- Twomiah Build Online Booking Widget -->
+  return `<!-- {{COMPANY_NAME}} Online Booking Widget -->
 <div id="twomiah-build-booking"></div>
 <script src="${process.env.FRONTEND_URL || 'https://app.twomiah-build.com'}/booking-widget.js"></script>
 <script>
-  Twomiah BuildBooking.init({
+  {{COMPANY_NAME}}Booking.init({
     container: '#twomiah-build-booking',
     company: '${companySlug}',
   });

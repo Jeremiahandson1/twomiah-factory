@@ -1,5 +1,5 @@
 /**
- * Twomiah Build Pricing Configuration
+ * {{COMPANY_NAME}} Pricing Configuration
  * 
  * Single source of truth for all pricing:
  * - SaaS subscription tiers

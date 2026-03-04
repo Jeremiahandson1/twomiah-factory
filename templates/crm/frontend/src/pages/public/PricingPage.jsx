@@ -154,7 +154,7 @@ export default function PricingPage() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">Twomiah Build</span>
+              <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
             </div>
             <div className="flex items-center gap-4">
               <a href="/login" className="text-gray-600 hover:text-gray-900">Log In</a>
@@ -335,7 +335,7 @@ export default function PricingPage() {
                 <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
                   <Building className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-lg font-bold text-white">Twomiah Build</span>
+                <span className="text-lg font-bold text-white">{{COMPANY_NAME}}</span>
               </div>
               <p className="text-sm">
                 The complete platform for contractors and service businesses.
@@ -370,7 +370,7 @@ export default function PricingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-12 pt-8 text-sm text-center">
-            © {new Date().getFullYear()} Twomiah Build. All rights reserved.
+            © {new Date().getFullYear()} {{COMPANY_NAME}}. All rights reserved.
           </div>
         </div>
       </footer>

@@ -28,7 +28,7 @@ async function main() {
         products: {{PRODUCTS_JSON}},
         siteUrl: '{{SITE_URL}}',
         cmsUrl: '{{CMS_URL}}',
-        generatedBy: 'Twomiah Build Factory',
+        generatedBy: '{{COMPANY_NAME}} Factory',
         generatedAt: new Date().toISOString(),
       },
     },

@@ -1,4 +1,4 @@
-# Twomiah Build CRM
+# {{COMPANY_NAME}} CRM
 
 Full-stack construction management system with multi-tenant architecture, real-time updates, and production-ready infrastructure.
 

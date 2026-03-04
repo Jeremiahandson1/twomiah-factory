@@ -240,7 +240,7 @@ export function InstallPrompt() {
           <span className="text-2xl">📲</span>
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-gray-900">Install Twomiah Build</h3>
+          <h3 className="font-semibold text-gray-900">Install {{COMPANY_NAME}}</h3>
           <p className="text-sm text-gray-500 mt-1">
             Add to your home screen for quick access and offline use.
           </p>

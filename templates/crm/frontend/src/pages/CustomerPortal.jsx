@@ -234,7 +234,7 @@ export default function CustomerPortal() {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-slate-400">
-            Powered by <span className="font-medium">Twomiah Build</span>
+            Powered by <span className="font-medium">{{COMPANY_NAME}}</span>
           </p>
         </div>
       </main>

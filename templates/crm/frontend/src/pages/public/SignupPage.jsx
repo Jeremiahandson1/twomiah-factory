@@ -288,7 +288,7 @@ export default function SignupPage() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">Twomiah Build</span>
+              <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
             </Link>
             <Link to="/login" className="text-gray-600 hover:text-gray-900">
               Already have an account? Log in
@@ -679,7 +679,7 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Start Your Free Trial</h2>
-      <p className="text-gray-600 mb-6">Try Twomiah Build free for 14 days. No credit card required.</p>
+      <p className="text-gray-600 mb-6">Try {{COMPANY_NAME}} free for 14 days. No credit card required.</p>
 
       <div className="bg-gray-50 rounded-lg p-6 mb-8">
         <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>

@@ -128,7 +128,7 @@ export default function AppLayout() {
         <div className="h-16 flex items-center justify-between px-4 border-b">
           <div className="flex items-center gap-2">
             <Building className="w-8 h-8 text-orange-500" aria-hidden="true" />
-            <span className="font-bold text-lg text-gray-900">Twomiah Build</span>
+            <span className="font-bold text-lg text-gray-900">{{COMPANY_NAME}}</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}

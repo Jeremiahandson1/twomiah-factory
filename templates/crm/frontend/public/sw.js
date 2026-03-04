@@ -1,4 +1,4 @@
-// Service Worker for Twomiah Build PWA
+// Service Worker for {{COMPANY_NAME}} PWA
 // Provides offline caching and background sync
 
 const CACHE_NAME = 'twomiah-build-v1';

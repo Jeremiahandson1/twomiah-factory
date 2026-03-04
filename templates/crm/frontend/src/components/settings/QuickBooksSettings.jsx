@@ -193,7 +193,7 @@ export default function QuickBooksSettings() {
               Sync to QuickBooks
             </h3>
             <p className="text-sm text-gray-500 mb-4">
-              Push your Twomiah Build data to QuickBooks
+              Push your {{COMPANY_NAME}} data to QuickBooks
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -221,7 +221,7 @@ export default function QuickBooksSettings() {
               Import from QuickBooks
             </h3>
             <p className="text-sm text-gray-500 mb-4">
-              Pull data from QuickBooks into Twomiah Build
+              Pull data from QuickBooks into {{COMPANY_NAME}}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -306,11 +306,11 @@ export default function QuickBooksSettings() {
           <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
             <li>Click "Connect QuickBooks" above</li>
             <li>Sign in to your QuickBooks Online account</li>
-            <li>Authorize Twomiah Build to access your data</li>
+            <li>Authorize {{COMPANY_NAME}} to access your data</li>
             <li>You'll be redirected back here once connected</li>
           </ol>
           <p className="mt-4 text-xs text-blue-600">
-            Twomiah Build will only access customer and invoice data. Your financial reports and 
+            {{COMPANY_NAME}} will only access customer and invoice data. Your financial reports and 
             sensitive information remain private.
           </p>
         </div>

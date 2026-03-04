@@ -174,7 +174,7 @@ export default function StripeSettings() {
             <FeatureItem 
               icon={DollarSign}
               title="Automatic Recording"
-              description="Payments are automatically recorded in Twomiah Build"
+              description="Payments are automatically recorded in {{COMPANY_NAME}}"
             />
           </div>
         </div>
@@ -194,7 +194,7 @@ export default function StripeSettings() {
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-4 h-4" />
-              Payments automatically marked in Twomiah Build
+              Payments automatically marked in {{COMPANY_NAME}}
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-4 h-4" />

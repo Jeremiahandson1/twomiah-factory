@@ -84,7 +84,7 @@ export default function MobileNav() {
             <Menu className="w-6 h-6" />
           </button>
           <span className="font-bold text-gray-900 truncate">
-            {company?.name || 'Twomiah Build'}
+            {company?.name || '{{COMPANY_NAME}}'}
           </span>
         </div>
       </header>
@@ -109,7 +109,7 @@ export default function MobileNav() {
       >
         {/* Menu Header */}
         <div className="h-14 px-4 flex items-center justify-between border-b">
-          <span className="font-bold text-gray-900">{company?.name || 'Twomiah Build'}</span>
+          <span className="font-bold text-gray-900">{company?.name || '{{COMPANY_NAME}}'}</span>
           <button
             onClick={() => setIsOpen(false)}
             className="p-2 -mr-2 hover:bg-gray-100 rounded-lg"
