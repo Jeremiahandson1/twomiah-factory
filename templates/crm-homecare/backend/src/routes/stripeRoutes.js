@@ -231,7 +231,7 @@ router.post('/invoice/:invoiceId/pay', async (req, res) => {
             currency: 'usd',
             product_data: {
               name: `Invoice #${invoice.invoice_number || invoice.id.slice(0, 8)}`,
-              description: `Chippewa Valley Home Care - ${invoice.first_name} ${invoice.last_name}`,
+              description: `{{COMPANY_NAME}} - ${invoice.first_name} ${invoice.last_name}`,
             },
             unit_amount: Math.round(amountDue * 100),
           },

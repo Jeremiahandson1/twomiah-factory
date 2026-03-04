@@ -1477,17 +1477,17 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 <div className="invoice-header-left">
                   <img 
                     src="/logo.png" 
-                    alt="Chippewa Valley Home Care" 
+                    alt="{{COMPANY_NAME}}" 
                     className="invoice-logo-large"
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
                   <div className="invoice-company-info">
-                    <div className="invoice-company-name">Chippewa Valley Home Care</div>
+                    <div className="invoice-company-name">{{COMPANY_NAME}}</div>
                     <div>2607 Beverly Hills Dr</div>
                     <div>Eau Claire, Wisconsin 54701</div>
                     <div>U.S.A</div>
                     <div>715-491-1254</div>
-                    <div>chippewavalleyhomecare@gmail.com</div>
+                    <div>{{COMPANY_EMAIL}}</div>
                   </div>
                 </div>
                 <div className="invoice-header-right">
@@ -1613,7 +1613,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
 
               {/* Footer */}
               <div className="invoice-footer-section">
-                <div>Chippewa Valley Home Care</div>
+                <div>{{COMPANY_NAME}}</div>
                 <div>Thank you for choosing us for your home care needs.</div>
               </div>
             </div>

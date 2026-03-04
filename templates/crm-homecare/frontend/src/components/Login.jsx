@@ -38,7 +38,7 @@ const Login = ({ onLogin }) => {
   return (
     <div className="login-container">
       <div className="login-card">
-        <h1>Chippewa Valley</h1>
+        <h1>{{COMPANY_NAME}}</h1>
         <p>Home Care CRM</p>
         
         {error && <div className="alert alert-error">{error}</div>}

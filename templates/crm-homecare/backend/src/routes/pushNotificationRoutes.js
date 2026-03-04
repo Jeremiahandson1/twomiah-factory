@@ -18,7 +18,7 @@ const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'PLACEHOLDER_REPLACE_
 
 if (webpush && VAPID_PUBLIC_KEY !== 'PLACEHOLDER_REPLACE_WITH_REAL_KEY') {
   webpush.setVapidDetails(
-    'mailto:admin@chippewahomecare.com',
+    'mailto:{{ADMIN_EMAIL}}',
     VAPID_PUBLIC_KEY,
     VAPID_PRIVATE_KEY
   );

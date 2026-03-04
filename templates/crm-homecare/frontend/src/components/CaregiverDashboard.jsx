@@ -84,7 +84,7 @@ const CaregiverDashboard = ({ user, token, onLogout }) => {
     subscribeToPush(token);
     // Start background geolocation on Android so geofence works when screen is off
     startBgGeo({
-      notificationTitle: 'CVHC HomeCare',
+      notificationTitle: '{{COMPANY_NAME}}',
       notificationText: 'Monitoring location for auto clock-in',
       onLocation: (loc) => {
         // Background location updates feed into the geofence check
@@ -1014,7 +1014,7 @@ const CaregiverDashboard = ({ user, token, onLogout }) => {
       {sidebarOpen && window.innerWidth <= 768 && <div className="sidebar-overlay active" onClick={() => setSidebarOpen(false)} />}
 
       <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
-        <div className="sidebar-logo">CVHC</div>
+        <div className="sidebar-logo">{{COMPANY_SHORT}}</div>
         <ul className="sidebar-nav">
           <li><a href="#" className={currentPage === 'home' ? 'active' : ''} onClick={() => handlePageClick('home')}>🏠 Home</a></li>
           <li><a href="#" className={currentPage === 'schedule' ? 'active' : ''} onClick={() => handlePageClick('schedule')}>📅 Schedule</a></li>
@@ -1040,7 +1040,7 @@ const CaregiverDashboard = ({ user, token, onLogout }) => {
 
       <div className="main-content">
         <div className="header">
-          <div><h1>Chippewa Valley Home Care</h1><p>Caregiver Portal</p></div>
+          <div><h1>{{COMPANY_NAME}}</h1><p>Caregiver Portal</p></div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button className="hamburger-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>Menu</button>
             <button

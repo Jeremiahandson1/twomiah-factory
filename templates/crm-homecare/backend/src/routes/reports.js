@@ -4,7 +4,7 @@ import { authenticate, requireAdmin } from '../middleware/auth.js';
 const router = Router();
 
 // TODO: Convert from raw SQL to Prisma queries
-// Original CVHC reports.js has full implementation
+// Original reports.js has full implementation
 
 router.get('/summary', authenticate, async (req, res) => {
   res.json({ message: 'Reports coming soon', data: {} });

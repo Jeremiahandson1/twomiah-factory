@@ -3,7 +3,7 @@
 const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
-const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', 'Chippewa Falls', 'Menomonie', 'Osseo'];
+const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
 
 // Settings with fallbacks

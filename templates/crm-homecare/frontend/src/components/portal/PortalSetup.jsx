@@ -72,7 +72,7 @@ const PortalSetup = () => {
           <span style={{ fontSize: '2.5rem' }}>🔐</span>
         </div>
         <h1>Set Your Password</h1>
-        <p>Create a password for your Chippewa Valley Home Care portal.</p>
+        <p>Create a password for your {{COMPANY_NAME}} portal.</p>
 
         {error && <div className="alert alert-error">{error}</div>}
 

@@ -76,9 +76,27 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   })
 }
 
+const STATE_NAMES: Record<string, string> = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',
+  DE:'Delaware',FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',
+  KS:'Kansas',KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',
+  MN:'Minnesota',MS:'Mississippi',MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',
+  NJ:'New Jersey',NM:'New Mexico',NY:'New York',NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',
+  OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',SD:'South Dakota',TN:'Tennessee',
+  TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',WI:'Wisconsin',WY:'Wyoming',
+  DC:'District of Columbia',
+}
+
 export default function StepCompany({ config, updateNested, onNext, onBack }: Props) {
   const c = config.company
-  const set = (key: keyof typeof c, value: any) => updateNested('company', { [key]: value } as any)
+  const set = (key: keyof typeof c, value: any) => {
+    updateNested('company', { [key]: value } as any)
+    // Auto-populate stateFull when state abbreviation changes
+    if (key === 'state' && typeof value === 'string') {
+      const full = STATE_NAMES[value.toUpperCase().trim()]
+      if (full) updateNested('company', { stateFull: full } as any)
+    }
+  }
 
   const addressInputRef = useRef<HTMLInputElement>(null)
   const autocompleteRef = useRef<any>(null)
@@ -271,7 +289,7 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
           <Field label="ZIP" value={c.zip} onChange={v => set('zip', v)} placeholder="54701" />
         </div>
         <div className="col-span-2">
-          <Field label="Service Region Name" value={c.serviceRegion} onChange={v => set('serviceRegion', v)} placeholder="Chippewa Valley" />
+          <Field label="Service Region Name" value={c.serviceRegion} onChange={v => set('serviceRegion', v)} placeholder="e.g. Greater Metro Area" />
         </div>
 
         {/* Nearby Cities */}

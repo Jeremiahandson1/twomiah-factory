@@ -54,7 +54,7 @@ const MileageTracker = ({ token, caregiverId }) => {
     try {
       const response = await fetch(
         `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-        { headers: { 'User-Agent': 'CVHC-CRM' } }
+        { headers: { 'User-Agent': '{{COMPANY_SHORT}}-CRM' } }
       );
       if (response.ok) {
         const data = await response.json();

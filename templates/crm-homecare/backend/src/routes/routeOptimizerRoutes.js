@@ -897,7 +897,7 @@ router.post('/geocode', verifyToken, async (req, res) => {
         const encoded = encodeURIComponent(fullAddress);
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1&countrycodes=us`,
-          { headers: { 'User-Agent': 'ChippewaValleyHomeCare/1.0' } }
+          { headers: { 'User-Agent': '{{COMPANY_NAME}}/1.0' } }
         );
         const data = await response.json();
         if (data.length) {
@@ -945,7 +945,7 @@ router.post('/geocode-all', verifyToken, requireAdmin, async (req, res) => {
           const encoded = encodeURIComponent(fullAddress);
           const response = await fetch(
             `https://nominatim.openstreetmap.org/search?q=${encoded}&format=json&limit=1&countrycodes=us`,
-            { headers: { 'User-Agent': 'ChippewaValleyHomeCare/1.0' } }
+            { headers: { 'User-Agent': '{{COMPANY_NAME}}/1.0' } }
           );
           const data = await response.json();
           if (data.length) geo = { latitude: parseFloat(data[0].lat), longitude: parseFloat(data[0].lon) };

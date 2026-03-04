@@ -86,7 +86,7 @@ const ReportsAnalytics = ({ token }) => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `cvhc-${reportType}-report-${dateRange.startDate}-to-${dateRange.endDate}.${format}`;
+      a.download = `{{COMPANY_SHORT}}-${reportType}-report-${dateRange.startDate}-to-${dateRange.endDate}.${format}`;
       a.click();
       window.URL.revokeObjectURL(url);
       toast(`${format.toUpperCase()} export downloaded!`, 'success');

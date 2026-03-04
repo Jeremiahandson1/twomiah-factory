@@ -1,5 +1,5 @@
 {
-  "name": "chippewa-home-care-frontend",
+  "name": "{{COMPANY_SLUG}}-care-frontend",
   "version": "1.0.0",
   "description": "HIPAA-compliant home care CRM frontend",
   "type": "module",

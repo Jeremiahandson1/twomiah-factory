@@ -23,7 +23,7 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
   const [error, setError] = useState('')
   const [deploying, setDeploying] = useState(false)
   const [deployResult, setDeployResult] = useState<any>(null)
-  const apiUrl = import.meta.env.VITE_API_URL || ''
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
   const handleGenerate = async () => {
     setGenerating(true); setError('')

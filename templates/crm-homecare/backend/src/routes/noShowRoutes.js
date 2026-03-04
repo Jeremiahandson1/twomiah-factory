@@ -147,14 +147,14 @@ router.post('/run-check', auth, async (req, res) => {
       // SMS caregiver
       if (config.notify_caregiver && row.caregiver_phone) {
         smsSent = await sendSMS(row.caregiver_phone,
-          `CVHC Alert: You were scheduled to start with ${row.client_name} at ${row.expected_start}. Please clock in or contact the office immediately.`
+          `{{COMPANY_SHORT}} Alert: You were scheduled to start with ${row.client_name} at ${row.expected_start}. Please clock in or contact the office immediately.`
         );
       }
 
       // SMS admin
       if (config.notify_admin && config.admin_phone) {
         await sendSMS(config.admin_phone,
-          `CVHC No-Show Alert: ${row.caregiver_name} has not clocked in for ${row.client_name} (scheduled ${row.expected_start}). Please follow up.`
+          `{{COMPANY_SHORT}} No-Show Alert: ${row.caregiver_name} has not clocked in for ${row.client_name} (scheduled ${row.expected_start}). Please follow up.`
         );
       }
 

@@ -30,14 +30,11 @@ const port = process.env.PORT || 5000;
 app.use(helmet());
 app.use(compression());
 
-// CORS — CVHC defaults + ALLOWED_ORIGINS env var for additional domains (white-labeling)
+// CORS — defaults + ALLOWED_ORIGINS env var for additional domains (white-labeling)
 // To add a new domain: set ALLOWED_ORIGINS=https://newclient.netlify.app in Render env vars
 app.use(cors({
   origin: (origin, callback) => {
     const defaultOrigins = [
-      'https://cvhc-crm.netlify.app',
-      'https://chippewavalleyhomecare.com',
-      'https://www.chippewavalleyhomecare.com',
       process.env.FRONTEND_URL,
       'http://localhost:3000',
       'http://localhost:5173',

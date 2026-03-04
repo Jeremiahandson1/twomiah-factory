@@ -59,7 +59,7 @@ const ApplicationForm = () => {
     // Expectations & Motivation
     expectedHourlyRate: '',
     motivation: '',
-    whyChippewa: '',
+    whyCompany: '',
 
     // Agreement
     agreeToBackgroundCheck: false,
@@ -130,7 +130,7 @@ const ApplicationForm = () => {
         reference2Name: '', reference2Phone: '', reference2Relationship: '',
         reference3Name: '', reference3Phone: '', reference3Relationship: '',
         availableDaysOfWeek: [], preferredHours: '', canWorkWeekends: false, canWorkNights: false,
-        expectedHourlyRate: '', motivation: '', whyChippewa: '',
+        expectedHourlyRate: '', motivation: '', whyCompany: '',
         agreeToBackgroundCheck: false, agreeToTerms: false
       });
     } catch (err) {
@@ -145,7 +145,7 @@ const ApplicationForm = () => {
       <div className="application-container">
         <div className="success-box">
           <h2>✅ Application Submitted Successfully!</h2>
-          <p>Thank you for applying to Chippewa Valley Home Care.</p>
+          <p>Thank you for applying to {{COMPANY_NAME}}.</p>
           <p>We will review your application and contact you within 5-7 business days.</p>
           <p>If you have questions, call us at <strong>(715) 491-1254</strong></p>
         </div>
@@ -157,7 +157,7 @@ const ApplicationForm = () => {
     <div className="application-container">
       <div className="application-form-card">
         <h1>Apply for Employment</h1>
-        <p className="subtitle">Chippewa Valley Home Care is hiring compassionate caregivers</p>
+        <p className="subtitle">{{COMPANY_NAME}} is hiring compassionate caregivers</p>
 
         {error && <div className="alert alert-error">{error}</div>}
 
@@ -486,12 +486,12 @@ const ApplicationForm = () => {
             </div>
 
             <div className="form-group">
-              <label>Why Chippewa Valley Home Care?</label>
+              <label>Why {{COMPANY_NAME}}?</label>
               <textarea
-                name="whyChippewa"
+                name="whyCompany"
                 placeholder="What appeals to you about working with our company?"
                 rows="4"
-                value={formData.whyChippewa}
+                value={formData.whyCompany}
                 onChange={handleInputChange}
               ></textarea>
             </div>

@@ -77,7 +77,7 @@ const ClientPortal = ({ user, token, onLogout }) => {
           <span style={{ fontSize: '1.4rem' }}>🏠</span>
           <div>
             <div style={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
-              Chippewa Valley Home Care
+              {{COMPANY_NAME}}
             </div>
             <div style={{ fontSize: '0.75rem', opacity: 0.85 }}>Client Portal</div>
           </div>

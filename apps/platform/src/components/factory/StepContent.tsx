@@ -69,7 +69,7 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
   const generateWithAI = async () => {
     setGenerating(true)
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(apiUrl + '/api/v1/factory/generate-content', {
         method: 'POST',

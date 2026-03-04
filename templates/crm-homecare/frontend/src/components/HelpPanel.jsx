@@ -271,7 +271,7 @@ Each report exports to CSV (for Excel) or PDF (branded, printable).`
         title: 'Exporting to PDF',
         content: `Every report has an "Export" button. Select PDF from the format dropdown.
 
-The PDF is automatically formatted with CVHC branding, the report title, your selected date range, and a table of all records.
+The PDF is automatically formatted with {{COMPANY_SHORT}} branding, the report title, your selected date range, and a table of all records.
 
 For large date ranges (e.g., a full year), PDFs may be multiple pages. The record count is shown at the bottom of each export.`
       },
@@ -442,7 +442,7 @@ const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
         {/* Footer */}
         <div style={{ padding: '0.875rem 1.25rem', borderTop: '1px solid #E5E7EB', background: '#F9FAFB' }}>
           <p style={{ margin: 0, fontSize: '0.78rem', color: '#9CA3AF', textAlign: 'center' }}>
-            Chippewa Valley Home Care CRM — Help Center
+            {{COMPANY_NAME}} CRM — Help Center
           </p>
         </div>
       </div>

@@ -250,7 +250,7 @@ export function useOfflineSync() {
 export function useBackgroundGeolocation() {
   const [isRunning, setIsRunning] = useState(false);
 
-  const start = useCallback(async ({ onLocation, notificationTitle = 'CVHC HomeCare', notificationText = 'Monitoring your location for auto clock-in' } = {}) => {
+  const start = useCallback(async ({ onLocation, notificationTitle = '{{COMPANY_NAME}}', notificationText = 'Monitoring your location for auto clock-in' } = {}) => {
     const BgGeo = await getBgGeo();
 
     if (BgGeo && isNative && platform === 'android') {

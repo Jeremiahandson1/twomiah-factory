@@ -292,7 +292,7 @@ const AdminDashboard = ({ user, token, onLogout, onImpersonate }) => {
       {/* SIDEBAR */}
       <div className={`sidebar ${sidebarOpen ? 'open' : ''}`} style={{ width: '260px', minWidth: '260px' }}>
         <div className="sidebar-logo" style={{ fontSize: '1.4rem', padding: '0 0.5rem 1.5rem 0.5rem' }}>
-          <span>🏥</span> CVHC CRM
+          <span>🏥</span> {{COMPANY_SHORT}} CRM
         </div>
 
         <ul className="sidebar-nav" style={{ paddingBottom: '1rem' }}>
@@ -363,7 +363,7 @@ const AdminDashboard = ({ user, token, onLogout, onImpersonate }) => {
             </button>
             <div>
               <h1 style={{ fontSize: '1.15rem', margin: 0 }}>{pageTitle}</h1>
-              <p style={{ margin: 0, fontSize: '0.78rem', color: '#9CA3AF' }}>Chippewa Valley Home Care</p>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: '#9CA3AF' }}>{{COMPANY_NAME}}</p>
             </div>
           </div>
 

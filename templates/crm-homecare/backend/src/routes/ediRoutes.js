@@ -155,7 +155,7 @@ router.post('/generate', auth, requireAdmin, async (req, res) => {
 
     // Get agency/provider info from settings or env
     const providerInfo = {
-      agencyName: process.env.AGENCY_NAME || 'CHIPPEWA VALLEY HOME CARE',
+      agencyName: process.env.AGENCY_NAME || '{{COMPANY_NAME}}',
       npi: process.env.AGENCY_NPI || '',
       taxId: process.env.AGENCY_TAX_ID || '',
       taxonomyCode: process.env.AGENCY_TAXONOMY || '374700000X',

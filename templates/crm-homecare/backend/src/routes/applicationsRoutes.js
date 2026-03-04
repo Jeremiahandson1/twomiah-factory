@@ -202,7 +202,7 @@ router.post('/:id/hire', auth, async (req, res) => {
     }
 
     // Generate temp password if not provided
-    const tempPassword = password || `CVHC${a.last_name.charAt(0).toUpperCase()}${Math.random().toString(36).slice(-6)}`;
+    const tempPassword = password || `{{COMPANY_SHORT}}${a.last_name.charAt(0).toUpperCase()}${Math.random().toString(36).slice(-6)}`;
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
     const userId = uuidv4();
 

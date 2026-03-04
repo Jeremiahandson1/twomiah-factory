@@ -545,7 +545,7 @@ const PayrollProcessing = ({ token }) => {
             <div style={{ border: '2px solid #333', padding: '1.5rem', background: 'white' }}>
               {/* Company Header */}
               <div style={{ textAlign: 'center', marginBottom: '1.5rem', borderBottom: '2px solid #333', paddingBottom: '1rem' }}>
-                <h2 style={{ margin: 0, color: '#1E9A89' }}>Chippewa Valley Home Care</h2>
+                <h2 style={{ margin: 0, color: '#1E9A89' }}>{{COMPANY_NAME}}</h2>
                 <p style={{ margin: '0.25rem 0 0', color: '#666' }}>Pay Statement</p>
               </div>
 

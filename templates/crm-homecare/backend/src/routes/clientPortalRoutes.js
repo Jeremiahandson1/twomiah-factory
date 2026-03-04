@@ -423,7 +423,7 @@ router.post('/admin/invite', auth, async (req, res) => {
 
     // TODO: Send invite email via your email service
     // The invite URL would be: https://your-app.com/portal/setup?token=<inviteToken>
-    const inviteUrl = `${process.env.FRONTEND_URL || 'https://chippewa-home-care.netlify.app'}/portal/setup?token=${inviteToken}`;
+    const inviteUrl = `${process.env.FRONTEND_URL || '{{FRONTEND_URL}}'}/portal/setup?token=${inviteToken}`;
 
     res.json({
       success:   true,

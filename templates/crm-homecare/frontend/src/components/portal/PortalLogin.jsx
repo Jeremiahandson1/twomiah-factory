@@ -42,7 +42,7 @@ const PortalLogin = ({ onLogin }) => {
         <div style={{ textAlign: 'center', marginBottom: '8px' }}>
           <span style={{ fontSize: '2.5rem' }}>🏠</span>
         </div>
-        <h1>Chippewa Valley</h1>
+        <h1>{{COMPANY_NAME}}</h1>
         <p>Home Care — Client Portal</p>
 
         {error && <div className="alert alert-error">{error}</div>}

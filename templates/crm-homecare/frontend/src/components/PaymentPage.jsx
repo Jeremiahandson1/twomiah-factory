@@ -96,7 +96,7 @@ const PaymentPage = () => {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.logo}>
-          <h1 style={{ margin: 0, color: '#2c3e50' }}>Chippewa Valley Home Care</h1>
+          <h1 style={{ margin: 0, color: '#2c3e50' }}>{{COMPANY_NAME}}</h1>
         </div>
 
         {cancelled && (
@@ -157,7 +157,7 @@ const PaymentPage = () => {
 
         <div style={styles.footer}>
           <p>Questions about this invoice? Contact us at:</p>
-          <p><strong>support@chippewavalleyhomecare.com</strong></p>
+          <p><strong>{{COMPANY_EMAIL}}</strong></p>
         </div>
       </div>
     </div>
