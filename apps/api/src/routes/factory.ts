@@ -45,6 +45,7 @@ factory.post('/generate', async (c) => {
         status: 'generated',
         features: config.features?.crm || [],
         branding: config.branding,
+        config: config,
         build_id: result.buildId,
         zip_name: result.zipName,
       })
@@ -275,24 +276,20 @@ factory.post('/customers/:id/deploy', async (c) => {
 
 async function runDeploy(tenant: any, job: any) {
   try {
-    const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
-    
-    // Find zip - use stored zip_name first, then fall back to slug search
-    let zipPath: string | null = null
-    if (job.zip_name) {
-      const candidate = path.join(OUTPUT_DIR, job.zip_name)
-      if (fs.existsSync(candidate)) zipPath = candidate
-    }
-    if (!zipPath) {
-      const zipFiles = fs.readdirSync(OUTPUT_DIR).filter((f: string) => f.startsWith(tenant.slug || '') && f.endsWith('.zip'))
-      if (zipFiles.length) zipPath = path.join(OUTPUT_DIR, zipFiles[zipFiles.length - 1])
-    }
-    if (!zipPath) throw new Error('Zip file not found. Re-generate the package first.')
+    // Regenerate a fresh zip from the stored config
+    const config: GenerateConfig = job.config
+    if (!config) throw new Error('No config stored in job. Re-generate the package first.')
 
-    console.log('[Deploy] Using zip:', zipPath)
+    console.log('[Deploy] Regenerating fresh zip for', tenant.slug)
+    const genResult = await generate(config)
+    const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
+    const zipPath = path.join(OUTPUT_DIR, genResult.zipName)
+    if (!fs.existsSync(zipPath)) throw new Error('Regenerated zip not found at ' + zipPath)
+
+    console.log('[Deploy] Using freshly generated zip:', zipPath)
 
     const result = await deployCustomer(
-      { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: job.branding },
+      { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: config },
       zipPath, {}
     )
 
