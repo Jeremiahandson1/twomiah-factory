@@ -254,7 +254,7 @@ factory.post('/customers/:id/deploy', async (c) => {
     console.log('[Deploy] Found tenant:', tenant.name, tenant.slug)
 
     // Get latest factory job for this tenant
-    const { data: job, error: jobErr } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenant.id).order('created_at', { ascending: false }).limit(1).single()
+    const { data: job, error: jobErr } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenant.id).order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (!job) {
       console.log('[Deploy] No job found for tenant:', jobErr?.message)
       return c.json({ error: 'No build found. Generate a package first.' }, 400)
@@ -315,7 +315,7 @@ async function runDeploy(tenant: any, job: any) {
 
 // ─── Deploy Status ────────────────────────────────────────────────────────────
 factory.get('/customers/:id/deploy/status', async (c) => {
-  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).single()
+  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job?.render_service_ids) return c.json({ status: 'not_deployed', services: {} })
   const result = await checkDeployStatus({ renderServiceIds: job.render_service_ids })
   return c.json(result)
@@ -325,7 +325,7 @@ factory.get('/customers/:id/deploy/status', async (c) => {
 // ─── Redeploy ─────────────────────────────────────────────────────────────────
 factory.post('/customers/:id/redeploy', async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
-  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).single()
+  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job?.render_service_ids) return c.json({ error: 'No deployed services found' }, 400)
   const result = await redeployCustomer({ renderServiceIds: job.render_service_ids })
   return c.json(result)
@@ -347,7 +347,7 @@ factory.post('/customers/:id/regenerate', async (c) => {
     const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
 
-    const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).single()
+    const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (!job?.config) return c.json({ error: 'No saved config found. Generate a package first.' }, 400)
 
     console.log('[Factory] Regenerating for', tenant.slug)
@@ -367,7 +367,7 @@ factory.post('/customers/:id/regenerate', async (c) => {
 
     // If deploy is configured, auto-deploy
     if (isConfigured()) {
-      const { data: freshJob } = await supabase.from('factory_jobs').select('*').eq('build_id', result.buildId).single()
+      const { data: freshJob } = await supabase.from('factory_jobs').select('*').eq('build_id', result.buildId).maybeSingle()
       if (freshJob) {
         await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
         runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
