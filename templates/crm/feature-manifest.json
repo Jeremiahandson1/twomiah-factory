@@ -1,0 +1,313 @@
+{
+  "_comment": "CRM Feature Manifest — Maps feature IDs from features.js to their implementation files and sidebar nav entries. The CRM uses runtime feature gating (FeatureGate middleware + component), so the generator copies the full codebase and configures enabledFeatures in the company seed.",
+
+  "core": {
+    "_comment": "Always included — cannot be disabled",
+    "features": ["contacts", "jobs", "quotes", "invoices", "scheduling", "team", "dashboard"],
+    "backend": {
+      "routes": ["auth.js", "contacts.js", "jobs.js", "quotes.js", "invoices.js", "time.js", "team.js", "company.js", "dashboard.js", "projects.js", "expenses.js", "documents.js"],
+      "services": ["audit.js", "email.js", "fileUpload.js", "logger.js", "socket.js", "pdf.js"],
+      "middleware": ["auth.js", "featureGate.js", "permissions.js", "security.js"]
+    },
+    "frontend": {
+      "pages": ["LoginPage.jsx", "RegisterPage.jsx", "ForgotPasswordPage.jsx", "ResetPasswordPage.jsx", "DashboardPage.jsx", "ContactsPage.jsx", "JobsPage.jsx", "QuotesPage.jsx", "InvoicesPage.jsx", "SchedulePage.jsx", "TeamPage.jsx", "SettingsPage.jsx"],
+      "components": ["auth/", "layout/", "common/", "ui/", "crm/", "detail/"]
+    },
+    "sidebar": [
+      { "id": "dashboard", "label": "Dashboard", "icon": "LayoutDashboard", "path": "/" },
+      { "id": "contacts", "label": "Contacts", "icon": "Users", "path": "/contacts" },
+      { "id": "jobs", "label": "Jobs", "icon": "Briefcase", "path": "/jobs" },
+      { "id": "quotes", "label": "Quotes", "icon": "FileText", "path": "/quotes" },
+      { "id": "invoices", "label": "Invoices", "icon": "DollarSign", "path": "/invoices" },
+      { "id": "schedule", "label": "Schedule", "icon": "Calendar", "path": "/schedule" },
+      { "id": "team", "label": "Team", "icon": "Users", "path": "/team" }
+    ]
+  },
+
+  "features": {
+    "google_reviews": {
+      "backend": { "routes": ["reviews.js"], "services": ["reviews.js"] },
+      "frontend": { "components": ["reviews/GoogleReviews.jsx"], "features": ["MarketingPage.jsx"] },
+      "sidebar": null
+    },
+    "email_marketing": {
+      "backend": { "routes": ["marketing.js"], "services": ["marketing.js"] },
+      "frontend": { "pages": ["marketing/MarketingPage.jsx"], "features": ["MarketingPage.jsx"] },
+      "sidebar": null
+    },
+    "referral_program": {
+      "backend": { "routes": ["marketing.js"], "services": ["marketing.js"] },
+      "frontend": { "features": ["MarketingPage.jsx"] },
+      "sidebar": null
+    },
+    "website_builder": {
+      "backend": { "routes": [] },
+      "frontend": { "features": ["WebsiteBuilderPage.jsx"] },
+      "sidebar": { "id": "website", "label": "Website", "icon": "Globe", "path": "/website" }
+    },
+    "ai_receptionist": {
+      "backend": { "routes": [] },
+      "frontend": { "features": ["AIReceptionistPage.jsx"] },
+      "sidebar": null
+    },
+    "consumer_financing": {
+      "backend": { "routes": ["wisetack.js"], "services": ["wisetack.js"] },
+      "frontend": { "features": ["FinancingPage.jsx"], "components": ["financing/WisetackFinancing.jsx"] },
+      "sidebar": null
+    },
+
+    "professional_quotes": {
+      "backend": { "routes": ["quotes.js"] },
+      "frontend": { "features": ["QuotesPage.jsx"] },
+      "sidebar": null
+    },
+    "quote_templates": {
+      "backend": { "routes": ["quotes.js"] },
+      "frontend": { "features": ["QuotesPage.jsx"] },
+      "sidebar": null
+    },
+    "online_approval": {
+      "backend": { "routes": ["quotes.js"] },
+      "frontend": { "components": ["common/SignaturePad.jsx"] },
+      "sidebar": null
+    },
+    "deposit_collection": {
+      "backend": { "routes": ["stripe.js"], "services": ["stripe.js"] },
+      "frontend": { "components": ["payments/PaymentForm.jsx"] },
+      "sidebar": null
+    },
+
+    "drag_drop_calendar": {
+      "backend": { "routes": ["scheduling.js"], "services": ["scheduling.js"] },
+      "frontend": { "pages": ["SchedulePage.jsx"], "components": ["schedule/DragDropCalendar.jsx"] },
+      "sidebar": null
+    },
+    "online_booking": {
+      "backend": { "routes": ["booking.js"], "services": ["booking.js"] },
+      "frontend": {},
+      "sidebar": null
+    },
+    "service_dispatch": {
+      "backend": { "routes": ["scheduling.js"], "services": ["scheduling.js"] },
+      "frontend": { "pages": ["SchedulePage.jsx"] },
+      "sidebar": null
+    },
+    "route_optimization": {
+      "backend": { "routes": ["routing.js"], "services": ["routing.js"] },
+      "frontend": { "components": ["routing/RouteOptimizer.jsx"] },
+      "sidebar": null
+    },
+    "map_view": {
+      "backend": { "routes": ["maps.js"] },
+      "frontend": { "components": ["common/Maps.jsx"] },
+      "sidebar": null
+    },
+    "recurring_jobs": {
+      "backend": { "routes": ["recurring.js"], "services": ["recurring.js"] },
+      "frontend": { "pages": ["recurring/RecurringForm.jsx", "recurring/RecurringList.jsx"] },
+      "sidebar": null
+    },
+    "gantt_schedules": {
+      "backend": { "routes": ["scheduling.js"] },
+      "frontend": { "components": ["gantt/GanttChart.jsx"] },
+      "sidebar": null
+    },
+
+    "time_tracking": {
+      "backend": { "routes": ["time.js", "timeTracking.js"], "services": ["timeTracking.js"] },
+      "frontend": { "pages": ["TimePage.jsx", "time/TimesheetPage.jsx"], "components": ["time/TimeClock.jsx"] },
+      "sidebar": { "id": "time", "label": "Time", "icon": "Clock", "path": "/time" }
+    },
+    "gps_tracking": {
+      "backend": { "routes": ["geofencing.js"], "services": ["geofencing.js", "geocoding.js"] },
+      "frontend": { "components": ["location/LocationTracker.jsx"], "pages": ["settings/GeofencesPage.jsx"] },
+      "sidebar": null
+    },
+    "photo_capture": {
+      "backend": { "routes": ["photos.js"], "services": ["photos.js"] },
+      "frontend": { "components": ["common/PhotoGallery.jsx"] },
+      "sidebar": null
+    },
+    "daily_logs": {
+      "backend": { "routes": ["dailyLogs.js"] },
+      "frontend": { "pages": ["DailyLogsPage.jsx"], "features": ["DailyLogsPage.jsx"] },
+      "sidebar": { "id": "daily-logs", "label": "Daily Logs", "icon": "ClipboardList", "path": "/daily-logs" }
+    },
+
+    "rfis": {
+      "backend": { "routes": ["rfis.js"] },
+      "frontend": { "pages": ["RFIsPage.jsx"], "features": ["RFIsPage.jsx"] },
+      "sidebar": { "id": "rfis", "label": "RFIs", "icon": "HelpCircle", "path": "/rfis" }
+    },
+    "punch_lists": {
+      "backend": { "routes": ["punchLists.js"] },
+      "frontend": { "pages": ["PunchListsPage.jsx"], "features": ["PunchListsPage.jsx"] },
+      "sidebar": { "id": "punch-lists", "label": "Punch Lists", "icon": "CheckSquare", "path": "/punch-lists" }
+    },
+    "change_orders": {
+      "backend": { "routes": ["changeOrders.js"] },
+      "frontend": { "pages": ["ChangeOrdersPage.jsx"], "features": ["ChangeOrdersPage.jsx"] },
+      "sidebar": { "id": "change-orders", "label": "Change Orders", "icon": "FileDiff", "path": "/change-orders" }
+    },
+
+    "observations": {
+      "backend": { "routes": ["inspections.js"] },
+      "frontend": { "pages": ["InspectionsPage.jsx"], "features": ["QualityPage.jsx"] },
+      "sidebar": null
+    },
+    "inspections": {
+      "backend": { "routes": ["inspections.js"] },
+      "frontend": { "pages": ["InspectionsPage.jsx"], "features": ["QualityPage.jsx"] },
+      "sidebar": { "id": "inspections", "label": "Inspections", "icon": "Shield", "path": "/inspections" }
+    },
+
+    "bid_management": {
+      "backend": { "routes": ["bids.js"] },
+      "frontend": { "pages": ["BidsPage.jsx"], "features": ["BiddingPage.jsx"] },
+      "sidebar": { "id": "bids", "label": "Bids", "icon": "Gavel", "path": "/bids" }
+    },
+    "takeoff_tools": {
+      "backend": { "routes": ["takeoffs.js"], "services": ["takeoffs.js"] },
+      "frontend": { "pages": ["takeoffs/TakeoffsPage.jsx"] },
+      "sidebar": null
+    },
+
+    "contact_database": {
+      "backend": { "routes": ["contacts.js"] },
+      "frontend": { "pages": ["ContactsPage.jsx"] },
+      "sidebar": null
+    },
+    "client_portal": {
+      "backend": { "routes": ["portal.js", "portal-selections.js"] },
+      "frontend": { "components": ["portal/"] },
+      "sidebar": null
+    },
+
+    "two_way_texting": {
+      "backend": { "routes": ["sms.js"], "services": ["sms.js"] },
+      "frontend": { "pages": ["messages/MessagesPage.jsx"], "features": ["CommunicationPage.jsx"] },
+      "sidebar": { "id": "messages", "label": "Messages", "icon": "MessageSquare", "path": "/messages" }
+    },
+    "call_tracking": {
+      "backend": { "routes": ["calltracking.js"], "services": ["calltracking.js"] },
+      "frontend": { "pages": ["calltracking/CallTrackingPage.jsx"] },
+      "sidebar": null
+    },
+
+    "invoice_generation": {
+      "backend": { "routes": ["invoices.js"] },
+      "frontend": { "pages": ["InvoicesPage.jsx"] },
+      "sidebar": null
+    },
+    "online_payments": {
+      "backend": { "routes": ["stripe.js"], "services": ["stripe.js"] },
+      "frontend": { "components": ["payments/PaymentForm.jsx", "settings/StripeSettings.jsx"] },
+      "sidebar": null
+    },
+
+    "job_costing": {
+      "backend": { "routes": ["reporting.js"], "services": ["jobCosting.js", "reporting.js"] },
+      "frontend": { "pages": ["reports/ReportsDashboard.jsx"] },
+      "sidebar": null
+    },
+    "expense_tracking": {
+      "backend": { "routes": ["expenses.js"] },
+      "frontend": { "pages": ["ExpensesPage.jsx"], "features": ["ExpensesPage.jsx"] },
+      "sidebar": { "id": "expenses", "label": "Expenses", "icon": "Receipt", "path": "/expenses" }
+    },
+    "quickbooks": {
+      "backend": { "routes": ["quickbooks.js"], "services": ["quickbooks.js"] },
+      "frontend": { "components": ["settings/QuickBooksSettings.jsx"] },
+      "sidebar": null
+    },
+
+    "custom_dashboards": {
+      "backend": { "routes": ["dashboard.js"] },
+      "frontend": { "pages": ["dashboard/CustomizableDashboard.jsx"] },
+      "sidebar": null
+    },
+
+    "documents": {
+      "backend": { "routes": ["documents.js"] },
+      "frontend": { "pages": ["DocumentsPage.jsx"] },
+      "sidebar": { "id": "documents", "label": "Documents", "icon": "Folder", "path": "/documents" }
+    },
+    "reports": {
+      "backend": { "routes": ["reporting.js"], "services": ["reporting.js"] },
+      "frontend": { "pages": ["reports/ReportsDashboard.jsx"] },
+      "sidebar": { "id": "reports", "label": "Reports", "icon": "BarChart", "path": "/reports" }
+    },
+
+    "equipment_tracking": {
+      "backend": { "routes": ["equipment.js"], "services": ["equipment.js"] },
+      "frontend": { "pages": ["equipment/EquipmentPage.jsx"] },
+      "sidebar": { "id": "equipment", "label": "Equipment", "icon": "Settings", "path": "/equipment" }
+    },
+    "service_agreements": {
+      "backend": { "routes": ["agreements.js"], "services": ["agreements.js"] },
+      "frontend": { "pages": ["agreements/AgreementsPage.jsx"] },
+      "sidebar": { "id": "agreements", "label": "Agreements", "icon": "FileCheck", "path": "/agreements" }
+    },
+    "pricebook": {
+      "backend": { "routes": ["pricebook.js"], "services": ["pricebook.js"] },
+      "frontend": { "pages": ["pricebook/PricebookPage.jsx"] },
+      "sidebar": { "id": "pricebook", "label": "Pricebook", "icon": "BookOpen", "path": "/pricebook" }
+    },
+    "fleet": {
+      "backend": { "routes": ["fleet.js"], "services": ["fleet.js"] },
+      "frontend": { "pages": ["fleet/FleetPage.jsx"] },
+      "sidebar": { "id": "fleet", "label": "Fleet", "icon": "Truck", "path": "/fleet" }
+    },
+    "inventory": {
+      "backend": { "routes": ["inventory.js"], "services": ["inventory.js"] },
+      "frontend": { "pages": ["inventory/InventoryPage.jsx"] },
+      "sidebar": { "id": "inventory", "label": "Inventory", "icon": "Package", "path": "/inventory" }
+    },
+
+    "projects": {
+      "backend": { "routes": ["projects.js"] },
+      "frontend": { "pages": ["ProjectsPage.jsx"], "features": ["ProjectsPage.jsx"] },
+      "sidebar": { "id": "projects", "label": "Projects", "icon": "Building", "path": "/projects" }
+    },
+    "selections": {
+      "backend": { "routes": ["selections.js"], "services": ["selections.js"] },
+      "frontend": { "pages": ["selections/SelectionsPage.jsx"] },
+      "sidebar": null
+    },
+    "warranties": {
+      "backend": { "routes": ["warranties.js"], "services": ["warranties.js"] },
+      "frontend": { "pages": ["warranties/WarrantiesPage.jsx"] },
+      "sidebar": null
+    }
+  },
+
+  "tokenInjection": {
+    "_comment": "The generator injects these values into a .env file and seed script",
+    "env": {
+      "COMPANY_NAME": "{{COMPANY_NAME}}",
+      "DATABASE_URL": "{{DATABASE_URL}}",
+      "JWT_SECRET": "{{GENERATED}}",
+      "FRONTEND_URL": "{{SITE_URL}}",
+      "NODE_ENV": "production"
+    },
+    "seed": {
+      "company": {
+        "name": "{{COMPANY_NAME}}",
+        "slug": "{{COMPANY_SLUG}}",
+        "email": "{{COMPANY_EMAIL}}",
+        "phone": "{{COMPANY_PHONE}}",
+        "address": "{{COMPANY_ADDRESS}}",
+        "city": "{{CITY}}",
+        "state": "{{STATE}}",
+        "zip": "{{ZIP}}",
+        "primaryColor": "{{PRIMARY_COLOR}}",
+        "enabledFeatures": "{{ENABLED_FEATURES}}"
+      },
+      "adminUser": {
+        "email": "{{ADMIN_EMAIL}}",
+        "password": "{{HASHED_DEFAULT_PASSWORD}}",
+        "role": "owner"
+      }
+    }
+  }
+}

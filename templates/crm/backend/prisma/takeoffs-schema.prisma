@@ -1,0 +1,172 @@
+// ============================================
+// MATERIAL TAKEOFFS - SCHEMA ADDITIONS
+// ============================================
+// Calculate material quantities from measurements
+
+// Assembly Templates (predefined material collections)
+model TakeoffAssembly {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  category        String    // framing, drywall, electrical, plumbing, roofing, concrete, paint
+  
+  // How this assembly is measured
+  measurementType String    @default("area") // area, linear, count, volume
+  
+  // Default waste factor percentage
+  wasteFactor     Decimal   @default(10) @db.Decimal(5, 2)
+  
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  materials       AssemblyMaterial[]
+  takeoffItems    TakeoffItem[]
+  
+  @@unique([companyId, name])
+  @@index([companyId, category])
+}
+
+// Materials within an assembly
+model AssemblyMaterial {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  
+  // Quantity per unit of measurement
+  // e.g., 0.75 studs per linear foot of wall
+  quantityPer     Decimal   @default(1) @db.Decimal(10, 4)
+  unit            String    @default("each")
+  
+  // Pricing
+  unitCost        Decimal   @default(0) @db.Decimal(10, 2)
+  unitPrice       Decimal   @default(0) @db.Decimal(10, 2)
+  
+  createdAt       DateTime  @default(now())
+  
+  assemblyId      String
+  assembly        TakeoffAssembly @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  
+  // Link to inventory item
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  
+  @@index([assemblyId])
+}
+
+// Takeoff Sheets (per project)
+model TakeoffSheet {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  
+  // Reference to plan/drawing
+  planReference   String?   // Page number, drawing name
+  planUrl         String?   // Link to uploaded plan
+  
+  status          String    @default("draft") // draft, complete, approved
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  items           TakeoffItem[]
+  
+  @@index([projectId])
+  @@index([companyId])
+}
+
+// Takeoff Items (individual measurements)
+model TakeoffItem {
+  id              String    @id @default(cuid())
+  name            String
+  location        String?   // "Living Room", "Master Bedroom"
+  
+  // Measurement type (inherited from assembly)
+  measurementType String    @default("area")
+  
+  // Raw measurements
+  length          Decimal   @default(0) @db.Decimal(10, 2)
+  width           Decimal   @default(0) @db.Decimal(10, 2)
+  height          Decimal   @default(0) @db.Decimal(10, 2)
+  quantity        Int       @default(1)
+  
+  // Calculated measurement value
+  measurementValue Decimal  @default(0) @db.Decimal(12, 2)
+  
+  // Override waste factor if needed
+  wasteFactor     Decimal?  @db.Decimal(5, 2)
+  
+  notes           String?
+  sortOrder       Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  sheetId         String
+  sheet           TakeoffSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+  
+  assemblyId      String
+  assembly        TakeoffAssembly @relation(fields: [assemblyId], references: [id], onDelete: Cascade)
+  
+  calculatedMaterials TakeoffCalculatedMaterial[]
+  
+  @@index([sheetId])
+}
+
+// Calculated materials for a takeoff item
+model TakeoffCalculatedMaterial {
+  id              String    @id @default(cuid())
+  
+  materialName    String
+  unit            String
+  
+  // Quantities
+  baseQuantity    Decimal   @db.Decimal(12, 4)
+  wasteQuantity   Decimal   @db.Decimal(12, 4)
+  totalQuantity   Decimal   @db.Decimal(12, 4)
+  
+  // Pricing
+  unitCost        Decimal   @default(0) @db.Decimal(10, 2)
+  unitPrice       Decimal   @default(0) @db.Decimal(10, 2)
+  totalCost       Decimal   @default(0) @db.Decimal(12, 2)
+  totalPrice      Decimal   @default(0) @db.Decimal(12, 2)
+  
+  itemId          String
+  item            TakeoffItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  // Link to inventory
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  
+  @@index([itemId])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   takeoffAssemblies    TakeoffAssembly[]
+//   takeoffSheets        TakeoffSheet[]
+// }
+
+// Add to existing Project model:
+// model Project {
+//   ...existing fields...
+//   takeoffSheets        TakeoffSheet[]
+// }
+
+// Add to existing InventoryItem model:
+// model InventoryItem {
+//   ...existing fields...
+//   assemblyMaterials       AssemblyMaterial[]
+//   takeoffCalculatedMaterials TakeoffCalculatedMaterial[]
+// }

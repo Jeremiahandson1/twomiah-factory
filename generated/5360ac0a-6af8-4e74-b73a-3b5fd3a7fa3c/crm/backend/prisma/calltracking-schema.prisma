@@ -1,0 +1,102 @@
+// ============================================
+// CALL TRACKING - SCHEMA ADDITIONS
+// ============================================
+
+// Tracking Numbers
+model TrackingNumber {
+  id              String    @id @default(cuid())
+  phoneNumber     String
+  forwardTo       String    // Destination number
+  name            String?
+  
+  // Attribution
+  source          String    // google_ads, facebook, yelp, website, direct_mail
+  campaign        String?
+  medium          String?   // cpc, organic, referral
+  
+  // Provider
+  provider        String?   // callrail, ctm, twilio
+  providerId      String?
+  
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  calls           CallLog[]
+  
+  @@unique([companyId, phoneNumber])
+  @@index([companyId, source])
+}
+
+// Call Logs
+model CallLog {
+  id                String    @id @default(cuid())
+  
+  // Caller info
+  callerNumber      String
+  callerName        String?
+  callerCity        String?
+  callerState       String?
+  
+  // Attribution
+  source            String?   // google_ads, facebook, yelp, website
+  campaign          String?
+  medium            String?
+  keyword           String?   // From Google Ads
+  landingPage       String?
+  
+  // Call details
+  direction         String    @default("inbound") // inbound, outbound
+  status            String    @default("completed") // ringing, completed, missed, voicemail, failed
+  duration          Int       @default(0) // seconds
+  
+  startTime         DateTime
+  endTime           DateTime?
+  
+  // Recording
+  recordingUrl      String?
+  transcription     String?   @db.Text
+  
+  // Classification
+  tags              String[]
+  notes             String?
+  isLead            Boolean   @default(false)
+  leadValue         Decimal?  @db.Decimal(10, 2)
+  firstTimeCaller   Boolean   @default(false)
+  
+  // Provider reference
+  providerId        String?
+  
+  createdAt         DateTime  @default(now())
+  
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  trackingNumberId  String?
+  trackingNumber    TrackingNumber? @relation(fields: [trackingNumberId], references: [id], onDelete: SetNull)
+  
+  contactId         String?
+  contact           Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId, startTime])
+  @@index([companyId, source])
+  @@index([companyId, status])
+  @@index([contactId])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   trackingNumbers     TrackingNumber[]
+//   callLogs            CallLog[]
+// }
+
+// Add to existing Contact model:
+// model Contact {
+//   ...existing fields...
+//   callLogs            CallLog[]
+// }

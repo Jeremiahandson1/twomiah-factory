@@ -1,0 +1,59 @@
+{
+  "siteName": "{{COMPANY_NAME}}",
+  "companyName": "{{COMPANY_LEGAL_NAME}}",
+  "phone": "{{COMPANY_PHONE}}",
+  "email": "{{COMPANY_EMAIL}}",
+  "address": "{{COMPANY_ADDRESS}}",
+  "city": "{{CITY}}",
+  "state": "{{STATE}}",
+  "zip": "{{ZIP}}",
+  "logo": "",
+  "favicon": "",
+  "defaultOgImage": "",
+  "socialLinks": {
+    "facebook": "",
+    "instagram": "",
+    "twitter": "",
+    "linkedin": "",
+    "youtube": "",
+    "yelp": "",
+    "googleBusiness": ""
+  },
+  "defaultMetaTitle": "{{COMPANY_NAME}} - {{CITY}} {{INDUSTRY}}",
+  "defaultMetaDescription": "{{META_DESCRIPTION}}",
+  "analytics": {
+    "googleAnalyticsId": "",
+    "googleTagManagerId": "",
+    "googleAdsId": "",
+    "facebookPixelId": "",
+    "microsoftClarityId": ""
+  },
+  "scripts": {
+    "headScripts": "",
+    "bodyStartScripts": "",
+    "bodyEndScripts": ""
+  },
+  "custom404": {
+    "title": "Page Not Found",
+    "message": "Sorry, the page you're looking for doesn't exist or has been moved.",
+    "showSearch": true,
+    "showHomeLink": true,
+    "showContactLink": true,
+    "backgroundImage": ""
+  },
+  "robotsTxt": "User-agent: *\nAllow: /\n\nSitemap: {{SITE_URL}}/sitemap.xml",
+  "emailNotifications": {
+    "enabled": false,
+    "recipient": "{{COMPANY_EMAIL}}",
+    "smtpHost": "",
+    "smtpPort": 587,
+    "smtpUser": "",
+    "smtpPass": "",
+    "fromEmail": "noreply@{{DOMAIN}}",
+    "fromName": "{{COMPANY_NAME}} Website",
+    "sendgridApiKey": ""
+  },
+  "twoFactorEnabled": false,
+  "adminPassword": "{{HASHED_DEFAULT_PASSWORD}}",
+  "twoFactorSecret": ""
+}

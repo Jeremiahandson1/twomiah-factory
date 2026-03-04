@@ -1,0 +1,63 @@
+{
+  "siteName": "Jeremiah",
+  "companyName": "Jeremiah LLC",
+  "phone": "5555555555",
+  "email": "jeremiahandson@gmail.com",
+  "address": "123 Main St",
+  "city": "EC",
+  "state": "ST",
+  "zip": "00000",
+  "logo": "/images/logo.jpg",
+  "favicon": "",
+  "defaultOgImage": "",
+  "socialLinks": {
+    "facebook": "",
+    "instagram": "",
+    "twitter": "",
+    "linkedin": "",
+    "youtube": "",
+    "yelp": "",
+    "googleBusiness": ""
+  },
+  "defaultMetaTitle": "Jeremiah - EC general_contractor",
+  "defaultMetaDescription": "Professional services in EC.",
+  "analytics": {
+    "googleAnalyticsId": "",
+    "googleTagManagerId": "",
+    "googleAdsId": "",
+    "facebookPixelId": "",
+    "microsoftClarityId": ""
+  },
+  "scripts": {
+    "headScripts": "",
+    "bodyStartScripts": "",
+    "bodyEndScripts": ""
+  },
+  "custom404": {
+    "title": "Page Not Found",
+    "message": "Sorry, the page you're looking for doesn't exist or has been moved.",
+    "showSearch": true,
+    "showHomeLink": true,
+    "showContactLink": true,
+    "backgroundImage": ""
+  },
+  "robotsTxt": "User-agent: *\nAllow: /\n\nSitemap: https://test@test.com/sitemap.xml",
+  "emailNotifications": {
+    "enabled": false,
+    "recipient": "jeremiahandson@gmail.com",
+    "smtpHost": "",
+    "smtpPort": 587,
+    "smtpUser": "",
+    "smtpPass": "",
+    "fromEmail": "noreply@test@test.com",
+    "fromName": "Jeremiah Website",
+    "sendgridApiKey": ""
+  },
+  "twoFactorEnabled": false,
+  "adminPassword": "$2b$10$7UjL/GxnPRZkBwF35gkKxOvbDxfdW6e88HFDKAKwHphtAlJD5Fp4i",
+  "twoFactorSecret": "",
+  "primaryColor": "#8b5cf6",
+  "secondaryColor": "#1e1b4b",
+  "accentColor": "#f59e0b",
+  "offWhiteColor": "#f8f9fa"
+}

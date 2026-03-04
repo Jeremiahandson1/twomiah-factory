@@ -1,0 +1,42 @@
+[
+  {
+    "id": "t1",
+    "name": "Dave & Pam W.",
+    "role": "Homeowner",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "{{COMPANY_NAME}} replaced our entire roof after a hail storm and the experience was seamless. They handled everything with our insurance adjuster and the crew had us done in a day. Our neighbors have already asked for their number.",
+    "rating": 5,
+    "service": "Roofing",
+    "visible": true
+  },
+  {
+    "id": "t2",
+    "name": "Sarah K.",
+    "role": "Homeowner",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "text": "We got three bids for new siding and windows. {{COMPANY_NAME}} wasn't the cheapest but their installation quality was on a different level. Two years later everything still looks brand new and our heating bill dropped noticeably.",
+    "rating": 5,
+    "service": "Siding & Windows",
+    "visible": true
+  },
+  {
+    "id": "t3",
+    "name": "Mike R.",
+    "role": "Property Owner",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "I manage several rental properties and have used {{COMPANY_NAME}} on three different projects now. Consistent quality, show up when they say they will, and they always leave the site cleaner than they found it. That reliability is rare.",
+    "rating": 5,
+    "service": "Roofing & Gutters",
+    "visible": true
+  },
+  {
+    "id": "t4",
+    "name": "Tom & Linda H.",
+    "role": "Homeowners",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "text": "The free inspection caught storm damage on our roof we didn't even know was there. {{COMPANY_NAME}} walked us through the whole process, worked directly with our insurance, and the roof looks incredible. We can't say enough good things.",
+    "rating": 5,
+    "service": "Storm Damage",
+    "visible": true
+  }
+]

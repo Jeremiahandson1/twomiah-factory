@@ -1,0 +1,431 @@
+<%
+  // Pre-select service if provided in query string
+  const selectedService = locals.selectedService || '';
+%>
+
+<div class="contact-page">
+  <!-- Contact Hero -->
+  <section class="contact-hero">
+    <div class="contact-hero-bg"></div>
+    <div class="contact-hero-content">
+      <div class="container">
+        <h1>Contact {{COMPANY_NAME}}</h1>
+        <p>Ready to get started? Get in touch for a free, no-obligation estimate on your next project.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Content -->
+  <section class="contact-section">
+    <div class="container">
+      <div class="contact-layout">
+        <!-- Contact Form -->
+        <div class="contact-form-wrapper">
+          <h2>Request a Free Estimate</h2>
+          
+          <form action="/api/contact" method="POST" class="contact-form" id="contactForm">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="name">Full Name *</label>
+                <input type="text" id="name" name="name" required>
+              </div>
+              
+              <div class="form-group">
+                <label for="phone">Phone Number *</label>
+                <input type="tel" id="phone" name="phone" required>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="email">Email Address *</label>
+              <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-row">
+              <div class="form-group">
+                <label for="address">Property Address</label>
+                <input type="text" id="address" name="address" placeholder="Street address">
+              </div>
+              
+              <div class="form-group">
+                <label for="city">City</label>
+                <input type="text" id="city" name="city" placeholder="{{CITY}}">
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label for="service">Service Interested In *</label>
+              <select id="service" name="service" required>
+                <option value="">Select a service...</option>
+                <option value="general" <%= selectedService === 'general' ? 'selected' : '' %>>General Inquiry</option>
+                <option value="estimate" <%= selectedService === 'estimate' ? 'selected' : '' %>>Free Estimate</option>
+                <option value="service" <%= selectedService === 'service' ? 'selected' : '' %>>Service Request</option>
+                <option value="gutters" <%= selectedService === 'gutters' ? 'selected' : '' %>>Gutters</option>
+                <option value="decking" <%= selectedService === 'decking' ? 'selected' : '' %>>Decking</option>
+                <option value="other">Other/Multiple Services</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="timeline">Project Timeline</label>
+              <select id="timeline" name="timeline">
+                <option value="">When do you want to start?</option>
+                <option value="asap">As soon as possible</option>
+                <option value="1-3months">1-3 months</option>
+                <option value="3-6months">3-6 months</option>
+                <option value="planning">Just planning/researching</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="message">Project Details *</label>
+              <textarea id="message" name="message" rows="5" required placeholder="Tell us about your project..."></textarea>
+            </div>
+            
+            <div class="form-group checkbox-group">
+              <label>
+                <input type="checkbox" name="contact_preference" value="phone">
+                I prefer to be contacted by phone
+              </label>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-lg btn-block">Send Request</button>
+          </form>
+          
+          <div id="formSuccess" class="form-message success" style="display: none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <div>
+              <strong>Thank you!</strong>
+              <p>We've received your request and will contact you within 24 hours.</p>
+            </div>
+          </div>
+          
+          <div id="formError" class="form-message error" style="display: none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <div>
+              <strong>Oops!</strong>
+              <p>Something went wrong. Please try calling us directly at {{COMPANY_PHONE}}.</p>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Contact Info Sidebar -->
+        <aside class="contact-sidebar">
+          <div class="contact-info-card">
+            <h3>Get in Touch</h3>
+            
+            <div class="contact-method">
+              <div class="method-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+              </div>
+              <div>
+                <h4>Phone</h4>
+                <a href="tel:{{COMPANY_PHONE_RAW}}" class="contact-link">{{COMPANY_PHONE}}</a>
+                <p class="hours">Mon-Fri: 7am-6pm<br>Sat: 8am-4pm</p>
+              </div>
+            </div>
+            
+            <div class="contact-method">
+              <div class="method-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+              </div>
+              <div>
+                <h4>Email</h4>
+                <a href="mailto:info@{{DOMAIN}}" class="contact-link">info@{{DOMAIN}}</a>
+                <p>We respond within 24 hours</p>
+              </div>
+            </div>
+            
+            <div class="contact-method">
+              <div class="method-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+              </div>
+              <div>
+                <h4>Address</h4>
+                <address>
+                  {{CITY}}, {{STATE_FULL}}<br>
+                  Serving the {{SERVICE_REGION}}
+                </address>
+              </div>
+            </div>
+          </div>
+          
+          <div class="contact-info-card service-area-card">
+            <h3>Service Area</h3>
+            <p>We proudly serve:</p>
+            <ul class="service-area-list">
+              <li>{{CITY}}</li>
+              <li>{{NEARBY_CITY_1}}</li>
+              <li>{{NEARBY_CITY_4}}</li>
+              <li>{{NEARBY_CITY_3}}</li>
+              <li>Augusta</li>
+              <li>Fall Creek</li>
+              <li>Elk Mound</li>
+              <li>Colfax</li>
+              <li>Bloomer</li>
+            </ul>
+            <p class="service-area-note">Plus surrounding {{SERVICE_REGION}} communities within 50 miles of {{CITY}}</p>
+          </div>
+          
+          <div class="contact-info-card credentials-card">
+            <h3>Licensed & Insured</h3>
+            <div class="credentials-list">
+              <div class="credential-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>State Licensed</span>
+              </div>
+              <div class="credential-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>Fully Insured</span>
+              </div>
+              <div class="credential-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>Workers' Comp Coverage</span>
+              </div>
+              <div class="credential-item">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+                <span>Liability Insurance</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- What to Expect -->
+  <section class="contact-benefits">
+    <div class="container">
+      <h2>What to Expect</h2>
+      <div class="benefits-grid">
+        <div class="benefit-card">
+          <div class="benefit-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+          </div>
+          <h3>Free Estimates</h3>
+          <p>No-obligation quotes with detailed breakdowns. We'll visit your property and provide accurate pricing.</p>
+        </div>
+        
+        <div class="benefit-card">
+          <div class="benefit-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <h3>Fast Response</h3>
+          <p>We respond to all inquiries within 24 hours, usually much sooner. Emergency repairs prioritized.</p>
+        </div>
+        
+        <div class="benefit-card">
+          <div class="benefit-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+          <h3>Expert Advice</h3>
+          <p>Get honest recommendations from experienced professionals who know your area.</p>
+        </div>
+        
+        <div class="benefit-card">
+          <div class="benefit-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+          </div>
+          <h3>Flexible Scheduling</h3>
+          <p>We work around your schedule for consultations and can accommodate most project timelines.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Emergency Services -->
+  <section class="contact-emergency">
+    <div class="container">
+      <div class="emergency-content">
+        <div class="emergency-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+        <div>
+          <h2>Need Emergency Repairs?</h2>
+          <p>Need urgent help? We provide emergency service throughout the {{SERVICE_REGION}}.</p>
+        </div>
+        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-primary btn-lg">Call Now: {{COMPANY_PHONE}}</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Form Submission Script -->
+  <script>
+    document.getElementById('contactForm')?.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData(this);
+      const data = Object.fromEntries(formData);
+      
+      const submitButton = this.querySelector('button[type="submit"]');
+      const originalText = submitButton.textContent;
+      submitButton.disabled = true;
+      submitButton.textContent = 'Sending...';
+      
+      try {
+        const response = await fetch('/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          document.getElementById('formSuccess').style.display = 'flex';
+          document.getElementById('formError').style.display = 'none';
+          this.reset();
+          this.style.display = 'none';
+          
+          // ── Fire generate_lead event ─────────────────────────────
+          if (typeof window._bpTrack === 'function') {
+            window._bpTrack('generate_lead', {
+              event_category: 'conversion',
+              service_requested: data.service || data.care_service || 'general',
+              contact_method: data.contact_preference || 'form',
+              value: 1
+            });
+          }
+          // Facebook Pixel Lead event
+          if (typeof fbq !== 'undefined') {
+            fbq('track', 'Lead', {
+              content_name: data.service || data.care_service || 'contact_form'
+            });
+          }
+          // Google Ads conversion (if configured)
+          if (typeof gtag !== 'undefined' && window._gadsId) {
+            gtag('event', 'conversion', { send_to: window._gadsId });
+          }
+
+          // Scroll to success message
+          document.getElementById('formSuccess').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          throw new Error('Failed to submit');
+        }
+      } catch (error) {
+        document.getElementById('formSuccess').style.display = 'none';
+        document.getElementById('formError').style.display = 'flex';
+        
+        // Scroll to error message
+        document.getElementById('formError').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+      }
+    });
+  </script>
+
+  <!-- Contact Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ContactPage",
+    "mainEntity": {
+      "@type": "HomeAndConstructionBusiness",
+      "name": "{{COMPANY_NAME}}",
+      "telephone": "{{COMPANY_PHONE}}",
+      "email": "info@{{DOMAIN}}",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "{{CITY}}",
+        "addressRegion": "WI",
+        "addressCountry": "US"
+      },
+      "areaServed": [
+        {
+          "@type": "City",
+          "name": "{{CITY}}",
+          "containedInPlace": {
+            "@type": "State",
+            "name": "{{STATE_FULL}}"
+          }
+        },
+        {
+          "@type": "City",
+          "name": "{{NEARBY_CITY_1}}",
+          "containedInPlace": {
+            "@type": "State",
+            "name": "{{STATE_FULL}}"
+          }
+        },
+        {
+          "@type": "City",
+          "name": "{{NEARBY_CITY_4}}",
+          "containedInPlace": {
+            "@type": "State",
+            "name": "{{STATE_FULL}}"
+          }
+        },
+        {
+          "@type": "City",
+          "name": "{{NEARBY_CITY_3}}",
+          "containedInPlace": {
+            "@type": "State",
+            "name": "{{STATE_FULL}}"
+          }
+        }
+      ],
+      "url": "{{SITE_URL}}/contact",
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+          "opens": "07:00",
+          "closes": "18:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": "Saturday",
+          "opens": "08:00",
+          "closes": "16:00"
+        }
+      ]
+    }
+  }
+  </script>
+</div>

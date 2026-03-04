@@ -1,0 +1,123 @@
+{
+  "hero": {
+    "tagline": "COMPASSIONATE IN-HOME CARE",
+    "title": "{{CITY}} Home Care Services",
+    "subtitle": "Trusted Care for Your Loved Ones",
+    "description": "{{COMPANY_NAME}} provides professional, compassionate in-home care services across {{SERVICE_REGION}}. We help seniors and those with disabilities live safely and independently at home.",
+    "image": "/images/hero.jpg",
+    "animation": "ken-burns",
+    "primaryButtonText": "Request a Free Assessment",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Learn About Our Services",
+    "secondaryButtonLink": "/services"
+  },
+  "trustBadges": [
+    {
+      "id": "licensed",
+      "type": "custom",
+      "label": "Licensed & Insured",
+      "icon": "shield",
+      "enabled": true
+    },
+    {
+      "id": "background",
+      "type": "custom",
+      "label": "Background Checked Caregivers",
+      "icon": "check",
+      "enabled": true
+    },
+    {
+      "id": "available",
+      "type": "custom",
+      "label": "24/7 Care Available",
+      "icon": "clock",
+      "enabled": true
+    },
+    {
+      "id": "local",
+      "type": "custom",
+      "label": "Locally Owned & Operated",
+      "icon": "home",
+      "enabled": true
+    }
+  ],
+  "ctaSection": {
+    "title": "Ready to get your loved one the care they deserve?",
+    "description": "Our care coordinators are standing by to answer your questions and schedule a free in-home assessment.",
+    "primaryButtonText": "Request Free Assessment",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Call {{COMPANY_PHONE}}",
+    "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
+    "backgroundImage": ""
+  },
+  "serviceAreas": [
+    "{{CITY}}",
+    "{{NEARBY_CITY_1}}",
+    "{{NEARBY_CITY_2}}",
+    "{{NEARBY_CITY_3}}",
+    "{{NEARBY_CITY_4}}"
+  ],
+  "businessHours": {
+    "monday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "tuesday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "wednesday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "thursday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "friday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "saturday": {
+      "open": "By Appointment",
+      "close": "By Appointment",
+      "closed": false
+    },
+    "sunday": {
+      "open": "Closed",
+      "close": "Closed",
+      "closed": true
+    }
+  },
+  "whyChooseUs": {
+    "enabled": true,
+    "title": "Why Families Choose {{COMPANY_NAME}}",
+    "points": [
+      {
+        "icon": "heart",
+        "title": "Compassionate Caregivers",
+        "description": "Every caregiver is carefully screened, trained, and selected for their genuine passion for helping others."
+      },
+      {
+        "icon": "shield",
+        "title": "Fully Licensed & Insured",
+        "description": "We are fully licensed by the state and carry comprehensive liability insurance for your peace of mind."
+      },
+      {
+        "icon": "users",
+        "title": "Personalized Care Plans",
+        "description": "No two clients are alike. We create a custom care plan that fits your loved one's unique needs and preferences."
+      },
+      {
+        "icon": "phone",
+        "title": "Always Reachable",
+        "description": "Our care coordinators are available around the clock. You'll always have someone to call."
+      }
+    ]
+  }
+}

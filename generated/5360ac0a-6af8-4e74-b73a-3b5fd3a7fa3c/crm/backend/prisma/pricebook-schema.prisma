@@ -1,0 +1,128 @@
+// ============================================
+// PRICEBOOK / FLAT-RATE CATALOG - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+// Pricebook Categories
+model PricebookCategory {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  icon            String?
+  color           String?
+  sortOrder       Int       @default(0)
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  parentId        String?
+  parent          PricebookCategory? @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        PricebookCategory[] @relation("CategoryHierarchy")
+  
+  items           PricebookItem[]
+  
+  @@index([companyId, parentId])
+  @@index([companyId, sortOrder])
+}
+
+// Pricebook Items (Services)
+model PricebookItem {
+  id                  String    @id @default(cuid())
+  code                String
+  name                String
+  description         String?   // Internal description
+  customerDescription String?   // What customers see
+  
+  // Pricing
+  price               Decimal   @default(0) @db.Decimal(10, 2)
+  cost                Decimal   @default(0) @db.Decimal(10, 2)
+  laborHours          Decimal   @default(0) @db.Decimal(5, 2)
+  laborRate           Decimal?  @db.Decimal(10, 2) // Override company default
+  
+  // Display
+  imageUrl            String?
+  showToCustomer      Boolean   @default(true)
+  
+  // Warranty
+  warrantyDays        Int       @default(0)
+  warrantyDescription String?
+  
+  // Flags
+  taxable             Boolean   @default(true)
+  commissionable      Boolean   @default(true)
+  active              Boolean   @default(true)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  
+  companyId           String
+  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  categoryId          String?
+  category            PricebookCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  
+  materials           PricebookMaterial[]
+  goodBetterBest      PricebookGoodBetterBest[]
+  quoteLineItems      QuoteLineItem[]
+  invoiceLineItems    InvoiceLineItem[]
+  
+  @@unique([companyId, code])
+  @@index([companyId, categoryId])
+  @@index([companyId, active])
+}
+
+// Materials included in pricebook item
+model PricebookMaterial {
+  id                String    @id @default(cuid())
+  quantity          Int       @default(1)
+  priceOverride     Decimal?  @db.Decimal(10, 2)
+  
+  pricebookItemId   String
+  pricebookItem     PricebookItem @relation(fields: [pricebookItemId], references: [id], onDelete: Cascade)
+  
+  inventoryItemId   String
+  inventoryItem     InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  
+  @@index([pricebookItemId])
+}
+
+// Good-Better-Best pricing options
+model PricebookGoodBetterBest {
+  id                String    @id @default(cuid())
+  tier              String    // 'good', 'better', 'best'
+  name              String
+  description       String?
+  price             Decimal   @db.Decimal(10, 2)
+  features          Json?     // Array of feature strings
+  recommended       Boolean   @default(false)
+  
+  pricebookItemId   String
+  pricebookItem     PricebookItem @relation(fields: [pricebookItemId], references: [id], onDelete: Cascade)
+  
+  @@index([pricebookItemId])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   pricebookCategories PricebookCategory[]
+//   pricebookItems      PricebookItem[]
+// }
+
+// Add to existing QuoteLineItem model (if you have one):
+// model QuoteLineItem {
+//   ...existing fields...
+//   pricebookItemId     String?
+//   pricebookItem       PricebookItem? @relation(fields: [pricebookItemId], references: [id])
+// }
+
+// Add to existing InvoiceLineItem model (if you have one):
+// model InvoiceLineItem {
+//   ...existing fields...
+//   pricebookItemId     String?
+//   pricebookItem       PricebookItem? @relation(fields: [pricebookItemId], references: [id])
+// }

@@ -1,0 +1,78 @@
+// ============================================
+// GOOGLE REVIEWS AUTOMATION - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+model ReviewRequest {
+  id              String    @id @default(cuid())
+  status          String    @default("pending") // pending, scheduled, sent, clicked, completed, cancelled
+  channel         String    @default("both") // sms, email, both
+  reviewLink      String?
+  
+  // Scheduling
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  
+  // SMS tracking
+  smsSentAt       DateTime?
+  smsStatus       String?
+  
+  // Email tracking
+  emailSentAt     DateTime?
+  emailStatus     String?
+  
+  // Response tracking
+  clickedAt       DateTime?
+  completedAt     DateTime?
+  
+  // Follow-up
+  followUpSentAt  DateTime?
+  followUpCount   Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  jobId           String
+  job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  contactId       String
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  @@index([companyId, status])
+  @@index([jobId])
+  @@index([contactId])
+  @@index([scheduledFor, status])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   
+//   // Google Reviews settings
+//   googlePlaceId          String?
+//   googleBusinessName     String?
+//   reviewRequestDelay     Int?      @default(2)  // Hours after job completion
+//   reviewFollowUpDelay    Int?      @default(3)  // Days for follow-up
+//   reviewRequestEnabled   Boolean   @default(true)
+//   reviewSmsEnabled       Boolean   @default(true)
+//   reviewEmailEnabled     Boolean   @default(true)
+//   reviewMinimumJobValue  Decimal?  @db.Decimal(10, 2)
+//   
+//   reviewRequests         ReviewRequest[]
+// }
+
+// Add to existing Job model:
+// model Job {
+//   ...existing fields...
+//   reviewRequests         ReviewRequest[]
+// }
+
+// Add to existing Contact model:
+// model Contact {
+//   ...existing fields...
+//   reviewRequests         ReviewRequest[]
+// }

@@ -1,0 +1,138 @@
+// ============================================
+// TWO-WAY SMS - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+// SMS Conversations
+model SmsConversation {
+  id              String    @id @default(cuid())
+  phoneNumber     String    // Customer's phone
+  status          String    @default("active") // active, archived
+  unreadCount     Int       @default(0)
+  lastMessageAt   DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  contactId       String?
+  contact         Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  
+  messages        SmsMessage[]
+  
+  @@unique([companyId, phoneNumber])
+  @@index([companyId, status])
+  @@index([companyId, lastMessageAt])
+}
+
+// SMS Messages
+model SmsMessage {
+  id              String    @id @default(cuid())
+  direction       String    // inbound, outbound
+  body            String
+  status          String    @default("queued") // queued, sent, delivered, failed, received
+  twilioSid       String?   @unique
+  
+  // Error tracking
+  errorCode       String?
+  errorMessage    String?
+  
+  // Media (MMS)
+  mediaUrls       Json?     // Array of media URLs
+  
+  createdAt       DateTime  @default(now())
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  
+  conversationId  String
+  conversation    SmsConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  // Who sent it (for outbound)
+  sentById        String?
+  sentBy          User?     @relation(fields: [sentById], references: [id], onDelete: SetNull)
+  
+  @@index([conversationId, createdAt])
+  @@index([twilioSid])
+}
+
+// SMS Templates
+model SmsTemplate {
+  id              String    @id @default(cuid())
+  name            String
+  body            String
+  category        String?   // appointment, followup, reminder, etc.
+  
+  // Variables available: {{name}}, {{date}}, {{time}}, {{address}}, etc.
+  
+  active          Boolean   @default(true)
+  useCount        Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@index([companyId, category])
+}
+
+// Scheduled SMS
+model ScheduledSms {
+  id              String    @id @default(cuid())
+  to              String    // Phone number
+  body            String
+  scheduledFor    DateTime
+  status          String    @default("pending") // pending, sent, cancelled, failed
+  
+  sentAt          DateTime?
+  errorMessage    String?
+  
+  createdAt       DateTime  @default(now())
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  contactId       String?
+  contact         Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  
+  jobId           String?
+  job             Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  createdById     String?
+  createdBy       User?     @relation("ScheduledSmsCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  
+  @@index([companyId, scheduledFor, status])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   twilioPhoneNumber    String?
+//   twilioAccountSid     String?
+//   twilioAuthToken      String?
+//   smsConversations     SmsConversation[]
+//   smsTemplates         SmsTemplate[]
+//   scheduledSms         ScheduledSms[]
+// }
+
+// Add to existing Contact model:
+// model Contact {
+//   ...existing fields...
+//   smsConversations     SmsConversation[]
+//   scheduledSms         ScheduledSms[]
+// }
+
+// Add to existing User model:
+// model User {
+//   ...existing fields...
+//   smsMessages          SmsMessage[]
+//   scheduledSmsCreated  ScheduledSms[] @relation("ScheduledSmsCreatedBy")
+// }
+
+// Add to existing Job model:
+// model Job {
+//   ...existing fields...
+//   scheduledSms         ScheduledSms[]
+// }

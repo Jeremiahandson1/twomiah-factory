@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "id": "about",
+      "label": "About",
+      "href": "#about",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "services",
+      "label": "Services",
+      "href": "#services",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "areas",
+      "label": "Service Areas",
+      "href": "#areas",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "href": "#contact",
+      "visible": true,
+      "children": []
+    }
+  ]
+}

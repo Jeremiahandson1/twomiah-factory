@@ -1,0 +1,148 @@
+// ============================================
+// ADVANCED SCHEDULING / GANTT - SCHEMA ADDITIONS
+// ============================================
+// Task dependencies, critical path, baseline tracking
+
+// Project Tasks (Gantt bars)
+model ProjectTask {
+  id              String    @id @default(cuid())
+  
+  name            String
+  description     String?
+  wbsCode         String?   // Work breakdown structure code (1.1, 1.2, etc.)
+  
+  // Dates
+  startDate       DateTime?
+  endDate         DateTime?
+  duration        Int       @default(1) // Days
+  
+  // Calculated dates (from dependencies)
+  earlyStart      DateTime?
+  earlyFinish     DateTime?
+  lateStart       DateTime?
+  lateFinish      DateTime?
+  totalFloat      Int?      // Days of slack
+  
+  // Critical path
+  isCritical      Boolean   @default(false)
+  
+  // Progress
+  percentComplete Int       @default(0) // 0-100
+  
+  // Type
+  isMilestone     Boolean   @default(false)
+  
+  // Constraints
+  constraint      String    @default("asap") // asap, alap, must_start_on, must_finish_on
+  constraintDate  DateTime?
+  
+  // Baseline (for variance tracking)
+  baselineStart   DateTime?
+  baselineEnd     DateTime?
+  baselineDuration Int?
+  
+  // Display
+  color           String?
+  sortOrder       Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Hierarchy (subtasks)
+  parentId        String?
+  parent          ProjectTask?  @relation("TaskHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children        ProjectTask[] @relation("TaskHierarchy")
+  
+  // Assignment
+  assignedToId    String?
+  assignedTo      User?     @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  // Dependencies
+  predecessors    TaskDependency[] @relation("TaskSuccessor")
+  successors      TaskDependency[] @relation("TaskPredecessor")
+  
+  @@index([projectId, sortOrder])
+  @@index([companyId])
+  @@index([parentId])
+}
+
+// Task Dependencies
+model TaskDependency {
+  id              String    @id @default(cuid())
+  
+  // Dependency type
+  // FS = Finish to Start (most common - B starts when A finishes)
+  // SS = Start to Start (B starts when A starts)
+  // FF = Finish to Finish (B finishes when A finishes)
+  // SF = Start to Finish (B finishes when A starts - rare)
+  type            String    @default("finish_to_start")
+  
+  // Lag time (positive = delay, negative = lead)
+  lagDays         Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // The task that must complete first (or start, depending on type)
+  predecessorId   String
+  predecessor     ProjectTask @relation("TaskPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  
+  // The task that depends on the predecessor
+  successorId     String
+  successor       ProjectTask @relation("TaskSuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+  
+  @@unique([predecessorId, successorId])
+  @@index([projectId])
+}
+
+// Project Baselines (snapshots for comparison)
+model ProjectBaseline {
+  id              String    @id @default(cuid())
+  name            String
+  
+  // Snapshot of all task dates at baseline time
+  taskSnapshots   Json      // Array of { taskId, startDate, endDate, duration }
+  
+  createdAt       DateTime  @default(now())
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@index([projectId])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   projectTasks        ProjectTask[]
+//   taskDependencies    TaskDependency[]
+//   projectBaselines    ProjectBaseline[]
+// }
+
+// Add to existing Project model:
+// model Project {
+//   ...existing fields...
+//   tasks               ProjectTask[]
+//   taskDependencies    TaskDependency[]
+//   baselines           ProjectBaseline[]
+// }
+
+// Add to existing User model:
+// model User {
+//   ...existing fields...
+//   assignedTasks       ProjectTask[]
+// }

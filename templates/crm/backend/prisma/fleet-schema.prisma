@@ -1,0 +1,156 @@
+// ============================================
+// FLEET / VEHICLE GPS - SCHEMA ADDITIONS
+// ============================================
+
+model Vehicle {
+  id                String    @id @default(cuid())
+  name              String
+  type              String    @default("truck") // truck, van, car, trailer
+  make              String?
+  model             String?
+  year              Int?
+  vin               String?
+  licensePlate      String?
+  color             String?
+  
+  currentMileage    Int       @default(0)
+  
+  // Maintenance tracking
+  nextOilChangeMiles Int?
+  nextServiceMiles   Int?
+  registrationExpires DateTime?
+  insuranceExpires   DateTime?
+  
+  // GPS device
+  gpsDeviceId       String?
+  
+  status            String    @default("active") // active, maintenance, inactive
+  imageUrl          String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  assignedUserId    String?
+  assignedUser      User?     @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  
+  currentLocation   VehicleLocation?
+  locationHistory   VehicleLocationHistory[]
+  trips             VehicleTrip[]
+  maintenanceRecords VehicleMaintenance[]
+  fuelEntries       VehicleFuel[]
+  
+  @@index([companyId, status])
+}
+
+model VehicleLocation {
+  id          String    @id @default(cuid())
+  lat         Float
+  lng         Float
+  speed       Float?    // mph
+  heading     Float?    // degrees
+  accuracy    Float?
+  timestamp   DateTime
+  
+  vehicleId   String    @unique
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+model VehicleLocationHistory {
+  id          String    @id @default(cuid())
+  lat         Float
+  lng         Float
+  speed       Float?
+  heading     Float?
+  accuracy    Float?
+  timestamp   DateTime
+  
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  
+  @@index([vehicleId, timestamp])
+}
+
+model VehicleTrip {
+  id            String    @id @default(cuid())
+  
+  startTime     DateTime
+  endTime       DateTime?
+  
+  startLat      Float?
+  startLng      Float?
+  startAddress  String?
+  startMileage  Int?
+  
+  endLat        Float?
+  endLng        Float?
+  endAddress    String?
+  endMileage    Int?
+  
+  distance      Float?    // miles
+  duration      Int?      // minutes
+  
+  status        String    @default("active") // active, completed
+  
+  createdAt     DateTime  @default(now())
+  
+  vehicleId     String
+  vehicle       Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  driverId      String?
+  driver        User?     @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  
+  jobId         String?
+  job           Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  @@index([vehicleId, startTime])
+  @@index([companyId, startTime])
+}
+
+model VehicleMaintenance {
+  id          String    @id @default(cuid())
+  date        DateTime
+  type        String    // oil_change, tire, brake, inspection, repair, other
+  description String?
+  mileage     Int?
+  cost        Decimal   @default(0) @db.Decimal(10, 2)
+  vendor      String?
+  notes       String?
+  
+  createdAt   DateTime  @default(now())
+  
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@index([vehicleId, date])
+}
+
+model VehicleFuel {
+  id              String    @id @default(cuid())
+  date            DateTime
+  gallons         Float
+  pricePerGallon  Decimal   @db.Decimal(5, 3)
+  totalCost       Decimal   @db.Decimal(10, 2)
+  mileage         Int?
+  mpg             Float?
+  station         String?
+  notes           String?
+  
+  createdAt       DateTime  @default(now())
+  
+  vehicleId       String
+  vehicle         Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@index([vehicleId, date])
+}

@@ -1,0 +1,253 @@
+// ============================================
+// INVENTORY MANAGEMENT - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+// Inventory Items (Parts/Materials)
+model InventoryItem {
+  id              String    @id @default(cuid())
+  sku             String
+  name            String
+  description     String?
+  category        String?
+  
+  unitCost        Decimal   @default(0) @db.Decimal(10, 2)
+  unitPrice       Decimal   @default(0) @db.Decimal(10, 2)
+  unit            String    @default("each") // each, ft, lb, gal, box
+  
+  minStockLevel   Int       @default(0)
+  reorderPoint    Int       @default(0)
+  reorderQuantity Int       @default(0)
+  
+  vendor          String?
+  vendorPartNumber String?
+  barcode         String?
+  imageUrl        String?
+  taxable         Boolean   @default(true)
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  stockLevels     StockLevel[]
+  usageHistory    InventoryUsage[]
+  transactions    InventoryTransaction[]
+  purchaseOrderItems PurchaseOrderItem[]
+  transfers       InventoryTransfer[]
+  pricebookItems  PricebookItem[]
+  
+  @@unique([companyId, sku])
+  @@index([companyId, category])
+  @@index([companyId, active])
+}
+
+// Inventory Locations (Warehouses, Trucks)
+model InventoryLocation {
+  id              String    @id @default(cuid())
+  name            String
+  type            String    @default("warehouse") // warehouse, truck, other
+  address         String?
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  assignedUserId  String?
+  assignedUser    User?     @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  
+  stockLevels     StockLevel[]
+  transactions    InventoryTransaction[]
+  usages          InventoryUsage[]
+  purchaseOrders  PurchaseOrder[]
+  transfersFrom   InventoryTransfer[] @relation("TransferFrom")
+  transfersTo     InventoryTransfer[] @relation("TransferTo")
+  
+  @@index([companyId, type])
+}
+
+// Stock Levels (Quantity at each location)
+model StockLevel {
+  id              String    @id @default(cuid())
+  quantity        Int       @default(0)
+  
+  itemId          String
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  locationId      String
+  location        InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  @@unique([itemId, locationId])
+  @@index([locationId])
+}
+
+// Inventory Transactions (Add/Remove history)
+model InventoryTransaction {
+  id              String    @id @default(cuid())
+  type            String    // add, remove
+  quantity        Int
+  previousQuantity Int
+  newQuantity     Int
+  reason          String?
+  cost            Decimal?  @db.Decimal(10, 2)
+  
+  createdAt       DateTime  @default(now())
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  itemId          String
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  locationId      String
+  location        InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  jobId           String?
+  job             Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId, createdAt])
+  @@index([itemId])
+}
+
+// Inventory Usage on Jobs
+model InventoryUsage {
+  id              String    @id @default(cuid())
+  quantity        Int
+  returnedQuantity Int      @default(0)
+  
+  unitCost        Decimal   @db.Decimal(10, 2)
+  unitPrice       Decimal   @db.Decimal(10, 2)
+  totalCost       Decimal   @db.Decimal(10, 2)
+  totalPrice      Decimal   @db.Decimal(10, 2)
+  
+  createdAt       DateTime  @default(now())
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  jobId           String
+  job             Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  itemId          String
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  locationId      String
+  location        InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([jobId])
+  @@index([companyId, createdAt])
+}
+
+// Inventory Transfers
+model InventoryTransfer {
+  id              String    @id @default(cuid())
+  quantity        Int
+  status          String    @default("pending") // pending, completed, cancelled
+  notes           String?
+  completedAt     DateTime?
+  
+  createdAt       DateTime  @default(now())
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  itemId          String
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  fromLocationId  String
+  fromLocation    InventoryLocation @relation("TransferFrom", fields: [fromLocationId], references: [id], onDelete: Cascade)
+  
+  toLocationId    String
+  toLocation      InventoryLocation @relation("TransferTo", fields: [toLocationId], references: [id], onDelete: Cascade)
+  
+  userId          String?
+  user            User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId, status])
+}
+
+// Purchase Orders
+model PurchaseOrder {
+  id              String    @id @default(cuid())
+  number          String
+  vendor          String
+  vendorEmail     String?
+  status          String    @default("draft") // draft, sent, partial, received, cancelled
+  total           Decimal   @default(0) @db.Decimal(10, 2)
+  notes           String?
+  expectedDate    DateTime?
+  receivedAt      DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  locationId      String
+  location        InventoryLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  createdById     String?
+  createdBy       User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  
+  items           PurchaseOrderItem[]
+  
+  @@unique([companyId, number])
+  @@index([companyId, status])
+}
+
+// Purchase Order Items
+model PurchaseOrderItem {
+  id              String    @id @default(cuid())
+  quantity        Int
+  receivedQuantity Int      @default(0)
+  unitCost        Decimal   @db.Decimal(10, 2)
+  totalCost       Decimal   @db.Decimal(10, 2)
+  
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  
+  itemId          String
+  item            InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  
+  @@index([purchaseOrderId])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   inventoryItems      InventoryItem[]
+//   inventoryLocations  InventoryLocation[]
+//   inventoryTransactions InventoryTransaction[]
+//   inventoryUsages     InventoryUsage[]
+//   inventoryTransfers  InventoryTransfer[]
+//   purchaseOrders      PurchaseOrder[]
+// }
+
+// Add to existing User model:
+// model User {
+//   ...existing fields...
+//   inventoryLocations  InventoryLocation[]
+//   inventoryTransactions InventoryTransaction[]
+//   inventoryUsages     InventoryUsage[]
+//   inventoryTransfers  InventoryTransfer[]
+//   purchaseOrders      PurchaseOrder[]
+// }
+
+// Add to existing Job model:
+// model Job {
+//   ...existing fields...
+//   inventoryUsages     InventoryUsage[]
+//   inventoryTransactions InventoryTransaction[]
+// }

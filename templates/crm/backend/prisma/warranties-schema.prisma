@@ -1,0 +1,157 @@
+// ============================================
+// WARRANTY MANAGEMENT - SCHEMA ADDITIONS
+// ============================================
+
+// Warranty Templates
+model WarrantyTemplate {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  category        String    // workmanship, materials, systems, structural
+  durationMonths  Int       @default(12)
+  coverageDetails String?   @db.Text
+  exclusions      String?   @db.Text
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  warranties      ProjectWarranty[]
+  
+  @@unique([companyId, name])
+  @@index([companyId, category])
+}
+
+// Project Warranties
+model ProjectWarranty {
+  id              String    @id @default(cuid())
+  name            String
+  category        String    // workmanship, materials, systems, structural
+  description     String?
+  coverageDetails String?   @db.Text
+  exclusions      String?   @db.Text
+  
+  // Duration
+  startDate       DateTime
+  durationMonths  Int       @default(12)
+  expiresAt       DateTime
+  
+  // Documentation
+  documentUrl     String?
+  
+  // Status
+  status          String    @default("active") // active, expired, voided
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  contactId       String
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  templateId      String?
+  template        WarrantyTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  
+  claims          WarrantyClaim[]
+  
+  @@index([companyId, status])
+  @@index([companyId, expiresAt])
+  @@index([projectId])
+  @@index([contactId])
+}
+
+// Warranty Claims
+model WarrantyClaim {
+  id              String    @id @default(cuid())
+  
+  title           String
+  description     String    @db.Text
+  location        String?
+  
+  // Reported info
+  reportedDate    DateTime
+  reportedBy      String?   // User or contact name
+  reportedMethod  String?   // phone, email, portal, in-person
+  
+  // Priority
+  priority        String    @default("normal") // low, normal, high, urgent
+  
+  // Status
+  status          String    @default("open") // open, scheduled, in_progress, completed, denied
+  
+  // Scheduling
+  scheduledDate   DateTime?
+  
+  // Completion
+  completedDate   DateTime?
+  completedById   String?
+  
+  // Denial
+  denialReason    String?
+  deniedById      String?
+  deniedDate      DateTime?
+  
+  // Photos/Documentation
+  photos          String[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  warrantyId      String
+  warranty        ProjectWarranty @relation(fields: [warrantyId], references: [id], onDelete: Cascade)
+  
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  contactId       String
+  contact         Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  // Link to job created for warranty work
+  jobId           String?
+  job             Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId, status])
+  @@index([warrantyId])
+  @@index([projectId])
+}
+
+// Add to existing Job model:
+// model Job {
+//   ...existing fields...
+//   type              String?   // Add 'warranty' type
+//   warrantyClaimId   String?
+//   warrantyClaims    WarrantyClaim[]
+// }
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   warrantyTemplates   WarrantyTemplate[]
+//   projectWarranties   ProjectWarranty[]
+//   warrantyClaims      WarrantyClaim[]
+// }
+
+// Add to existing Project model:
+// model Project {
+//   ...existing fields...
+//   warranties          ProjectWarranty[]
+//   warrantyClaims      WarrantyClaim[]
+// }
+
+// Add to existing Contact model:
+// model Contact {
+//   ...existing fields...
+//   warranties          ProjectWarranty[]
+//   warrantyClaims      WarrantyClaim[]
+// }

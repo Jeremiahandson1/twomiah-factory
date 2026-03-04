@@ -1,0 +1,147 @@
+// ============================================
+// SERVICE AGREEMENTS / MEMBERSHIPS - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+// Agreement Plan Templates
+model AgreementPlan {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  
+  // Pricing
+  price           Decimal   @db.Decimal(10, 2)
+  billingFrequency String   @default("annual") // monthly, quarterly, annual
+  
+  // Benefits
+  visitsIncluded  Int       @default(0)
+  discountPercent Int       @default(0)
+  priorityService Boolean   @default(false)
+  
+  // Term
+  durationMonths  Int       @default(12)
+  autoRenew       Boolean   @default(true)
+  
+  // Services included (JSON array of pricebook item IDs)
+  includedServices Json?
+  
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  agreements      ServiceAgreement[]
+  
+  @@index([companyId, active])
+}
+
+// Customer Service Agreements
+model ServiceAgreement {
+  id              String    @id @default(cuid())
+  
+  // Dates
+  startDate       DateTime
+  endDate         DateTime
+  nextBillingDate DateTime?
+  lastBilledAt    DateTime?
+  
+  // Pricing (copy from plan, can be overridden)
+  price           Decimal   @db.Decimal(10, 2)
+  billingFrequency String
+  
+  // Benefits tracking
+  visitsRemaining Int       @default(0)
+  discountPercent Int       @default(0)
+  
+  // Status
+  status          String    @default("pending") // pending, active, expired, cancelled
+  autoRenew       Boolean   @default(true)
+  
+  // Cancellation
+  cancelledAt     DateTime?
+  cancelReason    String?
+  
+  // Renewal tracking
+  renewedAt       DateTime?
+  renewalCount    Int       @default(0)
+  
+  // Payment
+  paymentMethod   String?   // card, invoice, ach
+  stripeSubscriptionId String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  planId          String
+  plan            AgreementPlan @relation(fields: [planId], references: [id])
+  
+  contactId       String
+  contact         Contact   @relation(fields: [contactId], references: [id])
+  
+  propertyId      String?
+  // property        Property? @relation(fields: [propertyId], references: [id])
+  
+  visits          AgreementVisit[]
+  invoices        Invoice[]
+  
+  @@index([companyId, status])
+  @@index([companyId, endDate])
+  @@index([contactId])
+}
+
+// Scheduled Visits for Agreements
+model AgreementVisit {
+  id              String    @id @default(cuid())
+  
+  scheduledDate   DateTime
+  completedDate   DateTime?
+  
+  serviceType     String?   // e.g., "Spring Tune-Up", "Fall Inspection"
+  notes           String?
+  technicianNotes String?
+  
+  status          String    @default("scheduled") // scheduled, completed, cancelled, no_show
+  
+  createdAt       DateTime  @default(now())
+  
+  agreementId     String
+  agreement       ServiceAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  
+  jobId           String?   @unique
+  job             Job?      @relation(fields: [jobId], references: [id])
+  
+  @@index([agreementId])
+  @@index([scheduledDate])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   agreementPlans      AgreementPlan[]
+//   serviceAgreements   ServiceAgreement[]
+// }
+
+// Add to existing Contact model:
+// model Contact {
+//   ...existing fields...
+//   serviceAgreements   ServiceAgreement[]
+// }
+
+// Add to existing Job model:
+// model Job {
+//   ...existing fields...
+//   agreementVisitId    String?
+//   agreementVisit      AgreementVisit?
+// }
+
+// Add to existing Invoice model:
+// model Invoice {
+//   ...existing fields...
+//   agreementId         String?
+//   agreement           ServiceAgreement? @relation(fields: [agreementId], references: [id])
+// }

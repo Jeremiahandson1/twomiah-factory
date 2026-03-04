@@ -1,0 +1,360 @@
+<%
+// Extract service data with fallbacks
+const description = service.fullDescription || service.description || '';
+const heroImage = service.heroImage || '';
+const heroAnimation = service.heroAnimation || 'none';
+const heroAnimationSpeed = service.heroAnimationSpeed || 10;
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const phoneRaw = phone.replace(/\D/g, '');
+
+// Function to get image URL
+function getImageUrl(p) {
+  if (!p) return '';
+  if (p.startsWith('http')) return p;
+  if (p.startsWith('/')) return p;
+  return '/uploads/' + p;
+}
+
+// Get other services (excluding current one)
+const otherServices = (typeof allServices !== 'undefined' && allServices) 
+  ? allServices.filter(s => s.id !== service.id) 
+  : [];
+%>
+
+<div class="service-page">
+  <!-- Hero Section -->
+  <section 
+    class="service-hero <%= heroImage ? 'has-image' : '' %>"
+    style="--hero-speed: <%= heroAnimationSpeed %>s"
+  >
+    <% if (heroImage) { %>
+      <div 
+        class="service-hero-bg animation-<%= heroAnimation %>"
+        style="background-image: url(<%= getImageUrl(heroImage) %>)"
+      ></div>
+      <div class="service-hero-overlay"></div>
+    <% } %>
+    <div class="service-hero-content">
+      <div class="container">
+        <a href="/#services" class="back-link">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          All Services
+        </a>
+        <h1><%= service.title %></h1>
+        <% if (service.tagline) { %>
+          <p class="hero-tagline"><%= service.tagline %></p>
+        <% } %>
+        <% if (service.heroDescription) { %>
+          <p class="hero-description"><%= service.heroDescription %></p>
+        <% } %>
+        <div class="hero-buttons">
+          <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+          <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+            <%= phone %>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <section class="service-main">
+    <div class="container">
+      <div class="service-layout">
+        <!-- Main Column -->
+        <div class="service-content">
+          <div class="content-section">
+            <h2>Expert <%= service.title %> Services</h2>
+            <% if (description) { %>
+              <% if (description.includes('<')) { %>
+                <!-- HTML content -->
+                <div class="prose"><%- description %></div>
+              <% } else { %>
+                <!-- Plain text content -->
+                <div class="prose">
+                  <% description.split('\n\n').forEach(function(para) { %>
+                    <p><%= para %></p>
+                  <% }); %>
+                </div>
+              <% } %>
+            <% } %>
+          </div>
+
+          <!-- Services Offered / Offerings -->
+          <% if (service.offerings && service.offerings.length > 0) { %>
+            <div class="offerings-section">
+              <h2>Our <%= service.title %> Services</h2>
+              <div class="offerings-grid">
+                <% service.offerings.forEach(function(offering, index) { %>
+                  <div class="offering-card">
+                    <div class="offering-number"><%= String(index + 1).padStart(2, '0') %></div>
+                    <h3><%= offering.title %></h3>
+                    <p><%= offering.description %></p>
+                  </div>
+                <% }); %>
+              </div>
+            </div>
+          <% } %>
+
+          <!-- Materials & Features -->
+          <% if ((service.materials && service.materials.length > 0) || (service.features && service.features.length > 0)) { %>
+            <div class="details-section">
+              <div class="details-grid">
+                <% if (service.materials && service.materials.length > 0) { %>
+                  <div class="details-card">
+                    <h3>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                      </svg>
+                      Materials We Use
+                    </h3>
+                    <ul>
+                      <% service.materials.forEach(function(material) { %>
+                        <li>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                          </svg>
+                          <%= material %>
+                        </li>
+                      <% }); %>
+                    </ul>
+                  </div>
+                <% } %>
+                <% if (service.features && service.features.length > 0) { %>
+                  <div class="details-card">
+                    <h3>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="8" r="7"></circle>
+                        <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+                      </svg>
+                      Why Choose Us
+                    </h3>
+                    <ul>
+                      <% service.features.forEach(function(feature) { %>
+                        <li>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                          </svg>
+                          <%= feature %>
+                        </li>
+                      <% }); %>
+                    </ul>
+                  </div>
+                <% } %>
+              </div>
+            </div>
+          <% } %>
+        </div>
+
+        <!-- Sidebar -->
+        <aside class="service-sidebar">
+          <div class="cta-card">
+            <h3>Ready to Get Started?</h3>
+            <p>Contact us today for a free, no-obligation estimate.</p>
+            <a href="tel:<%= phoneRaw %>" class="phone-link">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <%= phone %>
+            </a>
+            <a href="/#contact" class="btn btn-primary btn-block">Request Estimate</a>
+          </div>
+
+          <div class="trust-card">
+            <div class="trust-item">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>Licensed & Insured</span>
+            </div>
+            <div class="trust-item">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="8" r="7"></circle>
+                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+              </svg>
+              <span>Quality Guaranteed</span>
+            </div>
+            <div class="trust-item">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                <path d="M2 17l10 5 10-5"></path>
+                <path d="M2 12l10 5 10-5"></path>
+              </svg>
+              <span>Expert Craftsmen</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- Related Projects from Gallery -->
+  <% if (typeof galleryProjects !== 'undefined' && galleryProjects && galleryProjects.length > 0) { %>
+    <section class="service-projects">
+      <div class="container">
+        <div class="section-header">
+          <h2>Recent <%= service.title %> Projects</h2>
+          <a href="/gallery" class="view-all-link">View All Projects →</a>
+        </div>
+        <div class="projects-grid">
+          <% galleryProjects.forEach(function(project) { %>
+            <a href="/gallery/<%= project.id %>" class="project-card">
+              <div class="project-image">
+                <% if (project.images && project.images[0]) { %>
+                  <img 
+                    src="<%= getImageUrl(project.images[0].thumbnail || project.images[0].url) %>"
+                    alt="<%= project.title %>"
+                  >
+                <% } else { %>
+                  <div class="project-placeholder">
+                    <span><%= project.category %></span>
+                  </div>
+                <% } %>
+                <div class="project-overlay">
+                  <span>View Project</span>
+                </div>
+              </div>
+              <div class="project-info">
+                <h3><%= project.title %></h3>
+                <% if (project.location) { %>
+                  <p><%= project.location %></p>
+                <% } %>
+              </div>
+            </a>
+          <% }); %>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- FAQ Section -->
+  <% if (service.faqs && service.faqs.length > 0) { %>
+    <section class="service-faq">
+      <div class="container">
+        <h2>Frequently Asked Questions</h2>
+        <div class="faq-list">
+          <% service.faqs.forEach(function(faq, index) { %>
+            <div class="faq-item" data-index="<%= index %>">
+              <button class="faq-question">
+                <span><%= faq.question %></span>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <div class="faq-answer">
+                <p><%= faq.answer %></p>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+
+      <!-- FAQ Schema -->
+      <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          <% service.faqs.forEach(function(faq, index) { %>
+          {
+            "@type": "Question",
+            "name": <%- JSON.stringify(faq.question || '') %>,
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": <%- JSON.stringify(faq.answer || '') %>
+            }
+          }<%= index < service.faqs.length - 1 ? ',' : '' %>
+          <% }); %>
+        ]
+      }
+      </script>
+    </section>
+  <% } %>
+
+  <!-- Bottom CTA -->
+  <section class="service-cta">
+    <div class="container">
+      <h2>Ready to Start Your <%= service.title %> Project?</h2>
+      <p>Contact {{COMPANY_NAME}} today to schedule a free in-home assessment. We serve {{CITY}} and the surrounding {{SERVICE_REGION}}.</p>
+      <div class="cta-buttons">
+        <a href="/#contact" class="btn btn-primary btn-lg">Get Free Estimate</a>
+        <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Other Services -->
+  <% if (otherServices.length > 0) { %>
+    <section class="other-services">
+      <div class="container">
+        <h3>Explore Our Other Services</h3>
+        <div class="services-links">
+          <% otherServices.forEach(function(s) { %>
+            <a href="/<%= s.urlSlug || s.id %>" class="service-link">
+              <%= s.title %>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </a>
+          <% }); %>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- Service Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": <%- JSON.stringify(service.title + ' - {{COMPANY_NAME}}') %>,
+    "description": <%- JSON.stringify(service.heroDescription || service.tagline || '') %>,
+    "provider": {
+      "@type": "HomeAndConstructionBusiness",
+      "name": "{{COMPANY_NAME}}",
+      "url": "{{SITE_URL}}",
+      "telephone": "+1<%= phoneRaw %>",
+      "areaServed": { "@type": "City", "name": "{{CITY}}, {{STATE}}" }
+    },
+    "areaServed": [
+      { "@type": "City", "name": "{{CITY}}, {{STATE}}" },
+      { "@type": "City", "name": "{{NEARBY_CITY_4}}, WI" },
+      { "@type": "City", "name": "{{NEARBY_CITY_1}}, WI" },
+      { "@type": "City", "name": "{{NEARBY_CITY_2}}, WI" },
+      { "@type": "City", "name": "{{NEARBY_CITY_3}}, WI" }
+    ],
+    "serviceType": <%- JSON.stringify(service.title) %>
+  }
+  </script>
+</div>
+
+<script>
+// FAQ accordion functionality
+(function() {
+  const faqItems = document.querySelectorAll('.faq-item');
+  
+  faqItems.forEach(function(item) {
+    const button = item.querySelector('.faq-question');
+    
+    button.addEventListener('click', function() {
+      const isOpen = item.classList.contains('open');
+      
+      // Close all FAQs
+      faqItems.forEach(function(i) {
+        i.classList.remove('open');
+      });
+      
+      // Open this one if it wasn't already open
+      if (!isOpen) {
+        item.classList.add('open');
+      }
+    });
+  });
+})();
+</script>

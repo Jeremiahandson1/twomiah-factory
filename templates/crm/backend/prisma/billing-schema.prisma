@@ -1,0 +1,174 @@
+// ============================================
+// BILLING SCHEMA ADDITIONS
+// Add these to your existing schema.prisma
+// ============================================
+
+// Subscription (monthly/yearly recurring)
+model Subscription {
+  id                    String    @id @default(cuid())
+  companyId             String    @unique
+  company               Company   @relation(fields: [companyId], references: [id])
+  
+  stripeSubscriptionId  String    @unique
+  stripeCustomerId      String?
+  
+  // Plan details
+  packageId             String    // starter, servicePro, construction, enterprise
+  billingCycle          String    // monthly, yearly
+  
+  status                String    @default("active") // active, past_due, canceled, canceling, trialing
+  
+  // Pricing
+  userCount             Int       @default(1)
+  basePrice             Decimal
+  totalPrice            Decimal
+  
+  addons                Json?     // Array of addon IDs
+  
+  // Dates
+  trialEndsAt           DateTime?
+  currentPeriodStart    DateTime
+  currentPeriodEnd      DateTime
+  canceledAt            DateTime?
+  
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([status])
+}
+
+// License (one-time purchase)
+model License {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  
+  type            String    // lifetime, annual
+  packageId       String?
+  features        Json      // Array of enabled feature IDs
+  
+  // Payment
+  amount          Decimal
+  stripePaymentId String?
+  
+  // Dates
+  purchasedAt     DateTime
+  expiresAt       DateTime? // null for lifetime
+  
+  status          String    @default("active") // active, expired, revoked
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@index([companyId])
+}
+
+// Add-on purchases
+model AddonPurchase {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  
+  addonId         String    // whiteLabel, apiAccess, etc.
+  quantity        Int       @default(1)
+  
+  amount          Decimal
+  stripePaymentId String?
+  
+  // For recurring addons
+  subscriptionId  String?
+  
+  expiresAt       DateTime?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([companyId])
+}
+
+// Usage tracking (SMS, calls, storage, etc.)
+model UsageRecord {
+  id          String    @id @default(cuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  type        String    // sms, call_minute, storage_gb, api_call
+  quantity    Int       @default(1)
+  
+  metadata    Json?     // Additional context
+  
+  recordedAt  DateTime  @default(now())
+  
+  @@index([companyId, type, recordedAt])
+}
+
+// Billing invoices (our invoices to customers)
+model BillingInvoice {
+  id            String    @id @default(cuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id])
+  
+  number        String    @unique
+  
+  periodStart   DateTime
+  periodEnd     DateTime
+  
+  lineItems     Json      // Array of { description, quantity, unitPrice, total }
+  
+  subtotal      Decimal
+  tax           Decimal   @default(0)
+  total         Decimal
+  
+  status        String    @default("pending") // pending, paid, overdue, void
+  
+  dueDate       DateTime
+  paidAt        DateTime?
+  
+  stripeInvoiceId String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@index([companyId])
+  @@index([status])
+}
+
+// Payment history
+model PaymentRecord {
+  id              String    @id @default(cuid())
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id])
+  
+  amount          Decimal
+  currency        String    @default("usd")
+  
+  type            String    // subscription, one_time, addon, usage
+  description     String?
+  
+  stripePaymentId String?
+  stripeInvoiceId String?
+  
+  status          String    @default("succeeded") // succeeded, failed, refunded
+  
+  metadata        Json?
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([companyId])
+}
+
+// ============================================
+// ADD TO COMPANY MODEL
+// ============================================
+
+// Add these fields to your existing Company model:
+//
+// stripeCustomerId    String?   @unique
+// subscriptionTier    String?   // current package ID
+// licenseType         String?   // subscription, lifetime, null
+//
+// subscription        Subscription?
+// licenses            License[]
+// addonPurchases      AddonPurchase[]
+// usageRecords        UsageRecord[]
+// billingInvoices     BillingInvoice[]
+// paymentRecords      PaymentRecord[]

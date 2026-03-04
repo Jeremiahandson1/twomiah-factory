@@ -1,0 +1,344 @@
+import { Hono } from 'hono'
+import { authenticate, supabase } from '../middleware/auth'
+import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer } from '../services/deploy'
+import fs from 'fs'
+import path from 'path'
+import crypto from 'crypto'
+
+const factory = new Hono()
+
+// ─── Auth on all routes except public ones ────────────────────────────────────
+factory.use('*', async (c, next) => {
+  const pub = ['/templates', '/features', '/health']
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/download/')) return next()
+  return authenticate(c, next)
+})
+
+
+// ─── Generate ─────────────────────────────────────────────────────────────────
+factory.post('/generate', async (c) => {
+  try {
+    const config = await c.req.json() as GenerateConfig
+    if (!config.products?.length) return c.json({ error: 'At least one product must be selected' }, 400)
+    if (!config.company?.name) return c.json({ error: 'Company name is required' }, 400)
+
+    const validProducts = ['website', 'cms', 'crm', 'vision']
+    const invalid = config.products.filter(p => !validProducts.includes(p))
+    if (invalid.length) return c.json({ error: 'Invalid products: ' + invalid.join(', ') }, 400)
+
+    console.log('[Factory] Generating build for "' + config.company.name + '" — products:', config.products.join(', '))
+    const startTime = Date.now()
+
+    const result = await generate(config)
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+    console.log('[Factory] Build complete in ' + elapsed + 's — ' + result.zipName)
+
+    // Track factory_job in Supabase
+    const userId = c.get('userId')
+    if (config.tenant_id) {
+      await supabase.from('factory_jobs').insert({
+        tenant_id: config.tenant_id,
+        template: config.products.join('+'),
+        deployment_model: 'owned',
+        status: 'generated',
+        features: config.features?.crm || [],
+        branding: config.branding,
+        build_id: result.buildId,
+        zip_name: result.zipName,
+      })
+    }
+
+    return c.json({
+      success: true,
+      buildId: result.buildId,
+      zipName: result.zipName,
+      slug: result.slug,
+      customerId: config.tenant_id || null,
+      downloadUrl: '/api/v1/factory/download/' + result.buildId + '/' + result.zipName,
+      generatedIn: elapsed + 's',
+      defaultPassword: result.defaultPassword,
+      adminUrl: config.products.includes('website') || config.products.includes('cms')
+        ? 'https://' + result.slug + '-site.onrender.com/admin'
+        : null,
+    })
+  } catch (err: any) {
+    console.error('[Factory] Generation failed:', err)
+    return c.json({ error: 'Build generation failed', details: err.message }, 500)
+  }
+})
+
+
+// ─── Download ─────────────────────────────────────────────────────────────────
+factory.get('/download/:buildId/:filename', async (c) => {
+  const { buildId, filename } = c.req.param()
+  if (!/^[a-f0-9-]+$/.test(buildId) || !/^[a-zA-Z0-9_-]+\.zip$/.test(filename)) {
+    return c.json({ error: 'Invalid download parameters' }, 400)
+  }
+
+  const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
+  const zipPath = path.join(OUTPUT_DIR, filename)
+
+  if (!fs.existsSync(zipPath)) {
+    return c.json({ error: 'Build not found or expired' }, 404)
+  }
+
+  const fileData = fs.readFileSync(zipPath)
+  return new Response(fileData, {
+    headers: {
+      'Content-Type': 'application/zip',
+      'Content-Disposition': 'attachment; filename="' + filename + '"',
+      'Content-Length': String(fileData.length),
+    },
+  })
+})
+
+
+// ─── Generate Content with AI ─────────────────────────────────────────────────
+factory.post('/generate-content', async (c) => {
+  try {
+    const { companyName, city, state, industry, services, serviceRegion, ownerName } = await c.req.json()
+    if (!companyName) return c.json({ error: 'companyName is required' }, 400)
+
+    const isHomeCare = industry === 'home_care'
+    const location = [city, state].filter(Boolean).join(', ') || 'your area'
+    const region = serviceRegion || city || 'the area'
+
+    const prompt = 'You are writing website copy for a ' + (isHomeCare ? 'home care' : 'home improvement contractor') + ' company.\n\n' +
+      'Company: ' + companyName + '\nLocation: ' + location + '\nService region: ' + region + '\n' +
+      (ownerName ? 'Owner: ' + ownerName + '\n' : '') +
+      'Services: ' + (services || []).join(', ') + '\n\n' +
+      'Write the following in JSON format:\n' +
+      '{\n  "heroTagline": "short 3-6 word badge text",\n  "aboutText": "2-3 sentence paragraph about this company",\n  "ctaText": "one sentence call-to-action"\n}\n' +
+      'Return ONLY valid JSON. No markdown, no explanation.'
+
+    const { default: Anthropic } = await import('@anthropic-ai/sdk')
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const raw = (message.content[0] as any).text.trim()
+    const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+    return c.json(JSON.parse(cleaned))
+  } catch (err: any) {
+    console.error('[Factory] generate-content error:', err.message)
+    return c.json({ error: 'Content generation failed', details: err.message }, 500)
+  }
+})
+
+
+// ─── Templates & Features ─────────────────────────────────────────────────────
+factory.get('/templates', (c) => {
+  return c.json({ templates: listTemplates() })
+})
+
+factory.get('/features', (c) => {
+  return c.json({
+    website: [
+      { category: 'Content', features: [
+        { id: 'blog', name: 'Blog', description: 'Blog with categories and SEO' },
+        { id: 'gallery', name: 'Gallery', description: 'Photo gallery with lightbox' },
+        { id: 'testimonials', name: 'Testimonials', description: 'Customer testimonials section' },
+        { id: 'services_pages', name: 'Service Pages', description: 'Individual service pages with SEO' },
+      ]},
+      { category: 'Lead Generation', features: [
+        { id: 'contact_form', name: 'Contact Form', description: 'Lead capture with email notifications' },
+        { id: 'service_area', name: 'Service Area Pages', description: 'Geo-targeted landing pages' },
+        { id: 'financing_widget', name: 'Financing Widget', description: 'Embedded financing calculator' },
+      ]},
+      { category: 'SEO & Analytics', features: [
+        { id: 'sitemap', name: 'XML Sitemap', description: 'Auto-generated sitemap' },
+        { id: 'schema_markup', name: 'Schema Markup', description: 'Structured data for search' },
+        { id: 'analytics', name: 'Analytics Integration', description: 'GA4, GTM, Facebook Pixel' },
+      ]},
+      { category: 'Tools', features: [
+        { id: 'visualizer', name: 'Home Visualizer', description: 'AI-powered renovation visualizer' },
+        { id: 'reviews_widget', name: 'Reviews Widget', description: 'Google reviews integration' },
+      ]},
+    ],
+    crm: [
+      { category: 'Core', features: [
+        { id: 'contacts', name: 'Contacts', description: 'Client, lead, vendor management', core: true },
+        { id: 'jobs', name: 'Jobs', description: 'Job tracking and management', core: true },
+        { id: 'quotes', name: 'Quotes', description: 'Professional estimates and quotes', core: true },
+        { id: 'invoices', name: 'Invoices', description: 'Invoice generation and tracking', core: true },
+        { id: 'scheduling', name: 'Scheduling', description: 'Calendar and job scheduling', core: true },
+        { id: 'team', name: 'Team', description: 'Team member management', core: true },
+        { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', core: true },
+      ]},
+      { category: 'Construction', features: [
+        { id: 'projects', name: 'Projects', description: 'Multi-phase project management' },
+        { id: 'rfis', name: 'RFIs', description: 'Request for information tracking' },
+        { id: 'change_orders', name: 'Change Orders', description: 'Change order management' },
+        { id: 'punch_lists', name: 'Punch Lists', description: 'Punch list tracking' },
+        { id: 'daily_logs', name: 'Daily Logs', description: 'Field daily log reports' },
+        { id: 'inspections', name: 'Inspections', description: 'Quality inspections' },
+        { id: 'bid_management', name: 'Bid Management', description: 'Bid tracking and submission' },
+        { id: 'takeoff_tools', name: 'Takeoff Tools', description: 'Material takeoff calculations' },
+        { id: 'selections', name: 'Selections', description: 'Client material selections portal' },
+      ]},
+      { category: 'Service Trade', features: [
+        { id: 'drag_drop_calendar', name: 'Drag & Drop Calendar', description: 'Visual job scheduling' },
+        { id: 'recurring_jobs', name: 'Recurring Jobs', description: 'Automated recurring job creation' },
+        { id: 'route_optimization', name: 'Route Optimization', description: 'Optimize daily service routes' },
+        { id: 'online_booking', name: 'Online Booking', description: 'Customer self-scheduling' },
+        { id: 'service_dispatch', name: 'Service Dispatch', description: 'Real-time dispatch board' },
+        { id: 'service_agreements', name: 'Service Agreements', description: 'Maintenance agreement management' },
+        { id: 'warranties', name: 'Warranties', description: 'Warranty tracking' },
+        { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog' },
+      ]},
+      { category: 'Field Operations', features: [
+        { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS' },
+        { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location' },
+        { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation' },
+        { id: 'equipment_tracking', name: 'Equipment', description: 'Equipment and tool tracking' },
+        { id: 'fleet', name: 'Fleet Management', description: 'Vehicle fleet tracking' },
+      ]},
+      { category: 'Finance', features: [
+        { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing' },
+        { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts' },
+        { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis' },
+        { id: 'consumer_financing', name: 'Consumer Financing', description: 'Wisetack financing integration' },
+        { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync' },
+      ]},
+      { category: 'Communication', features: [
+        { id: 'two_way_texting', name: 'Two-Way Texting', description: 'SMS communication with clients' },
+        { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording' },
+        { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal' },
+      ]},
+      { category: 'Marketing', features: [
+        { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management, lead tracking, monthly ROI reports' },
+        { id: 'google_reviews', name: 'Google Reviews', description: 'Review request automation' },
+        { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters' },
+        { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking' },
+      ]},
+      { category: 'Advanced', features: [
+        { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory' },
+        { id: 'documents', name: 'Documents', description: 'Document management and storage' },
+        { id: 'reports', name: 'Reports', description: 'Custom reporting dashboard' },
+        { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards' },
+        { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling' },
+        { id: 'map_view', name: 'Map View', description: 'Map-based job visualization' },
+      ]},
+    ],
+  })
+})
+
+
+// ─── Deploy ───────────────────────────────────────────────────────────────────
+factory.get('/deploy/config', (c) => {
+  return c.json({ configured: isConfigured() })
+})
+
+factory.post('/customers/:id/deploy', async (c) => {
+  try {
+    if (!isConfigured()) {
+      return c.json({ error: 'Deploy not configured', missing: getMissingConfig() }, 400)
+    }
+
+    const tenantId = c.req.param('id')
+    console.log('[Deploy] Looking up tenant:', tenantId)
+
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (!tenant) {
+      console.log('[Deploy] Tenant not found:', tenantErr?.message)
+      return c.json({ error: 'Tenant not found', id: tenantId }, 404)
+    }
+
+    console.log('[Deploy] Found tenant:', tenant.name, tenant.slug)
+
+    // Get latest factory job for this tenant
+    const { data: job, error: jobErr } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenant.id).order('created_at', { ascending: false }).limit(1).single()
+    if (!job) {
+      console.log('[Deploy] No job found for tenant:', jobErr?.message)
+      return c.json({ error: 'No build found. Generate a package first.' }, 400)
+    }
+
+    console.log('[Deploy] Found job:', job.id, 'status:', job.status, 'zip:', job.zip_name)
+
+    // Update status to deploying
+    await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
+
+    // Run deploy in background
+    runDeploy(tenant, job).catch(err => console.error('[Deploy] Background error:', err.message))
+
+    return c.json({ message: 'Deployment started', status: 'deploying' })
+  } catch (err: any) {
+    console.error('[Deploy] endpoint error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+async function runDeploy(tenant: any, job: any) {
+  try {
+    const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
+    
+    // Find zip - use stored zip_name first, then fall back to slug search
+    let zipPath: string | null = null
+    if (job.zip_name) {
+      const candidate = path.join(OUTPUT_DIR, job.zip_name)
+      if (fs.existsSync(candidate)) zipPath = candidate
+    }
+    if (!zipPath) {
+      const zipFiles = fs.readdirSync(OUTPUT_DIR).filter((f: string) => f.startsWith(tenant.slug || '') && f.endsWith('.zip'))
+      if (zipFiles.length) zipPath = path.join(OUTPUT_DIR, zipFiles[zipFiles.length - 1])
+    }
+    if (!zipPath) throw new Error('Zip file not found. Re-generate the package first.')
+
+    console.log('[Deploy] Using zip:', zipPath)
+
+    const result = await deployCustomer(
+      { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: job.branding },
+      zipPath, {}
+    )
+
+    console.log('[Deploy] Result steps:', JSON.stringify(result.steps))
+    console.log('[Deploy] Errors:', JSON.stringify(result.errors))
+
+    await supabase.from('factory_jobs').update({
+      status: result.success ? 'deployed' : 'generated',
+      github_repo: result.repoUrl || null,
+      render_url: result.deployedUrl || result.siteUrl || null,
+    }).eq('id', job.id)
+
+    if (result.repoUrl) await supabase.from('tenants').update({ status: 'active' }).eq('id', tenant.id)
+
+    console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
+  } catch (err: any) {
+    console.error('[Deploy] Background deploy failed:', err.message)
+    await supabase.from('factory_jobs').update({ status: 'failed' }).eq('id', job.id)
+  }
+}
+
+
+// ─── Deploy Status ────────────────────────────────────────────────────────────
+factory.get('/customers/:id/deploy/status', async (c) => {
+  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).single()
+  if (!job?.render_service_ids) return c.json({ status: 'not_deployed', services: {} })
+  const result = await checkDeployStatus({ renderServiceIds: job.render_service_ids })
+  return c.json(result)
+})
+
+
+// ─── Redeploy ─────────────────────────────────────────────────────────────────
+factory.post('/customers/:id/redeploy', async (c) => {
+  if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
+  const { data: job } = await supabase.from('factory_jobs').select('render_service_ids').eq('tenant_id', c.req.param('id')).order('created_at', { ascending: false }).limit(1).single()
+  if (!job?.render_service_ids) return c.json({ error: 'No deployed services found' }, 400)
+  const result = await redeployCustomer({ renderServiceIds: job.render_service_ids })
+  return c.json(result)
+})
+
+
+// ─── Cleanup ──────────────────────────────────────────────────────────────────
+factory.post('/cleanup', async (c) => {
+  const { maxAge } = await c.req.json().catch(() => ({}))
+  const cleaned = cleanOldBuilds(maxAge || 24 * 60 * 60 * 1000)
+  return c.json({ cleaned, message: 'Removed ' + cleaned + ' old builds' })
+})
+
+export default factory

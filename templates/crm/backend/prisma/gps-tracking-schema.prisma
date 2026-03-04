@@ -1,0 +1,122 @@
+// ============================================
+// GPS AUTO TIME TRACKING - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+// Location log for tracking user positions
+model LocationLog {
+  id          String    @id @default(cuid())
+  lat         Float
+  lng         Float
+  accuracy    Float?
+  timestamp   DateTime  @default(now())
+  action      String?   // 'auto_clock_in', 'auto_clock_out', null
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  jobId       String?
+  job         Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  @@index([userId, companyId, timestamp])
+  @@index([jobId])
+}
+
+// Geofence definitions for job sites
+model Geofence {
+  id          String    @id @default(cuid())
+  name        String
+  lat         Float
+  lng         Float
+  radius      Int       @default(100) // meters
+  address     String?
+  active      Boolean   @default(true)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  jobId       String?   @unique
+  job         Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  projectId   String?
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  
+  events      GeofenceEvent[]
+  
+  @@index([companyId, active])
+}
+
+// Geofence enter/exit events
+model GeofenceEvent {
+  id          String    @id @default(cuid())
+  inside      Boolean
+  lat         Float
+  lng         Float
+  accuracy    Float?
+  distance    Float?
+  timestamp   DateTime  @default(now())
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  geofenceId  String
+  geofence    Geofence  @relation(fields: [geofenceId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, geofenceId, timestamp])
+}
+
+// User settings for location tracking
+model UserSettings {
+  id                        String    @id @default(cuid())
+  userId                    String    @unique
+  user                      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Location tracking
+  locationTrackingEnabled   Boolean   @default(false)
+  autoClockEnabled          Boolean   @default(false)
+  backgroundTrackingEnabled Boolean   @default(false)
+  locationAccuracy          String    @default("high") // high, balanced, low
+  trackingInterval          Int       @default(30) // seconds
+  geofenceRadius            Int       @default(100) // default radius in meters
+  
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+}
+
+// Add to existing Job model:
+// model Job {
+//   ...existing fields...
+//   lat              Float?
+//   lng              Float?
+//   geofenceRadius   Int?      @default(100)
+//   geofence         Geofence?
+//   locationLogs     LocationLog[]
+// }
+
+// Add to existing TimeEntry model:
+// model TimeEntry {
+//   ...existing fields...
+//   isAutoClocked    Boolean   @default(false)
+//   geofenceId       String?
+// }
+
+// Add to existing User model:
+// model User {
+//   ...existing fields...
+//   locationLogs     LocationLog[]
+//   geofenceEvents   GeofenceEvent[]
+//   settings         UserSettings?
+// }
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   locationLogs     LocationLog[]
+//   geofences        Geofence[]
+// }

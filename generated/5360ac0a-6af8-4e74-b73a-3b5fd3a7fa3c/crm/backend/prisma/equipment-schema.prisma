@@ -1,0 +1,154 @@
+// ============================================
+// EQUIPMENT TRACKING - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+// Equipment Types (templates)
+model EquipmentType {
+  id                       String    @id @default(cuid())
+  name                     String
+  category                 String    // HVAC, Plumbing, Electrical, Appliance
+  brand                    String?
+  defaultWarrantyMonths    Int       @default(12)
+  defaultLifespanYears     Int       @default(15)
+  maintenanceIntervalMonths Int      @default(12)
+  fields                   Json?     // Custom fields for this type
+  active                   Boolean   @default(true)
+  
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  
+  companyId                String
+  company                  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  equipment                Equipment[]
+  
+  @@index([companyId, category])
+}
+
+// Customer Equipment
+model Equipment {
+  id                       String    @id @default(cuid())
+  
+  // Basic Info
+  name                     String
+  category                 String    // HVAC, Plumbing, Electrical, Appliance
+  brand                    String?
+  model                    String?
+  serialNumber             String?
+  
+  // Location within property
+  location                 String?   // "Basement", "Attic", "Garage", etc.
+  
+  // Dates
+  installDate              DateTime?
+  purchaseDate             DateTime?
+  
+  // Warranty
+  warrantyMonths           Int       @default(0)
+  warrantyExpires          DateTime?
+  warrantyProvider         String?
+  warrantyNotes            String?
+  
+  // Maintenance
+  maintenanceIntervalMonths Int      @default(12)
+  lastMaintenanceDate      DateTime?
+  nextMaintenanceDate      DateTime?
+  
+  // Specs (JSON for flexibility)
+  specifications           Json?     // BTU, tonnage, efficiency, etc.
+  
+  // Status
+  status                   String    @default("active") // active, needs_repair, replaced, removed
+  condition                String    @default("good") // excellent, good, fair, poor
+  
+  // Replacement tracking
+  replacedById             String?
+  replacedDate             DateTime?
+  
+  notes                    String?
+  imageUrl                 String?
+  
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  
+  companyId                String
+  company                  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  contactId                String
+  contact                  Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  propertyId               String?
+  
+  equipmentTypeId          String?
+  equipmentType            EquipmentType? @relation(fields: [equipmentTypeId], references: [id], onDelete: SetNull)
+  
+  serviceHistory           EquipmentServiceRecord[]
+  
+  @@index([companyId, contactId])
+  @@index([companyId, category])
+  @@index([companyId, status])
+  @@index([companyId, nextMaintenanceDate])
+  @@index([companyId, warrantyExpires])
+}
+
+// Service Records
+model EquipmentServiceRecord {
+  id                String    @id @default(cuid())
+  
+  serviceDate       DateTime
+  serviceType       String    // maintenance, repair, inspection, installation
+  description       String?
+  findings          String?
+  recommendations   String?
+  
+  partsUsed         Json?     // Array of {itemId, name, quantity, cost}
+  laborHours        Decimal   @default(0) @db.Decimal(5, 2)
+  cost              Decimal   @default(0) @db.Decimal(10, 2)
+  
+  conditionBefore   String?
+  conditionAfter    String?
+  
+  createdAt         DateTime  @default(now())
+  
+  equipmentId       String
+  equipment         Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  
+  companyId         String
+  company           Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  jobId             String?
+  job               Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  technicianId      String?
+  technician        User?     @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  
+  @@index([equipmentId, serviceDate])
+  @@index([companyId, serviceDate])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   equipmentTypes          EquipmentType[]
+//   equipment               Equipment[]
+//   equipmentServiceRecords EquipmentServiceRecord[]
+// }
+
+// Add to existing Contact model:
+// model Contact {
+//   ...existing fields...
+//   equipment               Equipment[]
+// }
+
+// Add to existing Job model:
+// model Job {
+//   ...existing fields...
+//   equipmentServiceRecords EquipmentServiceRecord[]
+// }
+
+// Add to existing User model:
+// model User {
+//   ...existing fields...
+//   equipmentServiceRecords EquipmentServiceRecord[]
+// }

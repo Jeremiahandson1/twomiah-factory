@@ -1,0 +1,736 @@
+<%
+// Extract data with fallbacks
+const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
+const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
+const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
+const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
+const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
+
+// Settings with fallbacks
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
+const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '{{COMPANY_ADDRESS}}';
+const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
+const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : 'WI';
+const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
+const phoneRaw = phone.replace(/\D/g, '');
+
+// Function to get image URL
+function getImageUrl(p) {
+  if (!p) return '';
+  if (p.startsWith('http')) return p;
+  if (p.startsWith('/')) return p;
+  return '/uploads/' + p;
+}
+%>
+
+<div class="home-page">
+  <!-- Hero Section -->
+  <section 
+    class="hero-video <%= hero.image ? 'hero-animated' : '' %>"
+    style="--hero-speed: <%= hero.animationSpeed || 10 %>s"
+  >
+    <% if (hero.image) { %>
+      <div 
+        class="hero-bg animation-<%= hero.animation || 'none' %>"
+        style="background-image: url(<%= getImageUrl(hero.image) %>)"
+      ></div>
+      <div class="hero-overlay"></div>
+    <% } else { %>
+      <div class="hero-video-bg">
+        <div class="video-placeholder"></div>
+        <div class="hero-overlay"></div>
+      </div>
+    <% } %>
+    <div class="hero-video-content <%= hero.image ? 'hero-content' : '' %>">
+      <h1><%= hero.title || '{{COMPANY_NAME}}' %></h1>
+      <h2><%= hero.subtitle || 'Professional {{INDUSTRY}} Services' %></h2>
+      <div class="hero-line"></div>
+      <p class="hero-tagline"><strong><%= hero.tagline || 'YOUR TRUSTED LOCAL PROFESSIONALS' %></strong></p>
+      <p class="hero-awards"><%= hero.description || 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship' %></p>
+      <div class="hero-buttons">
+        <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
+          <%= hero.primaryButtonText || 'Request Free Estimate' %>
+        </a>
+        <a href="<%= hero.secondaryButtonLink || '/gallery' %>" class="btn btn-outline-light btn-lg">
+          <%= hero.secondaryButtonText || 'View Our Work' %>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Services Section -->
+  <section class="services-section" id="services">
+    <div class="container">
+      <h2>Our Services</h2>
+      <div class="services-grid">
+        <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
+          <% services.forEach(function(service) { %>
+            <div class="service-card animate-on-scroll">
+              <div class="service-image">
+                <% if (service.image) { %>
+                  <img 
+                    src="<%= getImageUrl(service.image) %>" 
+                    alt="<%= service.title %> services in {{CITY}}, {{STATE}} - {{COMPANY_NAME}}"
+                    loading="lazy"
+                    width="800"
+                    height="600"
+                  >
+                <% } else { %>
+                  <span class="service-icon"><%= service.icon || '🔧' %></span>
+                <% } %>
+              </div>
+              <div class="service-content">
+                <h3><%= service.title %></h3>
+                <p><%= service.shortDescription || service.tagline || service.description %></p>
+                <% if (service.links && service.links.length > 0) { %>
+                  <hr>
+                  <ul class="service-links">
+                    <% service.links.forEach(function(link) { %>
+                      <li><a href="<%= link.href %>"><%= link.label %></a></li>
+                    <% }); %>
+                  </ul>
+                <% } %>
+              </div>
+            </div>
+          <% }); %>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Choose Us Section -->
+  <section class="why-choose-section">
+    <div class="container">
+      <h2>Why {{CITY}} Homeowners Trust {{COMPANY_NAME}}</h2>
+      <div class="why-grid">
+        <div class="why-item animate-on-scroll">
+          <div class="why-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          </div>
+          <h3>Industry Certified</h3>
+          <p>We've earned top certifications in our industry, giving you access to premium materials, extended warranties, and a commitment to quality backed by the leading names in {{INDUSTRY}}.</p>
+        </div>
+        <div class="why-item animate-on-scroll">
+          <div class="why-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </div>
+          <h3>Local to the {{SERVICE_REGION}}</h3>
+          <p>Based in {{CITY}}, we serve homeowners across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, Bloomer, and the surrounding communities. When a storm hits the valley, we're already here — not driving in from Minneapolis or Madison.</p>
+        </div>
+        <div class="why-item animate-on-scroll">
+          <div class="why-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Transparent Pricing, No Surprises</h3>
+          <p>Every project starts with a detailed free estimate. We walk you through material options, labor costs, and timelines before any work begins. Our customers consistently mention our honest communication in their reviews.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials Section -->
+  <% if (typeof testimonials !== 'undefined' && testimonials && testimonials.length > 0) { %>
+    <section class="testimonials-section">
+      <div class="container">
+        <h2>What Our Customers Say</h2>
+        <div class="testimonial-slider">
+          <% testimonials.forEach(function(testimonial, index) { %>
+            <div class="testimonial-card <%= index === 0 ? 'active' : '' %>" data-index="<%= index %>">
+              <div class="testimonial-content">
+                <div class="testimonial-stars">
+                  <%= '★'.repeat(testimonial.rating || 5) %>
+                </div>
+                <blockquote>"<%= testimonial.text %>"</blockquote>
+                <div class="testimonial-author">
+                  <% if (testimonial.image) { %>
+                    <img src="<%= getImageUrl(testimonial.image) %>" alt="<%= testimonial.author %>">
+                  <% } %>
+                  <div>
+                    <strong><%= testimonial.author %></strong>
+                    <% if (testimonial.location) { %>
+                      <span><%= testimonial.location %></span>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+        <% if (testimonials.length > 1) { %>
+          <div class="testimonial-dots">
+            <% testimonials.forEach(function(_, i) { %>
+              <button 
+                class="<%= i === 0 ? 'active' : '' %>"
+                data-index="<%= i %>"
+                aria-label="Testimonial <%= i + 1 %>"
+              ></button>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- Featured Projects -->
+  <% if (typeof featuredProjects !== 'undefined' && featuredProjects && featuredProjects.length > 0) { %>
+    <section class="featured-projects-section">
+      <div class="container">
+        <h2>Recent Projects in the {{SERVICE_REGION}}</h2>
+        <div class="fp-grid">
+          <% featuredProjects.slice(0, 6).forEach(function(project) { %>
+            <a href="/gallery/<%= project.id %>" class="fp-card animate-on-scroll">
+              <img 
+                src="<%= project.featured_image || (project.images && project.images[0] ? (project.images[0].thumbnail || project.images[0].url) : '/images/project-placeholder.jpg') %>" 
+                alt="<%= project.title %> - <%= project.category || 'Construction' %> project in <%= project.location || '{{CITY}}' %>, WI"
+                loading="lazy"
+                width="400"
+                height="300"
+              >
+              <div class="fp-overlay">
+                <h3><%= project.title %></h3>
+                <span><%= project.category %></span>
+              </div>
+            </a>
+          <% }); %>
+        </div>
+        <div style="text-align: center; margin-top: 2rem;">
+          <a href="/gallery" class="btn btn-outline">View All Projects</a>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- Visualizer CTA -->
+  <section class="visualizer-cta-section" style="
+    background: linear-gradient(135deg, #0d1626 0%, #1a2744 50%, #2a3a5c 100%);
+    padding: 60px 0;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  ">
+    <div style="position: absolute; inset: 0; opacity: 0.04;
+      background-image: url('data:image/svg+xml,%3Csvg width=&quot;60&quot; height=&quot;60&quot; viewBox=&quot;0 0 60 60&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;%3E%3Cg fill=&quot;none&quot;%3E%3Cg fill=&quot;%23ffffff&quot;%3E%3Cpath d=&quot;M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z&quot;/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');
+    "></div>
+    <div class="container" style="position: relative; z-index: 1; max-width: 700px; margin: 0 auto;">
+      <div style="width: 60px; height: 3px; background: #c9a227; margin: 0 auto 24px; border-radius: 2px;"></div>
+      <h2 style="font-family: 'Montserrat', sans-serif; font-size: clamp(1.75rem, 4vw, 2.5rem); font-weight: 800; color: #ffffff; margin-bottom: 12px; line-height: 1.2;">
+        See Your Home <span style="color: #c9a227;">Transformed</span>
+      </h2>
+      <p style="font-family: 'Assistant', sans-serif; font-size: 18px; color: rgba(255,255,255,0.75); margin-bottom: 32px; line-height: 1.6;">
+        Upload a photo and visualize your project before work begins. See real products and materials from the brands we trust &mdash; in seconds.
+      </p>
+      <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <a href="/visualize" class="btn btn-primary btn-lg" style="display: inline-flex; align-items: center; gap: 8px;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          Try It Free
+        </a>
+        <a href="/#contact" class="btn btn-outline-light btn-lg">Request Estimate</a>
+      </div>
+      <div style="margin-top: 28px; display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;">
+        <span style="font-size: 13px; color: rgba(255,255,255,0.4); font-family: 'Montserrat', sans-serif; letter-spacing: 0.5px;">&#10003; No sign-up required</span>
+        <span style="font-size: 13px; color: rgba(255,255,255,0.4); font-family: 'Montserrat', sans-serif; letter-spacing: 0.5px;">&#10003; Real products we install</span>
+        <span style="font-size: 13px; color: rgba(255,255,255,0.4); font-family: 'Montserrat', sans-serif; letter-spacing: 0.5px;">&#10003; Results in 10 seconds</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Trust Badges -->
+  <% if (trustBadges.length > 0) { %>
+    <section class="trust-section">
+      <div class="container">
+        <div class="review-badges">
+          <% trustBadges.forEach(function(badge) { %>
+            <div class="review-badge">
+              <% if (badge.type === 'google') { %>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+              <% } else if (badge.type === 'facebook') { %>
+                <svg viewBox="0 0 512 512" fill="currentColor">
+                  <path d="M504 256C504 119 393 8 256 8S8 119 8 256c0 123.78 90.69 226.38 209.25 245V327.69h-63V256h63v-54.64c0-62.15 37-96.48 93.67-96.48 27.14 0 55.52 4.84 55.52 4.84v61h-31.28c-30.8 0-40.41 19.12-40.41 38.73V256h68.78l-11 71.69h-57.78V501C413.31 482.38 504 379.78 504 256z"/>
+                </svg>
+              <% } else if (badge.type === 'bbb') { %>
+                <span class="badge-text">BBB</span>
+              <% } else if (badge.type === 'owens-corning') { %>
+                <span class="badge-text">OC</span>
+              <% } else if (badge.type === 'gaf') { %>
+                <span class="badge-text">GAF</span>
+              <% } else { %>
+                <span class="badge-text">✓</span>
+              <% } %>
+              <div class="badge-info">
+                <span class="stars"><%= badge.label %></span>
+                <span class="count"><%= badge.sublabel %></span>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- CTA Section -->
+  <section 
+    class="cta-section"
+    <% if (ctaSection.backgroundImage) { %>
+      style="background-image: url(<%= getImageUrl(ctaSection.backgroundImage) %>)"
+    <% } %>
+  >
+    <div class="container">
+      <%
+        const ctaTitle = ctaSection.title || 'Increase your comfort.\nDecrease your energy bills.';
+        const ctaTitleLines = ctaTitle.split('\n');
+      %>
+      <h2>
+        <% ctaTitleLines.forEach(function(line, i) { %>
+          <%= line %><% if (i === 0 && ctaTitleLines.length > 1) { %><br><% } %>
+        <% }); %>
+      </h2>
+      <p><%= ctaSection.description || "Find out how we can improve your home's efficiency and curb appeal." %></p>
+      <div class="cta-buttons">
+        <a href="<%= ctaSection.primaryButtonLink || '#contact' %>" class="btn btn-primary btn-lg">
+          <%= ctaSection.primaryButtonText || 'Schedule a Free Estimate' %>
+        </a>
+        <a href="<%= ctaSection.secondaryButtonLink || 'tel:' + phoneRaw %>" class="btn btn-outline btn-lg">
+          <%= ctaSection.secondaryButtonText || 'Call ' + phone %>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Latest Blog Posts -->
+  <% if (typeof recentPosts !== 'undefined' && recentPosts && recentPosts.length > 0) { %>
+    <section class="blog-preview-section">
+      <div class="container">
+        <h2>Latest from Our Blog</h2>
+        <div class="blog-preview-grid">
+          <% recentPosts.forEach(function(post) { %>
+            <a href="/blog/<%= post.slug %>" class="blog-preview-card animate-on-scroll">
+              <% if (post.featuredImage) { %>
+                <img 
+                  src="<%= getImageUrl(post.featuredImage) %>" 
+                  alt="<%= post.title %>"
+                  loading="lazy"
+                  width="400"
+                  height="225"
+                >
+              <% } %>
+              <div class="blog-preview-content">
+                <h3><%= post.title %></h3>
+                <p><%= post.excerpt %></p>
+                <span class="read-more">Read More →</span>
+              </div>
+            </a>
+          <% }); %>
+        </div>
+        <div style="text-align: center; margin-top: 1.5rem;">
+          <a href="/blog" class="btn btn-outline">View All Articles</a>
+        </div>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- FAQ Section -->
+  <section class="home-faq">
+    <div class="container">
+      <h2>Frequently Asked Questions</h2>
+      <div class="home-faq-list">
+        <details class="home-faq-item animate-on-scroll">
+          <summary><strong>How long does a typical project take in {{CITY}}?</strong></summary>
+          <p>Project timelines vary depending on scope and complexity. We provide detailed timelines during your estimate and communicate clearly throughout the process to minimize delays.</p>
+        </details>
+        <details class="home-faq-item animate-on-scroll">
+          <summary><strong>Do you offer financing for home improvements?</strong></summary>
+          <p>Yes, we offer flexible financing options to help {{SERVICE_REGION}} homeowners afford the upgrades they need. Ask about our current promotions during your free estimate.</p>
+        </details>
+        <details class="home-faq-item animate-on-scroll">
+          <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
+          <p>We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, Bloomer, Osseo, and throughout the greater {{SERVICE_REGION}}. Our crew is local, so we're never far away.</p>
+        </details>
+        <details class="home-faq-item animate-on-scroll">
+          <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>
+          <p>We combine industry expertise with a commitment to quality materials, transparent pricing, and exceptional customer service. Our certifications and warranties give you peace of mind on every project.</p>
+        </details>
+        <details class="home-faq-item animate-on-scroll">
+          <summary><strong>Do you handle insurance claims for storm damage?</strong></summary>
+          <p>Absolutely. We work directly with your insurance company throughout the claims process. Our team documents the damage, provides detailed estimates, and coordinates with adjusters so you can focus on getting your home back to normal.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contact Form Section -->
+  <section class="contact-section" id="contact">
+    <div class="container">
+      <div class="contact-grid">
+        <div class="contact-info">
+          <h2>Contact Us</h2>
+          <div class="contact-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+            <div>
+              <strong>Phone</strong>
+              <a href="tel:<%= phoneRaw %>"><%= phone %></a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+              <polyline points="22,6 12,13 2,6"></polyline>
+            </svg>
+            <div>
+              <strong>Email</strong>
+              <a href="mailto:<%= email %>"><%= email %></a>
+            </div>
+          </div>
+          <div class="contact-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
+            </svg>
+            <div>
+              <strong>Address</strong>
+              <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
+            </div>
+          </div>
+          <div class="contact-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <div>
+              <strong>Hours</strong>
+              <span>
+                <% if (businessHours.monday && !businessHours.monday.closed) { %>
+                  Mon - Fri: <%= businessHours.monday.open %> - <%= businessHours.monday.close %>
+                <% } else { %>
+                  Mon - Fri: 8am - 5pm
+                <% } %>
+                <br/>
+                <% if (businessHours.saturday && !businessHours.saturday.closed) { %>
+                  Sat: <%= businessHours.saturday.open %><% if (businessHours.saturday.close) { %> - <%= businessHours.saturday.close %><% } %>
+                <% } else { %>
+                  Sat: By Appointment
+                <% } %>
+              </span>
+            </div>
+          </div>
+          
+          <div class="service-areas">
+            <h3>Service Areas</h3>
+            <p><%= serviceAreas.join(', ') %>, and surrounding communities.</p>
+          </div>
+        </div>
+
+        <div class="contact-form-container">
+          <h2>Request an Estimate</h2>
+          <form id="contact-form" method="POST" action="/api/leads">
+            <div class="form-row">
+              <div class="form-group">
+                <label for="name">Name *</label>
+                <input type="text" id="name" name="name" required>
+              </div>
+              <div class="form-group">
+                <label for="phone">Phone *</label>
+                <input type="tel" id="phone" name="phone" required>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email">
+              </div>
+              <div class="form-group">
+                <label for="address-field">Address</label>
+                <input type="text" id="address-field" name="address">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Services Needed</label>
+              <div class="checkbox-grid">
+                <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
+                  <% services.slice(0, 6).forEach(function(service) { %>
+                    <label class="checkbox-item">
+                      <input type="checkbox" name="services[]" value="<%= service.title %>">
+                      <span><%= service.title %></span>
+                    </label>
+                  <% }); %>
+                <% } %>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="message">Project Details</label>
+              <textarea id="message" name="message" rows="4" placeholder="Tell us about your project..."></textarea>
+            </div>
+            <div id="form-error" style="display: none; color: #dc2626; background: #fef2f2; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 0.95rem;"></div>
+            <button type="submit" class="btn btn-primary btn-lg full-width">
+              Submit Request
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Map Section -->
+  <section class="map-section">
+    <iframe 
+      src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2844.8234567890!2d-91.4984!3d44.8113!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x87f8b1234567890%3A0x1234567890!2s<%= encodeURIComponent(address + ', ' + city + ', ' + state + ' ' + zip) %>!5e0!3m2!1sen!2sus!4v1234567890"
+      allowfullscreen="" 
+      loading="lazy"
+      title="Location Map"
+    ></iframe>
+  </section>
+
+  <!-- Enhanced LocalBusiness Schema with Reviews -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HomeAndConstructionBusiness",
+    "name": "{{COMPANY_NAME}}",
+    "image": "{{SITE_URL}}/logo.jpg",
+    "url": "{{SITE_URL}}",
+    "telephone": "+1<%= phoneRaw %>",
+    "email": "<%= email %>",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "<%= address %>",
+      "addressLocality": "<%= city %>",
+      "addressRegion": "<%= state %>",
+      "postalCode": "<%= zip %>",
+      "addressCountry": "US"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": "44.8113",
+      "longitude": "-91.4984"
+    },
+    "areaServed": [
+      <% serviceAreas.forEach(function(area, index) { %>
+      {
+        "@type": "City",
+        "name": "<%= area %>, WI"
+      }<%= index < serviceAreas.length - 1 ? ',' : '' %>
+      <% }); %>
+    ],
+    "priceRange": "$$",
+    "openingHoursSpecification": [
+      {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "opens": "08:00",
+        "closes": "17:00"
+      }
+    ]
+    <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
+    ,"hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Construction Services",
+      "itemListElement": [
+        <% services.forEach(function(s, index) { %>
+        {
+          "@type": "Offer",
+          "itemOffered": {
+            "@type": "Service",
+            "name": "<%= s.title %>",
+            "description": "<%= s.description %>"
+          }
+        }<%= index < services.length - 1 ? ',' : '' %>
+        <% }); %>
+      ]
+    }
+    <% } %>
+    <% if (typeof testimonials !== 'undefined' && testimonials && testimonials.length > 0) { %>
+    ,"aggregateRating": {
+      "@type": "AggregateRating",
+      "ratingValue": "<%= (testimonials.reduce(function(sum, t) { return sum + (t.rating || 5); }, 0) / testimonials.length).toFixed(1) %>",
+      "reviewCount": <%= testimonials.length %>,
+      "bestRating": "5",
+      "worstRating": "1"
+    }
+    ,"review": [
+      <% testimonials.forEach(function(t, index) { %>
+      {
+        "@type": "Review",
+        "author": {
+          "@type": "Person",
+          "name": "<%= t.author %>"
+        },
+        "reviewRating": {
+          "@type": "Rating",
+          "ratingValue": <%= t.rating || 5 %>,
+          "bestRating": "5"
+        },
+        "reviewBody": "<%= t.text %>"
+        <% if (t.createdAt) { %>
+        ,"datePublished": "<%= t.createdAt.split('T')[0] %>"
+        <% } %>
+      }<%= index < testimonials.length - 1 ? ',' : '' %>
+      <% }); %>
+    ]
+    <% } %>
+  }
+  </script>
+
+  <!-- FAQ Schema for Rich Results -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How long does a typical project take in {{CITY}}?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Project timelines vary depending on scope and complexity. We provide detailed timelines during your estimate and communicate clearly throughout."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you offer financing for home improvements?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, we offer flexible financing options to help {{SERVICE_REGION}} homeowners afford the upgrades they need."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What areas do you serve besides {{CITY}}?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, Bloomer, Osseo, and throughout the greater {{SERVICE_REGION}}."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What makes {{COMPANY_NAME}} different?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We combine industry expertise with quality materials, transparent pricing, and exceptional customer service. Our certifications and warranties give you confidence on every project."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do you handle insurance claims for storm damage?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "We work directly with your insurance company throughout the claims process, documenting damage, providing estimates, and coordinating with adjusters."
+        }
+      }
+    ]
+  }
+  </script>
+</div>
+
+<script>
+// Testimonial slider functionality
+(function() {
+  const slider = document.querySelector('.testimonial-slider');
+  const dots = document.querySelectorAll('.testimonial-dots button');
+  const cards = document.querySelectorAll('.testimonial-card');
+  
+  if (!slider || cards.length === 0) return;
+  
+  let currentIndex = 0;
+  
+  function showTestimonial(index) {
+    cards.forEach((card, i) => {
+      card.classList.toggle('active', i === index);
+    });
+    dots.forEach((dot, i) => {
+      dot.classList.toggle('active', i === index);
+    });
+    currentIndex = index;
+  }
+  
+  // Dot click handlers
+  dots.forEach((dot, index) => {
+    dot.addEventListener('click', () => showTestimonial(index));
+  });
+  
+  // Auto-rotate every 8 seconds
+  if (cards.length > 1) {
+    setInterval(() => {
+      const nextIndex = (currentIndex + 1) % cards.length;
+      showTestimonial(nextIndex);
+    }, 8000);
+  }
+})();
+
+// Contact form submission
+(function() {
+  const form = document.getElementById('contact-form');
+  const errorDiv = document.getElementById('form-error');
+  
+  if (!form) return;
+  
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Submitting...';
+    submitBtn.disabled = true;
+    errorDiv.style.display = 'none';
+    
+    try {
+      const formData = new FormData(form);
+      const data = {
+        name: formData.get('name'),
+        phone: formData.get('phone'),
+        email: formData.get('email'),
+        address: formData.get('address'),
+        service: formData.getAll('services[]').join(', '),
+        message: formData.get('message'),
+        source: 'homepage'
+      };
+      
+      const response = await fetch('/api/admin/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (response.ok) {
+        form.reset();
+        alert('Thank you! We\'ll be in touch soon.');
+      } else {
+        throw new Error('Submission failed');
+      }
+    } catch (err) {
+      errorDiv.textContent = 'Something went wrong. Please try again or call us directly.';
+      errorDiv.style.display = 'block';
+    }
+    
+    submitBtn.textContent = originalText;
+    submitBtn.disabled = false;
+  });
+})();
+
+// Scroll animations
+(function() {
+  const observer = new IntersectionObserver(
+    function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
+  );
+
+  document.querySelectorAll('.animate-on-scroll').forEach(function(el) {
+    observer.observe(el);
+  });
+})();
+</script>

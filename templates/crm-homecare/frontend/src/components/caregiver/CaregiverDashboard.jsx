@@ -1,0 +1,1172 @@
+// src/components/CaregiverDashboard.jsx
+// Enhanced with self-service: availability, open shifts pickup, time off requests
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { API_BASE_URL } from '../../config';
+import { toast } from '../Toast';
+import CaregiverClientModal from '../CaregiverClientModal';
+import MileageTracker from './MileageTracker';
+import ShiftMissReport from './ShiftMissReport';
+import CaregiverHelp from './CaregiverHelp';
+import CaregiverMessages from './CaregiverMessages';
+import { useGeolocation, useHaptics, useOfflineSync, useBackgroundGeolocation, isNative, platform } from '../../hooks/useNative';
+import OfflineBanner from '../OfflineBanner';
+
+const subscribeToPush = async (token) => {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const vapidRes = await fetch(`${API_BASE_URL}/api/push/vapid-key`, { headers: { Authorization: `Bearer ${token}` } });
+    const { publicKey } = await vapidRes.json();
+    if (!publicKey || publicKey === 'PLACEHOLDER_REPLACE_WITH_REAL_KEY') return;
+    const subscription = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: publicKey,
+    });
+    await fetch(`${API_BASE_URL}/api/push/subscribe`, {
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription }),
+    });
+  } catch (e) {
+    console.log('[Push] subscription skipped:', e.message);
+  }
+};
+
+const CaregiverDashboard = ({ user, token, onLogout }) => {
+  const [currentPage, setCurrentPage] = useState('home');
+  const [schedules, setSchedules] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [activeSession, setActiveSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedClient, setSelectedClient] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [visitNote, setVisitNote] = useState('');
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [recentVisits, setRecentVisits] = useState([]);
+  const [viewingClientId, setViewingClientId] = useState(null);
+  const timerRef = useRef(null);
+
+  // Native GPS — works on web AND iOS/Android
+  const { position: location, error: locationError, getPosition } = useGeolocation({ watch: true });
+  const { impact, notification: hapticNotify } = useHaptics();
+  const { online, queueCount } = useOfflineSync();
+  const { start: startBgGeo } = useBackgroundGeolocation();
+
+  // Self-service state
+  const [openShifts, setOpenShifts] = useState([]);
+  const [myHoursThisWeek, setMyHoursThisWeek] = useState(0);
+  const [availability, setAvailability] = useState({
+    status: 'available',
+    maxHoursPerWeek: 40,
+    weeklyAvailability: {
+      0: { available: false, start: '09:00', end: '17:00' },
+      1: { available: true, start: '09:00', end: '17:00' },
+      2: { available: true, start: '09:00', end: '17:00' },
+      3: { available: true, start: '09:00', end: '17:00' },
+      4: { available: true, start: '09:00', end: '17:00' },
+      5: { available: true, start: '09:00', end: '17:00' },
+      6: { available: false, start: '09:00', end: '17:00' }
+    },
+    notes: ''
+  });
+  const [timeOffRequests, setTimeOffRequests] = useState([]);
+  const [newTimeOff, setNewTimeOff] = useState({ startDate: '', endDate: '', reason: '' });
+  const [message, setMessage] = useState({ text: '', type: '' });
+  const [showMissReport, setShowMissReport] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const [showMoreDrawer, setShowMoreDrawer] = useState(false);
+
+  useEffect(() => {
+    loadData();
+    // GPS tracking handled by useGeolocation hook (watch: true)
+    subscribeToPush(token);
+    // Start background geolocation on Android so geofence works when screen is off
+    startBgGeo({
+      notificationTitle: 'CVHC HomeCare',
+      notificationText: 'Monitoring location for auto clock-in',
+      onLocation: (loc) => {
+        // Background location updates feed into the geofence check
+        // The geofence polling useEffect will pick up the latest position
+      }
+    });
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Poll for unread messages
+  useEffect(() => {
+    const checkUnread = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/messages/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.status === 429) return; // rate limited - skip
+        if (res.ok) { const data = await res.json(); setUnreadMessages(data.count); }
+      } catch (e) { }
+    };
+    checkUnread();
+    const interval = setInterval(checkUnread, 90000);
+    return () => clearInterval(interval);
+  }, [token]);
+
+  useEffect(() => {
+    if (activeSession) {
+      timerRef.current = setInterval(() => {
+        const start = new Date(activeSession.start_time);
+        const now = new Date();
+        setElapsedTime(Math.floor((now - start) / 1000));
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+      setElapsedTime(0);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [activeSession]);
+
+  useEffect(() => {
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (currentPage === 'open-shifts') loadOpenShifts();
+    if (currentPage === 'availability') loadAvailability();
+    if (currentPage === 'time-off') loadTimeOffRequests();
+  }, [currentPage]);
+
+  const loadData = async () => {
+    try {
+      const [schedulesRes, clientsRes, activeRes, visitsRes] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/schedules/${user.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${API_BASE_URL}/api/clients`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch(`${API_BASE_URL}/api/time-entries/active`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(() => ({ ok: false })),
+        fetch(`${API_BASE_URL}/api/time-entries/recent?limit=10`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(() => ({ ok: false }))
+      ]);
+
+      if (schedulesRes.ok) setSchedules(await schedulesRes.json());
+      if (clientsRes.ok) setClients(await clientsRes.json());
+      if (activeRes.ok) {
+        const data = await activeRes.json();
+        if (data?.id) {
+          setActiveSession(data);
+          setSelectedClient(data.client_id);
+        }
+      }
+      if (visitsRes.ok) setRecentVisits(await visitsRes.json());
+      loadMyHours();
+    } catch (error) {
+      console.error('Failed to load data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadOpenShifts = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/open-shifts/available`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) setOpenShifts(await res.json());
+    } catch (error) {
+      console.error('Failed to load open shifts:', error);
+    }
+  };
+
+  const loadAvailability = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/caregivers/${user.id}/availability`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data) {
+          setAvailability(prev => ({
+            status: data.status || prev.status,
+            maxHoursPerWeek: data.max_hours_per_week || prev.maxHoursPerWeek,
+            weeklyAvailability: data.weekly_availability ? 
+              (typeof data.weekly_availability === 'string' ? JSON.parse(data.weekly_availability) : data.weekly_availability) 
+              : prev.weeklyAvailability,
+            notes: data.notes || ''
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load availability:', error);
+    }
+  };
+
+  const loadTimeOffRequests = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/absences/my`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) setTimeOffRequests(await res.json());
+    } catch (error) {
+      console.error('Failed to load time off:', error);
+    }
+  };
+
+  const loadMyHours = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/scheduling/caregiver-hours/${user.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyHoursThisWeek(parseFloat(data.totalHours) || 0);
+      }
+    } catch (error) {
+      console.error('Failed to load hours:', error);
+    }
+  };
+
+  const showMsg = (text, type = 'success') => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage({ text: '', type: '' }), 4000);
+  };
+
+  const startGPSTracking = () => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+          setLocationError(null);
+        },
+        (err) => setLocationError(err.message),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+    }
+  };
+
+  // Push GPS breadcrumbs every 60 seconds during active shift
+  const startGPSBreadcrumbs = (sessionId) => {
+    if (!("geolocation" in navigator)) return;
+    const interval = setInterval(() => {
+      // GPS breadcrumb
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          fetch(`${API_BASE_URL}/api/time-entries/${sessionId}/gps`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+            body: JSON.stringify({ latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy, speed: pos.coords.speed, heading: pos.coords.heading })
+          }).catch(() => {});
+          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+
+      // 15-minute shift warning check (runs every 60s alongside GPS)
+      fetch(`${API_BASE_URL}/api/time-entries/check-warnings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ timeEntryId: sessionId })
+      })
+      .then(r => r.json())
+      .then(d => {
+        if (d.warning && !d.overTime) {
+          // 15-min warning - show in-app alert
+          toast(`⏰ ${d.minutesRemaining} min remaining — start wrapping up your shift!`, 'warning');
+        } else if (d.warning && d.overTime) {
+          toast(`⚠️ You are ${d.minutesOver} min over your scheduled time — please clock out`, 'error');
+        }
+      })
+      .catch(() => {});
+
+    }, 60000); // every 60s
+    return interval;
+  };
+  const gpsIntervalRef = React.useRef(null);
+  const geofenceIntervalRef = React.useRef(null);
+  const geofenceTriggeredRef = React.useRef(new Set()); // track which clients we've already auto-clocked for
+
+  const _startGPSTracking_REMOVED = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+          setLocationError(null);
+        },
+        (err) => setLocationError(err.message),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+    } else {
+      setLocationError('Geolocation not supported');
+    }
+  };
+
+  // ── GEOFENCE AUTO CLOCK-IN/OUT ────────────────────────────────────────────
+  const runGeofenceCheck = async (currentLocation, currentSession, currentClients, currentSchedules) => {
+    if (!currentLocation?.lat && !currentLocation?.latitude) return;
+    const lat = currentLocation.lat || currentLocation.latitude;
+    const lng = currentLocation.lng || currentLocation.longitude;
+
+    // Get today's day of week
+    const todayDay = new Date().getDay();
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+
+    // Find clients scheduled for today (from recurring schedules)
+    const todayClients = (currentSchedules || [])
+      .filter(s => s.day_of_week === todayDay || 
+        (s.date && new Date(s.date).toDateString() === now.toDateString()))
+      .map(s => s.client_id)
+      .filter(Boolean);
+
+    if (!todayClients.length) return;
+
+    for (const clientId of todayClients) {
+      const alreadyTriggered = geofenceTriggeredRef.current.has(clientId);
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/route-optimizer/geofence/check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ clientId, latitude: lat, longitude: lng })
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+
+        // AUTO CLOCK-IN: within geofence, not clocked in, not already triggered
+        if (data.withinGeofence && data.autoClockIn && !currentSession && !alreadyTriggered) {
+          geofenceTriggeredRef.current.add(clientId);
+          toast(`📍 You've arrived at ${data.clientName} — clocking you in automatically`, 'success');
+          // Auto clock in
+          const clockRes = await fetch(`${API_BASE_URL}/api/time-entries/clock-in`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ clientId, latitude: lat, longitude: lng, autoClockIn: true })
+          });
+          if (clockRes.ok) {
+            const clockData = await clockRes.json();
+            setActiveSession(clockData);
+            setSelectedClient(clientId);
+            gpsIntervalRef.current = startGPSBreadcrumbs(clockData.id);
+          }
+          break; // only clock into one client at a time
+        }
+
+        // AUTO CLOCK-OUT: was within geofence but now left, currently clocked into this client
+        if (!data.withinGeofence && data.autoClockOut && currentSession?.client_id === clientId && alreadyTriggered) {
+          // Only auto clock-out if they've been there at least 10 minutes
+          const sessionStart = new Date(currentSession.start_time);
+          const minsElapsed = (now - sessionStart) / 60000;
+          if (minsElapsed >= 10) {
+            toast(`📍 You've left ${data.clientName}'s location — clocking you out automatically`, 'success');
+            geofenceTriggeredRef.current.delete(clientId);
+            setShowNoteModal(true); // prompt for visit note before clocking out
+          }
+        }
+      } catch(e) {
+        // Silently fail — don't interrupt the caregiver
+      }
+    }
+  };
+
+  // Start geofence polling when location is available
+  useEffect(() => {
+    if (!location) return;
+    // Run immediately on location change
+    runGeofenceCheck(location, activeSession, clients, schedules);
+    // Also run on interval every 30 seconds
+    if (!geofenceIntervalRef.current) {
+      geofenceIntervalRef.current = setInterval(() => {
+        runGeofenceCheck(location, activeSession, clients, schedules);
+      }, 30000);
+    }
+    return () => {
+      if (geofenceIntervalRef.current) {
+        clearInterval(geofenceIntervalRef.current);
+        geofenceIntervalRef.current = null;
+      }
+    };
+  }, [location, activeSession, clients, schedules]);
+
+  const handleClockIn = async () => {
+    if (!selectedClient) return toast('Please select a client.');
+
+    try {
+      // Get fresh position if we don't have one
+      let lat = location?.latitude || null;
+      let lng = location?.longitude || null;
+      if (!lat) {
+        await getPosition();
+        lat = location?.latitude || null;
+        lng = location?.longitude || null;
+      }
+
+      await impact('medium'); // native haptic on button press
+
+      const res = await fetch(`${API_BASE_URL}/api/time-entries/clock-in`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ clientId: selectedClient, latitude: lat, longitude: lng })
+      });
+
+      if (!res.ok) {
+        // If offline, service worker queued it — res will have queued:true
+        const data = await res.json();
+        if (data.queued) {
+          await hapticNotify('warning');
+          toast('Clocked in offline — will sync when reconnected', 'warning');
+          setActiveSession({ id: 'offline-' + Date.now(), offline: true });
+          return;
+        }
+        throw new Error(data.error || 'Failed');
+      }
+
+      const clockInData = await res.json();
+      await hapticNotify('success'); // success haptic
+      setActiveSession(clockInData);
+      gpsIntervalRef.current = startGPSBreadcrumbs(clockInData.id);
+      if (!lat) toast('Clocked in (location unavailable)', 'warning');
+    } catch (error) {
+      await hapticNotify('error');
+      toast('Failed to clock in: ' + error.message, 'error');
+    }
+  };
+
+  const handleClockOut = () => {
+    if (!activeSession) return toast('No active session.');
+    setShowNoteModal(true);
+  };
+
+  const completeClockOut = async () => {
+    try {
+      await impact('heavy'); // strong haptic for clock out
+
+      const lat = location?.latitude || null;
+      const lng = location?.longitude || null;
+
+      const res = await fetch(`${API_BASE_URL}/api/time-entries/${activeSession.id}/clock-out`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ latitude: lat, longitude: lng, notes: visitNote })
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        if (data.queued) {
+          await hapticNotify('warning');
+          toast('Clocked out offline — will sync when reconnected', 'warning');
+          setActiveSession(null);
+          setSelectedClient('');
+          setVisitNote('');
+          setShowNoteModal(false);
+          return;
+        }
+        throw new Error(data.error || 'Failed');
+      }
+
+      await hapticNotify('success');
+      setActiveSession(null);
+      setSelectedClient('');
+      setVisitNote('');
+      setShowNoteModal(false);
+      loadData();
+    } catch (error) {
+      await hapticNotify('error');
+      toast('Failed to clock out: ' + error.message, 'error');
+    }
+  };
+
+  const handlePickupShift = async (shiftId) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/open-shifts/${shiftId}/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+      showMsg('Shift claimed!');
+      loadOpenShifts();
+      loadData();
+    } catch (error) {
+      showMsg(error.message, 'error');
+    }
+  };
+
+  const handleSaveAvailability = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/caregiver-availability/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          status: availability.status,
+          maxHoursPerWeek: availability.maxHoursPerWeek,
+          weeklyAvailability: availability.weeklyAvailability,
+          notes: availability.notes
+        })
+      });
+      if (!res.ok) throw new Error('Failed');
+      showMsg('Availability saved!');
+    } catch (error) {
+      showMsg(error.message, 'error');
+    }
+  };
+
+  const handleRequestTimeOff = async (e) => {
+    e.preventDefault();
+    if (!newTimeOff.startDate || !newTimeOff.endDate) return showMsg('Select dates', 'error');
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/absences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          caregiverId: user.id,
+          absenceType: 'time_off_request',
+          startDate: newTimeOff.startDate,
+          endDate: newTimeOff.endDate,
+          reason: newTimeOff.reason,
+          status: 'pending'
+        })
+      });
+      if (!res.ok) throw new Error('Failed');
+      showMsg('Request submitted!');
+      setNewTimeOff({ startDate: '', endDate: '', reason: '' });
+      loadTimeOffRequests();
+    } catch (error) {
+      showMsg(error.message, 'error');
+    }
+  };
+
+  const handlePageClick = (page) => {
+    setCurrentPage(page);
+    if (window.innerWidth <= 768) setSidebarOpen(false);
+  };
+
+  const getClientName = (id) => {
+    const c = clients.find(c => c.id === id);
+    return c ? `${c.first_name} ${c.last_name}` : 'Unknown';
+  };
+
+  const formatTime = (t) => {
+    if (!t) return '';
+    const [h, m] = t.split(':');
+    const hr = parseInt(h);
+    return `${hr % 12 || 12}:${m} ${hr >= 12 ? 'PM' : 'AM'}`;
+  };
+
+  const formatElapsed = (s) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+  const getDayName = (n) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][n] || '';
+
+  // Get today's appointments from schedules
+  const getTodaysAppointments = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Get recurring schedules for today's day of week
+    const recurring = schedules.filter(s => s.day_of_week === dayOfWeek);
+    // Get one-time schedules for today's date
+    const oneTime = schedules.filter(s => s.date && s.date.split('T')[0] === todayStr);
+    
+    return [...recurring, ...oneTime].sort((a, b) => {
+      const timeA = a.start_time || '00:00';
+      const timeB = b.start_time || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+  };
+
+  const getClientById = (id) => clients.find(c => c.id === id);
+
+  // RENDER PAGES
+  const renderHomePage = () => {
+    const todaysAppointments = getTodaysAppointments();
+    
+    return (
+    <>
+      <div className="card" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>Hours This Week</div>
+            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{myHoursThisWeek.toFixed(2)}h</div>
+          </div>
+          <div style={{ fontSize: '3rem', opacity: 0.5 }}>⏱️</div>
+        </div>
+        {myHoursThisWeek > 35 && (
+          <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: 'rgba(255,255,255,0.2)', borderRadius: '6px', fontSize: '0.85rem' }}>
+            ⚠️ Approaching 40 hour limit
+          </div>
+        )}
+      </div>
+
+      {/* Today's Appointments Section */}
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <div className="card-title">📅 Today's Appointments</div>
+        {todaysAppointments.length === 0 ? (
+          <p className="text-muted text-center" style={{ padding: '1rem 0' }}>No appointments scheduled for today</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {todaysAppointments.map((appt, idx) => {
+              const client = getClientById(appt.client_id);
+              const isCurrentClient = activeSession?.client_id === appt.client_id;
+              return (
+                <div 
+                  key={appt.id || idx} 
+                  style={{ 
+                    padding: '1rem', 
+                    borderRadius: '8px', 
+                    background: isCurrentClient ? '#DBEAFE' : '#F9FAFB',
+                    border: isCurrentClient ? '2px solid #2563eb' : '1px solid #E5E7EB'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '600', fontSize: '1.1rem', color: '#1F2937' }}>
+                        {client ? `${client.first_name} ${client.last_name}` : 'Unknown Client'}
+                        {isCurrentClient && <span style={{ marginLeft: '0.5rem', color: '#059669', fontSize: '0.85rem' }}>● Active</span>}
+                      </div>
+                      <div style={{ fontSize: '0.9rem', color: '#6B7280', marginTop: '0.25rem' }}>
+                        🕐 {formatTime(appt.start_time)} - {formatTime(appt.end_time)}
+                      </div>
+                      {client && (
+                        <div style={{ fontSize: '0.85rem', color: '#6B7280', marginTop: '0.5rem' }}>
+                          {client.phone && <span>📞 {client.phone}</span>}
+                          {client.address && <span style={{ marginLeft: client.phone ? '1rem' : 0 }}>📍 {client.address}{client.city ? `, ${client.city}` : ''}</span>}
+                        </div>
+                      )}
+                      {appt.notes && (
+                        <div style={{ fontSize: '0.85rem', color: '#4B5563', marginTop: '0.5rem', padding: '0.5rem', background: '#FEF3C7', borderRadius: '4px' }}>
+                          📝 {appt.notes}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginLeft: '1rem' }}>
+                      <button 
+                        className="btn btn-sm" 
+                        style={{ background: '#E5E7EB', color: '#374151', padding: '0.4rem 0.75rem' }}
+                        onClick={() => setViewingClientId(appt.client_id)}
+                      >
+                        View
+                      </button>
+                      {!activeSession && (
+                        <button 
+                          className="btn btn-sm btn-primary" 
+                          style={{ padding: '0.4rem 0.75rem' }}
+                          onClick={() => setSelectedClient(appt.client_id)}
+                        >
+                          Select
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* MOBILE-FIRST CLOCK-IN — Full prominent card */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        {activeSession ? (
+          // ACTIVE SESSION — big timer, center-stage
+          <div style={{ textAlign: 'center', padding: '2rem 1.5rem', background: 'linear-gradient(135deg, #F0FDF4, #DCFCE7)' }}>
+            <div style={{ fontSize: '0.9rem', color: '#166534', fontWeight: '600', marginBottom: '0.25rem' }}>
+              🟢 Clocked In with {getClientName(activeSession.client_id)}
+            </div>
+            <div style={{ fontSize: '4rem', fontWeight: '900', fontFamily: 'monospace', color: '#16A34A', lineHeight: 1.1, margin: '0.5rem 0' }}>
+              {formatElapsed(elapsedTime)}
+            </div>
+            <div style={{ fontSize: '0.82rem', color: '#4B5563', marginBottom: '1.5rem' }}>
+              {location ? `📍 GPS Active (±${location.accuracy?.toFixed(0)}m)` : '📍 Location unavailable'}
+            </div>
+            <button
+              onClick={handleClockOut}
+              style={{
+                width: '100%', padding: '1.125rem', background: '#DC2626', color: '#fff',
+                border: 'none', borderRadius: '12px', cursor: 'pointer',
+                fontWeight: '800', fontSize: '1.15rem', letterSpacing: '0.02em',
+                boxShadow: '0 4px 12px rgba(220,38,38,0.3)'
+              }}
+            >
+              🛑 Clock Out
+            </button>
+          </div>
+        ) : (
+          // CLOCK IN — prominent select + button
+          <div style={{ padding: '1.5rem' }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: '800', color: '#111827', marginBottom: '1rem', textAlign: 'center' }}>
+              ⏰ Ready to Start a Shift?
+            </div>
+            <div className="form-group" style={{ marginBottom: '0.875rem' }}>
+              <label style={{ fontWeight: '700', fontSize: '0.9rem', color: '#374151' }}>Select Client *</label>
+              <select
+                value={selectedClient}
+                onChange={(e) => setSelectedClient(e.target.value)}
+                style={{ width: '100%', padding: '0.875rem', fontSize: '1rem', border: '2px solid #D1D5DB', borderRadius: '10px', background: '#fff', boxSizing: 'border-box' }}
+              >
+                <option value="">Choose client...</option>
+                {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+              </select>
+            </div>
+            <div style={{ padding: '0.6rem 0.875rem', background: location ? '#F0FDF4' : '#F9FAFB', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', color: location ? '#166534' : '#6B7280', border: `1px solid ${location ? '#BBF7D0' : '#E5E7EB'}` }}>
+              {location ? `✅ GPS Active (±${location.accuracy?.toFixed(0)}m)` : locationError ? '⚠️ Location unavailable — you can still clock in' : '📍 Getting your location...'}
+            </div>
+            <button
+              onClick={handleClockIn}
+              disabled={!selectedClient}
+              style={{
+                width: '100%', padding: '1.125rem', background: selectedClient ? '#2ABBA7' : '#D1D5DB',
+                color: selectedClient ? '#fff' : '#9CA3AF', border: 'none', borderRadius: '12px',
+                cursor: selectedClient ? 'pointer' : 'not-allowed', fontWeight: '800', fontSize: '1.15rem',
+                transition: 'all 0.15s', boxShadow: selectedClient ? '0 4px 12px rgba(42,187,167,0.3)' : 'none'
+              }}
+            >
+              ▶️ Clock In
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Actions row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.75rem' }}>
+        <div className="card" style={{ textAlign: 'center', cursor: 'pointer', padding: '1rem' }} onClick={() => handlePageClick('open-shifts')}>
+          <div style={{ fontSize: '1.6rem' }}>📋</div>
+          <div style={{ fontWeight: '600', fontSize: '0.82rem' }}>Open Shifts</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center', cursor: 'pointer', padding: '1rem' }} onClick={() => handlePageClick('availability')}>
+          <div style={{ fontSize: '1.6rem' }}>⏰</div>
+          <div style={{ fontWeight: '600', fontSize: '0.82rem' }}>Availability</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center', cursor: 'pointer', padding: '1rem', background: '#FEF2F2', border: '1px solid #FCA5A5' }}
+          onClick={() => setShowMissReport(true)}>
+          <div style={{ fontSize: '1.6rem' }}>🚨</div>
+          <div style={{ fontWeight: '600', fontSize: '0.82rem', color: '#DC2626' }}>Miss Report</div>
+        </div>
+        <div className="card" style={{ textAlign: 'center', cursor: 'pointer', padding: '1rem', background: '#EEF2FF', border: '1px solid #C7D2FE', position: 'relative' }}
+          onClick={() => setShowMessages(true)}>
+          <div style={{ fontSize: '1.6rem' }}>💬</div>
+          <div style={{ fontWeight: '600', fontSize: '0.82rem', color: '#4338CA' }}>Messages</div>
+          {unreadMessages > 0 && (
+            <span style={{ position: 'absolute', top: '6px', right: '6px', background: '#EF4444', color: '#fff', borderRadius: '99px', fontSize: '0.62rem', fontWeight: '700', padding: '1px 6px', minWidth: '16px', textAlign: 'center' }}>{unreadMessages}</span>
+          )}
+        </div>
+        <div className="card" style={{ textAlign: 'center', cursor: 'pointer', padding: '1rem', background: '#F0FDFB', border: '1px solid #A7F3D0' }}
+          onClick={() => setShowHelp(true)}>
+          <div style={{ fontSize: '1.6rem' }}>❓</div>
+          <div style={{ fontWeight: '600', fontSize: '0.82rem', color: '#065F46' }}>Help</div>
+        </div>
+      </div>
+    </>
+    );
+  };
+
+  const renderOpenShiftsPage = () => (
+    <>
+      <div className="schedule-header"><h3>📋 Available Shifts</h3></div>
+      {openShifts.length === 0 ? (
+        <div className="card text-center"><p style={{ fontSize: '3rem', margin: '1rem 0' }}>✅</p><p className="text-muted">No open shifts</p></div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {openShifts.map(shift => (
+            <div key={shift.id} className="card" style={{ padding: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontWeight: '600' }}>{shift.client_first_name} {shift.client_last_name}</div>
+                  <div style={{ fontSize: '0.9rem', color: '#666' }}>📅 {formatDate(shift.date)}</div>
+                  <div style={{ fontSize: '0.9rem', color: '#666' }}>🕐 {formatTime(shift.start_time)} - {formatTime(shift.end_time)}</div>
+                </div>
+                <button className="btn btn-sm btn-primary" onClick={() => handlePickupShift(shift.id)}>Claim</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  const renderAvailabilityPage = () => (
+    <>
+      <div className="schedule-header"><h3>⏰ My Availability</h3></div>
+      <div className="card">
+        <div className="form-group">
+          <label>Status</label>
+          <select value={availability.status} onChange={(e) => setAvailability({ ...availability, status: e.target.value })}>
+            <option value="available">✅ Available</option>
+            <option value="limited">⚠️ Limited</option>
+            <option value="unavailable">❌ Unavailable</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label>Max Hours/Week: {availability.maxHoursPerWeek}</label>
+          <input type="range" min="0" max="60" value={availability.maxHoursPerWeek} onChange={(e) => setAvailability({ ...availability, maxHoursPerWeek: parseInt(e.target.value) })} style={{ width: '100%' }} />
+        </div>
+        <div className="form-group">
+          <label>Weekly Schedule</label>
+          {[0,1,2,3,4,5,6].map(day => {
+            const d = availability.weeklyAvailability[day] || { available: false, start: '09:00', end: '17:00' };
+            return (
+              <div key={day} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem', background: d.available ? '#D1FAE5' : '#F3F4F6', borderRadius: '6px', marginBottom: '0.25rem' }}>
+                <input type="checkbox" checked={d.available} onChange={(e) => {
+                  const u = { ...availability.weeklyAvailability };
+                  u[day] = { ...d, available: e.target.checked };
+                  setAvailability({ ...availability, weeklyAvailability: u });
+                }} style={{ width: 'auto' }} />
+                <span style={{ width: '60px', fontWeight: '500' }}>{getDayName(day).slice(0,3)}</span>
+                {d.available && (
+                  <>
+                    <input type="time" value={d.start} onChange={(e) => {
+                      const u = { ...availability.weeklyAvailability };
+                      u[day] = { ...d, start: e.target.value };
+                      setAvailability({ ...availability, weeklyAvailability: u });
+                    }} style={{ padding: '0.25rem' }} />
+                    <span>-</span>
+                    <input type="time" value={d.end} onChange={(e) => {
+                      const u = { ...availability.weeklyAvailability };
+                      u[day] = { ...d, end: e.target.value };
+                      setAvailability({ ...availability, weeklyAvailability: u });
+                    }} style={{ padding: '0.25rem' }} />
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="form-group">
+          <label>Notes</label>
+          <textarea value={availability.notes} onChange={(e) => setAvailability({ ...availability, notes: e.target.value })} rows={2} placeholder="Any notes..." />
+        </div>
+        <button className="btn btn-primary btn-block" onClick={handleSaveAvailability}>💾 Save</button>
+      </div>
+    </>
+  );
+
+  const renderTimeOffPage = () => (
+    <>
+      <div className="schedule-header"><h3>🏖️ Time Off</h3></div>
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <h4 style={{ margin: '0 0 1rem 0' }}>Request Time Off</h4>
+        <form onSubmit={handleRequestTimeOff}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label>Start</label>
+              <input type="date" value={newTimeOff.startDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, startDate: e.target.value })} min={new Date().toISOString().split('T')[0]} required />
+            </div>
+            <div className="form-group" style={{ margin: 0 }}>
+              <label>End</label>
+              <input type="date" value={newTimeOff.endDate} onChange={(e) => setNewTimeOff({ ...newTimeOff, endDate: e.target.value })} min={newTimeOff.startDate || new Date().toISOString().split('T')[0]} required />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Reason</label>
+            <input type="text" value={newTimeOff.reason} onChange={(e) => setNewTimeOff({ ...newTimeOff, reason: e.target.value })} placeholder="Vacation, etc." />
+          </div>
+          <button type="submit" className="btn btn-primary">Submit</button>
+        </form>
+      </div>
+      <div className="card">
+        <h4 style={{ margin: '0 0 1rem 0' }}>My Requests</h4>
+        {timeOffRequests.length === 0 ? <p className="text-muted text-center">None</p> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {timeOffRequests.map(r => (
+              <div key={r.id} style={{ padding: '0.75rem', borderRadius: '6px', background: r.status === 'approved' ? '#D1FAE5' : r.status === 'denied' ? '#FEE2E2' : '#FEF3C7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: '500' }}>{formatDate(r.start_date)} - {formatDate(r.end_date)}</div>
+                  {r.reason && <div style={{ fontSize: '0.85rem', color: '#666' }}>{r.reason}</div>}
+                </div>
+                <span style={{ padding: '0.25rem 0.75rem', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '600', background: r.status === 'approved' ? '#059669' : r.status === 'denied' ? '#DC2626' : '#D97706', color: '#fff' }}>
+                  {(r.status || 'pending').toUpperCase()}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  const renderSchedulePage = () => {
+    const recurring = schedules.filter(s => s.day_of_week != null);
+    const oneTime = schedules.filter(s => s.date);
+    const grouped = {};
+    recurring.forEach(s => { if (!grouped[s.day_of_week]) grouped[s.day_of_week] = []; grouped[s.day_of_week].push(s); });
+
+    return (
+      <>
+        <div className="schedule-header"><h3>📅 My Schedule</h3></div>
+        {schedules.length === 0 ? <div className="card text-center"><p className="text-muted">No schedules</p></div> : (
+          <div>
+            {Object.keys(grouped).sort().map(day => (
+              <div key={day} className="card" style={{ marginBottom: '0.75rem' }}>
+                <div style={{ fontWeight: '600', color: '#2563eb' }}>{getDayName(parseInt(day))}s</div>
+                {grouped[day].map(s => (
+                  <div key={s.id} style={{ padding: '0.5rem 0', borderTop: '1px solid #eee' }}>
+                    <div style={{ fontWeight: '500' }}>{getClientName(s.client_id)}</div>
+                    <div style={{ fontSize: '0.9rem', color: '#666' }}>{formatTime(s.start_time)} - {formatTime(s.end_time)}</div>
+                  </div>
+                ))}
+              </div>
+            ))}
+            {oneTime.length > 0 && (
+              <div className="card">
+                <div style={{ fontWeight: '600', color: '#059669' }}>Upcoming</div>
+                {oneTime.sort((a,b) => new Date(a.date) - new Date(b.date)).map(s => (
+                  <div key={s.id} style={{ padding: '0.5rem 0', borderTop: '1px solid #eee' }}>
+                    <div style={{ fontWeight: '500' }}>{formatDate(s.date)}</div>
+                    <div>{getClientName(s.client_id)}</div>
+                    <div style={{ fontSize: '0.9rem', color: '#666' }}>{formatTime(s.start_time)} - {formatTime(s.end_time)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const renderHistoryPage = () => (
+    <div className="card">
+      <div className="card-title">Recent Visits</div>
+      {recentVisits.length === 0 ? <p className="text-muted text-center">None</p> : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="table">
+            <thead><tr><th>Date</th><th>Client</th><th>Hours</th></tr></thead>
+            <tbody>
+              {recentVisits.map((v, i) => (
+                <tr key={v.id || i}>
+                  <td>{formatDate(v.start_time)}</td>
+                  <td><span onClick={() => setViewingClientId(v.client_id)} style={{ cursor: 'pointer', color: '#007bff' }}>{v.client_name || getClientName(v.client_id)}</span></td>
+                  <td>{v.hours_worked ? `${parseFloat(v.hours_worked).toFixed(2)}h` : '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderClientsPage = () => {
+    const myClients = clients.filter(c => schedules.some(s => s.client_id === c.id));
+    return (
+      <>
+        <div className="schedule-header"><h3>👥 My Clients</h3></div>
+        {myClients.length === 0 ? <div className="card text-center"><p className="text-muted">No clients</p></div> : (
+          <div style={{ display: 'grid', gap: '0.75rem' }}>
+            {myClients.map(c => (
+              <div key={c.id} className="card" onClick={() => setViewingClientId(c.id)} style={{ cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <h4 style={{ margin: 0 }}>{c.first_name} {c.last_name}</h4>
+                    <p style={{ margin: '0.25rem 0 0 0', color: '#666', fontSize: '0.9rem' }}>📞 {c.phone || 'N/A'} • 📍 {c.city || 'N/A'}</p>
+                  </div>
+                  <span style={{ color: '#007bff', fontSize: '1.2rem' }}>→</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const renderSettingsPage = () => (
+    <>
+      <div className="card">
+        <div className="card-title">Profile</div>
+        <div className="form-group"><label>Name</label><input type="text" value={user.name || `${user.first_name} ${user.last_name}`} disabled /></div>
+        <div className="form-group"><label>Email</label><input type="text" value={user.email} disabled /></div>
+      </div>
+      <div className="card">
+        <div className="card-title">GPS Status</div>
+        <div className={`alert ${location ? 'alert-success' : 'alert-info'}`}>
+          {location ? <>GPS Active (±{location.accuracy?.toFixed(0)}m)</> : <>{locationError || 'Location unavailable'} - Clock in still works</>}
+        </div>
+      </div>
+      <button className="btn btn-danger btn-block" onClick={onLogout}>Log Out</button>
+    </>
+  );
+
+  if (loading) return <div className="loading"><div className="spinner"></div></div>;
+
+  return (
+    <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+      {message.text && (
+        <div style={{ position: 'fixed', top: '1rem', right: '1rem', padding: '1rem 1.5rem', borderRadius: '8px', zIndex: 1001, background: message.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: message.type === 'error' ? '#DC2626' : '#059669', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+          {message.text}
+        </div>
+      )}
+
+      {sidebarOpen && window.innerWidth <= 768 && <div className="sidebar-overlay active" onClick={() => setSidebarOpen(false)} />}
+
+      <div className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+        <div className="sidebar-logo">CVHC</div>
+        <ul className="sidebar-nav">
+          <li><a href="#" className={currentPage === 'home' ? 'active' : ''} onClick={() => handlePageClick('home')}>🏠 Home</a></li>
+          <li><a href="#" className={currentPage === 'schedule' ? 'active' : ''} onClick={() => handlePageClick('schedule')}>📅 Schedule</a></li>
+          <li><a href="#" className={currentPage === 'clients' ? 'active' : ''} onClick={() => handlePageClick('clients')}>👥 Clients</a></li>
+          <li><a href="#" className={currentPage === 'history' ? 'active' : ''} onClick={() => handlePageClick('history')}>📜 History</a></li>
+          <li style={{ paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.5rem' }}>
+            <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', display: 'block', padding: '0.5rem 1rem' }}>Self Service</span>
+          </li>
+          <li><a href="#" className={currentPage === 'open-shifts' ? 'active' : ''} onClick={() => handlePageClick('open-shifts')}>📋 Open Shifts</a></li>
+          <li><a href="#" className={currentPage === 'availability' ? 'active' : ''} onClick={() => handlePageClick('availability')}>⏰ Availability</a></li>
+          <li><a href="#" className={currentPage === 'miss-report' ? 'active' : ''} onClick={() => handlePageClick('miss-report')}>🚨 Report Miss</a></li>
+          <li><a href="#" className={currentPage === 'time-off' ? 'active' : ''} onClick={() => handlePageClick('time-off')}>🏖️ Time Off</a></li>
+          <li style={{ paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.5rem' }}>
+            <a href="#" className={currentPage === 'settings' ? 'active' : ''} onClick={() => handlePageClick('settings')}>⚙️ Settings</a>
+          </li>
+        </ul>
+        <div className="sidebar-user">
+          <div className="sidebar-user-name">{user.name || `${user.first_name || ''} ${user.last_name || ''}`}</div>
+          <div className="sidebar-user-role">Caregiver</div>
+          <button className="btn-logout" onClick={onLogout}>Logout</button>
+        </div>
+      </div>
+
+      <div className="main-content">
+        <div className="header">
+          <div><h1>Chippewa Valley Home Care</h1><p>Caregiver Portal</p></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button className="hamburger-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>Menu</button>
+            <button
+              onClick={onLogout}
+              style={{
+                padding: '0.4rem 0.85rem', borderRadius: '8px', border: 'none',
+                background: '#FEE2E2', color: '#DC2626', fontWeight: '700',
+                fontSize: '0.82rem', cursor: 'pointer', whiteSpace: 'nowrap'
+              }}>
+              ⏻ Logout
+            </button>
+          </div>
+        </div>
+        <div className="container">
+          {currentPage === 'home' && renderHomePage()}
+          {currentPage === 'schedule' && renderSchedulePage()}
+          {currentPage === 'clients' && renderClientsPage()}
+          {currentPage === 'history' && renderHistoryPage()}
+          {currentPage === 'open-shifts' && renderOpenShiftsPage()}
+          {currentPage === 'availability' && renderAvailabilityPage()}
+          {currentPage === 'time-off' && renderTimeOffPage()}
+          {currentPage === 'miss-report' && renderMissReportPage()}
+          {currentPage === 'settings' && renderSettingsPage()}
+        </div>
+      </div>
+
+      {showNoteModal && (
+        <div className="modal active">
+          <div className="modal-content">
+            <div className="modal-header"><h2>Visit Notes</h2><button className="close-btn" onClick={() => setShowNoteModal(false)}>×</button></div>
+            <p className="text-muted">Add notes (optional)</p>
+            <div className="form-group"><textarea value={visitNote} onChange={(e) => setVisitNote(e.target.value)} placeholder="How did the visit go?" rows={4} /></div>
+            <div className="form-actions">
+              <button className="btn btn-secondary" onClick={() => setShowNoteModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={completeClockOut}>Clock Out</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <CaregiverClientModal clientId={viewingClientId} isOpen={!!viewingClientId} onClose={() => setViewingClientId(null)} token={token} />
+
+      {/* Messages Modal */}
+      {showMessages && <CaregiverMessages token={token} onClose={() => { setShowMessages(false); setUnreadMessages(0); }} />}
+
+      {/* Help Modal */}
+      {showHelp && <CaregiverHelp onClose={() => setShowHelp(false)} />}
+
+      {/* Shift Miss Report Modal */}
+      {showMissReport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '16px 16px 0 0', padding: '1.5rem', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <ShiftMissReport token={token} userId={user.id} onClose={() => setShowMissReport(false)} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Mobile Bottom Navigation ── */}
+      {showMoreDrawer && <div className="mobile-more-drawer-overlay" onClick={() => setShowMoreDrawer(false)} />}
+
+      <div className={`mobile-more-drawer ${showMoreDrawer ? 'open' : ''}`}>
+        <div className="mobile-more-drawer-handle" />
+        <div className="mobile-more-drawer-section">
+          <div className="mobile-more-drawer-section-title">Self Service</div>
+          {[
+            { page: 'open-shifts',   icon: '📋', label: 'Open Shifts' },
+            { page: 'availability',  icon: '⏰', label: 'Availability' },
+            { page: 'miss-report',   icon: '🚨', label: 'Report Miss' },
+            { page: 'time-off',      icon: '🏖️', label: 'Time Off' },
+          ].map(({ page, icon, label }) => (
+            <button
+              key={page}
+              className={`mobile-more-drawer-item ${currentPage === page ? 'active' : ''}`}
+              onClick={() => { setCurrentPage(page); setShowMoreDrawer(false); }}
+            >
+              <span className="mobile-more-drawer-item-icon">{icon}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mobile-more-drawer-section">
+          <div className="mobile-more-drawer-section-title">Account</div>
+          <button
+            className={`mobile-more-drawer-item ${currentPage === 'settings' ? 'active' : ''}`}
+            onClick={() => { setCurrentPage('settings'); setShowMoreDrawer(false); }}
+          >
+            <span className="mobile-more-drawer-item-icon">⚙️</span>
+            Settings
+          </button>
+          <button
+            className="mobile-more-drawer-item"
+            onClick={onLogout}
+            style={{ color: '#DC2626' }}
+          >
+            <span className="mobile-more-drawer-item-icon" style={{ background: '#FEE2E2' }}>⏻</span>
+            Log Out
+          </button>
+        </div>
+      </div>
+
+      <nav className="mobile-bottom-nav">
+        {[
+          { page: 'home',     icon: '🏠', label: 'Home' },
+          { page: 'schedule', icon: '📅', label: 'Schedule' },
+          { page: 'clients',  icon: '👥', label: 'Clients' },
+          { page: 'history',  icon: '📜', label: 'History' },
+        ].map(({ page, icon, label }) => (
+          <button
+            key={page}
+            className={`mobile-bottom-nav-item ${currentPage === page ? 'active' : ''}`}
+            onClick={() => { setCurrentPage(page); setShowMoreDrawer(false); }}
+          >
+            <span className="mobile-bottom-nav-icon">{icon}</span>
+            {label}
+          </button>
+        ))}
+        <button
+          className={`mobile-bottom-nav-item ${showMoreDrawer ? 'active' : ''}`}
+          onClick={() => setShowMoreDrawer(v => !v)}
+        >
+          <span className="mobile-bottom-nav-icon">⋯</span>
+          More
+        </button>
+      </nav>
+    </div>
+  );
+};
+
+export default CaregiverDashboard;

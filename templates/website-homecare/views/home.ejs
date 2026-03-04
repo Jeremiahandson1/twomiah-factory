@@ -1,0 +1,395 @@
+<%
+// Extract data with fallbacks
+const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
+const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
+const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
+const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', 'Chippewa Falls', 'Menomonie', 'Osseo'];
+const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
+
+// Settings with fallbacks
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
+const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '123 Main St';
+const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
+const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : '{{STATE}}';
+const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
+const phoneRaw = phone.replace(/\D/g, '');
+
+// Function to get image URL
+function getImageUrl(p) {
+  if (!p) return '';
+  if (p.startsWith('http')) return p;
+  if (p.startsWith('/')) return p;
+  return '/uploads/' + p;
+}
+%>
+
+<div class="home-page">
+
+  <!--  SPLIT HERO  -->
+  <section class="hero-split">
+    <div class="container">
+      <div class="hero-split-inner">
+
+        <!-- Left: Text Content -->
+        <div class="hero-split-text">
+          <% if (hero.tagline) { %>
+            <div class="hero-badge-pill">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <%= hero.tagline %>
+            </div>
+          <% } else { %>
+            <div class="hero-badge-pill">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              VA APPROVED PROVIDER
+            </div>
+          <% } %>
+
+          <h1 class="hero-split-headline"><%= hero.title || 'Compassionate Home Care for Your Loved Ones' %></h1>
+
+          <p class="hero-split-sub"><%= hero.description || 'Helping families in {{CITY}} and the {{SERVICE_REGION}} with personalized, professional in-home care. Licensed, insured, and here when you need us.' %></p>
+
+          <div class="hero-split-buttons">
+            <a href="tel:<%= phoneRaw %>" class="btn btn-warm btn-lg">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 14.9 19.79 19.79 0 0 1 1.12 6.24 2 2 0 0 1 3.1 4h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
+              Call <%= phone %>
+            </a>
+            <a href="<%= hero.primaryButtonLink || '#contact' %>" class="btn btn-outline-teal btn-lg">
+              <%= hero.primaryButtonText || 'Request a Consultation' %>
+            </a>
+          </div>
+        </div>
+
+        <!-- Right: Hero Photo -->
+        <div class="hero-split-photo">
+          <% if (hero.image) { %>
+            <img
+              src="<%= getImageUrl(hero.image) %>"
+              alt="Home care caregiver with client in {{CITY}} WI"
+              class="hero-photo-img"
+              loading="eager"
+            >
+          <% } else { %>
+            <div class="hero-photo-placeholder">
+              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.4"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              <p>Add a hero photo<br>in Admin &rarr; Homepage</p>
+            </div>
+          <% } %>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!--  TRUST BAR  -->
+  <div class="trust-bar">
+    <div class="container">
+      <div class="trust-bar-items">
+        <% if (trustBadges && trustBadges.length > 0) { %>
+          <% trustBadges.forEach(function(badge) { %>
+            <div class="trust-bar-item">
+              <% if (badge.icon === 'shield' || badge.icon === 'check') { %>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <% } else if (badge.icon === 'clock') { %>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <% } else { %>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <% } %>
+              <span><%= badge.label %></span>
+            </div>
+          <% }); %>
+        <% } else { %>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>{{TRUST_BADGE_1}}</span></div>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Licensed &amp; Insured</span></div>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>{{TRUST_BADGE_2}}</span></div>
+          <div class="trust-bar-item"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg><span>Locally Owned</span></div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!--  ABOUT US  -->
+  <section class="about-section" id="about">
+    <div class="container">
+      <div class="section-eyebrow">About Us</div>
+      <h2 class="section-headline-serif">Care That Feels Like Family</h2>
+      <div class="about-body">
+        <p><%= settings && settings.aboutParagraph1 || "We are a locally owned and operated home care agency serving " + (city || "the area") + " and the surrounding communities. We understand that inviting someone into your home to care for a loved one is a deeply personal decision -- and we don't take that trust lightly." %></p>
+        <p><%= settings && settings.aboutParagraph2 || "We provide one-on-one, personalized care tailored to each client's unique needs. Whether you need a few hours of support each week or more comprehensive daily assistance, we're here to help your loved one maintain their independence, dignity, and quality of life." %></p>
+        <% if (settings && settings.vaApproved !== false) { %>
+        <blockquote class="about-va-quote">
+          As a VA-approved provider, we're proud to serve the veterans who have served us. We work directly with the VA to make accessing care as simple as possible for veteran families.
+        </blockquote>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <!--  SERVICES  -->
+  <section class="hc-services-section" id="services">
+    <div class="container">
+      <div class="section-eyebrow">Our Services</div>
+      <h2 class="section-headline-serif">How We Can Help</h2>
+      <div class="hc-services-grid">
+        <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
+          <% services.forEach(function(service) { %>
+            <div class="hc-service-card">
+              <div class="hc-service-icon">
+                <% if (service.svgIcon) { %>
+                  <%- service.svgIcon %>
+                <% } else { %>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <% } %>
+              </div>
+              <h3><%= service.title %></h3>
+              <p><%= service.shortDescription || service.tagline || service.description %></p>
+            </div>
+          <% }); %>
+        <% } else { %>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div><h3>Personal Care</h3><p>Assistance with daily activities like bathing, dressing, grooming, and hygiene--delivered with dignity and respect.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><h3>Companionship</h3><p>Friendly conversation, social engagement, and a caring presence to combat isolation and brighten each day.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h18v3H3z"/><path d="M3 9h18v3H3z"/><path d="M3 15h12v3H3z"/></svg></div><h3>Meal Preparation</h3><p>Nutritious, home-cooked meals prepared according to dietary needs and personal preferences.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div><h3>Light Housekeeping</h3><p>Help with laundry, dishes, tidying up, and keeping the home clean, safe, and comfortable.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><h3>Medication Reminders</h3><p>Gentle reminders to help ensure medications are taken on schedule, as prescribed.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div><h3>Transportation</h3><p>Safe rides to medical appointments, errands, social activities, and anywhere else life takes you.</p></div>
+          <div class="hc-service-card"><div class="hc-service-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><h3>Respite Care</h3><p>Giving family caregivers a well-deserved break while we provide attentive, reliable care for your loved one.</p></div>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <!--  SERVICE AREA  -->
+  <section class="service-area-section" id="areas">
+    <div class="container">
+      <div class="section-eyebrow">Service Area</div>
+      <h2 class="section-headline-serif">Proudly Serving the <%= settings && settings.serviceRegion || (city + ' Area') %></h2>
+      <p class="service-area-sub">We provide in-home care throughout <%= city %> and surrounding communities within approximately 30 minutes.</p>
+      <div class="service-area-pills">
+        <% serviceAreas.forEach(function(area, i) { %>
+          <span class="area-pill <%= i === 0 ? 'area-pill-active' : '' %>"><%= area %></span>
+        <% }); %>
+      </div>
+    </div>
+  </section>
+
+  <!--  CTA BANNER  -->
+  <section class="hc-cta-banner">
+    <div class="container">
+      <h2><%= ctaSection.title || 'Ready to Talk About Care Options?' %></h2>
+      <p><%= ctaSection.description || "Every family's situation is different. Let's have a conversation about how we can help--no pressure, no obligation." %></p>
+      <div class="hc-cta-buttons">
+        <a href="tel:<%= phoneRaw %>" class="btn hc-cta-btn-white">Call <%= phone %></a>
+        <a href="#contact" class="btn hc-cta-btn-outline">Send Us a Message</a>
+      </div>
+    </div>
+  </section>
+
+  <!--  CONTACT  -->
+  <section class="hc-contact-section" id="contact">
+    <div class="container">
+      <div class="hc-contact-grid">
+
+        <!-- Left: Info -->
+        <div class="hc-contact-info">
+          <h2>Let's Start a Conversation</h2>
+          <p>Whether you're exploring options or ready to get started, we're happy to answer your questions. Reach out by phone, email, or the contact form.</p>
+          <div class="hc-contact-items">
+            <div class="hc-contact-item">
+              <div class="hc-contact-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 14.9 19.79 19.79 0 0 1 1.12 6.24 2 2 0 0 1 3.1 4h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
+              </div>
+              <div>
+                <div class="hc-contact-label">Phone</div>
+                <a href="tel:<%= phoneRaw %>" class="hc-contact-value"><%= phone %></a>
+              </div>
+            </div>
+            <div class="hc-contact-item">
+              <div class="hc-contact-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              </div>
+              <div>
+                <div class="hc-contact-label">Email</div>
+                <a href="mailto:<%= email %>" class="hc-contact-value"><%= email %></a>
+              </div>
+            </div>
+            <div class="hc-contact-item">
+              <div class="hc-contact-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <div>
+                <div class="hc-contact-label">Location</div>
+                <span class="hc-contact-value"><%= city %>, <%= state === '{{STATE}}' ? 'Wisconsin' : state %></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Form -->
+        <div class="hc-contact-form-wrap">
+          <h3>Request a Free Consultation</h3>
+          <p class="form-subhead">Tell us a little about your situation and we'll be in touch soon.</p>
+          <form id="contact-form" method="POST" action="/api/leads">
+            <div class="hc-form-group">
+              <label>Your Name</label>
+              <input type="text" name="name" required placeholder="">
+            </div>
+            <div class="hc-form-group">
+              <label>Phone Number</label>
+              <input type="tel" name="phone" required placeholder="">
+            </div>
+            <div class="hc-form-group">
+              <label>Email Address</label>
+              <input type="email" name="email" placeholder="">
+            </div>
+            <div class="hc-form-group">
+              <label>What type of care are you looking for?</label>
+              <select name="careType">
+                <option value="">Select an option...</option>
+                <option>Personal Care</option>
+                <option>Companionship</option>
+                <option>Meal Preparation</option>
+                <option>Medication Reminders</option>
+                <option>Transportation</option>
+                <option>Respite Care</option>
+                <option>Light Housekeeping</option>
+                <option>Other / Not Sure</option>
+              </select>
+            </div>
+            <div class="hc-form-group">
+              <label>Tell us about your situation</label>
+              <textarea name="message" rows="4" placeholder="Who needs care? What kind of help are you looking for?"></textarea>
+            </div>
+            <div id="form-error" style="display:none;color:#dc2626;background:#fef2f2;padding:12px 16px;border-radius:8px;margin-bottom:8px;font-size:.9rem;"></div>
+            <button type="submit" class="btn btn-warm btn-lg" style="width:100%;border-radius:50px;">Send Message</button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HomeHealthCare",
+    "name": "<%= settings && settings.companyName || 'Home Care' %>",
+    "url": "<%= settings && settings.siteUrl || '' %>",
+    "telephone": "+1<%= phoneRaw %>",
+    "email": "<%= email %>",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "<%= city %>",
+      "addressRegion": "<%= state %>",
+      "postalCode": "<%= zip %>",
+      "addressCountry": "US"
+    },
+    "areaServed": [<% serviceAreas.forEach(function(area, i) { %>{"@type":"City","name":"<%= area %>"}<%- i < serviceAreas.length-1 ? ',' : '' %><% }); %>]
+  }
+  </script>
+
+</div>
+
+<script>
+// Testimonial slider functionality
+(function() {
+  const slider = document.querySelector('.testimonial-slider');
+  const dots = document.querySelectorAll('.testimonial-dots button');
+  const cards = document.querySelectorAll('.testimonial-card');
+  
+  if (!slider || cards.length === 0) return;
+  
+  let currentIndex = 0;
+  
+  function showTestimonial(index) {
+    cards.forEach((card, i) => {
+      card.classList.toggle('active', i === index);
+    });
+    dots.forEach((dot, i) => {
+      dot.classList.toggle('active', i === index);
+    });
+    currentIndex = index;
+  }
+  
+  // Dot click handlers
+  dots.forEach((dot, index) => {
+    dot.addEventListener('click', () => showTestimonial(index));
+  });
+  
+  // Auto-rotate every 8 seconds
+  if (cards.length > 1) {
+    setInterval(() => {
+      const nextIndex = (currentIndex + 1) % cards.length;
+      showTestimonial(nextIndex);
+    }, 8000);
+  }
+})();
+
+// Contact form submission
+(function() {
+  const form = document.getElementById('contact-form');
+  const errorDiv = document.getElementById('form-error');
+  
+  if (!form) return;
+  
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Submitting...';
+    submitBtn.disabled = true;
+    errorDiv.style.display = 'none';
+    
+    try {
+      const formData = new FormData(form);
+      const data = {
+        name: formData.get('name'),
+        phone: formData.get('phone'),
+        email: formData.get('email'),
+        address: formData.get('address'),
+        service: formData.getAll('services[]').join(', '),
+        message: formData.get('message'),
+        source: 'homepage'
+      };
+      
+      const response = await fetch('/api/admin/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (response.ok) {
+        form.reset();
+        alert('Thank you! We\'ll be in touch soon.');
+      } else {
+        throw new Error('Submission failed');
+      }
+    } catch (err) {
+      errorDiv.textContent = 'Something went wrong. Please try again or call us directly.';
+      errorDiv.style.display = 'block';
+    }
+    
+    submitBtn.textContent = originalText;
+    submitBtn.disabled = false;
+  });
+})();
+
+// Scroll animations
+(function() {
+  const observer = new IntersectionObserver(
+    function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    },
+    { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
+  );
+
+  document.querySelectorAll('.animate-on-scroll').forEach(function(el) {
+    observer.observe(el);
+  });
+})();
+</script>

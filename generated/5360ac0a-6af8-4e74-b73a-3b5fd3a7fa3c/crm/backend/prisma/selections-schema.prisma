@@ -1,0 +1,151 @@
+// ============================================
+// SELECTIONS MANAGEMENT - SCHEMA ADDITIONS
+// ============================================
+// Let clients pick finishes, fixtures, and options
+
+// Selection Categories (templates)
+model SelectionCategory {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  icon            String?
+  sortOrder       Int       @default(0)
+  defaultAllowance Decimal? @db.Decimal(10, 2)
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  options         SelectionOption[]
+  projectSelections ProjectSelection[]
+  
+  @@unique([companyId, name])
+  @@index([companyId, sortOrder])
+}
+
+// Selection Options (Product Library)
+model SelectionOption {
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  
+  // Product details
+  manufacturer    String?
+  model           String?
+  sku             String?
+  
+  // Pricing
+  price           Decimal   @default(0) @db.Decimal(10, 2)
+  cost            Decimal   @default(0) @db.Decimal(10, 2)
+  unit            String    @default("each") // each, sqft, linear ft
+  
+  // Media
+  imageUrl        String?
+  images          Json?     // Array of image URLs
+  specSheet       String?   // PDF link
+  
+  // Availability
+  leadTimeDays    Int       @default(0)
+  inStock         Boolean   @default(true)
+  
+  active          Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  categoryId      String
+  category        SelectionCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  projectSelections ProjectSelection[]
+  
+  @@index([companyId, categoryId])
+}
+
+// Project Selections (what client needs to choose)
+model ProjectSelection {
+  id              String    @id @default(cuid())
+  
+  name            String
+  description     String?
+  location        String?   // "Master Bath", "Kitchen", etc.
+  
+  // Budget
+  allowance       Decimal   @default(0) @db.Decimal(10, 2)
+  quantity        Decimal   @default(1) @db.Decimal(10, 2)
+  unit            String    @default("each")
+  
+  // Deadline
+  dueDate         DateTime?
+  
+  // Available options (if limited)
+  availableOptions String[] // Array of option IDs
+  
+  // Selected option
+  selectedOptionId String?
+  selectedOption   SelectionOption? @relation(fields: [selectedOptionId], references: [id], onDelete: SetNull)
+  selectedAt      DateTime?
+  selectedById    String?   // Contact or User ID
+  clientNotes     String?
+  
+  // Price difference (calculated)
+  priceDifference Decimal?  @db.Decimal(10, 2)
+  
+  // Approval
+  status          String    @default("pending") // pending, selected, approved, ordered, received
+  approvedAt      DateTime?
+  approvedById    String?
+  
+  // Ordering
+  orderedAt       DateTime?
+  orderNumber     String?
+  expectedDelivery DateTime?
+  
+  // Receiving
+  receivedAt      DateTime?
+  receivedNotes   String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  companyId       String
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  categoryId      String
+  category        SelectionCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  
+  changeOrders    ChangeOrder[]
+  
+  @@index([projectId, status])
+  @@index([companyId, status])
+  @@index([companyId, dueDate])
+}
+
+// Add to existing ChangeOrder model:
+// model ChangeOrder {
+//   ...existing fields...
+//   selectionId     String?
+//   selection       ProjectSelection? @relation(fields: [selectionId], references: [id], onDelete: SetNull)
+// }
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   selectionCategories  SelectionCategory[]
+//   selectionOptions     SelectionOption[]
+//   projectSelections    ProjectSelection[]
+// }
+
+// Add to existing Project model:
+// model Project {
+//   ...existing fields...
+//   selections           ProjectSelection[]
+// }

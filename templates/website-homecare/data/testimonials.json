@@ -1,0 +1,42 @@
+[
+  {
+    "id": "t1",
+    "name": "Karen M.",
+    "role": "Daughter of Client",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "From the very first phone call, {{COMPANY_NAME}} made us feel like family. Their caregiver has been with my mother for eight months now and the difference in her mood and health is remarkable. I finally sleep through the night knowing she's in good hands.",
+    "rating": 5,
+    "service": "Personal Care",
+    "visible": true
+  },
+  {
+    "id": "t2",
+    "name": "Robert & Linda S.",
+    "role": "Family of Client",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "text": "We were skeptical at first about bringing someone into our home, but {{COMPANY_NAME}} matched us with the perfect caregiver. She has become part of our family. The respite care has been a lifesaver for us as family caregivers.",
+    "rating": 5,
+    "service": "Respite Care",
+    "visible": true
+  },
+  {
+    "id": "t3",
+    "name": "Susan T.",
+    "role": "Daughter of Client",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "My father has Alzheimer's and we were really struggling. {{COMPANY_NAME}}'s memory care program gave us a structure that calmed him down significantly. The caregivers clearly have specialized training — they know exactly how to redirect him and keep him engaged.",
+    "rating": 5,
+    "service": "Memory Care",
+    "visible": true
+  },
+  {
+    "id": "t4",
+    "name": "James W.",
+    "role": "Client",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "text": "After my hip surgery I wasn't sure how I was going to manage at home. {{COMPANY_NAME}} helped me with everything while I recovered — meals, transportation to PT, personal care. They helped me get back on my feet faster than I thought possible.",
+    "rating": 5,
+    "service": "Post-Hospital Care",
+    "visible": true
+  }
+]

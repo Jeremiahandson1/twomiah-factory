@@ -1,0 +1,92 @@
+// ============================================
+// WISETACK CONSUMER FINANCING - SCHEMA ADDITIONS
+// ============================================
+// Add to your prisma/schema.prisma file
+
+model FinancingApplication {
+  id                      String    @id @default(cuid())
+  wisetackApplicationId   String    @unique
+  
+  amount                  Decimal   @db.Decimal(10, 2)
+  status                  String    @default("pending") // pending, approved, declined, funded, expired
+  
+  // Approved terms
+  approvedAmount          Decimal?  @db.Decimal(10, 2)
+  apr                     Decimal?  @db.Decimal(5, 2)
+  termMonths              Int?
+  monthlyPayment          Decimal?  @db.Decimal(10, 2)
+  
+  applicationUrl          String?
+  expiresAt               DateTime?
+  
+  // Timeline
+  approvedAt              DateTime?
+  declinedAt              DateTime?
+  fundedAt                DateTime?
+  fundedAmount            Decimal?  @db.Decimal(10, 2)
+  declineReason           String?
+  
+  // Metadata
+  metadata                Json?
+  
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  
+  // Relations
+  companyId               String
+  company                 Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  contactId               String
+  contact                 Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  quoteId                 String?
+  quote                   Quote?    @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  
+  invoiceId               String?
+  invoice                 Invoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId, status])
+  @@index([quoteId])
+  @@index([invoiceId])
+  @@index([contactId])
+}
+
+// OAuth state for Wisetack connection
+model OauthState {
+  id          String    @id @default(cuid())
+  state       String    @unique
+  provider    String    // 'wisetack', 'quickbooks', etc.
+  companyId   String
+  expiresAt   DateTime
+  createdAt   DateTime  @default(now())
+  
+  @@index([state, provider])
+}
+
+// Add to existing Company model:
+// model Company {
+//   ...existing fields...
+//   wisetackMerchantId    String?
+//   wisetackConnectedAt   DateTime?
+//   financingApplications FinancingApplication[]
+// }
+
+// Add to existing Contact model:
+// model Contact {
+//   ...existing fields...
+//   financingApplications FinancingApplication[]
+// }
+
+// Add to existing Quote model:
+// model Quote {
+//   ...existing fields...
+//   financingApplications FinancingApplication[]
+// }
+
+// Add to existing Invoice model:
+// model Invoice {
+//   ...existing fields...
+//   financingApplications   FinancingApplication[]
+//   financingApplicationId  String?  // The application that funded this invoice
+//   paymentMethod           String?  // 'card', 'check', 'cash', 'financing'
+// }

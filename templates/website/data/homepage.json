@@ -1,0 +1,64 @@
+{
+  "hero": {
+    "tagline": "{{HERO_TAGLINE}}",
+    "title": "{{CITY}} {{INDUSTRY}}",
+    "subtitle": "",
+    "description": "{{COMPANY_DESCRIPTION}}",
+    "image": "",
+    "animation": "ken-burns",
+    "primaryButtonText": "Get Started",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Learn More",
+    "secondaryButtonLink": "/services"
+  },
+  "trustBadges": [],
+  "ctaSection": {
+    "title": "Ready to get started?",
+    "description": "Contact us today for a free consultation.",
+    "primaryButtonText": "Contact Us",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Call {{COMPANY_PHONE}}",
+    "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
+    "backgroundImage": ""
+  },
+  "serviceAreas": [
+    "{{CITY}}"
+  ],
+  "businessHours": {
+    "monday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "tuesday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "wednesday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "thursday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "friday": {
+      "open": "8:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "saturday": {
+      "open": "Closed",
+      "close": "Closed",
+      "closed": true
+    },
+    "sunday": {
+      "open": "Closed",
+      "close": "Closed",
+      "closed": true
+    }
+  }
+}

@@ -1,0 +1,215 @@
+// ============================================
+// SCHEMA ADDITIONS FOR NICE-TO-HAVE FEATURES
+// ============================================
+// Add these models to your prisma/schema.prisma file
+
+// ============================================
+// COMMENTS & ACTIVITY
+// ============================================
+
+model Comment {
+  id          String    @id @default(cuid())
+  content     String
+  mentions    Json?     // Array of user IDs mentioned
+  attachments Json?     // Array of attachment URLs
+  editedAt    DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Polymorphic relation
+  entityType  String    // 'project', 'job', 'contact', 'invoice', 'quote'
+  entityId    String
+  
+  // Threading
+  parentId    String?
+  parent      Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     Comment[] @relation("CommentReplies")
+  
+  reactions   CommentReaction[]
+  
+  @@index([companyId, entityType, entityId])
+  @@index([parentId])
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  reaction  String   // 'like', 'heart', etc.
+  createdAt DateTime @default(now())
+  
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([commentId, userId, reaction])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  action      String   // 'created', 'updated', 'comment_added', etc.
+  description String?
+  metadata    Json?
+  
+  createdAt   DateTime @default(now())
+  
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  // Polymorphic relation
+  entityType  String
+  entityId    String
+  
+  @@index([companyId, createdAt])
+  @@index([companyId, entityType, entityId])
+}
+
+// ============================================
+// TASKS
+// ============================================
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  dueDate     DateTime?
+  priority    String    @default("medium") // low, medium, high, urgent
+  status      String    @default("pending") // pending, in_progress, completed
+  checklist   Json?     // Array of { id, text, completed }
+  completedAt DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  createdById   String
+  createdBy     User      @relation("CreatedTasks", fields: [createdById], references: [id], onDelete: Cascade)
+  
+  assignedToId  String?
+  assignedTo    User?     @relation("AssignedTasks", fields: [assignedToId], references: [id], onDelete: SetNull)
+  
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  projectId     String?
+  project       Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  
+  jobId         String?
+  job           Job?      @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  contactId     String?
+  contact       Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  
+  @@index([companyId, assignedToId, status])
+  @@index([companyId, dueDate])
+}
+
+// ============================================
+// PUSH NOTIFICATIONS
+// ============================================
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String
+  p256dh    String
+  auth      String
+  userAgent String?
+  
+  createdAt DateTime @default(now())
+  
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, endpoint])
+  @@index([userId])
+}
+
+// ============================================
+// PRODUCTS (for import feature)
+// ============================================
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  sku         String?
+  description String?
+  unitPrice   Decimal  @default(0) @db.Decimal(10, 2)
+  unit        String   @default("each")
+  category    String?
+  taxable     Boolean  @default(true)
+  active      Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@unique([companyId, sku])
+  @@index([companyId, active])
+}
+
+// ============================================
+// DAILY LOG WEATHER FIELDS
+// ============================================
+// Add these fields to your existing DailyLog model:
+
+// model DailyLog {
+//   ...existing fields...
+//   
+//   weatherCondition  String?
+//   weatherTemp       Int?
+//   weatherHumidity   Int?
+//   weatherWind       Int?
+//   weatherData       Json?
+// }
+
+// ============================================
+// USER RELATIONS UPDATE
+// ============================================
+// Add these relations to your User model:
+
+// model User {
+//   ...existing fields...
+//   
+//   comments          Comment[]
+//   commentReactions  CommentReaction[]
+//   activities        Activity[]
+//   createdTasks      Task[]           @relation("CreatedTasks")
+//   assignedTasks     Task[]           @relation("AssignedTasks")
+//   pushSubscriptions PushSubscription[]
+// }
+
+// ============================================
+// COMPANY RELATIONS UPDATE
+// ============================================
+// Add these relations to your Company model:
+
+// model Company {
+//   ...existing fields...
+//   
+//   comments    Comment[]
+//   activities  Activity[]
+//   tasks       Task[]
+//   products    Product[]
+// }
+
+// ============================================
+// CONTACT RELATIONS UPDATE
+// ============================================
+// Add this relation to your Contact model:
+
+// model Contact {
+//   ...existing fields...
+//   
+//   tasks       Task[]
+// }

@@ -1,0 +1,178 @@
+// ============================================
+// MARKETING AUTOMATION - SCHEMA ADDITIONS
+// ============================================
+
+// Email Templates
+model EmailTemplate {
+  id          String    @id @default(cuid())
+  name        String
+  subject     String
+  body        String    @db.Text
+  category    String?   // followup, promotion, newsletter, reminder
+  designJson  Json?     // For drag-drop editor
+  active      Boolean   @default(true)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  campaigns   EmailCampaign[]
+  
+  @@index([companyId, category])
+}
+
+// Email Campaigns
+model EmailCampaign {
+  id            String    @id @default(cuid())
+  name          String
+  subject       String
+  body          String    @db.Text
+  fromName      String?
+  fromEmail     String?
+  replyTo       String?
+  
+  // Audience
+  audienceType  String    @default("all") // all, segment, list
+  audienceFilter Json?    // JSON filter criteria
+  
+  // Status
+  status        String    @default("draft") // draft, scheduled, sending, sent
+  scheduledFor  DateTime?
+  sentAt        DateTime?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  templateId    String?
+  template      EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  
+  recipients    EmailRecipient[]
+  
+  @@index([companyId, status])
+}
+
+// Email Recipients
+model EmailRecipient {
+  id            String    @id @default(cuid())
+  email         String
+  status        String    @default("pending") // pending, sent, delivered, opened, clicked, bounced, failed, unsubscribed
+  
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  clickedAt     DateTime?
+  
+  openCount     Int       @default(0)
+  clickCount    Int       @default(0)
+  
+  errorCode     String?
+  errorMessage  String?
+  
+  createdAt     DateTime  @default(now())
+  
+  campaignId    String
+  campaign      EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  contactId     String?
+  contact       Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  
+  clicks        EmailClick[]
+  
+  @@index([campaignId, status])
+}
+
+// Email Click Tracking
+model EmailClick {
+  id            String    @id @default(cuid())
+  url           String
+  clickedAt     DateTime  @default(now())
+  
+  recipientId   String
+  recipient     EmailRecipient @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  
+  @@index([recipientId])
+}
+
+// Drip Sequences
+model DripSequence {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  trigger       String    @default("manual") // manual, new_customer, quote_sent, invoice_paid
+  active        Boolean   @default(false)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  steps         DripSequenceStep[]
+  enrollments   SequenceEnrollment[]
+  
+  @@index([companyId, active])
+}
+
+// Drip Sequence Steps
+model DripSequenceStep {
+  id            String    @id @default(cuid())
+  stepNumber    Int
+  delayDays     Int       @default(0)
+  delayHours    Int       @default(0)
+  subject       String
+  body          String    @db.Text
+  
+  sequenceId    String
+  sequence      DripSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  
+  templateId    String?
+  
+  @@index([sequenceId, stepNumber])
+}
+
+// Sequence Enrollments
+model SequenceEnrollment {
+  id            String    @id @default(cuid())
+  currentStep   Int       @default(1)
+  status        String    @default("active") // active, paused, completed, unsubscribed
+  
+  nextEmailAt   DateTime?
+  lastEmailAt   DateTime?
+  completedAt   DateTime?
+  
+  createdAt     DateTime  @default(now())
+  
+  sequenceId    String
+  sequence      DripSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  
+  contactId     String
+  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  @@unique([sequenceId, contactId])
+  @@index([status, nextEmailAt])
+}
+
+// Company SMS Settings (for auto-responses)
+model CompanySmsSettings {
+  id                    String    @id @default(cuid())
+  autoResponseEnabled   Boolean   @default(false)
+  defaultAutoResponse   String?
+  autoResponseKeywords  Json?     // { "keyword": "response" }
+  
+  companyId             String    @unique
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+// Add to Contact model for email opt-out:
+// model Contact {
+//   ...existing fields...
+//   emailOptOut           Boolean   @default(false)
+//   emailOptOutDate       DateTime?
+//   emailRecipients       EmailRecipient[]
+//   sequenceEnrollments   SequenceEnrollment[]
+// }

@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- SEO Meta Tags -->
+  <title><%= title %></title>
+  <meta name="description" content="<%= description %>">
+  <% if (typeof keywords !== 'undefined') { %>
+  <meta name="keywords" content="<%= keywords %>">
+  <% } %>
+  
+  <!-- Canonical URL -->
+  <link rel="canonical" href="<%= canonicalUrl %>">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="<%= title %>">
+  <meta property="og:description" content="<%= description %>">
+  <meta property="og:url" content="<%= canonicalUrl %>">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{COMPANY_NAME}}">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="<%= (typeof ogImage !== 'undefined' && ogImage) ? ogImage : '{{COMPANY_WEBSITE}}/uploads/og-default.jpg' %>">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%= title %>">
+  <meta name="twitter:description" content="<%= description %>">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+  
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="/styles/main.css">
+  <link rel="stylesheet" href="/styles/public-pages.css">
+
+  <!-- Runtime Brand Color Override (from settings) -->
+  <%
+    const _pc = (typeof settings !== 'undefined' && settings && settings.primaryColor)   || '';
+    const _sc = (typeof settings !== 'undefined' && settings && settings.secondaryColor) || '';
+    const _ac = (typeof settings !== 'undefined' && settings && settings.accentColor)    || '';
+    const _ow = (typeof settings !== 'undefined' && settings && settings.offWhiteColor)  || '';
+    // Lighten/darken helper  defined at top level so it's always in scope
+    const _lh = (hex, pct) => {
+      hex = (hex || '004d40').replace('#', '');
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      const n = parseInt(hex, 16) || 0;
+      const s = Math.round(255 * Math.abs(pct) / 100) * (pct > 0 ? 1 : -1);
+      const c = v => Math.min(255, Math.max(0, v));
+      const r = c((n >> 16) + s), g = c(((n >> 8) & 0xff) + s), b = c((n & 0xff) + s);
+      return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    };
+    const _navy = _sc || '#004d40';
+    const _gold = _pc || '#009688';
+    const _warm = _ac || '#f59e0b';
+    const _hasColors = !!(_pc || _sc || _ac);
+  %>
+  <% if (_hasColors) { %>
+  <style>
+    :root {
+      --navy:       <%= _navy %>;
+      --navy-light: <%= _lh(_navy, 12) %>;
+      --navy-dark:  <%= _lh(_navy, -15) %>;
+      --gold:       <%= _gold %>;
+      --gold-light: <%= _lh(_gold, 15) %>;
+      --gold-dark:  <%= _lh(_gold, -15) %>;
+      --warm:       <%= _warm %>;
+      --warm-dark:  <%= _lh(_warm, -15) %>;
+      <% if (_ow) { %>--off-white: <%= _ow %>;<% } %>
+      --color-primary:       <%= _gold %>;
+      --color-primary-light: <%= _lh(_gold, 20) %>;
+      --color-secondary:     <%= _navy %>;
+      --color-accent:        <%= _warm %>;
+    }
+  </style>
+  <% } %>
+  
+  
+  <!-- Structured Data -->
+  <%
+    const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+    const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1876717b73587b74797e7471767b77766b6c6a6d7b6c71777636767d6c">[email&#160;protected]</a>';
+    const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '123 Main St';
+    const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
+    const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : '{{STATE}}';
+    const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
+    const phoneRaw = phone.replace(/\D/g, '');
+    const logoUrl = (typeof settings !== 'undefined' && settings && settings.logo) 
+      ? (settings.logo.startsWith('http') ? settings.logo : (settings.logo.startsWith('/') ? settings.logo : '/' + settings.logo)) 
+      : '/images/logo.png';
+  %>
+  
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HomeHealthCare",
+    "name": "{{COMPANY_NAME}}",
+    "description": "Professional in-home care services in {{CITY}} and the {{SERVICE_REGION}}",
+    "url": "{{COMPANY_WEBSITE}}",
+    "logo": "{{COMPANY_WEBSITE}}<%= logoUrl %>",
+    "image": "{{COMPANY_WEBSITE}}<%= logoUrl %>",
+    "telephone": "+1<%= phoneRaw %>",
+    "email": "<%= email %>",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "<%= address %>",
+      "addressLocality": "<%= city %>",
+      "addressRegion": "<%= state %>",
+      "postalCode": "<%= zip %>",
+      "addressCountry": "US"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 44.8113,
+      "longitude": -91.4985
+    },
+    "areaServed": [
+      {
+        "@type": "City",
+        "name": "{{CITY}}",
+        "containedInPlace": {
+          "@type": "State",
+          "name": "WI"
+        }
+      },
+      {
+        "@type": "GeoCircle",
+        "geoMidpoint": {
+          "@type": "GeoCoordinates",
+          "latitude": 44.8113,
+          "longitude": -91.4985
+        },
+        "geoRadius": 50000
+      }
+    ],
+    "priceRange": "$$"
+    <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
+    ,"sameAs": [
+      <% const socialLinks = []; %>
+      <% if (settings.socialLinks.facebook) socialLinks.push(settings.socialLinks.facebook); %>
+      <% if (settings.socialLinks.instagram) socialLinks.push(settings.socialLinks.instagram); %>
+      <% if (settings.socialLinks.linkedin) socialLinks.push(settings.socialLinks.linkedin); %>
+      <% if (settings.socialLinks.twitter) socialLinks.push(settings.socialLinks.twitter); %>
+      <% if (settings.socialLinks.youtube) socialLinks.push(settings.socialLinks.youtube); %>
+      <%- socialLinks.map(link => JSON.stringify(link)).join(',\n      ') %>
+    ]
+    <% } %>
+  }
+  </script>
+  
+  <% if (typeof breadcrumbs !== 'undefined' && breadcrumbs.length > 0) { %>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      <% breadcrumbs.forEach((crumb, index) => { %>
+      {
+        "@type": "ListItem",
+        "position": <%= index + 1 %>,
+        "name": "<%= crumb.label %>",
+        "item": "{{COMPANY_WEBSITE}}<%= crumb.url %>"
+      }<%= index < breadcrumbs.length - 1 ? ',' : '' %>
+      <% }); %>
+    ]
+  }
+  </script>
+  <% } %>
+
+  <%
+    //  Tracking IDs from settings 
+    const _a = (typeof settings !== 'undefined' && settings && settings.analytics) ? settings.analytics : {};
+    const _gaId   = _a.googleAnalyticsId   || settings?.googleAnalyticsId   || '';
+    const _gtmId  = _a.googleTagManagerId  || settings?.googleTagManagerId  || '';
+    const _fbId   = _a.facebookPixelId     || settings?.facebookPixelId     || '';
+    const _clId   = _a.microsoftClarityId  || settings?.microsoftClarityId  || '';
+    const _gadsId = _a.googleAdsId         || settings?.googleAdsId         || '';
+  %>
+
+  <%/*  Google Tag Manager (head)  */%>
+  <% if (_gtmId) { %>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _gtmId %>');</script>
+  <% } %>
+
+  <%/*  Google Analytics 4 + custom events  */%>
+  <% if (_gaId) { %>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '<%= _gaId %>', { send_page_view: true });
+    <% if (_gadsId) { %>
+    gtag('config', '<%= _gadsId %>');
+    window._gadsId = '<%= _gadsId %>';
+    <% } %>
+
+    //  Custom event helpers 
+    window._bpTrack = function(eventName, params) {
+      if (typeof gtag !== 'undefined') {
+        gtag('event', eventName, params || {});
+      }
+      // Also push to dataLayer for GTM
+      if (window.dataLayer) {
+        window.dataLayer.push({ event: eventName, ...(params || {}) });
+      }
+    };
+
+    // phone_call  every tel: link click
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="tel:"]');
+      if (link) {
+        _bpTrack('phone_call', {
+          event_category: 'engagement',
+          event_label: link.href.replace('tel:', ''),
+          value: 1
+        });
+      }
+    });
+
+    // email_click  every mailto: link click
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="mailto:"]');
+      if (link) {
+        _bpTrack('email_click', {
+          event_category: 'engagement',
+          event_label: link.href.replace('mailto:', '')
+        });
+      }
+    });
+
+    // cta_click  primary CTA buttons ("Request Care", "Get Started", "Free Assessment" etc)
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('a.btn-primary, button.btn-primary, .hero-buttons a, [data-cta]');
+      if (btn) {
+        _bpTrack('cta_click', {
+          event_category: 'engagement',
+          event_label: btn.textContent.trim().slice(0, 50),
+          cta_location: btn.closest('section')?.className?.split(' ')[0] || 'page'
+        });
+      }
+    });
+
+    // view_service  fire on service pages
+    (function() {
+      var path = window.location.pathname;
+      if (path.indexOf('/services') === 0 && path.length > 9) {
+        var slug = path.replace('/services/', '').replace(/\/$/, '') || 'services';
+        _bpTrack('view_service', {
+          event_category: 'content',
+          service_name: slug
+        });
+      }
+    })();
+
+    // view_gallery  fire on gallery page
+    if (window.location.pathname.indexOf('/gallery') === 0) {
+      _bpTrack('view_gallery', { event_category: 'content' });
+    }
+  </script>
+  <% } %>
+
+  <%/*  Facebook Pixel  */%>
+  <% if (_fbId) { %>
+  <script>
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '<%= _fbId %>');
+    fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=<%= _fbId %>&ev=PageView&noscript=1" /></noscript>
+  <% } %>
+
+  <%/*  Microsoft Clarity  */%>
+  <% if (_clId) { %>
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","<%= _clId %>");
+  </script>
+  <% } %>
+
+</head>
+<body>
+  <%/* GTM noscript fallback  must be immediately after <body> */%>
+  <% if (_gtmId) { %>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= _gtmId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <% } %>
+
+  <!-- Header -->
+  <header class="main-header" id="main-header">
+    <div class="main-nav-wrapper">
+      <div class="container">
+        <div class="nav-content">
+
+          <!-- Logo -->
+          <a href="/" class="logo">
+            <img src="<%= logoUrl %>" alt="<%= settings && settings.companyName || 'Home Care' %>" class="logo-image" />
+          </a>
+
+          <!-- Primary Nav -->
+          <nav class="main-nav" role="navigation" aria-label="Main navigation">
+            <ul>
+              <%
+                const allNavItems = typeof menuItems !== 'undefined' ? menuItems : [];
+                const visibleItems = allNavItems.filter(item => item.visible !== false);
+              %>
+              <% visibleItems.forEach(item => { %>
+                <li class="<%= item.children && item.children.length > 0 ? 'has-dropdown' : '' %>">
+                  <a href="<%= item.href %>"><%= item.label %></a>
+                  <% if (item.children && item.children.length > 0) { %>
+                    <div class="dropdown">
+                      <% item.children.forEach(child => { %>
+                        <a href="<%= child.href %>"><%= child.label %></a>
+                      <% }); %>
+                    </div>
+                  <% } %>
+                </li>
+              <% }); %>
+              <li class="nav-phone-item">
+                <a href="tel:<%= phoneRaw %>" class="nav-phone-link">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 14.9 19.79 19.79 0 0 1 1.12 6.24 2 2 0 0 1 3.1 4h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
+                  <%= phone %>
+                </a>
+              </li>
+              <li class="cta-item">
+                <a href="#contact" class="btn btn-primary">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.19 14.9 19.79 19.79 0 0 1 1.12 6.24 2 2 0 0 1 3.1 4h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/></svg>
+                  Request Care
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <!-- Mobile toggle -->
+          <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+          </button>
+
+        </div><!-- /nav-content -->
+      </div><!-- /container -->
+    </div><!-- /main-nav-wrapper -->
+
+    <!-- Mobile Nav Drawer -->
+    <nav class="mobile-nav" id="mobile-nav" aria-hidden="true">
+      <ul>
+        <%
+          const allNavItemsMobile = typeof menuItems !== 'undefined' ? menuItems : [];
+          const visibleItemsMobile = allNavItemsMobile.filter(item => item.visible !== false);
+        %>
+        <% visibleItemsMobile.forEach(item => { %>
+          <li>
+            <a href="<%= item.href %>"><%= item.label %></a>
+            <% if (item.children && item.children.length > 0) { %>
+              <div class="dropdown">
+                <% item.children.forEach(child => { %>
+                  <a href="<%= child.href %>"><%= child.label %></a>
+                <% }); %>
+              </div>
+            <% } %>
+          </li>
+        <% }); %>
+        <li>
+          <a href="tel:<%= phoneRaw %>" style="color: var(--gold); font-weight:700;">
+             <%= phone %>
+          </a>
+        </li>
+        <li style="padding-top:12px;">
+          <a href="#contact" class="btn btn-primary" style="display:block;text-align:center;">Request Care</a>
+        </li>
+      </ul>
+    </nav>
+  </header>
+
+    <!-- Main Content -->
+  <main>
+    <%- body %>
+  </main>
+
+  <!-- Footer -->
+  <footer class="hc-footer">
+    <div class="container">
+      <div class="hc-footer-inner">
+
+        <!-- Logo -->
+        <div class="hc-footer-logo">
+          <% if (logoUrl) { %>
+            <img src="<%= logoUrl %>" alt="<%= settings && settings.companyName || 'Home Care' %>" style="height:52px;">
+          <% } else { %>
+            <span class="hc-footer-brand"><%= settings && settings.companyName || 'Home Care' %></span>
+          <% } %>
+        </div>
+
+        <!-- Nav Links -->
+        <nav class="hc-footer-nav">
+          <a href="#about">About</a>
+          <a href="#services">Services</a>
+          <a href="#areas">Service Areas</a>
+          <a href="#contact">Contact</a>
+          <% if (typeof menuItems !== 'undefined') { %>
+            <% menuItems.filter(i => i.visible && ['careers','blog','team'].includes(i.id)).forEach(function(item) { %>
+              <a href="<%= item.href %>" class="<%= item.id === 'join' ? 'hc-footer-highlight' : '' %>"><%= item.label %></a>
+            <% }); %>
+          <% } %>
+          <a href="#contact" class="hc-footer-highlight">Join Our Team</a>
+        </nav>
+
+        <!-- City + Phone -->
+        <div class="hc-footer-contact">
+          <span><%= city %>, <%= state === '{{STATE}}' ? 'Wisconsin' : state %></span>
+          <a href="tel:<%= phoneRaw %>"><%= phone %></a>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="hc-footer-bottom">
+      <div class="container hc-footer-bottom-inner">
+        <p>&copy; <%= new Date().getFullYear() %> <%= settings && settings.companyName || 'Home Care' %>. All rights reserved.</p>
+        <p class="built-by">Built by <a href="https://twomiah.com" target="_blank" rel="noopener">Twomiah</a></p>
+      </div>
+    </div>
+  </footer>
+
+    <!-- Scripts -->
+  <script src="/scripts/main.js"></script>
+
+  <script>
+    //  Page analytics tracking 
+    (function() {
+      // Parse UTM params from URL
+      var params = new URLSearchParams(window.location.search);
+      var utm = {};
+      ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k) {
+        if (params.get(k)) utm[k.replace('utm_','')] = params.get(k);
+      });
+
+      // Persist UTMs in sessionStorage so they survive navigation
+      if (Object.keys(utm).length > 0) {
+        try { sessionStorage.setItem('_bp_utm', JSON.stringify(utm)); } catch(e){}
+      } else {
+        try { utm = JSON.parse(sessionStorage.getItem('_bp_utm') || '{}'); } catch(e){}
+      }
+
+      // Session ID  persistent per browser session
+      var sessionId = '';
+      try {
+        sessionId = sessionStorage.getItem('_bp_sid');
+        if (!sessionId) {
+          sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+          sessionStorage.setItem('_bp_sid', sessionId);
+        }
+      } catch(e) { sessionId = Math.random().toString(36).slice(2); }
+
+      // Page ID from path
+      var pageId = window.location.pathname.replace(/^\/|\/$/g,'') || 'home';
+
+      fetch('/api/admin/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId: pageId,
+          referrer: document.referrer || '',
+          userAgent: navigator.userAgent,
+          utm: utm,
+          sessionId: sessionId
+        }),
+        keepalive: true
+      }).catch(function(){});
+    })();
+  </script>
+
+  <script>
+    // Mobile menu toggle - runs after DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      var navToggle = document.querySelector('.nav-toggle');
+      const mobileNav = document.querySelector('.mobile-nav');
+      const header = document.querySelector('.main-header');
+      
+      if (navToggle && mobileNav) {
+        // Remove any existing listeners from main.js by cloning
+        const newToggle = navToggle.cloneNode(true);
+        navToggle.parentNode.replaceChild(newToggle, navToggle);
+        navToggle = newToggle; // Update reference to the new element
+        
+        navToggle.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.classList.toggle('active');
+          mobileNav.classList.toggle('active');
+        });
+      }
+      
+      // Scroll effect for header
+      let scrolled = false;
+      window.addEventListener('scroll', function() {
+        const shouldBeScrolled = window.scrollY > 50;
+        if (shouldBeScrolled !== scrolled) {
+          scrolled = shouldBeScrolled;
+          if (header) {
+            if (scrolled) {
+              header.classList.add('scrolled');
+            } else {
+              header.classList.remove('scrolled');
+            }
+          }
+        }
+      });
+      
+      // Close mobile menu when clicking nav links
+      document.querySelectorAll('.mobile-nav a').forEach(function(link) {
+        link.addEventListener('click', function() {
+          if (mobileNav && mobileNav.classList.contains('active')) {
+            mobileNav.classList.remove('active');
+            if (navToggle) navToggle.classList.remove('active');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

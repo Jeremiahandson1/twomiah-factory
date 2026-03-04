@@ -1,0 +1,122 @@
+[
+  {
+    "id": "personal-care",
+    "name": "Personal Care",
+    "slug": "personal-care",
+    "shortDescription": "Dignified assistance with daily personal hygiene, grooming, and bathing for seniors and those with disabilities.",
+    "description": "Our personal care services help clients maintain their dignity and independence. Caregivers provide respectful, compassionate assistance with bathing, dressing, grooming, oral hygiene, and personal appearance — always following your loved one's preferences and care plan.",
+    "icon": "heart",
+    "image": "",
+    "features": [
+      "Bathing & showering assistance",
+      "Dressing & grooming",
+      "Oral & skin care",
+      "Toileting & incontinence support",
+      "Mobility & transfer assistance"
+    ],
+    "seoTitle": "Personal Care Services in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Professional personal care services for seniors in {{CITY}}, {{STATE}}. Compassionate caregivers providing dignified assistance with daily living activities.",
+    "visible": true,
+    "order": 1
+  },
+  {
+    "id": "companion-care",
+    "name": "Companion Care",
+    "slug": "companion-care",
+    "shortDescription": "Meaningful companionship, social engagement, and light household help to combat isolation and brighten daily life.",
+    "description": "Loneliness and social isolation are serious health risks for seniors. Our companion care services provide meaningful connection, conversation, and activities tailored to your loved one's interests — along with light household support to keep their home comfortable.",
+    "icon": "users",
+    "image": "",
+    "features": [
+      "Conversation & companionship",
+      "Accompany to appointments & errands",
+      "Light housekeeping",
+      "Meal preparation",
+      "Games, reading, hobbies"
+    ],
+    "seoTitle": "Companion Care Services in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Senior companion care services in {{CITY}}, {{STATE}}. Combat isolation with compassionate companionship, light housekeeping, and meal preparation.",
+    "visible": true,
+    "order": 2
+  },
+  {
+    "id": "respite-care",
+    "name": "Respite Care",
+    "slug": "respite-care",
+    "shortDescription": "Temporary relief for family caregivers — from a few hours to extended stays — so you can recharge with confidence.",
+    "description": "Family caregivers are heroes, but even heroes need a break. Our respite care services step in for a few hours, a full day, or longer so you can rest, attend to your own needs, or handle other responsibilities — knowing your loved one is in expert hands.",
+    "icon": "clock",
+    "image": "",
+    "features": [
+      "Hourly respite coverage",
+      "Overnight stays",
+      "Weekend & holiday coverage",
+      "Emergency backup care",
+      "Transition support"
+    ],
+    "seoTitle": "Respite Care Services in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Respite care services for family caregivers in {{CITY}}, {{STATE}}. Flexible short-term and overnight care so you can rest with confidence.",
+    "visible": true,
+    "order": 3
+  },
+  {
+    "id": "memory-care",
+    "name": "Memory Care",
+    "slug": "memory-care",
+    "shortDescription": "Specialized in-home support for clients with Alzheimer's, dementia, and other memory conditions.",
+    "description": "Our memory care program is designed for clients living with Alzheimer's, dementia, and other cognitive conditions. Caregivers receive specialized training in memory care best practices — creating safe, structured routines that preserve dignity and reduce anxiety.",
+    "icon": "brain",
+    "image": "",
+    "features": [
+      "Structured daily routines",
+      "Wandering & safety monitoring",
+      "Cognitive engagement activities",
+      "Family communication & support",
+      "Specialized caregiver training"
+    ],
+    "seoTitle": "Memory Care Services in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "In-home memory care for seniors with Alzheimer's and dementia in {{CITY}}, {{STATE}}. Specialized, compassionate care from trained caregivers.",
+    "visible": true,
+    "order": 4
+  },
+  {
+    "id": "skilled-nursing",
+    "name": "Skilled Nursing Support",
+    "slug": "skilled-nursing",
+    "shortDescription": "Coordination with skilled nursing services for clients with complex medical needs who prefer to remain at home.",
+    "description": "For clients with more complex medical needs, we coordinate with licensed nurses and healthcare providers to support care at home. This includes medication reminders, vital sign monitoring, wound care coordination, and communication with your loved one's medical team.",
+    "icon": "activity",
+    "image": "",
+    "features": [
+      "Medication reminders & management",
+      "Vital sign monitoring",
+      "Post-hospitalization care",
+      "Care coordination with medical team",
+      "Health status reporting"
+    ],
+    "seoTitle": "Skilled Nursing Support in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "In-home skilled nursing support for seniors in {{CITY}}, {{STATE}}. Medication management, post-hospital care, and coordination with your medical team.",
+    "visible": true,
+    "order": 5
+  },
+  {
+    "id": "transportation",
+    "name": "Transportation Assistance",
+    "slug": "transportation",
+    "shortDescription": "Safe, reliable rides to medical appointments, errands, and social activities throughout {{SERVICE_REGION}}.",
+    "description": "Getting to appointments and staying connected to the community is vital for wellbeing. Our transportation services provide safe, reliable rides to doctor visits, therapy, errands, social events, and family gatherings — so your loved one never has to miss something important.",
+    "icon": "car",
+    "image": "",
+    "features": [
+      "Medical appointment transportation",
+      "Grocery & errand runs",
+      "Social outings & events",
+      "Physical therapy & specialist visits",
+      "Door-to-door assistance"
+    ],
+    "seoTitle": "Senior Transportation Services in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Senior transportation services in {{CITY}}, {{STATE}}. Safe, reliable rides to medical appointments, errands, and social activities.",
+    "visible": true,
+    "order": 6
+  }
+]

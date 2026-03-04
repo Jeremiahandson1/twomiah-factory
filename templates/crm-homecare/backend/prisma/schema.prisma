@@ -1,0 +1,1136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== AGENCY (TOP-LEVEL TENANT) ====================
+model Agency {
+  id             String   @id @default(cuid())
+  name           String
+  legalName      String?
+  slug           String   @unique
+  email          String?
+  phone          String?
+  address        String?
+  city           String?
+  state          String?
+  zip            String?
+  primaryColor   String   @default("#0369a1")
+  secondaryColor String?
+  logo           String?
+  website        String?
+  licenseNumber  String?
+  npi            String?
+  medicaidId     String?
+  settings       Json     @default("{}")
+
+  // Stripe
+  stripeCustomerId String? @unique
+  subscriptionTier String?
+
+  // Twilio
+  twilioPhoneNumber String?
+  twilioAccountSid  String?
+  twilioAuthToken   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agencies")
+}
+
+// ==================== USERS (ADMINS & CAREGIVERS) ====================
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  passwordHash         String
+  firstName            String
+  lastName             String
+  phone                String?
+  role                 String    @default("caregiver") // 'admin' | 'caregiver' | 'billing'
+  isActive             Boolean   @default(true)
+  // Address
+  address              String?
+  city                 String?
+  state                String?
+  zip                  String?
+  latitude             Decimal?  @db.Decimal(10, 8)
+  longitude            Decimal?  @db.Decimal(11, 8)
+  // Caregiver fields
+  certifications       String[]
+  certificationsExpiry DateTime[]
+  defaultPayRate       Decimal?  @db.Decimal(8, 2)
+  hireDate             DateTime? @db.Date
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  // Auth
+  lastLogin            DateTime?
+  refreshToken         String?
+  resetToken           String?
+  resetTokenExp        DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  profile              CaregiverProfile?
+  availability         CaregiverAvailability?
+  schedules            CaregiverSchedule[]
+  timeOff              CaregiverTimeOff[]
+  assignments          ClientAssignment[]
+  timeEntries          TimeEntry[]
+  gpsPoints            GpsTracking[]
+  absences             Absence[]
+  absencesCovering     Absence[]            @relation("CoverageAssigned")
+  absencesReported     Absence[]            @relation("AbsenceReportedBy")
+  performanceRatings   PerformanceRating[]
+  notifications        Notification[]
+  notificationPrefs    NotificationPreference?
+  pushSubscriptions    PushSubscription[]
+  backgroundChecks     BackgroundCheck[]
+  backgroundChecksBy   BackgroundCheck[]    @relation("BackgroundCheckCreatedBy")
+  gustoMap             GustoEmployeeMap?
+  messagesCreated      MessageThread[]
+  messagesSent         Message[]
+  threadParticipations MessageThreadParticipant[]
+  communicationLogs    CommunicationLog[]
+  formTemplates        FormTemplate[]
+  formSubmissions      FormSubmission[]
+  openShiftsCreated    OpenShift[]
+  loginActivities      LoginActivity[]
+  noshowsResolved      NoshowAlert[]        @relation("NoshowResolvedBy")
+  noshowAlertsCaused   NoshowAlert[]        @relation("NoshowCaregiver")
+  validationResolved   ValidationLog[]
+  remittanceBatches    RemittanceBatch[]
+  ediBatchesCreated    EdiBatch[]
+  authorizationsCreated Authorization[]
+  gustoSyncLogs        GustoSyncLog[]
+  expenseSubmissions   Expense[]
+
+  @@map("users")
+}
+
+// ==================== CAREGIVER PROFILE (EXTENDED) ====================
+model CaregiverProfile {
+  id               String   @id @default(cuid())
+  caregiverId      String   @unique
+  caregiver        User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  notes            String?
+  capabilities     String?
+  limitations      String?
+  preferredHours   String?
+  availableMon     Boolean  @default(true)
+  availableTue     Boolean  @default(true)
+  availableWed     Boolean  @default(true)
+  availableThu     Boolean  @default(true)
+  availableFri     Boolean  @default(true)
+  availableSat     Boolean  @default(false)
+  availableSun     Boolean  @default(false)
+  npiNumber        String?
+  taxonomyCode     String?  @default("374700000X")
+  evvWorkerId      String?
+  medicaidProviderId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("caregiver_profiles")
+}
+
+// ==================== CAREGIVER AVAILABILITY ====================
+model CaregiverAvailability {
+  id               String   @id @default(cuid())
+  caregiverId      String   @unique
+  caregiver        User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  status           String   @default("available") // available | unavailable | limited
+  maxHoursPerWeek  Int      @default(40)
+  weeklyAvailability Json?  // {0: {available: bool, start: '09:00', end: '17:00'}, ...}
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("caregiver_availability")
+}
+
+// ==================== CAREGIVER SCHEDULES ====================
+model CaregiverSchedule {
+  id             String   @id @default(cuid())
+  caregiverId    String
+  caregiver      User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  dayOfWeek      Int?     // 0-6 (Sunday=0) for recurring; null for specific date
+  date           DateTime? @db.Date
+  startTime      DateTime? @db.Time
+  endTime        DateTime? @db.Time
+  isAvailable    Boolean  @default(true)
+  maxHoursPerWeek Int     @default(40)
+  overtimeApproved Boolean @default(false)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([caregiverId])
+  @@index([date])
+  @@map("caregiver_schedules")
+}
+
+// ==================== CAREGIVER TIME OFF ====================
+model CaregiverTimeOff {
+  id          String   @id @default(cuid())
+  caregiverId String
+  caregiver   User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  type        String   // vacation | sick | other
+  reason      String?
+  approvedById String?
+  status      String   @default("pending") // pending | approved | rejected
+  createdAt   DateTime @default(now())
+
+  @@index([caregiverId])
+  @@index([startDate, endDate])
+  @@map("caregiver_time_off")
+}
+
+// ==================== REFERRAL SOURCES / PAYERS ====================
+model ReferralSource {
+  id              String   @id @default(cuid())
+  name            String
+  type            String?  // hospital | doctor | agency | social_services | family | insurance | private_pay
+  contactName     String?
+  email           String?
+  phone           String?
+  address         String?
+  city            String?
+  state           String?
+  zip             String?
+  notes           String?
+  isActive        Boolean  @default(true)
+  // Payer fields (v4)
+  payerType       String?  @default("other") // mco_family_care | managed_care | medicaid | va | private_pay | other
+  payerIdNumber   String?
+  npi             String?
+  expectedPayDays Int?     @default(30)
+  isActivePayer   Boolean  @default(false)
+  ediPayerId      String?
+  submissionMethod String? @default("manual") // edi | manual | portal
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  clients      Client[]
+  authorizations Authorization[]
+  ediBatches   EdiBatch[]
+  remittances  RemittanceBatch[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("referral_sources")
+}
+
+// ==================== CLIENTS ====================
+model Client {
+  id                    String   @id @default(cuid())
+  firstName             String
+  lastName              String
+  dateOfBirth           DateTime? @db.Date
+  ssnEncrypted          String?  // AES encrypted
+  gender                String?
+  address               String?
+  city                  String?
+  state                 String?
+  zip                   String?
+  phone                 String?
+  email                 String?
+  referredById          String?
+  referredBy            ReferralSource? @relation(fields: [referredById], references: [id])
+  referralDate          DateTime? @db.Date
+  startDate             DateTime? @db.Date
+  isActive              Boolean  @default(true)
+  serviceType           String?  // personal_care | companionship | respite_care | skilled_nursing | etc.
+  insuranceProvider     String?
+  insuranceId           String?
+  insuranceGroup        String?
+  medicalConditions     String[]
+  allergies             String[]
+  medications           String[]
+  preferredCaregivers   String[] // user IDs
+  doNotUseCaregivers    String[] // user IDs
+  notes                 String?
+  // Billing fields (v4)
+  evvClientId           String?
+  mcoMemberId           String?
+  primaryDiagnosisCode  String?
+  secondaryDiagnosisCode String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  emergencyContacts ClientEmergencyContact[]
+  onboarding        ClientOnboarding?
+  assignments       ClientAssignment[]
+  timeEntries       TimeEntry[]
+  geofence          GeofenceSettings?
+  evvVisits         EvvVisit[]
+  authorizations    Authorization[]
+  invoices          Invoice[]
+  performanceRatings PerformanceRating[]
+  communicationLogs  CommunicationLog[]
+  formSubmissions    FormSubmission[]
+  absencesCovering   Absence[]
+  noshowAlerts       NoshowAlert[]
+
+  @@index([isActive])
+  @@index([referredById])
+  @@map("clients")
+}
+
+// ==================== CLIENT EMERGENCY CONTACTS ====================
+model ClientEmergencyContact {
+  id           String   @id @default(cuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name         String
+  relationship String?
+  phone        String
+  email        String?
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([clientId])
+  @@map("client_emergency_contacts")
+}
+
+// ==================== CLIENT ONBOARDING CHECKLIST ====================
+model ClientOnboarding {
+  id                          String    @id @default(cuid())
+  clientId                    String    @unique
+  client                      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  emergencyContactsCompleted  Boolean   @default(false)
+  medicalHistoryCompleted     Boolean   @default(false)
+  insuranceInfoCompleted      Boolean   @default(false)
+  carePreferencesCompleted    Boolean   @default(false)
+  familyCommunicationCompleted Boolean  @default(false)
+  initialAssessmentCompleted  Boolean   @default(false)
+  allCompleted                Boolean   @default(false)
+  completedAt                 DateTime?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+
+  @@map("client_onboarding")
+}
+
+// ==================== CLIENT ASSIGNMENTS ====================
+model ClientAssignment {
+  id             String   @id @default(cuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  caregiverId    String
+  caregiver      User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  assignmentDate DateTime @db.Date
+  hoursPerWeek   Decimal? @db.Decimal(5, 2)
+  payRate        Decimal? @db.Decimal(10, 2)
+  status         String   @default("active") // active | paused | completed
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([clientId])
+  @@index([caregiverId])
+  @@index([status])
+  @@map("client_assignments")
+}
+
+// ==================== SCHEDULES ====================
+model Schedule {
+  id           String    @id @default(cuid())
+  clientId     String?
+  caregiverId  String?
+  title        String?
+  startTime    DateTime?
+  endTime      DateTime?
+  frequency    String    @default("weekly") // weekly | biweekly | monthly | one_off
+  effectiveDate DateTime? @db.Date
+  anchorDate   DateTime? @db.Date
+  scheduleType String    @default("recurring") // recurring | one_off
+  isActive     Boolean   @default(true)
+  dayOfWeek    Int?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  timeEntries  TimeEntry[]
+  noshowAlerts NoshowAlert[]
+
+  @@index([clientId])
+  @@index([caregiverId])
+  @@map("schedules")
+}
+
+// ==================== OPEN SHIFTS ====================
+model OpenShift {
+  id                  String    @id @default(cuid())
+  clientId            String?
+  date                DateTime  @db.Date
+  startTime           DateTime? @db.Time
+  endTime             DateTime? @db.Time
+  status              String    @default("open") // open | filled | cancelled
+  notes               String?
+  sourceAbsenceId     String?
+  notifiedCaregiverCount Int    @default(0)
+  autoCreated         Boolean   @default(false)
+  createdById         String?
+  createdBy           User?     @relation(fields: [createdById], references: [id])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  notifications       OpenShiftNotification[]
+
+  @@index([date])
+  @@index([status])
+  @@map("open_shifts")
+}
+
+// ==================== OPEN SHIFT NOTIFICATIONS ====================
+model OpenShiftNotification {
+  id              String   @id @default(cuid())
+  openShiftId     String
+  openShift       OpenShift @relation(fields: [openShiftId], references: [id], onDelete: Cascade)
+  caregiverId     String
+  notifiedAt      DateTime @default(now())
+  notificationType String  @default("push") // push | sms | both
+
+  @@unique([openShiftId, caregiverId])
+  @@index([openShiftId])
+  @@map("open_shift_notifications")
+}
+
+// ==================== ABSENCES ====================
+model Absence {
+  id                String   @id @default(cuid())
+  caregiverId       String
+  caregiver         User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  clientId          String?
+  client            Client?  @relation(fields: [clientId], references: [id])
+  date              DateTime @db.Date
+  type              String   // callout | no_show | scheduled
+  reason            String?
+  reportedById      String?
+  reportedBy        User?    @relation("AbsenceReportedBy", fields: [reportedById], references: [id])
+  coverageNeeded    Boolean  @default(true)
+  coverageAssignedTo String?
+  coverageAssigned  User?    @relation("CoverageAssigned", fields: [coverageAssignedTo], references: [id])
+  createdAt         DateTime @default(now())
+
+  @@index([caregiverId])
+  @@index([date])
+  @@map("absences")
+}
+
+// ==================== TIME ENTRIES ====================
+model TimeEntry {
+  id                 String    @id @default(cuid())
+  caregiverId        String
+  caregiver          User      @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  clientId           String
+  client             Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignmentId       String?
+  scheduleId         String?
+  schedule           Schedule? @relation(fields: [scheduleId], references: [id])
+  startTime          DateTime
+  endTime            DateTime?
+  durationMinutes    Int?
+  allottedMinutes    Int?
+  billableMinutes    Int?
+  discrepancyMinutes Int?
+  clockInLocation    Json?    // {lat, lng, accuracy}
+  clockOutLocation   Json?
+  isComplete         Boolean  @default(false)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  gpsPoints GpsTracking[]
+  evvVisit  EvvVisit?
+  lineItems InvoiceLineItem[]
+
+  @@index([caregiverId])
+  @@index([clientId])
+  @@index([startTime])
+  @@index([scheduleId])
+  @@map("time_entries")
+}
+
+// ==================== GPS TRACKING ====================
+model GpsTracking {
+  id          String   @id @default(cuid())
+  caregiverId String
+  caregiver   User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  timeEntryId String?
+  timeEntry   TimeEntry? @relation(fields: [timeEntryId], references: [id])
+  latitude    Decimal  @db.Decimal(10, 8)
+  longitude   Decimal  @db.Decimal(11, 8)
+  accuracy    Int?
+  speed       Decimal? @db.Decimal(6, 2)
+  heading     Int?
+  timestamp   DateTime @default(now())
+
+  @@index([caregiverId])
+  @@index([timeEntryId])
+  @@index([timestamp])
+  @@map("gps_tracking")
+}
+
+// ==================== GEOFENCE SETTINGS ====================
+model GeofenceSettings {
+  id                  String   @id @default(cuid())
+  clientId            String   @unique
+  client              Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  radiusFeet          Int      @default(300)
+  autoClockIn         Boolean  @default(true)
+  autoClockOut        Boolean  @default(true)
+  requireGps          Boolean  @default(true)
+  notifyAdminOnOverride Boolean @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("geofence_settings")
+}
+
+// ==================== SERVICE CODES ====================
+model ServiceCode {
+  id              String   @id @default(cuid())
+  code            String
+  modifier1       String?
+  modifier2       String?
+  description     String
+  serviceCategory String?
+  payerType       String   @default("all")
+  unitType        String   @default("15min") // 15min | hour | day | visit
+  ratePerUnit     Decimal? @db.Decimal(8, 4)
+  requiresEvv     Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@index([code])
+  @@index([isActive])
+  @@map("service_codes")
+}
+
+// ==================== AUTHORIZATIONS ====================
+model Authorization {
+  id                  String   @id @default(cuid())
+  clientId            String
+  client              Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  payerId             String?
+  payer               ReferralSource? @relation(fields: [payerId], references: [id])
+  authNumber          String?
+  midasAuthId         String?
+  procedureCode       String?
+  modifier            String?
+  authorizedUnits     Decimal  @db.Decimal(10, 2)
+  unitType            String   @default("15min")
+  usedUnits           Decimal  @default(0) @db.Decimal(10, 2)
+  startDate           DateTime @db.Date
+  endDate             DateTime @db.Date
+  status              String   @default("active") // active | expired | exhausted | cancelled
+  lowUnitsAlertThreshold Decimal @default(20) @db.Decimal(10, 2)
+  notes               String?
+  importedFrom        String   @default("manual")
+  createdById         String?
+  createdBy           User?    @relation(fields: [createdById], references: [id])
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  evvVisits   EvvVisit[]
+  claims      Claim[]
+
+  @@index([clientId])
+  @@index([startDate, endDate])
+  @@index([status])
+  @@map("authorizations")
+}
+
+// ==================== EVV VISITS ====================
+model EvvVisit {
+  id                 String    @id @default(cuid())
+  timeEntryId        String    @unique
+  timeEntry          TimeEntry @relation(fields: [timeEntryId], references: [id], onDelete: Cascade)
+  clientId           String
+  client             Client    @relation(fields: [clientId], references: [id])
+  caregiverId        String
+  authorizationId    String?
+  authorization      Authorization? @relation(fields: [authorizationId], references: [id])
+  serviceCode        String?
+  modifier           String?
+  serviceDate        DateTime  @db.Date
+  actualStart        DateTime
+  actualEnd          DateTime?
+  unitsOfService     Decimal?  @db.Decimal(8, 2)
+  gpsInLat           Decimal?  @db.Decimal(10, 7)
+  gpsInLng           Decimal?  @db.Decimal(10, 7)
+  gpsOutLat          Decimal?  @db.Decimal(10, 7)
+  gpsOutLng          Decimal?  @db.Decimal(10, 7)
+  sandataStatus      String    @default("pending") // pending | submitted | accepted | rejected
+  sandataVisitId     String?
+  sandataSubmittedAt DateTime?
+  sandataResponse    Json?
+  sandataExceptionCode String?
+  sandataExceptionDesc String?
+  evvMethod          String    @default("gps") // gps | telephony | manual
+  isVerified         Boolean   @default(false)
+  verificationIssues Json      @default("[]")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  claims   Claim[]
+
+  @@index([clientId, serviceDate])
+  @@index([caregiverId])
+  @@index([sandataStatus])
+  @@map("evv_visits")
+}
+
+// ==================== VALIDATION LOG ====================
+model ValidationLog {
+  id             String    @id @default(cuid())
+  entityType     String    // time_entry | evv_visit | claim | authorization
+  entityId       String
+  validationType String
+  status         String    // error | warning | info
+  message        String?
+  details        Json?
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolvedBy     User?     @relation(fields: [resolvedById], references: [id])
+  createdAt      DateTime  @default(now())
+
+  @@index([entityId, entityType])
+  @@map("validation_log")
+}
+
+// ==================== INVOICES ====================
+model Invoice {
+  id                 String   @id @default(cuid())
+  invoiceNumber      String   @unique
+  clientId           String
+  client             Client   @relation(fields: [clientId], references: [id])
+  billingPeriodStart DateTime @db.Date
+  billingPeriodEnd   DateTime @db.Date
+  subtotal           Decimal  @db.Decimal(12, 2)
+  tax                Decimal  @default(0) @db.Decimal(12, 2)
+  total              Decimal  @db.Decimal(12, 2)
+  paymentStatus      String   @default("pending") // pending | paid | overdue | partial
+  paymentDueDate     DateTime? @db.Date
+  paymentDate        DateTime? @db.Date
+  paymentMethod      String?
+  stripePaymentIntentId String?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  lineItems        InvoiceLineItem[]
+  remittanceLines  RemittanceLineItem[]
+
+  @@index([clientId])
+  @@index([paymentStatus])
+  @@map("invoices")
+}
+
+// ==================== INVOICE LINE ITEMS ====================
+model InvoiceLineItem {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  timeEntryId String?
+  timeEntry   TimeEntry? @relation(fields: [timeEntryId], references: [id])
+  caregiverId String
+  description String
+  hours       Decimal  @db.Decimal(6, 2)
+  rate        Decimal  @db.Decimal(10, 2)
+  amount      Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
+// ==================== EDI BATCHES ====================
+model EdiBatch {
+  id             String    @id @default(cuid())
+  payerId        String?
+  payer          ReferralSource? @relation(fields: [payerId], references: [id])
+  batchNumber    String    @unique
+  status         String    @default("draft") // draft | submitted | accepted | rejected | partial
+  claimCount     Int       @default(0)
+  totalBilled    Decimal   @default(0) @db.Decimal(10, 2)
+  ediContent     String?   @db.Text
+  submittedAt    DateTime?
+  responseCode   String?
+  responseMessage String?
+  createdById    String?
+  createdBy      User?     @relation(fields: [createdById], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  claims Claim[]
+
+  @@index([status])
+  @@map("edi_batches")
+}
+
+// ==================== CLAIMS ====================
+model Claim {
+  id              String    @id @default(cuid())
+  clientId        String?
+  caregiverId     String?
+  ediBatchId      String?
+  ediBatch        EdiBatch? @relation(fields: [ediBatchId], references: [id])
+  evvVisitId      String?
+  evvVisit        EvvVisit? @relation(fields: [evvVisitId], references: [id])
+  authorizationId String?
+  authorization   Authorization? @relation(fields: [authorizationId], references: [id])
+  claimNumber     String?
+  serviceDate     DateTime? @db.Date
+  serviceCode     String?
+  billedAmount    Decimal?  @db.Decimal(10, 2)
+  allowedAmount   Decimal?  @db.Decimal(10, 2)
+  paidAmount      Decimal?  @db.Decimal(10, 2)
+  denialCode      String?
+  denialReason    String?
+  status          String    @default("pending") // pending | submitted | paid | denied | voided
+  submissionDate  DateTime? @db.Date
+  paidDate        DateTime? @db.Date
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  remittanceLines RemittanceLineItem[]
+
+  @@index([ediBatchId])
+  @@index([evvVisitId])
+  @@index([status])
+  @@map("claims")
+}
+
+// ==================== REMITTANCE BATCHES ====================
+model RemittanceBatch {
+  id          String   @id @default(cuid())
+  payerId     String?
+  payer       ReferralSource? @relation(fields: [payerId], references: [id])
+  payerName   String
+  payerType   String   @default("other")
+  checkNumber String?
+  checkDate   DateTime? @db.Date
+  paymentDate DateTime? @db.Date
+  totalAmount Decimal  @db.Decimal(10, 2)
+  rawOcrText  String?  @db.Text
+  status      String   @default("pending_match") // pending_match | matched | posted
+  notes       String?
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lineItems RemittanceLineItem[]
+
+  @@index([payerId])
+  @@map("remittance_batches")
+}
+
+// ==================== REMITTANCE LINE ITEMS ====================
+model RemittanceLineItem {
+  id              String   @id @default(cuid())
+  batchId         String
+  batch           RemittanceBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  clientId        String?
+  invoiceId       String?
+  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
+  claimId         String?
+  claim           Claim?   @relation(fields: [claimId], references: [id])
+  claimNumber     String?
+  serviceDateFrom DateTime? @db.Date
+  serviceDateTo   DateTime? @db.Date
+  billedAmount    Decimal?  @db.Decimal(10, 2)
+  allowedAmount   Decimal?  @db.Decimal(10, 2)
+  paidAmount      Decimal   @db.Decimal(10, 2)
+  adjustmentAmount Decimal  @default(0) @db.Decimal(10, 2)
+  denialCode      String?
+  denialReason    String?
+  matchStatus     String   @default("unmatched") // unmatched | matched | exception
+  matchedAt       DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([batchId])
+  @@map("remittance_line_items")
+}
+
+// ==================== GUSTO PAYROLL ====================
+model GustoSyncLog {
+  id              String   @id @default(cuid())
+  syncType        String   // export | import
+  status          String   // success | failed | partial
+  payPeriodStart  DateTime? @db.Date
+  payPeriodEnd    DateTime? @db.Date
+  recordsExported Int      @default(0)
+  gustoResponse   Json?
+  errorMessage    String?
+  createdById     String?
+  createdBy       User?    @relation(fields: [createdById], references: [id])
+  createdAt       DateTime @default(now())
+
+  @@map("gusto_sync_log")
+}
+
+model GustoEmployeeMap {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gustoEmployeeId  String?
+  gustoUuid        String?
+  isSynced         Boolean  @default(false)
+  lastSyncedAt     DateTime?
+
+  @@map("gusto_employee_map")
+}
+
+// ==================== EXPENSES ====================
+model Expense {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category    String?  // mileage | supplies | other
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  date        DateTime @db.Date
+  receiptUrl  String?
+  status      String   @default("pending") // pending | approved | rejected | reimbursed
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@map("expenses")
+}
+
+// ==================== PERFORMANCE RATINGS ====================
+model PerformanceRating {
+  id                  String   @id @default(cuid())
+  caregiverId         String
+  caregiver           User     @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  clientId            String
+  client              Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  ratingDate          DateTime @default(now()) @db.Date
+  satisfactionScore   Int?
+  punctualityScore    Int?
+  professionalismScore Int?
+  careQualityScore    Int?
+  comments            String?
+  noShows             Int      @default(0)
+  lateArrivals        Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([caregiverId])
+  @@index([clientId])
+  @@map("performance_ratings")
+}
+
+// ==================== BACKGROUND CHECKS ====================
+model BackgroundCheck {
+  id                       String    @id @default(cuid())
+  caregiverId              String
+  caregiver                User      @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  checkType                String    @default("criminal") // criminal | mvr | drug | reference
+  provider                 String?
+  cost                     Decimal?  @db.Decimal(8, 2)
+  status                   String    @default("pending") // pending | in_progress | clear | flagged | expired
+  initiatedDate            DateTime  @default(now()) @db.Date
+  expirationDate           DateTime? @db.Date
+  worcsReferenceNumber     String?
+  worcsStatus              String?
+  ssnEncrypted             String?
+  driversLicenseEncrypted  String?
+  driversLicenseState      String?
+  notes                    String?
+  createdById              String?
+  createdBy                User?     @relation("BackgroundCheckCreatedBy", fields: [createdById], references: [id])
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([caregiverId])
+  @@map("background_checks")
+}
+
+// ==================== NOTIFICATIONS ====================
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String?  // schedule_alert | absence_alert | billing_alert | rating_alert | noshow_alert
+  title      String
+  message    String?
+  isRead     Boolean  @default(false)
+  emailSent  Boolean  @default(false)
+  pushSent   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ==================== NOTIFICATION PREFERENCES ====================
+model NotificationPreference {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailEnabled   Boolean  @default(true)
+  pushEnabled    Boolean  @default(true)
+  scheduleAlerts Boolean  @default(true)
+  absenceAlerts  Boolean  @default(true)
+  billingAlerts  Boolean  @default(true)
+  ratingAlerts   Boolean  @default(true)
+  dailyDigest    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
+// ==================== PUSH SUBSCRIPTIONS ====================
+model PushSubscription {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Json
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, subscription])
+  @@index([isActive])
+  @@map("push_subscriptions")
+}
+
+// ==================== MESSAGE BOARD ====================
+model MessageThread {
+  id          String   @id @default(cuid())
+  subject     String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  threadType  String   @default("direct") // direct | group | broadcast
+  isBroadcast Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  participants MessageThreadParticipant[]
+  messages     Message[]
+
+  @@index([updatedAt(sort: Desc)])
+  @@map("message_threads")
+}
+
+model MessageThreadParticipant {
+  id         String    @id @default(cuid())
+  threadId   String
+  thread     MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  @@unique([threadId, userId])
+  @@index([userId])
+  @@index([threadId])
+  @@map("message_thread_participants")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  thread    MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body      String
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([threadId, createdAt])
+  @@map("messages")
+}
+
+// ==================== COMMUNICATION LOG ====================
+model CommunicationLog {
+  id            String   @id @default(cuid())
+  entityType    String   // client | caregiver
+  entityId      String
+  logType       String   @default("note") // note | call | email | text | visit | incident | complaint | compliment | other
+  direction     String?  // inbound | outbound | internal
+  subject       String?
+  body          String
+  loggedById    String?
+  loggedBy      User?    @relation(fields: [loggedById], references: [id])
+  loggedByName  String?
+  clientId      String?
+  client        Client?  @relation(fields: [clientId], references: [id])
+  followUpDate  DateTime? @db.Date
+  followUpDone  Boolean  @default(false)
+  isPinned      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([createdAt(sort: Desc)])
+  @@map("communication_log")
+}
+
+// ==================== NO-SHOW ALERTS ====================
+model NoshowAlertConfig {
+  id                 String   @id @default(cuid())
+  graceMinutes       Int      @default(15)
+  notifyAdmin        Boolean  @default(true)
+  notifyCaregiver    Boolean  @default(true)
+  notifyClientFamily Boolean  @default(false)
+  adminPhone         String?
+  adminEmail         String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("noshow_alert_config")
+}
+
+model NoshowAlert {
+  id             String    @id @default(cuid())
+  scheduleId     String?
+  schedule       Schedule? @relation(fields: [scheduleId], references: [id])
+  caregiverId    String?
+  caregiver      User?     @relation("NoshowCaregiver", fields: [caregiverId], references: [id])
+  clientId       String?
+  client         Client?   @relation(fields: [clientId], references: [id])
+  shiftDate      DateTime  @db.Date
+  expectedStart  DateTime  @db.Time
+  alertedAt      DateTime  @default(now())
+  resolvedAt     DateTime?
+  resolvedById   String?
+  resolvedBy     User?     @relation("NoshowResolvedBy", fields: [resolvedById], references: [id])
+  resolutionNote String?
+  status         String    @default("open") // open | resolved | false_alarm
+  smsSent        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+
+  @@index([status, shiftDate])
+  @@index([caregiverId])
+  @@map("noshow_alerts")
+}
+
+// ==================== FORM BUILDER ====================
+model FormTemplate {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  category          String   @default("general") // assessment | incident | physician_order | consent | intake | hr | general
+  fields            Json     @default("[]")
+  isActive          Boolean  @default(true)
+  requiresSignature Boolean  @default(false)
+  autoAttachTo      String?  // client | caregiver | both
+  createdById       String?
+  createdBy         User?    @relation(fields: [createdById], references: [id])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  submissions FormSubmission[]
+
+  @@index([category, isActive])
+  @@map("form_templates")
+}
+
+model FormSubmission {
+  id                String    @id @default(cuid())
+  templateId        String?
+  template          FormTemplate? @relation(fields: [templateId], references: [id])
+  templateName      String?
+  entityType        String?   // client | caregiver
+  entityId          String?
+  clientId          String?
+  client            Client?   @relation(fields: [clientId], references: [id])
+  submittedById     String?
+  submittedBy       User?     @relation(fields: [submittedById], references: [id])
+  submittedByName   String?
+  data              Json      @default("{}")
+  signature         String?   @db.Text
+  signedAt          DateTime?
+  status            String    @default("draft") // draft | submitted | signed | archived
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([templateId])
+  @@map("form_submissions")
+}
+
+// ==================== LOGIN ACTIVITY ====================
+model LoginActivity {
+  id         String   @id @default(cuid())
+  email      String
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  success    Boolean  @default(false)
+  ipAddress  String?
+  userAgent  String?
+  failReason String?  // invalid_password | user_not_found | account_inactive
+  createdAt  DateTime @default(now())
+
+  @@index([email])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("login_activity")
+}
+
+// ==================== AUDIT LOG ====================
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // INSERT | UPDATE | DELETE
+  tableName String?
+  recordId  String?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  timestamp DateTime @default(now())
+
+  @@index([userId])
+  @@index([timestamp])
+  @@index([tableName])
+  @@map("audit_logs")
+}
+
+// ==================== SERVICE LOCATIONS ====================
+model ServiceLocation {
+  id             String   @id @default(cuid())
+  name           String
+  address        String?
+  city           String?
+  state          String?
+  zip            String?
+  latitude       Decimal? @db.Decimal(10, 8)
+  longitude      Decimal? @db.Decimal(11, 8)
+  serviceRadiusMiles Int  @default(5)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("service_locations")
+}
+
+// ==================== DASHBOARD CACHE ====================
+model DashboardCache {
+  id        String   @id @default(cuid())
+  cacheKey  String   @unique
+  data      Json?
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("dashboard_cache")
+}

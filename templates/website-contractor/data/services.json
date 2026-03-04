@@ -1,0 +1,122 @@
+[
+  {
+    "id": "roofing",
+    "name": "Roofing",
+    "slug": "roofing",
+    "shortDescription": "Expert roof replacement and repair using premium materials backed by industry-leading warranties.",
+    "description": "{{COMPANY_NAME}} delivers top-quality roofing solutions for homeowners throughout {{SERVICE_REGION}}. From full roof replacements to storm damage repairs, our certified crews work with asphalt shingles, metal roofing, and more — completing most jobs in a single day with a thorough cleanup.",
+    "icon": "home",
+    "image": "",
+    "features": [
+      "Free roof inspection and estimate",
+      "Asphalt shingle, metal, and flat roofing",
+      "Storm damage and insurance claims",
+      "Leak repair and emergency service",
+      "Manufacturer warranty + workmanship guarantee"
+    ],
+    "seoTitle": "Roofing Contractor in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Professional roofing services in {{CITY}}, {{STATE}}. Roof replacement, repair, and storm damage restoration. Free estimates from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 1
+  },
+  {
+    "id": "siding",
+    "name": "Siding",
+    "slug": "siding",
+    "shortDescription": "Beautiful, durable siding installation and replacement to protect and transform your home's exterior.",
+    "description": "Protect your home and boost curb appeal with new siding from {{COMPANY_NAME}}. We install vinyl, fiber cement, and engineered wood siding — handling everything from full replacements to partial repairs — with expert installation that ensures a weathertight seal.",
+    "icon": "layers",
+    "image": "",
+    "features": [
+      "Vinyl, fiber cement, and engineered wood",
+      "Full replacement and partial repair",
+      "Insulated siding options",
+      "Trim, soffit, and fascia",
+      "Color matching and custom profiles"
+    ],
+    "seoTitle": "Siding Contractor in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Siding installation and replacement in {{CITY}}, {{STATE}}. Vinyl, fiber cement, and engineered wood siding by {{COMPANY_NAME}}. Free estimates.",
+    "visible": true,
+    "order": 2
+  },
+  {
+    "id": "windows",
+    "name": "Windows & Doors",
+    "slug": "windows",
+    "shortDescription": "Energy-efficient replacement windows and entry doors that lower utility bills and refresh your home.",
+    "description": "New windows and doors improve your home's energy efficiency, security, and appearance. {{COMPANY_NAME}} installs top-brand replacement windows and entry doors throughout {{SERVICE_REGION}}, with professional installation that maximizes performance and warranty coverage.",
+    "icon": "grid",
+    "image": "",
+    "features": [
+      "Double and triple-pane energy-efficient windows",
+      "Entry doors, storm doors, and patio doors",
+      "Professional measurement and installation",
+      "Financing available",
+      "Full removal and disposal of old units"
+    ],
+    "seoTitle": "Window & Door Replacement in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Window and door replacement in {{CITY}}, {{STATE}}. Energy-efficient windows and entry doors installed by {{COMPANY_NAME}}. Free in-home estimates.",
+    "visible": true,
+    "order": 3
+  },
+  {
+    "id": "gutters",
+    "name": "Gutters",
+    "slug": "gutters",
+    "shortDescription": "Custom-fit seamless gutters and gutter guards that protect your foundation from water damage.",
+    "description": "Properly functioning gutters protect your home's foundation, landscaping, and siding from costly water damage. {{COMPANY_NAME}} fabricates and installs seamless gutters on-site for a perfect fit, along with gutter guards that eliminate clogging and reduce maintenance.",
+    "icon": "droplets",
+    "image": "",
+    "features": [
+      "Custom seamless gutters fabricated on-site",
+      "Gutter guard installation",
+      "Downspout extensions and grading",
+      "Gutter cleaning and repair",
+      "Multiple colors and profiles"
+    ],
+    "seoTitle": "Gutter Installation in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Seamless gutter installation and gutter guards in {{CITY}}, {{STATE}}. Professional installation by {{COMPANY_NAME}}. Free estimates.",
+    "visible": true,
+    "order": 4
+  },
+  {
+    "id": "storm-damage",
+    "name": "Storm Damage Restoration",
+    "slug": "storm-damage",
+    "shortDescription": "Rapid response and complete restoration after hail, wind, and storm damage — we work with your insurance.",
+    "description": "Storm damage needs fast, professional attention to prevent further deterioration. {{COMPANY_NAME}} provides rapid damage assessment, emergency tarping, and complete restoration services — and our team is experienced working with insurance adjusters to help maximize your claim.",
+    "icon": "cloud-lightning",
+    "image": "",
+    "features": [
+      "Free storm damage inspection",
+      "Emergency tarping and board-up",
+      "Insurance claim assistance",
+      "Complete restoration: roof, siding, gutters, windows",
+      "Fast turnaround to prevent further damage"
+    ],
+    "seoTitle": "Storm Damage Repair in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Storm damage restoration in {{CITY}}, {{STATE}}. Hail and wind damage repair with insurance claim assistance from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 5
+  },
+  {
+    "id": "free-inspection",
+    "name": "Free Home Inspection",
+    "slug": "free-inspection",
+    "shortDescription": "Comprehensive exterior inspection at no cost — identify problems before they become expensive repairs.",
+    "description": "Most homeowners don't know there's a problem until it becomes a major expense. {{COMPANY_NAME}}'s free home inspection covers your roof, siding, gutters, windows, and trim — giving you a detailed report and honest recommendations with no sales pressure.",
+    "icon": "search",
+    "image": "",
+    "features": [
+      "Roof, siding, gutters, windows, and trim",
+      "Drone roof inspection available",
+      "Written report with photos",
+      "No obligation or pressure",
+      "Priority scheduling after major storms"
+    ],
+    "seoTitle": "Free Home Inspection in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Free exterior home inspection in {{CITY}}, {{STATE}}. Roof, siding, gutters, and windows. No obligation from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 6
+  }
+]

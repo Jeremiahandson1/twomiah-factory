@@ -1,0 +1,234 @@
+<%
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const phoneRaw = phone.replace(/\D/g, '');
+
+function getImageUrl(p) {
+  if (!p) return '';
+  if (p.startsWith('http')) return p;
+  if (p.startsWith('/')) return p;
+  return '/uploads/' + p;
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+function estimateReadTime(content) {
+  if (!content) return '3 min read';
+  const text = content.replace(/<[^>]+>/g, '');
+  const words = text.split(/\s+/).length;
+  const minutes = Math.max(1, Math.round(words / 225));
+  return minutes + ' min read';
+}
+
+const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts)) 
+  ? posts.filter(p => p.published).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+  : [];
+%>
+
+<div class="blog-page">
+  <!-- Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <a href="/" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Home
+      </a>
+      <h1>Tips & Insights</h1>
+      <p class="hero-tagline">Expert insights and helpful articles from {{COMPANY_NAME}} in {{CITY}}.</p>
+    </div>
+  </section>
+
+  <!-- Posts Grid -->
+  <section class="blog-list-section">
+    <div class="container">
+      <% if (publishedPosts.length === 0) { %>
+        <div class="blog-empty">
+          <h3>Posts coming soon</h3>
+          <p>Check back for helpful articles from {{SERVICE_REGION}}.</p>
+        </div>
+      <% } else { %>
+        <div class="blog-grid">
+          <% publishedPosts.forEach(function(post) { %>
+            <a href="/blog/<%= post.slug %>" class="blog-card">
+              <% if (post.image) { %>
+                <div class="blog-card-image">
+                  <img src="<%= getImageUrl(post.image) %>" alt="<%= post.title %>" loading="lazy">
+                </div>
+              <% } else { %>
+                <div class="blog-card-image blog-card-placeholder">
+                  <span class="blog-category-badge"><%= post.category || 'article' %></span>
+                </div>
+              <% } %>
+              <div class="blog-card-content">
+                <div class="blog-card-meta">
+                  <span class="blog-date"><%= formatDate(post.publishedAt) %></span>
+                  <span class="blog-read-time"><%= estimateReadTime(post.content) %></span>
+                </div>
+                <h2><%= post.title %></h2>
+                <p><%= post.excerpt %></p>
+                <span class="blog-read-more">Read Article →</span>
+              </div>
+            </a>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="blog-cta-section">
+    <div class="container">
+      <h2>Have a Question About Your Home?</h2>
+      <p>We're happy to help — even if you're not ready for a project yet.</p>
+      <div class="hero-buttons">
+        <a href="/#contact" class="btn btn-primary btn-lg">Get a Free Estimate</a>
+        <a href="tel:<%= phoneRaw %>" class="btn btn-outline btn-lg">Call <%= phone %></a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+.blog-page .page-hero {
+  background: var(--dark-bg, #1a1a2e);
+  color: white;
+  padding: 80px 0 50px;
+  text-align: center;
+}
+.blog-page .page-hero h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+.blog-page .page-hero .hero-tagline {
+  opacity: 0.85;
+  max-width: 600px;
+  margin: 0 auto;
+  font-size: 1.05rem;
+}
+.blog-page .back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.blog-page .back-link:hover { color: white; }
+
+.blog-list-section {
+  padding: 60px 0;
+}
+.blog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 30px;
+}
+.blog-card {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.blog-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+}
+.blog-card-image {
+  height: 200px;
+  overflow: hidden;
+  background: var(--dark-bg, #1a1a2e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.blog-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.blog-card-placeholder {
+  background: linear-gradient(135deg, var(--dark-bg, #1a1a2e), #2a2a4e);
+}
+.blog-category-badge {
+  background: var(--accent, #c8963e);
+  color: white;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.blog-card-content {
+  padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.blog-card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 12px;
+}
+.blog-card-content h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  margin-bottom: 10px;
+  color: var(--dark-bg, #1a1a2e);
+}
+.blog-card-content p {
+  color: #555;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  flex: 1;
+}
+.blog-read-more {
+  color: var(--accent, #c8963e);
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-top: 16px;
+}
+.blog-card:hover .blog-read-more { text-decoration: underline; }
+
+.blog-empty {
+  text-align: center;
+  padding: 80px 20px;
+  color: #888;
+}
+
+.blog-cta-section {
+  background: var(--dark-bg, #1a1a2e);
+  color: white;
+  padding: 60px 0;
+  text-align: center;
+}
+.blog-cta-section h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.2rem;
+  margin-bottom: 10px;
+}
+.blog-cta-section p {
+  opacity: 0.85;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .blog-grid { grid-template-columns: 1fr; }
+  .blog-page .page-hero h1 { font-size: 2.2rem; }
+}
+</style>

@@ -1,0 +1,143 @@
+{
+  "_comment": "Twomiah Build Factory — feature manifest for crm-homecare template. Maps feature IDs (as selected in the wizard) to the backend route and service files they require. The generator strips any route/service file NOT listed here for the selected feature set.",
+
+  "core": {
+    "description": "Always-included core modules",
+    "backend": {
+      "routes": [
+        "auth.js",
+        "dashboard.js",
+        "clients.js",
+        "caregivers.js",
+        "scheduling.js",
+        "timeTracking.js",
+        "billing.js",
+        "compliance.js",
+        "communication.js",
+        "documents.js",
+        "notifications.js",
+        "push.js",
+        "sms.js",
+        "portal.js",
+        "reports.js",
+        "forms.js",
+        "company.js",
+        "stripe.js",
+        "optimizer.js",
+        "audit.js",
+        "payers.js",
+        "serviceCodes.js",
+        "authorizations.js"
+      ],
+      "services": [
+        "logger.js",
+        "socket.js"
+      ]
+    },
+    "frontend": {
+      "pages": [
+        "DashboardPage",
+        "ClientsPage",
+        "ClientDetailPage",
+        "CaregiversPage",
+        "CaregiverDetailPage",
+        "SchedulingPage",
+        "TimeTrackingPage",
+        "BillingPage",
+        "CompliancePage",
+        "CommunicationPage",
+        "FormsPage",
+        "DocumentsPage",
+        "NotificationsPage",
+        "ReportsPage",
+        "AuditPage",
+        "SettingsPage",
+        "LoginPage",
+        "CaregiverPortalPage",
+        "FamilyPortalPage"
+      ]
+    }
+  },
+
+  "features": {
+
+    "evv_sandata": {
+      "label": "EVV — Sandata Integration",
+      "description": "Electronic Visit Verification via Sandata (required for Medicaid billing in most states). Includes EVV visit logging, EDI 837 claim generation, and remittance processing.",
+      "backend": {
+        "routes": [
+          "evv.js",
+          "edi.js",
+          "claims.js",
+          "remittance.js"
+        ],
+        "services": [],
+        "envVars": [
+          "ENABLE_SANDATA_EVV=true"
+        ]
+      },
+      "frontend": {
+        "pages": ["EVVPage", "ClaimsPage"]
+      }
+    },
+
+    "evv_worcs": {
+      "label": "EVV — WORCS Integration (Wisconsin)",
+      "description": "Electronic Visit Verification via Wisconsin's WORCS system. Includes EVV visit logging only — EDI/claims handled separately through ForwardHealth.",
+      "backend": {
+        "routes": [
+          "evv.js"
+        ],
+        "services": [],
+        "envVars": [
+          "ENABLE_WORCS=true"
+        ]
+      },
+      "frontend": {
+        "pages": ["EVVPage"]
+      }
+    },
+
+    "payroll_gusto": {
+      "label": "Payroll — Gusto Sync",
+      "description": "Sync caregiver hours and pay rates to Gusto for payroll processing. Manual payroll export is always available; this feature adds automatic sync.",
+      "backend": {
+        "routes": [
+          "payroll.js"
+        ],
+        "services": [],
+        "envVars": [
+          "ENABLE_GUSTO=true"
+        ]
+      },
+      "frontend": {
+        "pages": ["PayrollPage"]
+      }
+    },
+
+    "payroll_manual": {
+      "label": "Payroll — Manual / Export Only",
+      "description": "Payroll processing with CSV/PDF export. No third-party sync. Use this if you process payroll manually or through a system other than Gusto.",
+      "backend": {
+        "routes": [
+          "payroll.js"
+        ],
+        "services": [],
+        "envVars": [
+          "ENABLE_GUSTO=false"
+        ]
+      },
+      "frontend": {
+        "pages": ["PayrollPage"]
+      }
+    }
+
+  },
+
+  "_notes": {
+    "evv": "evv_sandata and evv_worcs are mutually exclusive — agencies use one or the other. Wisconsin agencies typically use evv_worcs.",
+    "payroll": "payroll_gusto and payroll_manual are mutually exclusive. If neither is selected, payroll routes are excluded from the build.",
+    "claims": "claims.js and remittance.js are only included with evv_sandata since they require EDI infrastructure.",
+    "stripe": "stripe.js is always included in core — it handles the agency's own subscription billing to Twomiah Care, not patient billing."
+  }
+}

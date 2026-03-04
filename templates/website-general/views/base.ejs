@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- SEO Meta Tags -->
+  <title><%= title %></title>
+  <meta name="description" content="<%= description %>">
+  <% if (typeof keywords !== 'undefined') { %>
+  <meta name="keywords" content="<%= keywords %>">
+  <% } %>
+  
+  <!-- Canonical URL -->
+  <link rel="canonical" href="<%= canonicalUrl %>">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="<%= title %>">
+  <meta property="og:description" content="<%= description %>">
+  <meta property="og:url" content="<%= canonicalUrl %>">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{COMPANY_NAME}}">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:image" content="<%= (typeof ogImage !== 'undefined' && ogImage) ? ogImage : '{{SITE_URL}}/uploads/og-default.jpg' %>">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="<%= title %>">
+  <meta name="twitter:description" content="<%= description %>">
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  
+  <!-- Preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Styles -->
+  <link rel="stylesheet" href="/styles/main.css">
+  <link rel="stylesheet" href="/styles/public-pages.css">
+  
+  <!-- Structured Data -->
+  <%
+    const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+    const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1876717b73587b74797e7471767b77766b6c6a6d7b6c71777636767d6c">[email&#160;protected]</a>';
+    const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '{{COMPANY_ADDRESS}}';
+    const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
+    const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : 'WI';
+    const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
+    const phoneRaw = phone.replace(/\D/g, '');
+    const logoUrl = (typeof settings !== 'undefined' && settings && settings.logo) 
+      ? (settings.logo.startsWith('http') ? settings.logo : (settings.logo.startsWith('/') ? settings.logo : '/' + settings.logo)) 
+      : '/uploads/sidebyside_logo.png';
+  %>
+  
+  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HomeAndConstructionBusiness",
+    "name": "{{COMPANY_NAME}}",
+    "description": "{{META_DESCRIPTION}} in {{CITY}} and the {{SERVICE_REGION}}",
+    "url": "{{SITE_URL}}",
+    "logo": "{{SITE_URL}}<%= logoUrl %>",
+    "image": "{{SITE_URL}}<%= logoUrl %>",
+    "telephone": "+1<%= phoneRaw %>",
+    "email": "<%= email %>",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "<%= address %>",
+      "addressLocality": "<%= city %>",
+      "addressRegion": "<%= state %>",
+      "postalCode": "<%= zip %>",
+      "addressCountry": "US"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 44.8113,
+      "longitude": -91.4985
+    },
+    "areaServed": [
+      {
+        "@type": "City",
+        "name": "{{CITY}}",
+        "containedInPlace": {
+          "@type": "State",
+          "name": "{{STATE_FULL}}"
+        }
+      },
+      {
+        "@type": "GeoCircle",
+        "geoMidpoint": {
+          "@type": "GeoCoordinates",
+          "latitude": 44.8113,
+          "longitude": -91.4985
+        },
+        "geoRadius": 50000
+      }
+    ],
+    "priceRange": "$$"
+    <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
+    ,"sameAs": [
+      <% const socialLinks = []; %>
+      <% if (settings.socialLinks.facebook) socialLinks.push(settings.socialLinks.facebook); %>
+      <% if (settings.socialLinks.instagram) socialLinks.push(settings.socialLinks.instagram); %>
+      <% if (settings.socialLinks.linkedin) socialLinks.push(settings.socialLinks.linkedin); %>
+      <% if (settings.socialLinks.twitter) socialLinks.push(settings.socialLinks.twitter); %>
+      <% if (settings.socialLinks.youtube) socialLinks.push(settings.socialLinks.youtube); %>
+      <%- socialLinks.map(link => JSON.stringify(link)).join(',\n      ') %>
+    ]
+    <% } %>
+  }
+  </script>
+  
+  <% if (typeof breadcrumbs !== 'undefined' && breadcrumbs.length > 0) { %>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      <% breadcrumbs.forEach((crumb, index) => { %>
+      {
+        "@type": "ListItem",
+        "position": <%= index + 1 %>,
+        "name": "<%= crumb.label %>",
+        "item": "{{SITE_URL}}<%= crumb.url %>"
+      }<%= index < breadcrumbs.length - 1 ? ',' : '' %>
+      <% }); %>
+    ]
+  }
+  </script>
+  <% } %>
+
+  <%
+    // ── Tracking IDs from settings ──────────────────────────────────
+    const _a = (typeof settings !== 'undefined' && settings && settings.analytics) ? settings.analytics : {};
+    const _gaId   = _a.googleAnalyticsId   || settings?.googleAnalyticsId   || '';
+    const _gtmId  = _a.googleTagManagerId  || settings?.googleTagManagerId  || '';
+    const _fbId   = _a.facebookPixelId     || settings?.facebookPixelId     || '';
+    const _clId   = _a.microsoftClarityId  || settings?.microsoftClarityId  || '';
+    const _gadsId = _a.googleAdsId         || settings?.googleAdsId         || '';
+  %>
+
+  <%/* ── Google Tag Manager (head) ── */%>
+  <% if (_gtmId) { %>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _gtmId %>');</script>
+  <% } %>
+
+  <%/* ── Google Analytics 4 + custom events ── */%>
+  <% if (_gaId) { %>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '<%= _gaId %>', { send_page_view: true });
+    <% if (_gadsId) { %>
+    gtag('config', '<%= _gadsId %>');
+    window._gadsId = '<%= _gadsId %>';
+    <% } %>
+
+    // ── Custom event helpers ────────────────────────────────────────
+    window._bpTrack = function(eventName, params) {
+      if (typeof gtag !== 'undefined') {
+        gtag('event', eventName, params || {});
+      }
+      // Also push to dataLayer for GTM
+      if (window.dataLayer) {
+        window.dataLayer.push({ event: eventName, ...(params || {}) });
+      }
+    };
+
+    // phone_call — every tel: link click
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="tel:"]');
+      if (link) {
+        _bpTrack('phone_call', {
+          event_category: 'engagement',
+          event_label: link.href.replace('tel:', ''),
+          value: 1
+        });
+      }
+    });
+
+    // email_click — every mailto: link click
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="mailto:"]');
+      if (link) {
+        _bpTrack('email_click', {
+          event_category: 'engagement',
+          event_label: link.href.replace('mailto:', '')
+        });
+      }
+    });
+
+    // cta_click — primary CTA buttons ("Request Estimate", "Get Started", "Free Assessment" etc)
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('a.btn-primary, button.btn-primary, .hero-buttons a, [data-cta]');
+      if (btn) {
+        _bpTrack('cta_click', {
+          event_category: 'engagement',
+          event_label: btn.textContent.trim().slice(0, 50),
+          cta_location: btn.closest('section')?.className?.split(' ')[0] || 'page'
+        });
+      }
+    });
+
+    // view_service — fire on service pages
+    (function() {
+      var path = window.location.pathname;
+      if (path.indexOf('/services') === 0 && path.length > 9) {
+        var slug = path.replace('/services/', '').replace(/\/$/, '') || 'services';
+        _bpTrack('view_service', {
+          event_category: 'content',
+          service_name: slug
+        });
+      }
+    })();
+
+    // view_gallery — fire on gallery page
+    if (window.location.pathname.indexOf('/gallery') === 0) {
+      _bpTrack('view_gallery', { event_category: 'content' });
+    }
+  </script>
+  <% } %>
+
+  <%/* ── Facebook Pixel ── */%>
+  <% if (_fbId) { %>
+  <script>
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '<%= _fbId %>');
+    fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=<%= _fbId %>&ev=PageView&noscript=1" /></noscript>
+  <% } %>
+
+  <%/* ── Microsoft Clarity ── */%>
+  <% if (_clId) { %>
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","<%= _clId %>");
+  </script>
+  <% } %>
+
+  <!-- Two-Tier Nav Styles -->
+  <style>
+    /* Row 1: Logo + Utility + CTA */
+    .header-top {
+      background: white;
+      border-bottom: 1px solid #e8e8e8;
+      padding: 16px 0;
+    }
+    .header-top-content {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+    }
+    .header-top .logo {
+      margin-right: auto;
+      margin-left: 8%;
+    }
+    .header-top .logo-image {
+      height: 60px;
+      width: auto;
+    }
+    .utility-nav {
+      display: flex;
+      gap: 28px;
+    }
+    .utility-nav a {
+      color: #222;
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: color 0.15s;
+    }
+    .utility-nav a:hover {
+      color: var(--accent, #c8963e);
+    }
+    .utility-nav a[href="/visualize"] {
+      color: var(--accent, #c8963e);
+      font-weight: 700;
+    }
+    .header-top-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .header-phone {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #222;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .header-phone:hover { color: var(--accent, #c8963e); }
+
+    /* Row 2: Services Bar */
+    .services-bar {
+      background: var(--dark-bg, #1a1a2e);
+    }
+    .services-nav ul {
+      display: flex;
+      justify-content: center;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      gap: 0;
+    }
+    .services-nav ul > li > a {
+      display: block;
+      padding: 14px 20px;
+      color: rgba(255,255,255,0.9);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      transition: background 0.15s, color 0.15s;
+    }
+    .services-nav ul > li > a:hover {
+      background: rgba(255,255,255,0.1);
+      color: white;
+    }
+    .services-nav .has-dropdown {
+      position: relative;
+    }
+    .services-nav .dropdown {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      background: white;
+      min-width: 220px;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      border-radius: 0 0 8px 8px;
+      z-index: 1000;
+      padding: 8px 0;
+    }
+    .services-nav .has-dropdown:hover .dropdown {
+      display: block;
+    }
+    .services-nav .dropdown a {
+      display: block;
+      padding: 10px 20px;
+      color: #333;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      transition: background 0.15s, color 0.15s;
+    }
+    .services-nav .dropdown a:hover {
+      background: #f5f5f5;
+      color: var(--accent, #c8963e);
+    }
+
+    /* Hide old top-bar if it somehow remains */
+    .top-bar { display: none !important; }
+    .main-nav-wrapper { display: none !important; }
+
+    /* Mobile nav panel */
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--dark-bg, #1a1a2e);
+      z-index: 999;
+      overflow-y: auto;
+      padding: 80px 24px 40px;
+    }
+    .mobile-nav.active {
+      display: block;
+    }
+    .mobile-nav ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .mobile-nav ul > li > a {
+      display: block;
+      padding: 14px 0;
+      color: rgba(255,255,255,0.9);
+      text-decoration: none;
+      font-size: 1.05rem;
+      font-weight: 500;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .mobile-nav .mobile-section-label {
+      color: var(--accent, #c8963e);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 20px 0 8px;
+      border-bottom: none;
+    }
+    .mobile-nav .dropdown {
+      padding-left: 16px;
+    }
+    .mobile-nav .dropdown a {
+      display: block;
+      padding: 10px 0;
+      color: rgba(255,255,255,0.65);
+      text-decoration: none;
+      font-size: 0.95rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .mobile-nav .cta-item {
+      padding-top: 20px;
+      border-bottom: none;
+    }
+    .mobile-nav .cta-item .btn {
+      display: block;
+      text-align: center;
+      width: 100%;
+    }
+
+    /* Nav toggle button - simple 3-line hamburger */
+    .nav-toggle {
+      display: none;
+      background: none;
+      border: none;
+      width: 44px;
+      height: 44px;
+      cursor: pointer;
+      z-index: 1001;
+      padding: 8px 6px;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: stretch;
+    }
+    .nav-toggle .bar {
+      display: block;
+      height: 4px;
+      width: 100%;
+      background-color: var(--dark-bg, #1a1a2e);
+      border-radius: 2px;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .nav-toggle.active .bar { background-color: white; }
+    .nav-toggle.active .bar:nth-child(1) { transform: translateY(10px) rotate(45deg); }
+    .nav-toggle.active .bar:nth-child(2) { opacity: 0; }
+    .nav-toggle.active .bar:nth-child(3) { transform: translateY(-10px) rotate(-45deg); }
+
+    /* Scrolled state */
+    .main-header.scrolled .header-top {
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .utility-nav { display: none; }
+      .header-phone { display: none; }
+      .services-bar { display: none; }
+      .nav-toggle { display: flex; }
+      .header-top .logo-image { height: 40px; }
+      .header-top .logo { margin-left: 0; }
+      .header-top-right .btn { font-size: 0.8rem; padding: 8px 14px; }
+    }
+  </style>
+</head>
+<body>
+  <%/* GTM noscript fallback — must be immediately after <body> */%>
+  <% if (_gtmId) { %>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=<%= _gtmId %>" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <% } %>
+
+  <!-- Header -->
+  <header class="main-header">
+    <!-- Row 1: Logo + Utility Nav + Contact -->
+    <div class="header-top">
+      <div class="container">
+        <div class="header-top-content">
+          <a href="/" class="logo">
+            <img src="<%= logoUrl %>" alt="{{COMPANY_NAME}}" class="logo-image" />
+          </a>
+          
+          <nav class="utility-nav">
+            <a href="/gallery">Projects</a>
+            <a href="/visualize">Visualize</a>
+            <a href="/blog">Blog</a>
+            <a href="/#about">About</a>
+            <a href="/#contact">Contact</a>
+          </nav>
+
+          <div class="header-top-right">
+            <a href="tel:<%= phoneRaw %>" class="header-phone">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <%= phone %>
+            </a>
+            <a href="#contact" class="btn btn-primary btn-sm">Request Estimate</a>
+          </div>
+
+          <button class="nav-toggle" aria-label="Toggle menu">
+            <span class="bar"></span>
+            <span class="bar"></span>
+            <span class="bar"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Services Bar -->
+    <div class="services-bar">
+      <div class="container">
+        <nav class="main-nav services-nav">
+          <ul>
+            <% 
+              // Use menuItems if provided, otherwise show empty services nav
+              const allNavItems = typeof menuItems !== 'undefined' ? menuItems : [];
+              // Filter out utility items (blog, gallery, contact etc) — services bar is services only
+              const serviceItems = allNavItems.filter(item => !['blog', 'gallery', 'contact', 'about'].includes(item.id));
+            %>
+            
+            <% serviceItems.forEach(item => { %>
+              <li class="<%= item.children && item.children.length > 0 ? 'has-dropdown' : '' %>">
+                <a href="<%= item.href %>"><%= item.label %></a>
+                <% if (item.children && item.children.length > 0) { %>
+                  <div class="dropdown">
+                    <% item.children.forEach(child => { %>
+                      <a href="<%= child.href %>"><%= child.label %></a>
+                    <% }); %>
+                  </div>
+                <% } %>
+              </li>
+            <% }); %>
+          </ul>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Mobile Nav (slides out) -->
+    <nav class="mobile-nav main-nav">
+      <ul>
+        <li class="mobile-section-label">Services</li>
+        <% serviceItems.forEach(item => { %>
+          <li class="<%= item.children && item.children.length > 0 ? 'has-dropdown' : '' %>">
+            <a href="<%= item.href %>"><%= item.label %></a>
+            <% if (item.children && item.children.length > 0) { %>
+              <div class="dropdown">
+                <% item.children.forEach(child => { %>
+                  <a href="<%= child.href %>"><%= child.label %></a>
+                <% }); %>
+              </div>
+            <% } %>
+          </li>
+        <% }); %>
+        <li class="mobile-section-label">More</li>
+        <li><a href="/visualize">Visualize Your Home</a></li>
+        <li><a href="/gallery">Projects</a></li>
+        <li><a href="/blog">Blog</a></li>
+        <li><a href="/#about">About</a></li>
+        <li><a href="/#contact">Contact</a></li>
+        <li class="cta-item">
+          <a href="#contact" class="btn btn-primary">Request Estimate</a>
+        </li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <%- body %>
+  </main>
+
+  <!-- Footer -->
+  <footer class="main-footer">
+    <div class="footer-main">
+      <div class="container">
+        <div class="footer-grid">
+          <div class="footer-col about-col">
+            <div class="footer-logo">
+              <div class="logo-icon">
+                <svg viewBox="0 0 40 40" fill="none">
+                  <path d="M20 4L4 16V36H36V16L20 4Z" stroke="currentColor" strokeWidth="2" fill="none"/>
+                  <path d="M20 4L36 16" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M4 16L20 4" stroke="currentColor" strokeWidth="2"/>
+                  <rect x="15" y="22" width="10" height="14" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+              </div>
+              <span>{{COMPANY_NAME_UPPER}}</span>
+            </div>
+            <p>Quality services for customers throughout the {{CITY}} area. Licensed, insured, and committed to excellence.</p>
+            <div class="social-links">
+              <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
+                <% if (settings.socialLinks.facebook) { %>
+                  <a href="<%= settings.socialLinks.facebook %>" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                    <svg viewBox="0 0 512 512" fill="currentColor">
+                      <path d="M504 256C504 119 393 8 256 8S8 119 8 256c0 123.78 90.69 226.38 209.25 245V327.69h-63V256h63v-54.64c0-62.15 37-96.48 93.67-96.48 27.14 0 55.52 4.84 55.52 4.84v61h-31.28c-30.8 0-40.41 19.12-40.41 38.73V256h68.78l-11 71.69h-57.78V501C413.31 482.38 504 379.78 504 256z"/>
+                    </svg>
+                  </a>
+                <% } %>
+                <% if (settings.socialLinks.instagram) { %>
+                  <a href="<%= settings.socialLinks.instagram %>" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                    <svg viewBox="0 0 448 512" fill="currentColor">
+                      <path d="M224.1 141c-63.6 0-114.9 51.3-114.9 114.9s51.3 114.9 114.9 114.9S339 319.5 339 255.9 287.7 141 224.1 141zm0 189.6c-41.1 0-74.7-33.5-74.7-74.7s33.5-74.7 74.7-74.7 74.7 33.5 74.7 74.7-33.6 74.7-74.7 74.7zm146.4-194.3c0 14.9-12 26.8-26.8 26.8-14.9 0-26.8-12-26.8-26.8s12-26.8 26.8-26.8 26.8 12 26.8 26.8zm76.1 27.2c-1.7-35.9-9.9-67.7-36.2-93.9-26.2-26.2-58-34.4-93.9-36.2-37-2.1-147.9-2.1-184.9 0-35.8 1.7-67.6 9.9-93.9 36.1s-34.4 58-36.2 93.9c-2.1 37-2.1 147.9 0 184.9 1.7 35.9 9.9 67.7 36.2 93.9s58 34.4 93.9 36.2c37 2.1 147.9 2.1 184.9 0 35.9-1.7 67.7-9.9 93.9-36.2 26.2-26.2 34.4-58 36.2-93.9 2.1-37 2.1-147.8 0-184.8zM398.8 388c-7.8 19.6-22.9 34.7-42.6 42.6-29.5 11.7-99.5 9-132.1 9s-102.7 2.6-132.1-9c-19.6-7.8-34.7-22.9-42.6-42.6-11.7-29.5-9-99.5-9-132.1s-2.6-102.7 9-132.1c7.8-19.6 22.9-34.7 42.6-42.6 29.5-11.7 99.5-9 132.1-9s102.7-2.6 132.1 9c19.6 7.8 34.7 22.9 42.6 42.6 11.7 29.5 9 99.5 9 132.1s2.7 102.7-9 132.1z"/>
+                    </svg>
+                  </a>
+                <% } %>
+                <% if (settings.socialLinks.googleBusiness) { %>
+                  <a href="<%= settings.socialLinks.googleBusiness %>" target="_blank" rel="noopener noreferrer" aria-label="Google">
+                    <svg viewBox="0 0 488 512" fill="currentColor">
+                      <path d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"/>
+                    </svg>
+                  </a>
+                <% } %>
+                <% if (settings.socialLinks.youtube) { %>
+                  <a href="<%= settings.socialLinks.youtube %>" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+                    <svg viewBox="0 0 576 512" fill="currentColor">
+                      <path d="M549.655 124.083c-6.281-23.65-24.787-42.276-48.284-48.597C458.781 64 288 64 288 64S117.22 64 74.629 75.486c-23.497 6.322-42.003 24.947-48.284 48.597-11.412 42.867-11.412 132.305-11.412 132.305s0 89.438 11.412 132.305c6.281 23.65 24.787 41.5 48.284 47.821C117.22 448 288 448 288 448s170.78 0 213.371-11.486c23.497-6.321 42.003-24.171 48.284-47.821 11.412-42.867 11.412-132.305 11.412-132.305s0-89.438-11.412-132.305zm-317.51 213.508V175.185l142.739 81.205-142.739 81.201z"/>
+                    </svg>
+                  </a>
+                <% } %>
+                <% if (settings.socialLinks.linkedin) { %>
+                  <a href="<%= settings.socialLinks.linkedin %>" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+                    <svg viewBox="0 0 448 512" fill="currentColor">
+                      <path d="M416 32H31.9C14.3 32 0 46.5 0 64.3v383.4C0 465.5 14.3 480 31.9 480H416c17.6 0 32-14.5 32-32.3V64.3c0-17.8-14.4-32.3-32-32.3zM135.4 416H69V202.2h66.5V416zm-33.2-243c-21.3 0-38.5-17.3-38.5-38.5S80.9 96 102.2 96c21.2 0 38.5 17.3 38.5 38.5 0 21.3-17.2 38.5-38.5 38.5zm282.1 243h-66.4V312c0-24.8-.5-56.7-34.5-56.7-34.6 0-39.9 27-39.9 54.9V416h-66.4V202.2h63.7v29.2h.9c8.9-16.8 30.6-34.5 62.9-34.5 67.2 0 79.7 44.3 79.7 101.9V416z"/>
+                    </svg>
+                  </a>
+                <% } %>
+                <% if (settings.socialLinks.twitter) { %>
+                  <a href="<%= settings.socialLinks.twitter %>" target="_blank" rel="noopener noreferrer" aria-label="X/Twitter">
+                    <svg viewBox="0 0 512 512" fill="currentColor">
+                      <path d="M389.2 48h70.6L305.6 224.2 487 464H345L233.7 318.6 106.5 464H35.8L200.7 275.5 26.8 48H172.4L272.9 180.9 389.2 48zM364.4 421.8h39.1L151.1 88h-42L364.4 421.8z"/>
+                    </svg>
+                  </a>
+                <% } %>
+                <% if (settings.socialLinks.yelp) { %>
+                  <a href="<%= settings.socialLinks.yelp %>" target="_blank" rel="noopener noreferrer" aria-label="Yelp">
+                    <svg viewBox="0 0 384 512" fill="currentColor">
+                      <path d="M42.9 240.32l99.62 48.61c19.2 9.4 16.2 37.51-4.5 42.71L30.5 358.45a22.79 22.79 0 0 1-28.21-19.6 197.16 197.16 0 0 1 9-85.32 22.8 22.8 0 0 1 31.61-13.21zm44 239.25a199.45 199.45 0 0 0 79.42 32.11A22.78 22.78 0 0 0 192.94 490l3.9-110.82c.7-21.3-25.5-31.91-39.81-16.1l-74.21 82.4a22.82 22.82 0 0 0 4.09 34.09zm145.34-109.92l58.81 94a22.93 22.93 0 0 0 34 5.5 198.36 198.36 0 0 0 52.71-67.61A22.8 22.8 0 0 0 367.61 373l-104.4-36.51c-20.31-7.2-39.91 15.1-29.6 33.16zM199 127.61C199 149.41 227.3 156 241.8 139l79.11-92.8a22.79 22.79 0 0 0-4-34 199.32 199.32 0 0 0-79.52-32.2A22.78 22.78 0 0 0 211.61 2L199 112.8zm-95.9 32.91C115.6 176.4 127.2 156 107 141L17.61 102.4a22.91 22.91 0 0 0-29.5 12.4A197.21 197.21 0 0 0 0 195.61a22.81 22.81 0 0 0 20.9 23.8l92.91 10.11c20.8 2.3 34.8-17.3 27.11-35.4-11.2-26.4 32-55.5 45.1-33.2z"/>
+                    </svg>
+                  </a>
+                <% } %>
+              <% } %>
+            </div>
+          </div>
+
+          <div class="footer-col">
+            <h4>Services</h4>
+            <ul>
+              <% if (typeof menuItems !== 'undefined') { %>
+                <% menuItems.filter(item => !['blog', 'gallery', 'contact', 'about'].includes(item.id)).slice(0, 6).forEach(item => { %>
+                  <li><a href="<%= item.href %>"><%= item.label %></a></li>
+                <% }); %>
+              <% } else { %>
+                <li><a href="/contact">Contact Us</a></li>
+              <% } %>
+            </ul>
+          </div>
+
+          <div class="footer-col">
+            <h4>Company</h4>
+            <ul>
+              <li><a href="/visualize">Visualize Your Home</a></li>
+              <li><a href="/gallery">Projects</a></li>
+              <li><a href="/blog">Blog</a></li>
+              <li><a href="/#about">About Us</a></li>
+              <li><a href="/#contact">Contact</a></li>
+              <li><a href="/#contact">Request Estimate</a></li>
+            </ul>
+          </div>
+
+          <div class="footer-col">
+            <h4>Areas We Serve</h4>
+            <ul>
+              <li><a href="/services">{{CITY}}</a></li>
+              <li><a href="/services">{{NEARBY_CITY_1}}</a></li>
+              <li><a href="/service-area/{{NEARBY_CITY_4}}">{{NEARBY_CITY_4}}</a></li>
+              <li><a href="/service-area/{{NEARBY_CITY_3}}">{{NEARBY_CITY_3}}</a></li>
+              
+              
+            </ul>
+          </div>
+
+          <div class="footer-col">
+            <h4>Contact</h4>
+            <ul class="contact-list">
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                </svg>
+                <a href="tel:<%= phoneRaw %>"><%= phone %></a>
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                  <polyline points="22,6 12,13 2,6"></polyline>
+                </svg>
+                <a href="/cdn-cgi/l/email-protection#86baa3bba6e3ebe7efeaa6a3b8"><%= email %></a>
+              </li>
+              <li>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span><%= address %><br/><%= city %>, <%= state %> <%= zip %></span>
+              </li>
+            </ul>
+            <div class="hours">
+              <strong>Hours:</strong>
+              <span>Mon - Fri: 8am - 5pm</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="container">
+        <p>&copy; <%= new Date().getFullYear() %> {{COMPANY_NAME}}. All rights reserved.</p>
+        <p>Serving {{CITY}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_1}}, and the {{SERVICE_REGION}}</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="/scripts/main.js"></script>
+
+  <script>
+    // ── Page analytics tracking ─────────────────────────────────────
+    (function() {
+      // Parse UTM params from URL
+      var params = new URLSearchParams(window.location.search);
+      var utm = {};
+      ['utm_source','utm_medium','utm_campaign','utm_term','utm_content'].forEach(function(k) {
+        if (params.get(k)) utm[k.replace('utm_','')] = params.get(k);
+      });
+
+      // Persist UTMs in sessionStorage so they survive navigation
+      if (Object.keys(utm).length > 0) {
+        try { sessionStorage.setItem('_bp_utm', JSON.stringify(utm)); } catch(e){}
+      } else {
+        try { utm = JSON.parse(sessionStorage.getItem('_bp_utm') || '{}'); } catch(e){}
+      }
+
+      // Session ID — persistent per browser session
+      var sessionId = '';
+      try {
+        sessionId = sessionStorage.getItem('_bp_sid');
+        if (!sessionId) {
+          sessionId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+          sessionStorage.setItem('_bp_sid', sessionId);
+        }
+      } catch(e) { sessionId = Math.random().toString(36).slice(2); }
+
+      // Page ID from path
+      var pageId = window.location.pathname.replace(/^\/|\/$/g,'') || 'home';
+
+      fetch('/api/admin/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pageId: pageId,
+          referrer: document.referrer || '',
+          userAgent: navigator.userAgent,
+          utm: utm,
+          sessionId: sessionId
+        }),
+        keepalive: true
+      }).catch(function(){});
+    })();
+  </script>
+
+  <script>
+    // Mobile menu toggle - runs after DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      var navToggle = document.querySelector('.nav-toggle');
+      const mobileNav = document.querySelector('.mobile-nav');
+      const header = document.querySelector('.main-header');
+      
+      if (navToggle && mobileNav) {
+        // Remove any existing listeners from main.js by cloning
+        const newToggle = navToggle.cloneNode(true);
+        navToggle.parentNode.replaceChild(newToggle, navToggle);
+        navToggle = newToggle; // Update reference to the new element
+        
+        navToggle.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.classList.toggle('active');
+          mobileNav.classList.toggle('active');
+        });
+      }
+      
+      // Scroll effect for header
+      let scrolled = false;
+      window.addEventListener('scroll', function() {
+        const shouldBeScrolled = window.scrollY > 50;
+        if (shouldBeScrolled !== scrolled) {
+          scrolled = shouldBeScrolled;
+          if (header) {
+            if (scrolled) {
+              header.classList.add('scrolled');
+            } else {
+              header.classList.remove('scrolled');
+            }
+          }
+        }
+      });
+      
+      // Close mobile menu when clicking nav links
+      document.querySelectorAll('.mobile-nav a').forEach(function(link) {
+        link.addEventListener('click', function() {
+          if (mobileNav && mobileNav.classList.contains('active')) {
+            mobileNav.classList.remove('active');
+            if (navToggle) navToggle.classList.remove('active');
+          }
+        });
+      });
+    });
+  </script>
+</body>
+</html>
