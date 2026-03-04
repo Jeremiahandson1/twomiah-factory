@@ -14,7 +14,7 @@ export default function NewTenantModal({ onClose, onCreated }: Props) {
     name: '',
     slug: '',
     email: '',
-    industry: 'construction',
+    industry: 'general_contractor',
     deployment_model: 'saas',
     plan: 'starter',
     primary_color: '#2563eb',
@@ -76,9 +76,13 @@ export default function NewTenantModal({ onClose, onCreated }: Props) {
               <label className="block text-xs text-gray-400 mb-1">Industry</label>
               <select name="industry" value={form.industry} onChange={handleChange}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
-                <option value="construction">Construction</option>
-                <option value="homecare">Home Care</option>
-                <option value="general">General</option>
+                <option value="general_contractor">General Contractor</option>
+                <option value="roofing">Roofing</option>
+                <option value="hvac">HVAC</option>
+                <option value="plumbing">Plumbing</option>
+                <option value="remodeling">Remodeling</option>
+                <option value="home_care">Home Care</option>
+                <option value="other">Other</option>
               </select>
             </div>
             <div>

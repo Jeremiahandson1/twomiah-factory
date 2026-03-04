@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Plus, Trash2, RefreshCw, Sparkles } from 'lucide-react'
+import { supabase } from '../../supabase'
 import type { FactoryConfig } from './types'
 import { NavButtons } from './StepProducts'
 
@@ -62,9 +63,10 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
     setGenerating(true)
     try {
       const apiUrl = import.meta.env.VITE_API_URL || ''
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(apiUrl + '/api/v1/factory/generate-content', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session?.access_token },
         body: JSON.stringify({
           companyName: config.company?.name,
           city: config.company?.city,

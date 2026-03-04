@@ -7,7 +7,7 @@ const PRODUCTS = [
   { id: 'website', name: 'Website', desc: 'Server-rendered site with SEO, blog, gallery, contact forms', icon: Globe, color: '#3b82f6' },
   { id: 'cms', name: 'CMS Admin Panel', desc: 'Full content management — pages, media, settings, leads', icon: Layout, color: '#8b5cf6' },
   { id: 'crm', name: 'CRM', desc: 'Business management — contacts, jobs, invoices, scheduling, 85+ features', icon: Briefcase, color: '#f97316' },
-  { id: 'vision', name: 'Twomiah Vision', desc: 'AI home exterior visualizer', icon: Eye, color: '#10b981' },
+  { id: 'vision', name: 'Twomiah Vision', desc: 'AI home exterior visualizer (coming soon)', icon: Eye, color: '#10b981', disabled: true },
 ]
 
 export function NavButtons({ onBack, onNext, canNext = true, nextLabel = 'Next →' }: { onBack: () => void; onNext: () => void; canNext?: boolean; nextLabel?: string }) {
@@ -29,15 +29,15 @@ export default function StepProducts({ config, update, onNext, onBack }: Props) 
       <h2 className="text-xl font-bold text-white mb-1">Select Products</h2>
       <p className="text-gray-400 text-sm mb-6">Choose which products to include. Any combination works.</p>
       <div className="flex flex-col gap-4 mb-6">
-        {PRODUCTS.map(({ id, name, desc, icon: Icon, color }) => {
+        {PRODUCTS.map(({ id, name, desc, icon: Icon, color, disabled }) => {
           const selected = config.products.includes(id)
-          const borderColor = selected ? color : '#374151'
-          const bgColor = selected ? color + '12' : 'transparent'
-          const iconBg = selected ? color : '#1f2937'
-          const checkBorder = selected ? color : '#4b5563'
-          const checkBg = selected ? color : 'transparent'
+          const borderColor = disabled ? '#1f2937' : selected ? color : '#374151'
+          const bgColor = disabled ? 'transparent' : selected ? color + '12' : 'transparent'
+          const iconBg = disabled ? '#111827' : selected ? color : '#1f2937'
+          const checkBorder = disabled ? '#374151' : selected ? color : '#4b5563'
+          const checkBg = disabled ? 'transparent' : selected ? color : 'transparent'
           return (
-            <div key={id} onClick={() => toggle(id)} className="flex items-center gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all"
+            <div key={id} onClick={() => !disabled && toggle(id)} className={'flex items-center gap-4 p-5 rounded-xl border-2 transition-all ' + (disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer')}
               style={{ borderColor, backgroundColor: bgColor }}>
               <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: iconBg }}>
                 <Icon size={24} color={selected ? 'white' : '#6b7280'} />

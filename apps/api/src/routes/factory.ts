@@ -15,7 +15,7 @@ const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/download/') || c.req.path.includes('/stripe/webhook')) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook')) return next()
   return authenticate(c, next)
 })
 
@@ -27,7 +27,7 @@ factory.post('/generate', async (c) => {
     if (!config.products?.length) return c.json({ error: 'At least one product must be selected' }, 400)
     if (!config.company?.name) return c.json({ error: 'Company name is required' }, 400)
 
-    const validProducts = ['website', 'cms', 'crm', 'vision']
+    const validProducts = ['website', 'cms', 'crm']
     const invalid = config.products.filter(p => !validProducts.includes(p))
     if (invalid.length) return c.json({ error: 'Invalid products: ' + invalid.join(', ') }, 400)
 
@@ -140,9 +140,16 @@ factory.post('/generate-content', async (c) => {
       messages: [{ role: 'user', content: prompt }],
     })
 
-    const raw = (message.content[0] as any).text.trim()
+    const textBlock = message.content.find((b: any) => b.type === 'text')
+    if (!textBlock) return c.json({ error: 'AI returned no text content' }, 500)
+    const raw = (textBlock as any).text.trim()
     const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-    return c.json(JSON.parse(cleaned))
+    try {
+      return c.json(JSON.parse(cleaned))
+    } catch {
+      console.error('[Factory] AI returned invalid JSON:', cleaned.substring(0, 200))
+      return c.json({ error: 'AI returned invalid JSON response' }, 500)
+    }
   } catch (err: any) {
     console.error('[Factory] generate-content error:', err.message)
     return c.json({ error: 'Content generation failed', details: err.message }, 500)
@@ -280,11 +287,15 @@ factory.post('/customers/:id/deploy', async (c) => {
 
     console.log('[Deploy] Found job:', job.id, 'status:', job.status, 'zip:', job.zip_name)
 
+    // Parse deploy options from request body
+    const body = await c.req.json().catch(() => ({}))
+    const deployOptions = { region: body.region, plan: body.plan, dbPlan: body.dbPlan }
+
     // Update status to deploying
     await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
 
     // Run deploy in background
-    runDeploy(tenant, job).catch(err => console.error('[Deploy] Background error:', err.message))
+    runDeploy(tenant, job, deployOptions).catch(err => console.error('[Deploy] Background error:', err.message))
 
     return c.json({ success: true, message: 'Deployment started', status: 'deploying' })
   } catch (err: any) {
@@ -320,7 +331,7 @@ function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
   } as GenerateConfig
 }
 
-async function runDeploy(tenant: any, job: any) {
+async function runDeploy(tenant: any, job: any, options: { region?: string; plan?: string; dbPlan?: string } = {}) {
   try {
     // Use stored config if available, otherwise reconstruct from tenant + job
     const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
@@ -335,7 +346,7 @@ async function runDeploy(tenant: any, job: any) {
 
     const result = await deployCustomer(
       { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: config },
-      zipPath, {}
+      zipPath, options
     )
 
     console.log('[Deploy] Result steps:', JSON.stringify(result.steps))
@@ -482,6 +493,7 @@ factory.post('/customers/:id/regenerate', async (c) => {
 factory.delete('/jobs/:id', async (c) => {
   try {
     const jobId = c.req.param('id')
+    if (!UUID_RE.test(jobId)) return c.json({ error: 'Invalid job ID format' }, 400)
     const { data: job } = await supabase.from('factory_jobs').select('*').eq('id', jobId).single()
     if (!job) return c.json({ error: 'Job not found' }, 404)
 
@@ -627,32 +639,40 @@ factory.get('/billing/summary', async (c) => {
 factory.get('/plans', (c) => {
   return c.json({
     plans: [
-      { id: 'starter', name: 'Starter', monthlyPrice: 97, annualPrice: 970, features: ['CRM Core', 'Website', 'Up to 2 users'] },
-      { id: 'professional', name: 'Professional', monthlyPrice: 197, annualPrice: 1970, features: ['CRM Core + Pro Features', 'Website + CMS', 'Up to 5 users', 'SMS & Email'] },
-      { id: 'growth', name: 'Growth', monthlyPrice: 297, annualPrice: 2970, features: ['All Features', 'Website + CMS', 'Up to 15 users', 'Paid Ads Hub'] },
+      { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 490, features: ['CRM Core', 'Website', 'Up to 2 users'] },
+      { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 1490, features: ['CRM Core + Pro Features', 'Website + CMS', 'Up to 5 users', 'SMS & Email'] },
+      { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 2990, features: ['All Features', 'Website + CMS', 'Up to 15 users', 'Paid Ads Hub'] },
+      { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 5990, features: ['All Features', 'Construction Module', 'Up to 25 users'] },
     ],
     selfHosted: [
       { id: 'starter', name: 'Starter License', price: 997 },
       { id: 'pro', name: 'Pro License', price: 2497 },
       { id: 'business', name: 'Business License', price: 4997 },
       { id: 'construction', name: 'Construction License', price: 9997 },
-      { id: 'full', name: 'Full Platform License', price: 14997 },
     ],
   })
 })
 
 
 // ─── Preview ────────────────────────────────────────────────────────────────
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+}
+
+function escapeAttr(str: string): string {
+  return str.replace(/[^a-zA-Z0-9#.,() -]/g, '')
+}
+
 factory.post('/preview', async (c) => {
   try {
     const { config } = await c.req.json()
     if (!config) return c.json({ error: 'config required' }, 400)
 
-    const name = config.company?.name || 'Your Company'
-    const primary = config.branding?.primaryColor || '#f97316'
-    const hero = config.content?.heroTagline || 'Quality You Can Trust'
-    const about = config.content?.aboutText || ''
-    const cta = config.content?.ctaText || 'Get a free estimate today.'
+    const name = escapeHtml(config.company?.name || 'Your Company')
+    const primary = escapeAttr(config.branding?.primaryColor || '#f97316')
+    const hero = escapeHtml(config.content?.heroTagline || 'Quality You Can Trust')
+    const about = escapeHtml(config.content?.aboutText || '')
+    const cta = escapeHtml(config.content?.ctaText || 'Get a free estimate today.')
     const html = '<!DOCTYPE html><html><head><title>' + name + ' Preview</title>' +
       '<style>body{font-family:system-ui,sans-serif;margin:0;} .hero{background:' + primary + ';color:white;padding:80px 40px;text-align:center;} .hero h1{font-size:2.5rem;margin:0 0 16px;} .content{max-width:800px;margin:40px auto;padding:0 20px;} .cta{background:#f5f5f5;text-align:center;padding:40px;margin-top:40px;}</style>' +
       '</head><body><div class="hero"><div style="font-size:0.9rem;text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;">' + hero + '</div><h1>' + name + '</h1></div>' +

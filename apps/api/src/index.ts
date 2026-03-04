@@ -13,7 +13,7 @@ app.use('*', cors({
       'http://localhost:3000',
       process.env.PLATFORM_URL || '',
     ].filter(Boolean)
-    return allowed.includes(origin) ? origin : allowed[0]
+    return allowed.includes(origin) ? origin : ''
   },
   credentials: true,
 }))

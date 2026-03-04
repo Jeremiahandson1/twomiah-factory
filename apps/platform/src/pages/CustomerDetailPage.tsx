@@ -34,14 +34,13 @@ type Toast = { msg: string; type: 'success' | 'error' }
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { color: string; icon: React.ReactNode }> = {
-    deployed:  { color: 'text-green-400 bg-green-400/10 border-green-400/30',    icon: <CheckCircle size={12} /> },
+    complete:  { color: 'text-green-400 bg-green-400/10 border-green-400/30',    icon: <CheckCircle size={12} /> },
     active:    { color: 'text-green-400 bg-green-400/10 border-green-400/30',    icon: <CheckCircle size={12} /> },
-    generated: { color: 'text-blue-400 bg-blue-400/10 border-blue-400/30',       icon: <Download size={12} /> },
+    pending:   { color: 'text-blue-400 bg-blue-400/10 border-blue-400/30',       icon: <Download size={12} /> },
     deploying: { color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/30', icon: <RefreshCw size={12} className="animate-spin" /> },
     failed:    { color: 'text-red-400 bg-red-400/10 border-red-400/30',          icon: <XCircle size={12} /> },
-    pending:   { color: 'text-gray-400 bg-gray-400/10 border-gray-400/30',       icon: <Clock size={12} /> },
   }
-  const s = map[status] || map.pending
+  const s = map[status] || { color: 'text-gray-400 bg-gray-400/10 border-gray-400/30', icon: <Clock size={12} /> }
   return (
     <span className={'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ' + s.color}>
       {s.icon}{status}
@@ -56,6 +55,22 @@ function CopyButton({ value }: { value: string }) {
       className="text-gray-500 hover:text-gray-300 transition-colors ml-1">
       {copied ? <CheckCircle size={14} className="text-green-400" /> : <Copy size={14} />}
     </button>
+  )
+}
+
+function PasswordField({ password }: { password: string }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <div>
+      <label className="text-xs text-gray-500 block mb-1">Temp Password</label>
+      <div className="flex items-center gap-2">
+        <span className="text-gray-300 font-mono">{visible ? password : '••••••••'}</span>
+        <button onClick={() => setVisible(!visible)} className="text-gray-500 hover:text-gray-300 text-xs transition-colors">
+          {visible ? 'Hide' : 'Show'}
+        </button>
+        <CopyButton value={password} />
+      </div>
+    </div>
   )
 }
 
@@ -266,7 +281,7 @@ export default function CustomerDetailPage() {
   if (!tenant) return <div className="p-8 text-red-400 text-sm">Customer not found.</div>
 
   const latestJob = jobs[0]
-  const latestDeployed = jobs.find(j => j.status === 'deployed')
+  const latestDeployed = jobs.find(j => j.status === 'complete')
   const enabledFeatures = tenant.features || latestJob?.features || []
 
   return (
@@ -348,9 +363,8 @@ export default function CustomerDetailPage() {
                 {editMode ? (
                   <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white">
-                    <option value="generated">Generated</option>
+                    <option value="pending">Pending</option>
                     <option value="deploying">Deploying</option>
-                    <option value="deployed">Deployed</option>
                     <option value="active">Active</option>
                     <option value="suspended">Suspended</option>
                     <option value="canceled">Canceled</option>
@@ -402,7 +416,7 @@ export default function CustomerDetailPage() {
             {/* Deploy Actions */}
             {deployConfigured ? (
               <div className="space-y-2">
-                {(tenant.status === 'generated' || !latestDeployed) && (
+                {!latestDeployed && (
                   <div className="flex gap-2">
                     <button onClick={() => setShowDeployModal(true)} disabled={deploying}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors">
@@ -525,11 +539,10 @@ export default function CustomerDetailPage() {
                 <select value={form.plan || ''} onChange={e => setForm({ ...form, plan: e.target.value })}
                   className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white">
                   <option value="">Custom</option>
-                  <option value="starter">Starter ($49/mo | $997)</option>
-                  <option value="pro">Pro ($149/mo | $2,497)</option>
-                  <option value="business">Business ($299/mo | $4,997)</option>
-                  <option value="construction">Construction ($599/mo | $9,997)</option>
-                  <option value="enterprise">Enterprise (custom)</option>
+                  <option value="starter">Starter ($49/mo | $997 license)</option>
+                  <option value="pro">Pro ($149/mo | $2,497 license)</option>
+                  <option value="business">Business ($299/mo | $4,997 license)</option>
+                  <option value="construction">Construction ($599/mo | $9,997 license)</option>
                 </select>
               ) : (
                 <p className="text-sm font-medium text-gray-200 capitalize">{tenant.plan || 'Custom'}</p>
@@ -675,13 +688,7 @@ export default function CustomerDetailPage() {
                   </div>
                 </div>
                 {tenant.admin_password && (
-                  <div>
-                    <label className="text-xs text-gray-500 block mb-1">Temp Password</label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-300 font-mono">{tenant.admin_password}</span>
-                      <CopyButton value={tenant.admin_password} />
-                    </div>
-                  </div>
+                  <PasswordField password={tenant.admin_password} />
                 )}
               </div>
             </div>
