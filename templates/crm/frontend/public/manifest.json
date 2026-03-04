@@ -1,11 +1,11 @@
 {
-  "name": "Twomiah Build CRM",
-  "short_name": "Twomiah Build",
-  "description": "Construction CRM for contractors",
+  "name": "{{COMPANY_NAME}} CRM",
+  "short_name": "{{COMPANY_SHORT}} CRM",
+  "description": "CRM for {{COMPANY_NAME}}",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#f97316",
+  "theme_color": "{{PRIMARY_COLOR}}",
   "orientation": "portrait-primary",
   "icons": [
     {

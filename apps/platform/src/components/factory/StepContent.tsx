@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Trash2, RefreshCw, Sparkles } from 'lucide-react'
 import { supabase } from '../../supabase'
 import type { FactoryConfig } from './types'
@@ -35,6 +35,13 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
   const serviceOptions = industry === 'home_care' ? HOME_CARE_SERVICES : CONTRACTOR_SERVICES
   const content = config.content
   const selectedServices = content.services?.length > 0 ? content.services : serviceOptions.slice(0, 6).map(s => s.id)
+
+  // Write default services to config state on mount if not yet set
+  useEffect(() => {
+    if (!content.services || content.services.length === 0) {
+      setConfig(prev => ({ ...prev, content: { ...prev.content, services: serviceOptions.slice(0, 6).map(s => s.id) } }))
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateContent = (patch: Partial<FactoryConfig['content']>) =>
     setConfig(prev => ({ ...prev, content: { ...prev.content, ...patch } }))

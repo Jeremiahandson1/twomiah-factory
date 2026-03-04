@@ -3,7 +3,7 @@ import { authenticate, supabase } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
-import { uploadZip, getZipDownloadUrl, deleteZip, downloadZip } from '../services/factoryStorage'
+import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
 import fs from 'fs'
 import path from 'path'
 const factory = new Hono()

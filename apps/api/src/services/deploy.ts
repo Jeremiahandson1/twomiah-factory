@@ -477,7 +477,7 @@ export async function deployCustomer(
 export async function checkDeployStatus(factoryCustomer: { renderServiceIds?: Record<string, string> }) {
   const statuses: Record<string, any> = {}
   const serviceIds = factoryCustomer.renderServiceIds
-  if (!serviceIds) return { status: 'no_services' }
+  if (!serviceIds) return { status: 'no_services', services: {}, overallStatus: 'no_services' }
   for (const [role, serviceId] of Object.entries(serviceIds)) {
     try {
       const deploys = await getServiceDeploys(serviceId, 1)
@@ -489,7 +489,7 @@ export async function checkDeployStatus(factoryCustomer: { renderServiceIds?: Re
   const overallStatus = allStatuses.every(s => s === 'live') ? 'live'
     : allStatuses.some(s => s === 'build_in_progress') ? 'deploying'
     : 'unknown'
-  return { services: statuses, overallStatus }
+  return { services: statuses, overallStatus, status: overallStatus }
 }
 
 export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Record<string, string> }) {

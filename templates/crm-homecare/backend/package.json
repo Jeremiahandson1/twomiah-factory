@@ -1,5 +1,5 @@
 {
-  "name": "chippewa-home-care-backend",
+  "name": "{{COMPANY_SLUG}}-care-backend",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/server.js",

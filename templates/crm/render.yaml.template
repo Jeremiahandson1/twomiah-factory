@@ -17,6 +17,8 @@ services:
         generateValue: true
       - key: NODE_ENV
         value: production
+      - key: PORT
+        value: 10000
       - key: FRONTEND_URL
         value: https://{{COMPANY_SLUG}}-crm.onrender.com
     disk:
@@ -29,6 +31,9 @@ services:
     runtime: static
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://{{COMPANY_SLUG}}-api.onrender.com
     headers:
       - path: /*
         name: X-Frame-Options
@@ -41,4 +46,4 @@ services:
 databases:
   - name: {{COMPANY_SLUG}}-db
     plan: starter
-    databaseName: {{COMPANY_SLUG}}_crm
+    databaseName: {{COMPANY_SLUG_UNDERSCORE}}_crm
