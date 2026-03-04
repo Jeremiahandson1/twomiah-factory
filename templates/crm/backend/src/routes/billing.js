@@ -882,8 +882,8 @@ router.get('/self-hosted/download/:licenseId', async (req, res, next) => {
     // In production, this would serve the actual download
     // For now, return download info
     res.json({
-      downloadUrl: `https://github.com/yourusername/twomiah-build/releases/latest`,
-      documentation: 'https://docs.twomiah-build.app/self-hosted',
+      downloadUrl: `https://{{COMPANY_DOMAIN}}/download`,
+      documentation: 'https://{{COMPANY_DOMAIN}}/docs/self-hosted',
       licenseKey: license.licenseKey,
       instructions: [
         '1. Download the release package',

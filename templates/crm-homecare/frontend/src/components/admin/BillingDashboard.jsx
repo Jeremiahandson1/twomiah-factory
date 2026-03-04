@@ -1483,10 +1483,10 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                   />
                   <div className="invoice-company-info">
                     <div className="invoice-company-name">{{COMPANY_NAME}}</div>
-                    <div>2607 Beverly Hills Dr</div>
-                    <div>Eau Claire, Wisconsin 54701</div>
+                    <div>{{COMPANY_ADDRESS}}</div>
+                    <div>{{CITY}}, {{STATE_FULL}} {{ZIP}}</div>
                     <div>U.S.A</div>
-                    <div>715-491-1254</div>
+                    <div>{{COMPANY_PHONE}}</div>
                     <div>{{COMPANY_EMAIL}}</div>
                   </div>
                 </div>

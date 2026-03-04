@@ -56,13 +56,13 @@ Full-stack construction management system with multi-tenant architecture, real-t
 
 ```bash
 # Clone
-git clone https://github.com/your-org/twomiah-build.git
-cd twomiah-build
+git clone https://github.com/your-org/twomiah-factory-crm.git
+cd twomiah-factory-crm
 
 # Start PostgreSQL (Docker option)
-docker run -d --name twomiah-build-db \
+docker run -d --name twomiah-factory-crm-db \
   -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=twomiah-build \
+  -e POSTGRES_DB=twomiah-factory-crm \
   -p 5432:5432 \
   postgres:16-alpine
 
@@ -88,7 +88,7 @@ npm run dev
 ## Project Structure
 
 ```
-twomiah-build/
+twomiah-factory-crm/
 ├── backend/
 │   ├── src/
 │   │   ├── routes/          # API endpoints (18 files)
@@ -175,7 +175,7 @@ docker-compose exec backend npx prisma migrate deploy
 
 ### Backend (.env)
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/twomiah-build
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/twomiah-factory-crm
 JWT_SECRET=your-64-char-secret
 JWT_REFRESH_SECRET=your-64-char-refresh-secret
 PORT=3001

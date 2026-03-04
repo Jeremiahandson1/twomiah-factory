@@ -486,7 +486,7 @@ const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr 1fr', gap: '0.75rem' }}>
                 <div className="form-group">
                   <label>City</label>
-                  <input type="text" value={editData.city} onChange={(e) => setEditData({ ...editData, city: e.target.value })} placeholder="Eau Claire" />
+                  <input type="text" value={editData.city} onChange={(e) => setEditData({ ...editData, city: e.target.value })} placeholder="{{CITY}}" />
                 </div>
                 <div className="form-group">
                   <label>State</label>

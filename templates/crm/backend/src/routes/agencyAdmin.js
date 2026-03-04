@@ -183,7 +183,7 @@ router.post('/customers', async (req, res, next) => {
       },
       // Only return generated password once
       generatedPassword: result.generatedPassword,
-      loginUrl: `${process.env.FRONTEND_URL || 'https://app.twomiah-build.com'}/${result.company.slug}/login`,
+      loginUrl: `${process.env.FRONTEND_URL || 'https://{{COMPANY_DOMAIN}}'}/${result.company.slug}/login`,
     });
   } catch (error) {
     next(error);

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../supabase'
 import { Building2 } from 'lucide-react'
 import type { FactoryConfig } from './types'
+import { STATE_NAMES } from './StepCompany'
 
 type Props = {
   config: FactoryConfig
@@ -33,6 +34,7 @@ export default function StepCustomer({ config, update, onNext }: Props) {
         address: '',
         city: t.city || '',
         state: t.state || '',
+        stateFull: STATE_NAMES[(t.state || '').toUpperCase()] || t.state || '',
         zip: '',
         domain: '',
         ownerName: '',

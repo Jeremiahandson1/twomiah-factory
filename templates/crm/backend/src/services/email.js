@@ -16,7 +16,7 @@ import nodemailer from 'nodemailer';
 import logger from './logger.js';
 
 // Config
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@twomiah-build.app';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@{{COMPANY_DOMAIN}}';
 const FROM_NAME = process.env.FROM_NAME || '{{COMPANY_NAME}}';
 const APP_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 

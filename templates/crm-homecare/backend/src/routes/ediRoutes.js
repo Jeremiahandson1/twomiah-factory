@@ -54,7 +54,7 @@ function buildEDI837P(claims, payer, providerInfo, interchangeControlNum) {
   seg('PRV', 'BI', 'PXC', providerInfo.taxonomyCode || '374700000X');
   seg('NM1', '85', '2', ediName(providerInfo.agencyName), '', '', '', '', 'XX', ediId(providerInfo.npi));
   seg('N3', providerInfo.address || '123 MAIN ST');
-  seg('N4', providerInfo.city || 'EAU CLAIRE', providerInfo.state || 'WI', (providerInfo.zip || '54701').replace(/\D/g, ''));
+  seg('N4', providerInfo.city || '{{CITY}}', providerInfo.state || '{{STATE}}', (providerInfo.zip || '{{ZIP}}').replace(/\D/g, ''));
   seg('REF', 'EI', (providerInfo.taxId || '').replace(/\D/g, ''));
 
   // Loop 2000B - Subscriber / Payer  
@@ -159,12 +159,12 @@ router.post('/generate', auth, requireAdmin, async (req, res) => {
       npi: process.env.AGENCY_NPI || '',
       taxId: process.env.AGENCY_TAX_ID || '',
       taxonomyCode: process.env.AGENCY_TAXONOMY || '374700000X',
-      address: process.env.AGENCY_ADDRESS || '123 MAIN ST',
-      city: process.env.AGENCY_CITY || 'EAU CLAIRE',
-      state: process.env.AGENCY_STATE || 'WI',
-      zip: process.env.AGENCY_ZIP || '54701',
-      phone: process.env.AGENCY_PHONE || '7155551234',
-      contactName: process.env.AGENCY_CONTACT || 'ALEXIS',
+      address: process.env.AGENCY_ADDRESS || '{{COMPANY_ADDRESS}}',
+      city: process.env.AGENCY_CITY || '{{CITY}}',
+      state: process.env.AGENCY_STATE || '{{STATE}}',
+      zip: process.env.AGENCY_ZIP || '{{ZIP}}',
+      phone: process.env.AGENCY_PHONE || '{{COMPANY_PHONE_RAW}}',
+      contactName: process.env.AGENCY_CONTACT || '{{OWNER_FIRST_NAME}}',
     };
 
     // Get payer info

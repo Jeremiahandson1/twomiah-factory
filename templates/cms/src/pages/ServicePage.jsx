@@ -367,7 +367,7 @@ function ServicePage() {
         },
         "areaServed": ["{{CITY}}", "{{NEARBY_CITY_4}}", "{{NEARBY_CITY_1}}", "{{NEARBY_CITY_2}}", "{{NEARBY_CITY_3}}"].map(city => ({
           "@type": "City",
-          "name": city + ", WI"
+          "name": city + ", {{STATE}}"
         })),
         "serviceType": pageData.title
       })}} />

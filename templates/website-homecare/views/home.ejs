@@ -218,7 +218,7 @@ function getImageUrl(p) {
               </div>
               <div>
                 <div class="hc-contact-label">Location</div>
-                <span class="hc-contact-value"><%= city %>, <%= state === '{{STATE}}' ? 'Wisconsin' : state %></span>
+                <span class="hc-contact-value"><%= city %>, <%= typeof stateFull !== 'undefined' && stateFull ? stateFull : state %></span>
               </div>
             </div>
           </div>

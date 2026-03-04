@@ -216,7 +216,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                       URL Slug
                     </label>
                     <div className="flex items-center">
-                      <span className="text-gray-400 text-sm mr-1">app.twomiah-build.com/</span>
+                      <span className="text-gray-400 text-sm mr-1">{"{{COMPANY_DOMAIN}}/"}</span>
                       <input
                         type="text"
                         value={form.slug}

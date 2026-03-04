@@ -148,7 +148,7 @@ export const useBuilderStore = create(
       },
     }),
     {
-      name: 'twomiah-build-builder-storage',
+      name: '{{COMPANY_SLUG}}-builder-storage',
     }
   )
 );
@@ -438,7 +438,7 @@ export const useCRMDataStore = create(
       financingSettings: {},
     }),
     {
-      name: 'twomiah-build-crm-data',
+      name: '{{COMPANY_SLUG}}-crm-data',
     }
   )
 );

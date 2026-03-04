@@ -3,11 +3,11 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: twomiah-build-db
+    container_name: twomiah-factory-crm-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-twomiah-build}
+      POSTGRES_DB: ${POSTGRES_DB:-twomiah-factory-crm}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -23,9 +23,9 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: twomiah-build-api
+    container_name: twomiah-factory-crm-api
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-twomiah-build}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-twomiah-factory-crm}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       PORT: 3001
@@ -52,7 +52,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
-    container_name: twomiah-build-frontend
+    container_name: twomiah-factory-crm-frontend
     ports:
       - "80:80"
     depends_on:

@@ -485,7 +485,7 @@ function HomePage({ onFormSuccess }) {
         },
         "areaServed": serviceAreas.map(area => ({
           "@type": "City",
-          "name": area + ", WI"
+          "name": area + ", {{STATE}}"
         })),
         "priceRange": "$$",
         "openingHoursSpecification": [

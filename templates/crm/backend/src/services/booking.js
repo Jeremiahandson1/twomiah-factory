@@ -364,11 +364,11 @@ function generateConfirmationCode() {
  */
 export function getEmbedCode(companyId, companySlug) {
   return `<!-- {{COMPANY_NAME}} Online Booking Widget -->
-<div id="twomiah-build-booking"></div>
-<script src="${process.env.FRONTEND_URL || 'https://app.twomiah-build.com'}/booking-widget.js"></script>
+<div id="{{COMPANY_SLUG}}-booking"></div>
+<script src="${process.env.FRONTEND_URL || 'https://{{COMPANY_DOMAIN}}'}/booking-widget.js"></script>
 <script>
   {{COMPANY_NAME}}Booking.init({
-    container: '#twomiah-build-booking',
+    container: '#{{COMPANY_SLUG}}-booking',
     company: '${companySlug}',
   });
 </script>`;

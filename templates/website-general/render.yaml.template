@@ -6,7 +6,7 @@ services:
     name: {{COMPANY_SLUG}}-site
     runtime: node
     plan: starter
-    buildCommand: npm install
+    buildCommand: npm install && if [ -d admin ]; then cd admin && npm install --include=dev && npm run build; fi
     startCommand: node server-static.js
     envVars:
       - key: JWT_SECRET

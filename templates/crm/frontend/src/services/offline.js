@@ -7,7 +7,7 @@
  * - Sync when back online
  */
 
-const DB_NAME = 'twomiah-build-offline';
+const DB_NAME = '{{COMPANY_SLUG}}-offline';
 const DB_VERSION = 1;
 
 // Store names

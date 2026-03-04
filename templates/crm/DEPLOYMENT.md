@@ -13,7 +13,7 @@
 
 ```env
 # Required
-DATABASE_URL=postgresql://user:password@host:5432/twomiah-build
+DATABASE_URL=postgresql://user:password@host:5432/twomiah-factory-crm
 JWT_SECRET=<64-character-random-string>
 JWT_REFRESH_SECRET=<64-character-random-string>
 PORT=3001
@@ -39,8 +39,8 @@ VITE_API_URL=https://api.your-domain.com
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/your-org/twomiah-build.git
-cd twomiah-build
+git clone https://github.com/your-org/twomiah-factory-crm.git
+cd twomiah-factory-crm
 
 # 2. Create .env file
 cp .env.example .env
@@ -98,21 +98,21 @@ railway up
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: twomiah-build-backend
+  name: twomiah-factory-crm-backend
 spec:
   replicas: 2
   template:
     spec:
       containers:
       - name: backend
-        image: ghcr.io/your-org/twomiah-build/backend:latest
+        image: ghcr.io/your-org/twomiah-factory-crm/backend:latest
         ports:
         - containerPort: 3001
         env:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
-              name: twomiah-build-secrets
+              name: twomiah-factory-crm-secrets
               key: database-url
 ```
 
@@ -126,7 +126,7 @@ api.your-domain.com {
 }
 
 your-domain.com {
-    root * /var/www/twomiah-build
+    root * /var/www/twomiah-factory-crm
     try_files {path} /index.html
     file_server
 }
@@ -201,7 +201,7 @@ psql $DATABASE_URL < backup-20240315.sql
 
 ```bash
 # Sync to S3
-aws s3 sync ./uploads s3://your-bucket/twomiah-build-uploads
+aws s3 sync ./uploads s3://your-bucket/twomiah-factory-crm-uploads
 ```
 
 ## Scaling

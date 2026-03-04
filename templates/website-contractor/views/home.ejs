@@ -116,7 +116,7 @@ function getImageUrl(p) {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
           <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve homeowners across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, Bloomer, and the surrounding communities. When a storm hits the valley, we're already here — not driving in from Minneapolis or Madison.</p>
+          <p>Based in {{CITY}}, we serve homeowners across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and the surrounding communities. As a local company, we're already here — not driving in from out of town.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
@@ -182,7 +182,7 @@ function getImageUrl(p) {
             <a href="/gallery/<%= project.id %>" class="fp-card animate-on-scroll">
               <img 
                 src="<%= project.featured_image || (project.images && project.images[0] ? (project.images[0].thumbnail || project.images[0].url) : '/images/project-placeholder.jpg') %>" 
-                alt="<%= project.title %> - <%= project.category || 'Construction' %> project in <%= project.location || '{{CITY}}' %>, WI"
+                alt="<%= project.title %> - <%= project.category || 'Construction' %> project in <%= project.location || '{{CITY}}' %>, {{STATE}}"
                 loading="lazy"
                 width="400"
                 height="300"
@@ -352,7 +352,7 @@ function getImageUrl(p) {
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
-          <p>We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, Bloomer, Osseo, and throughout the greater {{SERVICE_REGION}}. Our crew is local, so we're never far away.</p>
+          <p>We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}. Our crew is local, so we're never far away.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>
@@ -517,7 +517,7 @@ function getImageUrl(p) {
       <% serviceAreas.forEach(function(area, index) { %>
       {
         "@type": "City",
-        "name": "<%= area %>, WI"
+        "name": "<%= area %>, {{STATE}}"
       }<%= index < serviceAreas.length - 1 ? ',' : '' %>
       <% }); %>
     ],
@@ -607,7 +607,7 @@ function getImageUrl(p) {
         "name": "What areas do you serve besides {{CITY}}?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, Bloomer, Osseo, and throughout the greater {{SERVICE_REGION}}."
+          "text": "We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}."
         }
       },
       {
