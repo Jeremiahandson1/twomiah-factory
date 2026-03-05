@@ -205,7 +205,7 @@ async function findExistingDatabase(name: string): Promise<any> {
   return match ? (match.postgres || match) : null
 }
 
-async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'free', projectId?: string | null): Promise<any> {
+async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'starter', projectId?: string | null): Promise<any> {
   const dbName = slug + '-db'
   const body: any = {
     databaseName: slug.replace(/-/g, '_'),
@@ -259,7 +259,7 @@ async function createRenderWebService(config: {
     autoDeploy: 'yes', branch: 'main', rootDir: config.rootDir || '',
     serviceDetails: {
       envSpecificDetails,
-      plan: config.plan || 'free', region: config.region || 'ohio', runtime: 'node', numInstances: 1,
+      plan: config.plan || 'starter', region: config.region || 'ohio', runtime: 'node', numInstances: 1,
     },
     envVars: (config.envVars || []).map(ev => ({ key: ev.key, value: ev.value })),
   }
@@ -388,7 +388,7 @@ export async function deployCustomer(
   zipPath: string,
   options: { region?: string; plan?: string; dbPlan?: string; products?: string[] } = {}
 ): Promise<DeployResult> {
-  const { region = 'ohio', plan = 'free', dbPlan = 'free', products = factoryCustomer.products || ['crm'] } = options
+  const { region = 'ohio', plan = 'starter', dbPlan = 'starter', products = factoryCustomer.products || ['crm'] } = options
   const slug = factoryCustomer.slug
   const isHomeCare = factoryCustomer.industry === 'home_care' || factoryCustomer.config?.company?.industry === 'home_care'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }

@@ -92,7 +92,7 @@ export default function CustomerDetailPage() {
   const [deploying, setDeploying] = useState(false)
   const [deletingJob, setDeletingJob] = useState<string | null>(null)
   const [showDeployModal, setShowDeployModal] = useState(false)
-  const [deployPlan, setDeployPlan] = useState<string>('free')
+  const [deployPlan, setDeployPlan] = useState<string>('starter')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
@@ -209,7 +209,7 @@ export default function CustomerDetailPage() {
       const res = await fetch(API + '/api/v1/factory/customers/' + tenant.id + '/deploy', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ region: 'ohio', plan: 'free', dbPlan: deployPlan }),
+        body: JSON.stringify({ region: 'ohio', plan: 'starter', dbPlan: deployPlan }),
       })
       const data = await res.json()
       if (res.ok) { showToast('Deployment started! Services will be live in a few minutes.'); setTimeout(load, 15000) }

@@ -59,7 +59,7 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
       const res = await fetch(apiUrl + '/api/v1/factory/customers/' + result.customerId + '/deploy', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dbPlan: 'free' }),
+        body: JSON.stringify({ dbPlan: 'starter' }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
