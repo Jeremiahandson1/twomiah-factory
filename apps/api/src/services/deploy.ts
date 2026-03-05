@@ -205,7 +205,7 @@ async function findExistingDatabase(name: string): Promise<any> {
   return match ? (match.postgres || match) : null
 }
 
-async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'basic-256mb', projectId?: string | null): Promise<any> {
+async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'starter', projectId?: string | null): Promise<any> {
   const dbName = slug + '-db'
   const body: any = {
     databaseName: slug.replace(/-/g, '_'),
@@ -388,7 +388,7 @@ export async function deployCustomer(
   zipPath: string,
   options: { region?: string; plan?: string; dbPlan?: string; products?: string[] } = {}
 ): Promise<DeployResult> {
-  const { region = 'ohio', plan = 'starter', dbPlan = 'basic-256mb', products = factoryCustomer.products || ['crm'] } = options
+  const { region = 'ohio', plan = 'starter', dbPlan = 'starter', products = factoryCustomer.products || ['crm'] } = options
   const slug = factoryCustomer.slug
   const isHomeCare = factoryCustomer.industry === 'home_care' || factoryCustomer.config?.company?.industry === 'home_care'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
