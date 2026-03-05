@@ -501,9 +501,8 @@ export async function deployCustomer(
         const crmApiName = isHomeCare ? slug + '-care-api' : slug + '-api'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: 'crm/backend',
-          buildCommand: 'npm install && npx prisma generate',
-          preDeployCommand: 'npx prisma migrate deploy && node prisma/seed.js',
-          startCommand: 'node src/index.js',
+          buildCommand: 'npm install && npx prisma generate && npx prisma migrate deploy',
+          startCommand: 'node prisma/seed.js && node src/index.js',
           envVars: backendEnvVars, plan, region, projectId,
         })
         console.log('[Deploy] Backend creation response:', JSON.stringify(backend, null, 2))
