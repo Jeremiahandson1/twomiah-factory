@@ -519,12 +519,17 @@ function writeBrandingAssets(targetDir: string, branding: GenerateConfig['brandi
   if (branding.logo?.startsWith('data:')) {
     const ext = getExtFromDataUrl(branding.logo) || 'png'
     writeDataUrl(branding.logo, path.join(imagesDir, 'logo.' + ext))
+    // Also write to targetDir root for Vite-based projects (CRM frontend/public/)
+    writeDataUrl(branding.logo, path.join(targetDir, 'logo.' + ext))
     updateSettingsField(targetDir, 'logo', '/images/logo.' + ext)
   }
 
   if (branding.favicon?.startsWith('data:')) {
     writeDataUrl(branding.favicon, path.join(buildDir, 'favicon.png'))
     writeDataUrl(branding.favicon, path.join(buildDir, 'favicon.ico'))
+    // Also write to targetDir root for Vite-based projects (CRM frontend/public/)
+    writeDataUrl(branding.favicon, path.join(targetDir, 'favicon.png'))
+    writeDataUrl(branding.favicon, path.join(targetDir, 'favicon.ico'))
     updateSettingsField(targetDir, 'favicon', '/favicon.png')
   }
 
