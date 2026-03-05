@@ -65,7 +65,12 @@ function loadGoogleMaps(apiKey: string): Promise<void> {
   return new Promise((resolve, reject) => {
     if ((window as any).google?.maps?.places) { resolve(); return }
     const existing = document.getElementById('google-maps-script')
-    if (existing) { existing.addEventListener('load', () => resolve()); return }
+    if (existing) {
+      // Script tag exists but may have already loaded — check again then listen
+      if ((window as any).google?.maps?.places) { resolve(); return }
+      existing.addEventListener('load', () => resolve())
+      return
+    }
     const script = document.createElement('script')
     script.id = 'google-maps-script'
     script.src = 'https://maps.googleapis.com/maps/api/js?key=' + apiKey + '&libraries=places'
