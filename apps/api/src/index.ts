@@ -14,6 +14,7 @@ app.use('*', cors({
     const allowed = [
       'http://localhost:5173',
       'http://localhost:3000',
+      'https://twomiah-factory-platform.onrender.com',
     ]
     if (process.env.PLATFORM_URL) allowed.push(process.env.PLATFORM_URL)
     return allowed.includes(origin) ? origin : ''
