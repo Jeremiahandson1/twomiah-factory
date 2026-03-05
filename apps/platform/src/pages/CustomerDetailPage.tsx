@@ -92,7 +92,7 @@ export default function CustomerDetailPage() {
   const [deploying, setDeploying] = useState(false)
   const [deletingJob, setDeletingJob] = useState<string | null>(null)
   const [showDeployModal, setShowDeployModal] = useState(false)
-  const [deployPlan, setDeployPlan] = useState<string>('basic-256mb')
+  const [deployPlan, setDeployPlan] = useState<string>('free')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
@@ -757,9 +757,9 @@ export default function CustomerDetailPage() {
             <div className="space-y-3 mb-6">
               {[
                 { value: 'free',        label: 'Free',          price: '$0/mo',  desc: 'Testing only. DB expires after 90 days.', color: 'border-gray-500' },
-                { value: 'basic-256mb', label: 'Basic 256MB',   price: '$6/mo',  desc: 'Good for small production CRMs.', color: 'border-blue-500' },
-                { value: 'basic-1gb',   label: 'Basic 1GB',     price: '$19/mo', desc: 'Recommended for active customers.', color: 'border-indigo-500' },
-                { value: 'basic-4gb',   label: 'Basic 4GB',     price: '$75/mo', desc: 'High-volume workloads.', color: 'border-purple-500' },
+                { value: 'starter', label: 'Starter',   price: '$7/mo',  desc: 'Good for small production CRMs.', color: 'border-blue-500' },
+                { value: 'standard', label: 'Standard',     price: '$20/mo', desc: 'Recommended for active customers.', color: 'border-indigo-500' },
+                { value: 'pro',      label: 'Pro',          price: '$75/mo', desc: 'High-volume workloads.', color: 'border-purple-500' },
               ].map(opt => (
                 <div key={opt.value}
                   onClick={() => setDeployPlan(opt.value)}
