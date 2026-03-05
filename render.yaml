@@ -1,0 +1,63 @@
+services:
+  # ─── Factory API ──────────────────────────────────────────────────────────────
+  - type: web
+    name: twomiah-factory-api
+    runtime: node
+    plan: starter
+    buildCommand: cd apps/api && bun install
+    startCommand: cd apps/api && bun run start
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_ORG
+        sync: false
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_OWNER_ID
+        sync: false
+      - key: PLATFORM_URL
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: PORT
+        value: "3001"
+
+  # ─── Factory Platform (React SPA) ────────────────────────────────────────────
+  - type: static
+    name: twomiah-factory-platform
+    buildCommand: cd apps/platform && bun install && bun run build
+    staticPublishPath: apps/platform/dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # ─── Cleanup Cron Job ────────────────────────────────────────────────────────
+  - type: cron
+    name: twomiah-factory-cleanup
+    runtime: node
+    schedule: "0 * * * *"
+    buildCommand: cd apps/api && bun install
+    startCommand: cd apps/api && bun run src/cron/cleanup.ts
+    envVars:
+      - key: API_URL
+        fromService:
+          type: web
+          name: twomiah-factory-api
+          property: hostport
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: twomiah-factory-api
+          envVarKey: CRON_SECRET

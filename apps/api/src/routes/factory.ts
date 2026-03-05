@@ -14,7 +14,7 @@ const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream')) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup')) return next()
   return authenticate(c, next)
 })
 
@@ -523,6 +523,18 @@ factory.post('/customers/:id/redeploy', async (c) => {
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 factory.post('/cleanup', async (c) => {
+  // Auth: require CRON_SECRET header or valid Supabase session
+  const cronSecret = c.req.header('x-cron-secret')
+  const authHeader = c.req.header('Authorization')
+  if (cronSecret) {
+    if (!process.env.CRON_SECRET || cronSecret !== process.env.CRON_SECRET) return c.json({ error: 'Invalid cron secret' }, 401)
+  } else if (authHeader) {
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error } = await supabase.auth.getUser(token)
+    if (error || !user) return c.json({ error: 'Unauthorized' }, 401)
+  } else {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
   const { maxAge } = await c.req.json().catch(() => ({}))
   const cleaned = cleanOldBuilds(maxAge || 24 * 60 * 60 * 1000)
 
