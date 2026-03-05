@@ -482,7 +482,7 @@ factory.get('/customers/:id/deploy/stream', async (c) => {
         }
 
         let done = false
-        for (let tick = 0; tick < 60 && !done; tick++) {
+        for (let tick = 0; tick < 120 && !done; tick++) {
           const { data: job } = await supabase.from('factory_jobs').select('status, render_service_ids, github_repo, render_url')
             .eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
 

@@ -13,6 +13,11 @@ import AdmZip from 'adm-zip'
 
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
+const FETCH_TIMEOUT = 30_000 // 30s timeout for API calls
+
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETCH_TIMEOUT): Promise<Response> {
+  return fetch(url, { ...options, signal: AbortSignal.timeout(timeout) })
+}
 
 function renderHeaders(): Record<string, string> {
   return {
@@ -53,12 +58,12 @@ export function getMissingConfig(): string[] {
 
 async function deleteGitHubRepo(repoFullName: string) {
   try {
-    const res = await fetch(GITHUB_API + '/repos/' + repoFullName, { method: 'DELETE', headers: githubHeaders() })
+    const res = await fetchWithTimeout(GITHUB_API + '/repos/' + repoFullName, { method: 'DELETE', headers: githubHeaders() })
     if (res.status === 204) {
       console.log('[Deploy] Deleted existing repo', repoFullName)
       for (let i = 0; i < 10; i++) {
         await sleep(3000)
-        const check = await fetch(GITHUB_API + '/repos/' + repoFullName, { headers: githubHeaders() })
+        const check = await fetchWithTimeout(GITHUB_API + '/repos/' + repoFullName, { headers: githubHeaders() })
         if (check.status === 404) { console.log('[Deploy] Repo deletion confirmed'); return }
       }
     }
@@ -68,13 +73,13 @@ async function deleteGitHubRepo(repoFullName: string) {
 async function createGitHubRepo(slug: string, description: string): Promise<{ full_name: string; clone_url: string }> {
   const org = process.env.GITHUB_ORG
 
-  let res = await fetch(GITHUB_API + '/orgs/' + org + '/repos', {
+  let res = await fetchWithTimeout(GITHUB_API + '/orgs/' + org + '/repos', {
     method: 'POST', headers: githubHeaders(),
     body: JSON.stringify({ name: slug, description, private: true, auto_init: true }),
   })
 
   if (!res.ok) {
-    res = await fetch(GITHUB_API + '/user/repos', {
+    res = await fetchWithTimeout(GITHUB_API + '/user/repos', {
       method: 'POST', headers: githubHeaders(),
       body: JSON.stringify({ name: slug, description, private: true, auto_init: true }),
     })
@@ -134,15 +139,15 @@ async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | '
       switch (resource.type) {
         case 'repo':
           console.log('[Deploy] Rollback: deleting GitHub repo', resource.id)
-          await fetch(GITHUB_API + '/repos/' + resource.id, { method: 'DELETE', headers: githubHeaders() })
+          await fetchWithTimeout(GITHUB_API + '/repos/' + resource.id, { method: 'DELETE', headers: githubHeaders() })
           break
         case 'service':
           console.log('[Deploy] Rollback: deleting Render service', resource.name || resource.id)
-          await fetch(RENDER_API + '/services/' + resource.id, { method: 'DELETE', headers: renderHeaders() })
+          await fetchWithTimeout(RENDER_API + '/services/' + resource.id, { method: 'DELETE', headers: renderHeaders() })
           break
         case 'database':
           console.log('[Deploy] Rollback: deleting Render database', resource.name || resource.id)
-          await fetch(RENDER_API + '/postgres/' + resource.id, { method: 'DELETE', headers: renderHeaders() })
+          await fetchWithTimeout(RENDER_API + '/postgres/' + resource.id, { method: 'DELETE', headers: renderHeaders() })
           break
       }
     } catch (e: any) {
@@ -155,7 +160,7 @@ async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | '
 // ─── Render ───────────────────────────────────────────────────────────────────
 
 async function createRenderProject(name: string): Promise<string | null> {
-  const res = await fetch(RENDER_API + '/projects', {
+  const res = await fetchWithTimeout(RENDER_API + '/projects', {
     method: 'POST', headers: renderHeaders(),
     body: JSON.stringify({ name, ownerId: process.env.RENDER_OWNER_ID }),
   })
@@ -168,7 +173,7 @@ async function createRenderProject(name: string): Promise<string | null> {
 }
 
 async function createRenderEnvironment(projectId: string, name = 'production'): Promise<string | null> {
-  const res = await fetch(RENDER_API + '/environments', {
+  const res = await fetchWithTimeout(RENDER_API + '/environments', {
     method: 'POST', headers: renderHeaders(),
     body: JSON.stringify({ projectId, name }),
   })
@@ -182,7 +187,7 @@ async function createRenderEnvironment(projectId: string, name = 'production'): 
 
 async function addResourcesToEnvironment(environmentId: string, resourceIds: string[]) {
   const resources = resourceIds.map(id => ({ id }))
-  const res = await fetch(RENDER_API + '/environments/' + environmentId + '/resources', {
+  const res = await fetchWithTimeout(RENDER_API + '/environments/' + environmentId + '/resources', {
     method: 'POST', headers: renderHeaders(),
     body: JSON.stringify({ resources }),
   })
@@ -193,7 +198,7 @@ async function addResourcesToEnvironment(environmentId: string, resourceIds: str
 }
 
 async function findExistingDatabase(name: string): Promise<any> {
-  const res = await fetch(RENDER_API + '/postgres?limit=20', { headers: renderHeaders() })
+  const res = await fetchWithTimeout(RENDER_API + '/postgres?limit=20', { headers: renderHeaders() })
   if (!res.ok) return null
   const list = await res.json() as any[]
   const match = list.find((item: any) => (item.postgres || item).name === name)
@@ -211,7 +216,7 @@ async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'fre
   }
   if (projectId) body.projectId = projectId
 
-  const res = await fetch(RENDER_API + '/postgres', {
+  const res = await fetchWithTimeout(RENDER_API + '/postgres', {
     method: 'POST', headers: renderHeaders(),
     body: JSON.stringify(body),
   })
@@ -227,7 +232,7 @@ async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'fre
 }
 
 async function getDatabaseConnectionInfo(databaseId: string): Promise<any> {
-  const res = await fetch(RENDER_API + '/postgres/' + databaseId + '/connection-info', { headers: renderHeaders() })
+  const res = await fetchWithTimeout(RENDER_API + '/postgres/' + databaseId + '/connection-info', { headers: renderHeaders() })
   if (!res.ok) throw new Error('Failed to get DB connection info')
   const data = await res.json() as any
   return {
@@ -259,7 +264,7 @@ async function createRenderWebService(config: {
     envVars: (config.envVars || []).map(ev => ({ key: ev.key, value: ev.value })),
   }
   if (config.projectId) body.projectId = config.projectId
-  const res = await fetch(RENDER_API + '/services', {
+  const res = await fetchWithTimeout(RENDER_API + '/services', {
     method: 'POST', headers: renderHeaders(), body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -287,7 +292,7 @@ async function createRenderStaticSite(config: {
     envVars: (config.envVars || []).map(ev => ({ key: ev.key, value: ev.value })),
   }
   if (config.projectId) body.projectId = config.projectId
-  const res = await fetch(RENDER_API + '/services', {
+  const res = await fetchWithTimeout(RENDER_API + '/services', {
     method: 'POST', headers: renderHeaders(), body: JSON.stringify(body),
   })
   if (!res.ok) {
@@ -298,7 +303,7 @@ async function createRenderStaticSite(config: {
 }
 
 async function updateRenderEnvVars(serviceId: string, envVars: Array<{ key: string; value: string }>) {
-  const res = await fetch(RENDER_API + '/services/' + serviceId + '/env-vars', {
+  const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars', {
     method: 'PUT', headers: renderHeaders(),
     body: JSON.stringify(envVars.map(ev => ({ key: ev.key, value: ev.value }))),
   })
@@ -312,7 +317,7 @@ async function addStaticSiteHeaders(serviceId: string) {
   ]
   for (const h of headers) {
     try {
-      const res = await fetch(RENDER_API + '/services/' + serviceId + '/headers', {
+      const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/headers', {
         method: 'POST', headers: renderHeaders(),
         body: JSON.stringify(h),
       })
@@ -324,7 +329,7 @@ async function addStaticSiteHeaders(serviceId: string) {
 }
 
 async function getServiceDeploys(serviceId: string, limit = 5): Promise<any[]> {
-  const res = await fetch(RENDER_API + '/services/' + serviceId + '/deploys?limit=' + limit, { headers: renderHeaders() })
+  const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys?limit=' + limit, { headers: renderHeaders() })
   if (!res.ok) return []
   return await res.json() as any[]
 }
@@ -589,7 +594,7 @@ export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Rec
   const results: Record<string, any> = {}
   for (const [role, serviceId] of Object.entries(serviceIds)) {
     try {
-      const res = await fetch(RENDER_API + '/services/' + serviceId + '/deploys', { method: 'POST', headers: renderHeaders(), body: JSON.stringify({}) })
+      const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', { method: 'POST', headers: renderHeaders(), body: JSON.stringify({}) })
       if (res.ok) { const deploy = await res.json() as any; results[role] = { status: 'triggered', deployId: deploy.id } }
       else { results[role] = { status: 'failed' } }
     } catch (err: any) { results[role] = { status: 'error', error: err.message } }
@@ -600,7 +605,7 @@ export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Rec
 export async function addCustomDomain(serviceId: string, domain: string): Promise<{ success: boolean; error?: string }> {
   if (!process.env.RENDER_API_KEY) return { success: false, error: 'Render not configured' }
   try {
-    const res = await fetch(RENDER_API + '/services/' + serviceId + '/custom-domains', {
+    const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/custom-domains', {
       method: 'POST', headers: renderHeaders(),
       body: JSON.stringify({ name: domain }),
     })
