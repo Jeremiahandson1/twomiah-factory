@@ -454,7 +454,7 @@ function HomePage({ onFormSuccess }) {
       {/* Map Section */}
       <section className="map-section">
         <iframe 
-          src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(address + ', ' + city + ', ' + state + ' ' + zip)}`}
+          src={`https://www.google.com/maps/embed/v1/place?key={{GOOGLE_MAPS_API_KEY}}&q=${encodeURIComponent(address + ', ' + city + ', ' + state + ' ' + zip)}`}
           allowFullScreen="" 
           loading="lazy"
           title="Location Map"
@@ -477,11 +477,6 @@ function HomePage({ onFormSuccess }) {
           "addressRegion": state,
           "postalCode": zip,
           "addressCountry": "US"
-        },
-        "geo": {
-          "@type": "GeoCoordinates",
-          "latitude": 44.8113,
-          "longitude": -91.4984
         },
         "areaServed": serviceAreas.map(area => ({
           "@type": "City",

@@ -89,17 +89,17 @@ export const STATE_NAMES: Record<string, string> = {
 
 export default function StepCompany({ config, updateNested, onNext, onBack }: Props) {
   const c = config.company
-  const set = (key: keyof typeof c, value: any) => {
-    updateNested('company', { [key]: value } as any)
+  const set = (key: keyof typeof c, value: string) => {
+    updateNested('company', { [key]: value } as Partial<typeof c>)
     // Auto-populate stateFull when state abbreviation changes
     if (key === 'state' && typeof value === 'string') {
       const full = STATE_NAMES[value.toUpperCase().trim()]
-      if (full) updateNested('company', { stateFull: full } as any)
+      if (full) updateNested('company', { stateFull: full } as Partial<typeof c>)
     }
   }
 
   const addressInputRef = useRef<HTMLInputElement>(null)
-  const autocompleteRef = useRef<any>(null)
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
   const [mapsReady, setMapsReady] = useState(false)
   const [mapsError, setMapsError] = useState('')
   const [searchingCities, setSearchingCities] = useState(false)
@@ -149,7 +149,7 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
         state,
         stateFull,
         zip,
-      } as any)
+      } as Partial<typeof c>)
 
       // Store lat/lng for nearby cities search
       if (place.geometry?.location) {
@@ -231,14 +231,14 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
   function toggleCity(cityName: string) {
     const current = c.nearbyCities || []
     if (current.includes(cityName)) {
-      updateNested('company', { nearbyCities: current.filter((x: string) => x !== cityName) } as any)
+      updateNested('company', { nearbyCities: current.filter((x: string) => x !== cityName) } as Partial<typeof c>)
     } else if (current.filter(Boolean).length < 4) {
       const updated = [...current]
       // Fill into first empty slot
       const emptyIdx = updated.findIndex(x => !x)
       if (emptyIdx >= 0) updated[emptyIdx] = cityName
       else updated.push(cityName)
-      updateNested('company', { nearbyCities: updated.slice(0, 4) } as any)
+      updateNested('company', { nearbyCities: updated.slice(0, 4) } as Partial<typeof c>)
     }
   }
 
@@ -285,10 +285,10 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
           />
         </div>
 
-        <Field label="City" required value={c.city} onChange={v => set('city', v)} placeholder="Eau Claire" />
+        <Field label="City" required value={c.city} onChange={v => set('city', v)} placeholder="Your City" />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="State" value={c.state} onChange={v => set('state', v)} placeholder="WI" />
-          <Field label="ZIP" value={c.zip} onChange={v => set('zip', v)} placeholder="54701" />
+          <Field label="State" value={c.state} onChange={v => set('state', v)} placeholder="ST" />
+          <Field label="ZIP" value={c.zip} onChange={v => set('zip', v)} placeholder="00000" />
         </div>
         <div className="col-span-2">
           <Field label="Service Region Name" value={c.serviceRegion} onChange={v => set('serviceRegion', v)} placeholder="e.g. Greater Metro Area" />
@@ -356,7 +356,7 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
                 onChange={e => {
                   const cities = [...(c.nearbyCities || ['', '', '', ''])]
                   cities[i] = e.target.value
-                  updateNested('company', { nearbyCities: cities } as any)
+                  updateNested('company', { nearbyCities: cities } as Partial<typeof c>)
                 }}
                 placeholder={'Nearby city ' + (i + 1)}
                 className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"

@@ -332,7 +332,8 @@ export async function deployCustomer(
     results.steps.push({ step: 'extract', status: 'ok' })
 
     // Step 2: GitHub repo
-    const org = process.env.GITHUB_ORG || process.env.GITHUB_USER || ''
+    const org = process.env.GITHUB_ORG || process.env.GITHUB_USER
+    if (!org) throw new Error('GITHUB_ORG or GITHUB_USER must be set')
     await deleteGitHubRepo(org + '/' + slug)
     const repo = await createGitHubRepo(slug, 'Twomiah Factory: ' + (factoryCustomer.name || slug))
     results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name })

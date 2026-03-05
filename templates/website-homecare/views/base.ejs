@@ -90,7 +90,7 @@
   <%
     const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
     const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
-    const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '123 Main St';
+    const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '{{COMPANY_ADDRESS}}';
     const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
     const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : '{{STATE}}';
     const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
@@ -119,28 +119,14 @@
       "postalCode": "<%= zip %>",
       "addressCountry": "US"
     },
-    "geo": {
-      "@type": "GeoCoordinates",
-      "latitude": 44.8113,
-      "longitude": -91.4985
-    },
     "areaServed": [
       {
         "@type": "City",
         "name": "{{CITY}}",
         "containedInPlace": {
           "@type": "State",
-          "name": "{{STATE}}"
+          "name": "{{STATE_FULL}}"
         }
-      },
-      {
-        "@type": "GeoCircle",
-        "geoMidpoint": {
-          "@type": "GeoCoordinates",
-          "latitude": 44.8113,
-          "longitude": -91.4985
-        },
-        "geoRadius": 50000
       }
     ],
     "priceRange": "$$"

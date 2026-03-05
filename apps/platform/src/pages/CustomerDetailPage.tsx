@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { supabase } from '../supabase'
+import { supabase, API_URL as API } from '../supabase'
 import {
   ArrowLeft, Download, Rocket, RefreshCw, ExternalLink,
   Globe, Clock, CheckCircle, XCircle, AlertCircle,
   Copy, ChevronRight, DollarSign, CreditCard, Package,
   Save, Trash2, Edit3, Database, Palette
 } from 'lucide-react'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 type Tenant = {
   id: string; name: string; slug: string; email: string; phone: string
@@ -139,7 +137,7 @@ export default function CustomerDetailPage() {
       ])
       if (stripeRes.ok) { const d = await stripeRes.json(); setStripeConfigured(d.configured) }
       if (deployRes.ok) { const d = await deployRes.json(); setDeployConfigured(d.configured) }
-    } catch {}
+    } catch (e) { console.warn('[CustomerDetail] Config fetch failed:', e) }
   }
 
   async function handleSave() {
@@ -163,8 +161,8 @@ export default function CustomerDetailPage() {
       showToast('Customer updated')
       setEditMode(false)
       load()
-    } catch (e: any) {
-      showToast(e.message || 'Failed to save', 'error')
+    } catch (e: unknown) {
+      showToast(e instanceof Error ? e.message : 'Failed to save', 'error')
     } finally {
       setSaving(false)
     }
@@ -176,7 +174,7 @@ export default function CustomerDetailPage() {
       await supabase.from('factory_jobs').delete().eq('tenant_id', id!)
       await supabase.from('tenants').delete().eq('id', id!)
       navigate('/tenants')
-    } catch (e: any) {
+    } catch (e: unknown) {
       showToast('Failed to delete', 'error')
     }
   }
@@ -192,8 +190,8 @@ export default function CustomerDetailPage() {
       })
       setJobs(prev => prev.filter(j => j.id !== jobId))
       showToast('Build deleted', 'success')
-    } catch (e: any) {
-      showToast('Failed to delete: ' + e.message, 'error')
+    } catch (e: unknown) {
+      showToast('Failed to delete: ' + (e instanceof Error ? e.message : 'unknown error'), 'error')
     } finally {
       setDeletingJob(null)
     }
@@ -213,7 +211,7 @@ export default function CustomerDetailPage() {
       const data = await res.json()
       if (res.ok) { showToast('Deployment started! Services will be live in a few minutes.'); setTimeout(load, 15000) }
       else showToast(data.error || 'Deploy failed', 'error')
-    } catch (e: any) {
+    } catch (e: unknown) {
       showToast('Deploy failed', 'error')
     } finally {
       setDeploying(false)

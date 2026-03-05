@@ -236,7 +236,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ENABLE_SANDATA_EVV}}': 'false',
     '{{ENABLE_GUSTO}}': 'false',
     '{{ENABLE_WORCS}}': 'false',
-    '{{DATABASE_URL}}': 'postgresql://user:pass@localhost:5432/' + slug + '_crm',
+    '{{DATABASE_URL}}': 'postgresql://USER:PASSWORD@HOST:5432/' + slug + '_crm',
     '{{TWILIO_ACCOUNT_SID}}': (config.integrations?.twilio?.accountSid || '').trim(),
     '{{TWILIO_AUTH_TOKEN}}': (config.integrations?.twilio?.authToken || '').trim(),
     '{{TWILIO_PHONE_NUMBER}}': (config.integrations?.twilio?.phoneNumber || '').trim(),

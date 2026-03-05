@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../supabase'
+import { supabase, API_URL as API } from '../supabase'
 import { Users, Factory, TrendingUp, Activity, DollarSign, AlertCircle } from 'lucide-react'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({ tenants: 0, active: 0, saas: 0, owned: 0 })
@@ -27,7 +25,7 @@ export default function DashboardPage() {
       fetch(API + '/api/v1/factory/billing/summary', { headers: { Authorization: 'Bearer ' + session.access_token } })
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d) setBilling(d) })
-        .catch(() => {})
+        .catch(e => console.warn('[Dashboard] Billing fetch failed:', e))
     })
   }, [])
 

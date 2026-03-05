@@ -299,9 +299,9 @@ factory.post('/customers/:id/deploy', async (c) => {
     console.log('[Deploy] Looking up tenant:', tenantId)
 
     const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
-    if (!tenant) {
+    if (tenantErr || !tenant) {
       console.log('[Deploy] Tenant not found:', tenantErr?.message)
-      return c.json({ error: 'Tenant not found', id: tenantId }, 404)
+      return c.json({ error: tenantErr?.code === 'PGRST116' ? 'Tenant not found' : (tenantErr?.message || 'Tenant not found'), id: tenantId }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
     }
 
     console.log('[Deploy] Found tenant:', tenant.name, tenant.slug)
@@ -464,8 +464,8 @@ factory.post('/customers/:id/regenerate', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
-    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
 
     const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
     if (!job) return c.json({ error: 'No previous build found. Generate a package first.' }, 400)
@@ -522,8 +522,8 @@ factory.delete('/jobs/:id', async (c) => {
   try {
     const jobId = c.req.param('id')
     if (!UUID_RE.test(jobId)) return c.json({ error: 'Invalid job ID format' }, 400)
-    const { data: job } = await supabase.from('factory_jobs').select('*').eq('id', jobId).single()
-    if (!job) return c.json({ error: 'Job not found' }, 404)
+    const { data: job, error: jobErr } = await supabase.from('factory_jobs').select('*').eq('id', jobId).single()
+    if (jobErr || !job) return c.json({ error: jobErr?.message || 'Job not found' }, jobErr && jobErr.code !== 'PGRST116' ? 500 : 404)
 
     if (job.storage_key) {
       await deleteZip(job.storage_key, job.storage_type || 'local')
@@ -553,8 +553,8 @@ factory.post('/customers/:id/checkout/subscription', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
-    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
 
     const { planId, monthlyAmount, billingCycle, trialDays } = await c.req.json()
     const result = await factoryStripe.createSubscriptionCheckout(
@@ -579,8 +579,8 @@ factory.post('/customers/:id/checkout/license', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
-    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
 
     const { planId, amount } = await c.req.json()
     const result = await factoryStripe.createLicenseCheckout(

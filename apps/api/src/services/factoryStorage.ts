@@ -57,7 +57,7 @@ if (USE_S3) {
 const S3_PREFIX = 'factory-builds/'
 
 export async function uploadZip(localZipPath: string, zipName: string): Promise<{ storageKey: string; storageType: 's3' | 'local' }> {
-  if (!USE_S3 || !s3Client) {
+  if (!USE_S3 || !s3Client || !S3_BUCKET) {
     return { storageKey: localZipPath, storageType: 'local' }
   }
 
@@ -80,7 +80,7 @@ export async function uploadZip(localZipPath: string, zipName: string): Promise<
 }
 
 export async function getZipDownloadUrl(storageKey: string, storageType: string, expiresIn = 3600): Promise<string | null> {
-  if (storageType === 's3' && s3Client) {
+  if (storageType === 's3' && s3Client && S3_BUCKET) {
     const { GetObjectCommand } = await import('@aws-sdk/client-s3')
     const { getSignedUrl } = await import('@aws-sdk/s3-request-presigner')
     const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: storageKey })
@@ -92,7 +92,7 @@ export async function getZipDownloadUrl(storageKey: string, storageType: string,
 
 export async function deleteZip(storageKey: string, storageType: string): Promise<void> {
   try {
-    if (storageType === 's3' && s3Client) {
+    if (storageType === 's3' && s3Client && S3_BUCKET) {
       const { DeleteObjectCommand } = await import('@aws-sdk/client-s3')
       await s3Client.send(new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: storageKey }))
       console.log('[FactoryStorage] Deleted S3 zip:', storageKey)
@@ -104,20 +104,3 @@ export async function deleteZip(storageKey: string, storageType: string): Promis
   }
 }
 
-export async function downloadZip(storageKey: string, storageType: string): Promise<string> {
-  if (storageType === 's3' && s3Client) {
-    const { GetObjectCommand } = await import('@aws-sdk/client-s3')
-    const command = new GetObjectCommand({ Bucket: S3_BUCKET, Key: storageKey })
-    const response = await s3Client.send(command)
-    const tmpBase = process.env.TEMP || process.env.TMP || (process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp')
-    const localPath = path.join(tmpBase, path.basename(storageKey))
-    const chunks: Buffer[] = []
-    for await (const chunk of response.Body as AsyncIterable<Buffer>) { chunks.push(chunk) }
-    fs.writeFileSync(localPath, Buffer.concat(chunks))
-    return localPath
-  }
-  return storageKey
-}
-
-export const factoryStorage = { uploadZip, getZipDownloadUrl, deleteZip, downloadZip, USE_S3 }
-export default factoryStorage

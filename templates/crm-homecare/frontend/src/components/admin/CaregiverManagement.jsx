@@ -494,7 +494,7 @@ const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
                 </div>
                 <div className="form-group">
                   <label>Zip</label>
-                  <input type="text" value={editData.zip} onChange={(e) => setEditData({ ...editData, zip: e.target.value })} placeholder="54701" maxLength="10" />
+                  <input type="text" value={editData.zip} onChange={(e) => setEditData({ ...editData, zip: e.target.value })} placeholder="00000" maxLength="10" />
                 </div>
               </div>
 

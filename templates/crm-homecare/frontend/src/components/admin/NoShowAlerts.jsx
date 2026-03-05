@@ -214,7 +214,7 @@ export default function NoShowAlerts({ token }) {
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.3rem', color: '#374151' }}>Admin Phone (for SMS)</label>
               <input value={config.admin_phone || ''} onChange={e => setConfig(c => ({ ...c, admin_phone: e.target.value }))}
-                placeholder='+17155551234'
+                placeholder='+15555551234'
                 style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.88rem', boxSizing: 'border-box' }} />
             </div>
 

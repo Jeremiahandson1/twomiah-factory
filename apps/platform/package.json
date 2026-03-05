@@ -1,5 +1,5 @@
 {
-  "name": "platform",
+  "name": "@twomiah/platform",
   "private": true,
   "version": "0.0.0",
   "type": "module",

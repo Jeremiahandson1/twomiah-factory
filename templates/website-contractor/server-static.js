@@ -19,7 +19,7 @@ const PORT = process.env.PORT || 5000;
 // Ensure uploads directory exists
 const appPaths = require('./config/paths');
 const uploadsDir = appPaths.uploads;
-const BASE_URL = process.env.BASE_URL || '{{SITE_URL}}';
+const BASE_URL = process.env.SITE_URL || '{{SITE_URL}}';
 
 // Check if we have a build directory
 const buildDir = path.join(__dirname, 'admin', 'dist');

@@ -9,7 +9,7 @@ const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.b
 // Settings with fallbacks
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
 const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
-const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '123 Main St';
+const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '{{COMPANY_ADDRESS}}';
 const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
 const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : '{{STATE}}';
 const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
@@ -65,7 +65,7 @@ function getImageUrl(p) {
           <% if (hero.image) { %>
             <img
               src="<%= getImageUrl(hero.image) %>"
-              alt="Home care caregiver with client in {{CITY}} WI"
+              alt="Home care caregiver with client in {{CITY}} {{STATE}}"
               class="hero-photo-img"
               loading="eager"
             >
@@ -228,7 +228,7 @@ function getImageUrl(p) {
         <div class="hc-contact-form-wrap">
           <h3>Request a Free Consultation</h3>
           <p class="form-subhead">Tell us a little about your situation and we'll be in touch soon.</p>
-          <form id="contact-form" method="POST" action="/api/leads">
+          <form id="contact-form" method="POST" action="/api/admin/leads">
             <div class="hc-form-group">
               <label>Your Name</label>
               <input type="text" name="name" required placeholder="">

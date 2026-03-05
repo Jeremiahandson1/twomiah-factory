@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Plus, Trash2, RefreshCw, Sparkles } from 'lucide-react'
-import { supabase } from '../../supabase'
+import { supabase, API_URL } from '../../supabase'
 import type { FactoryConfig } from './types'
 import { NavButtons } from './StepProducts'
 
@@ -30,18 +30,23 @@ const CONTRACTOR_SERVICES = [
 
 export default function StepContent({ config, setConfig, onNext, onBack }: Props) {
   const [generating, setGenerating] = useState(false)
+  const [error, setError] = useState('')
   const [customServiceName, setCustomServiceName] = useState('')
   const industry = config.company?.industry || ''
   const serviceOptions = industry === 'home_care' ? HOME_CARE_SERVICES : CONTRACTOR_SERVICES
   const content = config.content
   const selectedServices = content.services?.length > 0 ? content.services : serviceOptions.slice(0, 6).map(s => s.id)
 
-  // Write default services to config state on mount if not yet set
+  // Initialize default services on mount (intentionally runs once)
   useEffect(() => {
     if (!content.services || content.services.length === 0) {
-      setConfig(prev => ({ ...prev, content: { ...prev.content, services: serviceOptions.slice(0, 6).map(s => s.id) } }))
+      setConfig(prev => {
+        const opts = (prev.company?.industry === 'home_care' ? HOME_CARE_SERVICES : CONTRACTOR_SERVICES)
+        return { ...prev, content: { ...prev.content, services: opts.slice(0, 6).map(s => s.id) } }
+      })
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const updateContent = (patch: Partial<FactoryConfig['content']>) =>
     setConfig(prev => ({ ...prev, content: { ...prev.content, ...patch } }))
@@ -67,9 +72,9 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
   })
 
   const generateWithAI = async () => {
-    setGenerating(true)
+    setGenerating(true); setError('')
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+      const apiUrl = API_URL
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch(apiUrl + '/api/v1/factory/generate-content', {
         method: 'POST',
@@ -92,7 +97,7 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
         ctaText: data.ctaText || content.ctaText,
       })
     } catch {
-      alert('AI generation unavailable — fill in content manually.')
+      setError('AI generation unavailable — fill in content manually.')
     }
     setGenerating(false)
   }
@@ -154,6 +159,7 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
             {generating ? <><RefreshCw size={14} className="animate-spin" /> Generating...</> : <><Sparkles size={14} /> Generate</>}
           </button>
         </div>
+        {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
       </div>
 
       <div className="flex flex-col gap-4 mb-4">

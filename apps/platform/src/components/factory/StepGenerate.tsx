@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Zap, Loader2, Check, AlertCircle, Download } from 'lucide-react'
-import { supabase } from '../../supabase'
+import { supabase, API_URL } from '../../supabase'
 import type { FactoryConfig } from './types'
 
 type Props = { config: FactoryConfig; onBack: () => void; onReset: () => void }
@@ -23,7 +23,7 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
   const [error, setError] = useState('')
   const [deploying, setDeploying] = useState(false)
   const [deployResult, setDeployResult] = useState<any>(null)
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+  const apiUrl = API_URL
 
   const handleGenerate = async () => {
     setGenerating(true); setError('')
