@@ -2,7 +2,7 @@
   "name": "{{COMPANY_SLUG}}-care-backend",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/server.js",
+    "dev": "nodemon src/index.js",
     "test": "jest --testPathPattern=tests/ --forceExit --detectOpenHandles",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",

@@ -17,31 +17,33 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, 'dist');
 
-// Every public route that should be prerendered
-const routes = [
-  '/',
-  '/gallery',
-  '/services/roofing',
-  '/services/roofing/asphalt-shingles',
-  '/services/roofing/metal-roofing',
-  '/services/roofing/storm-damage',
-  '/services/roofing/roof-repair',
-  '/services/siding',
-  '/services/siding/james-hardie',
-  '/services/siding/lp-smartside',
-  '/services/siding/vinyl-siding',
-  '/services/siding/soffit-fascia',
-  '/services/windows',
-  '/services/windows/replacement-windows',
-  '/services/windows/entry-doors',
-  '/services/windows/patio-doors',
-  '/services/insulation',
-  '/services/insulation/blown-in-insulation',
-  '/services/insulation/spray-foam',
-  '/services/insulation/air-sealing',
-  '/services/remodeling',
-  '/services/new-construction',
-];
+// Static routes that every site has
+const staticRoutes = ['/', '/gallery'];
+
+// Discover service routes from the backend API at build time
+async function discoverRoutes(port) {
+  try {
+    const res = await fetch(`http://localhost:${port}/api/services-data`);
+    const services = await res.json();
+    if (!Array.isArray(services)) return staticRoutes;
+
+    const serviceRoutes = [];
+    for (const svc of services) {
+      if (svc.slug) {
+        serviceRoutes.push(`/services/${svc.slug}`);
+        if (Array.isArray(svc.subServices)) {
+          for (const sub of svc.subServices) {
+            if (sub.slug) serviceRoutes.push(`/services/${svc.slug}/${sub.slug}`);
+          }
+        }
+      }
+    }
+    return [...staticRoutes, ...serviceRoutes];
+  } catch {
+    // If API isn't available, just prerender the static routes
+    return staticRoutes;
+  }
+}
 
 // Simple static file server for the built dist
 function startServer(port) {
@@ -111,6 +113,7 @@ async function prerender() {
   const PORT = 4173;
   const server = await startServer(PORT);
   
+  const routes = await discoverRoutes(PORT);
   console.log(`\n🔍 Prerendering ${routes.length} routes for SEO...\n`);
 
   let browser;

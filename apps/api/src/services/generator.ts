@@ -270,7 +270,7 @@ function copyAndInject(src: string, dest: string, tokens: Record<string, string>
     } else {
       const ext = path.extname(entry.name).toLowerCase()
       const base = entry.name.toLowerCase()
-      if (TEXT_EXTS.has(ext) || base.startsWith('.env') || base.endsWith('.template')) {
+      if (TEXT_EXTS.has(ext) || (base.startsWith('.env') && !base.endsWith('.example')) || base.endsWith('.template')) {
         let content = fs.readFileSync(srcPath, 'utf8')
         content = injectTokens(content, tokens)
         fs.writeFileSync(destPath, content, 'utf8')

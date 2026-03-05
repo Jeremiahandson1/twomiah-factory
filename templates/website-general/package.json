@@ -1,5 +1,5 @@
 {
-  "name": "{{COMPANY_SLUG}}-api",
+  "name": "{{COMPANY_SLUG}}-site",
   "version": "1.0.0",
   "description": "Backend API for {{COMPANY_NAME}} with CMS",
   "main": "server.js",
