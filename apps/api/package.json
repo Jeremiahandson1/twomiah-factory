@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.55.0",
-    "@supabase/supabase-js": "^2.49.4",
+    "@supabase/supabase-js": "^2.98.0",
     "adm-zip": "^0.5.16",
     "bcryptjs": "^3.0.2",
     "hono": "^4.7.9",

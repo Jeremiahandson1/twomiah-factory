@@ -10,7 +10,7 @@ const fs = require('fs');
 const adminRoutes = require('./routes/admin');
 const servicesRoutes = (() => { try { return require('./routes/services'); } catch(e) { const r = require('express').Router(); r.get('/', (_, res) => res.json([])); return r; } })();
 const { startSchedule: startBackups } = require('./services/autoBackup');
-const { rebuildMiddleware } = (() => { try { return require('./rebuild-middleware'); } catch(e) { return { rebuildMiddleware: (req, res, next) => next() }; } })();
+const { rebuildMiddleware } = (() => { try { return require('./services/rebuild-middleware'); } catch(e) { return { rebuildMiddleware: (req, res, next) => next() }; } })();
 
 const app = express();
 app.set('trust proxy', 1);

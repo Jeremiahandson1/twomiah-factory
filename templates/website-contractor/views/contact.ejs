@@ -23,7 +23,7 @@
         <div class="contact-form-wrapper">
           <h2>Request a Free Estimate</h2>
           
-          <form action="/api/contact" method="POST" class="contact-form" id="contactForm">
+          <form action="/api/admin/leads" method="POST" class="contact-form" id="contactForm">
             <div class="form-row">
               <div class="form-group">
                 <label for="name">Full Name *</label>
@@ -306,7 +306,7 @@
       submitButton.textContent = 'Sending...';
       
       try {
-        const response = await fetch('/api/contact', {
+        const response = await fetch('/api/admin/leads', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(data)
