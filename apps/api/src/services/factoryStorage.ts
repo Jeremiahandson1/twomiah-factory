@@ -49,7 +49,7 @@ async function initS3() {
 }
 
 if (USE_S3) {
-  initS3().catch(e => console.warn('[FactoryStorage] S3 init failed:', e.message))
+  initS3().catch(e => console.error('[FactoryStorage] S3 init failed — uploads will use local storage:', e.message))
 } else {
   console.log('[FactoryStorage] Using LOCAL disk — zips will be lost on Render redeploy. Set STORAGE_BACKEND=s3 for production.')
 }

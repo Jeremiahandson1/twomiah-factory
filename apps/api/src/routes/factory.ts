@@ -337,7 +337,11 @@ factory.post('/customers/:id/deploy', async (c) => {
     const deployOptions = { region: body.region, plan: body.plan, dbPlan: body.dbPlan }
 
     // Update status to deploying
-    await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
+    const { error: statusErr } = await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
+    if (statusErr) {
+      console.error('[Deploy] Failed to set deploying status:', statusErr.message)
+      return c.json({ error: 'Failed to update job status' }, 500)
+    }
 
     // Run deploy in background
     runDeploy(tenant, job, deployOptions).catch(err => console.error('[Deploy] Background error:', err.message))
@@ -427,13 +431,15 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.deployedUrl) tenantUpdate.render_frontend_url = result.deployedUrl
       if (result.apiUrl) tenantUpdate.render_backend_url = result.apiUrl
       if (result.siteUrl) tenantUpdate.website_url = result.siteUrl
-      await supabase.from('tenants').update(tenantUpdate).eq('id', tenant.id)
+      const { error: tenantUpdateErr } = await supabase.from('tenants').update(tenantUpdate).eq('id', tenant.id)
+      if (tenantUpdateErr) console.error('[Deploy] Tenant update error:', tenantUpdateErr.message)
     }
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
   } catch (err: any) {
     console.error('[Deploy] Background deploy failed:', err.message)
-    await supabase.from('factory_jobs').update({ status: 'failed' }).eq('id', job.id)
+    const { error: failErr } = await supabase.from('factory_jobs').update({ status: 'failed' }).eq('id', job.id)
+    if (failErr) console.error('[Deploy] Failed to set failed status:', failErr.message)
   }
 }
 
@@ -613,8 +619,9 @@ factory.post('/customers/:id/regenerate', async (c) => {
         // Check no other deploy is in progress for this tenant
         const { data: activeJobs } = await supabase.from('factory_jobs').select('id').eq('tenant_id', tenantId).eq('status', 'deploying')
         if (!activeJobs?.length) {
-          await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
-          runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
+          const { error: deployStatusErr } = await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
+          if (deployStatusErr) console.error('[Deploy] Failed to set deploying status:', deployStatusErr.message)
+          else runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
         } else {
           console.log('[Factory] Skipping auto-deploy — another deploy is already running for tenant', tenantId)
         }

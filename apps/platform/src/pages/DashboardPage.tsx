@@ -25,7 +25,7 @@ export default function DashboardPage() {
       fetch(API + '/api/v1/factory/billing/summary', { headers: { Authorization: 'Bearer ' + session.access_token } })
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d) setBilling(d) })
-        .catch(e => console.warn('[Dashboard] Billing fetch failed:', e))
+        .catch(() => setError('Failed to load billing data'))
     })
   }, [])
 

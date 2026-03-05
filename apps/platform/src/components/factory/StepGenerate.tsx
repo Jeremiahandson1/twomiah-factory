@@ -33,13 +33,17 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token || ''
       setAuthToken(token)
+      if (!token) throw new Error('Not authenticated. Please sign in again.')
       const res = await fetch(apiUrl + '/api/v1/factory/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify(config),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Generation failed')
+      }
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Generation failed')
       setResult(data)
     } catch (err: any) { setError(err.message) }
     setGenerating(false)
@@ -50,13 +54,18 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
     setDeploying(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) throw new Error('Not authenticated. Please sign in again.')
       const res = await fetch(apiUrl + '/api/v1/factory/customers/' + result.customerId + '/deploy', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + session?.access_token, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
         body: JSON.stringify({ dbPlan: 'basic-256mb' }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Deploy failed')
+      }
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Deploy failed')
       setDeployResult(data)
     } catch (err: any) { setError(err.message) }
     setDeploying(false)

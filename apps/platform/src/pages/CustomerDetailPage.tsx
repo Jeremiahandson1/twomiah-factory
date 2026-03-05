@@ -49,7 +49,7 @@ function StatusBadge({ status }: { status: string }) {
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   return (
-    <button onClick={() => { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+    <button onClick={() => { navigator.clipboard.writeText(value).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
       className="text-gray-500 hover:text-gray-300 transition-colors ml-1">
       {copied ? <CheckCircle size={14} className="text-green-400" /> : <Copy size={14} />}
     </button>
@@ -131,6 +131,7 @@ export default function CustomerDetailPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
+      if (!token) return
       const [stripeRes, deployRes] = await Promise.all([
         fetch(API + '/api/v1/factory/stripe/config', { headers: { Authorization: 'Bearer ' + token } }),
         fetch(API + '/api/v1/factory/deploy/config',  { headers: { Authorization: 'Bearer ' + token } }),
@@ -184,9 +185,10 @@ export default function CustomerDetailPage() {
     setDeletingJob(jobId)
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); return }
       await fetch(API + '/api/v1/factory/jobs/' + jobId, {
         method: 'DELETE',
-        headers: { 'Authorization': 'Bearer ' + session?.access_token },
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
       })
       setJobs(prev => prev.filter(j => j.id !== jobId))
       showToast('Build deleted', 'success')
@@ -203,9 +205,10 @@ export default function CustomerDetailPage() {
     setShowDeployModal(false)
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setDeploying(false); return }
       const res = await fetch(API + '/api/v1/factory/customers/' + tenant.id + '/deploy', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + session?.access_token, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
         body: JSON.stringify({ region: 'ohio', plan: 'free', dbPlan: deployPlan }),
       })
       const data = await res.json()
@@ -222,9 +225,10 @@ export default function CustomerDetailPage() {
     if (!tenant) return
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); return }
       const res = await fetch(API + '/api/v1/factory/customers/' + tenant.id + '/redeploy', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + session?.access_token },
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
       })
       if (res.ok) showToast('Redeploy triggered')
       else { const d = await res.json(); showToast(d.error || 'Redeploy failed', 'error') }
@@ -237,9 +241,10 @@ export default function CustomerDetailPage() {
     setDeploying(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setDeploying(false); return }
       const res = await fetch(API + '/api/v1/factory/customers/' + tenant.id + '/regenerate', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + session?.access_token },
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
       })
       if (res.ok) { showToast('Regenerating and deploying...'); load() }
       else { const d = await res.json(); showToast(d.error || 'Regenerate failed', 'error') }
@@ -251,6 +256,7 @@ export default function CustomerDetailPage() {
     setCheckoutLoading(type)
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setCheckoutLoading(null); return }
       const endpoint = type === 'subscription'
         ? API + '/api/v1/factory/customers/' + id + '/checkout/subscription'
         : API + '/api/v1/factory/customers/' + id + '/checkout/license'
@@ -259,12 +265,12 @@ export default function CustomerDetailPage() {
         : { planId: form.plan || 'custom', amount: Number(form.one_time_amount) || 2497 }
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + session?.access_token, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (res.ok) {
         const data = await res.json()
-        if (data.url) { await navigator.clipboard.writeText(data.url); showToast('Checkout link copied!'); window.open(data.url, '_blank') }
+        if (data.url) { navigator.clipboard.writeText(data.url).catch(() => {}); showToast('Checkout link copied!'); window.open(data.url, '_blank') }
       } else { const d = await res.json(); showToast(d.error || 'Failed to create checkout', 'error') }
     } catch { showToast('Failed to create checkout', 'error') }
     finally { setCheckoutLoading(null) }

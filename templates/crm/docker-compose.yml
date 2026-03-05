@@ -28,11 +28,11 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-{{COMPANY_SLUG}}-crm}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      PORT: 3001
+      PORT: 10000
       NODE_ENV: production
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     ports:
-      - "3001:3001"
+      - "3001:10000"
     volumes:
       - uploads:/app/uploads
       - logs:/app/logs
@@ -41,7 +41,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:10000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

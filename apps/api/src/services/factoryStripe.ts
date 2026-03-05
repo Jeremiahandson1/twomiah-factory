@@ -11,7 +11,7 @@
 
 import Stripe from 'stripe'
 
-const FRONTEND_URL = process.env.PLATFORM_URL || 'http://localhost:5173'
+const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
 let stripe: Stripe | null = null
 if (process.env.STRIPE_SECRET_KEY) {

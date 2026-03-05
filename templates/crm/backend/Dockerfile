@@ -27,6 +27,6 @@ RUN mkdir -p uploads logs && chown -R expressjs:nodejs uploads logs
 
 USER expressjs
 
-EXPOSE 3001
+EXPOSE 10000
 
 CMD ["node", "src/index.js"]

@@ -12,10 +12,11 @@ app.use('*', bodyLimit({ maxSize: 15 * 1024 * 1024, onError: (c) => c.json({ err
 app.use('*', cors({
   origin: (origin) => {
     const allowed = [
-      'http://localhost:5173',
-      'http://localhost:3000',
       'https://twomiah-factory-platform.onrender.com',
     ]
+    if (process.env.NODE_ENV !== 'production') {
+      allowed.push('http://localhost:5173', 'http://localhost:3000')
+    }
     if (process.env.PLATFORM_URL) allowed.push(process.env.PLATFORM_URL)
     return allowed.includes(origin) ? origin : ''
   },
@@ -26,7 +27,7 @@ app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
 
 app.route('/api/v1/factory', factoryRoutes)
 
-const port = parseInt(process.env.PORT || '3001')
+const port = Number(process.env.PORT || '3001') || 3001
 console.log(`[API] Twomiah Factory API running on port ${port}`)
 
 export default {

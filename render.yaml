@@ -24,6 +24,12 @@ services:
         sync: false
       - key: PLATFORM_URL
         sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_FACTORY_WEBHOOK_SECRET
+        sync: false
       - key: CRON_SECRET
         generateValue: true
       - key: PORT
@@ -38,6 +44,12 @@ services:
     startCommand: cd apps/platform && npx serve dist -s -l $PORT
     envVars:
       - key: VITE_API_URL
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_GOOGLE_MAPS_KEY
         sync: false
       - key: PORT
         value: "3000"
