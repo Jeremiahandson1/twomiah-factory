@@ -417,7 +417,8 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       // If render_service_ids column doesn't exist, retry without it
       if (updateErr.code === '42703') {
         delete jobUpdate.render_service_ids
-        await supabase.from('factory_jobs').update(jobUpdate).eq('id', job.id)
+        const { error: retryErr } = await supabase.from('factory_jobs').update(jobUpdate).eq('id', job.id)
+        if (retryErr) console.error('[Deploy] Job update retry also failed:', retryErr.message)
       }
     }
 
@@ -539,7 +540,22 @@ factory.post('/cleanup', async (c) => {
     console.log('[Cleanup] Reset', resetCount, 'stale deploying jobs')
   }
 
-  return c.json({ cleaned, staleJobsReset: resetCount, message: 'Removed ' + cleaned + ' old builds, reset ' + resetCount + ' stale jobs' })
+  // Clean up orphaned DB records whose zip files no longer exist
+  const jobMaxAge = maxAge || 24 * 60 * 60 * 1000
+  const jobThreshold = new Date(Date.now() - jobMaxAge).toISOString()
+  const { data: oldJobs } = await supabase.from('factory_jobs')
+    .select('id')
+    .in('status', ['complete', 'failed'])
+    .lt('created_at', jobThreshold)
+  let deletedJobs = 0
+  if (oldJobs?.length) {
+    const ids = oldJobs.map((j: any) => j.id)
+    await supabase.from('factory_jobs').delete().in('id', ids)
+    deletedJobs = ids.length
+    console.log('[Cleanup] Deleted', deletedJobs, 'old job records')
+  }
+
+  return c.json({ cleaned, staleJobsReset: resetCount, oldJobsDeleted: deletedJobs, message: 'Removed ' + cleaned + ' old builds, reset ' + resetCount + ' stale jobs, deleted ' + deletedJobs + ' old job records' })
 })
 
 
@@ -641,6 +657,9 @@ factory.post('/customers/:id/checkout/subscription', async (c) => {
     if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
 
     const { planId, monthlyAmount, billingCycle, trialDays } = await c.req.json()
+    if (monthlyAmount !== undefined && (typeof monthlyAmount !== 'number' || monthlyAmount <= 0)) return c.json({ error: 'monthlyAmount must be a positive number' }, 400)
+    if (billingCycle && !['monthly', 'annual'].includes(billingCycle)) return c.json({ error: 'billingCycle must be "monthly" or "annual"' }, 400)
+    if (trialDays !== undefined && (typeof trialDays !== 'number' || trialDays < 0 || !Number.isInteger(trialDays))) return c.json({ error: 'trialDays must be a non-negative integer' }, 400)
     const result = await factoryStripe.createSubscriptionCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id },
       { planId, monthlyAmount: monthlyAmount || 149, billingCycle, trialDays }
@@ -667,6 +686,7 @@ factory.post('/customers/:id/checkout/license', async (c) => {
     if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
 
     const { planId, amount } = await c.req.json()
+    if (amount !== undefined && (typeof amount !== 'number' || amount <= 0)) return c.json({ error: 'amount must be a positive number' }, 400)
     const result = await factoryStripe.createLicenseCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, stripeCustomerId: tenant.stripe_customer_id },
       { planId, amount: amount || 2497 }

@@ -310,10 +310,15 @@ async function addStaticSiteHeaders(serviceId: string) {
     { path: '/assets/*.js', name: 'Content-Type', value: 'application/javascript' },
   ]
   for (const h of headers) {
-    await fetch(RENDER_API + '/services/' + serviceId + '/headers', {
-      method: 'POST', headers: renderHeaders(),
-      body: JSON.stringify(h),
-    })
+    try {
+      const res = await fetch(RENDER_API + '/services/' + serviceId + '/headers', {
+        method: 'POST', headers: renderHeaders(),
+        body: JSON.stringify(h),
+      })
+      if (!res.ok) console.warn('[Deploy] Failed to add header for', h.path, '- status:', res.status)
+    } catch (e: any) {
+      console.warn('[Deploy] Failed to add header for', h.path, '-', e.message)
+    }
   }
 }
 
