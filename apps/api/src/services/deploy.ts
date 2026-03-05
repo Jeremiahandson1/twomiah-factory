@@ -515,7 +515,7 @@ export async function deployCustomer(
         const siteUrl = 'https://' + slug + '-site.onrender.com'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
-          buildCommand: 'npm install',
+          buildCommand: 'npm install && if [ -f admin/package.json ]; then cd admin && npm install && npm run build && cd ..; fi',
           startCommand: 'NODE_ENV=production node server-static.js',
           envVars: [
             { key: 'NODE_ENV', value: 'production' },
