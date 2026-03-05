@@ -607,10 +607,10 @@ export default function CustomerDetailPage() {
                       <div className="flex items-center gap-3">
                         <StatusBadge status={job.status} />
                         {downloadUrl ? (
-                          <a href={downloadUrl}
+                          <button onClick={async () => { const { data: { session: s } } = await supabase.auth.getSession(); window.open(downloadUrl + '?token=' + (s?.access_token || ''), '_blank') }}
                             className="flex items-center gap-1.5 text-gray-400 hover:text-white text-xs transition-colors px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700">
                             <Download size={13} /> ZIP
-                          </a>
+                          </button>
                         ) : (
                           <span className="flex items-center gap-1.5 text-gray-600 text-xs px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700 cursor-not-allowed">
                             <Download size={13} /> ZIP

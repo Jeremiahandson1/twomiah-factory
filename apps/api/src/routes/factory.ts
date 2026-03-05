@@ -14,7 +14,7 @@ const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook')) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/')) return next()
   return authenticate(c, next)
 })
 
@@ -97,6 +97,17 @@ factory.get('/download/:buildId/:filename', async (c) => {
   const { buildId, filename } = c.req.param()
   if (!UUID_RE.test(buildId) || !/^[a-zA-Z0-9_-]+\.zip$/.test(filename)) {
     return c.json({ error: 'Invalid download parameters' }, 400)
+  }
+
+  // Support token query param for direct browser downloads (links can't send Authorization headers)
+  if (!c.get('user')) {
+    const token = c.req.query('token')
+    if (token) {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
+      if (authErr || !user) return c.json({ error: 'Unauthorized' }, 401)
+    } else {
+      return c.json({ error: 'Unauthorized' }, 401)
+    }
   }
 
   // Validate buildId exists in database and filename matches

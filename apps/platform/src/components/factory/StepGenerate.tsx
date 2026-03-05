@@ -25,13 +25,17 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
   const [deployResult, setDeployResult] = useState<any>(null)
   const apiUrl = API_URL
 
+  const [authToken, setAuthToken] = useState('')
+
   const handleGenerate = async () => {
     setGenerating(true); setError('')
     try {
       const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || ''
+      setAuthToken(token)
       const res = await fetch(apiUrl + '/api/v1/factory/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session?.access_token },
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify(config),
       })
       const data = await res.json()
@@ -75,7 +79,7 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
           </div>
         )}
         {result.downloadUrl && (
-          <a href={apiUrl + result.downloadUrl} className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-gray-700 text-gray-300 hover:text-white transition-colors mb-6">
+          <a href={apiUrl + result.downloadUrl + (authToken ? '?token=' + authToken : '')} className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-gray-700 text-gray-300 hover:text-white transition-colors mb-6">
             <Download size={16} /> Download zip
           </a>
         )}
