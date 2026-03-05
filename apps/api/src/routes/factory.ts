@@ -11,6 +11,16 @@ const factory = new Hono()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 
+async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } | { data?: undefined; error: Response }> {
+  try {
+    const body = await c.req.json()
+    if (body === null || typeof body !== 'object') return { error: c.json({ error: 'Request body must be a JSON object' }, 400) }
+    return { data: body }
+  } catch {
+    return { error: c.json({ error: 'Invalid or missing JSON in request body' }, 400) }
+  }
+}
+
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
@@ -155,7 +165,9 @@ factory.get('/download/:buildId/:filename', async (c) => {
 // ─── Generate Content with AI ─────────────────────────────────────────────────
 factory.post('/generate-content', async (c) => {
   try {
-    const { companyName, city, state, industry, services, serviceRegion, ownerName } = await c.req.json()
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { companyName, city, state, industry, services, serviceRegion, ownerName } = parsed.data
     if (!companyName) return c.json({ error: 'companyName is required' }, 400)
     if (!process.env.ANTHROPIC_API_KEY) return c.json({ error: 'AI content generation not configured (missing ANTHROPIC_API_KEY)' }, 503)
 
@@ -675,7 +687,9 @@ factory.post('/customers/:id/checkout/subscription', async (c) => {
     const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
 
-    const { planId, monthlyAmount, billingCycle, trialDays } = await c.req.json()
+    const parsedBody = await parseJsonBody(c)
+    if (parsedBody.error) return parsedBody.error
+    const { planId, monthlyAmount, billingCycle, trialDays } = parsedBody.data
     if (monthlyAmount !== undefined && (typeof monthlyAmount !== 'number' || monthlyAmount <= 0)) return c.json({ error: 'monthlyAmount must be a positive number' }, 400)
     if (billingCycle && !['monthly', 'annual'].includes(billingCycle)) return c.json({ error: 'billingCycle must be "monthly" or "annual"' }, 400)
     if (trialDays !== undefined && (typeof trialDays !== 'number' || trialDays < 0 || !Number.isInteger(trialDays))) return c.json({ error: 'trialDays must be a non-negative integer' }, 400)
@@ -704,7 +718,9 @@ factory.post('/customers/:id/checkout/license', async (c) => {
     const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
     if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
 
-    const { planId, amount } = await c.req.json()
+    const parsedBody = await parseJsonBody(c)
+    if (parsedBody.error) return parsedBody.error
+    const { planId, amount } = parsedBody.data
     if (amount !== undefined && (typeof amount !== 'number' || amount <= 0)) return c.json({ error: 'amount must be a positive number' }, 400)
     const result = await factoryStripe.createLicenseCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, stripeCustomerId: tenant.stripe_customer_id },
@@ -818,7 +834,9 @@ function sanitizeCSSColor(str: string): string {
 
 factory.post('/preview', async (c) => {
   try {
-    const { config } = await c.req.json()
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { config } = parsed.data
     if (!config) return c.json({ error: 'config required' }, 400)
 
     const name = escapeHtml(config.company?.name || 'Your Company')
@@ -842,7 +860,9 @@ factory.post('/customers/:id/domain', async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { domain } = await c.req.json()
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { domain } = parsed.data
     if (!domain) return c.json({ error: 'domain is required' }, 400)
     if (!DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format. Expected format: example.com' }, 400)
 
