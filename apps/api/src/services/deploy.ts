@@ -303,11 +303,42 @@ async function createRenderStaticSite(config: {
 }
 
 async function updateRenderEnvVars(serviceId: string, envVars: Array<{ key: string; value: string }>) {
+  // Fetch existing env vars first so we don't wipe them (PUT replaces all)
+  const existing: Array<{ key: string; value: string }> = []
+  try {
+    const getRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars', {
+      method: 'GET', headers: renderHeaders(),
+    })
+    if (getRes.ok) {
+      const data = await getRes.json()
+      const items = Array.isArray(data) ? data : []
+      for (const item of items) {
+        const ev = item.envVar || item
+        if (ev.key) existing.push({ key: ev.key, value: ev.value })
+      }
+    }
+  } catch (e: any) {
+    console.warn('[Deploy] Failed to fetch existing env vars:', e.message)
+  }
+  // Merge: new values override existing
+  const updateKeys = new Set(envVars.map(ev => ev.key))
+  const merged = [
+    ...existing.filter(ev => !updateKeys.has(ev.key)),
+    ...envVars,
+  ]
   const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars', {
     method: 'PUT', headers: renderHeaders(),
-    body: JSON.stringify(envVars.map(ev => ({ key: ev.key, value: ev.value }))),
+    body: JSON.stringify(merged.map(ev => ({ key: ev.key, value: ev.value }))),
   })
   return res.ok
+}
+
+function getServiceUrl(renderResponse: any): string {
+  // Render API returns { service: { serviceDetails: { url }, slug, ... } }
+  const svc = renderResponse?.service
+  if (svc?.serviceDetails?.url) return svc.serviceDetails.url
+  if (svc?.slug) return 'https://' + svc.slug + '.onrender.com'
+  return ''
 }
 
 async function addStaticSiteHeaders(serviceId: string) {
@@ -482,14 +513,15 @@ export async function deployCustomer(
           createdResources.push({ type: 'service', id: backend.service.id, name: crmApiName })
           deployedResourceIds.push(backend.service.id)
         }
-        const backendUrl = 'https://' + crmApiName + '.onrender.com'
+        const backendUrl = getServiceUrl(backend)
+        console.log('[Deploy] Resolved backend URL:', backendUrl)
         results.apiUrl = backendUrl
 
         const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
         const frontend = await createRenderStaticSite({
           name: crmFrontName, repoFullName: repo.full_name, rootDir: 'crm/frontend',
           buildCommand: 'npm install --include=dev && npm run build', publishPath: 'dist',
-          envVars: [{ key: 'VITE_API_URL', value: backendUrl }],
+          envVars: [],
           projectId,
         })
         console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
@@ -500,10 +532,16 @@ export async function deployCustomer(
           deployedResourceIds.push(frontend.service.id)
           await addStaticSiteHeaders(frontend.service.id)
         }
-        results.deployedUrl = 'https://' + crmFrontName + '.onrender.com'
+        const frontendUrl = getServiceUrl(frontend)
+        console.log('[Deploy] Resolved frontend URL:', frontendUrl)
+        results.deployedUrl = frontendUrl
 
-        if (backend.service?.id) {
-          await updateRenderEnvVars(backend.service.id, [{ key: 'FRONTEND_URL', value: results.deployedUrl }])
+        // Now set cross-references using the real URLs from Render
+        if (frontend.service?.id && backendUrl) {
+          await updateRenderEnvVars(frontend.service.id, [{ key: 'VITE_API_URL', value: backendUrl }])
+        }
+        if (backend.service?.id && frontendUrl) {
+          await updateRenderEnvVars(backend.service.id, [{ key: 'FRONTEND_URL', value: frontendUrl }])
         }
       } catch (err: any) {
         results.steps.push({ step: 'render_crm', status: 'error', error: err.message })
@@ -514,7 +552,6 @@ export async function deployCustomer(
     // Step 7: Website service
     if (products.includes('website')) {
       try {
-        const siteUrl = 'https://' + slug + '-site.onrender.com'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
           buildCommand: 'npm install && if [ -f admin/package.json ]; then cd admin && npm install && npm run build:quick && cd ..; fi',
@@ -523,18 +560,24 @@ export async function deployCustomer(
             { key: 'NODE_ENV', value: 'production' },
             { key: 'PORT', value: '10000' },
             { key: 'JWT_SECRET', value: jwtSecret },
-            { key: 'SITE_URL', value: siteUrl },
             { key: 'SITE_NAME', value: factoryCustomer.name || slug },
           ],
           plan, region, projectId,
         })
+        console.log('[Deploy] Website creation response:', JSON.stringify(site, null, 2))
         results.steps.push({ step: 'render_site', status: 'ok', serviceId: site.service?.id })
         results.services.site = site.service
         if (site.service?.id) {
           createdResources.push({ type: 'service', id: site.service.id, name: slug + '-site' })
           deployedResourceIds.push(site.service.id)
         }
+        const siteUrl = getServiceUrl(site)
+        console.log('[Deploy] Resolved website URL:', siteUrl)
         results.siteUrl = siteUrl
+        // Set SITE_URL using the real URL from Render
+        if (site.service?.id && siteUrl) {
+          await updateRenderEnvVars(site.service.id, [{ key: 'SITE_URL', value: siteUrl }])
+        }
       } catch (err: any) {
         results.steps.push({ step: 'render_site', status: 'error', error: err.message })
         results.errors.push('Site: ' + err.message)
