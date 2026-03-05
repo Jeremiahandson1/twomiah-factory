@@ -92,7 +92,7 @@ export default function CustomerDetailPage() {
   const [deploying, setDeploying] = useState(false)
   const [deletingJob, setDeletingJob] = useState<string | null>(null)
   const [showDeployModal, setShowDeployModal] = useState(false)
-  const [deployPlan, setDeployPlan] = useState<string>('starter')
+  const [deployPlan, setDeployPlan] = useState<string>('basic_256mb')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
