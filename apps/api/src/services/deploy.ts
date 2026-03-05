@@ -248,8 +248,8 @@ async function createRenderWebService(config: {
   plan?: string; region?: string; projectId?: string | null
 }): Promise<any> {
   const envSpecificDetails: any = {
-    buildCommand: config.buildCommand || 'npm install',
-    startCommand: config.startCommand || 'npm start',
+    buildCommand: config.buildCommand || 'bun install',
+    startCommand: config.startCommand || 'bun start',
   }
   if (config.preDeployCommand) envSpecificDetails.preDeployCommand = config.preDeployCommand
   const body: any = {
@@ -285,7 +285,7 @@ async function createRenderStaticSite(config: {
     repo: 'https://github.com/' + config.repoFullName,
     autoDeploy: 'yes', branch: 'main', rootDir: config.rootDir || '',
     serviceDetails: {
-      buildCommand: config.buildCommand || 'npm run build',
+      buildCommand: config.buildCommand || 'bun run build',
       publishPath: config.publishPath || 'dist',
       routes: [{ type: 'rewrite', source: '/*', destination: '/index.html' }],
     },
@@ -499,10 +499,13 @@ export async function deployCustomer(
         if (dbInfo?.internalConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbInfo.internalConnectionString })
 
         const crmApiName = isHomeCare ? slug + '-care-api' : slug + '-api'
+        const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
+        const backendBuild = bunSetup + ' && bun install && bunx drizzle-kit migrate'
+        const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: 'crm/backend',
-          buildCommand: 'npm install && npx prisma generate && npx prisma migrate deploy',
-          startCommand: 'node prisma/seed.js && node src/index.js',
+          buildCommand: backendBuild,
+          startCommand: backendStart,
           envVars: backendEnvVars, plan, region, projectId,
         })
         console.log('[Deploy] Backend creation response:', JSON.stringify(backend, null, 2))
@@ -519,7 +522,7 @@ export async function deployCustomer(
         const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
         const frontend = await createRenderStaticSite({
           name: crmFrontName, repoFullName: repo.full_name, rootDir: 'crm/frontend',
-          buildCommand: 'npm install --include=dev && npm run build', publishPath: 'dist',
+          buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
           envVars: [],
           projectId,
         })
@@ -551,10 +554,11 @@ export async function deployCustomer(
     // Step 7: Website service
     if (products.includes('website')) {
       try {
+        const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
-          buildCommand: 'npm install && if [ -f admin/package.json ]; then cd admin && npm install && npm run build:quick && cd ..; fi',
-          startCommand: 'NODE_ENV=production node server-static.js',
+          buildCommand: siteBunSetup + ' && bun install && if [ -f admin/package.json ]; then cd admin && bun install && bun run build:quick && cd ..; fi',
+          startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.js',
           envVars: [
             { key: 'NODE_ENV', value: 'production' },
             { key: 'PORT', value: '10000' },
