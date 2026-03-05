@@ -68,7 +68,7 @@ function startServer(port) {
             email: '{{COMPANY_EMAIL}}',
             address: '{{COMPANY_ADDRESS}}',
             city: '{{CITY}}',
-            state: 'WI',
+            state: '{{STATE}}',
             zip: '{{ZIP}}'
           }));
         } else if (req.url.includes('homepage')) {

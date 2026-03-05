@@ -15,7 +15,7 @@ const ReferralSources = ({ token }) => {
     phone: '',
     address: '',
     city: '',
-    state: 'WI',
+    state: '{{STATE}}',
     zip: ''
   });
 
@@ -27,7 +27,7 @@ const ReferralSources = ({ token }) => {
     phone: '',
     address: '',
     city: '',
-    state: 'WI',
+    state: '{{STATE}}',
     zip: ''
   };
 
@@ -56,7 +56,7 @@ const ReferralSources = ({ token }) => {
       phone: source.phone || '',
       address: source.address || '',
       city: source.city || '',
-      state: source.state || 'WI',
+      state: source.state || '{{STATE}}',
       zip: source.zip || ''
     });
     setShowForm(true);

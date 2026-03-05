@@ -113,7 +113,7 @@ const ClientsManagement = ({ token }) => {
     email: '',
     address: '',
     city: '',
-    state: 'WI',
+    state: '{{STATE}}',
     zip: '',
     referralSourceId: '',
     careTypeId: '',

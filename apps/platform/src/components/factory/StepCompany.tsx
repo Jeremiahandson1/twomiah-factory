@@ -142,10 +142,12 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
 
       const fullAddress = streetNumber && streetName ? streetNumber + ' ' + streetName : place.formatted_address?.split(',')[0] || ''
 
+      const stateFull = STATE_NAMES[state.toUpperCase()] || state
       updateNested('company', {
         address: fullAddress,
         city,
         state,
+        stateFull,
         zip,
       } as any)
 

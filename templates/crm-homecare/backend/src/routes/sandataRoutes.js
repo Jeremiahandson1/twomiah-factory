@@ -369,7 +369,7 @@ router.post('/sync-client/:clientId', auth, requireAdmin, async (req, res) => {
       MedicaidID: c.medicaid_id,
       Address: c.address,
       City: c.city,
-      State: c.state || 'WI',
+      State: c.state || '{{STATE}}',
       Zip: c.zip,
     };
 

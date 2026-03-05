@@ -22,7 +22,7 @@ function Footer() {
   const email = settings?.email || '{{COMPANY_EMAIL}}';
   const address = settings?.address || '{{COMPANY_ADDRESS}}';
   const city = settings?.city || '{{CITY}}';
-  const state = settings?.state || 'WI';
+  const state = settings?.state || '{{STATE}}';
   const zip = settings?.zip || '{{ZIP}}';
   const phoneRaw = phone.replace(/\D/g, '');
 

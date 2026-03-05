@@ -14,7 +14,7 @@ const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook')) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/')) return next()
   return authenticate(c, next)
 })
 

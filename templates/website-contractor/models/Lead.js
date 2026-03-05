@@ -33,7 +33,7 @@ class Lead {
         RETURNING *
       `, [
         firstName, lastName, email, phone,
-        address, city, state || 'WI', zip,
+        address, city, state || '{{STATE}}', zip,
         preferredDate || null, preferredTime || null, comments,
         source, statusId, ipAddress, userAgent, referrer
       ]);

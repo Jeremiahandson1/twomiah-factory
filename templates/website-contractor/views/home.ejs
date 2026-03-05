@@ -11,7 +11,7 @@ const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? 
 const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
 const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '{{COMPANY_ADDRESS}}';
 const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
-const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : 'WI';
+const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : '{{STATE}}';
 const zip = (typeof settings !== 'undefined' && settings && settings.zip) ? settings.zip : '{{ZIP}}';
 const phoneRaw = phone.replace(/\D/g, '');
 

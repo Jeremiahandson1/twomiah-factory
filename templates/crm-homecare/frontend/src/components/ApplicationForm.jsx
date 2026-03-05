@@ -15,7 +15,7 @@ const ApplicationForm = () => {
     dateOfBirth: '',
     address: '',
     city: '',
-    state: 'WI',
+    state: '{{STATE}}',
     zip: '',
     ssn: '',
 
@@ -120,7 +120,7 @@ const ApplicationForm = () => {
       setSubmitted(true);
       setFormData({
         firstName: '', lastName: '', email: '', phone: '', dateOfBirth: '',
-        address: '', city: '', state: 'WI', zip: '', ssn: '',
+        address: '', city: '', state: '{{STATE}}', zip: '', ssn: '',
         yearsOfExperience: '', previousEmployer1: '', jobTitle1: '', employmentDates1: '',
         previousEmployer2: '', jobTitle2: '', employmentDates2: '',
         previousEmployer3: '', jobTitle3: '', employmentDates3: '',

@@ -35,7 +35,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
         // Address
         address: client.address || '',
         city: client.city || '',
-        state: client.state || 'WI',
+        state: client.state || '{{STATE}}',
         zip: client.zip || '',
         // Billing/Referral
         referralSourceId: client.referral_source_id || '',

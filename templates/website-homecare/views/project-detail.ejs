@@ -343,7 +343,7 @@
       "address": {
         "@type": "PostalAddress",
         "addressLocality": "<%= project.location ? project.location.split(',')[0].trim() : '{{CITY}}' %>",
-        "addressRegion": "WI"
+        "addressRegion": "{{STATE}}"
       }
     }<% if (project.category) { %>,
     "about": {

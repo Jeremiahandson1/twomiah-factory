@@ -490,7 +490,7 @@ const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
                 </div>
                 <div className="form-group">
                   <label>State</label>
-                  <input type="text" value={editData.state} onChange={(e) => setEditData({ ...editData, state: e.target.value })} placeholder="WI" maxLength="2" />
+                  <input type="text" value={editData.state} onChange={(e) => setEditData({ ...editData, state: e.target.value })} placeholder="{{STATE}}" maxLength="2" />
                 </div>
                 <div className="form-group">
                   <label>Zip</label>
