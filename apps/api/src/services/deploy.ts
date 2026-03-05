@@ -475,13 +475,14 @@ export async function deployCustomer(
           startCommand: 'node src/index.js',
           envVars: backendEnvVars, plan, region, projectId,
         })
+        console.log('[Deploy] Backend creation response:', JSON.stringify(backend, null, 2))
         results.steps.push({ step: 'render_backend', status: 'ok', serviceId: backend.service?.id })
         results.services.backend = backend.service
         if (backend.service?.id) {
           createdResources.push({ type: 'service', id: backend.service.id, name: crmApiName })
           deployedResourceIds.push(backend.service.id)
         }
-        const backendUrl = 'https://' + (backend.service?.slug || crmApiName) + '.onrender.com'
+        const backendUrl = 'https://' + crmApiName + '.onrender.com'
         results.apiUrl = backendUrl
 
         const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
@@ -491,6 +492,7 @@ export async function deployCustomer(
           envVars: [{ key: 'VITE_API_URL', value: backendUrl }],
           projectId,
         })
+        console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
         results.steps.push({ step: 'render_frontend', status: 'ok', serviceId: frontend.service?.id })
         results.services.frontend = frontend.service
         if (frontend.service?.id) {
@@ -498,7 +500,7 @@ export async function deployCustomer(
           deployedResourceIds.push(frontend.service.id)
           await addStaticSiteHeaders(frontend.service.id)
         }
-        results.deployedUrl = 'https://' + (frontend.service?.slug || crmFrontName) + '.onrender.com'
+        results.deployedUrl = 'https://' + crmFrontName + '.onrender.com'
 
         if (backend.service?.id) {
           await updateRenderEnvVars(backend.service.id, [{ key: 'FRONTEND_URL', value: results.deployedUrl }])
