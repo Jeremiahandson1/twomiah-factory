@@ -1,5 +1,5 @@
 {
-  "name": "twomiah-factory-crm-frontend",
+  "name": "{{COMPANY_SLUG}}-crm-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",

@@ -209,7 +209,7 @@ function Header({ instance, onMenuClick }) {
           </div>
           <div className="hidden md:block">
             <p className="text-sm font-medium text-white">Admin</p>
-            <p className="text-xs text-slate-500">admin@company.com</p>
+            <p className="text-xs text-slate-500">{{ADMIN_EMAIL}}</p>
           </div>
         </div>
       </div>

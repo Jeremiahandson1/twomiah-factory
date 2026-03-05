@@ -1,5 +1,5 @@
 {
-  "name": "twomiah-factory-crm-api",
+  "name": "{{COMPANY_SLUG}}-crm-api",
   "version": "1.0.0",
   "type": "module",
   "scripts": {

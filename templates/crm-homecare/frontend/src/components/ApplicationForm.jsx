@@ -147,7 +147,7 @@ const ApplicationForm = () => {
           <h2>✅ Application Submitted Successfully!</h2>
           <p>Thank you for applying to {{COMPANY_NAME}}.</p>
           <p>We will review your application and contact you within 5-7 business days.</p>
-          <p>If you have questions, call us at <strong>(715) 491-1254</strong></p>
+          <p>If you have questions, call us at <strong>{{COMPANY_PHONE}}</strong></p>
         </div>
       </div>
     );

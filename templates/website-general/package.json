@@ -2,13 +2,10 @@
   "name": "{{COMPANY_SLUG}}-site",
   "version": "1.0.0",
   "description": "Backend API for {{COMPANY_NAME}} with CMS",
-  "main": "server.js",
+  "main": "server-static.js",
   "scripts": {
     "start": "node server-static.js",
-    "dev": "nodemon server.js",
-    "build:static": "node build-static.js",
-    "serve:static": "cross-env NODE_ENV=production node server-static.js",
-    "deploy": "npm run build:static && npm run serve:static",
+    "dev": "NODE_ENV=development nodemon server-static.js",
     "db:init": "node scripts/initDb.js",
     "db:seed": "node scripts/seedDb.js"
   },
