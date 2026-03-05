@@ -89,7 +89,7 @@
   <!-- Structured Data -->
   <%
     const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
-    const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1876717b73587b74797e7471767b77766b6c6a6d7b6c71777636767d6c">[email&#160;protected]</a>';
+    const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
     const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '123 Main St';
     const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
     const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : '{{STATE}}';
@@ -100,7 +100,7 @@
       : '/images/logo.png';
   %>
   
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="application/ld+json">
+  <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "HomeHealthCare",

@@ -45,7 +45,7 @@
   <!-- Structured Data -->
   <%
     const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
-    const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="1876717b73587b74797e7471767b77766b6c6a6d7b6c71777636767d6c">[email&#160;protected]</a>';
+    const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
     const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '{{COMPANY_ADDRESS}}';
     const city = (typeof settings !== 'undefined' && settings && settings.city) ? settings.city : '{{CITY}}';
     const state = (typeof settings !== 'undefined' && settings && settings.state) ? settings.state : '{{STATE}}';
@@ -56,7 +56,7 @@
       : '/images/logo.png';
   %>
   
-  <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script type="application/ld+json">
+  <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "HomeAndConstructionBusiness",
@@ -697,7 +697,7 @@
                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
                   <polyline points="22,6 12,13 2,6"></polyline>
                 </svg>
-                <a href="/cdn-cgi/l/email-protection#86baa3bba6e3ebe7efeaa6a3b8"><%= email %></a>
+                <a href="mailto:<%= email %>"><%= email %></a>
               </li>
               <li>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
