@@ -6,6 +6,7 @@
  */
 
 import crypto from 'crypto'
+import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
@@ -116,9 +117,9 @@ export async function pushToGitHub(repoFullName: string, extractDir: string) {
       const extraHeader = 'Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64')
       args.unshift('-c', 'http.extraHeader=' + extraHeader)
     }
-    const result = Bun.spawnSync([cmd, ...args], { cwd: extractDir, stderr: 'pipe', stdout: 'pipe', env })
-    if (result.exitCode !== 0) {
-      const stderr = new TextDecoder().decode(result.stderr)
+    const result = spawnSync(cmd, args, { cwd: extractDir, stdio: ['pipe', 'pipe', 'pipe'], env })
+    if (result.status !== 0) {
+      const stderr = result.stderr?.toString() || ''
       if (cmd === 'git' && args.includes('remote') && stderr.includes('already exists')) continue
       throw new Error('Git command failed: ' + cmd + ' ' + args.join(' ') + '\n' + stderr)
     }

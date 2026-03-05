@@ -4,8 +4,8 @@ services:
     name: twomiah-factory-api
     runtime: node
     plan: starter
-    buildCommand: cd apps/api && bun install
-    startCommand: cd apps/api && bun run start
+    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && cd apps/api && bun install
+    startCommand: export PATH="$HOME/.bun/bin:$PATH" && cd apps/api && bun run start
     healthCheckPath: /health
     envVars:
       - key: SUPABASE_URL
@@ -34,9 +34,11 @@ services:
     name: twomiah-factory-platform
     runtime: node
     plan: starter
-    buildCommand: cd apps/platform && bun install && bun run build && npm install -g serve
+    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && cd apps/platform && bun install && bun run build && npm install -g serve
     startCommand: cd apps/platform && npx serve dist -s -l $PORT
     envVars:
+      - key: VITE_API_URL
+        sync: false
       - key: PORT
         value: "3000"
 
@@ -45,8 +47,8 @@ services:
     name: twomiah-factory-cleanup
     runtime: node
     schedule: "0 * * * *"
-    buildCommand: cd apps/api && bun install
-    startCommand: cd apps/api && bun run src/cron/cleanup.ts
+    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && cd apps/api && bun install
+    startCommand: export PATH="$HOME/.bun/bin:$PATH" && cd apps/api && bun run src/cron/cleanup.ts
     envVars:
       - key: API_URL
         fromService:
