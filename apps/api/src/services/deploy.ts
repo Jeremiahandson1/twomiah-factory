@@ -92,30 +92,62 @@ async function createGitHubRepo(slug: string, description: string): Promise<{ fu
 
 export async function pushToGitHub(repoFullName: string, extractDir: string) {
   const token = process.env.GITHUB_TOKEN
-  const remoteUrl = 'https://' + token + '@github.com/' + repoFullName + '.git'
-  
+
+  // Use credential helper to avoid embedding the token in .git/config
   const cmds = [
     ['git', 'init'],
     ['git', 'checkout', '-b', 'main'],
     ['git', 'config', 'user.email', 'factory@twomiah.app'],
     ['git', 'config', 'user.name', 'Twomiah Factory'],
+    ['git', 'config', 'credential.helper', ''],
+    ['git', 'remote', 'add', 'origin', 'https://github.com/' + repoFullName + '.git'],
     ['git', 'add', '-A'],
     ['git', 'commit', '-m', 'Initial Twomiah Factory deployment'],
-    ['git', 'remote', 'add', 'origin', remoteUrl],
-    ['git', 'push', 'origin', 'main', '--force', '--no-verify'],
+    ['git', 'push', 'origin', 'main', '--force'],
   ]
 
   for (const [cmd, ...args] of cmds) {
-    const result = Bun.spawnSync([cmd, ...args], { cwd: extractDir, stderr: 'pipe', stdout: 'pipe' })
+    const env = { ...process.env } as Record<string, string>
+    // Pass credentials via GIT_ASKPASS so the token is never persisted in .git/config
+    if (cmd === 'git' && args[0] === 'push') {
+      env.GIT_ASKPASS = 'echo'
+      env.GIT_TERMINAL_PROMPT = '0'
+      // Use the header-based auth approach — no token in URL
+      const extraHeader = 'Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64')
+      args.unshift('-c', 'http.extraHeader=' + extraHeader)
+    }
+    const result = Bun.spawnSync([cmd, ...args], { cwd: extractDir, stderr: 'pipe', stdout: 'pipe', env })
     if (result.exitCode !== 0) {
       const stderr = new TextDecoder().decode(result.stderr)
-      // Ignore "already exists" errors for remote add
-      if (cmd === 'git' && args[0] === 'remote' && stderr.includes('already exists')) continue
+      if (cmd === 'git' && args.includes('remote') && stderr.includes('already exists')) continue
       throw new Error('Git command failed: ' + cmd + ' ' + args.join(' ') + '\n' + stderr)
     }
   }
 
   return { success: true }
+}
+
+async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database'; id: string; name?: string }>) {
+  for (const resource of resources.reverse()) {
+    try {
+      switch (resource.type) {
+        case 'repo':
+          console.log('[Deploy] Rollback: deleting GitHub repo', resource.id)
+          await fetch(GITHUB_API + '/repos/' + resource.id, { method: 'DELETE', headers: githubHeaders() })
+          break
+        case 'service':
+          console.log('[Deploy] Rollback: deleting Render service', resource.name || resource.id)
+          await fetch(RENDER_API + '/services/' + resource.id, { method: 'DELETE', headers: renderHeaders() })
+          break
+        case 'database':
+          console.log('[Deploy] Rollback: deleting Render database', resource.name || resource.id)
+          await fetch(RENDER_API + '/postgres/' + resource.id, { method: 'DELETE', headers: renderHeaders() })
+          break
+      }
+    } catch (e: any) {
+      console.warn('[Deploy] Rollback failed for', resource.type, resource.id, ':', e.message)
+    }
+  }
 }
 
 
@@ -321,11 +353,16 @@ export async function deployCustomer(
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')
   const jwtRefreshSecret = crypto.randomBytes(48).toString('base64')
+  const encryptionKey = crypto.randomBytes(32).toString('hex')
 
+  // Collect created resource IDs for rollback on failure
+  const createdResources: Array<{ type: 'repo' | 'service' | 'database'; id: string; name?: string }> = []
+
+  let extractDir = ''
   try {
     // Step 1: Extract zip
     const tmpBase = process.env.TEMP || process.env.TMP || (process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp')
-    const extractDir = path.join(tmpBase, 'deploy-' + slug + '-' + Date.now())
+    extractDir = path.join(tmpBase, 'deploy-' + slug + '-' + Date.now())
     fs.mkdirSync(extractDir, { recursive: true })
     const zip = new AdmZip(zipPath)
     zip.extractAllTo(extractDir, true)
@@ -336,6 +373,7 @@ export async function deployCustomer(
     if (!org) throw new Error('GITHUB_ORG or GITHUB_USER must be set')
     await deleteGitHubRepo(org + '/' + slug)
     const repo = await createGitHubRepo(slug, 'Twomiah Factory: ' + (factoryCustomer.name || slug))
+    createdResources.push({ type: 'repo', id: org + '/' + slug, name: repo.full_name })
     results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name })
     results.repoUrl = 'https://github.com/' + repo.full_name
 
@@ -357,32 +395,53 @@ export async function deployCustomer(
     }
     const deployedResourceIds: string[] = []
 
-    // Step 4: Render Postgres
+    // Step 4: Render Postgres (only for CRM products)
     let dbInfo: any = null
-    try {
-      const dbSlug = isHomeCare ? slug + '-care' : slug
-      console.log('[Deploy] Creating DB:', dbSlug + '-db')
-      const db = await createRenderDatabase(dbSlug, region, dbPlan, projectId)
-      results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
-      results.services.database = db
-      if (db.id) deployedResourceIds.push(db.id)
+    if (products.includes('crm')) {
+      try {
+        const dbSlug = isHomeCare ? slug + '-care' : slug
+        console.log('[Deploy] Creating DB:', dbSlug + '-db')
+        const db = await createRenderDatabase(dbSlug, region, dbPlan, projectId)
+        createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
+        results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
+        results.services.database = db
+        if (db.id) deployedResourceIds.push(db.id)
 
-      console.log('[Deploy] Waiting for DB to be ready...')
-      let dbReady = false
-      for (let attempt = 0; attempt < 20; attempt++) {
-        await sleep(15000)
-        try {
-          const connInfo = await getDatabaseConnectionInfo(db.id)
-          if (connInfo?.internalConnectionString) { dbInfo = connInfo; dbReady = true; break }
-        } catch (_e) { /* not ready yet */ }
+        console.log('[Deploy] Waiting for DB to be ready...')
+        let dbReady = false
+        for (let attempt = 0; attempt < 20; attempt++) {
+          await sleep(15000)
+          try {
+            const connInfo = await getDatabaseConnectionInfo(db.id)
+            if (connInfo?.internalConnectionString) { dbInfo = connInfo; dbReady = true; break }
+          } catch (_e) { /* not ready yet */ }
+        }
+        if (!dbReady) throw new Error('DB did not become ready in time')
+      } catch (dbErr: any) {
+        results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
+        results.errors.push('Database creation failed: ' + dbErr.message)
+        results.success = false; results.status = 'failed'
+        await rollbackResources(createdResources)
+        return results
       }
-      if (!dbReady) throw new Error('DB did not become ready in time')
-    } catch (dbErr: any) {
-      results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
-      results.errors.push('Database creation failed: ' + dbErr.message)
-      results.success = false; results.status = 'failed'
-      return results
     }
+
+    // Build integration env vars from config
+    const integrationEnvVars: Array<{ key: string; value: string }> = []
+    const integrations = factoryCustomer.config?.integrations
+    if (integrations?.twilio?.accountSid) {
+      integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: integrations.twilio.accountSid })
+      if (integrations.twilio.authToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: integrations.twilio.authToken })
+      if (integrations.twilio.phoneNumber) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: integrations.twilio.phoneNumber })
+    }
+    if (integrations?.sendgrid?.apiKey) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: integrations.sendgrid.apiKey })
+    if (integrations?.stripe?.secretKey) {
+      integrationEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripe.secretKey })
+      if (integrations.stripe.publishableKey) integrationEnvVars.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: integrations.stripe.publishableKey })
+      if (integrations.stripe.webhookSecret) integrationEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: integrations.stripe.webhookSecret })
+    }
+    if (integrations?.googleMaps?.apiKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: integrations.googleMaps.apiKey })
+    if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
 
     // Step 5 & 6: CRM backend + frontend
     if (products.includes('crm')) {
@@ -391,7 +450,9 @@ export async function deployCustomer(
           { key: 'NODE_ENV', value: 'production' },
           { key: 'JWT_SECRET', value: jwtSecret },
           { key: 'JWT_REFRESH_SECRET', value: jwtRefreshSecret },
+          { key: 'ENCRYPTION_KEY', value: encryptionKey },
           { key: 'PORT', value: '10000' },
+          ...integrationEnvVars,
         ]
         if (dbInfo?.internalConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbInfo.internalConnectionString })
 
@@ -405,7 +466,10 @@ export async function deployCustomer(
         })
         results.steps.push({ step: 'render_backend', status: 'ok', serviceId: backend.service?.id })
         results.services.backend = backend.service
-        if (backend.service?.id) deployedResourceIds.push(backend.service.id)
+        if (backend.service?.id) {
+          createdResources.push({ type: 'service', id: backend.service.id, name: crmApiName })
+          deployedResourceIds.push(backend.service.id)
+        }
         const backendUrl = 'https://' + (backend.service?.slug || crmApiName) + '.onrender.com'
         results.apiUrl = backendUrl
 
@@ -419,6 +483,7 @@ export async function deployCustomer(
         results.steps.push({ step: 'render_frontend', status: 'ok', serviceId: frontend.service?.id })
         results.services.frontend = frontend.service
         if (frontend.service?.id) {
+          createdResources.push({ type: 'service', id: frontend.service.id, name: crmFrontName })
           deployedResourceIds.push(frontend.service.id)
           await addStaticSiteHeaders(frontend.service.id)
         }
@@ -436,17 +501,27 @@ export async function deployCustomer(
     // Step 7: Website service
     if (products.includes('website')) {
       try {
+        const siteUrl = 'https://' + slug + '-site.onrender.com'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
           buildCommand: 'npm install',
           startCommand: 'NODE_ENV=production node server-static.js',
-          envVars: [{ key: 'NODE_ENV', value: 'production' }, { key: 'PORT', value: '10000' }, { key: 'JWT_SECRET', value: jwtSecret }],
+          envVars: [
+            { key: 'NODE_ENV', value: 'production' },
+            { key: 'PORT', value: '10000' },
+            { key: 'JWT_SECRET', value: jwtSecret },
+            { key: 'SITE_URL', value: siteUrl },
+            { key: 'SITE_NAME', value: factoryCustomer.name || slug },
+          ],
           plan, region, projectId,
         })
         results.steps.push({ step: 'render_site', status: 'ok', serviceId: site.service?.id })
         results.services.site = site.service
-        if (site.service?.id) deployedResourceIds.push(site.service.id)
-        results.siteUrl = 'https://' + slug + '-site.onrender.com'
+        if (site.service?.id) {
+          createdResources.push({ type: 'service', id: site.service.id, name: slug + '-site' })
+          deployedResourceIds.push(site.service.id)
+        }
+        results.siteUrl = siteUrl
       } catch (err: any) {
         results.steps.push({ step: 'render_site', status: 'error', error: err.message })
         results.errors.push('Site: ' + err.message)
@@ -459,16 +534,25 @@ export async function deployCustomer(
       console.log('[Deploy] Assigned', deployedResourceIds.length, 'resources to environment')
     }
 
-    // Cleanup
-    try { fs.rmSync(extractDir, { recursive: true, force: true }) } catch (_e) { /* ignore */ }
-
     results.success = results.errors.length === 0
     results.status = results.success ? 'deployed' : 'partial'
+
+    // Rollback if completely failed (all services errored)
+    if (!results.success && !results.apiUrl && !results.siteUrl && !results.deployedUrl) {
+      console.log('[Deploy] All services failed — rolling back')
+      await rollbackResources(createdResources)
+    }
 
   } catch (err: any) {
     results.success = false
     results.status = 'failed'
     results.errors.push(err.message)
+    await rollbackResources(createdResources)
+  } finally {
+    // Always clean up temp directory
+    if (extractDir) {
+      try { fs.rmSync(extractDir, { recursive: true, force: true }) } catch (_e) { /* ignore */ }
+    }
   }
 
   return results

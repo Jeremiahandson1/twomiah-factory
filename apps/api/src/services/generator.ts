@@ -146,7 +146,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
     generateReadme(workDir, config, tokens)
     generateDeployScript(workDir, config, products)
 
-    const zipName = slug + '-twomiah-build.zip'
+    const zipName = slug + '-' + buildId.split('-')[0] + '-twomiah-build.zip'
     const zipPath = path.join(OUTPUT_DIR, zipName)
     await createZip(workDir, zipPath)
 

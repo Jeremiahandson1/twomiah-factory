@@ -14,7 +14,7 @@ const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/')) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook')) return next()
   return authenticate(c, next)
 })
 
@@ -314,6 +314,12 @@ factory.post('/customers/:id/deploy', async (c) => {
     }
 
     console.log('[Deploy] Found job:', job.id, 'status:', job.status, 'zip:', job.zip_name)
+
+    // Check if a deploy is already in progress for this tenant
+    const { data: activeJobs } = await supabase.from('factory_jobs').select('id').eq('tenant_id', tenant.id).eq('status', 'deploying')
+    if (activeJobs?.length) {
+      return c.json({ error: 'A deployment is already in progress for this tenant' }, 409)
+    }
 
     // Parse deploy options from request body
     const body = await c.req.json().catch(() => ({}))

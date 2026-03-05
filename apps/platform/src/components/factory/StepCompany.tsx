@@ -247,7 +247,7 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
     }
   }
 
-  const canNext = !!c.name?.trim() && !!c.email?.trim() && !!c.phone?.trim() && !!c.city?.trim()
+  const canNext = !!c.name?.trim() && !!c.email?.trim() && !!c.phone?.trim() && !!c.city?.trim() && !!c.state?.trim() && !!c.industry?.trim()
 
   return (
     <div>
@@ -259,7 +259,7 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
           <Field label="Company Name" required value={c.name} onChange={v => set('name', v)} placeholder="Acme Construction" />
         </div>
         <div>
-          <label className="block text-xs text-gray-400 mb-1">Industry</label>
+          <label className="block text-xs text-gray-400 mb-1">Industry <span className="text-orange-400">*</span></label>
           <select value={c.industry} onChange={e => set('industry', e.target.value)}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
             <option value="">Select industry...</option>
@@ -292,7 +292,7 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
 
         <Field label="City" required value={c.city} onChange={v => set('city', v)} placeholder="Your City" />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="State" value={c.state} onChange={v => set('state', v)} placeholder="ST" />
+          <Field label="State" required value={c.state} onChange={v => set('state', v)} placeholder="ST" />
           <Field label="ZIP" value={c.zip} onChange={v => set('zip', v)} placeholder="00000" />
         </div>
         <div className="col-span-2">
