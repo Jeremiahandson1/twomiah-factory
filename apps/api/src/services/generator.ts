@@ -115,6 +115,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       stripWebsiteFeatures(path.join(workDir, 'website'), config.features?.website || [])
       writeBrandingAssets(path.join(workDir, 'website'), config.branding)
       injectWizardContent(path.join(workDir, 'website'), config)
+      processEnvTemplate(path.join(workDir, 'website'), tokens)
 
       const websiteRenderTemplate = path.join(workDir, 'website', 'render.yaml.template')
       if (fs.existsSync(websiteRenderTemplate)) {
