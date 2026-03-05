@@ -1,7 +1,7 @@
 // Cron job: calls the /cleanup endpoint on the API
 // Designed to run as a Render Cron Job every hour
 
-const rawUrl = process.env.API_URL || 'http://localhost:3001'
+const rawUrl = process.env.RENDER_API_URL || process.env.API_URL || 'https://twomiah-factory-api.onrender.com'
 const API_URL = rawUrl.startsWith('http') ? rawUrl : 'https://' + rawUrl
 const CRON_SECRET = process.env.CRON_SECRET
 
