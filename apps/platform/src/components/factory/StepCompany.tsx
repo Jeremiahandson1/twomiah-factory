@@ -126,13 +126,14 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
   useEffect(() => {
     if (!mapsReady || !addressInputRef.current) return
     const google = (window as any).google
-    autocompleteRef.current = new google.maps.places.Autocomplete(addressInputRef.current, {
+    const ac = new google.maps.places.Autocomplete(addressInputRef.current, {
       types: ['address'],
       componentRestrictions: { country: 'us' },
       fields: ['address_components', 'geometry', 'formatted_address'],
     })
-    autocompleteRef.current.addListener('place_changed', () => {
-      const place = autocompleteRef.current.getPlace()
+    autocompleteRef.current = ac
+    ac.addListener('place_changed', () => {
+      const place = ac.getPlace()
       if (!place?.address_components) return
 
       let streetNumber = '', streetName = '', city = '', state = '', zip = ''
