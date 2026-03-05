@@ -591,6 +591,23 @@ export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Rec
   return results
 }
 
+export async function addCustomDomain(serviceId: string, domain: string): Promise<{ success: boolean; error?: string }> {
+  if (!process.env.RENDER_API_KEY) return { success: false, error: 'Render not configured' }
+  try {
+    const res = await fetch(RENDER_API + '/services/' + serviceId + '/custom-domains', {
+      method: 'POST', headers: renderHeaders(),
+      body: JSON.stringify({ name: domain }),
+    })
+    if (!res.ok) {
+      const err = await res.json() as any
+      return { success: false, error: err.message || JSON.stringify(err) }
+    }
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }

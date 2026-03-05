@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { authenticate, supabase } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
-import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer } from '../services/deploy'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
 import fs from 'fs'
@@ -14,7 +14,7 @@ const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/')) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream')) return next()
   return authenticate(c, next)
 })
 
@@ -452,6 +452,58 @@ factory.get('/customers/:id/deploy/status', async (c) => {
 })
 
 
+// ─── Deploy Status SSE ───────────────────────────────────────────────────────
+factory.get('/customers/:id/deploy/stream', async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+
+  // Auth via query param (EventSource can't send headers)
+  const token = c.req.query('token')
+  if (token) {
+    const { data: { user }, error: authErr } = await supabase.auth.getUser(token)
+    if (authErr || !user) return c.json({ error: 'Unauthorized' }, 401)
+  } else {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  return new Response(
+    new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder()
+        const send = (data: any) => {
+          try { controller.enqueue(encoder.encode('data: ' + JSON.stringify(data) + '\n\n')) } catch (_e) { /* closed */ }
+        }
+
+        let done = false
+        for (let tick = 0; tick < 60 && !done; tick++) {
+          const { data: job } = await supabase.from('factory_jobs').select('status, render_service_ids, github_repo, render_url')
+            .eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+
+          if (!job) { send({ status: 'not_found' }); break }
+
+          if (job.status === 'deploying' && job.render_service_ids) {
+            const liveStatus = await checkDeployStatus({ renderServiceIds: job.render_service_ids })
+            send({ status: 'deploying', jobStatus: job.status, services: liveStatus.services, overallStatus: liveStatus.overallStatus, repoUrl: job.github_repo, deployedUrl: job.render_url })
+            if (liveStatus.overallStatus === 'live') done = true
+          } else if (job.status === 'complete' || job.status === 'failed') {
+            send({ status: job.status, repoUrl: job.github_repo, deployedUrl: job.render_url })
+            done = true
+          } else {
+            send({ status: job.status })
+          }
+
+          if (!done) await new Promise(r => setTimeout(r, 10000))
+        }
+
+        send({ status: 'stream_end' })
+        controller.close()
+      },
+    }),
+    { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', 'Connection': 'keep-alive' } }
+  )
+})
+
+
 // ─── Redeploy ─────────────────────────────────────────────────────────────────
 factory.post('/customers/:id/redeploy', async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
@@ -472,7 +524,22 @@ factory.post('/customers/:id/redeploy', async (c) => {
 factory.post('/cleanup', async (c) => {
   const { maxAge } = await c.req.json().catch(() => ({}))
   const cleaned = cleanOldBuilds(maxAge || 24 * 60 * 60 * 1000)
-  return c.json({ cleaned, message: 'Removed ' + cleaned + ' old builds' })
+
+  // Reset stale "deploying" jobs (stuck for >30 minutes)
+  const staleThreshold = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+  const { data: staleJobs } = await supabase.from('factory_jobs')
+    .select('id')
+    .eq('status', 'deploying')
+    .lt('created_at', staleThreshold)
+  let resetCount = 0
+  if (staleJobs?.length) {
+    const ids = staleJobs.map((j: any) => j.id)
+    await supabase.from('factory_jobs').update({ status: 'failed' }).in('id', ids)
+    resetCount = ids.length
+    console.log('[Cleanup] Reset', resetCount, 'stale deploying jobs')
+  }
+
+  return c.json({ cleaned, staleJobsReset: resetCount, message: 'Removed ' + cleaned + ' old builds, reset ' + resetCount + ' stale jobs' })
 })
 
 
@@ -740,9 +807,30 @@ factory.post('/customers/:id/domain', async (c) => {
     if (!domain) return c.json({ error: 'domain is required' }, 400)
     if (!DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format. Expected format: example.com' }, 400)
 
+    // Save domain to tenant record
     const { error } = await supabase.from('tenants').update({ domain }).eq('id', tenantId)
     if (error) throw error
-    return c.json({ success: true, domain })
+
+    // If Render services exist, add custom domain to each
+    const renderErrors: string[] = []
+    if (isConfigured()) {
+      const { data: job } = await supabase.from('factory_jobs').select('render_service_ids')
+        .eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      const serviceIds = job?.render_service_ids
+      if (serviceIds) {
+        // Add domain to the primary user-facing service (site or frontend)
+        const primaryServiceId = serviceIds.site || serviceIds.frontend
+        if (primaryServiceId) {
+          const result = await addCustomDomain(primaryServiceId, domain)
+          if (!result.success) renderErrors.push('Primary service: ' + result.error)
+        }
+        // Add www subdomain too
+        const wwwResult = await addCustomDomain(serviceIds.site || serviceIds.frontend || '', 'www.' + domain)
+        if (!wwwResult.success && !wwwResult.error?.includes('already')) renderErrors.push('www: ' + wwwResult.error)
+      }
+    }
+
+    return c.json({ success: true, domain, renderErrors: renderErrors.length ? renderErrors : undefined })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
