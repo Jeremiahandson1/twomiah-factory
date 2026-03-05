@@ -5,9 +5,13 @@ import logger from './logger.js';
 let io;
 
 export const initializeSocket = (server) => {
+  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(s => s.trim());
   io = new Server(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+      origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.onrender.com')) return callback(null, true);
+        callback(null, false);
+      },
       credentials: true,
     },
   });

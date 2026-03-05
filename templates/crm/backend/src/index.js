@@ -109,7 +109,15 @@ app.use(helmet({
 
 // CORS
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
+      .split(',').map(s => s.trim());
+    if (allowed.some(u => origin === u || origin.endsWith('.onrender.com'))) {
+      return callback(null, true);
+    }
+    callback(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],
