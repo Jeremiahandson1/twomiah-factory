@@ -30,22 +30,19 @@ export default defineConfig({
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'admin-scheduling': [
-            './src/components/admin/SchedulingHub',
-            './src/components/admin/DragDropScheduler',
-            './src/components/admin/ScheduleCalendar',
-          ],
-          'admin-billing': [
-            './src/components/admin/BillingDashboard',
-            './src/components/admin/PayrollProcessing',
-            './src/components/admin/ClaimsManagement',
-          ],
-          'admin-reports': [
-            './src/components/admin/ReportsAnalytics',
-            './src/components/admin/AuditLogs',
-          ],
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/') || id.includes('node_modules/react-router')) {
+            return 'vendor-react';
+          }
+          if (id.includes('/admin/SchedulingHub') || id.includes('/admin/DragDropScheduler') || id.includes('/admin/ScheduleCalendar')) {
+            return 'admin-scheduling';
+          }
+          if (id.includes('/admin/BillingDashboard') || id.includes('/admin/PayrollProcessing') || id.includes('/admin/ClaimsManagement')) {
+            return 'admin-billing';
+          }
+          if (id.includes('/admin/ReportsAnalytics') || id.includes('/admin/AuditLogs')) {
+            return 'admin-reports';
+          }
         },
       },
     },
