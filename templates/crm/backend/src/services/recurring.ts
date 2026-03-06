@@ -12,7 +12,7 @@
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, contact, project } from '../../db/schema.ts'
 import { eq, and, lte, desc, sql } from 'drizzle-orm'
-import emailService from './email.js'
+import emailService from './email.ts'
 
 /**
  * Frequency options

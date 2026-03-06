@@ -252,7 +252,7 @@ app.get('/:id/pdf', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const { generateInvoicePDF } = await import('../services/pdf.js')
+  const { generateInvoicePDF } = await import('../services/pdf.ts')
   const [foundInvoice] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
   if (!foundInvoice) return c.json({ error: 'Invoice not found' }, 404)
 

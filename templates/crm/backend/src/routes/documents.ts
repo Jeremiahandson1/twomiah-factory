@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
+import fs from 'fs'
 import path from 'path'
 import { db } from '../../db/index.ts'
 import { document, project, contact, user } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import fileService, { upload, setUploadSubdir, handleUploadError } from '../services/fileUpload.ts'
+import fileService from '../services/fileUpload.ts'
 import logger from '../services/logger.ts'
 
 const app = new Hono()
@@ -84,36 +85,49 @@ app.get('/:id', async (c) => {
 // Upload document
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
-  // NOTE: File upload middleware (setUploadSubdir, upload.single, handleUploadError)
-  // needs adaptation for Hono. This preserves the logic structure.
-  const req = c.req.raw as any
-  if (!req.file) {
+  const body = await c.req.parseBody()
+
+  const file = body['file'] as File | undefined
+  if (!file || !(file instanceof File)) {
     return c.json({ error: 'No file uploaded' }, 400)
   }
 
-  const { name, description, type, projectId, contactId, jobId, invoiceId } = await c.req.json().catch(() => (req.body || {}))
+  let uploaded
+  try {
+    uploaded = await fileService.saveFile(file, currentUser.companyId, 'documents')
+  } catch (err: any) {
+    return c.json({ error: err.message }, 400)
+  }
 
-  let filePath = req.file.path
+  let filePath = uploaded.path
   let thumbnailPath = null
 
-  if (req.file.mimetype.startsWith('image/')) {
+  if (uploaded.mimetype.startsWith('image/')) {
     try {
       filePath = await fileService.processImage(filePath, { width: 2000, height: 2000 })
       thumbnailPath = await fileService.generateThumbnail(filePath, 200)
     } catch (err) {
-      logger.logError(err, req, { action: 'processImage' })
+      logger.logError(err, null, { action: 'processImage' })
     }
   }
 
+  const name = (body['name'] as string) || uploaded.originalname
+  const description = body['description'] as string | undefined
+  const type = (body['type'] as string) || 'general'
+  const projectId = body['projectId'] as string | undefined
+  const contactId = body['contactId'] as string | undefined
+  const jobId = body['jobId'] as string | undefined
+  const invoiceId = body['invoiceId'] as string | undefined
+
   const [doc] = await db.insert(document).values({
     companyId: currentUser.companyId,
-    name: name || req.file.originalname,
+    name,
     description,
-    type: type || 'general',
+    type,
     filename: path.basename(filePath),
-    originalName: req.file.originalname,
-    mimeType: req.file.mimetype,
-    size: req.file.size,
+    originalName: uploaded.originalname,
+    mimeType: uploaded.mimetype,
+    size: uploaded.size,
     path: filePath,
     url: fileService.getFileUrl(filePath, currentUser.companyId),
     thumbnailUrl: thumbnailPath ? fileService.getFileUrl(thumbnailPath, currentUser.companyId) : null,
@@ -135,35 +149,51 @@ app.post('/', async (c) => {
 // Upload multiple documents
 app.post('/bulk', async (c) => {
   const currentUser = c.get('user') as any
-  const req = c.req.raw as any
-  if (!req.files || req.files.length === 0) {
+  const body = await c.req.parseBody({ all: true })
+
+  const rawFiles = body['files'] || body['files[]']
+  const files: File[] = Array.isArray(rawFiles)
+    ? rawFiles.filter((f): f is File => f instanceof File)
+    : rawFiles instanceof File ? [rawFiles] : []
+
+  if (files.length === 0) {
     return c.json({ error: 'No files uploaded' }, 400)
   }
 
-  const { projectId, contactId, type } = await c.req.json().catch(() => (req.body || {}))
+  const projectId = body['projectId'] as string | undefined
+  const contactId = body['contactId'] as string | undefined
+  const type = (body['type'] as string) || 'general'
   const documents: any[] = []
 
-  for (const file of req.files) {
-    let filePath = file.path
+  for (const file of files) {
+    let uploaded
+    try {
+      uploaded = await fileService.saveFile(file, currentUser.companyId, 'documents')
+    } catch (err: any) {
+      logger.logError(err, null, { action: 'saveFile', file: file.name })
+      continue
+    }
+
+    let filePath = uploaded.path
     let thumbnailPath = null
 
-    if (file.mimetype.startsWith('image/')) {
+    if (uploaded.mimetype.startsWith('image/')) {
       try {
         filePath = await fileService.processImage(filePath, { width: 2000, height: 2000 })
         thumbnailPath = await fileService.generateThumbnail(filePath, 200)
       } catch (err) {
-        logger.logError(err, req, { action: 'processImage', file: file.originalname })
+        logger.logError(err, null, { action: 'processImage', file: uploaded.originalname })
       }
     }
 
     const [doc] = await db.insert(document).values({
       companyId: currentUser.companyId,
-      name: file.originalname,
-      type: type || 'general',
+      name: uploaded.originalname,
+      type,
       filename: path.basename(filePath),
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      size: file.size,
+      originalName: uploaded.originalname,
+      mimeType: uploaded.mimetype,
+      size: uploaded.size,
       path: filePath,
       url: fileService.getFileUrl(filePath, currentUser.companyId),
       thumbnailUrl: thumbnailPath ? fileService.getFileUrl(thumbnailPath, currentUser.companyId) : null,
@@ -200,7 +230,6 @@ app.put('/:id', async (c) => {
     updatedAt: new Date(),
   }).where(eq(document.id, id)).returning()
 
-  // Fetch joined data separately
   const [result] = await db.select({
     document,
     project: { id: project.id, name: project.name },
@@ -224,11 +253,10 @@ app.delete('/:id', async (c) => {
   const [doc] = await db.select().from(document).where(and(eq(document.id, id), eq(document.companyId, currentUser.companyId))).limit(1)
   if (!doc) return c.json({ error: 'Document not found' }, 404)
 
-  // Delete physical files
   try {
     if (doc.path) fileService.deleteFile(doc.path)
   } catch (err) {
-    logger.logError(err, c.req.raw, { action: 'deleteFile', documentId: doc.id })
+    logger.logError(err, null, { action: 'deleteFile', documentId: doc.id })
   }
 
   await db.delete(document).where(eq(document.id, id))
@@ -249,11 +277,16 @@ app.get('/:id/download', async (c) => {
   const [doc] = await db.select().from(document).where(and(eq(document.id, id), eq(document.companyId, currentUser.companyId))).limit(1)
 
   if (!doc) return c.json({ error: 'Document not found' }, 404)
-  if (!doc.path) return c.json({ error: 'File not found' }, 404)
+  if (!doc.path || !fs.existsSync(doc.path)) return c.json({ error: 'File not found' }, 404)
 
-  // NOTE: Hono does not have a built-in res.download equivalent.
-  // The caller should adapt this to stream the file or use a static file middleware.
-  return c.json({ path: doc.path, filename: doc.originalName })
+  const fileBuffer = fs.readFileSync(doc.path)
+  return new Response(fileBuffer, {
+    headers: {
+      'Content-Type': doc.mimeType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${doc.originalName || path.basename(doc.path)}"`,
+      'Content-Length': String(fileBuffer.length),
+    },
+  })
 })
 
 export default app

@@ -2,18 +2,17 @@
  * File Upload Service
  *
  * Handles file uploads with:
- * - Multer storage configuration
+ * - Hono parseBody() for multipart form data
  * - Image processing (sharp)
  * - Thumbnail generation
  * - File management utilities
  */
 
-import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
-import { v4 as uuidv4 } from 'uuid'
+import crypto from 'crypto'
 import sharp from 'sharp'
-import logger from './logger.js'
+import logger from './logger.ts'
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads')
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE as string) || 10 * 1024 * 1024 // 10MB
@@ -24,64 +23,73 @@ const ALLOWED_MIMES: Record<string, string[]> = {
   all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
 }
 
-// Ensure upload directories exist
 function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
 }
 
-// Create company-specific upload path
 function getCompanyPath(companyId: string, subdir = ''): string {
   const companyDir = path.join(UPLOAD_DIR, companyId, subdir)
   ensureDir(companyDir)
   return companyDir
 }
 
-// Storage configuration
-const storage = multer.diskStorage({
-  destination: (req: any, file, cb) => {
-    const companyId = req.user?.companyId || 'temp'
-    const subdir = req.uploadSubdir || 'general'
-    const uploadPath = getCompanyPath(companyId, subdir)
-    cb(null, uploadPath)
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase()
-    const filename = `${uuidv4()}${ext}`
-    cb(null, filename)
-  },
-})
+export interface UploadedFile {
+  path: string
+  originalname: string
+  mimetype: string
+  size: number
+}
 
-// File filter
-const fileFilter = (allowedTypes: string) => (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+/**
+ * Save a single file from Hono's parseBody() result.
+ * Call with: const file = body['file'] as File
+ */
+export async function saveFile(
+  file: File,
+  companyId: string,
+  subdir = 'general',
+  allowedTypes = 'all'
+): Promise<UploadedFile> {
   const mimes = ALLOWED_MIMES[allowedTypes] || ALLOWED_MIMES.all
-  if (mimes.includes(file.mimetype)) {
-    cb(null, true)
-  } else {
-    cb(new Error(`Invalid file type. Allowed: ${allowedTypes}`))
+  if (!mimes.includes(file.type)) {
+    throw new Error(`Invalid file type: ${file.type}. Allowed: ${allowedTypes}`)
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
+  }
+
+  const ext = path.extname(file.name).toLowerCase()
+  const filename = `${crypto.randomUUID()}${ext}`
+  const uploadPath = getCompanyPath(companyId, subdir)
+  const filePath = path.join(uploadPath, filename)
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  fs.writeFileSync(filePath, buffer)
+
+  return {
+    path: filePath,
+    originalname: file.name,
+    mimetype: file.type,
+    size: file.size,
   }
 }
 
-// Multer instances
-export const upload = {
-  single: (fieldName: string, allowedTypes = 'all') => multer({
-    storage,
-    limits: { fileSize: MAX_FILE_SIZE },
-    fileFilter: fileFilter(allowedTypes),
-  }).single(fieldName),
-
-  multiple: (fieldName: string, maxCount = 10, allowedTypes = 'all') => multer({
-    storage,
-    limits: { fileSize: MAX_FILE_SIZE },
-    fileFilter: fileFilter(allowedTypes),
-  }).array(fieldName, maxCount),
-
-  fields: (fields: multer.Field[], allowedTypes = 'all') => multer({
-    storage,
-    limits: { fileSize: MAX_FILE_SIZE },
-    fileFilter: fileFilter(allowedTypes),
-  }).fields(fields),
+/**
+ * Save multiple files from Hono's parseBody() result.
+ */
+export async function saveFiles(
+  files: File[],
+  companyId: string,
+  subdir = 'general',
+  allowedTypes = 'all'
+): Promise<UploadedFile[]> {
+  const results: UploadedFile[] = []
+  for (const file of files) {
+    results.push(await saveFile(file, companyId, subdir, allowedTypes))
+  }
+  return results
 }
 
 interface ProcessImageOptions {
@@ -92,7 +100,6 @@ interface ProcessImageOptions {
   fit?: keyof sharp.FitEnum
 }
 
-// Image processing
 export async function processImage(filePath: string, options: ProcessImageOptions = {}): Promise<string> {
   const {
     width = 1200,
@@ -111,10 +118,8 @@ export async function processImage(filePath: string, options: ProcessImageOption
       .toFormat(format, { quality })
       .toFile(outputPath)
 
-    // Remove original
     fs.unlinkSync(filePath)
 
-    // Rename processed to original name
     const finalPath = filePath.replace(ext, `.${format}`)
     fs.renameSync(outputPath, finalPath)
 
@@ -125,7 +130,6 @@ export async function processImage(filePath: string, options: ProcessImageOption
   }
 }
 
-// Generate thumbnail
 export async function generateThumbnail(filePath: string, size = 200): Promise<string> {
   const ext = path.extname(filePath)
   const basename = path.basename(filePath, ext)
@@ -144,7 +148,6 @@ export async function generateThumbnail(filePath: string, size = 200): Promise<s
   }
 }
 
-// Delete file
 export function deleteFile(filePath: string): boolean {
   try {
     if (fs.existsSync(filePath)) {
@@ -159,13 +162,11 @@ export function deleteFile(filePath: string): boolean {
   }
 }
 
-// Get file URL (for serving)
 export function getFileUrl(filePath: string, companyId: string): string {
   const relativePath = filePath.replace(UPLOAD_DIR, '').replace(/\\/g, '/')
   return `/uploads${relativePath}`
 }
 
-// File info
 export function getFileInfo(filePath: string): { name: string; path: string; size: number; created: Date; modified: Date; extension: string } | null {
   try {
     const stats = fs.statSync(filePath)
@@ -182,43 +183,14 @@ export function getFileInfo(filePath: string): { name: string; path: string; siz
   }
 }
 
-// Middleware to set upload subdirectory
-export function setUploadSubdir(subdir: string) {
-  return (req: any, res: any, next: any) => {
-    req.uploadSubdir = subdir
-    next()
-  }
-}
-
-// Error handling middleware for multer
-export function handleUploadError(err: any, req: any, res: any, next: any): void {
-  if (err instanceof multer.MulterError) {
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      res.status(400).json({
-        error: 'File too large',
-        maxSize: `${MAX_FILE_SIZE / 1024 / 1024}MB`
-      })
-      return
-    }
-    res.status(400).json({ error: err.message })
-    return
-  }
-  if (err) {
-    res.status(400).json({ error: err.message })
-    return
-  }
-  next()
-}
-
 export default {
-  upload,
+  saveFile,
+  saveFiles,
   processImage,
   generateThumbnail,
   deleteFile,
   getFileUrl,
   getFileInfo,
-  setUploadSubdir,
-  handleUploadError,
   UPLOAD_DIR,
   MAX_FILE_SIZE,
   ALLOWED_MIMES,

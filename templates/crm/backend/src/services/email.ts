@@ -16,7 +16,7 @@
  */
 
 import nodemailer from 'nodemailer';
-import logger from './logger.js';
+import logger from './logger.ts';
 
 // Config
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@{{COMPANY_DOMAIN}}';

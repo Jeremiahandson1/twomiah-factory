@@ -11,7 +11,8 @@
 import path from 'path'
 import fs from 'fs/promises'
 import sharp from 'sharp'
-import { v4 as uuid } from 'uuid'
+import crypto from 'crypto'
+const uuid = () => crypto.randomUUID()
 import { db } from '../../db/index.ts'
 import { document, user, project, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'

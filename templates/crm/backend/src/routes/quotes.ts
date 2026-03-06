@@ -254,7 +254,7 @@ app.get('/:id/pdf', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
 
-  const { generateQuotePDF } = await import('../services/pdf.js')
+  const { generateQuotePDF } = await import('../services/pdf.ts')
   const [foundQuote] = await db.select().from(quote).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).limit(1)
   if (!foundQuote) return c.json({ error: 'Quote not found' }, 404)
 

@@ -613,7 +613,7 @@ app.get('/p/:token/invoices/:invoiceId/pdf', portalAuth, async (c) => {
     .where(eq(payment.invoiceId, invoiceId))
     .orderBy(desc(payment.paidAt))
 
-  const { generateInvoicePDF } = await import('../services/pdf.js')
+  const { generateInvoicePDF } = await import('../services/pdf.ts')
   const pdfBuffer = await generateInvoicePDF({ ...foundInvoice, lineItems, payments, contact: portalContact }, portalCompany)
 
   return new Response(pdfBuffer, {
@@ -647,7 +647,7 @@ app.get('/p/:token/quotes/:quoteId/pdf', portalAuth, async (c) => {
     .where(eq(quoteLineItem.quoteId, quoteId))
     .orderBy(asc(quoteLineItem.sortOrder))
 
-  const { generateQuotePDF } = await import('../services/pdf.js')
+  const { generateQuotePDF } = await import('../services/pdf.ts')
   const pdfBuffer = await generateQuotePDF({ ...foundQuote, lineItems, contact: portalContact }, portalCompany)
 
   return new Response(pdfBuffer, {

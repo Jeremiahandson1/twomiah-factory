@@ -12,7 +12,7 @@
 import { db } from '../../db/index.ts'
 import { reviewRequest, company, job, contact } from '../../db/schema.ts'
 import { eq, and, lte, count, sql } from 'drizzle-orm'
-import email from './email.js'
+import email from './email.ts'
 
 // Twilio for SMS (optional)
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
