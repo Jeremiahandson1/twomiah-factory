@@ -10,7 +10,7 @@
       "middleware": ["auth.ts", "featureGate.ts", "permissions.ts", "security.ts"]
     },
     "frontend": {
-      "pages": ["LoginPage.jsx", "RegisterPage.jsx", "ForgotPasswordPage.jsx", "ResetPasswordPage.jsx", "DashboardPage.jsx", "ContactsPage.jsx", "JobsPage.jsx", "QuotesPage.jsx", "InvoicesPage.jsx", "SchedulePage.jsx", "TeamPage.jsx", "SettingsPage.jsx"],
+      "pages": ["LoginPage.tsx", "RegisterPage.tsx", "ForgotPasswordPage.tsx", "ResetPasswordPage.tsx", "DashboardPage.tsx", "ContactsPage.tsx", "JobsPage.tsx", "QuotesPage.tsx", "InvoicesPage.tsx", "SchedulePage.tsx", "TeamPage.tsx", "SettingsPage.tsx"],
       "components": ["auth/", "layout/", "common/", "ui/", "crm/", "detail/"]
     },
     "sidebar": [
@@ -27,59 +27,59 @@
   "features": {
     "google_reviews": {
       "backend": { "routes": ["reviews.ts"], "services": ["reviews.ts"] },
-      "frontend": { "components": ["reviews/GoogleReviews.jsx"], "features": ["MarketingPage.jsx"] },
+      "frontend": { "components": ["reviews/GoogleReviews.tsx"], "features": ["MarketingPage.tsx"] },
       "sidebar": null
     },
     "email_marketing": {
       "backend": { "routes": ["marketing.ts"], "services": ["marketing.ts"] },
-      "frontend": { "pages": ["marketing/MarketingPage.jsx"], "features": ["MarketingPage.jsx"] },
+      "frontend": { "pages": ["marketing/MarketingPage.tsx"], "features": ["MarketingPage.tsx"] },
       "sidebar": null
     },
     "referral_program": {
       "backend": { "routes": ["marketing.ts"], "services": ["marketing.ts"] },
-      "frontend": { "features": ["MarketingPage.jsx"] },
+      "frontend": { "features": ["MarketingPage.tsx"] },
       "sidebar": null
     },
     "website_builder": {
       "backend": { "routes": [] },
-      "frontend": { "features": ["WebsiteBuilderPage.jsx"] },
+      "frontend": { "features": ["WebsiteBuilderPage.tsx"] },
       "sidebar": { "id": "website", "label": "Website", "icon": "Globe", "path": "/website" }
     },
     "ai_receptionist": {
       "backend": { "routes": [] },
-      "frontend": { "features": ["AIReceptionistPage.jsx"] },
+      "frontend": { "features": ["AIReceptionistPage.tsx"] },
       "sidebar": null
     },
     "consumer_financing": {
       "backend": { "routes": ["wisetack.ts"], "services": ["wisetack.ts"] },
-      "frontend": { "features": ["FinancingPage.jsx"], "components": ["financing/WisetackFinancing.jsx"] },
+      "frontend": { "features": ["FinancingPage.tsx"], "components": ["financing/WisetackFinancing.tsx"] },
       "sidebar": null
     },
 
     "professional_quotes": {
       "backend": { "routes": ["quotes.ts"] },
-      "frontend": { "features": ["QuotesPage.jsx"] },
+      "frontend": { "features": ["QuotesPage.tsx"] },
       "sidebar": null
     },
     "quote_templates": {
       "backend": { "routes": ["quotes.ts"] },
-      "frontend": { "features": ["QuotesPage.jsx"] },
+      "frontend": { "features": ["QuotesPage.tsx"] },
       "sidebar": null
     },
     "online_approval": {
       "backend": { "routes": ["quotes.ts"] },
-      "frontend": { "components": ["common/SignaturePad.jsx"] },
+      "frontend": { "components": ["common/SignaturePad.tsx"] },
       "sidebar": null
     },
     "deposit_collection": {
       "backend": { "routes": ["stripe.ts"], "services": ["stripe.ts"] },
-      "frontend": { "components": ["payments/PaymentForm.jsx"] },
+      "frontend": { "components": ["payments/PaymentForm.tsx"] },
       "sidebar": null
     },
 
     "drag_drop_calendar": {
       "backend": { "routes": ["scheduling.ts"], "services": ["scheduling.ts"] },
-      "frontend": { "pages": ["SchedulePage.jsx"], "components": ["schedule/DragDropCalendar.jsx"] },
+      "frontend": { "pages": ["SchedulePage.tsx"], "components": ["schedule/DragDropCalendar.tsx"] },
       "sidebar": null
     },
     "online_booking": {
@@ -89,92 +89,92 @@
     },
     "service_dispatch": {
       "backend": { "routes": ["scheduling.ts"], "services": ["scheduling.ts"] },
-      "frontend": { "pages": ["SchedulePage.jsx"] },
+      "frontend": { "pages": ["SchedulePage.tsx"] },
       "sidebar": null
     },
     "route_optimization": {
       "backend": { "routes": ["routing.ts"], "services": ["routing.ts"] },
-      "frontend": { "components": ["routing/RouteOptimizer.jsx"] },
+      "frontend": { "components": ["routing/RouteOptimizer.tsx"] },
       "sidebar": null
     },
     "map_view": {
       "backend": { "routes": ["maps.ts"] },
-      "frontend": { "components": ["common/Maps.jsx"] },
+      "frontend": { "components": ["common/Maps.tsx"] },
       "sidebar": null
     },
     "recurring_jobs": {
       "backend": { "routes": ["recurring.ts"], "services": ["recurring.ts"] },
-      "frontend": { "pages": ["recurring/RecurringForm.jsx", "recurring/RecurringList.jsx"] },
+      "frontend": { "pages": ["recurring/RecurringForm.tsx", "recurring/RecurringList.tsx"] },
       "sidebar": null
     },
     "gantt_schedules": {
       "backend": { "routes": ["scheduling.ts"] },
-      "frontend": { "components": ["gantt/GanttChart.jsx"] },
+      "frontend": { "components": ["gantt/GanttChart.tsx"] },
       "sidebar": null
     },
 
     "time_tracking": {
       "backend": { "routes": ["time.ts", "timeTracking.ts"], "services": ["timeTracking.ts"] },
-      "frontend": { "pages": ["TimePage.jsx", "time/TimesheetPage.jsx"], "components": ["time/TimeClock.jsx"] },
+      "frontend": { "pages": ["TimePage.tsx", "time/TimesheetPage.tsx"], "components": ["time/TimeClock.tsx"] },
       "sidebar": { "id": "time", "label": "Time", "icon": "Clock", "path": "/time" }
     },
     "gps_tracking": {
       "backend": { "routes": ["geofencing.ts"], "services": ["geofencing.ts", "geocoding.ts"] },
-      "frontend": { "components": ["location/LocationTracker.jsx"], "pages": ["settings/GeofencesPage.jsx"] },
+      "frontend": { "components": ["location/LocationTracker.tsx"], "pages": ["settings/GeofencesPage.tsx"] },
       "sidebar": null
     },
     "photo_capture": {
       "backend": { "routes": ["photos.ts"], "services": ["photos.ts"] },
-      "frontend": { "components": ["common/PhotoGallery.jsx"] },
+      "frontend": { "components": ["common/PhotoGallery.tsx"] },
       "sidebar": null
     },
     "daily_logs": {
       "backend": { "routes": ["dailyLogs.ts"] },
-      "frontend": { "pages": ["DailyLogsPage.jsx"], "features": ["DailyLogsPage.jsx"] },
+      "frontend": { "pages": ["DailyLogsPage.tsx"], "features": ["DailyLogsPage.tsx"] },
       "sidebar": { "id": "daily-logs", "label": "Daily Logs", "icon": "ClipboardList", "path": "/daily-logs" }
     },
 
     "rfis": {
       "backend": { "routes": ["rfis.ts"] },
-      "frontend": { "pages": ["RFIsPage.jsx"], "features": ["RFIsPage.jsx"] },
+      "frontend": { "pages": ["RFIsPage.tsx"], "features": ["RFIsPage.tsx"] },
       "sidebar": { "id": "rfis", "label": "RFIs", "icon": "HelpCircle", "path": "/rfis" }
     },
     "punch_lists": {
       "backend": { "routes": ["punchLists.ts"] },
-      "frontend": { "pages": ["PunchListsPage.jsx"], "features": ["PunchListsPage.jsx"] },
+      "frontend": { "pages": ["PunchListsPage.tsx"], "features": ["PunchListsPage.tsx"] },
       "sidebar": { "id": "punch-lists", "label": "Punch Lists", "icon": "CheckSquare", "path": "/punch-lists" }
     },
     "change_orders": {
       "backend": { "routes": ["changeOrders.ts"] },
-      "frontend": { "pages": ["ChangeOrdersPage.jsx"], "features": ["ChangeOrdersPage.jsx"] },
+      "frontend": { "pages": ["ChangeOrdersPage.tsx"], "features": ["ChangeOrdersPage.tsx"] },
       "sidebar": { "id": "change-orders", "label": "Change Orders", "icon": "FileDiff", "path": "/change-orders" }
     },
 
     "observations": {
       "backend": { "routes": ["inspections.ts"] },
-      "frontend": { "pages": ["InspectionsPage.jsx"], "features": ["QualityPage.jsx"] },
+      "frontend": { "pages": ["InspectionsPage.tsx"], "features": ["QualityPage.tsx"] },
       "sidebar": null
     },
     "inspections": {
       "backend": { "routes": ["inspections.ts"] },
-      "frontend": { "pages": ["InspectionsPage.jsx"], "features": ["QualityPage.jsx"] },
+      "frontend": { "pages": ["InspectionsPage.tsx"], "features": ["QualityPage.tsx"] },
       "sidebar": { "id": "inspections", "label": "Inspections", "icon": "Shield", "path": "/inspections" }
     },
 
     "bid_management": {
       "backend": { "routes": ["bids.ts"] },
-      "frontend": { "pages": ["BidsPage.jsx"], "features": ["BiddingPage.jsx"] },
+      "frontend": { "pages": ["BidsPage.tsx"], "features": ["BiddingPage.tsx"] },
       "sidebar": { "id": "bids", "label": "Bids", "icon": "Gavel", "path": "/bids" }
     },
     "takeoff_tools": {
       "backend": { "routes": ["takeoffs.ts"], "services": ["takeoffs.ts"] },
-      "frontend": { "pages": ["takeoffs/TakeoffsPage.jsx"] },
+      "frontend": { "pages": ["takeoffs/TakeoffsPage.tsx"] },
       "sidebar": null
     },
 
     "contact_database": {
       "backend": { "routes": ["contacts.ts"] },
-      "frontend": { "pages": ["ContactsPage.jsx"] },
+      "frontend": { "pages": ["ContactsPage.tsx"] },
       "sidebar": null
     },
     "client_portal": {
@@ -185,98 +185,98 @@
 
     "two_way_texting": {
       "backend": { "routes": ["sms.ts"], "services": ["sms.ts"] },
-      "frontend": { "pages": ["messages/MessagesPage.jsx"], "features": ["CommunicationPage.jsx"] },
+      "frontend": { "pages": ["messages/MessagesPage.tsx"], "features": ["CommunicationPage.tsx"] },
       "sidebar": { "id": "messages", "label": "Messages", "icon": "MessageSquare", "path": "/messages" }
     },
     "call_tracking": {
       "backend": { "routes": ["calltracking.ts"], "services": ["calltracking.ts"] },
-      "frontend": { "pages": ["calltracking/CallTrackingPage.jsx"] },
+      "frontend": { "pages": ["calltracking/CallTrackingPage.tsx"] },
       "sidebar": null
     },
 
     "invoice_generation": {
       "backend": { "routes": ["invoices.ts"] },
-      "frontend": { "pages": ["InvoicesPage.jsx"] },
+      "frontend": { "pages": ["InvoicesPage.tsx"] },
       "sidebar": null
     },
     "online_payments": {
       "backend": { "routes": ["stripe.ts"], "services": ["stripe.ts"] },
-      "frontend": { "components": ["payments/PaymentForm.jsx", "settings/StripeSettings.jsx"] },
+      "frontend": { "components": ["payments/PaymentForm.tsx", "settings/StripeSettings.tsx"] },
       "sidebar": null
     },
 
     "job_costing": {
       "backend": { "routes": ["reporting.ts"], "services": ["jobCosting.ts", "reporting.ts"] },
-      "frontend": { "pages": ["reports/ReportsDashboard.jsx"] },
+      "frontend": { "pages": ["reports/ReportsDashboard.tsx"] },
       "sidebar": null
     },
     "expense_tracking": {
       "backend": { "routes": ["expenses.ts"] },
-      "frontend": { "pages": ["ExpensesPage.jsx"], "features": ["ExpensesPage.jsx"] },
+      "frontend": { "pages": ["ExpensesPage.tsx"], "features": ["ExpensesPage.tsx"] },
       "sidebar": { "id": "expenses", "label": "Expenses", "icon": "Receipt", "path": "/expenses" }
     },
     "quickbooks": {
       "backend": { "routes": ["quickbooks.ts"], "services": ["quickbooks.ts"] },
-      "frontend": { "components": ["settings/QuickBooksSettings.jsx"] },
+      "frontend": { "components": ["settings/QuickBooksSettings.tsx"] },
       "sidebar": null
     },
 
     "custom_dashboards": {
       "backend": { "routes": ["dashboard.ts"] },
-      "frontend": { "pages": ["dashboard/CustomizableDashboard.jsx"] },
+      "frontend": { "pages": ["dashboard/CustomizableDashboard.tsx"] },
       "sidebar": null
     },
 
     "documents": {
       "backend": { "routes": ["documents.ts"] },
-      "frontend": { "pages": ["DocumentsPage.jsx"] },
+      "frontend": { "pages": ["DocumentsPage.tsx"] },
       "sidebar": { "id": "documents", "label": "Documents", "icon": "Folder", "path": "/documents" }
     },
     "reports": {
       "backend": { "routes": ["reporting.ts"], "services": ["reporting.ts"] },
-      "frontend": { "pages": ["reports/ReportsDashboard.jsx"] },
+      "frontend": { "pages": ["reports/ReportsDashboard.tsx"] },
       "sidebar": { "id": "reports", "label": "Reports", "icon": "BarChart", "path": "/reports" }
     },
 
     "equipment_tracking": {
       "backend": { "routes": ["equipment.ts"], "services": ["equipment.ts"] },
-      "frontend": { "pages": ["equipment/EquipmentPage.jsx"] },
+      "frontend": { "pages": ["equipment/EquipmentPage.tsx"] },
       "sidebar": { "id": "equipment", "label": "Equipment", "icon": "Settings", "path": "/equipment" }
     },
     "service_agreements": {
       "backend": { "routes": ["agreements.ts"], "services": ["agreements.ts"] },
-      "frontend": { "pages": ["agreements/AgreementsPage.jsx"] },
+      "frontend": { "pages": ["agreements/AgreementsPage.tsx"] },
       "sidebar": { "id": "agreements", "label": "Agreements", "icon": "FileCheck", "path": "/agreements" }
     },
     "pricebook": {
       "backend": { "routes": ["pricebook.ts"], "services": ["pricebook.ts"] },
-      "frontend": { "pages": ["pricebook/PricebookPage.jsx"] },
+      "frontend": { "pages": ["pricebook/PricebookPage.tsx"] },
       "sidebar": { "id": "pricebook", "label": "Pricebook", "icon": "BookOpen", "path": "/pricebook" }
     },
     "fleet": {
       "backend": { "routes": ["fleet.ts"], "services": ["fleet.ts"] },
-      "frontend": { "pages": ["fleet/FleetPage.jsx"] },
+      "frontend": { "pages": ["fleet/FleetPage.tsx"] },
       "sidebar": { "id": "fleet", "label": "Fleet", "icon": "Truck", "path": "/fleet" }
     },
     "inventory": {
       "backend": { "routes": ["inventory.ts"], "services": ["inventory.ts"] },
-      "frontend": { "pages": ["inventory/InventoryPage.jsx"] },
+      "frontend": { "pages": ["inventory/InventoryPage.tsx"] },
       "sidebar": { "id": "inventory", "label": "Inventory", "icon": "Package", "path": "/inventory" }
     },
 
     "projects": {
       "backend": { "routes": ["projects.ts"] },
-      "frontend": { "pages": ["ProjectsPage.jsx"], "features": ["ProjectsPage.jsx"] },
+      "frontend": { "pages": ["ProjectsPage.tsx"], "features": ["ProjectsPage.tsx"] },
       "sidebar": { "id": "projects", "label": "Projects", "icon": "Building", "path": "/projects" }
     },
     "selections": {
       "backend": { "routes": ["selections.ts"], "services": ["selections.ts"] },
-      "frontend": { "pages": ["selections/SelectionsPage.jsx"] },
+      "frontend": { "pages": ["selections/SelectionsPage.tsx"] },
       "sidebar": null
     },
     "warranties": {
       "backend": { "routes": ["warranties.ts"], "services": ["warranties.ts"] },
-      "frontend": { "pages": ["warranties/WarrantiesPage.jsx"] },
+      "frontend": { "pages": ["warranties/WarrantiesPage.tsx"] },
       "sidebar": null
     }
   },
