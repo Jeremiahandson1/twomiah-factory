@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { authenticate, supabase } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
-import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain, updateRenderServiceSettings } from '../services/deploy'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
 import fs from 'fs'
@@ -529,11 +529,24 @@ factory.post('/customers/:id/redeploy', async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
   const id = c.req.param('id')
   if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+
+  const { data: tenant } = await supabase.from('factory_tenants').select('slug').eq('id', id).maybeSingle()
   const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job) return c.json({ error: 'No deployed services found' }, 400)
-  const serviceIds = job.render_service_ids
+
+  let serviceIds = job.render_service_ids
+  // Fallback: look up services on Render by tenant slug if IDs weren't saved
+  if ((!serviceIds || Object.keys(serviceIds).length === 0) && tenant?.slug) {
+    console.log('[Redeploy] No stored service IDs, looking up by slug:', tenant.slug)
+    serviceIds = await findRenderServicesBySlug(tenant.slug)
+    // Save discovered IDs back to the job for next time
+    if (Object.keys(serviceIds).length > 0) {
+      await supabase.from('factory_jobs').update({ render_service_ids: serviceIds }).eq('id', job.id)
+    }
+  }
+
   if (!serviceIds || Object.keys(serviceIds).length === 0) {
-    return c.json({ error: 'No Render service IDs saved. Deploy again to populate them.' }, 400)
+    return c.json({ error: 'No Render services found for this customer.' }, 400)
   }
   const result = await redeployCustomer({ renderServiceIds: serviceIds })
   return c.json(result)

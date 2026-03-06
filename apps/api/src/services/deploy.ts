@@ -751,6 +751,35 @@ export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Rec
   return results
 }
 
+export async function findRenderServicesBySlug(slug: string): Promise<Record<string, string>> {
+  const serviceIds: Record<string, string> = {}
+  try {
+    const res = await fetchWithTimeout(RENDER_API + '/services?type=web_service,static_site&limit=100', { headers: renderHeaders() })
+    if (!res.ok) return serviceIds
+    const list = await res.json() as any[]
+    const suffixes: Record<string, string> = {
+      '-api': 'backend', '-care-api': 'backend',
+      '-frontend': 'frontend', '-care': 'frontend',
+      '-site': 'site',
+      '-vision': 'vision',
+    }
+    for (const item of list) {
+      const svc = item.service || item
+      const name: string = svc.name || ''
+      if (!name.startsWith(slug)) continue
+      for (const [suffix, role] of Object.entries(suffixes)) {
+        if (name === slug + suffix || name.startsWith(slug + suffix + '-')) {
+          serviceIds[role] = svc.id
+          break
+        }
+      }
+    }
+  } catch (e: any) {
+    console.warn('[Deploy] Could not look up services by slug:', e.message)
+  }
+  return serviceIds
+}
+
 export async function addCustomDomain(serviceId: string, domain: string): Promise<{ success: boolean; error?: string }> {
   if (!process.env.RENDER_API_KEY) return { success: false, error: 'Render not configured' }
   try {
