@@ -1225,6 +1225,21 @@ app.post('/leads', async (c) => {
 
     sendEmailNotification(newLead);
 
+    // Forward lead to CRM if configured
+    const CRM_API_URL = process.env.CRM_API_URL;
+    const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET;
+    if (CRM_API_URL && WEBHOOK_SECRET) {
+      try {
+        await fetch(`${CRM_API_URL}/api/webhooks/leads`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
+          body: JSON.stringify({ name, email, phone, service, message, source: source || 'website', address }),
+        });
+      } catch (e) {
+        console.warn('[Leads] Failed to forward lead to CRM:', (e as any).message);
+      }
+    }
+
     return c.json({ message: 'Form submitted successfully', id: newLead.id });
   } catch (err) {
     return c.json({ error: 'Server error' }, 500);

@@ -635,9 +635,15 @@ export async function deployCustomer(
         const siteUrl = getServiceUrl(site)
         console.log('[Deploy] Resolved website URL:', siteUrl)
         results.siteUrl = siteUrl
-        // Set SITE_URL using the real URL from Render
-        if (site.service?.id && siteUrl) {
-          await updateRenderEnvVars(site.service.id, [{ key: 'SITE_URL', value: siteUrl }])
+        // Set SITE_URL and CRM integration env vars
+        if (site.service?.id) {
+          const siteEnvUpdates: Array<{ key: string; value: string }> = []
+          if (siteUrl) siteEnvUpdates.push({ key: 'SITE_URL', value: siteUrl })
+          if (results.apiUrl) {
+            siteEnvUpdates.push({ key: 'CRM_API_URL', value: results.apiUrl })
+            siteEnvUpdates.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
+          }
+          if (siteEnvUpdates.length > 0) await updateRenderEnvVars(site.service.id, siteEnvUpdates)
         }
       } catch (err: any) {
         results.steps.push({ step: 'render_site', status: 'error', error: err.message })
