@@ -74,7 +74,9 @@ handleUncaughtExceptions()
 
 const app = new Hono()
 
-app.use('*', secureHeaders())
+app.use('*', secureHeaders({
+  crossOriginResourcePolicy: 'cross-origin',
+}))
 
 // CORS — allow all origins; auth is handled by JWT, not origin checks
 app.use('*', cors({
