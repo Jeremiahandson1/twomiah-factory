@@ -359,7 +359,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
   const routesDir = path.join(crmDir, 'backend', 'src', 'routes')
   if (fs.existsSync(routesDir)) {
     for (const file of fs.readdirSync(routesDir)) {
-      if (file === 'auth.js' || file === 'factory.js') continue
+      if (file === 'auth.ts' || file === 'factory.ts') continue
       if (!neededRoutes.has(file)) fs.unlinkSync(path.join(routesDir, file))
     }
   }
@@ -372,7 +372,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
     }
   }
 
-  const indexPath = path.join(crmDir, 'backend', 'src', 'index.js')
+  const indexPath = path.join(crmDir, 'backend', 'src', 'index.ts')
   if (fs.existsSync(indexPath)) {
     let indexContent = fs.readFileSync(indexPath, 'utf8')
     const allRouteFiles = new Set(
@@ -381,9 +381,9 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
         .filter(Boolean)
     )
     for (const routeFile of allRouteFiles) {
-      if (!routeFile || neededRoutes.has(routeFile) || routeFile === 'auth.js' || routeFile === 'factory.js') continue
+      if (!routeFile || neededRoutes.has(routeFile) || routeFile === 'auth.ts' || routeFile === 'factory.ts') continue
       indexContent = indexContent.replace(new RegExp("import \\w+ from './routes/" + routeFile + "';?\\n?", 'g'), '')
-      const routeName = routeFile.replace('.js', '')
+      const routeName = routeFile.replace('.ts', '')
       indexContent = indexContent.replace(new RegExp("app\\.use\\('/api/[^']*',\\s*\\w*" + routeName + "\\w*Routes?\\);?\\n?", 'gi'), '')
     }
     fs.writeFileSync(indexPath, indexContent, 'utf8')
@@ -429,8 +429,8 @@ function stripWebsiteFeatures(websiteDir: string, enabledFeatures: string[]) {
     blog: { views: ['blog.ejs', 'blog-post.ejs'], data: ['posts.json'] },
     gallery: { views: ['gallery.ejs'], data: ['gallery.json'] },
     testimonials: { data: ['testimonials.json'] },
-    services_pages: { views: ['service.ejs', 'subservice.ejs'], data: ['services.json'], routes: ['services.js'] },
-    contact_form: { views: ['contact.ejs'], routes: ['leads.js'] },
+    services_pages: { views: ['service.ejs', 'subservice.ejs'], data: ['services.json'], routes: ['services.ts'] },
+    contact_form: { views: ['contact.ejs'], routes: ['leads.ts'] },
     visualizer: { views: ['visualize.html'] },
   }
 

@@ -6,8 +6,8 @@ services:
     name: {{COMPANY_SLUG}}-site
     runtime: node
     plan: starter
-    buildCommand: npm install && if [ -d admin ]; then cd admin && npm install --include=dev && npm run build; fi
-    startCommand: node server-static.js
+    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && bun install && if [ -d admin ]; then cd admin && bun install && bun run build; fi
+    startCommand: $HOME/.bun/bin/bun server-static.ts
     envVars:
       - key: JWT_SECRET
         generateValue: true

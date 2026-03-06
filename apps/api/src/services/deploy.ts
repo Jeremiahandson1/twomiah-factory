@@ -558,7 +558,7 @@ export async function deployCustomer(
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
           buildCommand: siteBunSetup + ' && bun install && if [ -f admin/package.json ]; then cd admin && bun install && bun run build:quick && cd ..; fi',
-          startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.js',
+          startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts',
           envVars: [
             { key: 'NODE_ENV', value: 'production' },
             { key: 'PORT', value: '10000' },

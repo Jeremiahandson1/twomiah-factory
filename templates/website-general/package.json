@@ -2,30 +2,32 @@
   "name": "{{COMPANY_SLUG}}-site",
   "version": "1.0.0",
   "description": "Backend API for {{COMPANY_NAME}} with CMS",
-  "main": "server-static.js",
+  "main": "server-static.ts",
   "scripts": {
-    "start": "node server-static.js",
-    "dev": "NODE_ENV=development nodemon server-static.js",
-    "db:init": "node scripts/initDb.js",
-    "db:seed": "node scripts/seedDb.js"
+    "start": "bun server-static.ts",
+    "dev": "NODE_ENV=development bun --watch server-static.ts",
+    "db:init": "bun scripts/initDb.ts",
+    "db:seed": "bun scripts/seedDb.ts",
+    "db:generate": "bunx drizzle-kit generate",
+    "db:migrate": "bunx drizzle-kit migrate",
+    "db:push": "bunx drizzle-kit push"
   },
   "dependencies": {
+    "hono": "^4.4.0",
+    "@hono/node-server": "^1.11.0",
     "bcryptjs": "^2.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
+    "drizzle-orm": "^0.33.0",
     "ejs": "^3.1.9",
-    "express": "^4.18.2",
-    "express-rate-limit": "^7.1.5",
-    "express-validator": "^7.0.1",
-    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5-lts.1",
     "pg": "^8.11.3",
     "sharp": "^0.33.2",
-    "@sendgrid/mail": "^8.1.0",
-    "uuid": "^9.0.1"
+    "@sendgrid/mail": "^8.1.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "drizzle-kit": "^0.24.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/ejs": "^3.1.5",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/pg": "^8.11.6"
   }
 }

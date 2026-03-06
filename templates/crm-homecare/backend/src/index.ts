@@ -1,0 +1,145 @@
+import { Hono } from 'hono'
+import type { Context, Next } from 'hono'
+import { cors } from 'hono/cors'
+import { secureHeaders } from 'hono/secure-headers'
+import { serve } from '@hono/node-server'
+import { db } from '../db/index.ts'
+import logger from './services/logger.ts'
+import { initializeSocket, io } from './services/socket.ts'
+import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
+
+import authRoutes from './routes/auth.ts'
+import dashboardRoutes from './routes/dashboard.ts'
+import clientsRoutes from './routes/clients.ts'
+import caregiversRoutes from './routes/caregivers.ts'
+import schedulingRoutes from './routes/scheduling.ts'
+import timeTrackingRoutes from './routes/timeTracking.ts'
+import billingRoutes from './routes/billing.ts'
+import payrollRoutes from './routes/payroll.ts'
+import complianceRoutes from './routes/compliance.ts'
+import communicationRoutes from './routes/communication.ts'
+import documentsRoutes from './routes/documents.ts'
+import notificationsRoutes from './routes/notifications.ts'
+import pushRoutes from './routes/push.ts'
+import smsRoutes from './routes/sms.ts'
+import portalRoutes from './routes/portal.ts'
+import reportsRoutes from './routes/reports.ts'
+import formsRoutes from './routes/forms.ts'
+import evvRoutes from './routes/evv.ts'
+import ediRoutes from './routes/edi.ts'
+import claimsRoutes from './routes/claims.ts'
+import remittanceRoutes from './routes/remittance.ts'
+import authorizationsRoutes from './routes/authorizations.ts'
+import serviceCodesRoutes from './routes/serviceCodes.ts'
+import payersRoutes from './routes/payers.ts'
+import auditRoutes from './routes/audit.ts'
+import companyRoutes from './routes/company.ts'
+import stripeRoutes from './routes/stripe.ts'
+import optimizerRoutes from './routes/optimizer.ts'
+
+handleUncaughtExceptions()
+
+const app = new Hono()
+
+// Security headers
+app.use('*', secureHeaders())
+
+// CORS
+app.use('*', cors({
+  origin: (origin) => {
+    if (!origin) return origin
+    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
+      .split(',').map(s => s.trim())
+    if (allowed.some(u => origin === u) || origin.endsWith('.onrender.com')) {
+      return origin
+    }
+    return null
+  },
+  credentials: true,
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+}))
+
+// Simple in-memory rate limiter
+function createRateLimiter(windowMs: number, max: number) {
+  const hits = new Map<string, { count: number; resetAt: number }>()
+  return async (c: Context, next: Next) => {
+    const key = c.req.header('x-forwarded-for') || 'unknown'
+    const now = Date.now()
+    const entry = hits.get(key)
+    if (!entry || now > entry.resetAt) {
+      hits.set(key, { count: 1, resetAt: now + windowMs })
+    } else {
+      entry.count++
+      if (entry.count > max) {
+        return c.json({ error: 'Too many requests, please try again later' }, 429)
+      }
+    }
+    await next()
+  }
+}
+
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 200 : 1000))
+app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
+
+// Health check
+app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
+
+// API routes
+app.route('/api/auth', authRoutes)
+app.route('/api/dashboard', dashboardRoutes)
+app.route('/api/clients', clientsRoutes)
+app.route('/api/caregivers', caregiversRoutes)
+app.route('/api/scheduling', schedulingRoutes)
+app.route('/api/time-tracking', timeTrackingRoutes)
+app.route('/api/billing', billingRoutes)
+app.route('/api/payroll', payrollRoutes)
+app.route('/api/compliance', complianceRoutes)
+app.route('/api/communication', communicationRoutes)
+app.route('/api/documents', documentsRoutes)
+app.route('/api/notifications', notificationsRoutes)
+app.route('/api/push', pushRoutes)
+app.route('/api/sms', smsRoutes)
+app.route('/api/portal', portalRoutes)
+app.route('/api/reports', reportsRoutes)
+app.route('/api/forms', formsRoutes)
+app.route('/api/evv', evvRoutes)
+app.route('/api/edi', ediRoutes)
+app.route('/api/claims', claimsRoutes)
+app.route('/api/remittance', remittanceRoutes)
+app.route('/api/authorizations', authorizationsRoutes)
+app.route('/api/service-codes', serviceCodesRoutes)
+app.route('/api/payers', payersRoutes)
+app.route('/api/audit', auditRoutes)
+app.route('/api/company', companyRoutes)
+app.route('/api/stripe', stripeRoutes)
+app.route('/api/optimizer', optimizerRoutes)
+
+// Error handler
+app.onError(errorHandler)
+
+// 404
+app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+
+const PORT = Number(process.env.PORT) || 3001
+
+const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
+  logger.info(`{{COMPANY_NAME}} Care API running on port ${info.port}`, {
+    env: process.env.NODE_ENV || 'development',
+    port: info.port,
+  })
+})
+
+// Socket.IO
+initializeSocket(server as any)
+
+const shutdown = async (signal: string) => {
+  logger.info(`${signal} received, shutting down gracefully`)
+  process.exit(0)
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+
+export { db, io }
+export default app
