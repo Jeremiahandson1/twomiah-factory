@@ -459,18 +459,7 @@ export async function deployCustomer(
     await pushToGitHub(repo.full_name, extractDir)
     results.steps.push({ step: 'github_push', status: 'ok' })
 
-    // Step 3.5: Create Render project + environment for grouping
-    const projectName = (factoryCustomer.name || slug)
-    let environmentId: string | null = null
-    const projectId = await createRenderProject(projectName)
-    if (projectId) {
-      results.steps.push({ step: 'render_project', status: 'ok', projectId })
-      console.log('[Deploy] Created Render project:', projectName)
-      environmentId = await createRenderEnvironment(projectId, 'production')
-      if (environmentId) {
-        results.steps.push({ step: 'render_environment', status: 'ok', environmentId })
-      }
-    }
+    // Skip Render project creation — it causes Render to add random suffixes to service names
     const deployedResourceIds: string[] = []
 
     // Step 4: Render Postgres (only for CRM products)
@@ -479,7 +468,7 @@ export async function deployCustomer(
       try {
         const dbSlug = isHomeCare ? slug + '-care' : slug
         console.log('[Deploy] Creating DB:', dbSlug + '-db')
-        const db = await createRenderDatabase(dbSlug, region, dbPlan, projectId)
+        const db = await createRenderDatabase(dbSlug, region, dbPlan)
         createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
         results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
         results.services.database = db
@@ -545,7 +534,7 @@ export async function deployCustomer(
           name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',
           buildCommand: backendBuild,
           startCommand: backendStart,
-          envVars: backendEnvVars, plan, region, projectId,
+          envVars: backendEnvVars, plan, region,
         })
         console.log('[Deploy] Backend creation response:', JSON.stringify(backend, null, 2))
         const backendSvc = backend.service || backend
@@ -568,7 +557,6 @@ export async function deployCustomer(
           name: crmFrontName, repoFullName: repo.full_name, rootDir: crmRootDir + '/frontend',
           buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
           envVars: [{ key: 'VITE_API_URL', value: backendUrl }],
-          projectId,
         })
         console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
         const frontendSvc = frontend.service || frontend
@@ -608,7 +596,7 @@ export async function deployCustomer(
             { key: 'JWT_SECRET', value: jwtSecret },
             { key: 'SITE_NAME', value: factoryCustomer.name || slug },
           ],
-          plan, region, projectId,
+          plan, region,
         })
         console.log('[Deploy] Website creation response:', JSON.stringify(site, null, 2))
         results.steps.push({ step: 'render_site', status: 'ok', serviceId: site.service?.id })
@@ -628,12 +616,6 @@ export async function deployCustomer(
         results.steps.push({ step: 'render_site', status: 'error', error: err.message })
         results.errors.push('Site: ' + err.message)
       }
-    }
-
-    // Assign all services to Render project environment
-    if (environmentId && deployedResourceIds.length > 0) {
-      await addResourcesToEnvironment(environmentId, deployedResourceIds)
-      console.log('[Deploy] Assigned', deployedResourceIds.length, 'resources to environment')
     }
 
     results.success = results.errors.length === 0
