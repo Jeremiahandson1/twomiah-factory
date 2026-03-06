@@ -8,8 +8,8 @@ services:
     runtime: node
     plan: starter
     rootDir: crm/backend
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy
-    startCommand: node prisma/seed.js && node src/index.js
+    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && bun install && bunx drizzle-kit migrate
+    startCommand: export PATH="$HOME/.bun/bin:$PATH" && bun db/seed.ts && bun src/index.ts
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -36,7 +36,7 @@ services:
     name: {{COMPANY_SLUG}}-care
     runtime: static
     rootDir: crm/frontend
-    buildCommand: npm install && npm run build
+    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && bun install && bun run build
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
