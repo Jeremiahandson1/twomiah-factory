@@ -159,6 +159,27 @@ async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | '
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 
+async function findAndDeleteRenderService(name: string): Promise<void> {
+  try {
+    // List services owned by us and find by name
+    const res = await fetchWithTimeout(RENDER_API + '/services?type=web_service,static_site&limit=50', { headers: renderHeaders() })
+    if (!res.ok) return
+    const list = await res.json() as any[]
+    for (const item of list) {
+      const svc = item.service || item
+      if (svc.name === name) {
+        console.log('[Deploy] Deleting existing Render service:', name, svc.id)
+        await fetchWithTimeout(RENDER_API + '/services/' + svc.id, { method: 'DELETE', headers: renderHeaders() })
+        // Wait for deletion to propagate so the name is freed
+        await sleep(5000)
+        return
+      }
+    }
+  } catch (e: any) {
+    console.warn('[Deploy] Could not clean up existing service:', name, e.message)
+  }
+}
+
 async function createRenderProject(name: string): Promise<string | null> {
   const res = await fetchWithTimeout(RENDER_API + '/projects', {
     method: 'POST', headers: renderHeaders(),
@@ -527,6 +548,10 @@ export async function deployCustomer(
         const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
         const crmRootDir = isHomeCare ? 'crm-homecare' : 'crm'
 
+        // Delete existing services so names are available (avoids random suffixes)
+        await findAndDeleteRenderService(crmApiName)
+        await findAndDeleteRenderService(crmFrontName)
+
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const backendBuild = bunSetup + ' && bun install'
         const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
@@ -585,6 +610,7 @@ export async function deployCustomer(
     // Step 7: Website service
     if (products.includes('website')) {
       try {
+        await findAndDeleteRenderService(slug + '-site')
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
