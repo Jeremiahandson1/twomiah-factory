@@ -1,5 +1,5 @@
 // src/config.ts - API utilities with token expiry handling
-export const API_BASE_URL = '{{BACKEND_URL}}';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '{{BACKEND_URL}}';
 
 // Global logout callback — set by App on mount
 let _onSessionExpired = null;

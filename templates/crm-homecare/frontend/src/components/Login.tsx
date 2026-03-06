@@ -27,7 +27,7 @@ const Login = ({ onLogin }) => {
         throw new Error(data.error || `Error ${response.status}`);
       }
 
-      onLogin(data.token, data.user);
+      onLogin(data.accessToken, data.user);
     } catch (err) {
       setError(err.message);
     } finally {
