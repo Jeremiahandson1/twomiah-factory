@@ -688,6 +688,10 @@ export async function deployCustomer(
         if (visionSvc.id) {
           await updateRenderEnvVars(visionSvc.id, [{ key: 'NEXT_PUBLIC_BASE_URL', value: visionUrl }])
         }
+        // Set VISION_URL on the website service so /visualize redirects work
+        if (results.services.site?.id) {
+          await updateRenderEnvVars(results.services.site.id, [{ key: 'VISION_URL', value: visionUrl }])
+        }
       } catch (err: any) {
         results.steps.push({ step: 'render_vision', status: 'error', error: err.message })
         results.errors.push('Vision: ' + err.message)

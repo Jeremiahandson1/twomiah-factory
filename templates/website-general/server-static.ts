@@ -226,6 +226,19 @@ app.get('/p/:pageId', (c) => {
 })
 
 // ===========================================
+// VISION APP REDIRECT
+// ===========================================
+
+const VISION_URL = process.env.VISION_URL || ''
+if (VISION_URL) {
+  app.get('/visualize', (c) => c.redirect(VISION_URL, 302))
+  app.get('/visualize/*', (c) => {
+    const sub = c.req.path.replace('/visualize', '')
+    return c.redirect(VISION_URL + sub, 302)
+  })
+}
+
+// ===========================================
 // ERROR HANDLING
 // ===========================================
 
