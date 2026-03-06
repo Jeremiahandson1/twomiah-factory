@@ -8,7 +8,7 @@ services:
     plan: starter
     rootDir: crm/backend
     buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && bun install
-    startCommand: export PATH="$HOME/.bun/bin:$PATH" && bunx drizzle-kit migrate && bun db/seed.ts && bun src/index.ts
+    startCommand: export PATH="$HOME/.bun/bin:$PATH" && bun x drizzle-kit migrate && bun db/seed.ts && bun src/index.ts
     envVars:
       - key: DATABASE_URL
         fromDatabase:
