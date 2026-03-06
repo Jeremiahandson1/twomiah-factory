@@ -500,8 +500,8 @@ export async function deployCustomer(
 
         const crmApiName = isHomeCare ? slug + '-care-api' : slug + '-api'
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
-        const backendBuild = bunSetup + ' && bun install && bunx drizzle-kit migrate'
-        const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/seed.ts && bun src/index.ts'
+        const backendBuild = bunSetup + ' && bun install'
+        const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bunx drizzle-kit migrate && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: 'crm/backend',
           buildCommand: backendBuild,
