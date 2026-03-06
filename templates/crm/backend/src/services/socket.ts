@@ -48,6 +48,25 @@ export const initializeSocket = (server: any) => {
   return io
 }
 
+export const EVENTS = {
+  CONTACT_CREATED: 'contact:created',
+  CONTACT_UPDATED: 'contact:updated',
+  CONTACT_DELETED: 'contact:deleted',
+  JOB_CREATED: 'job:created',
+  JOB_UPDATED: 'job:updated',
+  JOB_DELETED: 'job:deleted',
+  JOB_STATUS_CHANGED: 'job:statusChanged',
+  QUOTE_CREATED: 'quote:created',
+  QUOTE_UPDATED: 'quote:updated',
+  QUOTE_SENT: 'quote:sent',
+  QUOTE_APPROVED: 'quote:approved',
+  INVOICE_CREATED: 'invoice:created',
+  INVOICE_UPDATED: 'invoice:updated',
+  INVOICE_SENT: 'invoice:sent',
+  INVOICE_PAID: 'invoice:paid',
+  PAYMENT_RECEIVED: 'payment:received',
+} as const
+
 export const emitToCompany = (companyId: string, event: string, data: any) => {
   if (io) io.to(`company:${companyId}`).emit(event, data)
 }
