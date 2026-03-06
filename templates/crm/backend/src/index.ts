@@ -67,7 +67,8 @@ import timeTrackingRoutes from './routes/timeTracking.ts'
 import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import wisetackRoutes from './routes/wisetack.ts'
-import webhooksRoutes from './routes/webhooks.ts'
+let webhooksRoutes: any = null
+try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
 handleUncaughtExceptions()
 
@@ -108,7 +109,7 @@ app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 
 // API routes
-app.route('/api/webhooks', webhooksRoutes)
+if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/contacts', contactsRoutes)
 app.route('/api/projects', projectsRoutes)

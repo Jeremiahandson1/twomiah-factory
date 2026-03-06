@@ -36,7 +36,8 @@ import auditRoutes from './routes/audit.ts'
 import companyRoutes from './routes/company.ts'
 import stripeRoutes from './routes/stripe.ts'
 import optimizerRoutes from './routes/optimizer.ts'
-import webhooksRoutes from './routes/webhooks.ts'
+let webhooksRoutes: any = null
+try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
 handleUncaughtExceptions()
 
@@ -78,7 +79,7 @@ app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime() }))
 
 // API routes
-app.route('/api/webhooks', webhooksRoutes)
+if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
 app.route('/api/auth', authRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/clients', clientsRoutes)
