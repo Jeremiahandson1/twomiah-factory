@@ -36,7 +36,7 @@ factory.post('/generate', async (c) => {
     if (!config.products?.length) return c.json({ error: 'At least one product must be selected' }, 400)
     if (!config.company?.name) return c.json({ error: 'Company name is required' }, 400)
 
-    const validProducts = ['website', 'cms', 'crm']
+    const validProducts = ['website', 'cms', 'crm', 'vision']
     const invalid = config.products.filter(p => !validProducts.includes(p))
     if (invalid.length) return c.json({ error: 'Invalid products: ' + invalid.join(', ') }, 400)
 
@@ -419,11 +419,12 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     if (result.services.frontend?.id) renderServiceIds.frontend = result.services.frontend.id
     if (result.services.site?.id) renderServiceIds.site = result.services.site.id
     if (result.services.database?.id) renderServiceIds.database = result.services.database.id
+    if (result.services.vision?.id) renderServiceIds.vision = result.services.vision.id
 
     const jobUpdate: Record<string, any> = {
       status: result.success ? 'complete' : 'failed',
       github_repo: result.repoUrl || null,
-      render_url: result.deployedUrl || result.siteUrl || null,
+      render_url: result.deployedUrl || result.siteUrl || result.visionUrl || null,
     }
     if (Object.keys(renderServiceIds).length > 0) jobUpdate.render_service_ids = renderServiceIds
 

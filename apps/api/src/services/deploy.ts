@@ -435,6 +435,7 @@ export interface DeployResult {
   apiUrl?: string
   deployedUrl?: string
   siteUrl?: string
+  visionUrl?: string
 }
 
 export async function deployCustomer(
@@ -641,6 +642,55 @@ export async function deployCustomer(
       } catch (err: any) {
         results.steps.push({ step: 'render_site', status: 'error', error: err.message })
         results.errors.push('Site: ' + err.message)
+      }
+    }
+
+    // Step 8: Vision service
+    if (products.includes('vision')) {
+      try {
+        const visionName = slug + '-vision'
+        await findAndDeleteRenderService(visionName)
+        const visionBuildCmd = 'npm install && npm run build'
+        const visionStartCmd = 'npm start'
+        const visionEnvVars: Array<{ key: string; value: string }> = [
+          { key: 'NODE_ENV', value: 'production' },
+          { key: 'PORT', value: '10000' },
+        ]
+        // Add Vision-specific env vars from customer config/integrations if available
+        const integrations = factoryCustomer.config?.integrations || {} as any
+        if (integrations.supabaseUrl) visionEnvVars.push({ key: 'NEXT_PUBLIC_SUPABASE_URL', value: integrations.supabaseUrl })
+        if (integrations.supabaseAnonKey) visionEnvVars.push({ key: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', value: integrations.supabaseAnonKey })
+        if (integrations.supabaseServiceKey) visionEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: integrations.supabaseServiceKey })
+        if (integrations.openaiKey) visionEnvVars.push({ key: 'OPENAI_API_KEY', value: integrations.openaiKey })
+        if (integrations.stripeSecretKey) visionEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripeSecretKey })
+        if (integrations.stripePublishableKey) visionEnvVars.push({ key: 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', value: integrations.stripePublishableKey })
+        if (integrations.stripeWebhookSecret) visionEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: integrations.stripeWebhookSecret })
+        if (integrations.resendKey) visionEnvVars.push({ key: 'RESEND_API_KEY', value: integrations.resendKey })
+
+        const vision = await createRenderWebService({
+          name: visionName, repoFullName: repo.full_name, rootDir: 'vision',
+          buildCommand: visionBuildCmd, startCommand: visionStartCmd,
+          envVars: visionEnvVars,
+          plan: 'standard', region,
+        })
+        console.log('[Deploy] Vision creation response:', JSON.stringify(vision, null, 2))
+        const visionSvc = vision.service || vision
+        results.steps.push({ step: 'render_vision', status: 'ok', serviceId: visionSvc.id })
+        results.services.vision = visionSvc
+        if (visionSvc.id) {
+          createdResources.push({ type: 'service', id: visionSvc.id, name: visionName })
+          deployedResourceIds.push(visionSvc.id)
+        }
+        const visionSlug = visionSvc.slug || visionName
+        const visionUrl = 'https://' + visionSlug + '.onrender.com'
+        results.visionUrl = visionUrl
+        // Set NEXT_PUBLIC_BASE_URL on the vision service now that we know the actual URL
+        if (visionSvc.id) {
+          await updateRenderEnvVars(visionSvc.id, [{ key: 'NEXT_PUBLIC_BASE_URL', value: visionUrl }])
+        }
+      } catch (err: any) {
+        results.steps.push({ step: 'render_vision', status: 'error', error: err.message })
+        results.errors.push('Vision: ' + err.message)
       }
     }
 

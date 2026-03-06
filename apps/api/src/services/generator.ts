@@ -6,6 +6,7 @@
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { spawnSync } from 'child_process'
 import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
 
@@ -144,6 +145,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding)
     }
 
+    if (products.includes('vision')) {
+      cloneVisionRepo(path.join(workDir, 'vision'))
+    }
+
     generateReadme(workDir, config, tokens)
     generateDeployScript(workDir, config, products)
 
@@ -250,6 +255,19 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   }
 }
 
+
+function cloneVisionRepo(destDir: string) {
+  const repo = 'https://github.com/Jeremiahandson1/home-visualizer.git'
+  console.log('[Generator] Cloning Vision repo into', destDir)
+  const result = spawnSync('git', ['clone', '--depth', '1', '-b', 'master', repo, destDir], { stdio: ['pipe', 'pipe', 'pipe'] })
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString() || ''
+    throw new Error('Failed to clone Vision repo: ' + stderr)
+  }
+  // Remove .git directory — this will be part of the customer's repo
+  const gitDir = path.join(destDir, '.git')
+  if (fs.existsSync(gitDir)) fs.rmSync(gitDir, { recursive: true, force: true })
+}
 
 function copyTemplate(templateName: string, destDir: string, tokens: Record<string, string>) {
   const srcDir = path.join(TEMPLATES_ROOT, templateName)
@@ -598,6 +616,9 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
   }
   if (products.includes('website')) {
     readme += '## Website (`/website`)\n\n```bash\ncd website && bun install && bun start\n```\n\n'
+  }
+  if (products.includes('vision')) {
+    readme += '## Twomiah Vision (`/vision`)\n\nAI home exterior visualizer (Next.js).\n\n```bash\ncd vision && npm install && npm run build && npm start\n```\n\nRequires env vars: see `vision/env.example`\n\n'
   }
   readme += '## Deploy to Render\n\nPush to GitHub and select `render.yaml` as your Render Blueprint.\n'
   fs.writeFileSync(path.join(workDir, 'README.md'), readme, 'utf8')
