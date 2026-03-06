@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../services/api.js';
+import api from '../services/api';
 import { Plus, Search, User } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext.jsx';
 import ClientModal from '../components/admin/ClientModal.jsx';

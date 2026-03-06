@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { createClient } from '../../config.js';
+import { createClient } from '../../config';
 import { useToast } from '../../contexts/ToastContext.jsx';
 import { X } from 'lucide-react';
 

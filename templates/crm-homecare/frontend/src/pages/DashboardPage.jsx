@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api from '../services/api.js';
+import api from '../services/api';
 import { Users, UserCheck, Calendar, AlertTriangle, DollarSign, Clock, Activity, TrendingUp } from 'lucide-react';
 
 function StatCard({ label, value, icon: Icon, color = 'blue', sub }) {

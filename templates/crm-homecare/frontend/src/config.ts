@@ -1,4 +1,4 @@
-// src/config.js - API utilities with token expiry handling
+// src/config.ts - API utilities with token expiry handling
 export const API_BASE_URL = '{{BACKEND_URL}}';
 
 // Global logout callback — set by App on mount
