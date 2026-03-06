@@ -548,19 +548,22 @@ export async function deployCustomer(
           envVars: backendEnvVars, plan, region, projectId,
         })
         console.log('[Deploy] Backend creation response:', JSON.stringify(backend, null, 2))
-        results.steps.push({ step: 'render_backend', status: 'ok', serviceId: backend.service?.id })
-        results.services.backend = backend.service
-        if (backend.service?.id) {
-          createdResources.push({ type: 'service', id: backend.service.id, name: crmApiName })
-          deployedResourceIds.push(backend.service.id)
+        const backendSvc = backend.service || backend
+        results.steps.push({ step: 'render_backend', status: 'ok', serviceId: backendSvc.id })
+        results.services.backend = backendSvc
+        if (backendSvc.id) {
+          createdResources.push({ type: 'service', id: backendSvc.id, name: crmApiName })
+          deployedResourceIds.push(backendSvc.id)
         }
 
-        // Use actual slug from Render response — Render may append suffixes to service names
-        const actualApiSlug = backend.service?.slug || crmApiName
+        // Extract actual slug from Render response — Render appends random suffixes
+        // Response may be { service: { slug } } or { slug } depending on API version
+        const actualApiSlug = backendSvc.slug || crmApiName
+        console.log('[Deploy] Backend slug resolution:', { 'service.slug': backend.service?.slug, 'slug': backend.slug, resolved: actualApiSlug })
         const backendUrl = 'https://' + actualApiSlug + '.onrender.com'
         results.apiUrl = backendUrl
 
-        // Frontend — use actual slug from Render response for its URL too
+        // Frontend
         const frontend = await createRenderStaticSite({
           name: crmFrontName, repoFullName: repo.full_name, rootDir: crmRootDir + '/frontend',
           buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
@@ -568,20 +571,22 @@ export async function deployCustomer(
           projectId,
         })
         console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
-        results.steps.push({ step: 'render_frontend', status: 'ok', serviceId: frontend.service?.id })
-        results.services.frontend = frontend.service
-        const actualFrontSlug = frontend.service?.slug || crmFrontName
+        const frontendSvc = frontend.service || frontend
+        results.steps.push({ step: 'render_frontend', status: 'ok', serviceId: frontendSvc.id })
+        results.services.frontend = frontendSvc
+        const actualFrontSlug = frontendSvc.slug || crmFrontName
+        console.log('[Deploy] Frontend slug resolution:', { 'service.slug': frontend.service?.slug, 'slug': frontend.slug, resolved: actualFrontSlug })
         const frontendUrl = 'https://' + actualFrontSlug + '.onrender.com'
-        if (frontend.service?.id) {
-          createdResources.push({ type: 'service', id: frontend.service.id, name: crmFrontName })
-          deployedResourceIds.push(frontend.service.id)
-          await addStaticSiteHeaders(frontend.service.id)
+        if (frontendSvc.id) {
+          createdResources.push({ type: 'service', id: frontendSvc.id, name: crmFrontName })
+          deployedResourceIds.push(frontendSvc.id)
+          await addStaticSiteHeaders(frontendSvc.id)
         }
         results.deployedUrl = frontendUrl
 
         // Set FRONTEND_URL on backend now that we know the actual frontend URL
-        if (backend.service?.id) {
-          await updateRenderEnvVars(backend.service.id, [{ key: 'FRONTEND_URL', value: frontendUrl }])
+        if (backendSvc.id) {
+          await updateRenderEnvVars(backendSvc.id, [{ key: 'FRONTEND_URL', value: frontendUrl }])
         }
       } catch (err: any) {
         results.steps.push({ step: 'render_crm', status: 'error', error: err.message })
