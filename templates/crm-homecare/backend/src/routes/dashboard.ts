@@ -11,6 +11,8 @@ import {
   authorizations,
   timeEntries,
   absences,
+  referralSources,
+  performanceRatings,
 } from '../../db/schema.ts'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -231,6 +233,71 @@ app.get('/alerts', async (c) => {
   }))
 
   return c.json({ noshowAlerts: noshowAlertsResult, expiringAuths, expiringCerts })
+})
+
+// GET /api/dashboard/referrals
+app.get('/referrals', async (c) => {
+  const sources = await db.select({
+    id: referralSources.id,
+    name: referralSources.name,
+    type: referralSources.type,
+  }).from(referralSources).where(eq(referralSources.isActive, true))
+
+  const result = await Promise.all(sources.map(async (src) => {
+    const [clientCount] = await db.select({ count: count() }).from(clients)
+      .where(eq(clients.referredById, src.id))
+    const revenueRows = await db.select({ total: invoices.total }).from(invoices)
+      .innerJoin(clients, eq(invoices.clientId, clients.id))
+      .where(and(eq(clients.referredById, src.id), eq(invoices.paymentStatus, 'paid')))
+    const totalRevenue = revenueRows.reduce((sum, r) => sum + Number(r.total || 0), 0)
+    return {
+      name: src.name,
+      type: src.type || 'General',
+      referral_count: clientCount.count,
+      total_revenue: totalRevenue,
+    }
+  }))
+
+  return c.json(result)
+})
+
+// GET /api/dashboard/caregiver-hours
+app.get('/caregiver-hours', async (c) => {
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const caregivers = await db.select({
+    id: users.id,
+    firstName: users.firstName,
+    lastName: users.lastName,
+  }).from(users).where(and(eq(users.role, 'caregiver'), eq(users.isActive, true)))
+
+  const result = await Promise.all(caregivers.map(async (cg) => {
+    const entries = await db.select({
+      durationMinutes: timeEntries.durationMinutes,
+    }).from(timeEntries).where(and(
+      eq(timeEntries.caregiverId, cg.id),
+      eq(timeEntries.isComplete, true),
+      gte(timeEntries.startTime, thirtyDaysAgo),
+    ))
+
+    const [satResult] = await db.select({
+      avg: sql<string>`avg(${performanceRatings.satisfactionScore})`,
+    }).from(performanceRatings).where(eq(performanceRatings.caregiverId, cg.id))
+
+    const totalMinutes = entries.reduce((sum, e) => sum + (e.durationMinutes || 0), 0)
+
+    return {
+      id: cg.id,
+      first_name: cg.firstName,
+      last_name: cg.lastName,
+      shifts: entries.length,
+      total_hours: Math.round(totalMinutes / 60 * 10) / 10,
+      avg_satisfaction: satResult.avg || null,
+    }
+  }))
+
+  return c.json(result)
 })
 
 export default app
