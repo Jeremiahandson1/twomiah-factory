@@ -365,6 +365,19 @@ async function getServiceDeploys(serviceId: string, limit = 5): Promise<any[]> {
   return await res.json() as any[]
 }
 
+async function triggerManualDeploy(serviceId: string): Promise<boolean> {
+  const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', {
+    method: 'POST', headers: renderHeaders(),
+    body: JSON.stringify({ clearCache: 'do_not_clear' }),
+  })
+  if (!res.ok) {
+    console.warn('[Deploy] Failed to trigger manual deploy for', serviceId, '- status:', res.status)
+    return false
+  }
+  console.log('[Deploy] Triggered manual redeploy for service', serviceId)
+  return true
+}
+
 
 // ─── Full Pipeline ────────────────────────────────────────────────────────────
 
@@ -520,10 +533,12 @@ export async function deployCustomer(
         results.apiUrl = backendUrl
 
         const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
+        const frontendEnvVars: Array<{ key: string; value: string }> = []
+        if (backendUrl) frontendEnvVars.push({ key: 'VITE_API_URL', value: backendUrl })
         const frontend = await createRenderStaticSite({
           name: crmFrontName, repoFullName: repo.full_name, rootDir: 'crm/frontend',
           buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
-          envVars: [],
+          envVars: frontendEnvVars,
           projectId,
         })
         console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
@@ -538,12 +553,16 @@ export async function deployCustomer(
         console.log('[Deploy] Resolved frontend URL:', frontendUrl)
         results.deployedUrl = frontendUrl
 
-        // Now set cross-references using the real URLs from Render
-        if (frontend.service?.id && backendUrl) {
-          await updateRenderEnvVars(frontend.service.id, [{ key: 'VITE_API_URL', value: backendUrl }])
-        }
+        // Set cross-references and trigger a rebuild so Vite bakes in the env vars
         if (backend.service?.id && frontendUrl) {
           await updateRenderEnvVars(backend.service.id, [{ key: 'FRONTEND_URL', value: frontendUrl }])
+        }
+        if (frontend.service?.id && backendUrl) {
+          // Env var was set at creation, but confirm it's saved then trigger a clean rebuild
+          await updateRenderEnvVars(frontend.service.id, [{ key: 'VITE_API_URL', value: backendUrl }])
+          // Wait for Render to persist the env var before triggering rebuild
+          await new Promise(r => setTimeout(r, 3000))
+          await triggerManualDeploy(frontend.service.id)
         }
       } catch (err: any) {
         results.steps.push({ step: 'render_crm', status: 'error', error: err.message })
