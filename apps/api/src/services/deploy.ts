@@ -511,7 +511,15 @@ export async function deployCustomer(
         ]
         if (dbInfo?.internalConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbInfo.internalConnectionString })
 
+        // Deterministic URLs — same pattern as render.yaml.template
         const crmApiName = isHomeCare ? slug + '-care-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
+        const backendUrl = 'https://' + crmApiName + '.onrender.com'
+        const frontendUrl = 'https://' + crmFrontName + '.onrender.com'
+
+        // Set FRONTEND_URL on backend at creation time
+        backendEnvVars.push({ key: 'FRONTEND_URL', value: frontendUrl })
+
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const backendBuild = bunSetup + ' && bun install'
         const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
@@ -528,17 +536,13 @@ export async function deployCustomer(
           createdResources.push({ type: 'service', id: backend.service.id, name: crmApiName })
           deployedResourceIds.push(backend.service.id)
         }
-        const backendUrl = getServiceUrl(backend)
-        console.log('[Deploy] Resolved backend URL:', backendUrl)
         results.apiUrl = backendUrl
 
-        const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
-        const frontendEnvVars: Array<{ key: string; value: string }> = []
-        if (backendUrl) frontendEnvVars.push({ key: 'VITE_API_URL', value: backendUrl })
+        // Frontend — VITE_API_URL baked in at creation, no race condition
         const frontend = await createRenderStaticSite({
           name: crmFrontName, repoFullName: repo.full_name, rootDir: 'crm/frontend',
           buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
-          envVars: frontendEnvVars,
+          envVars: [{ key: 'VITE_API_URL', value: backendUrl }],
           projectId,
         })
         console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
@@ -549,21 +553,7 @@ export async function deployCustomer(
           deployedResourceIds.push(frontend.service.id)
           await addStaticSiteHeaders(frontend.service.id)
         }
-        const frontendUrl = getServiceUrl(frontend)
-        console.log('[Deploy] Resolved frontend URL:', frontendUrl)
         results.deployedUrl = frontendUrl
-
-        // Set cross-references and trigger a rebuild so Vite bakes in the env vars
-        if (backend.service?.id && frontendUrl) {
-          await updateRenderEnvVars(backend.service.id, [{ key: 'FRONTEND_URL', value: frontendUrl }])
-        }
-        if (frontend.service?.id && backendUrl) {
-          // Env var was set at creation, but confirm it's saved then trigger a clean rebuild
-          await updateRenderEnvVars(frontend.service.id, [{ key: 'VITE_API_URL', value: backendUrl }])
-          // Wait for Render to persist the env var before triggering rebuild
-          await new Promise(r => setTimeout(r, 3000))
-          await triggerManualDeploy(frontend.service.id)
-        }
       } catch (err: any) {
         results.steps.push({ step: 'render_crm', status: 'error', error: err.message })
         results.errors.push('CRM: ' + err.message)
