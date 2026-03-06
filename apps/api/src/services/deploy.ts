@@ -514,6 +514,7 @@ export async function deployCustomer(
         // Deterministic URLs — same pattern as render.yaml.template
         const crmApiName = isHomeCare ? slug + '-care-api' : slug + '-api'
         const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : 'crm'
         const backendUrl = 'https://' + crmApiName + '.onrender.com'
         const frontendUrl = 'https://' + crmFrontName + '.onrender.com'
 
@@ -524,7 +525,7 @@ export async function deployCustomer(
         const backendBuild = bunSetup + ' && bun install'
         const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
-          name: crmApiName, repoFullName: repo.full_name, rootDir: 'crm/backend',
+          name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',
           buildCommand: backendBuild,
           startCommand: backendStart,
           envVars: backendEnvVars, plan, region, projectId,
@@ -540,7 +541,7 @@ export async function deployCustomer(
 
         // Frontend — VITE_API_URL baked in at creation, no race condition
         const frontend = await createRenderStaticSite({
-          name: crmFrontName, repoFullName: repo.full_name, rootDir: 'crm/frontend',
+          name: crmFrontName, repoFullName: repo.full_name, rootDir: crmRootDir + '/frontend',
           buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
           envVars: [{ key: 'VITE_API_URL', value: backendUrl }],
           projectId,
