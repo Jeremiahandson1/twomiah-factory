@@ -38,8 +38,8 @@ const ReportsAnalytics = ({ token }) => {
       ]);
       const caregiverData = await cgRes.json();
       const clientData = await clRes.json();
-      setCaregivers(caregiverData);
-      setClients(clientData);
+      setCaregivers(Array.isArray(caregiverData) ? caregiverData : (caregiverData.caregivers || []));
+      setClients(Array.isArray(clientData) ? clientData : (clientData.clients || []));
     } catch (error) {
       console.error('Failed to load filters:', error);
     }

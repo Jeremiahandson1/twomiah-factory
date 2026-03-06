@@ -656,7 +656,7 @@ export async function deployCustomer(
       try {
         const visionName = slug + '-vision'
         await findAndDeleteRenderService(visionName)
-        const visionBuildCmd = 'npm install && npm run build'
+        const visionBuildCmd = 'npm install --include=dev && npm run build'
         const visionStartCmd = 'npm start'
         const visionEnvVars: Array<{ key: string; value: string }> = [
           { key: 'NODE_ENV', value: 'production' },

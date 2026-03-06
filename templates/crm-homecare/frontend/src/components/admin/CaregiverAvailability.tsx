@@ -61,7 +61,7 @@ const CaregiverAvailability = ({ token }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      setCaregivers(data);
+      setCaregivers(Array.isArray(data) ? data : (data.caregivers || []));
       setLoading(false);
     } catch (error) {
       console.error('Failed to load caregivers:', error);

@@ -48,8 +48,8 @@ const NotificationCenter = ({ token }) => {
 
       setNotifications(Array.isArray(notificationsData) ? notificationsData : []);
       setSettings(settingsData || {});
-      setCaregivers(caregiversData);
-      setClients(clientsData);
+      setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
+      setClients(Array.isArray(clientsData) ? clientsData : (clientsData.clients || []));
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {

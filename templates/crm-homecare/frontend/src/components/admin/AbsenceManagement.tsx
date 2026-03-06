@@ -35,7 +35,7 @@ const AbsenceManagement = ({ token }) => {
       const caregiversData = await caregiversRes.json();
 
       setAbsences(absencesData);
-      setCaregivers(caregiversData);
+      setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {

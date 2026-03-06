@@ -51,8 +51,8 @@ const IncidentReporting = ({ token }) => {
       const caregiversData = await caregiversRes.json();
       const incidentsData = await incidentsRes.json();
 
-      setClients(clientsData);
-      setCaregivers(caregiversData);
+      setClients(Array.isArray(clientsData) ? clientsData : (clientsData.clients || []));
+      setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
       setIncidents(Array.isArray(incidentsData) ? incidentsData : []);
     } catch (error) {
       console.error('Failed to load data:', error);

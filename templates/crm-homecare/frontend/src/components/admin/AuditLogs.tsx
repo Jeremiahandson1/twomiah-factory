@@ -76,8 +76,10 @@ const AuditLogs = ({ token }) => {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
-      const admins = await adminsRes.json();
-      const caregivers = await caregiversRes.json();
+      const adminsData = await adminsRes.json();
+      const caregiversData = await caregiversRes.json();
+      const admins = Array.isArray(adminsData) ? adminsData : (adminsData.users || adminsData.admins || []);
+      const caregivers = Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []);
       setUsers([...admins, ...caregivers]);
     } catch (error) {
       console.error('Failed to load users:', error);

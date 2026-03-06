@@ -40,9 +40,11 @@ const PerformanceRatings = ({ token }) => {
       const caregiversData = await caregiversRes.json();
       const clientsData = await clientsRes.json();
 
-      setCaregivers(caregiversData);
-      setClients(clientsData);
-      loadReviews(caregiversData);
+      const cgList = Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []);
+      const clList = Array.isArray(clientsData) ? clientsData : (clientsData.clients || []);
+      setCaregivers(cgList);
+      setClients(clList);
+      loadReviews(cgList);
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
