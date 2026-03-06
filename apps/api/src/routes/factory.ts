@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { authenticate, supabase } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
-import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain } from '../services/deploy'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain, updateRenderServiceSettings } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
 import fs from 'fs'
@@ -538,6 +538,26 @@ factory.post('/customers/:id/redeploy', async (c) => {
   return c.json(result)
 })
 
+
+// ─── Update Service Settings ─────────────────────────────────────────────────
+factory.patch('/customers/:id/service/:role', async (c) => {
+  if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
+  const id = c.req.param('id')
+  const role = c.req.param('role') // 'frontend', 'backend', 'site'
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (!job) return c.json({ error: 'No deployed services found' }, 400)
+  const serviceId = job.render_service_ids?.[role]
+  if (!serviceId) return c.json({ error: 'No service ID for role: ' + role }, 400)
+  const body = await c.req.json() as { rootDir?: string; buildCommand?: string; startCommand?: string; publishPath?: string; redeploy?: boolean }
+  const ok = await updateRenderServiceSettings(serviceId, body)
+  if (!ok) return c.json({ error: 'Failed to update service' }, 500)
+  if (body.redeploy) {
+    const { redeployCustomer } = await import('../services/deploy')
+    await redeployCustomer({ renderServiceIds: { [role]: serviceId } })
+  }
+  return c.json({ success: true, serviceId, updated: Object.keys(body).filter(k => k !== 'redeploy') })
+})
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
 factory.post('/cleanup', async (c) => {

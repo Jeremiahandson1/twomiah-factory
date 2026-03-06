@@ -365,6 +365,29 @@ async function getServiceDeploys(serviceId: string, limit = 5): Promise<any[]> {
   return await res.json() as any[]
 }
 
+export async function updateRenderServiceSettings(serviceId: string, settings: {
+  rootDir?: string; buildCommand?: string; startCommand?: string; publishPath?: string
+}): Promise<boolean> {
+  const serviceDetails: Record<string, any> = {}
+  if (settings.buildCommand) serviceDetails.buildCommand = settings.buildCommand
+  if (settings.startCommand) serviceDetails.startCommand = settings.startCommand
+  if (settings.publishPath) serviceDetails.publishPath = settings.publishPath
+
+  const body: Record<string, any> = { serviceDetails }
+  if (settings.rootDir !== undefined) body.rootDir = settings.rootDir
+
+  const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId, {
+    method: 'PATCH', headers: renderHeaders(),
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    console.warn('[Deploy] Failed to update service', serviceId, '- status:', res.status, await res.text())
+    return false
+  }
+  console.log('[Deploy] Updated service settings for', serviceId)
+  return true
+}
+
 async function triggerManualDeploy(serviceId: string): Promise<boolean> {
   const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', {
     method: 'POST', headers: renderHeaders(),
