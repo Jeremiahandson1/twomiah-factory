@@ -658,19 +658,20 @@ factory.post('/customers/:id/regenerate', async (c) => {
       }
     }
 
-    // If deploy is configured, auto-deploy (but not if a deploy is already running)
+    // If deploy is configured, auto-deploy
     if (isConfigured()) {
+      // Reset any stale "deploying" jobs for this tenant (stuck > 5 min) so they don't block
+      await supabase.from('factory_jobs')
+        .update({ status: 'failed' })
+        .eq('tenant_id', tenantId)
+        .eq('status', 'deploying')
+        .lt('created_at', new Date(Date.now() - 5 * 60 * 1000).toISOString())
+
       const { data: freshJob } = await supabase.from('factory_jobs').select('*').eq('build_id', result.buildId).maybeSingle()
       if (freshJob && freshJob.status !== 'deploying') {
-        // Check no other deploy is in progress for this tenant
-        const { data: activeJobs } = await supabase.from('factory_jobs').select('id').eq('tenant_id', tenantId).eq('status', 'deploying')
-        if (!activeJobs?.length) {
-          const { error: deployStatusErr } = await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
-          if (deployStatusErr) console.error('[Deploy] Failed to set deploying status:', deployStatusErr.message)
-          else runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
-        } else {
-          console.log('[Factory] Skipping auto-deploy — another deploy is already running for tenant', tenantId)
-        }
+        const { error: deployStatusErr } = await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', freshJob.id)
+        if (deployStatusErr) console.error('[Deploy] Failed to set deploying status:', deployStatusErr.message)
+        else runDeploy(tenant, freshJob).catch(err => console.error('[Deploy] Background error:', err.message))
       }
     }
 
