@@ -194,8 +194,8 @@ function AdminDashboard() {
     return new Date(dateStr).toLocaleDateString();
   };
 
-  const getActionIcon = (action) => {
-    const icons = {
+  const getActionIcon = (action: string) => {
+    const icons: Record<string, string> = {
       'login': '🔐',
       'page_saved': '💾',
       'page_created': '➕',

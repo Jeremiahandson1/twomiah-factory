@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import clsx from 'clsx';
 
-const TabsContext = createContext();
+const TabsContext = createContext<any>(null);
 
 export function Tabs({ children, defaultValue, value, onChange }) {
   const [internalValue, setInternalValue] = useState(defaultValue);

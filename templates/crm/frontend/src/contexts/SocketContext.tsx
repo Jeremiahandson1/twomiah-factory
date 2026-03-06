@@ -1,13 +1,14 @@
+import React from 'react';
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
-const SocketContext = createContext(null);
+const SocketContext = createContext<any>(null);
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-export function SocketProvider({ children }) {
+export function SocketProvider({ children }: { children: React.ReactNode }) {
   const { token, isAuthenticated } = useAuth();
   const toast = useToast();
   const [socket, setSocket] = useState(null);

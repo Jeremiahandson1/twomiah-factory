@@ -59,10 +59,10 @@ function AdminActivity() {
     }
   };
 
-  const formatDate = (dateStr) => {
+  const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
-    const diff = now - date;
+    const diff = now.getTime() - date.getTime();
     
     if (diff < 60000) return 'Just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
@@ -70,8 +70,8 @@ function AdminActivity() {
     return date.toLocaleDateString();
   };
 
-  const getActionIcon = (action) => {
-    const icons = {
+  const getActionIcon = (action: string) => {
+    const icons: Record<string, string> = {
       'login': '🔐',
       'password_changed': '🔑',
       'page_saved': '💾',
@@ -85,7 +85,7 @@ function AdminActivity() {
     return icons[action] || '📝';
   };
 
-  const getActionLabel = (action, details) => {
+  const getActionLabel = (action: string, details: any) => {
     switch (action) {
       case 'login': return 'Admin logged in';
       case 'password_changed': return 'Password changed';

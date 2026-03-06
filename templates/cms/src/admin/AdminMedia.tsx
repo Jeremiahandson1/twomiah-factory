@@ -20,7 +20,7 @@ function AdminMedia() {
   const [dragOver, setDragOver] = useState(false);
   const [viewingImage, setViewingImage] = useState(null);
   const [cropImage, setCropImage] = useState(null);
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadingRef = useRef(false);
   const toast = useToast();
 
@@ -43,7 +43,7 @@ function AdminMedia() {
     setLoading(false);
   };
 
-  const handleUpload = async (files) => {
+  const handleUpload = async (files: File[]) => {
     if (uploadingRef.current || !files?.length) return;
     
     uploadingRef.current = true;
@@ -63,30 +63,30 @@ function AdminMedia() {
     uploadingRef.current = false;
   };
 
-  const handleFileInputChange = (e) => {
-    const files = Array.from(e.target.files);
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
     e.target.value = '';
     handleUpload(files);
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const files = Array.from(e.dataTransfer?.files || []);
     handleUpload(files);
   };
 
-  const handleDragOver = (e) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(true);
   };
 
-  const handleDragLeave = (e) => {
+  const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
   };
 
-  const handleDelete = async (filename) => {
+  const handleDelete = async (filename: string) => {
     if (!confirm('Delete this image?')) return;
     try {
       await deleteImage(filename);
@@ -111,7 +111,7 @@ function AdminMedia() {
     }
   };
 
-  const handleBulkMove = async (folder) => {
+  const handleBulkMove = async (folder: string) => {
     if (!selectedImages.length || !folder) return;
     
     try {
@@ -155,7 +155,7 @@ function AdminMedia() {
     }
   };
 
-  const handleDeleteFolder = async (folderId) => {
+  const handleDeleteFolder = async (folderId: string) => {
     if (!confirm('Delete this folder? Images will be moved to "Uncategorized".')) return;
     
     try {
@@ -168,7 +168,7 @@ function AdminMedia() {
     }
   };
 
-  const toggleSelect = (filename) => {
+  const toggleSelect = (filename: string) => {
     setSelectedImages(prev => 
       prev.includes(filename)
         ? prev.filter(f => f !== filename)
@@ -183,7 +183,7 @@ function AdminMedia() {
     );
   };
 
-  const copyUrl = (url) => {
+  const copyUrl = (url: string) => {
     navigator.clipboard.writeText(getImageUrl(url));
     toast.success('URL copied!');
   };

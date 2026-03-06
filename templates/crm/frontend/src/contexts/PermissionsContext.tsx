@@ -1,13 +1,14 @@
+import React from 'react';
 import { createContext, useContext, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 
-const PermissionsContext = createContext(null);
+const PermissionsContext = createContext<any>(null);
 
 // Role hierarchy (lowest to highest)
 const ROLE_HIERARCHY = ['viewer', 'field', 'manager', 'admin', 'owner'];
 
 // Define permissions per role (mirrors backend)
-const ROLE_PERMISSIONS = {
+const ROLE_PERMISSIONS: Record<string, string[]> = {
   owner: ['*'],
   
   admin: [
@@ -79,7 +80,7 @@ const meetsRoleLevel = (userRole, minRole) => {
   return userLevel >= requiredLevel;
 };
 
-export function PermissionsProvider({ children }) {
+export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   
   const value = useMemo(() => {
@@ -155,7 +156,7 @@ export function usePermissions() {
 }
 
 // Component that only renders children if user has permission
-export function Can({ permission, permissions, any = false, fallback = null, children }) {
+export function Can({ permission, permissions, any = false, fallback = null, children }: any) {
   const { can, canAny, canAll } = usePermissions();
   
   let allowed = false;
@@ -170,7 +171,7 @@ export function Can({ permission, permissions, any = false, fallback = null, chi
 }
 
 // Component that only renders for specific role or higher
-export function RequireRole({ role, fallback = null, children }) {
+export function RequireRole({ role, fallback = null, children }: any) {
   const { isAtLeast } = usePermissions();
   return isAtLeast(role) ? children : fallback;
 }

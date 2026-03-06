@@ -24,11 +24,11 @@ const EMPTY_SUB = {
 // Used by both main service and sub-service editing
 // ═══════════════════════════════════════════
 
-function OfferingsEditor({ items, onChange }) {
+function OfferingsEditor({ items, onChange }: { items: any[]; onChange: (items: any[]) => void }) {
   const add = () => onChange([...items, { title: '', description: '' }]);
-  const update = (i, field, val) => { const a = [...items]; a[i] = { ...a[i], [field]: val }; onChange(a); };
-  const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
-  const move = (i, dir) => {
+  const update = (i: number, field: string, val: string) => { const a = [...items]; a[i] = { ...a[i], [field]: val }; onChange(a); };
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: number) => {
     const a = [...items]; const j = i + dir;
     if (j < 0 || j >= a.length) return;
     [a[i], a[j]] = [a[j], a[i]]; onChange(a);
@@ -67,10 +67,10 @@ function OfferingsEditor({ items, onChange }) {
   );
 }
 
-function ListEditor({ items, onChange, label, placeholder }) {
+function ListEditor({ items, onChange, label, placeholder }: { items: string[]; onChange: (items: string[]) => void; label: string; placeholder: string }) {
   const add = () => onChange([...items, '']);
-  const update = (i, val) => { const a = [...items]; a[i] = val; onChange(a); };
-  const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
+  const update = (i: number, val: string) => { const a = [...items]; a[i] = val; onChange(a); };
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
 
   return (
     <div style={{ marginBottom: '24px' }}>
@@ -90,10 +90,10 @@ function ListEditor({ items, onChange, label, placeholder }) {
   );
 }
 
-function FaqsEditor({ items, onChange }) {
+function FaqsEditor({ items, onChange }: { items: any[]; onChange: (items: any[]) => void }) {
   const add = () => onChange([...items, { question: '', answer: '' }]);
-  const update = (i, field, val) => { const a = [...items]; a[i] = { ...a[i], [field]: val }; onChange(a); };
-  const remove = (i) => onChange(items.filter((_, idx) => idx !== i));
+  const update = (i: number, field: string, val: string) => { const a = [...items]; a[i] = { ...a[i], [field]: val }; onChange(a); };
+  const remove = (i: number) => onChange(items.filter((_, idx) => idx !== i));
 
   return (
     <div>
@@ -126,13 +126,13 @@ function FaqsEditor({ items, onChange }) {
 // Sub-Service Editor (opened from within a service)
 // ═══════════════════════════════════════════
 
-function SubServiceEditor({ sub, onSave, onCancel, parentTitle }) {
+function SubServiceEditor({ sub, onSave, onCancel, parentTitle }: { sub: any; onSave: (data: any) => void; onCancel: () => void; parentTitle?: string }) {
   const [data, setData] = useState({ ...EMPTY_SUB, ...sub });
   const [tab, setTab] = useState('basic');
 
-  const set = (field, val) => setData(prev => ({ ...prev, [field]: val }));
+  const set = (field: string, val: any) => setData(prev => ({ ...prev, [field]: val }));
 
-  const generateId = (title) => title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim();
+  const generateId = (title: string) => title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim();
 
   return (
     <div style={{ border: '2px solid var(--admin-primary)', borderRadius: '12px', padding: '20px', marginBottom: '16px', background: 'white' }}>
@@ -255,7 +255,7 @@ function AdminServicesManager() {
     setSaving(false);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Delete this service?')) return;
     try {
       const r = await fetch(`${API_BASE}/admin/services-data/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${getToken()}` } });
@@ -263,7 +263,7 @@ function AdminServicesManager() {
     } catch (err) { toast.error('Failed to delete'); }
   };
 
-  const handleEdit = (service) => {
+  const handleEdit = (service: any) => {
     setEditing(service.id);
     setFormData({
       ...EMPTY_FORM, ...service,
@@ -276,15 +276,15 @@ function AdminServicesManager() {
 
   const resetForm = () => { setFormData({ ...EMPTY_FORM }); setActiveTab('basic'); setEditingSub(null); };
 
-  const generateId = (title) => title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim();
+  const generateId = (title: string) => title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim();
 
   // Link helpers
   const addLink = () => setFormData(p => ({ ...p, links: [...p.links, { label: '', href: '' }] }));
-  const updateLink = (i, f, v) => { const a = [...formData.links]; a[i] = { ...a[i], [f]: v }; setFormData(p => ({ ...p, links: a })); };
-  const removeLink = (i) => setFormData(p => ({ ...p, links: p.links.filter((_, idx) => idx !== i) }));
+  const updateLink = (i: number, f: string, v: string) => { const a = [...formData.links]; a[i] = { ...a[i], [f]: v }; setFormData(p => ({ ...p, links: a })); };
+  const removeLink = (i: number) => setFormData(p => ({ ...p, links: p.links.filter((_, idx) => idx !== i) }));
 
   // Sub-service CRUD
-  const saveSub = (subData) => {
+  const saveSub = (subData: any) => {
     const subs = [...formData.subServices];
     if (editingSub === 'new') {
       if (!subData.id || !subData.title) { toast.error('Sub-service needs ID and title'); return; }
@@ -297,14 +297,14 @@ function AdminServicesManager() {
     setEditingSub(null);
     toast.success('Sub-service saved (remember to save the main service)');
   };
-  const removeSub = (i) => {
+  const removeSub = (i: number) => {
     if (!confirm('Remove this sub-service?')) return;
     setFormData(p => ({ ...p, subServices: p.subServices.filter((_, idx) => idx !== i) }));
   };
 
   // Drag reorder
-  const handleDragStart = (i) => setDraggedIndex(i);
-  const handleDragOver = (e, i) => {
+  const handleDragStart = (i: number) => setDraggedIndex(i);
+  const handleDragOver = (e: React.DragEvent, i: number) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === i) return;
     const a = [...services]; const [d] = a.splice(draggedIndex, 1); a.splice(i, 0, d);
@@ -323,7 +323,7 @@ function AdminServicesManager() {
     setDraggedIndex(null);
   };
 
-  const countContent = (svc) => {
+  const countContent = (svc: any) => {
     let c = 0;
     if (svc.offerings?.length) c++; if (svc.materials?.length) c++;
     if (svc.features?.length) c++; if (svc.faqs?.length) c++;

@@ -10,14 +10,14 @@ import ImagePicker from './ImagePicker';
 // ============================================
 // UNDO/REDO HOOK
 // ============================================
-function useUndoRedo(initialState) {
+function useUndoRedo(initialState: any) {
   const [history, setHistory] = useState([initialState]);
   const [index, setIndex] = useState(0);
   const skipNextPush = useRef(false);
 
   const current = history[index];
 
-  const push = useCallback((newState) => {
+  const push = useCallback((newState: any) => {
     if (skipNextPush.current) {
       skipNextPush.current = false;
       return;
@@ -64,8 +64,8 @@ function useUndoRedo(initialState) {
 // ============================================
 // WYSIWYG EDITOR - ENHANCED
 // ============================================
-function WysiwygEditor({ value, onChange, placeholder, onImageInsert }) {
-  const editorRef = useRef(null);
+function WysiwygEditor({ value, onChange, placeholder, onImageInsert }: { value: string; onChange: (html: string) => void; placeholder?: string; onImageInsert?: () => void }) {
+  const editorRef = useRef<HTMLDivElement>(null);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
 
@@ -79,7 +79,7 @@ function WysiwygEditor({ value, onChange, placeholder, onImageInsert }) {
     if (onChange) onChange(editorRef.current.innerHTML);
   };
 
-  const exec = (cmd, val = null) => {
+  const exec = (cmd: string, val: any = null) => {
     document.execCommand(cmd, false, val);
     editorRef.current.focus();
     handleInput();
@@ -179,7 +179,7 @@ function WysiwygEditor({ value, onChange, placeholder, onImageInsert }) {
 // ============================================
 // IMAGE PICKER WITH ANIMATION OPTIONS
 // ============================================
-function ImagePickerWithAnimation({ value, onChange, label, showAnimationOptions, animation, onAnimationChange, animationSpeed, onSpeedChange }) {
+function ImagePickerWithAnimation({ value, onChange, label, showAnimationOptions, animation, onAnimationChange, animationSpeed, onSpeedChange }: { value: string; onChange: (url: string) => void; label?: string; showAnimationOptions?: boolean; animation?: string; onAnimationChange?: (val: string) => void; animationSpeed?: number; onSpeedChange?: (val: number) => void }) {
   const animationOptions = [
     { value: 'none', label: 'Static (No Animation)' },
     { value: 'pan-left-right', label: 'Pan Left to Right' },
@@ -224,10 +224,10 @@ function ImagePickerWithAnimation({ value, onChange, label, showAnimationOptions
 // ============================================
 // SEO ANALYZER PANEL
 // ============================================
-function SEOAnalyzer({ pageData }) {
+function SEOAnalyzer({ pageData }: { pageData: any }) {
   const analysis = useMemo(() => analyzeSEO(pageData), [pageData]);
-  
-  const getScoreColor = (score) => {
+
+  const getScoreColor = (score: number) => {
     if (score >= 80) return 'var(--admin-success)';
     if (score >= 60) return 'var(--admin-warning)';
     return 'var(--admin-error)';
@@ -277,7 +277,7 @@ function SEOAnalyzer({ pageData }) {
 // ============================================
 // REVISION HISTORY PANEL
 // ============================================
-function RevisionPanel({ pageId, onRestore, onClose }) {
+function RevisionPanel({ pageId, onRestore, onClose }: { pageId: string; onRestore: (page: any) => void; onClose: () => void }) {
   const [revisions, setRevisions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState(null);
@@ -298,7 +298,7 @@ function RevisionPanel({ pageId, onRestore, onClose }) {
     setLoading(false);
   };
 
-  const handleRestore = async (revisionId) => {
+  const handleRestore = async (revisionId: string) => {
     setRestoring(revisionId);
     try {
       const result = await restoreRevision(pageId, revisionId);
@@ -352,7 +352,7 @@ function RevisionPanel({ pageId, onRestore, onClose }) {
 // ============================================
 // LIVE PREVIEW
 // ============================================
-function LivePreview({ pageId }) {
+function LivePreview({ pageId }: { pageId: string }) {
   const [device, setDevice] = useState('desktop');
   
   let previewUrl = '/';
@@ -391,8 +391,8 @@ function LivePreview({ pageId }) {
 // ============================================
 // SAVE STATUS
 // ============================================
-function SaveStatus({ status, lastSaved }) {
-  const config = {
+function SaveStatus({ status, lastSaved }: { status: string; lastSaved?: string }) {
+  const config: Record<string, { icon: string; text: string; class: string }> = {
     saved: { icon: '✓', text: 'Saved', class: 'status-saved' },
     saving: { icon: '↻', text: 'Saving...', class: 'status-saving' },
     unsaved: { icon: '●', text: 'Unsaved', class: 'status-unsaved' },
@@ -414,7 +414,7 @@ function SaveStatus({ status, lastSaved }) {
 // ============================================
 // DUPLICATE MODAL
 // ============================================
-function DuplicateModal({ pageId, pageTitle, onClose, onDuplicate }) {
+function DuplicateModal({ pageId, pageTitle, onClose, onDuplicate }: { pageId: string; pageTitle: string; onClose: () => void; onDuplicate: (newId: string) => void }) {
   const [newId, setNewId] = useState(pageId + '-copy');
   const [loading, setLoading] = useState(false);
   const toast = useToast();
@@ -579,7 +579,7 @@ function PageEditor() {
     if (hasUnsavedChanges && saveStatus === 'saved') setSaveStatus('unsaved');
   }, [formData]);
 
-  const handleChange = useCallback((field, value) => {
+  const handleChange = useCallback((field: string, value: any) => {
     const newData = { ...formData, [field]: value };
     setFormData(newData);
     pushHistory(newData);
@@ -659,7 +659,7 @@ function PageEditor() {
     }
   }, [decodedPageId, formData, toast]);
 
-  const handleRevisionRestore = (restoredPage) => {
+  const handleRevisionRestore = (restoredPage: any) => {
     setFormData(restoredPage);
     setOriginalData(restoredPage);
     resetHistory(restoredPage);

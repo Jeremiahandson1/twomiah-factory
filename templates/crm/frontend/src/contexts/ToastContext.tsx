@@ -1,7 +1,8 @@
+import React from 'react';
 import { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
-const ToastContext = createContext(null);
+const ToastContext = createContext<any>(null);
 
 const icons = {
   success: CheckCircle,
@@ -24,7 +25,7 @@ const iconColors = {
   warning: 'text-yellow-500',
 };
 
-export function ToastProvider({ children }) {
+export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState([]);
 
   const addToast = useCallback((message, type = 'info', duration = 4000) => {

@@ -65,7 +65,7 @@ function AdminTestimonials() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Delete this testimonial?')) return;
 
     try {
@@ -83,7 +83,7 @@ function AdminTestimonials() {
     }
   };
 
-  const handleEdit = (testimonial) => {
+  const handleEdit = (testimonial: any) => {
     setEditing(testimonial.id);
     setFormData({
       text: testimonial.text,
@@ -95,8 +95,8 @@ function AdminTestimonials() {
     });
   };
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     try {
@@ -109,11 +109,11 @@ function AdminTestimonials() {
   };
 
   // Drag and drop handlers
-  const handleDragStart = (index) => {
+  const handleDragStart = (index: number) => {
     setDraggedIndex(index);
   };
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
 
@@ -144,7 +144,7 @@ function AdminTestimonials() {
     setDraggedIndex(null);
   };
 
-  const renderStars = (rating) => {
+  const renderStars = (rating: number) => {
     return '★'.repeat(rating) + '☆'.repeat(5 - rating);
   };
 

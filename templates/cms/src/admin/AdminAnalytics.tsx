@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 // ─── Mini chart components (no deps) ──────────────────────────────
 
-function BarChart({ data, valueKey = 'views', labelKey = 'date', height = 180, color = 'var(--admin-primary)' }) {
+function BarChart({ data, valueKey = 'views', labelKey = 'date', height = 180, color = 'var(--admin-primary)' }: { data: any[]; valueKey?: string; labelKey?: string; height?: number; color?: string }) {
   if (!data || data.length === 0) return (
     <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--admin-text-muted, #9ca3af)', fontSize: 13 }}>
       No data yet — views will appear as visitors browse the site.
@@ -33,7 +33,7 @@ function BarChart({ data, valueKey = 'views', labelKey = 'date', height = 180, c
   );
 }
 
-function MultiBarChart({ data, height = 180 }) {
+function MultiBarChart({ data, height = 180 }: { data: any[]; height?: number }) {
   if (!data || data.length === 0) return null;
   const max = Math.max(...data.map(d => (d.views || 0) + (d.leads || 0)), 1);
   const showEvery = Math.max(1, Math.floor(data.length / 7));
@@ -58,7 +58,7 @@ function MultiBarChart({ data, height = 180 }) {
   );
 }
 
-function DonutChart({ data, size = 120 }) {
+function DonutChart({ data, size = 120 }: { data: any[]; size?: number }) {
   if (!data || data.length === 0) return null;
   const total = data.reduce((s, d) => s + d.count, 0);
   if (total === 0) return null;
@@ -90,7 +90,7 @@ function DonutChart({ data, size = 120 }) {
   );
 }
 
-function Funnel({ steps }) {
+function Funnel({ steps }: { steps: any[] }) {
   if (!steps || steps.length === 0) return null;
   const max = steps[0]?.value || 1;
   const colors = ['#3b82f6', '#8b5cf6', '#f59e0b'];
@@ -121,7 +121,7 @@ function Funnel({ steps }) {
 }
 
 // ─── Stat card ─────────────────────────────────────────────────────
-function StatCard({ label, value, sub, accent, delta }) {
+function StatCard({ label, value, sub, accent, delta }: { label: string; value: string | number; sub?: string; accent?: string; delta?: number }) {
   return (
     <div style={{
       background: 'var(--admin-surface, white)',
@@ -143,7 +143,7 @@ function StatCard({ label, value, sub, accent, delta }) {
 
 // ─── Legend dot ────────────────────────────────────────────────────
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-function Legend({ items }) {
+function Legend({ items }: { items: any[] }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((item, i) => (
@@ -158,7 +158,7 @@ function Legend({ items }) {
 }
 
 // ─── Section wrapper ───────────────────────────────────────────────
-function Section({ title, children, action }) {
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -215,7 +215,7 @@ function AdminAnalytics() {
     return n.toLocaleString();
   };
 
-  const changePeriod = (p) => {
+  const changePeriod = (p: string) => {
     setPeriod(p);
     load(p);
   };

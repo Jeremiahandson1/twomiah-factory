@@ -13,7 +13,7 @@ function AdminBlog() {
   const [editing, setEditing] = useState(null); // null = list view, object = editing
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('all'); // all, published, draft
-  const contentRef = useRef(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     loadPosts();
@@ -48,7 +48,7 @@ function AdminBlog() {
     });
   };
 
-  const handleEdit = (post) => {
+  const handleEdit = (post: any) => {
     setEditing({
       ...post,
       publishedAt: post.publishedAt ? post.publishedAt.slice(0, 16) : new Date().toISOString().slice(0, 16),
@@ -102,7 +102,7 @@ function AdminBlog() {
     setSaving(false);
   };
 
-  const handleDelete = async (post) => {
+  const handleDelete = async (post: any) => {
     if (!window.confirm(`Delete "${post.title}"? This cannot be undone.`)) return;
     try {
       await deletePost(post.id);
@@ -114,7 +114,7 @@ function AdminBlog() {
     }
   };
 
-  const handleTogglePublish = async (post) => {
+  const handleTogglePublish = async (post: any) => {
     try {
       await updatePost(post.id, { published: !post.published });
       toast.success(post.published ? 'Post unpublished' : 'Post published');
@@ -124,7 +124,7 @@ function AdminBlog() {
     }
   };
 
-  const updateField = (field, value) => {
+  const updateField = (field: string, value: any) => {
     setEditing(prev => ({ ...prev, [field]: value }));
   };
 
@@ -137,25 +137,26 @@ function AdminBlog() {
     updateField('slug', slug);
   };
 
-  const handleTagInput = (e) => {
+  const handleTagInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
-      const tag = e.target.value.trim().replace(/,$/,'');
+      const input = e.target as HTMLInputElement;
+      const tag = input.value.trim().replace(/,$/,'');
       if (tag && !editing.tags.includes(tag)) {
         updateField('tags', [...editing.tags, tag]);
       }
-      e.target.value = '';
+      input.value = '';
     }
   };
 
-  const removeTag = (tag) => {
+  const removeTag = (tag: string) => {
     updateField('tags', editing.tags.filter(t => t !== tag));
   };
 
   const serviceOptions = ['roofing', 'siding', 'windows', 'insulation', 'remodeling', 'new-construction'];
   const categoryOptions = ['roofing', 'siding', 'windows', 'insulation', 'remodeling', 'tips', 'news'];
 
-  const toggleService = (svc) => {
+  const toggleService = (svc: string) => {
     const current = editing.relatedServices || [];
     if (current.includes(svc)) {
       updateField('relatedServices', current.filter(s => s !== svc));
@@ -170,12 +171,12 @@ function AdminBlog() {
     return true;
   });
 
-  const formatDate = (d) => {
+  const formatDate = (d: string) => {
     if (!d) return '';
     return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const wordCount = (html) => {
+  const wordCount = (html: string) => {
     return (html || '').replace(/<[^>]*>/g, '').split(/\s+/).filter(w => w).length;
   };
 

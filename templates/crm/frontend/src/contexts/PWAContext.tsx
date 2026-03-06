@@ -1,6 +1,7 @@
+import React from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { 
-  initDB, 
+import {
+  initDB,
   getPendingActions, 
   syncPendingActions,
   queueAction,
@@ -9,9 +10,9 @@ import {
 } from '../services/offline';
 import api from '../services/api';
 
-const PWAContext = createContext(null);
+const PWAContext = createContext<any>(null);
 
-export function PWAProvider({ children }) {
+export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [online, setOnline] = useState(isOnline());
   const [pendingCount, setPendingCount] = useState(0);
   const [syncing, setSyncing] = useState(false);

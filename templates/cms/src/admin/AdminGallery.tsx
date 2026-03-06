@@ -23,7 +23,7 @@ function AdminGallery() {
     featured: true,
     completedAt: new Date().toISOString().slice(0, 7)
   });
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
   useEffect(() => {
@@ -78,7 +78,7 @@ function AdminGallery() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Delete this project? This cannot be undone.')) return;
 
     try {
@@ -96,7 +96,7 @@ function AdminGallery() {
     }
   };
 
-  const handleEdit = (project) => {
+  const handleEdit = (project: any) => {
     setEditing(project.id);
     setFormData({
       title: project.title,
@@ -124,10 +124,10 @@ function AdminGallery() {
     });
   };
 
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (uploading) return;
     
-    const files = Array.from(e.target.files);
+    const files = Array.from(e.target.files || []);
     if (!files.length) return;
     
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -167,7 +167,7 @@ function AdminGallery() {
   };
 
   // Handle drag and drop for file upload
-  const handleDrop = async (e) => {
+  const handleDrop = async (e: any) => {
     e.preventDefault();
     const files = e.dataTransfer?.files;
     if (files?.length > 0) {
@@ -176,7 +176,7 @@ function AdminGallery() {
     }
   };
 
-  const removeImage = (index) => {
+  const removeImage = (index: number) => {
     setFormData(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index)

@@ -45,7 +45,7 @@ function AdminRedirects() {
     }
   };
 
-  const handleDelete = async (redirectId) => {
+  const handleDelete = async (redirectId: string) => {
     if (!confirm('Delete this redirect?')) return;
     
     try {

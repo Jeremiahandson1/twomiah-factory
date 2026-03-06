@@ -12,7 +12,7 @@ const DEFAULT_CROP_PRESETS = [
   { label: 'Banner (21:9)', ratio: 21 / 9, icon: 'banner' },
 ];
 
-function PresetIcon({ type }) {
+function PresetIcon({ type }: { type: string }) {
   const s = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 };
   switch (type) {
     case 'wide': return <svg {...s}><rect x="2" y="6" width="20" height="12" rx="1"/></svg>;
@@ -27,19 +27,19 @@ function PresetIcon({ type }) {
 // ═══════════════════════════════════════
 // IMAGE EDITOR
 // ═══════════════════════════════════════
-function ImageEditor({ src, onSave, onCancel, cropPresets }) {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const [img, setImg] = useState(null);
+function ImageEditor({ src, onSave, onCancel, cropPresets }: { src: string; onSave: (url: string) => void; onCancel: () => void; cropPresets?: any[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [rotation, setRotation] = useState(0);
   const [activePreset, setActivePreset] = useState(0);
-  const [crop, setCrop] = useState(null);
+  const [crop, setCrop] = useState<any>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [saving, setSaving] = useState(false);
 
   // Use refs for drag state so window listeners always see current values
-  const dragRef = useRef({ active: false, type: null, startX: 0, startY: 0, startCrop: null });
-  const cropRef = useRef(null);
+  const dragRef = useRef<any>({ active: false, type: null, startX: 0, startY: 0, startCrop: null });
+  const cropRef = useRef<any>(null);
   const canvasSizeRef = useRef({ w: 0, h: 0 });
   const activePresetRef = useRef(0);
   const presets = cropPresets || DEFAULT_CROP_PRESETS;
@@ -156,14 +156,14 @@ function ImageEditor({ src, onSave, onCancel, cropPresets }) {
   }, [activePreset, canvasSize.w, canvasSize.h]);
 
   // ─── Drag Logic ───
-  const getCanvasPos = (e) => {
+  const getCanvasPos = (e: any) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
     const t = e.touches ? (e.touches[0] || e.changedTouches[0]) : e;
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   };
 
-  const hitTest = (pos) => {
+  const hitTest = (pos: { x: number; y: number }) => {
     const c = cropRef.current;
     if (!c) return null;
     const hs = 18;
@@ -175,7 +175,7 @@ function ImageEditor({ src, onSave, onCancel, cropPresets }) {
     return null;
   };
 
-  const handlePointerDown = (e) => {
+  const handlePointerDown = (e: any) => {
     const c = cropRef.current;
     if (!c) return;
     e.preventDefault();
@@ -243,7 +243,7 @@ function ImageEditor({ src, onSave, onCancel, cropPresets }) {
   }, [presets]);
 
   // Cursor on mouse move (not drag)
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: any) => {
     if (!canvasRef.current || dragRef.current.active) return;
     const pos = getCanvasPos(e);
     const hit = hitTest(pos);
@@ -251,7 +251,7 @@ function ImageEditor({ src, onSave, onCancel, cropPresets }) {
     canvasRef.current.style.cursor = cursors[hit] || 'default';
   };
 
-  const rotate = (deg) => { setRotation(r => (r + deg + 360) % 360); setCrop(null); };
+  const rotate = (deg: number) => { setRotation(r => (r + deg + 360) % 360); setCrop(null); };
 
   const handleSave = async () => {
     if (!img) return;
@@ -351,17 +351,17 @@ function ImagePicker({
   aspectRatio = '16/9', folder = 'Uploads',
   placeholder = 'Click to add image', maxHeight = '250px',
   cropPresets,
-}) {
+}: { value: string; onChange: (url: string) => void; label?: string; aspectRatio?: string; folder?: string; placeholder?: string; maxHeight?: string; cropPresets?: any[] }) {
   const [showLibrary, setShowLibrary] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const [editorSrc, setEditorSrc] = useState('');
-  const [images, setImages] = useState([]);
+  const [images, setImages] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('library');
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { if (showLibrary) loadImages(); }, [showLibrary]);
   useEffect(() => {
@@ -375,15 +375,15 @@ function ImagePicker({
     setLoading(false);
   };
 
-  const handleFileSelect = async (files) => {
+  const handleFileSelect = async (files: FileList | File[]) => {
     if (!files?.length) return;
     setUploading(true);
     try { const r = await uploadImage(files[0], folder); onChange(r.url); setShowLibrary(false); } catch (e) { console.error(e); }
     setUploading(false);
   };
 
-  const handleDrop = (e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer?.files?.length) handleFileSelect(e.dataTransfer.files); };
-  const openEditor = (url) => { setEditorSrc(getImageUrl(url || value)); setShowEditor(true); setShowLibrary(false); };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer?.files?.length) handleFileSelect(e.dataTransfer.files); };
+  const openEditor = (url: string) => { setEditorSrc(getImageUrl(url || value)); setShowEditor(true); setShowLibrary(false); };
 
   const filteredImages = searchQuery
     ? images.filter(i => (i.filename || '').toLowerCase().includes(searchQuery.toLowerCase()) || (i.altText || '').toLowerCase().includes(searchQuery.toLowerCase()) || (i.folder || '').toLowerCase().includes(searchQuery.toLowerCase()))

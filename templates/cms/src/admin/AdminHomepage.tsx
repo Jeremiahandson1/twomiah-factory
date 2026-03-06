@@ -63,9 +63,9 @@ function AdminHomepage() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, section: string, field: string) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
-    
+
     try {
       const result = await uploadImage(file);
       handleChange(section, field, result.url);
@@ -95,7 +95,7 @@ function AdminHomepage() {
     }));
   };
 
-  const removeBadge = (index) => {
+  const removeBadge = (index: number) => {
     setHomepage(prev => ({
       ...prev,
       trustBadges: prev.trustBadges.filter((_, i) => i !== index)
@@ -103,7 +103,7 @@ function AdminHomepage() {
   };
 
   // Service area handlers
-  const handleServiceAreaChange = (index, value) => {
+  const handleServiceAreaChange = (index: number, value: string) => {
     const areas = [...homepage.serviceAreas];
     areas[index] = value;
     setHomepage(prev => ({ ...prev, serviceAreas: areas }));
@@ -116,7 +116,7 @@ function AdminHomepage() {
     }));
   };
 
-  const removeServiceArea = (index) => {
+  const removeServiceArea = (index: number) => {
     setHomepage(prev => ({
       ...prev,
       serviceAreas: prev.serviceAreas.filter((_, i) => i !== index)
@@ -124,7 +124,7 @@ function AdminHomepage() {
   };
 
   // Business hours handlers
-  const handleHoursChange = (day, field, value) => {
+  const handleHoursChange = (day: string, field: string, value: any) => {
     setHomepage(prev => ({
       ...prev,
       businessHours: {

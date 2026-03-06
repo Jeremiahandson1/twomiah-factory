@@ -55,7 +55,7 @@ function AdminLayout({ children, title, subtitle, actions }: { children: React.R
     navigate('/admin/login');
   };
 
-  const isActive = (path) => {
+  const isActive = (path: string) => {
     if (path === '/admin' && location.pathname === '/admin') return true;
     if (path !== '/admin' && location.pathname.startsWith(path)) return true;
     return false;

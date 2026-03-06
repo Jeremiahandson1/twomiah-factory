@@ -30,7 +30,7 @@ function GalleryPage() {
     ? projects 
     : projects.filter(p => p.category === activeFilter);
 
-  const getCoverImage = (project) => {
+  const getCoverImage = (project: any) => {
     if (project.images && project.images.length > 0) {
       return getImageUrl(project.images[0].thumbnail || project.images[0].url);
     }

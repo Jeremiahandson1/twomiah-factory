@@ -9,12 +9,12 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 // ============================================
 // DRAG & DROP HOOK
 // ============================================
-function useDragAndDrop(items, onReorder) {
-  const [dragIndex, setDragIndex] = useState(null);
-  const [overIndex, setOverIndex] = useState(null);
-  const dragNode = useRef(null);
+function useDragAndDrop(items: any[], onReorder: (items: any[]) => void) {
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const dragNode = useRef<HTMLElement | null>(null);
 
-  const handleDragStart = useCallback((e, index) => {
+  const handleDragStart = useCallback((e: any, index: number) => {
     dragNode.current = e.target.closest('[draggable]');
     setDragIndex(index);
     e.dataTransfer.effectAllowed = 'move';
@@ -23,7 +23,7 @@ function useDragAndDrop(items, onReorder) {
     }, 0);
   }, []);
 
-  const handleDragOver = useCallback((e, index) => {
+  const handleDragOver = useCallback((e: any, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (index !== overIndex) setOverIndex(index);
@@ -86,7 +86,7 @@ function AdminPages() {
   };
 
   // Auto-slug from title
-  const handleTitleChange = (title) => {
+  const handleTitleChange = (title: string) => {
     setNewPageTitle(title);
     setNewPageId(title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
   };
@@ -134,7 +134,7 @@ function AdminPages() {
     setCreating(false);
   };
 
-  const handleDelete = async (pageId) => {
+  const handleDelete = async (pageId: string) => {
     try {
       await deletePage(pageId);
       toast.success('Page deleted');
@@ -145,7 +145,7 @@ function AdminPages() {
     }
   };
 
-  const handleBulkAction = async (action) => {
+  const handleBulkAction = async (action: string) => {
     if (!selectedPages.length) return;
     try {
       await bulkPageAction(action, selectedPages);
@@ -157,14 +157,14 @@ function AdminPages() {
     }
   };
 
-  const toggleSelect = (pageId) => {
+  const toggleSelect = (pageId: string) => {
     setSelectedPages(prev =>
       prev.includes(pageId) ? prev.filter(p => p !== pageId) : [...prev, pageId]
     );
   };
 
   // Drag-and-drop reorder for custom standalone pages
-  const handleCustomReorder = useCallback((reordered) => {
+  const handleCustomReorder = useCallback((reordered: any[]) => {
     setCustomPages(prev => {
       // Keep nested pages intact, only reorder standalone
       const nested = prev.filter(p => p.id.includes('/'));
@@ -204,7 +204,7 @@ function AdminPages() {
 
   const customDrag = useDragAndDrop(groupedCustomPages.standalone, handleCustomReorder);
 
-  const handleDeleteSubService = async (serviceId, subId, subTitle) => {
+  const handleDeleteSubService = async (serviceId: string, subId: string, subTitle: string) => {
     if (!confirm(`Delete sub-service "${subTitle}" from ${serviceId}? This removes it from both services and pages data.`)) return;
     const token = localStorage.getItem('adminToken');
     try {

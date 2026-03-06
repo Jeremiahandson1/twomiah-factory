@@ -1,11 +1,12 @@
+import React from 'react';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
-const PortalContext = createContext(null);
+const PortalContext = createContext<any>(null);
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-export function PortalProvider({ children }) {
+export function PortalProvider({ children }: { children: React.ReactNode }) {
   const { token } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

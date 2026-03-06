@@ -26,7 +26,7 @@ function AdminTrash() {
     setLoading(false);
   };
 
-  const handleRestore = async (trashId) => {
+  const handleRestore = async (trashId: string) => {
     try {
       const result = await restoreFromTrash(trashId);
       setTrash(trash.filter(t => t.id !== trashId));
@@ -40,7 +40,7 @@ function AdminTrash() {
     }
   };
 
-  const handleDelete = async (trashId) => {
+  const handleDelete = async (trashId: string) => {
     if (!confirm('Permanently delete this page? This cannot be undone.')) return;
     
     try {
@@ -63,16 +63,16 @@ function AdminTrash() {
     }
   };
 
-  const formatDate = (dateStr) => {
+  const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const getDaysUntilDelete = (dateStr) => {
+  const getDaysUntilDelete = (dateStr: string) => {
     const deleted = new Date(dateStr);
     const expiry = new Date(deleted.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
     const now = new Date();
-    const days = Math.ceil((expiry - now) / (24 * 60 * 60 * 1000));
+    const days = Math.ceil((expiry.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
     return days > 0 ? days : 0;
   };
 

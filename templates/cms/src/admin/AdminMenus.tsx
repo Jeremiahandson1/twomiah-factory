@@ -91,12 +91,12 @@ function AdminMenus() {
     setSaving(false);
   };
 
-  const updateConfig = (newConfig) => {
+  const updateConfig = (newConfig: any) => {
     setNavConfig(newConfig);
     setHasChanges(true);
   };
 
-  const toggleVisibility = (itemId, parentId = null) => {
+  const toggleVisibility = (itemId: string, parentId: string | null = null) => {
     const newConfig = { ...navConfig };
     
     if (activeTab === 'footer') {
@@ -124,7 +124,7 @@ function AdminMenus() {
     updateConfig(newConfig);
   };
 
-  const deleteItem = (itemId, parentId = null) => {
+  const deleteItem = (itemId: string, parentId: string | null = null) => {
     if (!confirm('Remove this menu item?')) return;
     
     const newConfig = { ...navConfig };
@@ -149,7 +149,7 @@ function AdminMenus() {
     toast.success('Item removed');
   };
 
-  const startEdit = (item, parentId = null) => {
+  const startEdit = (item: any, parentId: string | null = null) => {
     setEditingItem({ ...item, parentId });
   };
 
@@ -186,7 +186,7 @@ function AdminMenus() {
     toast.success('Item updated');
   };
 
-  const openAddModal = (parentId = null) => {
+  const openAddModal = (parentId: string | null = null) => {
     setAddTarget(parentId);
     setNewItem({ type: 'custom', label: '', href: '', pageId: '', openNewTab: false });
     setShowAddModal(true);
@@ -260,12 +260,12 @@ function AdminMenus() {
   };
 
   // Drag and drop handlers
-  const handleDragStart = (e, item, parentId = null) => {
+  const handleDragStart = (e: any, item: any, parentId: string | null = null) => {
     setDragItem({ item, parentId });
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e, item, parentId = null) => {
+  const handleDragOver = (e: any, item: any, parentId: string | null = null) => {
     e.preventDefault();
     if (dragItem?.item.id !== item.id) {
       setDragOverItem({ item, parentId });

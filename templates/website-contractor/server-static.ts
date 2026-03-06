@@ -17,7 +17,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = new Hono()
-const PORT = parseInt(process.env.PORT || '5000')
+const PORT = parseInt(process.env.PORT || '3000')
 
 const uploadsDir = appPaths.uploads
 const BASE_URL = process.env.SITE_URL || '{{SITE_URL}}'
@@ -258,5 +258,3 @@ Mode: Server-rendered (EJS) + CMS Admin
 
   startBackups()
 })
-
-export default app

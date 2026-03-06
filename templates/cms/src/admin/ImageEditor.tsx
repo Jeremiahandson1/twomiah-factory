@@ -11,7 +11,7 @@ const DEFAULT_CROP_PRESETS = [
   { label: 'Banner (21:9)', ratio: 21 / 9, icon: 'banner' },
 ];
 
-function PresetIcon({ type }) {
+function PresetIcon({ type }: { type: string }) {
   const s = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 };
   switch (type) {
     case 'wide': return <svg {...s}><rect x="2" y="6" width="20" height="12" rx="1"/></svg>;
@@ -33,18 +33,18 @@ function PresetIcon({ type }) {
  * - cropPresets: optional custom presets array
  * - folder: upload folder for edited images (default: 'Edited')
  */
-function ImageEditor({ src, onSave, onCancel, cropPresets, folder = 'Edited' }) {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const [img, setImg] = useState(null);
+function ImageEditor({ src, onSave, onCancel, cropPresets, folder = 'Edited' }: { src: string; onSave: (url: string) => void; onCancel: () => void; cropPresets?: any[]; folder?: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [rotation, setRotation] = useState(0);
   const [activePreset, setActivePreset] = useState(0);
-  const [crop, setCrop] = useState(null);
+  const [crop, setCrop] = useState<any>(null);
   const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   const [saving, setSaving] = useState(false);
 
-  const dragRef = useRef({ active: false, type: null, startX: 0, startY: 0, startCrop: null });
-  const cropRef = useRef(null);
+  const dragRef = useRef<any>({ active: false, type: null, startX: 0, startY: 0, startCrop: null });
+  const cropRef = useRef<any>(null);
   const canvasSizeRef = useRef({ w: 0, h: 0 });
   const activePresetRef = useRef(0);
   const presets = cropPresets || DEFAULT_CROP_PRESETS;
@@ -165,14 +165,14 @@ function ImageEditor({ src, onSave, onCancel, cropPresets, folder = 'Edited' }) 
   }, [activePreset, canvasSize.w, canvasSize.h]);
 
   // ─── Drag ───
-  const getCanvasPos = (e) => {
+  const getCanvasPos = (e: any) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
     const t = e.touches ? (e.touches[0] || e.changedTouches[0]) : e;
     return { x: t.clientX - rect.left, y: t.clientY - rect.top };
   };
 
-  const hitTest = (pos) => {
+  const hitTest = (pos: { x: number; y: number }) => {
     const c = cropRef.current;
     if (!c) return null;
     const hs = 18;
@@ -184,7 +184,7 @@ function ImageEditor({ src, onSave, onCancel, cropPresets, folder = 'Edited' }) 
     return null;
   };
 
-  const handlePointerDown = (e) => {
+  const handlePointerDown = (e: any) => {
     const c = cropRef.current;
     if (!c) return;
     e.preventDefault();
@@ -248,7 +248,7 @@ function ImageEditor({ src, onSave, onCancel, cropPresets, folder = 'Edited' }) 
     };
   }, [presets]);
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: any) => {
     if (!canvasRef.current || dragRef.current.active) return;
     const pos = getCanvasPos(e);
     const hit = hitTest(pos);
@@ -256,7 +256,7 @@ function ImageEditor({ src, onSave, onCancel, cropPresets, folder = 'Edited' }) 
     canvasRef.current.style.cursor = cursors[hit] || 'default';
   };
 
-  const rotate = (deg) => { setRotation(r => (r + deg + 360) % 360); setCrop(null); };
+  const rotate = (deg: number) => { setRotation(r => (r + deg + 360) % 360); setCrop(null); };
 
   const handleSave = async () => {
     if (!img) return;

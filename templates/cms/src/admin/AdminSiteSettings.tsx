@@ -62,7 +62,7 @@ function AdminSiteSettings() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     
     try {
