@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node prerender.js",
+    "build": "vite build && bun prerender.js",
     "build:quick": "vite build",
     "preview": "vite preview"
   },
