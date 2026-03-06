@@ -45,6 +45,7 @@ import importRoutes from './routes/import.ts'
 import inventoryRoutes from './routes/inventory.ts'
 import mapsRoutes from './routes/maps.ts'
 import marketingRoutes from './routes/marketing.ts'
+import payrollRoutes from './routes/payroll.ts'
 import photosRoutes from './routes/photos.ts'
 import portalRoutes from './routes/portal.ts'
 import portalSelectionsRoutes from './routes/portal-selections.ts'
@@ -150,6 +151,7 @@ app.route('/api/import', importRoutes)
 app.route('/api/inventory', inventoryRoutes)
 app.route('/api/maps', mapsRoutes)
 app.route('/api/marketing', marketingRoutes)
+app.route('/api/payroll', payrollRoutes)
 app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
 app.route('/api/portal/selections', portalSelectionsRoutes)
