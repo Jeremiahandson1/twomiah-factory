@@ -44,18 +44,9 @@ const app = new Hono()
 // Security headers
 app.use('*', secureHeaders())
 
-// CORS
+// CORS — allow all origins; auth is handled by JWT, not origin checks
 app.use('*', cors({
-  origin: (origin) => {
-    if (!origin) return origin
-    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173')
-      .split(',').map(s => s.trim())
-    if (allowed.some(u => origin === u) || origin.endsWith('.onrender.com')) {
-      return origin
-    }
-    return null
-  },
-  credentials: true,
+  origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
 }))
