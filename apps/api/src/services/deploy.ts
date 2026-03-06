@@ -511,15 +511,9 @@ export async function deployCustomer(
         ]
         if (dbInfo?.internalConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbInfo.internalConnectionString })
 
-        // Deterministic URLs — same pattern as render.yaml.template
         const crmApiName = isHomeCare ? slug + '-care-api' : slug + '-api'
         const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
         const crmRootDir = isHomeCare ? 'crm-homecare' : 'crm'
-        const backendUrl = 'https://' + crmApiName + '.onrender.com'
-        const frontendUrl = 'https://' + crmFrontName + '.onrender.com'
-
-        // Set FRONTEND_URL on backend at creation time
-        backendEnvVars.push({ key: 'FRONTEND_URL', value: frontendUrl })
 
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const backendBuild = bunSetup + ' && bun install'
@@ -537,9 +531,13 @@ export async function deployCustomer(
           createdResources.push({ type: 'service', id: backend.service.id, name: crmApiName })
           deployedResourceIds.push(backend.service.id)
         }
+
+        // Use actual slug from Render response — Render may append suffixes to service names
+        const actualApiSlug = backend.service?.slug || crmApiName
+        const backendUrl = 'https://' + actualApiSlug + '.onrender.com'
         results.apiUrl = backendUrl
 
-        // Frontend — VITE_API_URL baked in at creation, no race condition
+        // Frontend — use actual slug from Render response for its URL too
         const frontend = await createRenderStaticSite({
           name: crmFrontName, repoFullName: repo.full_name, rootDir: crmRootDir + '/frontend',
           buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
@@ -549,12 +547,19 @@ export async function deployCustomer(
         console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
         results.steps.push({ step: 'render_frontend', status: 'ok', serviceId: frontend.service?.id })
         results.services.frontend = frontend.service
+        const actualFrontSlug = frontend.service?.slug || crmFrontName
+        const frontendUrl = 'https://' + actualFrontSlug + '.onrender.com'
         if (frontend.service?.id) {
           createdResources.push({ type: 'service', id: frontend.service.id, name: crmFrontName })
           deployedResourceIds.push(frontend.service.id)
           await addStaticSiteHeaders(frontend.service.id)
         }
         results.deployedUrl = frontendUrl
+
+        // Set FRONTEND_URL on backend now that we know the actual frontend URL
+        if (backend.service?.id) {
+          await updateRenderEnvVars(backend.service.id, [{ key: 'FRONTEND_URL', value: frontendUrl }])
+        }
       } catch (err: any) {
         results.steps.push({ step: 'render_crm', status: 'error', error: err.message })
         results.errors.push('CRM: ' + err.message)
