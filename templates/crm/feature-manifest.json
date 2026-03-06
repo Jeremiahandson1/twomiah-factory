@@ -5,7 +5,7 @@
     "_comment": "Always included — cannot be disabled",
     "features": ["contacts", "jobs", "quotes", "invoices", "scheduling", "team", "dashboard"],
     "backend": {
-      "routes": ["auth.ts", "contacts.ts", "jobs.ts", "quotes.ts", "invoices.ts", "time.ts", "team.ts", "company.ts", "dashboard.ts", "projects.ts", "expenses.ts", "documents.ts"],
+      "routes": ["auth.ts", "contacts.ts", "jobs.ts", "quotes.ts", "invoices.ts", "time.ts", "team.ts", "company.ts", "dashboard.ts", "projects.ts", "expenses.ts", "documents.ts", "payroll.ts"],
       "services": ["audit.ts", "email.ts", "fileUpload.ts", "logger.ts", "socket.ts", "pdf.ts"],
       "middleware": ["auth.ts", "featureGate.ts", "permissions.ts", "security.ts"]
     },

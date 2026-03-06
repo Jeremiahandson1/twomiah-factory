@@ -384,7 +384,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
       if (!routeFile || neededRoutes.has(routeFile) || routeFile === 'auth.ts' || routeFile === 'factory.ts') continue
       indexContent = indexContent.replace(new RegExp("import \\w+ from './routes/" + routeFile + "';?\\n?", 'g'), '')
       const routeName = routeFile.replace('.ts', '')
-      indexContent = indexContent.replace(new RegExp("app\\.use\\('/api/[^']*',\\s*\\w*" + routeName + "\\w*Routes?\\);?\\n?", 'gi'), '')
+      indexContent = indexContent.replace(new RegExp("app\\.(?:use|route)\\('/api/[^']*',\\s*\\w*" + routeName + "\\w*Routes?\\);?\\n?", 'gi'), '')
     }
     fs.writeFileSync(indexPath, indexContent, 'utf8')
   }
