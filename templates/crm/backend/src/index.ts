@@ -50,6 +50,7 @@ import fleetRoutes from './routes/fleet.ts'
 import gapFeaturesRoutes from './routes/gapFeatures.ts'
 import geofencingRoutes from './routes/geofencing.ts'
 import importRoutes from './routes/import.ts'
+import migrationRoutes from './routes/migration.ts'
 import inventoryRoutes from './routes/inventory.ts'
 import mapsRoutes from './routes/maps.ts'
 import marketingRoutes from './routes/marketing.ts'
@@ -153,6 +154,7 @@ app.route('/api/fleet', fleetRoutes)
 app.route('/api/gap-features', gapFeaturesRoutes)
 app.route('/api/geofencing', geofencingRoutes)
 app.route('/api/import', importRoutes)
+app.route('/api/migration', migrationRoutes)
 app.route('/api/inventory', inventoryRoutes)
 app.route('/api/maps', mapsRoutes)
 app.route('/api/marketing', marketingRoutes)

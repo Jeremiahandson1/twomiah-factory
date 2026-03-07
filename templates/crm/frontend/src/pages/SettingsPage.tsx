@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
-import { Building2, User, Lock, Users } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 export default function SettingsPage() {
+  const navigate = useNavigate();
   const { user, company, updateCompany } = useAuth();
   const toast = useToast();
   const [tab, setTab] = useState('company');
@@ -62,6 +64,17 @@ export default function SettingsPage() {
               <t.icon className="w-5 h-5" />{t.label}
             </button>
           ))}
+          <div className="border-t my-3 pt-3">
+            <button onClick={() => navigate('/crm/settings/billing')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <CreditCard className="w-5 h-5" />Billing
+            </button>
+            <button onClick={() => navigate('/crm/settings/integrations')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <Plug className="w-5 h-5" />Integrations
+            </button>
+            <button onClick={() => navigate('/crm/settings/migration')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <ArrowRightLeft className="w-5 h-5" />Migrate Data
+            </button>
+          </div>
         </div>
         <div className="flex-1 bg-white rounded-lg shadow-sm p-6">
           {tab === 'company' && (

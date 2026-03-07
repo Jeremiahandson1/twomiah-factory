@@ -591,5 +591,6 @@ export default {
   importJobs,
   importProducts,
   validateCSV,
+  previewImport: validateCSV,
   getTemplate,
 }
