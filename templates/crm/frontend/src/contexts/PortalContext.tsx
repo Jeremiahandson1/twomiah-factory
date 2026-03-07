@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 
 const PortalContext = createContext<any>(null);
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export function PortalProvider({ children }: { children: React.ReactNode }) {
   const { token } = useParams();
@@ -17,7 +17,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
     
     async function loadPortal() {
       try {
-        const response = await fetch(`${API_URL}/portal/p/${token}`);
+        const response = await fetch(`${API_URL}/api/portal/p/${token}`);
         if (!response.ok) {
           const err = await response.json();
           throw new Error(err.error || 'Failed to load portal');
@@ -37,7 +37,7 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   const portalFetch = async (endpoint, options = {}) => {
-    const response = await fetch(`${API_URL}/portal/p/${token}${endpoint}`, {
+    const response = await fetch(`${API_URL}/api/portal/p/${token}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',

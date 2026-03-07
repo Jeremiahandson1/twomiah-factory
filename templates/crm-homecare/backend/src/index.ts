@@ -3,10 +3,18 @@ import type { Context, Next } from 'hono'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 import { serve } from '@hono/node-server'
+import { serveStatic } from '@hono/node-server/serve-static'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist')
 
 import authRoutes from './routes/auth.ts'
 import dashboardRoutes from './routes/dashboard.ts'
@@ -114,8 +122,19 @@ app.route('/api/optimizer', optimizerRoutes)
 // Error handler
 app.onError(errorHandler)
 
-// 404
-app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+// ─── Serve frontend SPA from backend (no separate static site needed) ────────
+const hasFrontendBuild = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'))
+if (hasFrontendBuild) {
+  const relRoot = path.relative(process.cwd(), FRONTEND_DIST)
+  app.use('/assets/*', serveStatic({ root: relRoot }))
+  app.use('/favicon.ico', serveStatic({ root: relRoot }))
+
+  const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
+  app.get('*', (c) => c.html(indexHtml))
+  logger.info('Serving frontend from ' + FRONTEND_DIST)
+} else {
+  app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+}
 
 const PORT = Number(process.env.PORT) || 3001
 

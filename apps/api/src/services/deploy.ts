@@ -551,10 +551,11 @@ export async function deployCustomer(
 
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)
-        await findAndDeleteRenderService(crmFrontName)
+        await findAndDeleteRenderService(crmFrontName) // clean up legacy static sites
 
+        // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
-        const backendBuild = bunSetup + ' && bun install'
+        const backendBuild = bunSetup + ' && bun install && cd ../frontend && bun install && VITE_API_URL="" bun run build && cd ../backend'
         const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',
@@ -571,37 +572,13 @@ export async function deployCustomer(
           deployedResourceIds.push(backendSvc.id)
         }
 
-        // Extract actual slug from Render response — Render appends random suffixes
-        // Response may be { service: { slug } } or { slug } depending on API version
         const actualApiSlug = backendSvc.slug || crmApiName
         console.log('[Deploy] Backend slug resolution:', { 'service.slug': backend.service?.slug, 'slug': backend.slug, resolved: actualApiSlug })
         const backendUrl = 'https://' + actualApiSlug + '.onrender.com'
         results.apiUrl = backendUrl
-
-        // Frontend
-        const frontend = await createRenderStaticSite({
-          name: crmFrontName, repoFullName: repo.full_name, rootDir: crmRootDir + '/frontend',
-          buildCommand: bunSetup + ' && bun install && bun run build', publishPath: 'dist',
-          envVars: [{ key: 'VITE_API_URL', value: backendUrl }],
-        })
-        console.log('[Deploy] Frontend creation response:', JSON.stringify(frontend, null, 2))
-        const frontendSvc = frontend.service || frontend
-        results.steps.push({ step: 'render_frontend', status: 'ok', serviceId: frontendSvc.id })
-        results.services.frontend = frontendSvc
-        const actualFrontSlug = frontendSvc.slug || crmFrontName
-        console.log('[Deploy] Frontend slug resolution:', { 'service.slug': frontend.service?.slug, 'slug': frontend.slug, resolved: actualFrontSlug })
-        const frontendUrl = 'https://' + actualFrontSlug + '.onrender.com'
-        if (frontendSvc.id) {
-          createdResources.push({ type: 'service', id: frontendSvc.id, name: crmFrontName })
-          deployedResourceIds.push(frontendSvc.id)
-          await addStaticSiteHeaders(frontendSvc.id)
-        }
-        results.deployedUrl = frontendUrl
-
-        // Set FRONTEND_URL on backend now that we know the actual frontend URL
-        if (backendSvc.id) {
-          await updateRenderEnvVars(backendSvc.id, [{ key: 'FRONTEND_URL', value: frontendUrl }])
-        }
+        // Frontend is served by the same backend service — same URL
+        results.deployedUrl = backendUrl
+        results.steps.push({ step: 'render_frontend', status: 'ok', note: 'served by backend' })
       } catch (err: any) {
         results.steps.push({ step: 'render_crm', status: 'error', error: err.message })
         results.errors.push('CRM: ' + err.message)

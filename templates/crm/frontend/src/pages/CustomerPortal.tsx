@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function CustomerPortal() {
   const { user, company, logout } = useAuth();
@@ -22,7 +22,7 @@ export default function CustomerPortal() {
   async function fetchStats() {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_URL}/dashboard/stats`, {
+      const res = await fetch(`${API_URL}/api/dashboard/stats`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
