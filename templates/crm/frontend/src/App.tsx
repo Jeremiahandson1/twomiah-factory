@@ -54,6 +54,7 @@ import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
 import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
+import HelpPage from './pages/help/HelpPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
@@ -133,6 +134,7 @@ function App() {
                     <Route path="reports" element={<ReportsDashboard />} />
                     <Route path="selections" element={<SelectionsPage />} />
                     <Route path="support" element={<SupportPage />} />
+                    <Route path="help" element={<HelpPage />} />
                   </Route>
 
                   {/* Catch all */}

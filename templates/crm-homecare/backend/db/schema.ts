@@ -900,6 +900,25 @@ export const serviceLocations = pgTable('service_locations', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 
+// ==================== HELP ARTICLES ====================
+export const helpArticles = pgTable('help_articles', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  agencyId: text('agency_id').notNull(),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  category: text('category'),
+  tags: json('tags').default([]).notNull(),
+  isFaq: boolean('is_faq').default(false).notNull(),
+  published: boolean('published').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  viewCount: integer('view_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('help_articles_agency_id_idx').on(t.agencyId),
+  index('help_articles_category_idx').on(t.category),
+])
+
 // ==================== DASHBOARD CACHE ====================
 export const dashboardCache = pgTable('dashboard_cache', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs'
 import {
   agencies, users, notificationPreferences, noshowAlertConfig,
   serviceCodes, referralSources, serviceLocations, formTemplates,
+  helpArticles,
 } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
@@ -172,6 +173,23 @@ async function main() {
     ]
     await db.insert(formTemplates).values(forms)
     console.log(`${forms.length} form templates`)
+  }
+
+  // ── HELP ARTICLES ────────────────────────────────────
+  const [{ value: helpCount }] = await db.select({ value: count() }).from(helpArticles)
+  if (Number(helpCount) === 0) {
+    const articles = [
+      { title: 'Getting Started', content: 'Welcome to your home care management system! Start by adding clients and caregivers, then create schedules to match caregivers with clients. Use the dashboard to monitor visits and track compliance.', category: 'Getting Started', isFaq: true, sortOrder: 1, agencyId: agency.id },
+      { title: 'Adding Clients', content: 'Navigate to the Clients section to add new clients. Enter demographics, medical information, emergency contacts, and care plan details. Set authorization hours and assign a primary payer for billing.', category: 'Getting Started', isFaq: false, sortOrder: 2, agencyId: agency.id },
+      { title: 'Managing Caregivers', content: 'Add caregivers from the Caregivers page. Track certifications, background checks, and availability. The system will alert you when certifications are expiring so you can stay compliant.', category: 'Staff', isFaq: false, sortOrder: 3, agencyId: agency.id },
+      { title: 'How do I create a schedule?', content: 'Go to the Schedule page and click "New Visit" or drag on the calendar. Select a client, assign a caregiver, choose a service code, and set the time. Recurring visits can be set up for weekly schedules.', category: 'Scheduling', isFaq: true, sortOrder: 4, agencyId: agency.id },
+      { title: 'EVV (Electronic Visit Verification)', content: 'Caregivers clock in/out using the mobile app or phone system. The system records GPS location, time, and tasks completed. EVV data is automatically compiled for Medicaid compliance reporting.', category: 'Compliance', isFaq: true, sortOrder: 5, agencyId: agency.id },
+      { title: 'Billing & Claims', content: 'Navigate to Billing to generate claims from completed visits. The system matches visits to service codes and authorization hours. Submit claims electronically or export for manual submission.', category: 'Billing', isFaq: false, sortOrder: 6, agencyId: agency.id },
+      { title: 'How do I handle no-shows?', content: 'The system automatically detects when a caregiver hasn\'t clocked in within the grace period. Administrators receive alerts and can quickly reassign the visit to an available caregiver from the Schedule page.', category: 'Scheduling', isFaq: true, sortOrder: 7, agencyId: agency.id },
+      { title: 'Running Reports', content: 'The Reports section offers compliance reports, billing summaries, caregiver hours, and client service reports. Filter by date range, client, caregiver, or payer. Export reports to CSV or PDF.', category: 'Reports', isFaq: false, sortOrder: 8, agencyId: agency.id },
+    ]
+    await db.insert(helpArticles).values(articles.map(a => ({ ...a, tags: [] })))
+    console.log(`${articles.length} help articles`)
   }
 
   console.log('\nSeed complete!')

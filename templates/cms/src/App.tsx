@@ -33,6 +33,7 @@ import AdminAnalytics from './admin/AdminAnalytics';
 import AdminGallery from './admin/AdminGallery';
 import AdminMenus from './admin/AdminMenus';
 import AdminBlog from './admin/AdminBlog';
+import AdminHelp from './admin/AdminHelp';
 import ProtectedRoute from './admin/ProtectedRoute';
 import './admin/admin.css';
 
@@ -184,6 +185,11 @@ function AppContent() {
           <Route path="/menus" element={
             <ProtectedRoute>
               <AdminMenus />
+            </ProtectedRoute>
+          } />
+          <Route path="/help" element={
+            <ProtectedRoute>
+              <AdminHelp />
             </ProtectedRoute>
           } />
           <Route path="/*" element={

@@ -43,6 +43,7 @@ import payersRoutes from './routes/payers.ts'
 import auditRoutes from './routes/audit.ts'
 import companyRoutes from './routes/company.ts'
 import stripeRoutes from './routes/stripe.ts'
+import helpRoutes from './routes/help.ts'
 import optimizerRoutes from './routes/optimizer.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
@@ -117,6 +118,7 @@ app.route('/api/payers', payersRoutes)
 app.route('/api/audit', auditRoutes)
 app.route('/api/company', companyRoutes)
 app.route('/api/stripe', stripeRoutes)
+app.route('/api/help', helpRoutes)
 app.route('/api/optimizer', optimizerRoutes)
 
 // Error handler

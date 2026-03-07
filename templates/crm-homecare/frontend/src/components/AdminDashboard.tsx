@@ -469,7 +469,7 @@ const AdminDashboard = ({ user, token, onLogout, onImpersonate }) => {
           </div>
         </div>
 
-        <HelpPanel isOpen={showHelp} onClose={() => setShowHelp(false)} currentPage={currentPage} />
+        <HelpPanel isOpen={showHelp} onClose={() => setShowHelp(false)} currentPage={currentPage} token={token} />
 
         {/* Impersonation modal */}
         {showImpersonation && (

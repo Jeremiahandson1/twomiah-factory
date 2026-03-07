@@ -2422,7 +2422,9 @@ export const supportKnowledgeBase = pgTable('support_knowledge_base', {
   content: text('content').notNull(),
   category: text('category'),
   tags: json('tags').default([]).notNull(),
+  isFaq: boolean('is_faq').default(false).notNull(),
   published: boolean('published').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
   viewCount: integer('view_count').default(0).notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

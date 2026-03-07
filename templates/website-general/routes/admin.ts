@@ -2838,4 +2838,152 @@ app.delete('/posts/:id', authMiddleware, (c) => {
   }
 });
 
+// ============ HELP / KNOWLEDGE BASE ============
+
+const helpFile = path.join(dataDir, 'help-articles.json');
+initFile(helpFile, []);
+
+// GET /admin/help/kb — list articles (public read, no auth required for browsing)
+app.get('/help/kb', (c) => {
+  try {
+    const articles = JSON.parse(fs.readFileSync(helpFile, 'utf8'));
+    const search = (c.req.query('search') || '').toLowerCase();
+    const category = c.req.query('category') || '';
+
+    let filtered = articles.filter((a: any) => a.published !== false);
+    if (search) {
+      filtered = filtered.filter((a: any) =>
+        a.title.toLowerCase().includes(search) ||
+        a.content.toLowerCase().includes(search) ||
+        (a.tags || []).some((t: string) => t.toLowerCase().includes(search))
+      );
+    }
+    if (category) {
+      filtered = filtered.filter((a: any) => a.category === category);
+    }
+    filtered.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+    return c.json(filtered);
+  } catch {
+    return c.json([]);
+  }
+});
+
+// POST /admin/help/kb — create article (admin only)
+app.post('/help/kb', authMiddleware, (c) => {
+  try {
+    const articles = JSON.parse(fs.readFileSync(helpFile, 'utf8'));
+    const body = c.req.json();
+    return (body as Promise<any>).then((data) => {
+      const article = {
+        id: uuidv4(),
+        title: data.title || '',
+        content: data.content || '',
+        category: data.category || null,
+        tags: data.tags || [],
+        is_faq: data.is_faq || false,
+        published: true,
+        sort_order: data.sort_order || 0,
+        view_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      articles.push(article);
+      fs.writeFileSync(helpFile, JSON.stringify(articles, null, 2));
+      logActivity('help_article_created', { title: article.title });
+      return c.json(article, 201);
+    });
+  } catch {
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
+
+// PUT /admin/help/kb/:id — update article (admin only)
+app.put('/help/kb/:id', authMiddleware, async (c) => {
+  try {
+    const articles = JSON.parse(fs.readFileSync(helpFile, 'utf8'));
+    const idx = articles.findIndex((a: any) => a.id === c.req.param('id'));
+    if (idx === -1) return c.json({ error: 'Not found' }, 404);
+    const data = await c.req.json();
+    articles[idx] = {
+      ...articles[idx],
+      title: data.title ?? articles[idx].title,
+      content: data.content ?? articles[idx].content,
+      category: data.category ?? articles[idx].category,
+      tags: data.tags ?? articles[idx].tags,
+      is_faq: data.is_faq ?? articles[idx].is_faq,
+      published: data.published ?? articles[idx].published,
+      sort_order: data.sort_order ?? articles[idx].sort_order,
+      updated_at: new Date().toISOString(),
+    };
+    fs.writeFileSync(helpFile, JSON.stringify(articles, null, 2));
+    logActivity('help_article_updated', { title: articles[idx].title });
+    return c.json(articles[idx]);
+  } catch {
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
+
+// DELETE /admin/help/kb/:id — delete article (admin only)
+app.delete('/help/kb/:id', authMiddleware, (c) => {
+  try {
+    let articles = JSON.parse(fs.readFileSync(helpFile, 'utf8'));
+    const article = articles.find((a: any) => a.id === c.req.param('id'));
+    if (!article) return c.json({ error: 'Not found' }, 404);
+    articles = articles.filter((a: any) => a.id !== c.req.param('id'));
+    fs.writeFileSync(helpFile, JSON.stringify(articles, null, 2));
+    logActivity('help_article_deleted', { title: article.title });
+    return c.json({ message: 'Deleted' });
+  } catch {
+    return c.json({ error: 'Server error' }, 500);
+  }
+});
+
+// POST /admin/help/ai-chat — AI chat with KB context
+app.post('/help/ai-chat', authMiddleware, async (c) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return c.json({ reply: 'AI support is not configured. Please contact your administrator.' });
+
+  const { message, conversationHistory } = await c.req.json();
+
+  // Load KB for context
+  let kbContext = '';
+  try {
+    const articles = JSON.parse(fs.readFileSync(helpFile, 'utf8'))
+      .filter((a: any) => a.published !== false);
+    if (articles.length > 0) {
+      kbContext = '\n\nKnowledge Base Articles:\n' + articles.map((a: any) => `## ${a.title}\n${a.content}`).join('\n\n');
+    }
+  } catch {}
+
+  const systemPrompt = `You are a helpful support assistant for a website content management system. Answer questions about managing pages, media, blog posts, SEO, navigation, and other website features based on the knowledge base articles provided. If you cannot find a relevant answer, suggest the user submit a support ticket.${kbContext}`;
+
+  const messages = [
+    ...(conversationHistory || []).map((m: any) => ({ role: m.role, content: m.content })),
+    { role: 'user' as const, content: message },
+  ];
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages,
+      }),
+    });
+
+    const data = await res.json() as any;
+    const reply = data.content?.[0]?.text || 'Sorry, I could not process that request.';
+    return c.json({ reply });
+  } catch {
+    return c.json({ reply: 'AI service is temporarily unavailable. Please try again later.' });
+  }
+});
+
 export default app;

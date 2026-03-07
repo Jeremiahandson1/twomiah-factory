@@ -116,6 +116,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       stripWebsiteFeatures(path.join(workDir, 'website'), config.features?.website || [])
       writeBrandingAssets(path.join(workDir, 'website'), config.branding)
       injectWizardContent(path.join(workDir, 'website'), config)
+      seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
 
       const websiteRenderTemplate = path.join(workDir, 'website', 'render.yaml.template')
@@ -533,6 +534,23 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
       fs.writeFileSync(homepageFile, JSON.stringify(homepage, null, 2))
     } catch (e: any) { console.warn('[Factory] Could not inject homepage content:', e.message) }
   }
+}
+
+function seedHelpArticles(websiteDir: string) {
+  const dataDir = path.join(websiteDir, 'data')
+  fs.mkdirSync(dataDir, { recursive: true })
+  const helpFile = path.join(dataDir, 'help-articles.json')
+  const articles = [
+    { id: crypto.randomUUID(), title: 'Getting Started with Your Website', content: 'Welcome to your website CMS! Use the admin panel to manage pages, blog posts, media, and site settings. Navigate using the sidebar to access different management sections.', category: 'Getting Started', tags: [], is_faq: true, published: true, sort_order: 1, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: crypto.randomUUID(), title: 'Managing Pages', content: 'Create and edit pages from the Pages section. Each page has a title, content, SEO settings, and layout options. Use the visual editor to add text, images, and custom HTML. Pages can be nested under parent pages for organized navigation.', category: 'Content', tags: [], is_faq: false, published: true, sort_order: 2, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: crypto.randomUUID(), title: 'How do I add images?', content: 'Go to the Media section to upload images. You can organize images into folders, add alt text for accessibility, and optimize images automatically. Once uploaded, insert images into any page using the editor toolbar.', category: 'Media', tags: [], is_faq: true, published: true, sort_order: 3, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: crypto.randomUUID(), title: 'Blog Posts', content: 'Create blog posts from the Blog section. Add a title, content, featured image, and SEO metadata. Posts can be saved as drafts or published immediately. Use categories and tags to organize your content.', category: 'Content', tags: [], is_faq: false, published: true, sort_order: 4, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: crypto.randomUUID(), title: 'How do I update the navigation menu?', content: 'Go to Menus in the admin panel to customize your navigation. You can show/hide menu items, reorder them, and add links to custom pages. Changes are reflected on the live site after saving.', category: 'Navigation', tags: [], is_faq: true, published: true, sort_order: 5, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: crypto.randomUUID(), title: 'SEO Settings', content: 'Each page has SEO fields: meta title, meta description, and open graph image. Use the SEO analyzer in the page editor to get suggestions for improving search engine visibility. Keep titles under 60 characters and descriptions under 160 characters.', category: 'SEO', tags: [], is_faq: false, published: true, sort_order: 6, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: crypto.randomUUID(), title: 'Managing Leads', content: 'Form submissions from your contact forms appear in the Leads section. You can view, mark as contacted, add notes, and export leads. Set up email notifications to be alerted when new leads come in.', category: 'Leads', tags: [], is_faq: false, published: true, sort_order: 7, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { id: crypto.randomUUID(), title: 'How do I change my site colors?', content: 'Go to Site Settings to update your brand colors, logo, favicon, and other global settings. Changes to colors will be applied across your entire website theme.', category: 'Settings', tags: [], is_faq: true, published: true, sort_order: 8, view_count: 0, created_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+  ]
+  fs.writeFileSync(helpFile, JSON.stringify(articles, null, 2))
 }
 
 function writeBrandingAssets(targetDir: string, branding: GenerateConfig['branding']) {

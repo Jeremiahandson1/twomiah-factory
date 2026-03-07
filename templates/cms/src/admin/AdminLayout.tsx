@@ -243,6 +243,14 @@ function AdminLayout({ children, title, subtitle, actions }: { children: React.R
             </svg>
             Trash
           </Link>
+          <Link to="/help" className={`admin-nav-item ${isActive('/help') ? 'active' : ''}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            Help Center
+          </Link>
           <Link to="/activity" className={`admin-nav-item ${isActive('/activity') ? 'active' : ''}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>

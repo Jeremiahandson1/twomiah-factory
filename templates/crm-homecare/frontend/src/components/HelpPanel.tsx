@@ -1,6 +1,7 @@
 // src/components/HelpPanel.jsx
-// Slide-out admin help panel with searchable articles per section
-import React, { useState, useEffect, useRef } from 'react';
+// Slide-out admin help panel with searchable articles, FAQ, and AI chat
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 
 const HELP_ARTICLES = [
   {
@@ -279,11 +280,73 @@ For large date ranges (e.g., a full year), PDFs may be multiple pages. The recor
   },
 ];
 
-const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
+const HelpPanel = ({ isOpen, onClose, currentPage = '', token = '' }) => {
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState(null);
   const [activeArticle, setActiveArticle] = useState(null);
+  const [activeTab, setActiveTab] = useState('guides'); // guides, kb, faq, ai
   const panelRef = useRef(null);
+
+  // API Knowledge Base
+  const [kbArticles, setKbArticles] = useState([]);
+  const [kbLoading, setKbLoading] = useState(false);
+  const [selectedKb, setSelectedKb] = useState(null);
+  const [expandedFaqs, setExpandedFaqs] = useState(new Set());
+
+  // AI Chat
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+
+  const fetchKb = useCallback(async () => {
+    if (!token) return;
+    setKbLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/help/kb`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setKbArticles(Array.isArray(data) ? data : []);
+      }
+    } catch {}
+    setKbLoading(false);
+  }, [token]);
+
+  useEffect(() => {
+    if (isOpen && kbArticles.length === 0) fetchKb();
+  }, [isOpen, fetchKb]);
+
+  const kbFaqs = kbArticles.filter(a => a.is_faq);
+  const kbNonFaqs = kbArticles.filter(a => !a.is_faq);
+
+  const toggleFaq = (id) => {
+    setExpandedFaqs(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const sendChat = async () => {
+    if (!chatInput.trim() || !token) return;
+    const msg = { role: 'user', content: chatInput };
+    setChatMessages(prev => [...prev, msg]);
+    setChatInput('');
+    setChatLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/help/ai-chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: msg.content, conversationHistory: chatMessages }),
+      });
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'assistant', content: data.reply || 'Sorry, something went wrong.' }]);
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'assistant', content: 'AI support is unavailable right now.' }]);
+    }
+    setChatLoading(false);
+  };
 
   // Auto-open to matching section when page changes
   useEffect(() => {
@@ -360,10 +423,125 @@ const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
               autoFocus={isOpen}
             />
           )}
+
+          {/* Tabs */}
+          <div style={{ display: 'flex', gap: 0, marginTop: '0.75rem', borderBottom: '2px solid #E5E7EB' }}>
+            {[
+              { id: 'guides', label: '📖 Guides' },
+              { id: 'kb', label: '📚 Knowledge Base' },
+              { id: 'faq', label: '❓ FAQ' },
+              { id: 'ai', label: '🤖 AI Chat' },
+            ].map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                style={{ flex: 1, padding: '0.5rem', background: 'none', border: 'none', borderBottom: activeTab === tab.id ? '2px solid {{PRIMARY_COLOR}}' : '2px solid transparent', marginBottom: '-2px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: activeTab === tab.id ? 700 : 500, color: activeTab === tab.id ? '{{PRIMARY_COLOR}}' : '#6B7280', transition: 'all 0.15s' }}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Body */}
         <div style={s.body}>
+
+          {/* ─── AI Chat Tab ─── */}
+          {activeTab === 'ai' && (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 300 }}>
+              <div style={{ flex: 1, overflowY: 'auto', marginBottom: '0.75rem' }}>
+                {chatMessages.length === 0 && (
+                  <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem 0', fontSize: '0.85rem' }}>
+                    Ask a question and our AI will try to help.
+                  </p>
+                )}
+                {chatMessages.map((msg, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+                    <div style={{ maxWidth: '85%', borderRadius: 12, padding: '8px 12px', fontSize: '0.85rem', background: msg.role === 'user' ? '{{PRIMARY_COLOR}}' : '#F3F4F6', color: msg.role === 'user' ? '#fff' : '#374151' }}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))}
+                {chatLoading && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <div style={{ background: '#F3F4F6', borderRadius: 12, padding: '8px 12px', fontSize: '0.85rem', color: '#9CA3AF' }}>Thinking...</div>
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && sendChat()}
+                  placeholder="Ask a question..."
+                  style={{ flex: 1, padding: '8px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: '0.85rem', outline: 'none' }} />
+                <button onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
+                  style={{ padding: '8px 14px', background: '{{PRIMARY_COLOR}}', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '0.85rem', opacity: chatLoading || !chatInput.trim() ? 0.5 : 1 }}>
+                  Send
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ─── FAQ Tab ─── */}
+          {activeTab === 'faq' && (
+            <div>
+              {kbFaqs.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem 0', fontSize: '0.85rem' }}>No FAQs available yet.</p>
+              ) : (
+                <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
+                  {kbFaqs.map((faq, i) => (
+                    <div key={faq.id} style={{ borderTop: i > 0 ? '1px solid #E5E7EB' : 'none' }}>
+                      <button onClick={() => toggleFaq(faq.id)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontSize: '0.875rem', fontWeight: 600, color: '#111827' }}>
+                        {faq.title}
+                        <span style={{ color: '#D1D5DB' }}>{expandedFaqs.has(faq.id) ? '▾' : '▸'}</span>
+                      </button>
+                      {expandedFaqs.has(faq.id) && (
+                        <div style={{ padding: '0 1rem 0.75rem', fontSize: '0.85rem', color: '#6B7280', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                          {faq.content}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── Knowledge Base Tab ─── */}
+          {activeTab === 'kb' && (
+            <div>
+              {selectedKb ? (
+                <div>
+                  <button onClick={() => setSelectedKb(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '{{PRIMARY_COLOR}}', fontWeight: 700, fontSize: '0.85rem', padding: 0, marginBottom: '0.75rem' }}>
+                    ← Back
+                  </button>
+                  {selectedKb.category && <span style={{ display: 'inline-block', background: '#EFF6FF', color: '#1D4ED8', padding: '2px 8px', borderRadius: 4, fontSize: '0.7rem', marginBottom: 8 }}>{selectedKb.category}</span>}
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#111827' }}>{selectedKb.title}</h3>
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.875rem', color: '#374151', lineHeight: 1.7 }}>{selectedKb.content}</div>
+                </div>
+              ) : kbLoading ? (
+                <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '2rem 0', fontSize: '0.85rem' }}>Loading articles...</p>
+              ) : kbNonFaqs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#9CA3AF' }}>
+                  <p style={{ fontSize: '1.5rem', marginBottom: 8 }}>📚</p>
+                  <p style={{ fontSize: '0.85rem' }}>No knowledge base articles yet.</p>
+                  <button onClick={() => setActiveTab('ai')} style={{ marginTop: 8, color: '{{PRIMARY_COLOR}}', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+                    Try asking our AI →
+                  </button>
+                </div>
+              ) : (
+                kbNonFaqs.map(a => (
+                  <button key={a.id} onClick={() => setSelectedKb(a)}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.75rem 1rem', marginBottom: '0.5rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 10, cursor: 'pointer' }}>
+                    <div style={{ fontWeight: 600, color: '#111827', fontSize: '0.875rem', marginBottom: 2 }}>{a.title}</div>
+                    <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>{a.content.slice(0, 80)}...</div>
+                    {a.category && <span style={{ fontSize: '0.7rem', color: '#9CA3AF', marginTop: 4, display: 'inline-block' }}>{a.category}</span>}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* ─── Guides Tab (original content) ─── */}
+          {activeTab === 'guides' && <>
           {/* Single article view */}
           {currentArticle ? (
             <div>
@@ -437,6 +615,7 @@ const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
               )}
             </div>
           )}
+          </>}
         </div>
 
         {/* Footer */}
