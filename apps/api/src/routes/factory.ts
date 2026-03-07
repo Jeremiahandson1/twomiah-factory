@@ -885,18 +885,108 @@ factory.get('/billing/summary', async (c) => {
 factory.get('/plans', (c) => {
   return c.json({
     plans: [
-      { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 490, features: ['CRM Core', 'Website', 'Up to 2 users'] },
-      { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 1490, features: ['CRM Core + Pro Features', 'Website + CMS', 'Up to 5 users', 'SMS & Email'] },
-      { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 2990, features: ['All Features', 'Website + CMS', 'Up to 15 users', 'Paid Ads Hub'] },
-      { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 5990, features: ['All Features', 'Construction Module', 'Up to 25 users'] },
+      { id: 'solo', name: 'Solo', monthlyPrice: 49, features: ['Unlimited jobs & clients', 'Estimates & invoices', 'Client CRM', 'Mobile access', '1-2 users'] },
+      { id: 'starter', name: 'Starter', monthlyPrice: 129, features: ['Everything in Solo', 'Crew scheduling', 'Job cost tracking', 'Revenue reports', 'Up to 10 users'] },
+      { id: 'pro', name: 'Pro', monthlyPrice: 299, features: ['Everything in Starter', 'Advanced analytics', 'Custom fields & workflows', 'Subcontractor portal', 'Up to 25 users'] },
+      { id: 'enterprise', name: 'Enterprise', monthlyPrice: 85, perUser: true, minUsers: 15, features: ['Everything in Pro', 'Unlimited users', 'White-glove onboarding', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
     ],
     selfHosted: [
-      { id: 'starter', name: 'Starter License', price: 997 },
-      { id: 'pro', name: 'Pro License', price: 2497 },
-      { id: 'business', name: 'Business License', price: 4997 },
-      { id: 'construction', name: 'Construction License', price: 9997 },
+      { id: 'solo', name: 'Solo License', price: 1997 },
+      { id: 'starter', name: 'Starter License', price: 4997 },
+      { id: 'pro', name: 'Pro License', price: 9997 },
+      { id: 'enterprise', name: 'Enterprise License', price: null, contact: true },
+    ],
+    deployServices: [
+      { id: 'basic', name: 'Basic', price: 299, description: 'CRM + website setup, login credentials, live URL' },
+      { id: 'full', name: 'Full Setup', price: 499, description: 'Basic + data import, integrations, 30-min walkthrough' },
+      { id: 'white-glove', name: 'White Glove', price: 699, description: 'Full concierge: website content, data migration, team training, 30-day support' },
     ],
   })
+})
+
+
+// ─── Public Signup (no auth required — path contains /public/) ──────────────
+factory.post('/public/signup', async (c) => {
+  try {
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const body = parsed.data
+
+    if (!body.name || typeof body.name !== 'string' || body.name.trim().length < 2) {
+      return c.json({ error: 'Company name is required (min 2 characters)' }, 400)
+    }
+    if (!body.email || typeof body.email !== 'string' || !body.email.includes('@')) {
+      return c.json({ error: 'Valid email is required' }, 400)
+    }
+
+    const slug = body.slug || body.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+
+    // Check for duplicate slug
+    const { data: existing } = await supabase.from('tenants').select('id').eq('slug', slug).maybeSingle()
+    if (existing) {
+      return c.json({ error: 'A company with a similar name already exists. Please contact support or use a different name.' }, 409)
+    }
+
+    const tenantRecord: Record<string, any> = {
+      name: body.name.trim(),
+      slug,
+      email: body.email.trim(),
+      admin_email: body.admin_email || body.email.trim(),
+      phone: body.phone || null,
+      industry: body.industry || null,
+      address: body.address || null,
+      city: body.city || null,
+      state: body.state || null,
+      zip: body.zip || null,
+      domain: body.domain || null,
+      primary_color: body.primary_color || '#FF3D00',
+      plan: body.plan || 'starter',
+      deployment_model: body.deployment_model || 'saas',
+      billing_type: body.billing_type || 'subscription',
+      monthly_amount: body.monthly_amount || null,
+      status: 'pending',
+      products: body.products || ['crm', 'website'],
+      features: body.features || [],
+      notes: body.notes || null,
+      admin_password: body.admin_password || null,
+    }
+
+    const { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
+    if (insertErr) {
+      console.error('[Signup] Insert error:', insertErr.message)
+      return c.json({ error: 'Failed to create account. Please try again.' }, 500)
+    }
+
+    console.log('[Signup] New tenant created:', tenant.id, tenant.name, tenant.plan)
+
+    // If Stripe is configured and this is a SaaS subscription, create a checkout session
+    let checkoutUrl = null
+    if (factoryStripe.isConfigured() && tenantRecord.deployment_model === 'saas' && tenantRecord.monthly_amount) {
+      try {
+        const result = await factoryStripe.createSubscriptionCheckout(
+          { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: null },
+          { planId: tenant.plan, monthlyAmount: tenantRecord.monthly_amount, trialDays: 14 }
+        )
+        if (result.stripeCustomerId) {
+          await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenant.id)
+        }
+        checkoutUrl = result.url
+      } catch (stripeErr: any) {
+        console.error('[Signup] Stripe checkout creation failed (non-blocking):', stripeErr.message)
+      }
+    }
+
+    return c.json({
+      success: true,
+      tenantId: tenant.id,
+      slug: tenant.slug,
+      checkoutUrl,
+      message: 'Account created successfully',
+    })
+  } catch (err: any) {
+    console.error('[Signup] Error:', err.message)
+    return c.json({ error: 'Something went wrong. Please try again.' }, 500)
+  }
 })
 
 
