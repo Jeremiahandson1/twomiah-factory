@@ -15,7 +15,7 @@ import { syncFeatures } from './startup/featureSync.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const FRONTEND_DIST = path.resolve(__dirname, '../../frontend/dist')
+const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 import authRoutes from './routes/auth.ts'
 import contactsRoutes from './routes/contacts.ts'
