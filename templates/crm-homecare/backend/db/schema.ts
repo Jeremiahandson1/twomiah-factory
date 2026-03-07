@@ -190,6 +190,13 @@ export const clients = pgTable('clients', {
   mcoMemberId: text('mco_member_id'),
   primaryDiagnosisCode: text('primary_diagnosis_code'),
   secondaryDiagnosisCode: text('secondary_diagnosis_code'),
+  // Portal access fields
+  portalEnabled: boolean('portal_enabled').default(false).notNull(),
+  portalToken: text('portal_token'),
+  portalTokenExp: timestamp('portal_token_exp'),
+  lastPortalVisit: timestamp('last_portal_visit'),
+  portalEmail: text('portal_email'),
+  portalPasswordHash: text('portal_password_hash'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -917,6 +924,47 @@ export const helpArticles = pgTable('help_articles', {
 }, (t) => [
   index('help_articles_agency_id_idx').on(t.agencyId),
   index('help_articles_category_idx').on(t.category),
+])
+
+// ==================== CLIENT PORTAL NOTIFICATIONS ====================
+export const clientNotifications = pgTable('client_notifications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  type: text('type'),
+  title: text('title').notNull(),
+  message: text('message'),
+  isRead: boolean('is_read').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_notifications_client_id_idx').on(t.clientId),
+  index('client_notifications_is_read_idx').on(t.isRead),
+])
+
+// ==================== CLIENT PORTAL MESSAGES ====================
+export const portalMessageThreads = pgTable('portal_message_threads', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  subject: text('subject').notNull(),
+  status: text('status').default('open').notNull(),
+  lastMessageAt: timestamp('last_message_at').defaultNow().notNull(),
+  clientLastReadAt: timestamp('client_last_read_at'),
+  staffLastReadAt: timestamp('staff_last_read_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('portal_message_threads_client_id_idx').on(t.clientId),
+  index('portal_message_threads_last_message_idx').on(t.lastMessageAt),
+])
+
+export const portalMessages = pgTable('portal_messages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  threadId: text('thread_id').notNull().references(() => portalMessageThreads.id, { onDelete: 'cascade' }),
+  senderType: text('sender_type').notNull(), // 'client' or 'staff'
+  senderName: text('sender_name'),
+  body: text('body').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('portal_messages_thread_created_idx').on(t.threadId, t.createdAt),
 ])
 
 // ==================== DASHBOARD CACHE ====================

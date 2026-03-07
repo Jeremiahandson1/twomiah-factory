@@ -31,7 +31,7 @@ const PortalHistory = ({ token }) => {
   const loadVisits = (reset = false) => {
     const newOffset = reset ? 0 : offset;
     setLoading(true);
-    apiCall(`/api/client-portal/portal/history?limit=${LIMIT}&offset=${newOffset}`, { method: 'GET' }, token)
+    apiCall(`/api/portal/history?limit=${LIMIT}&offset=${newOffset}`, { method: 'GET' }, token)
       .then(data => {
         if (!data) return;
         setVisits(prev => reset ? data : [...prev, ...data]);

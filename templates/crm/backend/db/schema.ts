@@ -83,6 +83,10 @@ export const contact = pgTable('contact', {
   source: text('source'),
   tags: json('tags').default([]).notNull(),
   customFields: json('custom_fields').default({}).notNull(),
+  portalEnabled: boolean('portal_enabled').default(false).notNull(),
+  portalToken: text('portal_token'),
+  portalTokenExp: timestamp('portal_token_exp'),
+  lastPortalVisit: timestamp('last_portal_visit'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 

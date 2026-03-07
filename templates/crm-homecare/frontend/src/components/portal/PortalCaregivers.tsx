@@ -9,7 +9,7 @@ const PortalCaregivers = ({ token }) => {
   const [error, setError]           = useState('');
 
   useEffect(() => {
-    apiCall('/api/client-portal/portal/caregivers', { method: 'GET' }, token)
+    apiCall('/api/portal/caregivers', { method: 'GET' }, token)
       .then(data => { if (data) setCaregivers(data); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));

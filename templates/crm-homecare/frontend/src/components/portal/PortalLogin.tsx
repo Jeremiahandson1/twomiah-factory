@@ -15,7 +15,7 @@ const PortalLogin = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/client-portal/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/portal/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase(), password }),

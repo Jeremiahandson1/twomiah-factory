@@ -59,7 +59,7 @@ const PortalVisits = ({ token }) => {
   const [error, setError]     = useState('');
 
   useEffect(() => {
-    apiCall('/api/client-portal/portal/visits', { method: 'GET' }, token)
+    apiCall('/api/portal/visits', { method: 'GET' }, token)
       .then(data => { if (data) setVisits(data); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));

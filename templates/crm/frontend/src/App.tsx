@@ -66,6 +66,23 @@ import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
 // Layout
 import AppLayout from './components/layout/AppLayout';
 
+// Portal
+import { PortalProvider } from './contexts/PortalContext';
+import {
+  PortalLayout,
+  PortalDashboard,
+  PortalProjects,
+  PortalProjectDetail,
+  PortalQuotes,
+  PortalQuoteDetail,
+  PortalInvoices,
+  PortalInvoiceDetail,
+  PortalChangeOrders,
+  PortalChangeOrderDetail,
+  PortalSelections,
+  PortalMessages,
+} from './components/portal';
+
 
 function App() {
   return (
@@ -135,6 +152,21 @@ function App() {
                     <Route path="selections" element={<SelectionsPage />} />
                     <Route path="support" element={<SupportPage />} />
                     <Route path="help" element={<HelpPage />} />
+                  </Route>
+
+                  {/* Client Portal (public, token-based auth) */}
+                  <Route path="/portal/:token" element={<PortalProvider><PortalLayout /></PortalProvider>}>
+                    <Route index element={<PortalDashboard />} />
+                    <Route path="projects" element={<PortalProjects />} />
+                    <Route path="projects/:projectId" element={<PortalProjectDetail />} />
+                    <Route path="quotes" element={<PortalQuotes />} />
+                    <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
+                    <Route path="invoices" element={<PortalInvoices />} />
+                    <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
+                    <Route path="change-orders" element={<PortalChangeOrders />} />
+                    <Route path="change-orders/:changeOrderId" element={<PortalChangeOrderDetail />} />
+                    <Route path="selections" element={<PortalSelections />} />
+                    <Route path="messages" element={<PortalMessages />} />
                   </Route>
 
                   {/* Catch all */}

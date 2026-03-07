@@ -1,7 +1,7 @@
 // components/portal/PortalInvoices.jsx
-// Client billing and invoice history
+// Client billing and invoice history with payment and PDF download
 import React, { useState, useEffect } from 'react';
-import { apiCall } from '../../config';
+import { apiCall, API_BASE_URL } from '../../config';
 
 const statusBadge = (status) => {
   const map = {
@@ -23,14 +23,14 @@ const statusBadge = (status) => {
 };
 
 const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
+  if (!dateStr) return '\u2014';
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   });
 };
 
 const formatMoney = (amount) => {
-  if (amount == null) return '—';
+  if (amount == null) return '\u2014';
   return `$${parseFloat(amount).toFixed(2)}`;
 };
 
@@ -38,17 +38,68 @@ const PortalInvoices = ({ token }) => {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
+  const [payingId, setPayingId] = useState(null);
+  const [payError, setPayError] = useState('');
 
   useEffect(() => {
-    apiCall('/api/client-portal/portal/invoices', { method: 'GET' }, token)
+    apiCall('/api/portal/invoices', { method: 'GET' }, token)
       .then(data => { if (data) setInvoices(data); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [token]);
 
   const totalOwed = invoices
-    .filter(i => i.payment_status === 'pending' || i.payment_status === 'overdue')
+    .filter(i => i.payment_status === 'pending' || i.payment_status === 'overdue'
+              || i.paymentStatus === 'pending' || i.paymentStatus === 'overdue')
     .reduce((sum, i) => sum + parseFloat(i.total || 0), 0);
+
+  const handlePayNow = async (invoiceId) => {
+    setPayingId(invoiceId);
+    setPayError('');
+    try {
+      const data = await apiCall(`/api/portal/invoices/${invoiceId}/pay`, {
+        method: 'POST',
+      }, token);
+
+      if (data?.clientSecret) {
+        // Redirect to Stripe-hosted payment or show inline
+        // For simplicity, open a payment window with the client secret
+        // The app already has a PaymentPage component at /pay/:invoiceId
+        window.open(`/pay/${invoiceId}?client_secret=${data.clientSecret}`, '_blank');
+      }
+    } catch (err) {
+      setPayError(err.message);
+    } finally {
+      setPayingId(null);
+    }
+  };
+
+  const handleDownloadPDF = async (invoiceId, invoiceNumber) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/portal/invoices/${invoiceId}/pdf`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        let msg = text;
+        try { msg = JSON.parse(text).error || text; } catch {}
+        throw new Error(msg);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `invoice-${invoiceNumber || invoiceId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Failed to download PDF: ' + err.message);
+    }
+  };
+
+  const getPaymentStatus = (inv) => inv.payment_status || inv.paymentStatus || 'pending';
 
   if (loading) return <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>Loading billing...</div>;
   if (error)   return <div className="alert alert-error">{error}</div>;
@@ -74,6 +125,15 @@ const PortalInvoices = ({ token }) => {
         </div>
       )}
 
+      {payError && (
+        <div style={{
+          background: '#fdf2f2', color: '#c0392b', borderRadius: '8px',
+          padding: '12px 16px', marginBottom: '16px', fontSize: '0.88rem',
+        }}>
+          {payError}
+        </div>
+      )}
+
       {invoices.length === 0 ? (
         <div style={{
           background: '#fff', borderRadius: '12px', padding: '48px',
@@ -84,46 +144,84 @@ const PortalInvoices = ({ token }) => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {invoices.map(inv => (
-            <div
-              key={inv.id}
-              style={{
-                background: '#fff', borderRadius: '12px', padding: '18px 20px',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#333', marginBottom: '3px' }}>
-                    Invoice #{inv.invoice_number}
-                  </div>
-                  <div style={{ fontSize: '0.83rem', color: '#777' }}>
-                    {formatDate(inv.billing_period_start)} – {formatDate(inv.billing_period_end)}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1a5276', marginBottom: '4px' }}>
-                    {formatMoney(inv.total)}
-                  </div>
-                  {statusBadge(inv.payment_status)}
-                </div>
-              </div>
+          {invoices.map(inv => {
+            const status = getPaymentStatus(inv);
+            const isPending = status === 'pending' || status === 'overdue' || status === 'partial';
+            const invNumber = inv.invoice_number || inv.invoiceNumber;
 
-              {(inv.payment_due_date || inv.payment_date) && (
+            return (
+              <div
+                key={inv.id}
+                style={{
+                  background: '#fff', borderRadius: '12px', padding: '18px 20px',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#333', marginBottom: '3px' }}>
+                      Invoice #{invNumber}
+                    </div>
+                    <div style={{ fontSize: '0.83rem', color: '#777' }}>
+                      {formatDate(inv.billing_period_start || inv.billingPeriodStart)} – {formatDate(inv.billing_period_end || inv.billingPeriodEnd)}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#1a5276', marginBottom: '4px' }}>
+                      {formatMoney(inv.total)}
+                    </div>
+                    {statusBadge(status)}
+                  </div>
+                </div>
+
+                {((inv.payment_due_date || inv.paymentDueDate) || (inv.payment_date || inv.paymentDate)) && (
+                  <div style={{
+                    marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0',
+                    display: 'flex', gap: '24px', fontSize: '0.82rem', color: '#777',
+                  }}>
+                    {(inv.payment_due_date || inv.paymentDueDate) && (
+                      <span>Due: <strong style={{ color: '#333' }}>{formatDate(inv.payment_due_date || inv.paymentDueDate)}</strong></span>
+                    )}
+                    {(inv.payment_date || inv.paymentDate) && (
+                      <span>Paid: <strong style={{ color: '#1e8449' }}>{formatDate(inv.payment_date || inv.paymentDate)}</strong></span>
+                    )}
+                  </div>
+                )}
+
+                {/* Action buttons */}
                 <div style={{
                   marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #f0f0f0',
-                  display: 'flex', gap: '24px', fontSize: '0.82rem', color: '#777',
+                  display: 'flex', gap: '10px', flexWrap: 'wrap',
                 }}>
-                  {inv.payment_due_date && (
-                    <span>Due: <strong style={{ color: '#333' }}>{formatDate(inv.payment_due_date)}</strong></span>
+                  {isPending && (
+                    <button
+                      onClick={() => handlePayNow(inv.id)}
+                      disabled={payingId === inv.id}
+                      style={{
+                        background: '#1a5276', color: '#fff',
+                        border: 'none', padding: '8px 18px', borderRadius: '8px',
+                        cursor: payingId === inv.id ? 'not-allowed' : 'pointer',
+                        fontSize: '0.85rem', fontWeight: 600,
+                        opacity: payingId === inv.id ? 0.6 : 1,
+                      }}
+                    >
+                      {payingId === inv.id ? 'Processing...' : '💳 Pay Now'}
+                    </button>
                   )}
-                  {inv.payment_date && (
-                    <span>Paid: <strong style={{ color: '#1e8449' }}>{formatDate(inv.payment_date)}</strong></span>
-                  )}
+                  <button
+                    onClick={() => handleDownloadPDF(inv.id, invNumber)}
+                    style={{
+                      background: 'transparent', color: '#1a5276',
+                      border: '1px solid #1a5276', padding: '8px 18px', borderRadius: '8px',
+                      cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
+                    }}
+                  >
+                    📥 Download PDF
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

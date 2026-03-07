@@ -37,7 +37,7 @@ const PortalNotifications = ({ token, onRead }) => {
   const [error, setError]                 = useState('');
 
   useEffect(() => {
-    apiCall('/api/client-portal/portal/notifications', { method: 'GET' }, token)
+    apiCall('/api/portal/notifications', { method: 'GET' }, token)
       .then(data => { if (data) setNotifications(data); })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -45,20 +45,20 @@ const PortalNotifications = ({ token, onRead }) => {
 
   const markAllRead = async () => {
     try {
-      await apiCall('/api/client-portal/portal/notifications/read-all', { method: 'PUT' }, token);
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      await apiCall('/api/portal/notifications/read-all', { method: 'PUT' }, token);
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       if (onRead) onRead();
     } catch {}
   };
 
   const markRead = async (id) => {
     try {
-      await apiCall(`/api/client-portal/portal/notifications/${id}/read`, { method: 'PUT' }, token);
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+      await apiCall(`/api/portal/notifications/${id}/read`, { method: 'PUT' }, token);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
     } catch {}
   };
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   if (loading) return <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>Loading notifications...</div>;
   if (error)   return <div className="alert alert-error">{error}</div>;
@@ -105,13 +105,13 @@ const PortalNotifications = ({ token, onRead }) => {
           {notifications.map(n => (
             <div
               key={n.id}
-              onClick={() => !n.is_read && markRead(n.id)}
+              onClick={() => !n.isRead && markRead(n.id)}
               style={{
-                background: n.is_read ? '#fff' : '#f0f7ff',
+                background: n.isRead ? '#fff' : '#f0f7ff',
                 borderRadius: '12px', padding: '16px 18px',
                 boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-                cursor: n.is_read ? 'default' : 'pointer',
-                borderLeft: n.is_read ? '4px solid #e0e0e0' : '4px solid #2980b9',
+                cursor: n.isRead ? 'default' : 'pointer',
+                borderLeft: n.isRead ? '4px solid #e0e0e0' : '4px solid #2980b9',
                 display: 'flex', gap: '14px', alignItems: 'flex-start',
                 transition: 'background 0.2s',
               }}
@@ -121,11 +121,11 @@ const PortalNotifications = ({ token, onRead }) => {
               </span>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                  <div style={{ fontWeight: n.is_read ? 500 : 700, color: '#1a5276', fontSize: '0.92rem' }}>
+                  <div style={{ fontWeight: n.isRead ? 500 : 700, color: '#1a5276', fontSize: '0.92rem' }}>
                     {n.title}
                   </div>
                   <div style={{ fontSize: '0.75rem', color: '#999', flexShrink: 0 }}>
-                    {formatRelativeTime(n.created_at)}
+                    {formatRelativeTime(n.createdAt)}
                   </div>
                 </div>
                 {n.message && (
@@ -134,7 +134,7 @@ const PortalNotifications = ({ token, onRead }) => {
                   </div>
                 )}
               </div>
-              {!n.is_read && (
+              {!n.isRead && (
                 <div style={{
                   width: '8px', height: '8px', borderRadius: '50%',
                   background: '#2980b9', flexShrink: 0, marginTop: '6px',

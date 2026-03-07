@@ -6,13 +6,17 @@ import PortalVisits      from './PortalVisits';
 import PortalHistory     from './PortalHistory';
 import PortalCaregivers  from './PortalCaregivers';
 import PortalInvoices    from './PortalInvoices';
+import PortalCarePlan    from './PortalCarePlan';
+import PortalMessages    from './PortalMessages';
 import PortalNotifications from './PortalNotifications';
 
 const NAV = [
   { key: 'visits',        label: 'My Schedule',    icon: '📅' },
   { key: 'history',       label: 'Visit History',  icon: '🕐' },
   { key: 'caregivers',    label: 'My Caregivers',  icon: '👤' },
+  { key: 'care-plan',     label: 'Care Plan',      icon: '📋' },
   { key: 'invoices',      label: 'Billing',        icon: '📄' },
+  { key: 'messages',      label: 'Messages',       icon: '💬' },
   { key: 'notifications', label: 'Notifications',  icon: '🔔' },
 ];
 
@@ -20,34 +24,51 @@ const ClientPortal = ({ user, token, onLogout }) => {
   const [activeTab, setActiveTab]           = useState('visits');
   const [profile, setProfile]               = useState(null);
   const [unreadCount, setUnreadCount]       = useState(0);
-  const [menuOpen, setMenuOpen]             = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   useEffect(() => {
-    // Load profile
-    apiCall('/api/client-portal/portal/me', { method: 'GET' }, token)
-      .then(data => { if (data) setProfile(data); })
+    // Load profile + summary
+    apiCall('/api/portal/me', { method: 'GET' }, token)
+      .then(data => {
+        if (data) {
+          setProfile(data);
+          setUnreadCount(data.summary?.unreadNotifications || 0);
+          setUnreadMessages(data.summary?.unreadMessages || 0);
+        }
+      })
       .catch(() => {});
 
-    // Poll unread notifications count every 60s
-    const fetchUnread = () => {
-      apiCall('/api/client-portal/portal/notifications', { method: 'GET' }, token)
+    // Poll unread counts every 60s
+    const interval = setInterval(() => {
+      apiCall('/api/portal/me', { method: 'GET' }, token)
         .then(data => {
-          if (data) setUnreadCount(data.filter(n => !n.is_read).length);
+          if (data) {
+            setUnreadCount(data.summary?.unreadNotifications || 0);
+            setUnreadMessages(data.summary?.unreadMessages || 0);
+          }
         })
         .catch(() => {});
-    };
-    fetchUnread();
-    const interval = setInterval(fetchUnread, 60000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [token]);
+
+  const handleNotificationsRead = () => {
+    setUnreadCount(0);
+  };
+
+  const handleMessagesRead = () => {
+    setUnreadMessages(prev => Math.max(0, prev - 1));
+  };
 
   const renderView = () => {
     switch (activeTab) {
       case 'visits':        return <PortalVisits token={token} />;
       case 'history':       return <PortalHistory token={token} />;
       case 'caregivers':    return <PortalCaregivers token={token} />;
+      case 'care-plan':     return <PortalCarePlan token={token} />;
       case 'invoices':      return <PortalInvoices token={token} />;
-      case 'notifications': return <PortalNotifications token={token} onRead={() => setUnreadCount(0)} />;
+      case 'messages':      return <PortalMessages token={token} onRead={handleMessagesRead} />;
+      case 'notifications': return <PortalNotifications token={token} onRead={handleNotificationsRead} />;
       default:              return <PortalVisits token={token} />;
     }
   };
@@ -77,7 +98,7 @@ const ClientPortal = ({ user, token, onLogout }) => {
           <span style={{ fontSize: '1.4rem' }}>🏠</span>
           <div>
             <div style={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
-              {{COMPANY_NAME}}
+              {'{{COMPANY_NAME}}'}
             </div>
             <div style={{ fontSize: '0.75rem', opacity: 0.85 }}>Client Portal</div>
           </div>
@@ -143,6 +164,18 @@ const ClientPortal = ({ user, token, onLogout }) => {
                 fontWeight: 700,
               }}>
                 {unreadCount}
+              </span>
+            )}
+            {tab.key === 'messages' && unreadMessages > 0 && (
+              <span style={{
+                background: '#e74c3c',
+                color: '#fff',
+                borderRadius: '10px',
+                padding: '1px 6px',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+              }}>
+                {unreadMessages}
               </span>
             )}
           </button>

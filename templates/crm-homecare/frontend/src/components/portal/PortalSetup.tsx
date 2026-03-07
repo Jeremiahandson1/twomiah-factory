@@ -31,7 +31,7 @@ const PortalSetup = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/client-portal/set-password`, {
+      const response = await fetch(`${API_BASE_URL}/api/portal/set-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),

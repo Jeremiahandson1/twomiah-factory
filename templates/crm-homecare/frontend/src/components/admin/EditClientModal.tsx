@@ -75,7 +75,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
       setPortalEmail(client.email || '');
       setInviteUrl('');
       setPortalMessage({ text: '', type: '' });
-      fetch(`${API_BASE_URL}/api/client-portal/admin/clients`, {
+      fetch(`${API_BASE_URL}/api/portal/admin/clients`, {
         headers: { 'Authorization': `Bearer ${token}` }
       })
         .then(r => r.json())
@@ -204,7 +204,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
     setPortalMessage({ text: '', type: '' });
     setInviteUrl('');
     try {
-      const res = await fetch(`${API_BASE_URL}/api/client-portal/admin/invite`, {
+      const res = await fetch(`${API_BASE_URL}/api/portal/admin/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ clientId: client.id, email: portalEmail.trim() }),
@@ -224,7 +224,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
   const handleTogglePortal = async (enable) => {
     setPortalLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/client-portal/admin/clients/${client.id}/toggle`, {
+      const res = await fetch(`${API_BASE_URL}/api/portal/admin/clients/${client.id}/toggle`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ enabled: enable }),

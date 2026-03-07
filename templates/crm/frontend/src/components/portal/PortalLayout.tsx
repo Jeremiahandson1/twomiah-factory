@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useParams } from 'react-router-dom';
-import { Home, FolderKanban, FileText, Receipt, ClipboardList, Loader2 } from 'lucide-react';
+import { Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageSquare, Loader2 } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
 export default function PortalLayout() {
@@ -40,6 +40,8 @@ export default function PortalLayout() {
     { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
     { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
     { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
+    { to: `/portal/${token}/selections`, icon: Palette, label: 'Selections' },
+    { to: `/portal/${token}/messages`, icon: MessageSquare, label: 'Messages' },
   ];
 
   return (

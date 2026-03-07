@@ -9,7 +9,8 @@ import { Hono } from 'hono'
 import crypto from 'crypto'
 import { eq, and, inArray, count, sum, sql, desc, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job } from '../../db/schema.ts'
+import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job, message } from '../../db/schema.ts'
+import selections from '../services/selections.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import emailService from '../services/email.ts'
@@ -50,7 +51,7 @@ app.post('/contacts/:contactId/enable', authenticate, requirePermission('contact
       portalToken,
       portalTokenExp,
       updatedAt: new Date(),
-    } as any)
+    })
     .where(eq(contact.id, contactId))
 
   const portalUrl = `${process.env.FRONTEND_URL}/portal/${portalToken}`
@@ -73,7 +74,7 @@ app.post('/contacts/:contactId/disable', authenticate, requirePermission('contac
       portalToken: null,
       portalTokenExp: null,
       updatedAt: new Date(),
-    } as any)
+    })
     .where(eq(contact.id, contactId))
 
   return c.json({ success: true })
@@ -103,7 +104,7 @@ app.post('/contacts/:contactId/regenerate', authenticate, requirePermission('con
       portalToken,
       portalTokenExp,
       updatedAt: new Date(),
-    } as any)
+    })
     .where(eq(contact.id, contactId))
 
   const portalUrl = `${process.env.FRONTEND_URL}/portal/${portalToken}`
@@ -201,9 +202,9 @@ async function portalAuth(c: any, next: any) {
       name: contact.name,
       email: contact.email,
       companyId: contact.companyId,
-      portalEnabled: sql`${contact}.portal_enabled`.as('portalEnabled'),
-      portalToken: sql`${contact}.portal_token`.as('portalToken'),
-      portalTokenExp: sql`${contact}.portal_token_exp`.as('portalTokenExp'),
+      portalEnabled: contact.portalEnabled,
+      portalToken: contact.portalToken,
+      portalTokenExp: contact.portalTokenExp,
       companyName: company.name,
       companyLogo: company.logo,
       companyPrimaryColor: company.primaryColor,
@@ -214,8 +215,8 @@ async function portalAuth(c: any, next: any) {
     .leftJoin(company, eq(contact.companyId, company.id))
     .where(
       and(
-        sql`${contact}.portal_token = ${token}`,
-        sql`${contact}.portal_enabled = true`
+        eq(contact.portalToken, token),
+        eq(contact.portalEnabled, true)
       )
     )
     .limit(1)
@@ -232,7 +233,7 @@ async function portalAuth(c: any, next: any) {
   // Update last visit
   await db
     .update(contact)
-    .set({ lastPortalVisit: new Date(), updatedAt: new Date() } as any)
+    .set({ lastPortalVisit: new Date(), updatedAt: new Date() })
     .where(eq(contact.id, foundContact.id))
 
   c.set('portal', {
@@ -868,6 +869,158 @@ app.post('/p/:token/change-orders/:changeOrderId/reject', portalAuth, async (c) 
     .returning()
 
   return c.json({ success: true, changeOrder: updated })
+})
+
+// =============================================
+// SELECTIONS
+// =============================================
+
+// Get selections for a project
+app.get('/p/:token/selections/project/:projectId/selections', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const projectId = c.req.param('projectId')
+
+  try {
+    const data = await selections.getClientSelections(projectId, portalContact.id)
+    return c.json(data)
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to load selections' }, 400)
+  }
+})
+
+// Client makes a selection
+app.post('/p/:token/selections/project/:projectId/selections/:selectionId', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const projectId = c.req.param('projectId')
+  const selectionId = c.req.param('selectionId')
+  const { optionId, notes } = await c.req.json()
+
+  if (!optionId) {
+    return c.json({ error: 'Option ID is required' }, 400)
+  }
+
+  try {
+    const result = await selections.clientMakeSelection(
+      projectId,
+      selectionId,
+      portalContact.id,
+      { optionId, notes }
+    )
+    return c.json(result)
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Failed to make selection' }, 400)
+  }
+})
+
+// =============================================
+// MESSAGES
+// =============================================
+
+// List messages for the portal contact
+app.get('/p/:token/messages', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const companyId = portal.companyId
+
+  const messages = await db
+    .select()
+    .from(message)
+    .where(
+      and(
+        eq(message.companyId, companyId),
+        eq(message.contactId, portalContact.id)
+      )
+    )
+    .orderBy(desc(message.createdAt))
+
+  return c.json(messages)
+})
+
+// Send a new message from portal contact
+app.post('/p/:token/messages', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const companyId = portal.companyId
+  const body = await c.req.json()
+
+  if (!body.body || !body.body.trim()) {
+    return c.json({ error: 'Message body is required' }, 400)
+  }
+
+  const [newMessage] = await db
+    .insert(message)
+    .values({
+      companyId,
+      contactId: portalContact.id,
+      type: 'portal',
+      direction: 'inbound',
+      subject: body.subject || null,
+      body: body.body.trim(),
+      status: 'sent',
+      sentAt: new Date(),
+    })
+    .returning()
+
+  return c.json(newMessage)
+})
+
+// Get single message detail
+app.get('/p/:token/messages/:messageId', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const companyId = portal.companyId
+  const messageId = c.req.param('messageId')
+
+  const [foundMessage] = await db
+    .select()
+    .from(message)
+    .where(
+      and(
+        eq(message.id, messageId),
+        eq(message.companyId, companyId),
+        eq(message.contactId, portalContact.id)
+      )
+    )
+    .limit(1)
+
+  if (!foundMessage) {
+    return c.json({ error: 'Message not found' }, 404)
+  }
+
+  return c.json(foundMessage)
+})
+
+// Mark message as read
+app.post('/p/:token/messages/:messageId/read', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const companyId = portal.companyId
+  const messageId = c.req.param('messageId')
+
+  const [foundMessage] = await db
+    .select()
+    .from(message)
+    .where(
+      and(
+        eq(message.id, messageId),
+        eq(message.companyId, companyId),
+        eq(message.contactId, portalContact.id)
+      )
+    )
+    .limit(1)
+
+  if (!foundMessage) {
+    return c.json({ error: 'Message not found' }, 404)
+  }
+
+  await db
+    .update(message)
+    .set({ status: 'read', updatedAt: new Date() })
+    .where(eq(message.id, messageId))
+
+  return c.json({ success: true })
 })
 
 export default app

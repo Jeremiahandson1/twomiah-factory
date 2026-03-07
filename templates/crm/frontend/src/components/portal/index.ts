@@ -4,3 +4,5 @@ export { default as PortalProjects, PortalProjectDetail } from './PortalProjects
 export { default as PortalQuotes, PortalQuoteDetail } from './PortalQuotes';
 export { default as PortalInvoices, PortalInvoiceDetail } from './PortalInvoices';
 export { default as PortalChangeOrders, PortalChangeOrderDetail } from './PortalChangeOrders';
+export { default as PortalSelections } from './PortalSelections';
+export { default as PortalMessages } from './PortalMessages';
