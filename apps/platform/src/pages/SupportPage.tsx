@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase, API_URL } from '../supabase'
-import { LifeBuoy, MessageSquare, ChevronRight, Plus, Search, AlertTriangle, Star, Send, ArrowLeft, Clock, BarChart3, Lightbulb, X } from 'lucide-react'
+import { LifeBuoy, Plus, Search, AlertTriangle, Star, Send, ArrowLeft, Clock, BarChart3, X } from 'lucide-react'
 
 type Ticket = {
   id: string
