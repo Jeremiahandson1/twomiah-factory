@@ -452,14 +452,15 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
           const subResult = await factoryStripe.createAutoSubscription({
             id: tenant.id, email: tenant.email, name: tenant.name,
             phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id,
-            plan: tenant.plan, monthlyAmount: tenant.monthly_amount,
+            plan: tenant.plan,
           })
           if (subResult) {
             if (subResult.stripeCustomerId) tenantUpdate.stripe_customer_id = subResult.stripeCustomerId
             if (subResult.subscriptionId) tenantUpdate.stripe_subscription_id = subResult.subscriptionId
             tenantUpdate.billing_type = 'subscription'
             tenantUpdate.billing_status = 'active'
-            tenantUpdate.monthly_amount = tenant.monthly_amount || { starter: 49, pro: 149, business: 299, construction: 599 }[tenant.plan || 'starter'] || 149
+            const planPrices: Record<string, number> = { starter: 49, pro: 149, business: 299, construction: 599, enterprise: 199 }
+            tenantUpdate.monthly_amount = tenant.monthly_amount || planPrices[tenant.plan || 'starter'] || 149
             console.log('[Deploy] Auto-created Stripe subscription for', tenant.slug)
           }
         } catch (stripeErr: any) {
@@ -747,13 +748,12 @@ factory.post('/customers/:id/checkout/subscription', async (c) => {
 
     const parsedBody = await parseJsonBody(c)
     if (parsedBody.error) return parsedBody.error
-    const { planId, monthlyAmount, billingCycle, trialDays } = parsedBody.data
-    if (monthlyAmount !== undefined && (typeof monthlyAmount !== 'number' || monthlyAmount <= 0)) return c.json({ error: 'monthlyAmount must be a positive number' }, 400)
+    const { planId, billingCycle, trialDays } = parsedBody.data
     if (billingCycle && !['monthly', 'annual'].includes(billingCycle)) return c.json({ error: 'billingCycle must be "monthly" or "annual"' }, 400)
     if (trialDays !== undefined && (typeof trialDays !== 'number' || trialDays < 0 || !Number.isInteger(trialDays))) return c.json({ error: 'trialDays must be a non-negative integer' }, 400)
     const result = await factoryStripe.createSubscriptionCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id },
-      { planId, monthlyAmount: monthlyAmount || 149, billingCycle, trialDays }
+      { planId: planId || tenant.plan || 'starter', billingCycle: billingCycle || 'monthly', trialDays }
     )
 
     if (result.stripeCustomerId && !tenant.stripe_customer_id) {
@@ -778,11 +778,10 @@ factory.post('/customers/:id/checkout/license', async (c) => {
 
     const parsedBody = await parseJsonBody(c)
     if (parsedBody.error) return parsedBody.error
-    const { planId, amount } = parsedBody.data
-    if (amount !== undefined && (typeof amount !== 'number' || amount <= 0)) return c.json({ error: 'amount must be a positive number' }, 400)
+    const { planId } = parsedBody.data
     const result = await factoryStripe.createLicenseCheckout(
       { id: tenant.id, email: tenant.email, name: tenant.name, stripeCustomerId: tenant.stripe_customer_id },
-      { planId, amount: amount || 2497 }
+      { planId: planId || tenant.plan || 'pro' }
     )
 
     if (result.stripeCustomerId && !tenant.stripe_customer_id) {
@@ -792,6 +791,37 @@ factory.post('/customers/:id/checkout/license', async (c) => {
     return c.json({ url: result.url, sessionId: result.sessionId })
   } catch (err: any) {
     console.error('[Stripe] License checkout error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Checkout: Deploy Service ────────────────────────────────────────────────
+factory.post('/customers/:id/checkout/deploy-service', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
+
+    const parsedBody = await parseJsonBody(c)
+    if (parsedBody.error) return parsedBody.error
+    const { serviceId } = parsedBody.data
+    if (!serviceId || !['basic', 'full', 'white-glove', 'white_glove'].includes(serviceId)) {
+      return c.json({ error: 'serviceId must be "basic", "full", or "white-glove"' }, 400)
+    }
+    const result = await factoryStripe.createDeployCheckout(
+      { id: tenant.id, email: tenant.email, name: tenant.name, stripeCustomerId: tenant.stripe_customer_id },
+      { serviceId }
+    )
+
+    if (result.stripeCustomerId && !tenant.stripe_customer_id) {
+      await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenantId)
+    }
+
+    return c.json({ url: result.url, sessionId: result.sessionId })
+  } catch (err: any) {
+    console.error('[Stripe] Deploy service checkout error:', err)
     return c.json({ error: err.message }, 500)
   }
 })
@@ -885,21 +915,44 @@ factory.get('/billing/summary', async (c) => {
 factory.get('/plans', (c) => {
   return c.json({
     plans: [
-      { id: 'solo', name: 'Solo', monthlyPrice: 49, features: ['Unlimited jobs & clients', 'Estimates & invoices', 'Client CRM', 'Mobile access', '1-2 users'] },
-      { id: 'starter', name: 'Starter', monthlyPrice: 129, features: ['Everything in Solo', 'Crew scheduling', 'Job cost tracking', 'Revenue reports', 'Up to 10 users'] },
-      { id: 'pro', name: 'Pro', monthlyPrice: 299, features: ['Everything in Starter', 'Advanced analytics', 'Custom fields & workflows', 'Subcontractor portal', 'Up to 25 users'] },
-      { id: 'enterprise', name: 'Enterprise', monthlyPrice: 85, perUser: true, minUsers: 15, features: ['Everything in Pro', 'Unlimited users', 'White-glove onboarding', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
+      { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
+      { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
+      { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Consumer Financing', 'Advanced Reporting'] },
+      { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Project Management', 'Change Orders', 'RFIs & Submittals', 'Daily Logs', 'Punch Lists & Inspections', 'Bid Management', 'Gantt Charts', 'Selections Portal', 'Takeoffs', 'Lien Waivers', 'Draw Schedules (AIA)'] },
+      { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
     ],
     selfHosted: [
-      { id: 'solo', name: 'Solo License', price: 1997 },
-      { id: 'starter', name: 'Starter License', price: 4997 },
-      { id: 'pro', name: 'Pro License', price: 9997 },
-      { id: 'enterprise', name: 'Enterprise License', price: null, contact: true },
+      { id: 'starter', name: 'Starter License', price: 997 },
+      { id: 'pro', name: 'Pro License', price: 2497 },
+      { id: 'business', name: 'Business License', price: 4997 },
+      { id: 'construction', name: 'Construction License', price: 9997 },
+      { id: 'full', name: 'Full Platform License', price: 14997 },
+    ],
+    selfHostedAddons: [
+      { id: 'installation', name: 'Installation Service', price: 500, type: 'one_time' },
+      { id: 'updates_yearly', name: 'Update Subscription', price: 999, type: 'yearly' },
+      { id: 'support_monthly', name: 'Support Contract', price: 199, type: 'monthly' },
+      { id: 'white_label', name: 'White-Label Setup', price: 500, type: 'one_time' },
+      { id: 'custom_dev', name: 'Custom Development', price: 150, type: 'per_hour' },
     ],
     deployServices: [
       { id: 'basic', name: 'Basic', price: 299, description: 'CRM + website setup, login credentials, live URL' },
       { id: 'full', name: 'Full Setup', price: 499, description: 'Basic + data import, integrations, 30-min walkthrough' },
       { id: 'white-glove', name: 'White Glove', price: 699, description: 'Full concierge: website content, data migration, team training, 30-day support' },
+    ],
+    addons: [
+      { id: 'sms', name: 'SMS Communication', price: 39 },
+      { id: 'gps_field', name: 'GPS & Field', price: 49 },
+      { id: 'inventory', name: 'Inventory Management', price: 49 },
+      { id: 'fleet', name: 'Fleet Management', price: 39 },
+      { id: 'equipment', name: 'Equipment Tracking', price: 29 },
+      { id: 'marketing', name: 'Marketing Suite', price: 59 },
+      { id: 'construction_pm', name: 'Construction PM', price: 149 },
+      { id: 'compliance', name: 'Compliance & Draws', price: 79 },
+      { id: 'selections_takeoffs', name: 'Selections & Takeoffs', price: 49 },
+      { id: 'service_contracts', name: 'Service Contracts', price: 39 },
+      { id: 'forms', name: 'Custom Forms', price: 29 },
+      { id: 'integrations', name: 'Integrations', price: 49 },
     ],
   })
 })
@@ -961,11 +1014,11 @@ factory.post('/public/signup', async (c) => {
 
     // If Stripe is configured and this is a SaaS subscription, create a checkout session
     let checkoutUrl = null
-    if (factoryStripe.isConfigured() && tenantRecord.deployment_model === 'saas' && tenantRecord.monthly_amount) {
+    if (factoryStripe.isConfigured() && tenantRecord.deployment_model === 'saas') {
       try {
         const result = await factoryStripe.createSubscriptionCheckout(
           { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: null },
-          { planId: tenant.plan, monthlyAmount: tenantRecord.monthly_amount, trialDays: 14 }
+          { planId: tenant.plan || 'starter', billingCycle: 'monthly', trialDays: 14 }
         )
         if (result.stripeCustomerId) {
           await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenant.id)
