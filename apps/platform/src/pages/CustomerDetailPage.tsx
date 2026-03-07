@@ -276,6 +276,24 @@ export default function CustomerDetailPage() {
     finally { setCheckoutLoading(null) }
   }
 
+  async function openBillingPortal() {
+    setCheckoutLoading('portal')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setCheckoutLoading(null); return }
+      const res = await fetch(API + '/api/v1/factory/customers/' + id + '/billing-portal', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.url) { navigator.clipboard.writeText(data.url).catch(() => {}); showToast('Portal link copied! Opening...'); window.open(data.url, '_blank') }
+      } else { const d = await res.json(); showToast(d.error || 'Failed to create portal session', 'error') }
+    } catch { showToast('Failed to create portal session', 'error') }
+    finally { setCheckoutLoading(null) }
+  }
+
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
     setToast({ msg, type })
     setTimeout(() => setToast(null), 3000)
@@ -570,8 +588,19 @@ export default function CustomerDetailPage() {
                       {checkoutLoading === 'license' ? 'Creating...' : 'License Checkout'}
                     </button>
                   </>)}
+                  {tenant.stripe_customer_id && (
+                    <button onClick={openBillingPortal} disabled={!!checkoutLoading}
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-medium bg-gray-700 hover:bg-gray-600 text-white rounded-lg disabled:opacity-50 transition-colors">
+                      <CreditCard size={14} />
+                      {checkoutLoading === 'portal' ? 'Opening...' : 'Customer Billing Portal'}
+                    </button>
+                  )}
                 </div>
-                <p className="text-xs text-gray-600 mt-2">Creates a Stripe checkout link you can send to the customer. Link is also copied to clipboard.</p>
+                <p className="text-xs text-gray-600 mt-2">
+                  {tenant.stripe_customer_id
+                    ? 'Billing portal lets the customer self-manage payments, invoices, and subscriptions.'
+                    : 'Creates a Stripe checkout link you can send to the customer. Link is also copied to clipboard.'}
+                </p>
               </div>
             )}
             {!stripeConfigured && !editMode && (

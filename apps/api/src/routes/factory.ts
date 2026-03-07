@@ -7,6 +7,7 @@ import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStor
 import fs from 'fs'
 import path from 'path'
 const factory = new Hono()
+const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
@@ -444,6 +445,28 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.deployedUrl) tenantUpdate.render_frontend_url = result.deployedUrl
       if (result.apiUrl) tenantUpdate.render_backend_url = result.apiUrl
       if (result.siteUrl) tenantUpdate.website_url = result.siteUrl
+
+      // Auto-create Stripe subscription if tenant doesn't already have one
+      if (!tenant.stripe_subscription_id && tenant.deployment_model === 'saas') {
+        try {
+          const subResult = await factoryStripe.createAutoSubscription({
+            id: tenant.id, email: tenant.email, name: tenant.name,
+            phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id,
+            plan: tenant.plan, monthlyAmount: tenant.monthly_amount,
+          })
+          if (subResult) {
+            if (subResult.stripeCustomerId) tenantUpdate.stripe_customer_id = subResult.stripeCustomerId
+            if (subResult.subscriptionId) tenantUpdate.stripe_subscription_id = subResult.subscriptionId
+            tenantUpdate.billing_type = 'subscription'
+            tenantUpdate.billing_status = 'active'
+            tenantUpdate.monthly_amount = tenant.monthly_amount || { starter: 49, pro: 149, business: 299, construction: 599 }[tenant.plan || 'starter'] || 149
+            console.log('[Deploy] Auto-created Stripe subscription for', tenant.slug)
+          }
+        } catch (stripeErr: any) {
+          console.error('[Deploy] Auto-subscription failed (non-blocking):', stripeErr.message)
+        }
+      }
+
       const { error: tenantUpdateErr } = await supabase.from('tenants').update(tenantUpdate).eq('id', tenant.id)
       if (tenantUpdateErr) console.error('[Deploy] Tenant update error:', tenantUpdateErr.message)
     }
@@ -800,6 +823,25 @@ factory.post('/stripe/webhook', async (c) => {
   } catch (err: any) {
     console.error('[Stripe] Webhook handler error:', err.message)
     return c.json({ error: 'Webhook processing failed' }, 500)
+  }
+})
+
+
+// ─── Billing Portal ─────────────────────────────────────────────────────────
+factory.post('/customers/:id/billing-portal', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
+    if (!tenant.stripe_customer_id) return c.json({ error: 'Customer has no Stripe account. Create a checkout first.' }, 400)
+
+    const returnUrl = tenant.render_frontend_url || (FRONTEND_URL + '/tenants/' + tenantId)
+    const result = await factoryStripe.createBillingPortalSession(tenant.stripe_customer_id, returnUrl)
+    return c.json({ url: result.url })
+  } catch (err: any) {
+    console.error('[Stripe] Billing portal error:', err)
+    return c.json({ error: err.message }, 500)
   }
 })
 

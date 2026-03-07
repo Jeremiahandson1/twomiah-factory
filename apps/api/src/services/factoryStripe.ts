@@ -236,9 +236,82 @@ export function getPublishableKey(): string | null {
   return process.env.STRIPE_PUBLISHABLE_KEY || null
 }
 
+/**
+ * Create a Stripe billing portal session so the tenant can self-manage
+ * payment methods, invoices, and cancel/upgrade their subscription.
+ */
+export async function createBillingPortalSession(
+  stripeCustomerId: string,
+  returnUrl: string
+): Promise<{ url: string }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  if (!stripeCustomerId) throw new Error('Customer has no Stripe ID')
+
+  const session = await stripe.billingPortal.sessions.create({
+    customer: stripeCustomerId,
+    return_url: returnUrl,
+  })
+  return { url: session.url }
+}
+
+/**
+ * Auto-create a subscription for a newly provisioned tenant.
+ * Called after deploy completes successfully. If Stripe isn't configured
+ * or the tenant already has a subscription, this is a no-op.
+ */
+export async function createAutoSubscription(
+  factoryCustomer: {
+    id: string; email?: string; name?: string; phone?: string
+    stripeCustomerId?: string; plan?: string; monthlyAmount?: number
+  }
+): Promise<{ stripeCustomerId?: string; subscriptionId?: string } | null> {
+  if (!stripe) return null
+
+  const planPrices: Record<string, number> = {
+    starter: 49, pro: 149, business: 299, construction: 599,
+  }
+  const plan = factoryCustomer.plan || 'starter'
+  const amount = factoryCustomer.monthlyAmount || planPrices[plan] || 149
+  const amountCents = Math.round(amount * 100)
+  const planName = plan.charAt(0).toUpperCase() + plan.slice(1)
+
+  const productId = await getOrCreateProduct(plan, planName, 'Twomiah Factory ' + planName, 'subscription')
+
+  let stripeCustomerId = factoryCustomer.stripeCustomerId
+  if (!stripeCustomerId) {
+    const customer = await stripe.customers.create({
+      email: factoryCustomer.email,
+      name: factoryCustomer.name,
+      phone: factoryCustomer.phone || undefined,
+      metadata: { twomiah_build_factory_customer_id: factoryCustomer.id },
+    })
+    stripeCustomerId = customer.id
+  }
+
+  // Create a subscription with a 14-day trial (no payment method required upfront)
+  const subscription = await stripe.subscriptions.create({
+    customer: stripeCustomerId,
+    items: [{
+      price_data: {
+        currency: 'usd',
+        product: productId,
+        unit_amount: amountCents,
+        recurring: { interval: 'month' },
+      },
+    }],
+    trial_period_days: 14,
+    payment_behavior: 'default_incomplete',
+    metadata: { factory_customer_id: factoryCustomer.id, plan_id: plan },
+  })
+
+  return { stripeCustomerId, subscriptionId: subscription.id }
+}
+
 export default {
   createSubscriptionCheckout,
   createLicenseCheckout,
+  createBillingPortalSession,
+  createAutoSubscription,
   handleFactoryWebhook,
   verifyWebhookSignature,
   isConfigured,
