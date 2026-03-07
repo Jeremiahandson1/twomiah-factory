@@ -125,6 +125,14 @@ class ApiClient {
     return this.request(`${endpoint}/${id}`);
   }
 
+  async post(endpoint, data = {}) {
+    return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async put(endpoint, data = {}) {
+    return this.request(endpoint, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
   async create(endpoint, data) {
     return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
   }
@@ -133,8 +141,9 @@ class ApiClient {
     return this.request(`${endpoint}/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   }
 
-  async delete(endpoint, id) {
-    return this.request(`${endpoint}/${id}`, { method: 'DELETE' });
+  async delete(endpoint, id?) {
+    const url = id ? `${endpoint}/${id}` : endpoint;
+    return this.request(url, { method: 'DELETE' });
   }
 
   async action(endpoint, id, action, data = {}) {

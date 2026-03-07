@@ -296,7 +296,7 @@ export default function SchedulerGrid({ token, onScheduleChange }) {
               padding: '6px 12px',
               borderRadius: 8,
               border: 'none',
-              background: mobileDay === i ? '#2ABBA7' : i === todayIdx ? '#EFF6FF' : '#F3F4F6',
+              background: mobileDay === i ? '{{PRIMARY_COLOR}}' : i === todayIdx ? '#EFF6FF' : '#F3F4F6',
               color: mobileDay === i ? '#fff' : i === todayIdx ? '#2563EB' : '#374151',
               fontWeight: mobileDay === i ? 700 : 500,
               fontSize: 13,
@@ -326,7 +326,7 @@ export default function SchedulerGrid({ token, onScheduleChange }) {
                   </div>
                   <button onClick={() => handleCellClick(cg.id, mobileDay)} style={{
                     padding:'6px 14px', borderRadius:8, border:'none',
-                    background:'#2ABBA7', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer'
+                    background:'{{PRIMARY_COLOR}}', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer'
                   }}>+ Shift</button>
                 </div>
                 {shifts.length === 0 ? (

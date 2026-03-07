@@ -35,7 +35,7 @@ export default function CustomerPortal() {
     }
   }
 
-  const primaryColor = company?.primaryColor || '#f97316';
+  const primaryColor = company?.primaryColor || '{{PRIMARY_COLOR}}';
   const companyName = company?.name || import.meta.env.VITE_COMPANY_NAME || 'My Company';
   
   // Determine which products are available based on company settings

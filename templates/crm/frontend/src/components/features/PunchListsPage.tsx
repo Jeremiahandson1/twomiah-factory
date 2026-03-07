@@ -38,7 +38,7 @@ export function PunchListsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => punchListItems.filter(i => {
     const matchesSearch = !search || i.description?.toLowerCase().includes(search.toLowerCase());

@@ -31,8 +31,8 @@ export default function PricebookPage() {
         api.get(`/api/pricebook/items?search=${search}&categoryId=${selectedCategory}`),
         api.get('/api/pricebook/categories?flat=true'),
       ]);
-      setItems(itemsRes.data || []);
-      setCategories(catsRes || []);
+      setItems(Array.isArray(itemsRes?.data) ? itemsRes.data : []);
+      setCategories(Array.isArray(catsRes) ? catsRes : []);
     } catch (error) {
       console.error('Failed to load pricebook:', error);
     } finally {
@@ -101,13 +101,13 @@ export default function PricebookPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search services..."
-            className="w-full pl-10 pr-4 py-2 border rounded-lg"
+            className="w-full pl-10 pr-4 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
           />
         </div>
         <select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-4 py-2 border rounded-lg"
+          className="px-4 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
         >
           <option value="">All Categories</option>
           {categories.map(cat => (
@@ -192,7 +192,7 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
 
 function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
   return (
-    <div className="bg-white rounded-xl border p-4 hover:shadow-lg transition-shadow">
+    <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-4 hover:shadow-lg transition-shadow">
       <div className="flex items-start gap-3">
         {item.imageUrl ? (
           <img src={item.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
@@ -314,40 +314,40 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+        <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto text-gray-900 dark:text-slate-100">
           <h2 className="text-lg font-bold mb-4">{item ? 'Edit Service' : 'Add Service'}</h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Service Name</label>
                 <input
                   type="text"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   placeholder="e.g., AC Tune-Up"
                   required
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Code</label>
                 <input
                   type="text"
                   value={form.code}
                   onChange={(e) => setForm({ ...form, code: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   placeholder="Auto-generated"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Category</label>
                 <select
                   value={form.categoryId}
                   onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                 >
                   <option value="">No Category</option>
                   {categories.map(cat => (
@@ -357,22 +357,22 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
               </div>
               
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Internal Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Internal Description</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   rows={2}
                   placeholder="For your team's reference"
                 />
               </div>
 
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Customer Description</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Customer Description</label>
                 <textarea
                   value={form.customerDescription}
                   onChange={(e) => setForm({ ...form, customerDescription: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   rows={2}
                   placeholder="What customers will see on quotes/invoices"
                 />
@@ -380,11 +380,11 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
             </div>
 
             {/* Pricing */}
-            <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
               <h3 className="font-medium text-gray-900 mb-3">Pricing</h3>
               <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Price</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
@@ -392,12 +392,12 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                       step="0.01"
                       value={form.price}
                       onChange={(e) => setForm({ ...form, price: e.target.value })}
-                      className="w-full pl-7 pr-3 py-2 border rounded-lg"
+                      className="w-full pl-7 pr-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cost</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Cost</label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                     <input
@@ -405,22 +405,22 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                       step="0.01"
                       value={form.cost}
                       onChange={(e) => setForm({ ...form, cost: e.target.value })}
-                      className="w-full pl-7 pr-3 py-2 border rounded-lg"
+                      className="w-full pl-7 pr-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Labor Hours</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Labor Hours</label>
                   <input
                     type="number"
                     step="0.25"
                     value={form.laborHours}
                     onChange={(e) => setForm({ ...form, laborHours: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
+                    className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Margin</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Margin</label>
                   <div className={`px-3 py-2 rounded-lg font-medium ${
                     margin > 30 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
                   }`}>
@@ -453,7 +453,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
             </div>
 
             <div className="flex gap-3 pt-4">
-              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">
+              <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-gray-700">
                 Cancel
               </button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg">
@@ -489,7 +489,7 @@ function CategoriesModal({ categories, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 text-gray-900 dark:text-slate-100">
           <h2 className="text-lg font-bold mb-4">Manage Categories</h2>
           
           <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
@@ -578,7 +578,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-4xl w-full p-6">
+        <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-4xl w-full p-6 text-gray-900 dark:text-slate-100">
           <h2 className="text-lg font-bold mb-2">Good-Better-Best Options</h2>
           <p className="text-gray-500 mb-4">for {item.name}</p>
 
@@ -616,7 +616,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                   type="text"
                   value={opt.name}
                   onChange={(e) => updateOption(opt.tier, 'name', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg mb-2 font-medium"
+                  className="w-full px-3 py-2 border rounded-lg mb-2 font-medium text-gray-900 bg-white"
                   placeholder="Option name"
                 />
 
@@ -626,7 +626,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                     type="number"
                     value={opt.price}
                     onChange={(e) => updateOption(opt.tier, 'price', e.target.value)}
-                    className="w-full pl-7 pr-3 py-2 border rounded-lg text-xl font-bold"
+                    className="w-full pl-7 pr-3 py-2 border rounded-lg text-xl font-bold text-gray-900 bg-white"
                     placeholder="0.00"
                   />
                 </div>
@@ -634,7 +634,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                 <textarea
                   value={opt.description}
                   onChange={(e) => updateOption(opt.tier, 'description', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  className="w-full px-3 py-2 border rounded-lg text-sm text-gray-900 bg-white"
                   rows={3}
                   placeholder="Description..."
                 />

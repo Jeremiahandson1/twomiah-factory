@@ -1,17 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
-  Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt, 
+  Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt,
   Calendar, Clock, DollarSign, FileQuestion, ClipboardList, CheckSquare,
   BookOpen, ClipboardCheck, Target, Settings, LogOut, Bell, Search,
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
-  MessageSquare, BarChart3, Star, ShieldCheck, Phone
+  MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
 import { useIsMobile } from '../../hooks/useMediaQuery';
+import { useTheme } from '../../hooks/useTheme';
 
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
@@ -55,6 +56,7 @@ export default function AppLayout() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, company, logout, hasFeature } = useAuth();
   const { connected } = useSocket();
+  const { theme, setTheme, isDark } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
@@ -98,7 +100,7 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       {/* Skip Link */}
       <SkipLink />
       
@@ -117,7 +119,7 @@ export default function AppLayout() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-white border-r flex flex-col overflow-hidden
+          fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r dark:border-slate-800 flex flex-col overflow-hidden
           transform transition-transform duration-200 ease-out
           lg:translate-x-0
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -125,14 +127,14 @@ export default function AppLayout() {
         aria-label="Main navigation"
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b">
+        <div className="h-16 flex items-center justify-between px-4 border-b dark:border-slate-800">
           <div className="flex items-center gap-2">
             <Building className="w-8 h-8 text-orange-500" aria-hidden="true" />
-            <span className="font-bold text-lg text-gray-900">{{COMPANY_NAME}}</span>
+            <span className="font-bold text-lg text-gray-900 dark:text-white">{company?.name || 'CRM'}</span>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+            className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
@@ -140,16 +142,16 @@ export default function AppLayout() {
         </div>
 
         {/* Company */}
-        <div className="px-4 py-3 border-b">
-          <p className="text-sm font-medium text-gray-900 truncate">{company?.name}</p>
-          <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+        <div className="px-4 py-3 border-b dark:border-slate-800">
+          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{company?.name}</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
         </div>
 
         {/* Back to Portal */}
         <div className="px-3 pt-3">
           <NavLink
             to="/"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800 transition-colors"
           >
             <Home className="w-4 h-4" />
             Back to Portal
@@ -167,9 +169,9 @@ export default function AppLayout() {
                   className={({ isActive }) => `
                     flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
                     transition-colors
-                    ${isActive 
-                      ? 'bg-orange-50 text-orange-600' 
-                      : 'text-gray-700 hover:bg-gray-100'
+                    ${isActive
+                      ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'
                     }
                   `}
                 >
@@ -182,13 +184,13 @@ export default function AppLayout() {
         </nav>
 
         {/* Settings */}
-        <div className="border-t p-3">
-          
+        <div className="border-t dark:border-slate-800 p-3">
+
           <NavLink
             to="/settings"
             className={({ isActive }) => `
               flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
-              ${isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}
+              ${isActive ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}
             `}
           >
             <Settings className="w-5 h-5" aria-hidden="true" />
@@ -200,12 +202,12 @@ export default function AppLayout() {
       {/* Main Content */}
       <div className="lg:ml-64">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-white border-b h-16">
+        <header className="sticky top-0 z-30 bg-white dark:bg-slate-900 border-b dark:border-slate-800 h-16">
           <div className="h-full px-4 flex items-center justify-between">
             {/* Mobile menu button */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg"
+              className="lg:hidden p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
               aria-label="Open menu"
               aria-expanded={sidebarOpen}
             >
@@ -219,7 +221,7 @@ export default function AppLayout() {
                 <input
                   type="search"
                   placeholder="Search..."
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100"
                   aria-label="Search"
                 />
               </div>
@@ -234,19 +236,32 @@ export default function AppLayout() {
                 aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'}
               />
 
+              {/* Theme toggle */}
+              <button
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
+                aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                title={isDark ? 'Light mode' : 'Dark mode'}
+              >
+                {isDark
+                  ? <Sun className="w-5 h-5 text-amber-400" />
+                  : <Moon className="w-5 h-5 text-gray-600" />
+                }
+              </button>
+
               {/* Notifications */}
               <button
-                className="p-2 hover:bg-gray-100 rounded-lg relative"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg relative"
                 aria-label="Notifications"
               >
-                <Bell className="w-5 h-5 text-gray-600" />
+                <Bell className="w-5 h-5 text-gray-600 dark:text-slate-300" />
               </button>
 
               {/* User menu */}
               <div className="relative">
                 <button
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded-lg"
+                  className="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg"
                   aria-expanded={userMenuOpen}
                   aria-haspopup="true"
                 >
@@ -263,18 +278,18 @@ export default function AppLayout() {
                       onClick={() => setUserMenuOpen(false)}
                       aria-hidden="true"
                     />
-                    <div 
-                      className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border z-50"
+                    <div
+                      className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-lg shadow-lg border dark:border-slate-700 z-50"
                       role="menu"
                     >
-                      <div className="p-3 border-b">
-                        <p className="font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
-                        <p className="text-sm text-gray-500 truncate">{user?.email}</p>
+                      <div className="p-3 border-b dark:border-slate-700">
+                        <p className="font-medium text-gray-900 dark:text-white">{user?.firstName} {user?.lastName}</p>
+                        <p className="text-sm text-gray-500 dark:text-slate-400 truncate">{user?.email}</p>
                       </div>
                       <div className="py-1">
                         <NavLink
                           to="/settings"
-                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700"
                           role="menuitem"
                           onClick={() => setUserMenuOpen(false)}
                         >

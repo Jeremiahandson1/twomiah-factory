@@ -126,7 +126,7 @@ export async function createItem(companyId: string, data: any) {
 
   const [item] = await db.insert(pricebookItem).values({
     companyId,
-    categoryId: data.categoryId,
+    categoryId: data.categoryId || null,
     code,
     name: data.name,
     description: data.description,

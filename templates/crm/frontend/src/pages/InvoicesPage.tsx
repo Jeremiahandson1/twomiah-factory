@@ -61,7 +61,7 @@ export default function InvoicesPage() {
   const openPayment = (inv) => { setPaymentInvoice(inv); setPayment({ amount: String(Number(inv.balance)), method: 'card', reference: '', notes: '' }); setPaymentOpen(true); };
   const handlePayment = async () => {
     if (!payment.amount || Number(payment.amount) <= 0) { toast.error('Enter a valid amount'); return; }
-    try { await api.invoices.addPayment(paymentInvoice.id, { ...payment, amount: Number(payment.amount) }); toast.success('Payment recorded'); setPaymentOpen(false); load(); }
+    try { await api.invoices.recordPayment(paymentInvoice.id, { ...payment, amount: Number(payment.amount) }); toast.success('Payment recorded'); setPaymentOpen(false); load(); }
     catch (err) { toast.error(err.message); }
   };
 

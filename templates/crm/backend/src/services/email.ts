@@ -120,13 +120,13 @@ console.log(`Email provider: ${PROVIDER}`);
 const baseStyles = `
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
   .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-  .header { background: #f97316; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+  .header { background: {{PRIMARY_COLOR}}; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
   .content { background: #fff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; }
-  .button { display: inline-block; background: #f97316; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
+  .button { display: inline-block; background: {{PRIMARY_COLOR}}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
   .button-secondary { background: #6b7280; }
   .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
   .highlight { background: #f3f4f6; padding: 15px; border-radius: 6px; margin: 15px 0; }
-  .amount { font-size: 32px; font-weight: bold; color: #f97316; text-align: center; padding: 20px; }
+  .amount { font-size: 32px; font-weight: bold; color: {{PRIMARY_COLOR}}; text-align: center; padding: 20px; }
 `;
 
 interface TemplateResult {

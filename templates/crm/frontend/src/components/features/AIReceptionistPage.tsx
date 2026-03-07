@@ -47,7 +47,7 @@ export function AIReceptionistPage() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const activeRules = aiReceptionistRules.filter(r => r.active).length;
   const settings = aiReceptionistSettings || { enabled: false, businessHours: { start: '09:00', end: '17:00' }, greeting: '' };

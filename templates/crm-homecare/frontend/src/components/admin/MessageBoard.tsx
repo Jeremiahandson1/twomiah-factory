@@ -123,7 +123,7 @@ const MessageBoard = ({ token }) => {
     !userSearch || `${u.first_name} ${u.last_name}`.toLowerCase().includes(userSearch.toLowerCase()) || u.role.includes(userSearch.toLowerCase())
   );
 
-  const roleColor = (role) => role === 'admin' ? '#7C3AED' : '#2ABBA7';
+  const roleColor = (role) => role === 'admin' ? '#7C3AED' : '{{PRIMARY_COLOR}}';
   const roleLabel = (role) => role === 'admin' ? 'Admin' : 'Caregiver';
 
   // ─── INBOX ────────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ const MessageBoard = ({ token }) => {
           <p style={{ margin: '0.1rem 0 0', fontSize: '0.82rem', color: '#6B7280' }}>Company message board</p>
         </div>
         <button onClick={() => setView('compose')}
-          style={{ padding: '0.6rem 1.25rem', background: '#2ABBA7', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem' }}>
+          style={{ padding: '0.6rem 1.25rem', background: '{{PRIMARY_COLOR}}', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '0.9rem' }}>
           ✏️ New Message
         </button>
       </div>
@@ -163,7 +163,7 @@ const MessageBoard = ({ token }) => {
             return (
               <div key={thread.id} onClick={() => openThread(thread)}
                 style={{ padding: '1rem 1.25rem', background: unread > 0 ? '#F0FDFB' : '#fff', border: `1px solid ${unread > 0 ? '#A7F3D0' : '#E5E7EB'}`, borderRadius: '12px', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: unread > 0 ? '#2ABBA7' : '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', flexShrink: 0 }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: unread > 0 ? '{{PRIMARY_COLOR}}' : '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', flexShrink: 0 }}>
                   {thread.is_broadcast ? '📢' : '💬'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -190,7 +190,7 @@ const MessageBoard = ({ token }) => {
     <div style={{ maxWidth: '800px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 200px)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: '1rem' }}>
         <button onClick={() => { setView('inbox'); loadInbox(); }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ABBA7', fontWeight: '700', fontSize: '1rem', padding: 0 }}>← Inbox</button>
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '{{PRIMARY_COLOR}}', fontWeight: '700', fontSize: '1rem', padding: 0 }}>← Inbox</button>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '800' }}>{activeThread?.subject}</h3>
           <p style={{ margin: 0, fontSize: '0.78rem', color: '#6B7280' }}>
@@ -208,7 +208,7 @@ const MessageBoard = ({ token }) => {
               <div style={{ fontSize: '0.75rem', color: '#9CA3AF', marginBottom: '0.2rem', paddingLeft: isMe ? 0 : '0.5rem', paddingRight: isMe ? '0.5rem' : 0 }}>
                 {isMe ? 'You' : `${msg.first_name} ${msg.last_name}`} · {formatTime(msg.created_at)}
               </div>
-              <div style={{ maxWidth: '75%', padding: '0.75rem 1rem', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? '#2ABBA7' : '#F3F4F6', color: isMe ? '#fff' : '#111827', fontSize: '0.9rem', lineHeight: 1.6 }}>
+              <div style={{ maxWidth: '75%', padding: '0.75rem 1rem', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? '{{PRIMARY_COLOR}}' : '#F3F4F6', color: isMe ? '#fff' : '#111827', fontSize: '0.9rem', lineHeight: 1.6 }}>
                 {msg.body}
               </div>
             </div>
@@ -228,7 +228,7 @@ const MessageBoard = ({ token }) => {
           style={{ flex: 1, padding: '0.75rem', border: '1px solid #D1D5DB', borderRadius: '10px', resize: 'none', fontSize: '0.9rem', outline: 'none', fontFamily: 'inherit' }}
         />
         <button onClick={sendReply} disabled={sending || !replyBody.trim()}
-          style={{ padding: '0.75rem 1.25rem', background: replyBody.trim() ? '#2ABBA7' : '#D1D5DB', color: '#fff', border: 'none', borderRadius: '10px', cursor: replyBody.trim() ? 'pointer' : 'default', fontWeight: '700', alignSelf: 'flex-end' }}>
+          style={{ padding: '0.75rem 1.25rem', background: replyBody.trim() ? '{{PRIMARY_COLOR}}' : '#D1D5DB', color: '#fff', border: 'none', borderRadius: '10px', cursor: replyBody.trim() ? 'pointer' : 'default', fontWeight: '700', alignSelf: 'flex-end' }}>
           {sending ? '...' : '→'}
         </button>
       </div>
@@ -240,18 +240,18 @@ const MessageBoard = ({ token }) => {
     <div style={{ maxWidth: '700px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: '1.5rem' }}>
         <button onClick={() => setView('inbox')}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ABBA7', fontWeight: '700', fontSize: '1rem', padding: 0 }}>← Inbox</button>
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '{{PRIMARY_COLOR}}', fontWeight: '700', fontSize: '1rem', padding: 0 }}>← Inbox</button>
         <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800' }}>✏️ New Message</h2>
       </div>
 
       {/* Broadcast toggle */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
         <button onClick={() => setBroadcastMode(false)}
-          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `2px solid ${!broadcastMode ? '#2ABBA7' : '#E5E7EB'}`, background: !broadcastMode ? '#F0FDFB' : '#fff', color: !broadcastMode ? '#2ABBA7' : '#374151', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>
+          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `2px solid ${!broadcastMode ? '{{PRIMARY_COLOR}}' : '#E5E7EB'}`, background: !broadcastMode ? '#F0FDFB' : '#fff', color: !broadcastMode ? '{{PRIMARY_COLOR}}' : '#374151', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>
           👤 Individual / Group
         </button>
         <button onClick={() => setBroadcastMode(true)}
-          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `2px solid ${broadcastMode ? '#2ABBA7' : '#E5E7EB'}`, background: broadcastMode ? '#F0FDFB' : '#fff', color: broadcastMode ? '#2ABBA7' : '#374151', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>
+          style={{ padding: '0.5rem 1rem', borderRadius: '8px', border: `2px solid ${broadcastMode ? '{{PRIMARY_COLOR}}' : '#E5E7EB'}`, background: broadcastMode ? '#F0FDFB' : '#fff', color: broadcastMode ? '{{PRIMARY_COLOR}}' : '#374151', fontWeight: '700', cursor: 'pointer', fontSize: '0.85rem' }}>
           📢 Send to Everyone
         </button>
       </div>
@@ -266,7 +266,7 @@ const MessageBoard = ({ token }) => {
       {!broadcastMode && (
         <div style={{ marginBottom: '1.25rem' }}>
           <label style={{ display: 'block', fontWeight: '700', fontSize: '0.875rem', marginBottom: '0.5rem', color: '#374151' }}>
-            Recipients {compose.recipientIds.length > 0 && <span style={{ background: '#2ABBA7', color: '#fff', borderRadius: '99px', padding: '1px 8px', fontSize: '0.75rem', marginLeft: '0.4rem' }}>{compose.recipientIds.length}</span>}
+            Recipients {compose.recipientIds.length > 0 && <span style={{ background: '{{PRIMARY_COLOR}}', color: '#fff', borderRadius: '99px', padding: '1px 8px', fontSize: '0.75rem', marginLeft: '0.4rem' }}>{compose.recipientIds.length}</span>}
           </label>
           <input
             placeholder="Search by name or role..."
@@ -280,7 +280,7 @@ const MessageBoard = ({ token }) => {
               return (
                 <div key={user.id} onClick={() => toggleRecipient(user.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.625rem 1rem', cursor: 'pointer', background: selected ? '#F0FDFB' : i % 2 === 0 ? '#fff' : '#F9FAFB', borderBottom: i < filteredUsers.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
-                  <div style={{ width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${selected ? '#2ABBA7' : '#D1D5DB'}`, background: selected ? '#2ABBA7' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${selected ? '{{PRIMARY_COLOR}}' : '#D1D5DB'}`, background: selected ? '{{PRIMARY_COLOR}}' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {selected && <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: '800' }}>✓</span>}
                   </div>
                   <div style={{ flex: 1 }}>
@@ -297,7 +297,7 @@ const MessageBoard = ({ token }) => {
               {compose.recipientIds.map(id => {
                 const u = users.find(u => u.id === id);
                 return u ? (
-                  <span key={id} style={{ background: '#2ABBA7', color: '#fff', borderRadius: '99px', padding: '3px 10px', fontSize: '0.78rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <span key={id} style={{ background: '{{PRIMARY_COLOR}}', color: '#fff', borderRadius: '99px', padding: '3px 10px', fontSize: '0.78rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                     {u.first_name} {u.last_name}
                     <button onClick={() => toggleRecipient(id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, fontSize: '0.9rem', lineHeight: 1 }}>×</button>
                   </span>
@@ -337,7 +337,7 @@ const MessageBoard = ({ token }) => {
           Cancel
         </button>
         <button onClick={sendNew} disabled={sending}
-          style={{ padding: '0.75rem 2rem', background: '#2ABBA7', color: '#fff', border: 'none', borderRadius: '10px', cursor: sending ? 'default' : 'pointer', fontWeight: '700', fontSize: '0.9rem' }}>
+          style={{ padding: '0.75rem 2rem', background: '{{PRIMARY_COLOR}}', color: '#fff', border: 'none', borderRadius: '10px', cursor: sending ? 'default' : 'pointer', fontWeight: '700', fontSize: '0.9rem' }}>
           {sending ? 'Sending...' : `📤 Send${broadcastMode ? ' to Everyone' : compose.recipientIds.length > 0 ? ` (${compose.recipientIds.length})` : ''}`}
         </button>
       </div>

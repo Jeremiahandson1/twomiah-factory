@@ -180,7 +180,7 @@ customFormsRoutes.post('/submissions', async (c) => {
   const body = await c.req.json()
   const submission = await customForms.submitForm(user.companyId, {
     ...body,
-    submittedById: user.id,
+    submittedById: user.userId,
   })
   return c.json(submission, 201)
 })

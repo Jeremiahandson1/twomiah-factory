@@ -22,7 +22,7 @@ CREATE TABLE "agencies" (
 	"city" text,
 	"state" text,
 	"zip" text,
-	"primary_color" text DEFAULT '#0369a1' NOT NULL,
+	"primary_color" text DEFAULT '{{PRIMARY_COLOR}}' NOT NULL,
 	"secondary_color" text,
 	"logo" text,
 	"website" text,

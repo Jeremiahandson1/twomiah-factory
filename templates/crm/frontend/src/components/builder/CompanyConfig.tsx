@@ -4,7 +4,7 @@ import { useBuilderStore } from '../../stores/builderStore';
 import { Input } from '../ui';
 
 const colorPresets = [
-  { name: 'Orange', value: '#ec7619' },
+  { name: 'Orange', value: '{{PRIMARY_COLOR}}' },
   { name: 'Blue', value: '#3b82f6' },
   { name: 'Green', value: '#10b981' },
   { name: 'Purple', value: '#8b5cf6' },

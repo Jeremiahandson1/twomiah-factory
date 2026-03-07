@@ -229,13 +229,21 @@ app.get('/p/:pageId', (c) => {
 // VISION APP REDIRECT
 // ===========================================
 
-const VISION_URL = process.env.VISION_URL || ''
-if (VISION_URL) {
-  app.get('/visualize', (c) => c.redirect(VISION_URL, 302))
-  app.get('/visualize/*', (c) => {
-    const sub = c.req.path.replace('/visualize', '')
-    return c.redirect(VISION_URL + sub, 302)
+const visualizePage = path.join(__dirname, 'views', 'visualize.html')
+if (fs.existsSync(visualizePage)) {
+  app.get('/visualize', (c) => {
+    const html = fs.readFileSync(visualizePage, 'utf8')
+    return c.html(html)
   })
+} else {
+  const VISION_URL = process.env.VISION_URL || ''
+  if (VISION_URL) {
+    app.get('/visualize', (c) => c.redirect(VISION_URL, 302))
+    app.get('/visualize/*', (c) => {
+      const sub = c.req.path.replace('/visualize', '')
+      return c.redirect(VISION_URL + sub, 302)
+    })
+  }
 }
 
 // ===========================================

@@ -84,7 +84,7 @@ function ContactForm({ contact, onSave, onClose }) {
 
 function ContactDetail({ contact, onClose, onEdit }) {
   const { instance } = useOutletContext();
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
   const TypeIcon = contactTypes.find(t => t.value === contact.type)?.icon || User;
 
   return (
@@ -159,7 +159,7 @@ export function ContactsPage() {
   const [viewContact, setViewContact] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filteredContacts = useMemo(() => {
     return contacts.filter(c => {

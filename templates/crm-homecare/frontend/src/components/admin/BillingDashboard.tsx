@@ -1325,7 +1325,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 .invoice-balance-amount {
                   font-size: 28px;
                   font-weight: 600;
-                  color: #2ABBA7;
+                  color: {{PRIMARY_COLOR}};
                 }
                 /* Bill To LEFT, Invoice Dates RIGHT */
                 .invoice-details-row {
@@ -1378,7 +1378,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                   margin-bottom: 0;
                 }
                 .invoice-table thead {
-                  background: #2ABBA7;
+                  background: {{PRIMARY_COLOR}};
                 }
                 .invoice-table th {
                   color: white;
@@ -1436,7 +1436,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                 .invoice-total-label { color: #555; }
                 .invoice-total-value { font-weight: 500; text-align: right; min-width: 80px; }
                 .invoice-total-row.grand-total {
-                  background: #2ABBA7;
+                  background: {{PRIMARY_COLOR}};
                   color: white;
                   font-weight: 600;
                   font-size: 14px;

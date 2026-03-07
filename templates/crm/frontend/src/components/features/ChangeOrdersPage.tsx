@@ -35,7 +35,7 @@ export function ChangeOrdersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editCO, setEditCO] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => changeOrders.filter(c => {
     const matchesSearch = !search || c.title?.toLowerCase().includes(search.toLowerCase()) || c.number?.toLowerCase().includes(search.toLowerCase());

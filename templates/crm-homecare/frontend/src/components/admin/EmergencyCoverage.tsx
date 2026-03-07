@@ -199,7 +199,7 @@ const EmergencyCoverage = ({ token }) => {
           onClick={() => searchCoverage()}
           disabled={searching}
           style={{
-            padding: '0.6rem 1.5rem', background: '#2ABBA7', color: '#fff',
+            padding: '0.6rem 1.5rem', background: '{{PRIMARY_COLOR}}', color: '#fff',
             border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
             opacity: searching ? 0.7 : 1
           }}
@@ -256,7 +256,7 @@ const EmergencyCoverage = ({ token }) => {
                     <button
                       onClick={() => assignCoverage(cg)}
                       style={{
-                        padding: '0.5rem 0.875rem', background: '#2ABBA7', color: '#fff',
+                        padding: '0.5rem 0.875rem', background: '{{PRIMARY_COLOR}}', color: '#fff',
                         border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem'
                       }}
                     >

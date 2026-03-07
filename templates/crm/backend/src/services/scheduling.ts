@@ -52,22 +52,21 @@ export async function updateTask(taskId: string, companyId: string, data: any) {
   if (data.endDate) updates.end_date = new Date(data.endDate)
   if (data.constraintDate) updates.constraint_date = new Date(data.constraintDate)
 
-  // Build SET clause
-  const sets: string[] = []
-  if (data.name !== undefined) sets.push(`name = '${data.name}'`)
-  if (data.description !== undefined) sets.push(`description = '${data.description}'`)
-  if (data.startDate) sets.push(`start_date = '${new Date(data.startDate).toISOString()}'`)
-  if (data.endDate) sets.push(`end_date = '${new Date(data.endDate).toISOString()}'`)
-  if (data.duration !== undefined) sets.push(`duration = ${data.duration}`)
-  if (data.percentComplete !== undefined) sets.push(`percent_complete = ${data.percentComplete}`)
-  if (data.assignedToId !== undefined) sets.push(`assigned_to_id = ${data.assignedToId ? `'${data.assignedToId}'` : 'NULL'}`)
-  if (data.sortOrder !== undefined) sets.push(`sort_order = ${data.sortOrder}`)
+  // Build parameterized updates
+  let hasUpdates = false
+  if (data.name !== undefined) { await db.execute(sql`UPDATE project_task SET name = ${data.name} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
+  if (data.description !== undefined) { await db.execute(sql`UPDATE project_task SET description = ${data.description} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
+  if (data.startDate) { await db.execute(sql`UPDATE project_task SET start_date = ${new Date(data.startDate).toISOString()} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
+  if (data.endDate) { await db.execute(sql`UPDATE project_task SET end_date = ${new Date(data.endDate).toISOString()} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
+  if (data.duration !== undefined) { await db.execute(sql`UPDATE project_task SET duration = ${data.duration} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
+  if (data.percentComplete !== undefined) { await db.execute(sql`UPDATE project_task SET percent_complete = ${data.percentComplete} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
+  if (data.assignedToId !== undefined) { await db.execute(sql`UPDATE project_task SET assigned_to_id = ${data.assignedToId || null} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
+  if (data.sortOrder !== undefined) { await db.execute(sql`UPDATE project_task SET sort_order = ${data.sortOrder} WHERE id = ${taskId} AND company_id = ${companyId}`); hasUpdates = true }
 
-  if (sets.length === 0) return null
+  if (!hasUpdates) return null
 
-  const [task] = (await db.execute(sql.raw(`
-    UPDATE project_task SET ${sets.join(', ')} WHERE id = '${taskId}' AND company_id = '${companyId}' RETURNING *
-  `))) as any[]
+  const result = await db.execute(sql`SELECT * FROM project_task WHERE id = ${taskId} AND company_id = ${companyId}`)
+  const [task] = (result as any).rows || result as any[]
 
   if (task) {
     await recalculateSchedule(task.project_id)

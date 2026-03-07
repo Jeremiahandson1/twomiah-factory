@@ -5,7 +5,7 @@ import { getAllFeatureIds, PRESET_PACKAGES } from '../data/features';
 const initialConfig = {
   companyName: '',
   companyLogo: null,
-  primaryColor: '#ec7619', // brand-500
+  primaryColor: '{{PRIMARY_COLOR}}', // brand-500
   enabledFeatures: [],
   createdAt: null,
   isBuilt: false,

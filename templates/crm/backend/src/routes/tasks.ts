@@ -39,34 +39,54 @@ app.get('/', async (c) => {
     sortOrder,
   };
 
-  const result = await tasks.getTasks(user.companyId, filters);
-  return c.json(result);
+  try {
+    const result = await tasks.getTasks(user.companyId, filters);
+    return c.json(result || { data: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } });
+  } catch (e: any) {
+    if (e.message?.includes('relation') && e.message?.includes('does not exist')) {
+      return c.json({ data: [], pagination: { page: 1, limit: 50, total: 0, pages: 0 } });
+    }
+    throw e;
+  }
 });
 
 // Get my upcoming tasks
 app.get('/upcoming', async (c) => {
   const user = c.get('user') as any;
   const days = c.req.query('days') || '7';
-  const result = await tasks.getUpcomingTasks(
-    user.companyId,
-    user.userId,
-    { days: parseInt(days) }
-  );
-  return c.json(result);
+  try {
+    const result = await tasks.getUpcomingTasks(user.companyId, user.userId, { days: parseInt(days) });
+    return c.json(result || []);
+  } catch (e: any) {
+    if (e.message?.includes('relation') && e.message?.includes('does not exist')) return c.json([]);
+    throw e;
+  }
 });
 
 // Get my overdue tasks
 app.get('/overdue', async (c) => {
   const user = c.get('user') as any;
-  const result = await tasks.getOverdueTasks(user.companyId, user.userId);
-  return c.json(result);
+  try {
+    const result = await tasks.getOverdueTasks(user.companyId, user.userId);
+    return c.json(result || []);
+  } catch (e: any) {
+    if (e.message?.includes('relation') && e.message?.includes('does not exist')) return c.json([]);
+    throw e;
+  }
 });
 
 // Get my task stats
 app.get('/stats', async (c) => {
   const user = c.get('user') as any;
-  const result = await tasks.getTaskStats(user.companyId, user.userId);
-  return c.json(result);
+  try {
+    const result = await tasks.getTaskStats(user.companyId, user.userId);
+    return c.json(result || { total: 0, completed: 0, pending: 0, overdue: 0 });
+  } catch (e: any) {
+    if (e.message?.includes('relation') && e.message?.includes('does not exist')) {
+      return c.json({ total: 0, completed: 0, pending: 0, overdue: 0 });
+    }
+    throw e;
+  }
 });
 
 // Get single task

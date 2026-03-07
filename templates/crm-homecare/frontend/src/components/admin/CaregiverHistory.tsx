@@ -73,7 +73,7 @@ const GPSRouteMap = ({ timeEntryId, token, onClose }) => {
     const latlngs = points.map(p => [parseFloat(p.latitude), parseFloat(p.longitude)]);
 
     // Draw route
-    const polyline = L.polyline(latlngs, { color: '#2ABBA7', weight: 4, opacity: 0.8 }).addTo(map);
+    const polyline = L.polyline(latlngs, { color: '{{PRIMARY_COLOR}}', weight: 4, opacity: 0.8 }).addTo(map);
 
     // Start marker (green)
     if (latlngs.length > 0) {
@@ -220,7 +220,7 @@ const CaregiverHistory = ({ caregiverId, caregiverName, token, onBack }) => {
               style={{ padding: '0.4rem 0.75rem', border: '1px solid #D1D5DB', borderRadius: '6px', fontSize: '0.9rem' }} />
           </div>
           <button onClick={loadHistory} style={{
-            padding: '0.4rem 1rem', background: '#2ABBA7', color: '#fff',
+            padding: '0.4rem 1rem', background: '{{PRIMARY_COLOR}}', color: '#fff',
             border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem'
           }}>Apply</button>
         </div>

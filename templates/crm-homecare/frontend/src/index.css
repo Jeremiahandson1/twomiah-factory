@@ -1,5 +1,5 @@
 :root {
-    --color-teal: #2ABBA7;
+    --color-teal: {{PRIMARY_COLOR}};
     --color-teal-dark: #1E9A89;
     --color-teal-light: #E8F8F6;
     --color-gold: #C9A227;
@@ -1114,7 +1114,7 @@ body {
   }
 
   .mobile-bottom-nav-item.active {
-    color: #2ABBA7;
+    color: {{PRIMARY_COLOR}};
   }
 
   .mobile-bottom-nav-item.active::before {
@@ -1125,7 +1125,7 @@ body {
     transform: translateX(-50%);
     width: 32px;
     height: 3px;
-    background: #2ABBA7;
+    background: {{PRIMARY_COLOR}};
     border-radius: 0 0 3px 3px;
   }
 
@@ -1198,7 +1198,7 @@ body {
   .mobile-more-drawer-item:active,
   .mobile-more-drawer-item.active {
     background: #F0FDFB;
-    color: #2ABBA7;
+    color: {{PRIMARY_COLOR}};
   }
 
   .mobile-more-drawer-item-icon {
@@ -1276,7 +1276,7 @@ body {
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, #2ABBA7, #1E9A89) !important;
+    background: linear-gradient(135deg, {{PRIMARY_COLOR}}, #1E9A89) !important;
     box-shadow: 0 2px 8px rgba(42, 187, 167, 0.3) !important;
   }
 

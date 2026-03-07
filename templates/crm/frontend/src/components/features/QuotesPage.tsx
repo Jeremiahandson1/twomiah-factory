@@ -34,7 +34,7 @@ export function QuotesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editQuote, setEditQuote] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
   const clients = contacts.filter(c => c.type === 'client');
 
   const filtered = useMemo(() => quotes.filter(q => {

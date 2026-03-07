@@ -35,7 +35,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
     
     // Branding
     logo: '',
-    primaryColor: '#f97316',
+    primaryColor: '{{PRIMARY_COLOR}}',
     secondaryColor: '#1e293b',
     
     // Features

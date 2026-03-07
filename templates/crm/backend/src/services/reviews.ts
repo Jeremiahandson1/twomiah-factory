@@ -217,7 +217,7 @@ async function sendReviewEmail(
          Would you take a moment to share your experience?</p>
       <div style="text-align: center; margin: 30px 0;">
         <a href="${reviewLink}"
-           style="display: inline-block; padding: 15px 30px; background: #f97316;
+           style="display: inline-block; padding: 15px 30px; background: {{PRIMARY_COLOR}};
                   color: white; text-decoration: none; border-radius: 8px;
                   font-weight: bold;">
           Leave a Review

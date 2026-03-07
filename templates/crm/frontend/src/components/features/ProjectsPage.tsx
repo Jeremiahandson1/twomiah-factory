@@ -44,7 +44,7 @@ export function ProjectsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editProject, setEditProject] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
   const clients = contacts.filter(c => c.type === 'client');
 
   const filtered = useMemo(() => projects.filter(p => {

@@ -83,7 +83,7 @@ export function BiddingPage() {
   const [showForm, setShowForm] = useState(false);
   const [editBid, setEditBid] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => (bids || []).filter(b => {
     const matchesSearch = !search || b.projectName?.toLowerCase().includes(search.toLowerCase());

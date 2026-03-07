@@ -10,7 +10,7 @@ export function FinancialsPage() {
   const { instance } = useOutletContext();
   const { projects, invoices, expenses = [] } = useCRMDataStore();
   const [activeTab, setActiveTab] = useState('overview');
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.paid, 0);
   const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0);
@@ -58,7 +58,7 @@ export function FinancialsPage() {
 // ADVANCED PAGE - feature showcase
 export function AdvancedPage() {
   const { instance } = useOutletContext();
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const features = [
     { name: 'AI Assistant', desc: 'Get help with estimates, scheduling, and more', icon: Sparkles, id: 'ai_assistant' },
@@ -92,7 +92,7 @@ export function AdvancedPage() {
 export function SettingsPage() {
   const { instance } = useOutletContext();
   const [activeTab, setActiveTab] = useState('general');
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   return (
     <div className="space-y-6">

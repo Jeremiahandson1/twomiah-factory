@@ -38,7 +38,7 @@ export function JobsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editJob, setEditJob] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => jobs.filter(j => {
     const matchesSearch = !search || j.title.toLowerCase().includes(search.toLowerCase());

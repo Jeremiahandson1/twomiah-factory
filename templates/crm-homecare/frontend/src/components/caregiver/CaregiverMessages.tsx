@@ -117,7 +117,7 @@ const CaregiverMessages = ({ token, onClose }) => {
           return (
             <div key={thread.id} onClick={() => openThread(thread)}
               style={{ display: 'flex', gap: '0.875rem', padding: '0.875rem', background: unread > 0 ? '#F0FDFB' : '#fff', border: `1px solid ${unread > 0 ? '#A7F3D0' : '#F3F4F6'}`, borderRadius: '12px', marginBottom: '0.5rem', cursor: 'pointer', alignItems: 'center' }}>
-              <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: unread > 0 ? '#2ABBA7' : '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: unread > 0 ? '{{PRIMARY_COLOR}}' : '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
                 {thread.is_broadcast ? '📢' : '💬'}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -143,7 +143,7 @@ const CaregiverMessages = ({ token, onClose }) => {
     <div style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
       <div style={{ padding: '0.875rem 1rem', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-        <button onClick={() => { setView('inbox'); loadInbox(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ABBA7', fontWeight: '700', fontSize: '1rem', padding: 0 }}>←</button>
+        <button onClick={() => { setView('inbox'); loadInbox(); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '{{PRIMARY_COLOR}}', fontWeight: '700', fontSize: '1rem', padding: 0 }}>←</button>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '800', color: '#111827' }}>{activeThread?.subject}</h3>
           <p style={{ margin: 0, fontSize: '0.75rem', color: '#6B7280' }}>
@@ -161,7 +161,7 @@ const CaregiverMessages = ({ token, onClose }) => {
               <div style={{ fontSize: '0.72rem', color: '#9CA3AF', marginBottom: '0.2rem', paddingLeft: isMe ? 0 : '0.25rem', paddingRight: isMe ? '0.25rem' : 0 }}>
                 {isMe ? 'You' : `${msg.first_name} ${msg.last_name}`} · {formatTime(msg.created_at)}
               </div>
-              <div style={{ maxWidth: '80%', padding: '0.75rem 1rem', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? '#2ABBA7' : '#F3F4F6', color: isMe ? '#fff' : '#111827', fontSize: '0.9rem', lineHeight: 1.6 }}>
+              <div style={{ maxWidth: '80%', padding: '0.75rem 1rem', borderRadius: isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isMe ? '{{PRIMARY_COLOR}}' : '#F3F4F6', color: isMe ? '#fff' : '#111827', fontSize: '0.9rem', lineHeight: 1.6 }}>
                 {msg.body}
               </div>
             </div>
@@ -181,7 +181,7 @@ const CaregiverMessages = ({ token, onClose }) => {
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); } }}
         />
         <button onClick={sendReply} disabled={sending || !replyBody.trim()}
-          style={{ width: '44px', height: '44px', borderRadius: '50%', background: replyBody.trim() ? '#2ABBA7' : '#E5E7EB', border: 'none', cursor: replyBody.trim() ? 'pointer' : 'default', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          style={{ width: '44px', height: '44px', borderRadius: '50%', background: replyBody.trim() ? '{{PRIMARY_COLOR}}' : '#E5E7EB', border: 'none', cursor: replyBody.trim() ? 'pointer' : 'default', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           {sending ? '⋯' : '↑'}
         </button>
       </div>

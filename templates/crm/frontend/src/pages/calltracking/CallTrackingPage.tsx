@@ -38,8 +38,8 @@ export default function CallTrackingPage() {
         api.get(`/api/calltracking/calls?${params}`),
         api.get(`/api/calltracking/reports/attribution?${params}`),
       ]);
-      setCalls(callsRes.data || []);
-      setReport(reportRes);
+      setCalls(callsRes?.data || []);
+      setReport(reportRes || null);
     } catch (error) {
       console.error('Failed to load call data:', error);
     } finally {
@@ -58,13 +58,13 @@ export default function CallTrackingPage() {
       </div>
 
       {/* Stats */}
-      {report && (
+      {report?.totals && (
         <div className="grid grid-cols-5 gap-4">
-          <StatCard icon={Phone} label="Total Calls" value={report.totals.totalCalls} />
-          <StatCard icon={Users} label="First-Time Callers" value={report.totals.firstTimeCallers} color="blue" />
-          <StatCard icon={Clock} label="Avg Duration" value={`${Math.round(report.totals.avgDuration / 60)}m`} color="purple" />
-          <StatCard icon={Tag} label="Leads" value={report.totals.leads} color="green" />
-          <StatCard icon={DollarSign} label="Lead Value" value={`$${report.totals.leadValue}`} color="orange" />
+          <StatCard icon={Phone} label="Total Calls" value={report.totals.totalCalls || 0} />
+          <StatCard icon={Users} label="First-Time Callers" value={report.totals.firstTimeCallers || 0} color="blue" />
+          <StatCard icon={Clock} label="Avg Duration" value={`${Math.round((report.totals.avgDuration || 0) / 60)}m`} color="purple" />
+          <StatCard icon={Tag} label="Leads" value={report.totals.leads || 0} color="green" />
+          <StatCard icon={DollarSign} label="Lead Value" value={`$${report.totals.leadValue || 0}`} color="orange" />
         </div>
       )}
 
@@ -275,7 +275,7 @@ function AttributionTab({ report }) {
       <div className="bg-white rounded-xl border p-6">
         <h3 className="font-medium text-gray-900 mb-4">Calls by Source</h3>
         <div className="space-y-4">
-          {report.bySource.map(source => (
+          {(report.bySource || []).map(source => (
             <div key={source.source} className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-orange-500" />
@@ -300,23 +300,23 @@ function AttributionTab({ report }) {
         <div className="space-y-4">
           <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
             <span className="text-gray-600">Total Calls</span>
-            <span className="font-bold">{report.totals.totalCalls}</span>
+            <span className="font-bold">{report.totals?.totalCalls || 0}</span>
           </div>
           <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
             <span className="text-gray-600">First-Time Callers</span>
-            <span className="font-bold">{report.totals.firstTimeCallers}</span>
+            <span className="font-bold">{report.totals?.firstTimeCallers || 0}</span>
           </div>
           <div className="flex justify-between p-3 bg-gray-50 rounded-lg">
             <span className="text-gray-600">Total Talk Time</span>
-            <span className="font-bold">{formatDuration(report.totals.totalDuration)}</span>
+            <span className="font-bold">{formatDuration(report.totals?.totalDuration || 0)}</span>
           </div>
           <div className="flex justify-between p-3 bg-green-50 rounded-lg">
             <span className="text-green-700">Leads Generated</span>
-            <span className="font-bold text-green-700">{report.totals.leads}</span>
+            <span className="font-bold text-green-700">{report.totals?.leads || 0}</span>
           </div>
           <div className="flex justify-between p-3 bg-orange-50 rounded-lg">
             <span className="text-orange-700">Lead Value</span>
-            <span className="font-bold text-orange-700">${report.totals.leadValue}</span>
+            <span className="font-bold text-orange-700">${report.totals?.leadValue || 0}</span>
           </div>
         </div>
       </div>
@@ -335,7 +335,7 @@ function TrackingNumbersTab() {
   const loadNumbers = async () => {
     try {
       const data = await api.get('/api/calltracking/numbers');
-      setNumbers(data || []);
+      setNumbers(Array.isArray(data) ? data : (data?.data || []));
     } catch (error) {
       console.error('Failed to load numbers:', error);
     } finally {

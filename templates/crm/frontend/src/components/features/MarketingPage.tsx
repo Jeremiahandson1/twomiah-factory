@@ -99,7 +99,7 @@ export function MarketingPage() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filteredCampaigns = useMemo(() => (campaigns || []).filter(c => !search || c.name?.toLowerCase().includes(search.toLowerCase())), [campaigns, search]);
   const filteredReviews = useMemo(() => (reviewRequests || []).filter(r => !search || contacts.find(c => c.id === r.contactId)?.name?.toLowerCase().includes(search.toLowerCase())), [reviewRequests, contacts, search]);

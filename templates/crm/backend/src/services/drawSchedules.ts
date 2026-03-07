@@ -142,13 +142,11 @@ export async function getScheduleOfValues(projectId: string, companyId: string) 
  * Update SOV line item
  */
 export async function updateSOVLineItem(lineItemId: string, companyId: string, data: Record<string, unknown>) {
-  const sets: string[] = [];
+  const allowedCols = ['description', 'scheduled_value', 'completed_to_date', 'stored_materials', 'retainage_percent'];
   for (const [key, value] of Object.entries(data)) {
     const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
-    sets.push(`${colName} = '${value}'`);
-  }
-  if (sets.length > 0) {
-    await db.execute(sql.raw(`UPDATE sov_line_item SET ${sets.join(', ')} WHERE id = '${lineItemId}' AND company_id = '${companyId}'`));
+    if (!allowedCols.includes(colName)) continue;
+    await db.execute(sql`UPDATE sov_line_item SET ${sql.raw(`"${colName}"`)} = ${value} WHERE id = ${lineItemId} AND company_id = ${companyId}`);
   }
 }
 

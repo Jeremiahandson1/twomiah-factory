@@ -24,7 +24,7 @@ export function TeamPage() {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editMember, setEditMember] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = teamMembers.filter(m => !search || m.name.toLowerCase().includes(search.toLowerCase()) || m.role?.toLowerCase().includes(search.toLowerCase()));
   const handleSave = () => { setEditMember(null); setShowForm(false); };

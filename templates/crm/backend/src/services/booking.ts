@@ -53,7 +53,7 @@ export async function getBookingSettings(companyId: string) {
     requireAddress: true,
     sendConfirmationEmail: true,
     sendConfirmationSms: false,
-    primaryColor: '#f97316',
+    primaryColor: '{{PRIMARY_COLOR}}',
     logoUrl: null,
   };
 
@@ -80,18 +80,16 @@ export async function updateBookingSettings(companyId: string, data: Record<stri
   const rows = (existing as any).rows || existing;
 
   if (rows.length > 0) {
-    // Update existing
-    const sets: string[] = [];
+    // Build parameterized update
+    const allowedCols = ['business_hours', 'slot_duration_minutes', 'buffer_minutes', 'advance_booking_days', 'require_approval', 'notifications_email'];
     for (const [key, value] of Object.entries(data)) {
       const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
+      if (!allowedCols.includes(colName)) continue;
       if (typeof value === 'object' && value !== null) {
-        sets.push(`${colName} = '${JSON.stringify(value)}'::jsonb`);
+        await db.execute(sql`UPDATE booking_settings SET ${sql.raw(`"${colName}"`)} = ${JSON.stringify(value)}::jsonb, updated_at = NOW() WHERE company_id = ${companyId}`);
       } else {
-        sets.push(`${colName} = '${value}'`);
+        await db.execute(sql`UPDATE booking_settings SET ${sql.raw(`"${colName}"`)} = ${value}, updated_at = NOW() WHERE company_id = ${companyId}`);
       }
-    }
-    if (sets.length > 0) {
-      await db.execute(sql.raw(`UPDATE booking_settings SET ${sets.join(', ')}, updated_at = NOW() WHERE company_id = '${companyId}'`));
     }
   } else {
     await getBookingSettings(companyId); // creates defaults
@@ -141,13 +139,11 @@ export async function createBookableService(companyId: string, data: {
  * Update bookable service
  */
 export async function updateBookableService(serviceId: string, companyId: string, data: Record<string, unknown>) {
-  const sets: string[] = [];
+  const allowedCols = ['name', 'description', 'duration_minutes', 'price', 'price_type', 'active', 'sort_order'];
   for (const [key, value] of Object.entries(data)) {
     const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
-    sets.push(`${colName} = '${value}'`);
-  }
-  if (sets.length > 0) {
-    await db.execute(sql.raw(`UPDATE bookable_service SET ${sets.join(', ')}, updated_at = NOW() WHERE id = '${serviceId}' AND company_id = '${companyId}'`));
+    if (!allowedCols.includes(colName)) continue;
+    await db.execute(sql`UPDATE bookable_service SET ${sql.raw(`"${colName}"`)} = ${value}, updated_at = NOW() WHERE id = ${serviceId} AND company_id = ${companyId}`);
   }
 }
 

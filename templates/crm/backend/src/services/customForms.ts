@@ -94,19 +94,15 @@ export async function getFormTemplate(templateId: string, companyId: string) {
  * Update template
  */
 export async function updateFormTemplate(templateId: string, companyId: string, data: Record<string, unknown>) {
-  const sets: string[] = [];
+  const allowedCols = ['name', 'description', 'fields', 'category', 'active', 'required_for_completion'];
   for (const [key, value] of Object.entries(data)) {
     const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
+    if (!allowedCols.includes(colName)) continue;
     if (typeof value === 'object' && value !== null) {
-      sets.push(`${colName} = '${JSON.stringify(value)}'::jsonb`);
-    } else if (typeof value === 'boolean') {
-      sets.push(`${colName} = ${value}`);
+      await db.execute(sql`UPDATE form_template SET ${sql.raw(`"${colName}"`)} = ${JSON.stringify(value)}::jsonb, updated_at = NOW() WHERE id = ${templateId} AND company_id = ${companyId}`);
     } else {
-      sets.push(`${colName} = '${value}'`);
+      await db.execute(sql`UPDATE form_template SET ${sql.raw(`"${colName}"`)} = ${value}, updated_at = NOW() WHERE id = ${templateId} AND company_id = ${companyId}`);
     }
-  }
-  if (sets.length > 0) {
-    await db.execute(sql.raw(`UPDATE form_template SET ${sets.join(', ')}, updated_at = NOW() WHERE id = '${templateId}' AND company_id = '${companyId}'`));
   }
 }
 

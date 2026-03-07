@@ -47,7 +47,7 @@ export default function PortalLayout() {
       {/* Header */}
       <header 
         className="bg-white border-b shadow-sm"
-        style={{ borderTopColor: company?.primaryColor || '#f97316', borderTopWidth: '4px' }}
+        style={{ borderTopColor: company?.primaryColor || '{{PRIMARY_COLOR}}', borderTopWidth: '4px' }}
       >
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -57,7 +57,7 @@ export default function PortalLayout() {
               ) : (
                 <div 
                   className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-                  style={{ backgroundColor: company?.primaryColor || '#f97316' }}
+                  style={{ backgroundColor: company?.primaryColor || '{{PRIMARY_COLOR}}' }}
                 >
                   {company?.name?.charAt(0) || 'C'}
                 </div>

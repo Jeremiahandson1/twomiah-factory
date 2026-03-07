@@ -330,7 +330,7 @@ function TotalsFooter({ sheetId }) {
     }
   };
 
-  if (!totals) return null;
+  if (!totals?.totals) return null;
 
   return (
     <div className="border-t bg-gray-50 p-4">
@@ -338,15 +338,15 @@ function TotalsFooter({ sheetId }) {
         <div className="flex items-center gap-6">
           <div>
             <p className="text-sm text-gray-500">Materials</p>
-            <p className="text-lg font-bold">{totals.totals.materialCount}</p>
+            <p className="text-lg font-bold">{totals.totals.materialCount || 0}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Cost</p>
-            <p className="text-lg font-bold text-green-600">${totals.totals.totalCost.toFixed(2)}</p>
+            <p className="text-lg font-bold text-green-600">${(totals.totals.totalCost || 0).toFixed(2)}</p>
           </div>
           <div>
             <p className="text-sm text-gray-500">Total Price</p>
-            <p className="text-lg font-bold">${totals.totals.totalPrice.toFixed(2)}</p>
+            <p className="text-lg font-bold">${(totals.totals.totalPrice || 0).toFixed(2)}</p>
           </div>
         </div>
         <button className="flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-white">

@@ -481,7 +481,9 @@ export async function deployCustomer(
     await pushToGitHub(repo.full_name, extractDir)
     results.steps.push({ step: 'github_push', status: 'ok' })
 
-    // Skip Render project creation — it causes Render to add random suffixes to service names
+    // Use the Twomiah project environment so services appear grouped in the Render dashboard.
+    // We assign services after creation via PATCH (avoids random name suffixes from project-scoped creation).
+    const twomiahEnvId = process.env.RENDER_PROJECT_ENV_ID || null
     const deployedResourceIds: string[] = []
 
     // Step 4: Render Postgres (only for CRM products)
@@ -679,6 +681,19 @@ export async function deployCustomer(
         results.steps.push({ step: 'render_vision', status: 'error', error: err.message })
         results.errors.push('Vision: ' + err.message)
       }
+    }
+
+    // Assign all created services to the Twomiah project so they appear in the Render dashboard
+    if (twomiahEnvId && deployedResourceIds.length > 0) {
+      for (const resourceId of deployedResourceIds) {
+        try {
+          await fetchWithTimeout(RENDER_API + '/services/' + resourceId, {
+            method: 'PATCH', headers: renderHeaders(),
+            body: JSON.stringify({ environmentId: twomiahEnvId }),
+          })
+        } catch (_e) { /* non-critical */ }
+      }
+      console.log('[Deploy] Assigned', deployedResourceIds.length, 'services to project environment')
     }
 
     results.success = results.errors.length === 0

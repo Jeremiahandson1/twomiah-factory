@@ -21,7 +21,7 @@ export default function PortalProjects() {
     async function loadProjects() {
       try {
         const data = await portalFetch('/projects');
-        setProjects(data);
+        setProjects(Array.isArray(data) ? data : []);
       } catch (error) {
         console.error('Failed to load projects:', error);
       } finally {

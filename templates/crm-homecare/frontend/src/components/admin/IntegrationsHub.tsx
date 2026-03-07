@@ -39,7 +39,7 @@ const SectionHeader = ({icon, title, sub, action}) => (
   </div>
 );
 
-const Btn = ({onClick,children,color='#2ABBA7',disabled,small,outline}) => (
+const Btn = ({onClick,children,color='{{PRIMARY_COLOR}}',disabled,small,outline}) => (
   <button onClick={onClick} disabled={disabled} style={{
     padding: small?'0.35rem 0.75rem':'0.6rem 1.25rem',
     background: outline?'#fff':disabled?'#D1D5DB':color,
@@ -154,7 +154,7 @@ const IntegrationsHub = ({ token }) => {
         {/* Integration status row */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:'0.75rem'}}>
           {/* Sandata */}
-          <Card style={{borderLeft:`4px solid ${sandataConfig?.isConfigured?'#2ABBA7':'#F59E0B'}`}}>
+          <Card style={{borderLeft:`4px solid ${sandataConfig?.isConfigured?'{{PRIMARY_COLOR}}':'#F59E0B'}`}}>
             <div style={{fontWeight:'700',fontSize:'0.85rem',marginBottom:'0.4rem'}}>🏠 Sandata EVV</div>
             {sandataConfig?.isConfigured
               ? <><Badge status="active" label="✓ Connected"/><p style={{fontSize:'0.78rem',color:'#6B7280',margin:'0.4rem 0 0'}}>{evvData?.summary?.accepted||0} accepted · {evvData?.summary?.exceptions||0} exceptions</p></>
@@ -162,7 +162,7 @@ const IntegrationsHub = ({ token }) => {
             }
           </Card>
           {/* Gusto */}
-          <Card style={{borderLeft:`4px solid ${gustoConfig?.isConfigured?'#2ABBA7':'#6B7280'}`}}>
+          <Card style={{borderLeft:`4px solid ${gustoConfig?.isConfigured?'{{PRIMARY_COLOR}}':'#6B7280'}`}}>
             <div style={{fontWeight:'700',fontSize:'0.85rem',marginBottom:'0.4rem'}}>💰 Gusto Payroll</div>
             {gustoConfig?.isConfigured
               ? <Badge status="active" label="✓ Connected"/>
@@ -170,7 +170,7 @@ const IntegrationsHub = ({ token }) => {
             }
           </Card>
           {/* Open issues */}
-          <Card style={{borderLeft:`4px solid ${openIssues.filter(i=>i.status==='fail').length>0?'#EF4444':'#2ABBA7'}`}}>
+          <Card style={{borderLeft:`4px solid ${openIssues.filter(i=>i.status==='fail').length>0?'#EF4444':'{{PRIMARY_COLOR}}'}`}}>
             <div style={{fontWeight:'700',fontSize:'0.85rem',marginBottom:'0.4rem'}}>🛡️ Failsafe</div>
             {openIssues.filter(i=>i.status==='fail').length > 0
               ? <><Badge status="exception" label={`${openIssues.filter(i=>i.status==='fail').length} Blocking Issues`}/><p style={{fontSize:'0.75rem',color:'#991B1B',margin:'0.4rem 0 0'}}>Fix before submitting claims</p></>
@@ -178,7 +178,7 @@ const IntegrationsHub = ({ token }) => {
             }
           </Card>
           {/* Authorizations */}
-          <Card style={{borderLeft:`4px solid ${parseInt(authSummary?.expiring_soon||0)+parseInt(authSummary?.expired||0)>0?'#F59E0B':'#2ABBA7'}`}}>
+          <Card style={{borderLeft:`4px solid ${parseInt(authSummary?.expiring_soon||0)+parseInt(authSummary?.expired||0)>0?'#F59E0B':'{{PRIMARY_COLOR}}'}`}}>
             <div style={{fontWeight:'700',fontSize:'0.85rem',marginBottom:'0.4rem'}}>📋 Authorizations</div>
             <p style={{margin:0,fontSize:'1.1rem',fontWeight:'800',color:'#111827'}}>{authSummary?.active||0} Active</p>
             <p style={{margin:'0.15rem 0 0',fontSize:'0.78rem',color:parseInt(authSummary?.expiring_soon||0)>0?'#92400E':'#6B7280'}}>
@@ -196,7 +196,7 @@ const IntegrationsHub = ({ token }) => {
               <div style={{fontSize:'0.75rem',color:'#6B7280'}}>Total Billed</div>
             </div>
             <div style={{padding:'0.75rem',background:'#F0FDFB',borderRadius:'10px',textAlign:'center'}}>
-              <div style={{fontSize:'1.4rem',fontWeight:'800',color:'#2ABBA7'}}>{fmt$(totalReceived)}</div>
+              <div style={{fontSize:'1.4rem',fontWeight:'800',color:'{{PRIMARY_COLOR}}'}}>{fmt$(totalReceived)}</div>
               <div style={{fontSize:'0.75rem',color:'#6B7280'}}>Received</div>
             </div>
             <div style={{padding:'0.75rem',background:'#FEF3C7',borderRadius:'10px',textAlign:'center'}}>
@@ -218,7 +218,7 @@ const IntegrationsHub = ({ token }) => {
                   <tr key={p.payer_id} style={{borderBottom:'1px solid #F3F4F6'}}>
                     <td style={{padding:'0.5rem 0.75rem',fontWeight:'600',color:'#111827'}}>{p.payer_name}</td>
                     <td style={{padding:'0.5rem 0.75rem',color:'#374151'}}>{fmt$(p.total_billed)}</td>
-                    <td style={{padding:'0.5rem 0.75rem',color:'#2ABBA7'}}>{fmt$(p.total_paid)}</td>
+                    <td style={{padding:'0.5rem 0.75rem',color:'{{PRIMARY_COLOR}}'}}>{fmt$(p.total_paid)}</td>
                     <td style={{padding:'0.5rem 0.75rem',fontWeight:'700',color:parseFloat(p.total_outstanding)>0?'#92400E':'#065F46'}}>{fmt$(p.total_outstanding)}</td>
                     <td style={{padding:'0.5rem 0.75rem',color:'#374151'}}>{fmt$(p.days_0_30)}</td>
                     <td style={{padding:'0.5rem 0.75rem',color:parseFloat(p.days_31_60)>0?'#92400E':'#374151'}}>{fmt$(p.days_31_60)}</td>
@@ -271,7 +271,7 @@ const IntegrationsHub = ({ token }) => {
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:'0.75rem'}}>
           {[
             {label:'Total',val:evvData.summary?.total||0,color:'#374151'},
-            {label:'Verified',val:evvData.summary?.verified||0,color:'#2ABBA7'},
+            {label:'Verified',val:evvData.summary?.verified||0,color:'{{PRIMARY_COLOR}}'},
             {label:'Ready to Submit',val:evvData.summary?.ready||0,color:'#6366F1'},
             {label:'Submitted',val:evvData.summary?.submitted||0,color:'#2563EB'},
             {label:'Accepted',val:evvData.summary?.accepted||0,color:'#16A34A'},
@@ -341,7 +341,7 @@ const IntegrationsHub = ({ token }) => {
     <div style={{display:'grid',gap:'1rem'}}>
       <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:'0.75rem'}}>
         {[
-          {label:'Active',val:authSummary?.active||0,color:'#2ABBA7'},
+          {label:'Active',val:authSummary?.active||0,color:'{{PRIMARY_COLOR}}'},
           {label:'Expiring Soon',val:authSummary?.expiring_soon||0,color:'#F59E0B'},
           {label:'Low Units',val:authSummary?.low_units||0,color:'#EF4444'},
           {label:'Exhausted',val:authSummary?.exhausted||0,color:'#DC2626'},
@@ -442,7 +442,7 @@ const IntegrationsHub = ({ token }) => {
             <tbody>
               {authorizations.map(a=>{
                 const pctUsed = a.authorized_units > 0 ? (a.used_units/a.authorized_units*100) : 0;
-                const barColor = pctUsed>90?'#EF4444':pctUsed>70?'#F59E0B':'#2ABBA7';
+                const barColor = pctUsed>90?'#EF4444':pctUsed>70?'#F59E0B':'{{PRIMARY_COLOR}}';
                 return (
                   <tr key={a.id} style={{borderBottom:'1px solid #F3F4F6'}}>
                     <td style={{padding:'0.5rem 0.75rem',fontWeight:'600'}}>{a.client_first} {a.client_last}</td>
@@ -503,7 +503,7 @@ const IntegrationsHub = ({ token }) => {
                 <td style={{padding:'0.5rem 0.75rem',color:'#6B7280'}}>{fmtDate(b.created_at)}</td>
                 <td style={{padding:'0.5rem 0.75rem'}}><Badge status={b.status} label={b.status}/></td>
                 <td style={{padding:'0.5rem 0.75rem'}}>
-                  <a href={`${API_BASE_URL}/api/edi/batch/${b.id}/download`} download style={{color:'#2ABBA7',fontWeight:'700',fontSize:'0.78rem',textDecoration:'none'}}>⬇ Download .edi</a>
+                  <a href={`${API_BASE_URL}/api/edi/batch/${b.id}/download`} download style={{color:'{{PRIMARY_COLOR}}',fontWeight:'700',fontSize:'0.78rem',textDecoration:'none'}}>⬇ Download .edi</a>
                 </td>
               </tr>
             ))}
@@ -628,7 +628,7 @@ const IntegrationsHub = ({ token }) => {
                 <td style={{padding:'0.5rem 0.75rem',fontWeight:'600'}}>{b.payer_display_name||b.payer_name}</td>
                 <td style={{padding:'0.5rem 0.75rem'}}>{b.check_number||'—'}</td>
                 <td style={{padding:'0.5rem 0.75rem',color:'#6B7280'}}>{fmtDate(b.payment_date)}</td>
-                <td style={{padding:'0.5rem 0.75rem',fontWeight:'700',color:'#2ABBA7'}}>{fmt$(b.total_amount)}</td>
+                <td style={{padding:'0.5rem 0.75rem',fontWeight:'700',color:'{{PRIMARY_COLOR}}'}}>{fmt$(b.total_amount)}</td>
                 <td style={{padding:'0.5rem 0.75rem'}}>{b.line_item_count||0}</td>
                 <td style={{padding:'0.5rem 0.75rem'}}><Badge status={b.status} label={b.status}/></td>
               </tr>
@@ -701,7 +701,7 @@ const IntegrationsHub = ({ token }) => {
                 <div style={{fontSize:'0.72rem',color:'#6B7280'}}>Total Hours</div>
               </div>
               <div style={{padding:'0.75rem',background:'#F0FDFB',borderRadius:'10px',textAlign:'center'}}>
-                <div style={{fontSize:'1.3rem',fontWeight:'800',color:'#2ABBA7'}}>{fmt$(payrollPreview.totals.totalGross)}</div>
+                <div style={{fontSize:'1.3rem',fontWeight:'800',color:'{{PRIMARY_COLOR}}'}}>{fmt$(payrollPreview.totals.totalGross)}</div>
                 <div style={{fontSize:'0.72rem',color:'#6B7280'}}>Gross Pay</div>
               </div>
             </div>
@@ -725,7 +725,7 @@ const IntegrationsHub = ({ token }) => {
                     <td style={{padding:'0.5rem 0.75rem'}}>{r.total_hours}h</td>
                     <td style={{padding:'0.5rem 0.75rem',color:'#6B7280'}}>{r.weekend_hours}h</td>
                     <td style={{padding:'0.5rem 0.75rem'}}>{r.hourly_rate?fmt$(r.hourly_rate)+'/hr':'—'}</td>
-                    <td style={{padding:'0.5rem 0.75rem',fontWeight:'700',color:'#2ABBA7'}}>{fmt$(r.gross_pay)}</td>
+                    <td style={{padding:'0.5rem 0.75rem',fontWeight:'700',color:'{{PRIMARY_COLOR}}'}}>{fmt$(r.gross_pay)}</td>
                     <td style={{padding:'0.5rem 0.75rem'}}>{r.gusto_mapped?<Badge status="active" label="✓ Mapped"/>:<Badge status="pending" label="Not Mapped"/>}</td>
                   </tr>
                 ))}
@@ -750,8 +750,8 @@ const IntegrationsHub = ({ token }) => {
           <button key={t.id} onClick={()=>setTab(t.id)} style={{
             padding:'0.6rem 1rem', border:'none', background:'none', cursor:'pointer',
             fontWeight:tab===t.id?'800':'500', fontSize:'0.85rem',
-            color:tab===t.id?'#2ABBA7':'#6B7280',
-            borderBottom:tab===t.id?'2px solid #2ABBA7':'2px solid transparent',
+            color:tab===t.id?'{{PRIMARY_COLOR}}':'#6B7280',
+            borderBottom:tab===t.id?'2px solid {{PRIMARY_COLOR}}':'2px solid transparent',
             marginBottom:'-2px', whiteSpace:'nowrap', transition:'all 0.15s'
           }}>{t.label}</button>
         ))}

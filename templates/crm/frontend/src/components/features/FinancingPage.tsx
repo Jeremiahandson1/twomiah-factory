@@ -77,7 +77,7 @@ export function FinancingPage() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => (financingApplications || []).filter(a => {
     const contact = contacts.find(c => c.id === a.contactId);

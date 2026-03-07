@@ -10,7 +10,7 @@ import { useCRMDataStore } from '../../stores/builderStore';
 
 function QuickStats({ instance }) {
   const { contacts, projects, jobs, invoices } = useCRMDataStore();
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const stats = [
     {
@@ -90,7 +90,7 @@ function QuickStats({ instance }) {
 
 function RecentActivity({ instance }) {
   const { jobs, invoices, rfis } = useCRMDataStore();
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const activities = [
     ...jobs.slice(0, 3).map(j => ({
@@ -138,7 +138,7 @@ function RecentActivity({ instance }) {
 
 function TodaysSchedule({ instance }) {
   const { jobs } = useCRMDataStore();
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
   
   const todaysJobs = jobs.filter(j => 
     ['scheduled', 'in_progress'].includes(j.status)
@@ -193,7 +193,7 @@ function TodaysSchedule({ instance }) {
 
 function PendingItems({ instance }) {
   const { quotes, invoices, rfis } = useCRMDataStore();
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const items = [];
 
@@ -272,7 +272,7 @@ function PendingItems({ instance }) {
 
 export function Dashboard() {
   const { instance } = useOutletContext();
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   return (
     <div className="space-y-6">

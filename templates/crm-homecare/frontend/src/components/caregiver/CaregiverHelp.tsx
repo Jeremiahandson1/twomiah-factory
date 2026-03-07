@@ -7,7 +7,7 @@ const TOPICS = [
     id: 'clockin',
     icon: '⏰',
     title: 'How to Clock In',
-    color: '#2ABBA7',
+    color: '{{PRIMARY_COLOR}}',
     bg: '#F0FDFB',
     steps: [
       { step: '1', text: 'Arrive at the client\'s home first — clock in from inside or just outside, not from your car.' },
@@ -167,7 +167,7 @@ const CaregiverHelp = ({ onClose }) => {
       <div style={{ padding: '1rem 1rem 0.75rem', borderBottom: '1px solid #E5E7EB', background: '#fff', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
           {topic ? (
-            <button onClick={() => setActiveTopic(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ABBA7', fontWeight: '700', fontSize: '1rem', padding: 0 }}>←</button>
+            <button onClick={() => setActiveTopic(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '{{PRIMARY_COLOR}}', fontWeight: '700', fontSize: '1rem', padding: 0 }}>←</button>
           ) : (
             <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: '1.2rem', padding: 0 }}>✕</button>
           )}

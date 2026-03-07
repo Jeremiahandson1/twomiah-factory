@@ -53,7 +53,7 @@ export function ExpensesPage() {
   const [showForm, setShowForm] = useState(false);
   const [editExpense, setEditExpense] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => (expenses || []).filter(e => {
     const matchesSearch = !search || e.description?.toLowerCase().includes(search.toLowerCase()) || e.vendor?.toLowerCase().includes(search.toLowerCase());

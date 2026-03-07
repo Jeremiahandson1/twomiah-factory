@@ -71,13 +71,11 @@ export async function getTrackingNumbers(companyId: string, { source, active = t
  * Update tracking number
  */
 export async function updateTrackingNumber(numberId: string, companyId: string, data: Record<string, unknown>) {
-  const sets: string[] = [];
+  const allowedCols = ['name', 'phone_number', 'forward_to', 'source', 'active', 'whisper_message', 'recording_enabled'];
   for (const [key, value] of Object.entries(data)) {
     const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
-    sets.push(`${colName} = '${value}'`);
-  }
-  if (sets.length > 0) {
-    await db.execute(sql.raw(`UPDATE tracking_number SET ${sets.join(', ')}, updated_at = NOW() WHERE id = '${numberId}' AND company_id = '${companyId}'`));
+    if (!allowedCols.includes(colName)) continue;
+    await db.execute(sql`UPDATE tracking_number SET ${sql.raw(`"${colName}"`)} = ${value}, updated_at = NOW() WHERE id = ${numberId} AND company_id = ${companyId}`);
   }
 }
 
@@ -252,17 +250,15 @@ export async function getCall(callId: string, companyId: string) {
  * Update call (add notes, tags, etc.)
  */
 export async function updateCall(callId: string, companyId: string, data: Record<string, unknown>) {
-  const sets: string[] = [];
+  const allowedCols = ['notes', 'tags', 'is_lead', 'lead_value', 'contact_id', 'status'];
   for (const [key, value] of Object.entries(data)) {
     const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
+    if (!allowedCols.includes(colName)) continue;
     if (typeof value === 'object' && value !== null) {
-      sets.push(`${colName} = '${JSON.stringify(value)}'::jsonb`);
+      await db.execute(sql`UPDATE call_log SET ${sql.raw(`"${colName}"`)} = ${JSON.stringify(value)}::jsonb WHERE id = ${callId} AND company_id = ${companyId}`);
     } else {
-      sets.push(`${colName} = '${value}'`);
+      await db.execute(sql`UPDATE call_log SET ${sql.raw(`"${colName}"`)} = ${value} WHERE id = ${callId} AND company_id = ${companyId}`);
     }
-  }
-  if (sets.length > 0) {
-    await db.execute(sql.raw(`UPDATE call_log SET ${sets.join(', ')} WHERE id = '${callId}' AND company_id = '${companyId}'`));
   }
 }
 

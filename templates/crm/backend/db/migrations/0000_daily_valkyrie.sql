@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS "company" (
 	"state" text,
 	"zip" text,
 	"logo" text,
-	"primary_color" text DEFAULT '#f97316' NOT NULL,
+	"primary_color" text DEFAULT '{{PRIMARY_COLOR}}' NOT NULL,
 	"secondary_color" text,
 	"website" text,
 	"license_number" text,

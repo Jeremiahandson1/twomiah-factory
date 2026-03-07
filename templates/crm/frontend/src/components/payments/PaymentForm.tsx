@@ -83,7 +83,7 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
     appearance: {
       theme: 'stripe',
       variables: {
-        colorPrimary: '#f97316',
+        colorPrimary: '{{PRIMARY_COLOR}}',
         colorBackground: '#ffffff',
         colorText: '#1f2937',
         colorDanger: '#dc2626',

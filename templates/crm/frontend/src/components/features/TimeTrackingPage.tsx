@@ -41,7 +41,7 @@ export function TimeTrackingPage() {
   const [editEntry, setEditEntry] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [activeTimer, setActiveTimer] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => timeEntries.filter(e => {
     const matchesSearch = !search || e.description?.toLowerCase().includes(search.toLowerCase());

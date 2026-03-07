@@ -314,7 +314,7 @@ const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
               📥 Export CSV
             </button>
             <button onClick={() => setShowBulkMsg(true)}
-              style={{ padding: "0.35rem 0.75rem", background: "#2ABBA7", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.82rem", fontWeight: "600" }}>
+              style={{ padding: "0.35rem 0.75rem", background: "{{PRIMARY_COLOR}}", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "0.82rem", fontWeight: "600" }}>
               📱 Send SMS
             </button>
             <button onClick={() => setSelectedIds([])} style={{ padding: "0.35rem 0.75rem", background: "none", border: "1px solid #D1D5DB", borderRadius: "6px", cursor: "pointer", fontSize: "0.82rem", color: "#6B7280" }}>
@@ -348,7 +348,7 @@ const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
                     toast(`SMS sent to ${phones.length} caregivers`, 'success');
                     setShowBulkMsg(false); setBulkMessage(''); setSelectedIds([]);
                   } catch { toast('SMS send failed', 'error'); }
-                }} style={{ padding: "0.5rem 1rem", background: "#2ABBA7", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" }}>Send</button>
+                }} style={{ padding: "0.5rem 1rem", background: "{{PRIMARY_COLOR}}", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "600" }}>Send</button>
               </div>
             </div>
           </div>

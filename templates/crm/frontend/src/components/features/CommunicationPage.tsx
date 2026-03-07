@@ -69,7 +69,7 @@ export function CommunicationPage() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filteredMessages = useMemo(() => (messages || []).filter(m => !search || m.body?.toLowerCase().includes(search.toLowerCase()) || m.subject?.toLowerCase().includes(search.toLowerCase())), [messages, search]);
   const filteredTemplates = useMemo(() => (templates || []).filter(t => !search || t.name?.toLowerCase().includes(search.toLowerCase())), [templates, search]);

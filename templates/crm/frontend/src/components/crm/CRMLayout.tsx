@@ -50,7 +50,7 @@ function Sidebar({ instance, isOpen, onClose }) {
     }));
   }, [instance.enabledFeatures]);
 
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   return (
     <>
@@ -157,7 +157,7 @@ function Sidebar({ instance, isOpen, onClose }) {
 
 function Header({ instance, onMenuClick }) {
   const [searchOpen, setSearchOpen] = useState(false);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   return (
     <header className="h-16 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">

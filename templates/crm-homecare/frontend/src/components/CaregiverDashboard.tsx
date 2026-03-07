@@ -729,7 +729,7 @@ const CaregiverDashboard = ({ user, token, onLogout }) => {
               onClick={handleClockIn}
               disabled={!selectedClient}
               style={{
-                width: '100%', padding: '1.125rem', background: selectedClient ? '#2ABBA7' : '#D1D5DB',
+                width: '100%', padding: '1.125rem', background: selectedClient ? '{{PRIMARY_COLOR}}' : '#D1D5DB',
                 color: selectedClient ? '#fff' : '#9CA3AF', border: 'none', borderRadius: '12px',
                 cursor: selectedClient ? 'pointer' : 'not-allowed', fontWeight: '800', fontSize: '1.15rem',
                 transition: 'all 0.15s', boxShadow: selectedClient ? '0 4px 12px rgba(42,187,167,0.3)' : 'none'

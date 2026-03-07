@@ -60,7 +60,7 @@ function PageForm({ item, onSave, onClose }) {
 // SITE SETTINGS FORM
 function SiteSettingsForm({ settings, onSave, onClose }) {
   const [form, setForm] = useState(settings || { 
-    siteName: '', tagline: '', domain: '', primaryColor: '#ec7619', 
+    siteName: '', tagline: '', domain: '', primaryColor: '{{PRIMARY_COLOR}}', 
     logo: '', favicon: '', googleAnalytics: '', footerText: '' 
   });
   const handleSubmit = (e) => { e.preventDefault(); onSave(form); onClose(); };
@@ -100,7 +100,7 @@ export function WebsiteBuilderPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filteredPages = useMemo(() => (websitePages || []).filter(p => !search || p.title?.toLowerCase().includes(search.toLowerCase())), [websitePages, search]);
   const publishedCount = websitePages.filter(p => p.published).length;

@@ -452,7 +452,7 @@ const AdminDashboard = ({ user, token, onLogout, onImpersonate }) => {
             {/* Help button */}
             <button
               onClick={() => setShowHelp(true)}
-              style={{ background: '#2ABBA7', border: 'none', borderRadius: '8px', padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: '#fff' }}
+              style={{ background: '{{PRIMARY_COLOR}}', border: 'none', borderRadius: '8px', padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700', color: '#fff' }}
               title="Help Center"
             >
               ❓ Help

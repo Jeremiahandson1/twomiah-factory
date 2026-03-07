@@ -38,7 +38,7 @@ export function RFIsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editRFI, setEditRFI] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => rfis.filter(r => {
     const matchesSearch = !search || r.subject?.toLowerCase().includes(search.toLowerCase()) || r.number?.toLowerCase().includes(search.toLowerCase());

@@ -103,7 +103,7 @@ export function QualityPage() {
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filteredInspections = useMemo(() => (inspections || []).filter(i => !search || i.type?.toLowerCase().includes(search.toLowerCase())), [inspections, search]);
   const filteredObservations = useMemo(() => (observations || []).filter(o => !search || o.description?.toLowerCase().includes(search.toLowerCase())), [observations, search]);

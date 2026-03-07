@@ -338,11 +338,11 @@ const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
             <div>
               <div style={{ fontWeight: '800', fontSize: '1.1rem', color: '#111827' }}>
                 {currentArticle ? (
-                  <button onClick={() => setActiveArticle(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ABBA7', fontWeight: '700', fontSize: '0.85rem', padding: 0, marginBottom: '0.25rem', display: 'block' }}>
+                  <button onClick={() => setActiveArticle(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '{{PRIMARY_COLOR}}', fontWeight: '700', fontSize: '0.85rem', padding: 0, marginBottom: '0.25rem', display: 'block' }}>
                     ← {activeSection}
                   </button>
                 ) : activeSection ? (
-                  <button onClick={() => setActiveSection(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ABBA7', fontWeight: '700', fontSize: '0.85rem', padding: 0, marginBottom: '0.25rem', display: 'block' }}>
+                  <button onClick={() => setActiveSection(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '{{PRIMARY_COLOR}}', fontWeight: '700', fontSize: '0.85rem', padding: 0, marginBottom: '0.25rem', display: 'block' }}>
                     ← All Topics
                   </button>
                 ) : null}
@@ -371,7 +371,7 @@ const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
                 if (line.startsWith('•')) {
                   return (
                     <div key={i} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.4rem', paddingLeft: '0.5rem' }}>
-                      <span style={{ color: '#2ABBA7', fontWeight: '700', flexShrink: 0 }}>•</span>
+                      <span style={{ color: '{{PRIMARY_COLOR}}', fontWeight: '700', flexShrink: 0 }}>•</span>
                       <span style={{ fontSize: '0.9rem', color: '#374151', lineHeight: 1.6 }}>{line.slice(1).trim()}</span>
                     </div>
                   );
@@ -379,7 +379,7 @@ const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
                 if (line.match(/^\d+\./)) {
                   return (
                     <div key={i} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.4rem', paddingLeft: '0.5rem' }}>
-                      <span style={{ color: '#2ABBA7', fontWeight: '700', flexShrink: 0, minWidth: '1.2rem' }}>{line.match(/^\d+/)[0]}.</span>
+                      <span style={{ color: '{{PRIMARY_COLOR}}', fontWeight: '700', flexShrink: 0, minWidth: '1.2rem' }}>{line.match(/^\d+/)[0]}.</span>
                       <span style={{ fontSize: '0.9rem', color: '#374151', lineHeight: 1.6 }}>{line.replace(/^\d+\./, '').trim()}</span>
                     </div>
                   );
@@ -423,7 +423,7 @@ const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
                   {search && section.articles.map((article, j) => (
                     <button key={j} onClick={() => { setActiveSection(section.section); setActiveArticle(article.title); setSearch(''); }}
                       style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.6rem 1rem 0.6rem 3rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderTop: 'none', borderRadius: j === section.articles.length - 1 ? '0 0 8px 8px' : 0, cursor: 'pointer' }}>
-                      <div style={{ fontSize: '0.85rem', color: '#2ABBA7', fontWeight: '600' }}>{article.title}</div>
+                      <div style={{ fontSize: '0.85rem', color: '{{PRIMARY_COLOR}}', fontWeight: '600' }}>{article.title}</div>
                     </button>
                   ))}
                 </div>

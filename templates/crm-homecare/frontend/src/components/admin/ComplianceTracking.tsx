@@ -727,7 +727,7 @@ const ExpiryOverview = ({ token }) => {
           <option value={90}>Expiring in 90 days</option>
           <option value={180}>Expiring in 180 days</option>
         </select>
-        <button onClick={loadData} style={{ padding: '0.4rem 0.875rem', background: '#2ABBA7', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>Refresh</button>
+        <button onClick={loadData} style={{ padding: '0.4rem 0.875rem', background: '{{PRIMARY_COLOR}}', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}>Refresh</button>
       </div>
 
       {/* Summary cards */}

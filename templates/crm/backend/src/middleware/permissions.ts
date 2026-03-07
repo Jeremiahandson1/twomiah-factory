@@ -6,13 +6,13 @@ const ROLE_PERMISSIONS: Record<string, string[]> = {
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:*', 'time:*',
     'expenses:*', 'documents:*', 'rfis:*', 'change-orders:*', 'punch-lists:*',
     'daily-logs:*', 'inspections:*', 'bids:*', 'team:*', 'company:read',
-    'company:update', 'dashboard:*', 'schedule:*',
+    'company:update', 'dashboard:*', 'schedule:*', 'pricebook:*',
   ],
   manager: [
     'contacts:*', 'projects:*', 'jobs:*', 'quotes:*', 'invoices:read',
     'invoices:create', 'invoices:update', 'time:*', 'expenses:*', 'documents:*',
     'rfis:*', 'change-orders:*', 'punch-lists:*', 'daily-logs:*', 'inspections:*',
-    'bids:read', 'team:read', 'company:read', 'dashboard:*', 'schedule:*',
+    'bids:read', 'team:read', 'company:read', 'dashboard:*', 'schedule:*', 'pricebook:*',
   ],
   field: [
     'contacts:read', 'projects:read', 'jobs:read', 'jobs:update', 'time:read',

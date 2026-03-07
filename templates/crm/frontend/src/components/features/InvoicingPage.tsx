@@ -35,7 +35,7 @@ export function InvoicingPage() {
   const [showForm, setShowForm] = useState(false);
   const [editInvoice, setEditInvoice] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
   const clients = contacts.filter(c => c.type === 'client');
 
   const filtered = useMemo(() => invoices.filter(i => {

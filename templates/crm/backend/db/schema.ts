@@ -14,7 +14,7 @@ export const company = pgTable('company', {
   state: text('state'),
   zip: text('zip'),
   logo: text('logo'),
-  primaryColor: text('primary_color').default('#f97316').notNull(),
+  primaryColor: text('primary_color').default('{{PRIMARY_COLOR}}').notNull(),
   secondaryColor: text('secondary_color'),
   website: text('website'),
   licenseNumber: text('license_number'),

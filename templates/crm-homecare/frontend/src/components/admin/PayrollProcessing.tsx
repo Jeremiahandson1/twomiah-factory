@@ -320,8 +320,8 @@ const PayrollProcessing = ({ token }) => {
           <button key={id} onClick={() => { setActiveTab(id); if(id==='discrepancies') loadDiscrepancies(); }}
             style={{ padding:'0.55rem 1.25rem', border:'none', background:'none', cursor:'pointer',
               fontWeight: activeTab===id ? 800 : 500, fontSize:'0.875rem',
-              color: activeTab===id ? '#2ABBA7' : '#6B7280',
-              borderBottom: `2px solid ${activeTab===id ? '#2ABBA7' : 'transparent'}`,
+              color: activeTab===id ? '{{PRIMARY_COLOR}}' : '#6B7280',
+              borderBottom: `2px solid ${activeTab===id ? '{{PRIMARY_COLOR}}' : 'transparent'}`,
               marginBottom: -2 }}>
             {label}
           </button>
@@ -347,7 +347,7 @@ const PayrollProcessing = ({ token }) => {
               <input type="date" value={payPeriod.endDate} onChange={e=>setPayPeriod(p=>({...p,endDate:e.target.value}))}
                 style={{ padding:'0.5rem', border:'1px solid #D1D5DB', borderRadius:8, fontSize:'0.875rem' }}/>
             </div>
-            <button onClick={loadDiscrepancies} style={{ padding:'0.55rem 1.25rem', background:'#2ABBA7', color:'#fff', border:'none', borderRadius:8, cursor:'pointer', fontWeight:700 }}>
+            <button onClick={loadDiscrepancies} style={{ padding:'0.55rem 1.25rem', background:'{{PRIMARY_COLOR}}', color:'#fff', border:'none', borderRadius:8, cursor:'pointer', fontWeight:700 }}>
               {discrepancyLoading ? 'Loading...' : 'Run Report'}
             </button>
           </div>
@@ -395,7 +395,7 @@ const PayrollProcessing = ({ token }) => {
                             <td style={{ padding:'0.5rem 0.75rem', color:'#6B7280' }}>{new Date(d.start_time).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</td>
                             <td style={{ padding:'0.5rem 0.75rem' }}>{d.allotted_hours}h</td>
                             <td style={{ padding:'0.5rem 0.75rem' }}>{d.actual_hours}h</td>
-                            <td style={{ padding:'0.5rem 0.75rem', fontWeight:700, color:'#2ABBA7' }}>{d.billable_hours}h</td>
+                            <td style={{ padding:'0.5rem 0.75rem', fontWeight:700, color:'{{PRIMARY_COLOR}}' }}>{d.billable_hours}h</td>
                             <td style={{ padding:'0.5rem 0.75rem', fontWeight:700, color: over?'#DC2626':under?'#F59E0B':'#374151' }}>
                               {over ? '+' : ''}{d.discrepancy_hours}h {over ? '⚠️ Over' : under ? '⬇️ Short' : ''}
                             </td>

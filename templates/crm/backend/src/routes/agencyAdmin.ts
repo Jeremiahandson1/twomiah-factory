@@ -113,7 +113,7 @@ app.post('/customers', async (c) => {
       state: data.state,
       zip: data.zip,
       logo: data.logo,
-      primaryColor: data.primaryColor || '#f97316',
+      primaryColor: data.primaryColor || '{{PRIMARY_COLOR}}',
       secondaryColor: data.secondaryColor || '#1e293b',
       enabledFeatures,
       settings: {

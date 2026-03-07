@@ -27,10 +27,10 @@ export default function ReportsDashboard() {
         api.get('/api/reports/team'),
       ]);
       
-      setData(dashboard);
-      setMonthlyRevenue(monthly);
-      setTopCustomers(customers);
-      setTeamData(team);
+      setData(dashboard || null);
+      setMonthlyRevenue(Array.isArray(monthly) ? monthly : []);
+      setTopCustomers(Array.isArray(customers) ? customers : []);
+      setTeamData(Array.isArray(team) ? team : []);
     } catch (error) {
       console.error('Failed to load reports:', error);
     } finally {
@@ -54,7 +54,11 @@ export default function ReportsDashboard() {
     );
   }
 
-  const { revenue, jobs, projects, quotes, recentActivity } = data;
+  const revenue = data.revenue || { collected: 0, invoiced: 0, outstanding: 0, overdue: 0, overdueCount: 0, collectionRate: 0 };
+  const jobs = data.jobs || { total: 0, completed: 0, completionRate: 0, today: 0 };
+  const projects = data.projects || { total: 0, active: 0, completed: 0, totalValue: 0 };
+  const quotes = data.quotes || { total: 0, approved: 0, conversionRate: 0 };
+  const recentActivity = data.recentActivity || [];
 
   return (
     <div className="space-y-6">

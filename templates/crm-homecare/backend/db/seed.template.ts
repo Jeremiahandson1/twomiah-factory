@@ -32,16 +32,24 @@ async function main() {
   const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
 
   const [existingAdmin] = await db.select().from(users).where(eq(users.email, '{{ADMIN_EMAIL}}')).limit(1)
-  const admin = existingAdmin || (await db.insert(users).values({
-    email: '{{ADMIN_EMAIL}}',
-    passwordHash,
-    firstName: '{{OWNER_FIRST_NAME}}',
-    lastName: '{{OWNER_LAST_NAME}}',
-    role: 'admin',
-    isActive: true,
-    certifications: [],
-    certificationsExpiry: [],
-  }).returning())[0]
+  let admin: typeof existingAdmin
+  if (existingAdmin) {
+    await db.update(users).set({ passwordHash, role: 'admin', isActive: true }).where(eq(users.id, existingAdmin.id))
+    admin = existingAdmin
+    console.log('Updated admin user password')
+  } else {
+    admin = (await db.insert(users).values({
+      email: '{{ADMIN_EMAIL}}',
+      passwordHash,
+      firstName: '{{OWNER_FIRST_NAME}}',
+      lastName: '{{OWNER_LAST_NAME}}',
+      role: 'admin',
+      isActive: true,
+      certifications: [],
+      certificationsExpiry: [],
+    }).returning())[0]
+    console.log('Created admin user')
+  }
 
   const [existingPref] = await db.select().from(notificationPreferences).where(eq(notificationPreferences.userId, admin.id)).limit(1)
   if (!existingPref) {

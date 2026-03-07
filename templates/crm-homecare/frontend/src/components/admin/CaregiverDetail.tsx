@@ -14,14 +14,14 @@ const s = {
   page: { maxWidth: 960, margin: '0 auto', fontFamily: "'DM Sans', system-ui, sans-serif" },
   header: { background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', borderRadius: 16, padding: '1.75rem 2rem', marginBottom: '1.25rem', color: '#fff', position: 'relative', overflow: 'hidden' },
   headerAccent: { position: 'absolute', right: -40, top: -40, width: 220, height: 220, borderRadius: '50%', background: 'rgba(42,187,167,0.12)', pointerEvents: 'none' },
-  avatar: { width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg,#2ABBA7,#0891B2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 800, color: '#fff', flexShrink: 0 },
-  tab: (active) => ({ padding: '0.55rem 1.1rem', border: 'none', background: 'none', cursor: 'pointer', fontWeight: active ? 800 : 500, fontSize: '0.85rem', color: active ? '#2ABBA7' : '#6B7280', borderBottom: `2px solid ${active ? '#2ABBA7' : 'transparent'}`, marginBottom: -2, whiteSpace: 'nowrap', transition: 'all 0.15s' }),
+  avatar: { width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg,{{PRIMARY_COLOR}},#0891B2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 800, color: '#fff', flexShrink: 0 },
+  tab: (active) => ({ padding: '0.55rem 1.1rem', border: 'none', background: 'none', cursor: 'pointer', fontWeight: active ? 800 : 500, fontSize: '0.85rem', color: active ? '{{PRIMARY_COLOR}}' : '#6B7280', borderBottom: `2px solid ${active ? '{{PRIMARY_COLOR}}' : 'transparent'}`, marginBottom: -2, whiteSpace: 'nowrap', transition: 'all 0.15s' }),
   card: { background: '#fff', borderRadius: 14, border: '1px solid #E5E7EB', padding: '1.25rem', marginBottom: '1rem' },
   label: { display: 'block', fontWeight: 700, fontSize: '0.75rem', color: '#6B7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' },
   input: { width: '100%', padding: '0.55rem 0.75rem', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: '0.875rem', boxSizing: 'border-box', background: '#fff', outline: 'none', transition: 'border-color 0.15s' },
-  btn: (color='#2ABBA7', outline=false) => ({ padding: '0.55rem 1.25rem', background: outline?'#fff':color, color: outline?color:'#fff', border: outline?`2px solid ${color}`:'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }),
-  statBox: (accent='#2ABBA7') => ({ padding: '1rem', background: '#F9FAFB', borderRadius: 12, borderLeft: `4px solid ${accent}`, flex: 1, minWidth: 120 }),
-  badge: (color='#2ABBA7', bg='#D1FAE5') => ({ padding: '2px 10px', borderRadius: 99, fontSize: '0.72rem', fontWeight: 700, color, background: bg }),
+  btn: (color='{{PRIMARY_COLOR}}', outline=false) => ({ padding: '0.55rem 1.25rem', background: outline?'#fff':color, color: outline?color:'#fff', border: outline?`2px solid ${color}`:'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem' }),
+  statBox: (accent='{{PRIMARY_COLOR}}') => ({ padding: '1rem', background: '#F9FAFB', borderRadius: 12, borderLeft: `4px solid ${accent}`, flex: 1, minWidth: 120 }),
+  badge: (color='{{PRIMARY_COLOR}}', bg='#D1FAE5') => ({ padding: '2px 10px', borderRadius: 99, fontSize: '0.72rem', fontWeight: 700, color, background: bg }),
 };
 
 const TABS = [
@@ -178,7 +178,7 @@ export default function CaregiverDetail({ caregiverId, token, onBack, onHireComp
     <div>
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
         {[
-          { label: 'Hours This Month', val: fmtHrs(earnings?.hours_this_month), accent: '#2ABBA7' },
+          { label: 'Hours This Month', val: fmtHrs(earnings?.hours_this_month), accent: '{{PRIMARY_COLOR}}' },
           { label: 'Earnings This Month', val: fmt$(earnings?.earnings_this_month), accent: '#6366F1' },
           { label: 'Hours This Week', val: fmtHrs(earnings?.hours_this_week), accent: '#0891B2' },
           { label: 'Total Hours (All Time)', val: fmtHrs(earnings?.total_hours), accent: '#F59E0B' },
@@ -352,7 +352,7 @@ export default function CaregiverDetail({ caregiverId, token, onBack, onHireComp
       <div style={s.card}>
         <div style={{ fontWeight: 800, fontSize: '0.95rem', marginBottom: '1rem' }}>Account Actions</div>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button style={s.btn(form.isActive ? '#EF4444' : '#2ABBA7', true)} onClick={deactivate}>
+          <button style={s.btn(form.isActive ? '#EF4444' : '{{PRIMARY_COLOR}}', true)} onClick={deactivate}>
             {form.isActive ? '🔴 Deactivate' : '🟢 Reactivate'}
           </button>
           <button style={s.btn('#6366F1', true)} onClick={resetPassword}>🔑 Reset Password</button>
@@ -368,7 +368,7 @@ export default function CaregiverDetail({ caregiverId, token, onBack, onHireComp
           <div style={{ fontWeight: 800, fontSize: '0.95rem', marginBottom: '0.75rem' }}>💰 Pay Rate History</div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
             <thead><tr style={{background:'#F9FAFB'}}>{['Rate','Effective Date','Notes'].map(h=><th key={h} style={{padding:'0.4rem 0.75rem',textAlign:'left',fontWeight:700,borderBottom:'1px solid #E5E7EB'}}>{h}</th>)}</tr></thead>
-            <tbody>{payRates.map(r=><tr key={r.id} style={{borderBottom:'1px solid #F3F4F6'}}><td style={{padding:'0.4rem 0.75rem',fontWeight:700,color:'#2ABBA7'}}>{fmt$(r.rate)}</td><td style={{padding:'0.4rem 0.75rem',color:'#6B7280'}}>{fmtDate(r.effective_date)}</td><td style={{padding:'0.4rem 0.75rem',color:'#374151'}}>{r.notes||'—'}</td></tr>)}</tbody>
+            <tbody>{payRates.map(r=><tr key={r.id} style={{borderBottom:'1px solid #F3F4F6'}}><td style={{padding:'0.4rem 0.75rem',fontWeight:700,color:'{{PRIMARY_COLOR}}'}}>{fmt$(r.rate)}</td><td style={{padding:'0.4rem 0.75rem',color:'#6B7280'}}>{fmtDate(r.effective_date)}</td><td style={{padding:'0.4rem 0.75rem',color:'#374151'}}>{r.notes||'—'}</td></tr>)}</tbody>
           </table>
         </div>
       )}
@@ -454,7 +454,7 @@ export default function CaregiverDetail({ caregiverId, token, onBack, onHireComp
         </div>
         {allShifts && (
           <div style={{display:'flex',gap:'0.75rem',marginBottom:'1rem',flexWrap:'wrap'}}>
-            <div style={s.statBox('#2ABBA7')}><div style={{fontSize:'1.2rem',fontWeight:800,color:'#2ABBA7'}}>{fmtHrs(totalHrs)}</div><div style={{fontSize:'0.72rem',color:'#6B7280'}}>Hours in Period</div></div>
+            <div style={s.statBox('{{PRIMARY_COLOR}}')}><div style={{fontSize:'1.2rem',fontWeight:800,color:'{{PRIMARY_COLOR}}'}}>{fmtHrs(totalHrs)}</div><div style={{fontSize:'0.72rem',color:'#6B7280'}}>Hours in Period</div></div>
             <div style={s.statBox('#6366F1')}><div style={{fontSize:'1.2rem',fontWeight:800,color:'#6366F1'}}>{fmt$(totalEarn)}</div><div style={{fontSize:'0.72rem',color:'#6B7280'}}>Est. Earnings</div></div>
             <div style={s.statBox('#F59E0B')}><div style={{fontSize:'1.2rem',fontWeight:800,color:'#F59E0B'}}>{shifts.length}</div><div style={{fontSize:'0.72rem',color:'#6B7280'}}>Total Shifts</div></div>
           </div>
@@ -470,7 +470,7 @@ export default function CaregiverDetail({ caregiverId, token, onBack, onHireComp
                   <td style={{padding:'0.5rem 0.75rem'}}>{new Date(sh.start_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}</td>
                   <td style={{padding:'0.5rem 0.75rem'}}>{sh.end_time?new Date(sh.end_time).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}):'Active'}</td>
                   <td style={{padding:'0.5rem 0.75rem',fontWeight:700}}>{sh.hours||sh.duration_hours?fmtHrs(sh.hours||sh.duration_hours):'—'}</td>
-                  <td style={{padding:'0.5rem 0.75rem',color:'#2ABBA7'}}>{sh.hours&&profile?.default_pay_rate?fmt$(parseFloat(sh.hours)*parseFloat(profile.default_pay_rate)):'—'}</td>
+                  <td style={{padding:'0.5rem 0.75rem',color:'{{PRIMARY_COLOR}}'}}>{sh.hours&&profile?.default_pay_rate?fmt$(parseFloat(sh.hours)*parseFloat(profile.default_pay_rate)):'—'}</td>
                   <td style={{padding:'0.5rem 0.75rem'}}>{parseInt(sh.gps_point_count||0)>0?`✅ ${sh.gps_point_count} pts`:'⚠️ No GPS'}</td>
                   <td style={{padding:'0.5rem 0.75rem'}}><span style={s.badge(sh.is_complete?'#065F46':'#92400E',sh.is_complete?'#D1FAE5':'#FEF3C7')}>{sh.is_complete?'Complete':'Active'}</span></td>
                 </tr>
@@ -796,7 +796,7 @@ export default function CaregiverDetail({ caregiverId, token, onBack, onHireComp
             </div>
           </div>
           <div style={{textAlign:'right'}}>
-            <div style={{fontSize:'1.5rem',fontWeight:800,color:'#2ABBA7'}}>{fmt$(earnings?.earnings_this_month)}</div>
+            <div style={{fontSize:'1.5rem',fontWeight:800,color:'{{PRIMARY_COLOR}}'}}>{fmt$(earnings?.earnings_this_month)}</div>
             <div style={{fontSize:'0.72rem',color:'rgba(255,255,255,0.6)'}}>This month</div>
           </div>
         </div>

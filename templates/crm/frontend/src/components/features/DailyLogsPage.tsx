@@ -51,7 +51,7 @@ export function DailyLogsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editLog, setEditLog] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '#ec7619';
+  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   const filtered = useMemo(() => (dailyLogs || []).filter(l => {
     const matchesSearch = !search || l.workPerformed?.toLowerCase().includes(search.toLowerCase());

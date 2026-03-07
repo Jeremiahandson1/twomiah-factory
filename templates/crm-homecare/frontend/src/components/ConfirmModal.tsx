@@ -63,7 +63,7 @@ export const ConfirmModal = () => {
           }}>{cancelLabel}</button>
           <button onClick={handleConfirm} style={{
             padding: '0.6rem 1.25rem', borderRadius: '8px', border: 'none',
-            background: danger ? '#DC2626' : '#2ABBA7',
+            background: danger ? '#DC2626' : '{{PRIMARY_COLOR}}',
             color: '#fff', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem'
           }}>{confirmLabel}</button>
         </div>

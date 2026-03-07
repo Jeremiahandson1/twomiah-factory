@@ -29,17 +29,17 @@ export default function TasksPage() {
         api.get('/api/tasks/stats'),
       ]);
 
-      let taskList = tasksRes.data || [];
-      
+      let taskList = tasksRes?.data || [];
+
       // Filter overdue locally
       if (filter === 'overdue') {
-        taskList = taskList.filter(t => 
+        taskList = taskList.filter(t =>
           t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < new Date()
         );
       }
 
       setTasks(taskList);
-      setStats(statsRes);
+      setStats(statsRes || { total: 0, completed: 0, pending: 0, overdue: 0 });
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {
@@ -501,7 +501,7 @@ export function TaskWidget() {
   const loadTasks = async () => {
     try {
       const data = await api.get('/api/tasks/upcoming');
-      setTasks(data);
+      setTasks(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load tasks:', error);
     } finally {

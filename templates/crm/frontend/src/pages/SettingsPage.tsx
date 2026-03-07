@@ -22,7 +22,7 @@ export default function SettingsPage() {
   }, [company]);
 
   const loadUsers = async () => {
-    try { const data = await api.company.users(); setUsers(data); }
+    try { const data = await api.company.users(); setUsers(Array.isArray(data) ? data : (data?.data || [])); }
     catch (err) { console.error('Failed to load users'); }
   };
 

@@ -13,7 +13,7 @@ export const agencies = pgTable('agencies', {
   city: text('city'),
   state: text('state'),
   zip: text('zip'),
-  primaryColor: text('primary_color').default('#0369a1').notNull(),
+  primaryColor: text('primary_color').default('{{PRIMARY_COLOR}}').notNull(),
   secondaryColor: text('secondary_color'),
   logo: text('logo'),
   website: text('website'),

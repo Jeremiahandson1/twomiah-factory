@@ -70,7 +70,7 @@ const ShiftMissReport = ({ token, userId, onClose }) => {
         If you don't hear back within 30 minutes, call the office directly.
       </p>
       <button onClick={onClose} style={{
-        marginTop: '1rem', padding: '0.75rem 1.5rem', background: '#2ABBA7', color: '#fff',
+        marginTop: '1rem', padding: '0.75rem 1.5rem', background: '{{PRIMARY_COLOR}}', color: '#fff',
         border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '1rem'
       }}>Done</button>
     </div>
@@ -100,7 +100,7 @@ const ShiftMissReport = ({ token, userId, onClose }) => {
                 <button key={shift.id} onClick={() => handleShiftSelect(shift)}
                   style={{
                     padding: '0.75rem', textAlign: 'left', borderRadius: '8px', cursor: 'pointer',
-                    border: `2px solid ${isSelected ? '#2ABBA7' : '#E5E7EB'}`,
+                    border: `2px solid ${isSelected ? '{{PRIMARY_COLOR}}' : '#E5E7EB'}`,
                     background: isSelected ? '#F0FDFB' : '#fff',
                   }}>
                   <div style={{ fontWeight: '600', color: '#111827', fontSize: '0.9rem' }}>
