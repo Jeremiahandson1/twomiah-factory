@@ -1,0 +1,265 @@
+/* ═══════════════════════════════════════════════════════
+   Theme: Clean Professional
+   Template: Homecare
+   Description: Clinical yet warm, trust-focused design.
+   White/light gray backgrounds, teal/green accents,
+   prominent trust badges, clean typography.
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700&family=Open+Sans:wght@400;500;600&display=swap');
+
+/* ── Variable Overrides ── */
+:root {
+  --font-primary: 'Nunito Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-secondary: 'Open Sans', -apple-system, sans-serif;
+  --font-heading: 'Nunito Sans', sans-serif;
+  --font-body: 'Open Sans', sans-serif;
+  --border-radius: 10px;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.1);
+  --off-white: #f7fafa;
+  --trust-green: #10b981;
+  --trust-green-light: #d1fae5;
+}
+
+/* ── Body ── */
+body {
+  font-family: 'Open Sans', -apple-system, sans-serif;
+  background: var(--white);
+  background-image: none;
+  line-height: 1.7;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 700;
+}
+
+/* ── Header / Navigation ── */
+.header,
+header {
+  background: var(--white) !important;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+  border-bottom: none;
+}
+
+.nav-link,
+.header a {
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* ── Hero Section ── */
+.hero,
+.hero-section {
+  padding: 90px 0 80px;
+}
+
+.hero::after,
+.hero-section::after,
+.hero-overlay {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 77, 64, 0.65) 0%,
+    rgba(0, 137, 123, 0.5) 100%
+  ) !important;
+}
+
+.hero h1,
+.hero-section h1 {
+  font-size: 2.8rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.hero p,
+.hero-section p {
+  font-size: 1.15rem;
+  font-weight: 400;
+  max-width: 580px;
+  opacity: 0.95;
+}
+
+/* ── Buttons ── */
+.btn,
+.cta-btn,
+.btn-primary,
+.hero-cta,
+button[type="submit"] {
+  border-radius: 8px;
+  padding: 12px 30px;
+  font-family: 'Nunito Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: none;
+  transition: all 0.25s ease;
+}
+
+.btn:hover,
+.cta-btn:hover,
+.btn-primary:hover,
+.hero-cta:hover,
+button[type="submit"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.btn-secondary,
+.btn-outline {
+  background: var(--white);
+  border: 2px solid var(--color-primary, var(--gold));
+  color: var(--color-primary, var(--gold));
+  border-radius: 8px;
+}
+
+/* ── Cards / Service Cards ── */
+.service-card,
+.card,
+.feature-card {
+  border-radius: 12px;
+  background: var(--white);
+  box-shadow: var(--shadow);
+  border: none;
+  padding: 32px 28px;
+  transition: all 0.3s ease;
+}
+
+.service-card:hover,
+.card:hover,
+.feature-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+}
+
+.service-card h3,
+.card h3,
+.feature-card h3 {
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin-bottom: 10px;
+}
+
+/* ── Trust Badges / Certifications ── */
+.trust-badge,
+.certification,
+.badge {
+  background: var(--trust-green-light);
+  color: #065f46;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Sections ── */
+section {
+  padding: 80px 0;
+}
+
+.section-title,
+section h2 {
+  font-size: 2.1rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.section-subtitle {
+  text-align: center;
+  font-size: 1.05rem;
+  color: var(--gray-600);
+  font-weight: 400;
+  max-width: 600px;
+  margin: 0 auto 40px;
+}
+
+/* ── Testimonials ── */
+.testimonial-card,
+.review-card {
+  border-radius: 12px;
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  padding: 28px;
+  border: none;
+}
+
+.testimonial-card .stars,
+.review-card .stars {
+  color: var(--warm, #f59e0b);
+}
+
+/* ── Footer ── */
+.footer,
+footer {
+  background: #1a2f2e !important;
+  color: #cccccc !important;
+}
+
+.footer h3,
+.footer h4,
+footer h3,
+footer h4 {
+  font-family: 'Nunito Sans', sans-serif;
+  color: var(--white) !important;
+  font-weight: 700;
+}
+
+.footer a,
+footer a {
+  color: #aaaaaa !important;
+}
+
+.footer a:hover,
+footer a:hover {
+  color: var(--color-primary, var(--gold)) !important;
+}
+
+/* ── Contact / Forms ── */
+.contact-form input,
+.contact-form textarea,
+.contact-form select,
+form input,
+form textarea,
+form select {
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+  padding: 12px 16px;
+  font-family: 'Open Sans', sans-serif;
+  transition: border-color 0.2s ease;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus,
+form input:focus,
+form textarea:focus {
+  border-color: var(--color-primary, var(--gold));
+  box-shadow: 0 0 0 3px rgba(0, 150, 136, 0.08);
+  outline: none;
+}
+
+/* ── CTA Section ── */
+.cta-section,
+.cta-banner {
+  border-radius: 12px;
+  text-align: center;
+}
+
+/* ── Services Grid ── */
+.services-grid {
+  gap: 24px;
+}
+
+/* ── Icon styling ── */
+.service-card .icon,
+.feature-card .icon,
+.card .icon {
+  width: 56px;
+  height: 56px;
+  margin-bottom: 16px;
+}

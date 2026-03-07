@@ -24,6 +24,7 @@ const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', '.DS_Store']
 export interface GenerateConfig {
   tenant_id?: string
   products: string[]
+  websiteTheme?: string
   company: {
     name: string
     legalName?: string
@@ -53,6 +54,7 @@ export interface GenerateConfig {
     faviconFilename?: string
     heroPhoto?: string
     heroPhotoFilename?: string
+    websiteTheme?: string
   }
   features: {
     website?: string[]
@@ -113,6 +115,20 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)
       injectCSSColors(path.join(workDir, 'website'), config.branding, industry)
+
+      // Inject website theme if specified
+      const theme = config.websiteTheme || config.branding?.websiteTheme
+      if (theme) {
+        const themeCssPath = path.join(TEMPLATES_ROOT, websiteTemplate, 'build', 'styles', 'themes', `${theme}.css`)
+        if (fs.existsSync(themeCssPath)) {
+          const themeCss = fs.readFileSync(themeCssPath, 'utf8')
+          const mainCssPath = path.join(workDir, 'website', 'build', 'styles', 'main.css')
+          if (fs.existsSync(mainCssPath)) {
+            fs.appendFileSync(mainCssPath, '\n\n/* ═══ Theme: ' + theme + ' ═══ */\n' + themeCss)
+          }
+        }
+      }
+
       stripWebsiteFeatures(path.join(workDir, 'website'), config.features?.website || [])
       writeBrandingAssets(path.join(workDir, 'website'), config.branding)
       injectWizardContent(path.join(workDir, 'website'), config)

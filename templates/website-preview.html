@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{COMPANY_NAME}} — Preview</title>
+  <style>
+    :root {
+      --color-primary: {{PRIMARY_COLOR}};
+      --color-secondary: {{SECONDARY_COLOR}};
+      --primary-color: {{PRIMARY_COLOR}};
+      --secondary-color: {{SECONDARY_COLOR}};
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      color: #1a1a2e;
+      line-height: 1.6;
+      background: #fff;
+    }
+
+    /* ─── Header / Nav ─── */
+    .preview-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .preview-nav .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .preview-nav .logo-placeholder {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--color-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .preview-nav .company-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--color-secondary);
+    }
+
+    .preview-nav .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .preview-nav .nav-links a {
+      text-decoration: none;
+      color: #374151;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .preview-nav .nav-links a:hover {
+      color: var(--color-primary);
+    }
+
+    .preview-nav .nav-cta {
+      background: var(--color-primary);
+      color: #fff !important;
+      padding: 0.5rem 1.25rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .preview-nav .nav-cta:hover {
+      opacity: 0.9;
+    }
+
+    /* ─── Hero Section ─── */
+    .preview-hero {
+      padding: 5rem 2rem;
+      text-align: center;
+      background: linear-gradient(135deg, var(--color-secondary) 0%, color-mix(in srgb, var(--color-secondary) 80%, #000) 100%);
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .preview-hero::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none;
+    }
+
+    .preview-hero .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      padding: 0.35rem 1rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .preview-hero h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      margin-bottom: 1rem;
+      line-height: 1.15;
+      position: relative;
+      z-index: 1;
+    }
+
+    .preview-hero p {
+      font-size: 1.15rem;
+      opacity: 0.9;
+      max-width: 600px;
+      margin: 0 auto 2rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .preview-hero .hero-btn {
+      display: inline-block;
+      background: var(--color-primary);
+      color: #fff;
+      padding: 0.85rem 2rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.05rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+      position: relative;
+      z-index: 1;
+    }
+
+    .preview-hero .hero-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    /* ─── Services Cards ─── */
+    .preview-services {
+      padding: 4rem 2rem;
+      background: #f9fafb;
+    }
+
+    .preview-services h2 {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--color-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    .preview-services .section-subtitle {
+      text-align: center;
+      color: #6b7280;
+      margin-bottom: 2.5rem;
+      font-size: 1.05rem;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .service-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 2rem 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      border: 1px solid #e5e7eb;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .service-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+
+    .service-card .card-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+      color: var(--color-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+    }
+
+    .service-card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 0.5rem;
+    }
+
+    .service-card p {
+      color: #6b7280;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    /* ─── CTA Section ─── */
+    .preview-cta {
+      padding: 4rem 2rem;
+      text-align: center;
+      background: #fff;
+    }
+
+    .preview-cta h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: var(--color-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .preview-cta p {
+      color: #6b7280;
+      margin-bottom: 2rem;
+      font-size: 1.05rem;
+    }
+
+    .preview-cta .cta-btn {
+      display: inline-block;
+      background: var(--color-primary);
+      color: #fff;
+      padding: 0.85rem 2.5rem;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1.05rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .preview-cta .cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    /* ─── Footer ─── */
+    .preview-footer {
+      padding: 2rem;
+      background: var(--color-secondary);
+      color: rgba(255,255,255,0.7);
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    .preview-footer strong {
+      color: #fff;
+    }
+
+    /* ─── Theme overrides (injected) ─── */
+    {{THEME_CSS}}
+  </style>
+</head>
+<body>
+  <!-- Nav -->
+  <nav class="preview-nav">
+    <div class="logo-area">
+      <div class="logo-placeholder" aria-hidden="true"></div>
+      <span class="company-name">{{COMPANY_NAME}}</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="#">Home</a></li>
+      <li><a href="#">Services</a></li>
+      <li><a href="#">About</a></li>
+      <li><a href="#">Gallery</a></li>
+      <li><a href="#" class="nav-cta">Get a Quote</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero -->
+  <section class="preview-hero">
+    <div class="badge">Licensed &amp; Insured</div>
+    <h1>{{COMPANY_NAME}} &mdash; Quality You Can Trust</h1>
+    <p>Serving your area with professional workmanship and dedicated customer service.</p>
+    <a href="#" class="hero-btn">Get a Free Estimate</a>
+  </section>
+
+  <!-- Services -->
+  <section class="preview-services">
+    <h2>Our Services</h2>
+    <p class="section-subtitle">Professional solutions tailored to your needs</p>
+    <div class="cards-grid">
+      <div class="service-card">
+        <div class="card-icon">&#9733;</div>
+        <h3>Service One</h3>
+        <p>High-quality professional service delivered with care and attention to detail.</p>
+      </div>
+      <div class="service-card">
+        <div class="card-icon">&#9881;</div>
+        <h3>Service Two</h3>
+        <p>Expert solutions backed by years of experience and industry knowledge.</p>
+      </div>
+      <div class="service-card">
+        <div class="card-icon">&#9889;</div>
+        <h3>Service Three</h3>
+        <p>Fast, reliable work completed on time and within budget every time.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="preview-cta">
+    <h2>Ready to Start Your Project?</h2>
+    <p>Contact us today for a free consultation and estimate.</p>
+    <a href="#" class="cta-btn">Contact Us Today</a>
+  </section>
+
+  <!-- Footer -->
+  <footer class="preview-footer">
+    <p>&copy; 2026 <strong>{{COMPANY_NAME}}</strong>. All rights reserved.</p>
+  </footer>
+  <script>
+    // Set logo placeholder to first letter of company name
+    var logo = document.querySelector('.logo-placeholder');
+    if (logo) logo.textContent = document.querySelector('.company-name').textContent.trim().charAt(0).toUpperCase();
+  </script>
+</body>
+</html>

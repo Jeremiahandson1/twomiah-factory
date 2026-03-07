@@ -3,6 +3,7 @@ export type FactoryConfig = {
   tenant_name: string
   tenant_slug: string
   products: string[]
+  websiteTheme?: string
   company: {
     name: string; email: string; phone: string; address: string
     city: string; state: string; stateFull: string; zip: string; domain: string

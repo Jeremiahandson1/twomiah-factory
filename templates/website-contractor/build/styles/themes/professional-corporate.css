@@ -1,0 +1,296 @@
+/* ═══════════════════════════════════════════════════════
+   Theme: Professional Corporate
+   Template: Contractor
+   Description: Traditional, trustworthy corporate look.
+   Navy/dark blue tones, serif headings, elegant spacing,
+   subtle gradients.
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@300;400;500;600;700&display=swap');
+
+/* ── Variable Overrides ── */
+:root {
+  --font-primary: 'Playfair Display', Georgia, serif;
+  --font-secondary: 'Source Sans 3', -apple-system, sans-serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --font-body: 'Source Sans 3', sans-serif;
+  --border-radius: 4px;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.08);
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+  --off-white: #f9fafb;
+  --corp-navy: #1a2744;
+  --corp-navy-light: #2a3f6a;
+  --corp-gold: #b08d3e;
+}
+
+/* ── Body ── */
+body {
+  font-family: 'Source Sans 3', -apple-system, sans-serif;
+  background-image: none;
+  background: var(--white);
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+/* ── Header / Navigation ── */
+.header,
+header {
+  background: var(--corp-navy) !important;
+  box-shadow: none;
+  border-bottom: 2px solid var(--corp-gold);
+}
+
+.header a,
+.nav-link {
+  color: var(--white) !important;
+  font-family: 'Source Sans 3', sans-serif;
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}
+
+.header a:hover,
+.nav-link:hover {
+  color: var(--corp-gold) !important;
+}
+
+/* ── Hero Section ── */
+.hero,
+.hero-section {
+  padding: 100px 0 90px;
+  text-align: center;
+}
+
+.hero::after,
+.hero-section::after,
+.hero-overlay {
+  background: linear-gradient(
+    135deg,
+    rgba(26, 39, 68, 0.85) 0%,
+    rgba(42, 63, 106, 0.75) 100%
+  ) !important;
+}
+
+.hero h1,
+.hero-section h1 {
+  font-size: 3.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.hero p,
+.hero-section p {
+  font-family: 'Source Sans 3', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 300;
+  max-width: 640px;
+  margin: 0 auto;
+  opacity: 0.9;
+}
+
+/* ── Buttons ── */
+.btn,
+.cta-btn,
+.btn-primary,
+.hero-cta,
+button[type="submit"] {
+  border-radius: 4px;
+  padding: 13px 34px;
+  font-family: 'Source Sans 3', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.03em;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.btn:hover,
+.cta-btn:hover,
+.btn-primary:hover,
+.hero-cta:hover,
+button[type="submit"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.btn-secondary,
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--white);
+  color: var(--white);
+  border-radius: 4px;
+}
+
+.btn-secondary:hover,
+.btn-outline:hover {
+  background: var(--white);
+  color: var(--corp-navy);
+}
+
+/* ── Cards / Service Cards ── */
+.service-card,
+.card,
+.feature-card {
+  border-radius: 4px;
+  background: var(--white);
+  border: none;
+  border-top: 3px solid var(--color-primary, var(--corp-navy));
+  box-shadow: var(--shadow);
+  padding: 32px 28px;
+  transition: all 0.3s ease;
+}
+
+.service-card:hover,
+.card:hover,
+.feature-card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
+}
+
+.service-card h3,
+.card h3,
+.feature-card h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: var(--corp-navy);
+}
+
+/* ── Sections ── */
+section {
+  padding: 80px 0;
+}
+
+section:nth-child(even) {
+  background: var(--off-white);
+}
+
+.section-title,
+section h2 {
+  font-size: 2.2rem;
+  text-align: center;
+  position: relative;
+  padding-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+.section-title::after,
+section h2::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 3px;
+  background: var(--corp-gold);
+}
+
+.section-subtitle {
+  text-align: center;
+  font-size: 1.1rem;
+  color: var(--gray-600);
+  font-weight: 300;
+}
+
+/* ── Testimonials ── */
+.testimonial-card,
+.review-card {
+  border-radius: 4px;
+  background: var(--white);
+  box-shadow: var(--shadow-sm);
+  border: none;
+  border-bottom: 2px solid var(--corp-gold);
+  text-align: center;
+  padding: 32px;
+  font-style: italic;
+}
+
+/* ── Footer ── */
+.footer,
+footer {
+  background: linear-gradient(
+    180deg,
+    var(--corp-navy) 0%,
+    #0d1626 100%
+  ) !important;
+  color: #cccccc !important;
+}
+
+.footer h3,
+.footer h4,
+footer h3,
+footer h4 {
+  font-family: 'Playfair Display', Georgia, serif;
+  color: var(--white) !important;
+  font-weight: 600;
+}
+
+.footer a,
+footer a {
+  color: #bbbbbb !important;
+}
+
+.footer a:hover,
+footer a:hover {
+  color: var(--corp-gold) !important;
+}
+
+/* ── Contact / Forms ── */
+.contact-form input,
+.contact-form textarea,
+.contact-form select,
+form input,
+form textarea,
+form select {
+  border-radius: 4px;
+  border: 1px solid var(--gray-300);
+  padding: 12px 16px;
+  font-family: 'Source Sans 3', sans-serif;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus,
+form input:focus,
+form textarea:focus {
+  border-color: var(--corp-navy);
+  box-shadow: 0 0 0 2px rgba(26, 39, 68, 0.1);
+  outline: none;
+}
+
+/* ── Trust / Brand Bar ── */
+.brands-section,
+.trust-section {
+  background: var(--off-white);
+  padding: 40px 0;
+  border-top: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+/* ── CTA Section ── */
+.cta-section,
+.cta-banner {
+  background: linear-gradient(
+    135deg,
+    var(--corp-navy) 0%,
+    var(--corp-navy-light) 100%
+  ) !important;
+  border-radius: 4px;
+  text-align: center;
+  color: var(--white);
+}
+
+/* ── Gallery ── */
+.gallery-item img {
+  border-radius: 4px;
+}

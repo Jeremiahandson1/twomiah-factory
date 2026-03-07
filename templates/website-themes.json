@@ -1,0 +1,15 @@
+{
+  "contractor": [
+    { "id": "modern-minimal", "name": "Modern Minimal", "description": "Clean lines, lots of whitespace, modern feel" },
+    { "id": "bold-industrial", "name": "Bold Industrial", "description": "Heavy, strong, industrial construction aesthetic" },
+    { "id": "professional-corporate", "name": "Professional Corporate", "description": "Traditional, trustworthy corporate look" }
+  ],
+  "homecare": [
+    { "id": "clean-professional", "name": "Clean Professional", "description": "Clinical yet warm, trust-focused design" },
+    { "id": "warm-community", "name": "Warm & Community", "description": "Inviting, family-friendly, community feel" }
+  ],
+  "general": [
+    { "id": "clean-minimal", "name": "Clean Minimal", "description": "Simple, universal design for any service business" },
+    { "id": "trade-professional", "name": "Trade Professional", "description": "Structured, professional trade business look" }
+  ]
+}

@@ -25,7 +25,7 @@ async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } |
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || (c.req.method === 'GET' && c.req.path.includes('/support/kb'))) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb'))) return next()
   return authenticate(c, next)
 })
 
@@ -212,6 +212,60 @@ factory.post('/generate-content', async (c) => {
 // ─── Templates & Features ─────────────────────────────────────────────────────
 factory.get('/templates', (c) => {
   return c.json({ templates: listTemplates() })
+})
+
+// ─── Website Themes ───────────────────────────────────────────────────────────
+factory.get('/website-themes', (c) => {
+  try {
+    const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
+    const themesFile = path.join(TEMPLATES_ROOT, 'website-themes.json')
+    if (!fs.existsSync(themesFile)) {
+      return c.json({ themes: [] })
+    }
+    const themes = JSON.parse(fs.readFileSync(themesFile, 'utf8'))
+    return c.json({ themes })
+  } catch (err: any) {
+    console.error('[Factory] Failed to load website themes:', err.message)
+    return c.json({ themes: [] })
+  }
+})
+
+factory.get('/website-themes/preview', (c) => {
+  try {
+    const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
+    const type = c.req.query('type') || 'contractor'
+    const theme = c.req.query('theme') || ''
+    const companyName = c.req.query('companyName') || 'Your Company'
+    const primaryColor = c.req.query('primaryColor') || '#f97316'
+    const secondaryColor = c.req.query('secondaryColor') || '#1e3a5f'
+
+    // Load preview HTML template
+    const previewTemplatePath = path.join(TEMPLATES_ROOT, 'website-preview.html')
+    if (!fs.existsSync(previewTemplatePath)) {
+      return c.text('Preview template not found', 404)
+    }
+    let html = fs.readFileSync(previewTemplatePath, 'utf8')
+
+    // Load and inject theme CSS if specified
+    let themeCss = ''
+    if (theme) {
+      const websiteTemplate = type === 'home_care' ? 'website-homecare' : (type === 'general' ? 'website-general' : 'website-contractor')
+      const themeCssPath = path.join(TEMPLATES_ROOT, websiteTemplate, 'build', 'styles', 'themes', `${theme}.css`)
+      if (fs.existsSync(themeCssPath)) {
+        themeCss = fs.readFileSync(themeCssPath, 'utf8')
+      }
+    }
+
+    html = html.replace(/\{\{COMPANY_NAME\}\}/g, companyName)
+    html = html.replace(/\{\{PRIMARY_COLOR\}\}/g, primaryColor)
+    html = html.replace(/\{\{SECONDARY_COLOR\}\}/g, secondaryColor)
+    html = html.replace(/\{\{THEME_CSS\}\}/g, themeCss)
+
+    return c.html(html)
+  } catch (err: any) {
+    console.error('[Factory] Preview error:', err.message)
+    return c.text('Preview generation failed', 500)
+  }
 })
 
 factory.get('/features', (c) => {
@@ -1002,6 +1056,7 @@ factory.post('/public/signup', async (c) => {
       features: body.features || [],
       notes: body.notes || null,
       admin_password: body.admin_password || null,
+      website_theme: body.website_theme || null,
     }
 
     const { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
