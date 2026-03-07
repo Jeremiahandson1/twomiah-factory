@@ -15,6 +15,11 @@ import { db } from '../../db/index.ts';
 import { contact } from '../../db/schema.ts';
 import { eq, and, sql, count } from 'drizzle-orm';
 
+/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
+function rows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows || [])
+}
+
 // Provider configuration
 const PROVIDER = process.env.CALL_TRACKING_PROVIDER;
 const CALLRAIL_API_KEY = process.env.CALLRAIL_API_KEY;
@@ -54,13 +59,12 @@ export async function getTrackingNumbers(companyId: string, { source, active = t
   if (source) whereClause += ` AND source = '${source}'`;
   if (active !== null) whereClause += ` AND active = ${active}`;
 
-  const result = await db.execute(sql.raw(`
+  return rows(await db.execute(sql.raw(`
     SELECT tn.*, (SELECT COUNT(*) FROM call_log cl WHERE cl.tracking_number_id = tn.id)::int as call_count
     FROM tracking_number tn
     WHERE ${whereClause}
     ORDER BY source ASC
-  `));
-  return (result as any).rows || result;
+  `)));
 }
 
 /**
@@ -114,12 +118,11 @@ export async function logCall(companyId: string, data: {
   let trackingMedium: string | null = data.medium || null;
 
   if (data.trackingNumber) {
-    const tnResult = await db.execute(sql`
+    const tnRows = rows(await db.execute(sql`
       SELECT id, source, campaign, medium FROM tracking_number
       WHERE company_id = ${companyId} AND phone_number = ${data.trackingNumber}
       LIMIT 1
-    `);
-    const tnRows = (tnResult as any).rows || tnResult;
+    `));
     if (tnRows[0]) {
       trackingNumberId = tnRows[0].id;
       trackingSource = tnRows[0].source || data.source || null;
@@ -210,7 +213,7 @@ export async function getCalls(companyId: string, {
 
   const offset = (page - 1) * limit;
 
-  const dataResult = await db.execute(sql.raw(`
+  const callData = rows(await db.execute(sql.raw(`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
       c.id as contact_id_ref, c.name as contact_name
@@ -220,13 +223,10 @@ export async function getCalls(companyId: string, {
     WHERE ${whereClause}
     ORDER BY cl.start_time DESC
     LIMIT ${limit} OFFSET ${offset}
-  `));
-  const countResult = await db.execute(sql.raw(`
+  `)));
+  const total = Number(rows(await db.execute(sql.raw(`
     SELECT COUNT(*)::int as total FROM call_log cl WHERE ${whereClause}
-  `));
-
-  const callData = (dataResult as any).rows || dataResult;
-  const total = Number(((countResult as any).rows || countResult)[0]?.total || 0);
+  `)))[0]?.total || 0);
 
   return { data: callData, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
 }
@@ -235,7 +235,7 @@ export async function getCalls(companyId: string, {
  * Get single call
  */
 export async function getCall(callId: string, companyId: string) {
-  const result = await db.execute(sql`
+  const callRows = rows(await db.execute(sql`
     SELECT cl.*,
       tn.name as tracking_number_name, tn.source as tracking_number_source,
       c.id as contact_id_ref, c.name as contact_name
@@ -244,9 +244,8 @@ export async function getCall(callId: string, companyId: string) {
     LEFT JOIN contact c ON cl.contact_id = c.id
     WHERE cl.id = ${callId} AND cl.company_id = ${companyId}
     LIMIT 1
-  `);
-  const rows = (result as any).rows || result;
-  return rows[0] || null;
+  `));
+  return callRows[0] || null;
 }
 
 /**
@@ -360,34 +359,28 @@ export async function getAttributionReport(companyId: string, { startDate, endDa
   if (startDate) whereClause += ` AND start_time >= '${new Date(startDate).toISOString()}'`;
   if (endDate) whereClause += ` AND start_time <= '${new Date(endDate).toISOString()}'`;
 
-  const bySourceResult = await db.execute(sql.raw(`
+  const bySource = rows(await db.execute(sql.raw(`
     SELECT source, COUNT(*)::int as call_count, COALESCE(SUM(duration), 0)::int as total_duration
     FROM call_log WHERE ${whereClause}
     GROUP BY source
-  `));
+  `)));
 
-  const totalsResult = await db.execute(sql.raw(`
+  const totals = rows(await db.execute(sql.raw(`
     SELECT COUNT(*)::int as total_calls, COALESCE(SUM(duration), 0)::int as total_duration, COALESCE(AVG(duration), 0)::int as avg_duration
     FROM call_log WHERE ${whereClause}
-  `));
+  `)))[0] as any;
 
-  const firstTimersResult = await db.execute(sql.raw(`
+  const firstTimers = Number(rows(await db.execute(sql.raw(`
     SELECT COUNT(*)::int as cnt FROM call_log WHERE ${whereClause} AND first_time_caller = true
-  `));
+  `)))[0]?.cnt || 0);
 
-  const leadsResult = await db.execute(sql.raw(`
+  const leads = Number(rows(await db.execute(sql.raw(`
     SELECT COUNT(*)::int as cnt FROM call_log WHERE ${whereClause} AND is_lead = true
-  `));
+  `)))[0]?.cnt || 0);
 
-  const leadValueResult = await db.execute(sql.raw(`
+  const leadValue = Number(rows(await db.execute(sql.raw(`
     SELECT COALESCE(SUM(lead_value), 0)::numeric as total_value FROM call_log WHERE ${whereClause} AND is_lead = true
-  `));
-
-  const bySource = ((bySourceResult as any).rows || bySourceResult) as any[];
-  const totals = ((totalsResult as any).rows || totalsResult)[0] as any;
-  const firstTimers = Number(((firstTimersResult as any).rows || firstTimersResult)[0]?.cnt || 0);
-  const leads = Number(((leadsResult as any).rows || leadsResult)[0]?.cnt || 0);
-  const leadValue = Number(((leadValueResult as any).rows || leadValueResult)[0]?.total_value || 0);
+  `)))[0]?.total_value || 0);
 
   return {
     bySource: bySource.map((s: any) => ({
@@ -415,11 +408,9 @@ export async function getCallVolumeReport(companyId: string, { startDate, endDat
   if (startDate) whereClause += ` AND start_time >= '${new Date(startDate).toISOString()}'`;
   if (endDate) whereClause += ` AND start_time <= '${new Date(endDate).toISOString()}'`;
 
-  const callsResult = await db.execute(sql.raw(`
+  const calls = rows(await db.execute(sql.raw(`
     SELECT start_time, duration, status FROM call_log WHERE ${whereClause}
-  `));
-
-  const calls = (callsResult as any).rows || callsResult;
+  `)));
 
   const grouped: Record<string, { calls: number; answered: number; missed: number; duration: number }> = {};
 

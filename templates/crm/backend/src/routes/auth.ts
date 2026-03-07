@@ -177,7 +177,7 @@ app.post('/signup', async (c) => {
       trialEndsAt,
     })
   } catch (emailErr) {
-    logger.logError(emailErr, null, { action: 'sendWelcomeEmail', email: data.email })
+    logger.error('Email error', { action: 'sendWelcomeEmail', email: data.email })
   }
 
   logger.info('New signup', {
@@ -383,7 +383,7 @@ app.post('/forgot-password', async (c) => {
       })
       logger.info('Password reset email sent', { email })
     } catch (emailErr) {
-      logger.logError(emailErr, null, { action: 'sendPasswordResetEmail', email })
+      logger.error('Email error', { action: 'sendPasswordResetEmail', email })
     }
   }
 

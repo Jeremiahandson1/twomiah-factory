@@ -13,6 +13,7 @@ import { db } from '../../db/index.ts';
 import {
   serviceAgreement,
   agreementVisit,
+  agreementPlan,
   contact,
   job,
   invoice,
@@ -24,9 +25,49 @@ import { eq, and, lte, gte, count, asc, desc, sql } from 'drizzle-orm';
 // AGREEMENT PLANS (Templates)
 // ============================================
 
-// NOTE: The schema has no dedicated "agreementPlan" table.
-// If you add one, import it from schema and use it below.
-// For now, agreements are created directly.
+export async function getPlans(companyId: string, { active }: { active?: boolean | null } = {}) {
+  const conditions = [eq(agreementPlan.companyId, companyId)];
+  if (active !== null && active !== undefined) {
+    conditions.push(eq(agreementPlan.active, active));
+  }
+  return db.select().from(agreementPlan).where(and(...conditions)).orderBy(asc(agreementPlan.name));
+}
+
+export async function createPlan(companyId: string, data: {
+  name: string;
+  description?: string;
+  price: number;
+  billingFrequency?: string;
+  visitsIncluded?: number;
+  discountPercent?: number;
+  priorityService?: boolean;
+  durationMonths?: number;
+  autoRenew?: boolean;
+  includedServices?: any;
+}) {
+  const [plan] = await db.insert(agreementPlan).values({
+    companyId,
+    name: data.name,
+    description: data.description,
+    price: String(data.price),
+    billingFrequency: data.billingFrequency || 'annual',
+    visitsIncluded: data.visitsIncluded || 0,
+    discountPercent: data.discountPercent ? String(data.discountPercent) : '0',
+    priorityService: data.priorityService || false,
+    durationMonths: data.durationMonths || 12,
+    autoRenew: data.autoRenew !== false,
+    includedServices: data.includedServices,
+  }).returning();
+  return plan;
+}
+
+export async function updatePlan(planId: string, companyId: string, data: Record<string, unknown>) {
+  const [updated] = await db.update(agreementPlan)
+    .set({ ...data, updatedAt: new Date() })
+    .where(and(eq(agreementPlan.id, planId), eq(agreementPlan.companyId, companyId)))
+    .returning();
+  return updated;
+}
 
 // ============================================
 // CUSTOMER AGREEMENTS
@@ -414,6 +455,9 @@ export async function getExpiringAgreements(companyId: string, daysAhead = 60) {
 }
 
 export default {
+  getPlans,
+  createPlan,
+  updatePlan,
   createAgreement,
   getAgreements,
   getAgreement,

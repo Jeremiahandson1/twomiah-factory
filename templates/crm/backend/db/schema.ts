@@ -1200,14 +1200,19 @@ export const automation = pgTable('automation', {
 export const trackingNumber = pgTable('tracking_number', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   phoneNumber: text('phone_number').notNull(),
-  forwardTo: text('forward_to').notNull(),
+  forwardTo: text('forward_to'),
   name: text('name'),
   source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  providerId: text('provider_id'),
+  provider: text('provider'),
   active: boolean('active').default(true).notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('tracking_number_company_id_idx').on(t.companyId),
 ])
@@ -1271,6 +1276,9 @@ export const recurringSchedule = pgTable('recurring_schedule', {
 export const selectionCategory = pgTable('selection_category', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),
+  description: text('description'),
+  icon: text('icon'),
+  defaultAllowance: decimal('default_allowance', { precision: 12, scale: 2 }).default('0'),
   sortOrder: integer('sort_order').default(0).notNull(),
   active: boolean('active').default(true).notNull(),
 
@@ -1278,6 +1286,7 @@ export const selectionCategory = pgTable('selection_category', {
 }, (t) => [
   index('selection_category_company_id_idx').on(t.companyId),
   index('selection_category_company_id_active_idx').on(t.companyId, t.active),
+  uniqueIndex('selection_category_company_id_name_idx').on(t.companyId, t.name),
 ])
 
 export const selectionItem = pgTable('selection_item', {
@@ -1329,17 +1338,25 @@ export const takeoff = pgTable('takeoff', {
 
 export const takeoffItem = pgTable('takeoff_item', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
+  sheetId: text('sheet_id').references(() => takeoffSheet.id, { onDelete: 'cascade' }),
+  assemblyId: text('assembly_id').references(() => takeoffAssembly.id),
   name: text('name').notNull(),
+  location: text('location'),
+  measurementType: text('measurement_type').default('area'),
+  length: decimal('length', { precision: 12, scale: 4 }).default('0'),
+  width: decimal('width', { precision: 12, scale: 4 }).default('0'),
+  height: decimal('height', { precision: 12, scale: 4 }).default('0'),
+  quantity: decimal('quantity', { precision: 12, scale: 4 }).default('1').notNull(),
+  measurementValue: decimal('measurement_value', { precision: 12, scale: 4 }).default('0'),
+  wasteFactor: decimal('waste_factor', { precision: 5, scale: 2 }).default('10'),
+  notes: text('notes'),
+  sortOrder: integer('sort_order').default(0),
   description: text('description'),
-  quantity: decimal('quantity', { precision: 12, scale: 4 }).notNull(),
-  unit: text('unit').notNull(),
-  unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).default('0').notNull(),
-  totalCost: decimal('total_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  unit: text('unit'),
   category: text('category'),
-
-  takeoffId: text('takeoff_id').notNull().references(() => takeoff.id, { onDelete: 'cascade' }),
-  sheetId: text('sheet_id'),
+  takeoffId: text('takeoff_id').references(() => takeoff.id, { onDelete: 'cascade' }),
 }, (t) => [
+  index('takeoff_item_sheet_id_idx').on(t.sheetId),
   index('takeoff_item_takeoff_id_idx').on(t.takeoffId),
 ])
 
@@ -1851,6 +1868,8 @@ export const assemblyMaterial = pgTable('assembly_material', {
   quantityPer: decimal('quantity_per', { precision: 10, scale: 4 }).default('1').notNull(),
   unit: text('unit').default('each').notNull(),
   unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  inventoryItemId: text('inventory_item_id').references(() => inventoryItem.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('assembly_material_assembly_id_idx').on(t.assemblyId),
@@ -1890,6 +1909,8 @@ export const recurringInvoice = pgTable('recurring_invoice', {
   notes: text('notes'),
   autoSend: boolean('auto_send').default(false).notNull(),
   status: text('status').default('active').notNull(),
+  lastRunDate: timestamp('last_run_date'),
+  invoiceCount: integer('invoice_count').default(0).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -1903,7 +1924,8 @@ export const recurringLineItem = pgTable('recurring_line_item', {
   description: text('description').notNull(),
   quantity: decimal('quantity', { precision: 10, scale: 2 }).default('1').notNull(),
   unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
-  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0),
 }, (t) => [
   index('recurring_line_item_recurring_invoice_id_idx').on(t.recurringInvoiceId),
 ])
@@ -2002,10 +2024,24 @@ export const callLog = pgTable('call_log', {
   callerName: text('caller_name'),
   callerCity: text('caller_city'),
   callerState: text('caller_state'),
+  source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  keyword: text('keyword'),
+  landingPage: text('landing_page'),
+  direction: text('direction').default('inbound'),
   duration: integer('duration'),
   status: text('status').default('completed').notNull(),
+  startTime: timestamp('start_time'),
+  endTime: timestamp('end_time'),
   recordingUrl: text('recording_url'),
+  transcription: text('transcription'),
+  tags: json('tags'),
   notes: text('notes'),
+  firstTimeCaller: boolean('first_time_caller').default(false),
+  providerId: text('provider_id'),
+  isLead: boolean('is_lead').default(false),
+  leadValue: decimal('lead_value', { precision: 12, scale: 2 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('call_log_company_id_idx').on(t.companyId),
@@ -2197,8 +2233,23 @@ export const projectSelection = pgTable('project_selection', {
   description: text('description'),
   location: text('location'),
   allowance: decimal('allowance', { precision: 12, scale: 2 }),
+  quantity: integer('quantity').default(1),
+  unit: text('unit').default('each'),
+  dueDate: timestamp('due_date'),
+  availableOptions: json('available_options'),
   status: text('status').default('pending').notNull(),
   selectedOptionId: text('selected_option_id'),
+  selectedAt: timestamp('selected_at'),
+  selectedById: text('selected_by_id'),
+  clientNotes: text('client_notes'),
+  priceDifference: decimal('price_difference', { precision: 12, scale: 2 }),
+  approvedAt: timestamp('approved_at'),
+  approvedById: text('approved_by_id'),
+  orderedAt: timestamp('ordered_at'),
+  orderNumber: text('order_number'),
+  expectedDelivery: timestamp('expected_delivery'),
+  receivedAt: timestamp('received_at'),
+  receivedNotes: text('received_notes'),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -2249,7 +2300,13 @@ export const selectionOption = pgTable('selection_option', {
   model: text('model'),
   sku: text('sku'),
   price: decimal('price', { precision: 12, scale: 2 }).default('0').notNull(),
+  cost: decimal('cost', { precision: 12, scale: 2 }).default('0'),
+  unit: text('unit').default('each'),
   imageUrl: text('image_url'),
+  images: json('images'),
+  specSheet: text('spec_sheet'),
+  leadTimeDays: integer('lead_time_days').default(0),
+  inStock: boolean('in_stock').default(true),
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -2275,14 +2332,17 @@ export const smsAutoResponder = pgTable('sms_auto_responder', {
 
 export const takeoffCalculatedMaterial = pgTable('takeoff_calculated_material', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  itemId: text('item_id').notNull().references(() => projectTask.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').notNull(),
   materialName: text('material_name').notNull(),
   unit: text('unit').notNull(),
   baseQuantity: decimal('base_quantity', { precision: 12, scale: 4 }).notNull(),
   wasteQuantity: decimal('waste_quantity', { precision: 12, scale: 4 }).default('0').notNull(),
   totalQuantity: decimal('total_quantity', { precision: 12, scale: 4 }).notNull(),
   unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
   totalCost: decimal('total_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  totalPrice: decimal('total_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  inventoryItemId: text('inventory_item_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('takeoff_calculated_material_item_id_idx').on(t.itemId),

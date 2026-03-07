@@ -27,10 +27,11 @@ export default function SelectionsPage({ projectId }) {
   const [showAddSelection, setShowAddSelection] = useState(false);
 
   useEffect(() => {
-    loadData();
+    if (projectId) loadData();
   }, [projectId]);
 
   const loadData = async () => {
+    if (!projectId) return;
     setLoading(true);
     try {
       const [selectionsRes, summaryRes, categoriesRes] = await Promise.all([

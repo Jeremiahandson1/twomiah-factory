@@ -12,6 +12,11 @@ import { db } from '../../db/index.ts'
 import { project, changeOrder } from '../../db/schema.ts'
 import { eq, and, lte, asc, sql } from 'drizzle-orm'
 
+/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
+function rows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows || [])
+}
+
 // ============================================
 // SELECTION CATEGORIES
 // ============================================
@@ -20,11 +25,11 @@ import { eq, and, lte, asc, sql } from 'drizzle-orm'
  * Create selection category template
  */
 export async function createCategory(companyId: string, data: any) {
-  const [row] = (await db.execute(sql`
+  const [row] = rows(await db.execute(sql`
     INSERT INTO selection_category (company_id, name, description, sort_order, icon, default_allowance, active)
     VALUES (${companyId}, ${data.name}, ${data.description || null}, ${data.sortOrder || 0}, ${data.icon || null}, ${data.defaultAllowance || 0}, true)
     RETURNING *
-  `)) as any[]
+  `))
   return row
 }
 
@@ -32,9 +37,9 @@ export async function createCategory(companyId: string, data: any) {
  * Get categories
  */
 export async function getCategories(companyId: string) {
-  return (await db.execute(sql`
+  return rows(await db.execute(sql`
     SELECT * FROM selection_category WHERE company_id = ${companyId} AND active = true ORDER BY sort_order ASC
-  `)) as any[]
+  `))
 }
 
 /**
@@ -71,11 +76,11 @@ export async function seedDefaultCategories(companyId: string) {
  * Create selection option
  */
 export async function createOption(companyId: string, data: any) {
-  const [row] = (await db.execute(sql`
+  const [row] = rows(await db.execute(sql`
     INSERT INTO selection_option (company_id, category_id, name, description, manufacturer, model, sku, price, cost, unit, image_url, images, spec_sheet, lead_time_days, in_stock, active)
     VALUES (${companyId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.manufacturer || null}, ${data.model || null}, ${data.sku || null}, ${data.price || 0}, ${data.cost || 0}, ${data.unit || 'each'}, ${data.imageUrl || null}, ${JSON.stringify(data.images || [])}, ${data.specSheet || null}, ${data.leadTimeDays || 0}, ${data.inStock ?? true}, true)
     RETURNING *
-  `)) as any[]
+  `))
   return row
 }
 
@@ -93,13 +98,13 @@ export async function getOptions(
     conditions.push(`(so.name ILIKE '%${search}%' OR so.manufacturer ILIKE '%${search}%' OR so.model ILIKE '%${search}%')`)
   }
 
-  return (await db.execute(sql.raw(`
+  return rows(await db.execute(sql.raw(`
     SELECT so.*, json_build_object('name', sc.name) as category
     FROM selection_option so
     LEFT JOIN selection_category sc ON sc.id = so.category_id
     WHERE ${conditions.join(' AND ')}
     ORDER BY sc.sort_order ASC, so.name ASC
-  `))) as any[]
+  `)))
 }
 
 // ============================================
@@ -110,11 +115,11 @@ export async function getOptions(
  * Create selection requirement for a project
  */
 export async function createProjectSelection(companyId: string, data: any) {
-  const [row] = (await db.execute(sql`
+  const [row] = rows(await db.execute(sql`
     INSERT INTO project_selection (company_id, project_id, category_id, name, description, location, allowance, quantity, unit, due_date, status, available_options)
     VALUES (${companyId}, ${data.projectId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, ${data.quantity || 1}, ${data.unit || 'each'}, ${data.dueDate ? new Date(data.dueDate) : null}, 'pending', ${JSON.stringify(data.optionIds || [])})
     RETURNING *
-  `)) as any[]
+  `))
   return row
 }
 
@@ -122,14 +127,14 @@ export async function createProjectSelection(companyId: string, data: any) {
  * Get project selections
  */
 export async function getProjectSelections(projectId: string, companyId: string) {
-  const selections = (await db.execute(sql`
+  const selections = rows(await db.execute(sql`
     SELECT ps.*, row_to_json(sc.*) as category, row_to_json(so.*) as selected_option
     FROM project_selection ps
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     LEFT JOIN selection_option so ON so.id = ps.selected_option_id
     WHERE ps.project_id = ${projectId} AND ps.company_id = ${companyId}
     ORDER BY sc.sort_order ASC, ps.location ASC
-  `)) as any[]
+  `))
 
   return selections.map((sel: any) => {
     let priceDiff = 0
@@ -193,20 +198,20 @@ export async function makeSelection(
   companyId: string,
   { optionId, notes, selectedBy }: { optionId: string; notes?: string; selectedBy?: string }
 ) {
-  const [selection] = (await db.execute(sql`
+  const [selection] = rows(await db.execute(sql`
     SELECT * FROM project_selection WHERE id = ${selectionId} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!selection) throw new Error('Selection not found')
 
-  const [option] = (await db.execute(sql`
+  const [option] = rows(await db.execute(sql`
     SELECT * FROM selection_option WHERE id = ${optionId}
-  `)) as any[]
+  `))
   if (!option) throw new Error('Option not found')
 
   const totalPrice = option.price * selection.quantity
   const priceDiff = totalPrice - (selection.allowance || 0)
 
-  const [updated] = (await db.execute(sql`
+  const [updated] = rows(await db.execute(sql`
     UPDATE project_selection SET
       selected_option_id = ${optionId},
       status = 'selected',
@@ -216,7 +221,7 @@ export async function makeSelection(
       price_difference = ${priceDiff}
     WHERE id = ${selectionId}
     RETURNING *
-  `)) as any[]
+  `))
 
   return updated
 }
@@ -229,14 +234,14 @@ export async function approveSelection(
   companyId: string,
   { approvedBy, createChangeOrder: shouldCreate = true }: { approvedBy: string; createChangeOrder?: boolean }
 ) {
-  const [selection] = (await db.execute(sql`
+  const [selection] = rows(await db.execute(sql`
     SELECT ps.*, row_to_json(so.*) as selected_option, row_to_json(p.*) as project, row_to_json(sc.*) as category
     FROM project_selection ps
     LEFT JOIN selection_option so ON so.id = ps.selected_option_id
     LEFT JOIN project p ON p.id = ps.project_id
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     WHERE ps.id = ${selectionId} AND ps.company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!selection) throw new Error('Selection not found')
   if (!selection.selected_option_id) throw new Error('No option selected')
 
@@ -279,7 +284,7 @@ export async function markOrdered(
   companyId: string,
   { orderNumber, expectedDate }: { orderedBy?: string; orderNumber?: string; expectedDate?: string }
 ) {
-  const [row] = (await db.execute(sql`
+  const [row] = rows(await db.execute(sql`
     UPDATE project_selection SET
       status = 'ordered',
       ordered_at = ${new Date()},
@@ -287,7 +292,7 @@ export async function markOrdered(
       expected_delivery = ${expectedDate ? new Date(expectedDate) : null}
     WHERE id = ${selectionId} AND company_id = ${companyId}
     RETURNING *
-  `)) as any[]
+  `))
   return row
 }
 
@@ -299,14 +304,14 @@ export async function markReceived(
   companyId: string,
   { notes }: { receivedBy?: string; notes?: string }
 ) {
-  const [row] = (await db.execute(sql`
+  const [row] = rows(await db.execute(sql`
     UPDATE project_selection SET
       status = 'received',
       received_at = ${new Date()},
       received_notes = ${notes || null}
     WHERE id = ${selectionId} AND company_id = ${companyId}
     RETURNING *
-  `)) as any[]
+  `))
   return row
 }
 
@@ -325,14 +330,14 @@ export async function getClientSelections(projectId: string, contactId: string) 
 
   if (!proj) throw new Error('Access denied')
 
-  const selections = (await db.execute(sql`
+  const selections = rows(await db.execute(sql`
     SELECT ps.*, row_to_json(sc.*) as category, row_to_json(so.*) as selected_option
     FROM project_selection ps
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     LEFT JOIN selection_option so ON so.id = ps.selected_option_id
     WHERE ps.project_id = ${projectId}
     ORDER BY ps.due_date ASC NULLS LAST, sc.sort_order ASC
-  `)) as any[]
+  `))
 
   const enriched = await Promise.all(
     selections.map(async (sel: any) => {
@@ -340,13 +345,13 @@ export async function getClientSelections(projectId: string, contactId: string) 
       if (sel.status === 'pending' || sel.status === 'selected') {
         const availableOptions = sel.available_options || []
         if (availableOptions.length > 0) {
-          options = (await db.execute(sql`
+          options = rows(await db.execute(sql`
             SELECT * FROM selection_option WHERE id = ANY(${availableOptions}::text[])
-          `)) as any[]
+          `))
         } else {
-          options = (await db.execute(sql`
+          options = rows(await db.execute(sql`
             SELECT * FROM selection_option WHERE category_id = ${sel.category_id} AND active = true LIMIT 50
-          `)) as any[]
+          `))
         }
       }
 
@@ -380,9 +385,9 @@ export async function clientMakeSelection(
 
   if (!proj) throw new Error('Access denied')
 
-  const [selection] = (await db.execute(sql`
+  const [selection] = rows(await db.execute(sql`
     SELECT * FROM project_selection WHERE id = ${selectionId} AND project_id = ${projectId}
-  `)) as any[]
+  `))
   if (!selection) throw new Error('Selection not found')
   if (selection.status !== 'pending' && selection.status !== 'selected') {
     throw new Error('Selection cannot be changed')
@@ -402,28 +407,28 @@ export async function getSelectionsDueSoon(companyId: string, { days = 7 }: { da
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + days)
 
-  return (await db.execute(sql`
+  return rows(await db.execute(sql`
     SELECT ps.*, json_build_object('id', p.id, 'name', p.name) as project, row_to_json(sc.*) as category
     FROM project_selection ps
     LEFT JOIN project p ON p.id = ps.project_id
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     WHERE ps.company_id = ${companyId} AND ps.status = 'pending' AND ps.due_date <= ${dueDate}
     ORDER BY ps.due_date ASC
-  `)) as any[]
+  `))
 }
 
 /**
  * Get overdue selections
  */
 export async function getOverdueSelections(companyId: string) {
-  return (await db.execute(sql`
+  return rows(await db.execute(sql`
     SELECT ps.*, json_build_object('id', p.id, 'name', p.name) as project, row_to_json(sc.*) as category
     FROM project_selection ps
     LEFT JOIN project p ON p.id = ps.project_id
     LEFT JOIN selection_category sc ON sc.id = ps.category_id
     WHERE ps.company_id = ${companyId} AND ps.status = 'pending' AND ps.due_date < ${new Date()}
     ORDER BY ps.due_date ASC
-  `)) as any[]
+  `))
 }
 
 export default {

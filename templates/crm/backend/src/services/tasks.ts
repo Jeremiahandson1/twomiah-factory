@@ -11,6 +11,11 @@ import { db } from '../../db/index.ts'
 import { user, project, job, contact } from '../../db/schema.ts'
 import { eq, and, sql, count, lte, gte, not, desc, asc } from 'drizzle-orm'
 
+/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
+function rows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows || [])
+}
+
 /**
  * Create a task
  */
@@ -45,11 +50,11 @@ export async function createTask({
     completed: false,
   }))
 
-  const [task] = (await db.execute(sql`
+  const [task] = rows(await db.execute(sql`
     INSERT INTO task (company_id, created_by_id, title, description, due_date, priority, assigned_to_id, project_id, job_id, contact_id, checklist, status)
     VALUES (${companyId}, ${createdById}, ${title}, ${description || null}, ${dueDate ? new Date(dueDate) : null}, ${priority}, ${assignedToId || null}, ${projectId || null}, ${jobId || null}, ${contactId || null}, ${JSON.stringify(checklistJson)}, 'pending')
     RETURNING *
-  `)) as any[]
+  `))
 
   return task
 }
@@ -111,7 +116,7 @@ export async function getTasks(
   const sortCol = sortBy === 'dueDate' ? 'due_date' : sortBy
   const order = sortOrder === 'desc' ? 'DESC' : 'ASC'
 
-  const data = (await db.execute(sql.raw(`
+  const data = rows(await db.execute(sql.raw(`
     SELECT t.*,
       json_build_object('id', au.id, 'firstName', au.first_name, 'lastName', au.last_name) as assigned_to,
       json_build_object('id', cu.id, 'firstName', cu.first_name, 'lastName', cu.last_name) as created_by,
@@ -127,9 +132,9 @@ export async function getTasks(
     WHERE ${where}
     ORDER BY t.${sortCol} ${order} NULLS LAST
     LIMIT ${limit} OFFSET ${offset}
-  `))) as any[]
+  `)))
 
-  const [{ count: total }] = (await db.execute(sql.raw(`SELECT count(*)::int as count FROM task t WHERE ${where}`))) as any[]
+  const [{ count: total }] = rows(await db.execute(sql.raw(`SELECT count(*)::int as count FROM task t WHERE ${where}`)))
 
   return {
     data,
@@ -141,7 +146,7 @@ export async function getTasks(
  * Get a single task
  */
 export async function getTask(taskId: string, companyId: string) {
-  const [task] = (await db.execute(sql`
+  const [task] = rows(await db.execute(sql`
     SELECT t.*,
       json_build_object('id', au.id, 'firstName', au.first_name, 'lastName', au.last_name, 'email', au.email) as assigned_to,
       json_build_object('id', cu.id, 'firstName', cu.first_name, 'lastName', cu.last_name) as created_by,
@@ -155,7 +160,7 @@ export async function getTask(taskId: string, companyId: string) {
     LEFT JOIN job j ON j.id = t.job_id
     LEFT JOIN contact c ON c.id = t.contact_id
     WHERE t.id = ${taskId} AND t.company_id = ${companyId}
-  `)) as any[]
+  `))
 
   return task || null
 }
@@ -164,9 +169,9 @@ export async function getTask(taskId: string, companyId: string) {
  * Update a task
  */
 export async function updateTask(taskId: string, companyId: string, data: any) {
-  const [existing] = (await db.execute(sql`
+  const [existing] = rows(await db.execute(sql`
     SELECT * FROM task WHERE id = ${taskId} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!existing) return null
 
   const sets: string[] = []
@@ -191,9 +196,9 @@ export async function updateTask(taskId: string, companyId: string, data: any) {
 
   if (sets.length === 0) return existing
 
-  const [updated] = (await db.execute(sql.raw(`
+  const [updated] = rows(await db.execute(sql.raw(`
     UPDATE task SET ${sets.join(', ')} WHERE id = '${taskId}' RETURNING *
-  `))) as any[]
+  `)))
 
   return updated
 }
@@ -202,17 +207,17 @@ export async function updateTask(taskId: string, companyId: string, data: any) {
  * Toggle task completion
  */
 export async function toggleTaskComplete(taskId: string, companyId: string) {
-  const [task] = (await db.execute(sql`
+  const [task] = rows(await db.execute(sql`
     SELECT * FROM task WHERE id = ${taskId} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!task) return null
 
   const newStatus = task.status === 'completed' ? 'pending' : 'completed'
 
-  const [updated] = (await db.execute(sql`
+  const [updated] = rows(await db.execute(sql`
     UPDATE task SET status = ${newStatus}, completed_at = ${newStatus === 'completed' ? new Date() : null}
     WHERE id = ${taskId} RETURNING *
-  `)) as any[]
+  `))
 
   return updated
 }
@@ -221,9 +226,9 @@ export async function toggleTaskComplete(taskId: string, companyId: string) {
  * Toggle checklist item
  */
 export async function toggleChecklistItem(taskId: string, companyId: string, itemId: string) {
-  const [task] = (await db.execute(sql`
+  const [task] = rows(await db.execute(sql`
     SELECT * FROM task WHERE id = ${taskId} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!task) return null
 
   const checklist = (task.checklist || []).map((item: any) => {
@@ -233,9 +238,9 @@ export async function toggleChecklistItem(taskId: string, companyId: string, ite
     return item
   })
 
-  const [updated] = (await db.execute(sql`
+  const [updated] = rows(await db.execute(sql`
     UPDATE task SET checklist = ${JSON.stringify(checklist)} WHERE id = ${taskId} RETURNING *
-  `)) as any[]
+  `))
 
   return updated
 }
@@ -244,9 +249,9 @@ export async function toggleChecklistItem(taskId: string, companyId: string, ite
  * Delete a task
  */
 export async function deleteTask(taskId: string, companyId: string): Promise<boolean> {
-  const [task] = (await db.execute(sql`
+  const [task] = rows(await db.execute(sql`
     SELECT id FROM task WHERE id = ${taskId} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!task) return false
 
   await db.execute(sql`DELETE FROM task WHERE id = ${taskId}`)
@@ -260,7 +265,7 @@ export async function getUpcomingTasks(companyId: string, userId: string, { days
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + days)
 
-  return (await db.execute(sql`
+  return rows(await db.execute(sql`
     SELECT t.*, json_build_object('name', p.name) as project, json_build_object('title', j.title) as job
     FROM task t
     LEFT JOIN project p ON p.id = t.project_id
@@ -271,14 +276,14 @@ export async function getUpcomingTasks(companyId: string, userId: string, { days
       AND t.due_date >= ${new Date()}
     ORDER BY t.due_date ASC
     LIMIT 10
-  `)) as any[]
+  `))
 }
 
 /**
  * Get overdue tasks
  */
 export async function getOverdueTasks(companyId: string, userId: string) {
-  return (await db.execute(sql`
+  return rows(await db.execute(sql`
     SELECT t.*, json_build_object('name', p.name) as project, json_build_object('title', j.title) as job
     FROM task t
     LEFT JOIN project p ON p.id = t.project_id
@@ -287,7 +292,7 @@ export async function getOverdueTasks(companyId: string, userId: string) {
       AND t.status != 'completed'
       AND t.due_date < ${new Date()}
     ORDER BY t.due_date ASC
-  `)) as any[]
+  `))
 }
 
 /**
@@ -296,12 +301,16 @@ export async function getOverdueTasks(companyId: string, userId: string) {
 export async function getTaskStats(companyId: string, userId: string) {
   const base = `company_id = '${companyId}' AND assigned_to_id = '${userId}'`
 
-  const [[{ count: total }], [{ count: completed }], [{ count: pending }], [{ count: overdue }]] = await Promise.all([
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base}`)) as any,
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status = 'completed'`)) as any,
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status != 'completed'`)) as any,
-    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status != 'completed' AND due_date < '${new Date().toISOString()}'`)) as any,
+  const [totalRes, completedRes, pendingRes, overdueRes] = await Promise.all([
+    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base}`)),
+    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status = 'completed'`)),
+    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status != 'completed'`)),
+    db.execute(sql.raw(`SELECT count(*)::int as count FROM task WHERE ${base} AND status != 'completed' AND due_date < '${new Date().toISOString()}'`)),
   ])
+  const total = rows(totalRes)[0]?.count || 0
+  const completed = rows(completedRes)[0]?.count || 0
+  const pending = rows(pendingRes)[0]?.count || 0
+  const overdue = rows(overdueRes)[0]?.count || 0
 
   return { total, completed, pending, overdue }
 }

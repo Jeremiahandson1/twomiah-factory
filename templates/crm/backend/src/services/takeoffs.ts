@@ -12,6 +12,11 @@ import { db } from '../../db/index.ts'
 import { purchaseOrder, purchaseOrderItem } from '../../db/schema.ts'
 import { eq, sql } from 'drizzle-orm'
 
+/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
+function rows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows || [])
+}
+
 // Measurement types
 export const MEASUREMENT_TYPES = {
   AREA: 'area',
@@ -29,11 +34,11 @@ export const MEASUREMENT_TYPES = {
  * Create assembly template
  */
 export async function createAssembly(companyId: string, data: any) {
-  const [assembly] = (await db.execute(sql`
+  const [assembly] = rows(await db.execute(sql`
     INSERT INTO takeoff_assembly (company_id, name, description, category, measurement_type, waste_factor, active)
     VALUES (${companyId}, ${data.name}, ${data.description || null}, ${data.category || null}, ${data.measurementType || 'area'}, ${data.wasteFactor || 10}, true)
     RETURNING *
-  `)) as any[]
+  `))
 
   if (data.materials?.length) {
     for (const mat of data.materials) {
@@ -51,17 +56,17 @@ export async function createAssembly(companyId: string, data: any) {
  * Get assembly with materials
  */
 export async function getAssembly(assemblyId: string, companyId: string) {
-  const [assembly] = (await db.execute(sql`
+  const [assembly] = rows(await db.execute(sql`
     SELECT * FROM takeoff_assembly WHERE id = ${assemblyId} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!assembly) return null
 
-  assembly.materials = (await db.execute(sql`
+  assembly.materials = rows(await db.execute(sql`
     SELECT am.*, json_build_object('id', ii.id, 'name', ii.name, 'sku', ii.sku, 'unit_cost', ii.unit_cost) as inventory_item
     FROM assembly_material am
     LEFT JOIN inventory_item ii ON ii.id = am.inventory_item_id
     WHERE am.assembly_id = ${assemblyId}
-  `)) as any[]
+  `))
 
   return assembly
 }
@@ -74,15 +79,15 @@ export async function getAssemblies(companyId: string, { category, active = true
   if (category) conditions.push(`ta.category = '${category}'`)
   if (active !== null) conditions.push(`ta.active = ${active}`)
 
-  const assemblies = (await db.execute(sql.raw(`
+  const assemblies = rows(await db.execute(sql.raw(`
     SELECT ta.* FROM takeoff_assembly ta WHERE ${conditions.join(' AND ')} ORDER BY ta.category ASC, ta.name ASC
-  `))) as any[]
+  `)))
 
   // Load materials for each
   for (const assembly of assemblies) {
-    assembly.materials = (await db.execute(sql`
+    assembly.materials = rows(await db.execute(sql`
       SELECT * FROM assembly_material WHERE assembly_id = ${assembly.id}
-    `)) as any[]
+    `))
   }
 
   return assemblies
@@ -137,9 +142,9 @@ export async function seedDefaultAssemblies(companyId: string) {
   ]
 
   for (const assembly of defaults) {
-    const [existing] = (await db.execute(sql`
+    const [existing] = rows(await db.execute(sql`
       SELECT id FROM takeoff_assembly WHERE company_id = ${companyId} AND name = ${assembly.name}
-    `)) as any[]
+    `))
 
     if (!existing) {
       await createAssembly(companyId, assembly)
@@ -155,11 +160,11 @@ export async function seedDefaultAssemblies(companyId: string) {
  * Create takeoff sheet for project
  */
 export async function createTakeoffSheet(companyId: string, data: any) {
-  const [sheet] = (await db.execute(sql`
+  const [sheet] = rows(await db.execute(sql`
     INSERT INTO takeoff_sheet (company_id, project_id, name, description, plan_reference, plan_url, status)
     VALUES (${companyId}, ${data.projectId}, ${data.name}, ${data.description || null}, ${data.planReference || null}, ${data.planUrl || null}, 'draft')
     RETURNING *
-  `)) as any[]
+  `))
   return sheet
 }
 
@@ -167,39 +172,39 @@ export async function createTakeoffSheet(companyId: string, data: any) {
  * Get takeoff sheets for project
  */
 export async function getProjectTakeoffs(projectId: string, companyId: string) {
-  return (await db.execute(sql`
+  return rows(await db.execute(sql`
     SELECT ts.*,
       (SELECT count(*) FROM takeoff_item ti WHERE ti.sheet_id = ts.id) as item_count
     FROM takeoff_sheet ts
     WHERE ts.project_id = ${projectId} AND ts.company_id = ${companyId}
     ORDER BY ts.created_at DESC
-  `)) as any[]
+  `))
 }
 
 /**
  * Get takeoff sheet with full details
  */
 export async function getTakeoffSheet(sheetId: string, companyId: string) {
-  const [sheet] = (await db.execute(sql`
+  const [sheet] = rows(await db.execute(sql`
     SELECT ts.*, json_build_object('id', p.id, 'name', p.name) as project
     FROM takeoff_sheet ts
     LEFT JOIN project p ON p.id = ts.project_id
     WHERE ts.id = ${sheetId} AND ts.company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!sheet) return null
 
-  sheet.items = (await db.execute(sql`
+  sheet.items = rows(await db.execute(sql`
     SELECT ti.*, row_to_json(ta.*) as assembly
     FROM takeoff_item ti
     LEFT JOIN takeoff_assembly ta ON ta.id = ti.assembly_id
     WHERE ti.sheet_id = ${sheetId}
     ORDER BY ti.sort_order ASC
-  `)) as any[]
+  `))
 
   for (const item of sheet.items) {
-    item.calculatedMaterials = (await db.execute(sql`
+    item.calculatedMaterials = rows(await db.execute(sql`
       SELECT * FROM takeoff_calculated_material WHERE item_id = ${item.id}
-    `)) as any[]
+    `))
   }
 
   return sheet
@@ -218,11 +223,11 @@ export async function addTakeoffItem(sheetId: string, companyId: string, data: a
 
   const measurementValue = calculateMeasurement(data, assembly.measurement_type)
 
-  const [item] = (await db.execute(sql`
+  const [item] = rows(await db.execute(sql`
     INSERT INTO takeoff_item (sheet_id, assembly_id, name, location, measurement_type, length, width, height, quantity, measurement_value, waste_factor, notes, sort_order)
     VALUES (${sheetId}, ${data.assemblyId}, ${data.name || assembly.name}, ${data.location || null}, ${assembly.measurement_type}, ${data.length || 0}, ${data.width || 0}, ${data.height || 0}, ${data.quantity || 1}, ${measurementValue}, ${data.wasteFactor ?? assembly.waste_factor}, ${data.notes || null}, ${data.sortOrder || 0})
     RETURNING *
-  `)) as any[]
+  `))
 
   await calculateItemMaterials(item.id, companyId)
 
@@ -251,18 +256,18 @@ function calculateMeasurement(data: any, measurementType: string): number {
  * Calculate materials for a takeoff item
  */
 async function calculateItemMaterials(itemId: string, companyId: string) {
-  const [item] = (await db.execute(sql`
+  const [item] = rows(await db.execute(sql`
     SELECT ti.*, row_to_json(ta.*) as assembly
     FROM takeoff_item ti
     LEFT JOIN takeoff_assembly ta ON ta.id = ti.assembly_id
     WHERE ti.id = ${itemId}
-  `)) as any[]
+  `))
 
   if (!item) return
 
-  const materials = (await db.execute(sql`
+  const materials = rows(await db.execute(sql`
     SELECT * FROM assembly_material WHERE assembly_id = ${item.assembly_id}
-  `)) as any[]
+  `))
 
   await db.execute(sql`DELETE FROM takeoff_calculated_material WHERE item_id = ${itemId}`)
 
@@ -287,17 +292,17 @@ async function calculateItemMaterials(itemId: string, companyId: string) {
  * Get takeoff item
  */
 async function getTakeoffItem(itemId: string) {
-  const [item] = (await db.execute(sql`
+  const [item] = rows(await db.execute(sql`
     SELECT ti.*, row_to_json(ta.*) as assembly
     FROM takeoff_item ti
     LEFT JOIN takeoff_assembly ta ON ta.id = ti.assembly_id
     WHERE ti.id = ${itemId}
-  `)) as any[]
+  `))
   if (!item) return null
 
-  item.calculatedMaterials = (await db.execute(sql`
+  item.calculatedMaterials = rows(await db.execute(sql`
     SELECT * FROM takeoff_calculated_material WHERE item_id = ${itemId}
-  `)) as any[]
+  `))
 
   return item
 }
@@ -306,13 +311,13 @@ async function getTakeoffItem(itemId: string) {
  * Update takeoff item
  */
 export async function updateTakeoffItem(itemId: string, companyId: string, data: any) {
-  const [item] = (await db.execute(sql`
+  const [item] = rows(await db.execute(sql`
     SELECT ti.*, ts.company_id, row_to_json(ta.*) as assembly
     FROM takeoff_item ti
     JOIN takeoff_sheet ts ON ts.id = ti.sheet_id
     LEFT JOIN takeoff_assembly ta ON ta.id = ti.assembly_id
     WHERE ti.id = ${itemId}
-  `)) as any[]
+  `))
 
   if (!item || item.company_id !== companyId) {
     throw new Error('Item not found')
@@ -341,12 +346,12 @@ export async function updateTakeoffItem(itemId: string, companyId: string, data:
  * Delete takeoff item
  */
 export async function deleteTakeoffItem(itemId: string, companyId: string) {
-  const [item] = (await db.execute(sql`
+  const [item] = rows(await db.execute(sql`
     SELECT ti.id, ts.company_id
     FROM takeoff_item ti
     JOIN takeoff_sheet ts ON ts.id = ti.sheet_id
     WHERE ti.id = ${itemId}
-  `)) as any[]
+  `))
 
   if (!item || item.company_id !== companyId) {
     throw new Error('Item not found')
@@ -364,17 +369,17 @@ export async function deleteTakeoffItem(itemId: string, companyId: string) {
  * Get material totals for a takeoff sheet
  */
 export async function getSheetMaterialTotals(sheetId: string, companyId: string) {
-  const [sheet] = (await db.execute(sql`
+  const [sheet] = rows(await db.execute(sql`
     SELECT * FROM takeoff_sheet WHERE id = ${sheetId} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!sheet) throw new Error('Sheet not found')
 
-  const allMaterials = (await db.execute(sql`
+  const allMaterials = rows(await db.execute(sql`
     SELECT tcm.*
     FROM takeoff_calculated_material tcm
     JOIN takeoff_item ti ON ti.id = tcm.item_id
     WHERE ti.sheet_id = ${sheetId}
-  `)) as any[]
+  `))
 
   return aggregateMaterials(allMaterials)
 }
@@ -383,13 +388,13 @@ export async function getSheetMaterialTotals(sheetId: string, companyId: string)
  * Get material totals for entire project
  */
 export async function getProjectMaterialTotals(projectId: string, companyId: string) {
-  const allMaterials = (await db.execute(sql`
+  const allMaterials = rows(await db.execute(sql`
     SELECT tcm.*
     FROM takeoff_calculated_material tcm
     JOIN takeoff_item ti ON ti.id = tcm.item_id
     JOIN takeoff_sheet ts ON ts.id = ti.sheet_id
     WHERE ts.project_id = ${projectId} AND ts.company_id = ${companyId}
-  `)) as any[]
+  `))
 
   return aggregateMaterials(allMaterials)
 }
@@ -437,9 +442,9 @@ function aggregateMaterials(allMaterials: any[]) {
 export async function exportToPurchaseOrder(sheetId: string, companyId: string, { vendorId }: { vendorId: string }) {
   const { materials, totals } = await getSheetMaterialTotals(sheetId, companyId)
 
-  const [sheet] = (await db.execute(sql`
+  const [sheet] = rows(await db.execute(sql`
     SELECT ts.*, p.name as project_name FROM takeoff_sheet ts LEFT JOIN project p ON p.id = ts.project_id WHERE ts.id = ${sheetId} AND ts.company_id = ${companyId}
-  `)) as any[]
+  `))
 
   // Create purchase order - schema requires locationId and vendor as string
   const [po] = await db

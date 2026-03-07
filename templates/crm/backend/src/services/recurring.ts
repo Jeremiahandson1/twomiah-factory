@@ -14,6 +14,11 @@ import { invoice, invoiceLineItem, contact, project } from '../../db/schema.ts'
 import { eq, and, lte, desc, sql } from 'drizzle-orm'
 import emailService from './email.ts'
 
+/** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
+function rows(result: any): any[] {
+  return Array.isArray(result) ? result : (result?.rows || [])
+}
+
 /**
  * Frequency options
  */
@@ -127,17 +132,17 @@ export async function createRecurringInvoice(data: any, companyId: string) {
   const total = subtotal + taxAmount - discount
 
   // Raw insert into recurring_invoice (table assumed to exist at DB level)
-  const [recurring] = await db.execute(sql`
+  const [recurring] = rows(await db.execute(sql`
     INSERT INTO recurring_invoice (company_id, contact_id, project_id, frequency, start_date, end_date, next_run_date, terms, subtotal, tax_rate, tax_amount, discount, total, notes, auto_send, status)
     VALUES (${companyId}, ${contactId}, ${projectId || null}, ${frequency}, ${new Date(startDate)}, ${endDate ? new Date(endDate) : null}, ${new Date(startDate)}, ${terms || '30'}, ${subtotal}, ${taxRate}, ${taxAmount}, ${discount}, ${total}, ${notes}, ${autoSend || false}, 'active')
     RETURNING *
-  `) as any
+  `))
 
-  const recurringId = (recurring as any).id ?? (recurring as any)[0]?.id
+  const recurringId = recurring?.id
 
   for (const item of processedItems) {
     await db.execute(sql`
-      INSERT INTO recurring_invoice_line_item (recurring_invoice_id, description, quantity, unit_price, total, sort_order)
+      INSERT INTO recurring_line_item (recurring_invoice_id, description, quantity, unit_price, total, sort_order)
       VALUES (${recurringId}, ${item.description}, ${item.quantity || 1}, ${item.unitPrice || 0}, ${item.total}, ${item.sortOrder})
     `)
   }
@@ -149,13 +154,13 @@ export async function createRecurringInvoice(data: any, companyId: string) {
  * Generate invoice from recurring template
  */
 export async function generateInvoiceFromRecurring(recurringId: string) {
-  const [recurring] = (await db.execute(sql`
+  const [recurring] = rows(await db.execute(sql`
     SELECT ri.*, row_to_json(c.*) as contact, row_to_json(co.*) as company
     FROM recurring_invoice ri
     LEFT JOIN contact c ON c.id = ri.contact_id
     LEFT JOIN company co ON co.id = ri.company_id
     WHERE ri.id = ${recurringId}
-  `)) as any[]
+  `))
 
   if (!recurring) {
     throw new Error('Recurring invoice not found')
@@ -165,9 +170,9 @@ export async function generateInvoiceFromRecurring(recurringId: string) {
     throw new Error('Recurring invoice is not active')
   }
 
-  const lineItems = (await db.execute(sql`
-    SELECT * FROM recurring_invoice_line_item WHERE recurring_invoice_id = ${recurringId} ORDER BY sort_order ASC
-  `)) as any[]
+  const lineItems = rows(await db.execute(sql`
+    SELECT * FROM recurring_line_item WHERE recurring_invoice_id = ${recurringId} ORDER BY sort_order ASC
+  `))
 
   // Generate invoice number
   const number = await generateInvoiceNumber(recurring.company_id)
@@ -254,9 +259,9 @@ export async function generateInvoiceFromRecurring(recurringId: string) {
 export async function processRecurringInvoices() {
   const now = new Date()
 
-  const dueRecurring = (await db.execute(sql`
+  const dueRecurring = rows(await db.execute(sql`
     SELECT * FROM recurring_invoice WHERE status = 'active' AND next_run_date <= ${now}
-  `)) as any[]
+  `))
 
   const results: any[] = []
 
@@ -289,7 +294,7 @@ export async function getRecurringInvoices(
   const where = conditions.join(' AND ')
   const offset = (page - 1) * limit
 
-  const data = (await db.execute(sql.raw(`
+  const data = rows(await db.execute(sql.raw(`
     SELECT ri.*, row_to_json(c.*) as contact, row_to_json(p.*) as project
     FROM recurring_invoice ri
     LEFT JOIN contact c ON c.id = ri.contact_id
@@ -297,9 +302,9 @@ export async function getRecurringInvoices(
     WHERE ${where}
     ORDER BY ri.created_at DESC
     LIMIT ${limit} OFFSET ${offset}
-  `))) as any[]
+  `)))
 
-  const [{ count: total }] = (await db.execute(sql.raw(`SELECT count(*)::int as count FROM recurring_invoice ri WHERE ${where}`))) as any[]
+  const [{ count: total }] = rows(await db.execute(sql.raw(`SELECT count(*)::int as count FROM recurring_invoice ri WHERE ${where}`)))
 
   return {
     data,
@@ -311,19 +316,19 @@ export async function getRecurringInvoices(
  * Get single recurring invoice
  */
 export async function getRecurringInvoice(id: string, companyId: string) {
-  const [result] = (await db.execute(sql`
+  const [result] = rows(await db.execute(sql`
     SELECT ri.*, row_to_json(c.*) as contact, row_to_json(p.*) as project
     FROM recurring_invoice ri
     LEFT JOIN contact c ON c.id = ri.contact_id
     LEFT JOIN project p ON p.id = ri.project_id
     WHERE ri.id = ${id} AND ri.company_id = ${companyId}
-  `)) as any[]
+  `))
 
   if (!result) return null
 
-  const lineItemRows = (await db.execute(sql`
-    SELECT * FROM recurring_invoice_line_item WHERE recurring_invoice_id = ${id} ORDER BY sort_order ASC
-  `)) as any[]
+  const lineItemRows = rows(await db.execute(sql`
+    SELECT * FROM recurring_line_item WHERE recurring_invoice_id = ${id} ORDER BY sort_order ASC
+  `))
 
   result.lineItems = lineItemRows
 
@@ -334,13 +339,13 @@ export async function getRecurringInvoice(id: string, companyId: string) {
  * Update recurring invoice
  */
 export async function updateRecurringInvoice(id: string, companyId: string, data: any) {
-  const [existing] = (await db.execute(sql`
+  const [existing] = rows(await db.execute(sql`
     SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!existing) return null
 
   if (data.lineItems) {
-    await db.execute(sql`DELETE FROM recurring_invoice_line_item WHERE recurring_invoice_id = ${id}`)
+    await db.execute(sql`DELETE FROM recurring_line_item WHERE recurring_invoice_id = ${id}`)
 
     let subtotal = 0
     const processedItems = (data.lineItems as any[]).map((item: any, index: number) => {
@@ -358,7 +363,7 @@ export async function updateRecurringInvoice(id: string, companyId: string, data
 
     for (const item of processedItems) {
       await db.execute(sql`
-        INSERT INTO recurring_invoice_line_item (recurring_invoice_id, description, quantity, unit_price, total, sort_order)
+        INSERT INTO recurring_line_item (recurring_invoice_id, description, quantity, unit_price, total, sort_order)
         VALUES (${id}, ${item.description}, ${item.quantity}, ${item.unitPrice}, ${item.total}, ${item.sortOrder})
       `)
     }
@@ -395,9 +400,9 @@ export async function updateRecurringInvoice(id: string, companyId: string, data
  * Pause recurring invoice
  */
 export async function pauseRecurringInvoice(id: string, companyId: string) {
-  const [existing] = (await db.execute(sql`
+  const [existing] = rows(await db.execute(sql`
     SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!existing) return null
 
   await db.execute(sql`UPDATE recurring_invoice SET status = 'paused' WHERE id = ${id}`)
@@ -408,9 +413,9 @@ export async function pauseRecurringInvoice(id: string, companyId: string) {
  * Resume recurring invoice
  */
 export async function resumeRecurringInvoice(id: string, companyId: string) {
-  const [existing] = (await db.execute(sql`
+  const [existing] = rows(await db.execute(sql`
     SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!existing) return null
 
   let nextRunDate = new Date(existing.next_run_date)
@@ -427,9 +432,9 @@ export async function resumeRecurringInvoice(id: string, companyId: string) {
  * Cancel recurring invoice
  */
 export async function cancelRecurringInvoice(id: string, companyId: string) {
-  const [existing] = (await db.execute(sql`
+  const [existing] = rows(await db.execute(sql`
     SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!existing) return null
 
   await db.execute(sql`UPDATE recurring_invoice SET status = 'cancelled' WHERE id = ${id}`)
@@ -440,14 +445,34 @@ export async function cancelRecurringInvoice(id: string, companyId: string) {
  * Delete recurring invoice
  */
 export async function deleteRecurringInvoice(id: string, companyId: string): Promise<boolean> {
-  const [existing] = (await db.execute(sql`
+  const [existing] = rows(await db.execute(sql`
     SELECT * FROM recurring_invoice WHERE id = ${id} AND company_id = ${companyId}
-  `)) as any[]
+  `))
   if (!existing) return false
 
-  await db.execute(sql`DELETE FROM recurring_invoice_line_item WHERE recurring_invoice_id = ${id}`)
+  await db.execute(sql`DELETE FROM recurring_line_item WHERE recurring_invoice_id = ${id}`)
   await db.execute(sql`DELETE FROM recurring_invoice WHERE id = ${id}`)
   return true
+}
+
+/** Stub for getRecurringStats - route expects this */
+async function getRecurringStats(companyId: string) {
+  const [activeRes, pausedRes] = await Promise.all([
+    db.execute(sql`SELECT count(*)::int as count FROM recurring_invoice WHERE company_id = ${companyId} AND status = 'active'`),
+    db.execute(sql`SELECT count(*)::int as count FROM recurring_invoice WHERE company_id = ${companyId} AND status = 'paused'`),
+  ])
+  return {
+    active: rows(activeRes)[0]?.count || 0,
+    paused: rows(pausedRes)[0]?.count || 0,
+  }
+}
+
+/** Stub for updateRecurringStatus - route expects this */
+async function updateRecurringStatus(id: string, status: string, opts?: { nextRunDate?: Date }) {
+  const sets = [`status = '${status}'`]
+  if (opts?.nextRunDate) sets.push(`next_run_date = '${opts.nextRunDate.toISOString()}'`)
+  const [updated] = rows(await db.execute(sql.raw(`UPDATE recurring_invoice SET ${sets.join(', ')} WHERE id = '${id}' RETURNING *`)))
+  return updated
 }
 
 export default {
@@ -458,6 +483,15 @@ export default {
   processRecurringInvoices,
   getRecurringInvoices,
   getRecurringInvoice,
+  getRecurringList: getRecurringInvoices,
+  getRecurringById: getRecurringInvoice,
+  getRecurringStats,
+  createRecurring: createRecurringInvoice,
+  updateRecurring: updateRecurringInvoice,
+  updateRecurringStatus,
+  generateInvoice: generateInvoiceFromRecurring,
+  deleteRecurring: deleteRecurringInvoice,
+  processDueRecurring: processRecurringInvoices,
   updateRecurringInvoice,
   pauseRecurringInvoice,
   resumeRecurringInvoice,
