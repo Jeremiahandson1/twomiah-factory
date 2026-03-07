@@ -7,6 +7,7 @@ import DashboardPage from './pages/DashboardPage'
 import TenantsPage from './pages/TenantsPage'
 import CustomerDetailPage from './pages/CustomerDetailPage'
 import FactoryPage from './pages/FactoryPage'
+import SupportPage from './pages/SupportPage'
 import AppLayout from './components/AppLayout'
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="tenants" element={<TenantsPage />} />
           <Route path="tenants/:id" element={<CustomerDetailPage />} />
           <Route path="factory" element={<FactoryPage />} />
+          <Route path="support" element={<SupportPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

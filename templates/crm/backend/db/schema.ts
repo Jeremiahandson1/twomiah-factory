@@ -2348,6 +2348,109 @@ export const takeoffCalculatedMaterial = pgTable('takeoff_calculated_material', 
   index('takeoff_calculated_material_item_id_idx').on(t.itemId),
 ])
 
+// ==================== SUPPORT TICKETS ====================
+
+export const supportTicket = pgTable('support_ticket', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  subject: text('subject').notNull(),
+  description: text('description'),
+  status: text('status').default('open').notNull(), // open, in_progress, waiting, resolved, closed
+  priority: text('priority').default('normal').notNull(), // low, normal, high, urgent, critical
+  category: text('category'), // billing, technical, feature_request, bug, general
+  type: text('type').default('internal').notNull(), // internal (from CRM users) or external (from contacts/clients)
+  source: text('source').default('portal').notNull(), // portal, email, ai_chat, phone, api
+
+  // SLA tracking
+  slaResponseDue: timestamp('sla_response_due'),
+  slaResolveDue: timestamp('sla_resolve_due'),
+  firstResponseAt: timestamp('first_response_at'),
+  resolvedAt: timestamp('resolved_at'),
+  closedAt: timestamp('closed_at'),
+  escalatedAt: timestamp('escalated_at'),
+  escalationLevel: integer('escalation_level').default(0).notNull(),
+
+  // AI fields
+  aiSuggested: boolean('ai_suggested').default(false).notNull(),
+  aiCategory: text('ai_category'),
+  aiPriorityScore: integer('ai_priority_score'),
+
+  // Rating
+  rating: integer('rating'), // 1-5 post-resolution
+  ratingComment: text('rating_comment'),
+
+  // Relations
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  // Tags & metadata
+  tags: json('tags').default([]).notNull(),
+  metadata: json('metadata').default({}).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_ticket_company_id_idx').on(t.companyId),
+  index('support_ticket_status_idx').on(t.status),
+  index('support_ticket_priority_idx').on(t.priority),
+  index('support_ticket_assigned_to_idx').on(t.assignedToId),
+  index('support_ticket_contact_id_idx').on(t.contactId),
+  index('support_ticket_category_idx').on(t.category),
+])
+
+export const supportTicketMessage = pgTable('support_ticket_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  body: text('body').notNull(),
+  isInternal: boolean('is_internal').default(false).notNull(), // internal note vs visible reply
+  isAi: boolean('is_ai').default(false).notNull(),
+  attachments: json('attachments').default([]).notNull(),
+
+  ticketId: text('ticket_id').notNull().references(() => supportTicket.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_ticket_message_ticket_id_idx').on(t.ticketId),
+])
+
+export const supportKnowledgeBase = pgTable('support_knowledge_base', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  category: text('category'),
+  tags: json('tags').default([]).notNull(),
+  published: boolean('published').default(true).notNull(),
+  viewCount: integer('view_count').default(0).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_kb_company_id_idx').on(t.companyId),
+  index('support_kb_category_idx').on(t.category),
+])
+
+export const supportSlaPolicy = pgTable('support_sla_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  priority: text('priority').notNull(), // maps to ticket priority
+  responseTimeMinutes: integer('response_time_minutes').notNull(),
+  resolveTimeMinutes: integer('resolve_time_minutes').notNull(),
+  escalateAfterMinutes: integer('escalate_after_minutes'),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_sla_policy_company_id_idx').on(t.companyId),
+])
+
 export const pushSubscription = pgTable('push_subscription', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),

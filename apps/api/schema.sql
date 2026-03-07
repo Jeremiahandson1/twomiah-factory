@@ -124,3 +124,134 @@ create policy "Service role full access on factory_jobs"
   on factory_jobs for all
   using (true)
   with check (true);
+
+
+-- ─── Support Tickets ────────────────────────────────────────────────────────
+-- Tickets submitted by CRM customers to Twomiah support.
+
+create table if not exists support_tickets (
+  id              uuid primary key default uuid_generate_v4(),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+
+  -- Ticket info
+  number          text not null,
+  subject         text not null,
+  description     text,
+  status          text not null default 'open',        -- open, in_progress, waiting, resolved, closed
+  priority        text not null default 'normal',      -- low, normal, high, urgent, critical
+  category        text,                                -- billing, technical, feature_request, bug, general
+  source          text default 'portal',               -- portal, email, ai_chat
+
+  -- Link to tenant
+  tenant_id       uuid not null references tenants(id) on delete cascade,
+  submitter_email text,
+  submitter_name  text,
+
+  -- Assignment
+  assigned_to     text,                                -- Factory team member email
+
+  -- SLA tracking
+  sla_response_due  timestamptz,
+  sla_resolve_due   timestamptz,
+  first_response_at timestamptz,
+  resolved_at       timestamptz,
+  closed_at         timestamptz,
+  escalated_at      timestamptz,
+  escalation_level  integer not null default 0,
+
+  -- AI fields
+  ai_category       text,
+  ai_priority_score integer,
+
+  -- Rating
+  rating            integer,
+  rating_comment    text,
+
+  -- Metadata
+  tags              text[] default '{}',
+  metadata          jsonb default '{}'
+);
+
+create index if not exists idx_support_tickets_tenant on support_tickets(tenant_id);
+create index if not exists idx_support_tickets_status on support_tickets(status);
+create index if not exists idx_support_tickets_priority on support_tickets(priority);
+create index if not exists idx_support_tickets_assigned on support_tickets(assigned_to);
+
+alter table support_tickets enable row level security;
+create policy "Service role full access on support_tickets"
+  on support_tickets for all
+  using (true)
+  with check (true);
+
+
+-- ─── Support Ticket Messages ────────────────────────────────────────────────
+
+create table if not exists support_ticket_messages (
+  id              uuid primary key default uuid_generate_v4(),
+  created_at      timestamptz not null default now(),
+
+  ticket_id       uuid not null references support_tickets(id) on delete cascade,
+  body            text not null,
+  is_internal     boolean not null default false,
+  is_ai           boolean not null default false,
+  sender_type     text not null default 'customer',    -- customer, agent, system
+  sender_email    text,
+  sender_name     text,
+  attachments     jsonb default '[]'
+);
+
+create index if not exists idx_support_messages_ticket on support_ticket_messages(ticket_id);
+
+alter table support_ticket_messages enable row level security;
+create policy "Service role full access on support_ticket_messages"
+  on support_ticket_messages for all
+  using (true)
+  with check (true);
+
+
+-- ─── Support Knowledge Base (Factory-level) ─────────────────────────────────
+
+create table if not exists support_knowledge_base (
+  id              uuid primary key default uuid_generate_v4(),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+
+  title           text not null,
+  content         text not null,
+  category        text,
+  tags            text[] default '{}',
+  published       boolean not null default true,
+  view_count      integer not null default 0
+);
+
+alter table support_knowledge_base enable row level security;
+create policy "Service role full access on support_knowledge_base"
+  on support_knowledge_base for all
+  using (true)
+  with check (true);
+
+
+-- ─── Product Feedback Tracker ───────────────────────────────────────────────
+
+create table if not exists product_feedback (
+  id              uuid primary key default uuid_generate_v4(),
+  created_at      timestamptz not null default now(),
+
+  title           text not null,
+  description     text,
+  category        text,                                -- ux, performance, feature, bug, integration
+  status          text not null default 'new',         -- new, under_review, planned, in_progress, done, wont_fix
+  votes           integer not null default 1,
+  source_ticket_id uuid references support_tickets(id) on delete set null,
+  tenant_id       uuid references tenants(id) on delete set null
+);
+
+create index if not exists idx_product_feedback_status on product_feedback(status);
+create index if not exists idx_product_feedback_category on product_feedback(category);
+
+alter table product_feedback enable row level security;
+create policy "Service role full access on product_feedback"
+  on product_feedback for all
+  using (true)
+  with check (true);
