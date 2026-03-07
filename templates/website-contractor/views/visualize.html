@@ -49,11 +49,11 @@
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --navy: #1a2744;
-      --navy-dark: #0d1626;
-      --navy-light: #2a3a5c;
-      --gold: #c9a227;
-      --gold-dark: #a88920;
+      --navy: {{PRIMARY_COLOR}};
+      --navy-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 60%, black);
+      --navy-light: color-mix(in srgb, {{PRIMARY_COLOR}} 70%, white);
+      --gold: {{SECONDARY_COLOR}};
+      --gold-dark: color-mix(in srgb, {{SECONDARY_COLOR}} 80%, black);
       --white: #ffffff;
       --off-white: #f8f9fa;
       --gray-300: #d4d4d4;

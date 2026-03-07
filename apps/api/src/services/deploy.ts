@@ -683,6 +683,18 @@ export async function deployCustomer(
       }
     }
 
+    // Register tenant with shared home-visualizer so /visualize embed works
+    if (products.includes('website') && (factoryCustomer.config?.features?.website || []).includes('visualizer')) {
+      try {
+        await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
+        results.steps.push({ step: 'visualizer_tenant', status: 'ok' })
+      } catch (err: any) {
+        // Non-critical — tenant can be registered manually later
+        console.warn('[Deploy] Could not register visualizer tenant:', err.message)
+        results.steps.push({ step: 'visualizer_tenant', status: 'warning', error: err.message })
+      }
+    }
+
     // Assign all created services to the Twomiah project so they appear in the Render dashboard
     if (twomiahEnvId && deployedResourceIds.length > 0) {
       for (const resourceId of deployedResourceIds) {
@@ -801,4 +813,47 @@ export async function addCustomDomain(serviceId: string, domain: string): Promis
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function registerVisualizerTenant(slug: string, companyName: string, company?: any) {
+  const supabaseUrl = process.env.VISUALIZER_SUPABASE_URL
+  const supabaseKey = process.env.VISUALIZER_SUPABASE_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    console.log('[Deploy] Skipping visualizer tenant registration — VISUALIZER_SUPABASE_URL/KEY not set')
+    return
+  }
+
+  const body = {
+    slug,
+    company_name: companyName,
+    phone: company?.phone || '',
+    email: company?.email || '',
+    website: company?.domain ? 'https://' + company.domain : '',
+    active: true,
+    plan: 'starter',
+    monthly_gen_limit: 50,
+  }
+
+  const res = await fetchWithTimeout(supabaseUrl + '/rest/v1/tenants', {
+    method: 'POST',
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': 'Bearer ' + supabaseKey,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (res.status === 409 || res.status === 400) {
+    // Tenant likely already exists (unique constraint on slug)
+    console.log('[Deploy] Visualizer tenant already exists:', slug)
+    return
+  }
+
+  if (!res.ok) {
+    throw new Error('Supabase insert failed (' + res.status + '): ' + await res.text())
+  }
+
+  console.log('[Deploy] Registered visualizer tenant:', slug)
 }
