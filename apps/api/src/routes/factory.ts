@@ -608,7 +608,7 @@ factory.post('/customers/:id/redeploy', async (c) => {
   const id = c.req.param('id')
   if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
 
-  const { data: tenant } = await supabase.from('factory_tenants').select('slug').eq('id', id).maybeSingle()
+  const { data: tenant } = await supabase.from('tenants').select('slug').eq('id', id).maybeSingle()
   const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job) return c.json({ error: 'No deployed services found' }, 400)
 
