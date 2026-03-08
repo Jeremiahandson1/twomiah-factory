@@ -17,8 +17,8 @@ export default function StepCustomer({ config, update, onNext }: Props) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.from('tenants').select('id,name,slug,deployment_model,primary_color,email,city,state,phone,industry')
-      .order('name')
+    Promise.resolve(supabase.from('tenants').select('id,name,slug,deployment_model,primary_color,email,city,state,phone,industry')
+      .order('name'))
       .then(({ data }) => { setTenants(data || []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])

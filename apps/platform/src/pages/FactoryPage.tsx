@@ -33,7 +33,7 @@ export default function FactoryPage() {
   useEffect(() => {
     const tenantId = searchParams.get('tenant')
     if (tenantId) {
-      supabase.from('tenants').select('*').eq('id', tenantId).single().then(({ data }) => {
+      Promise.resolve(supabase.from('tenants').select('*').eq('id', tenantId).single()).then(({ data }) => {
         if (data) {
           setConfig(prev => ({
             ...prev,

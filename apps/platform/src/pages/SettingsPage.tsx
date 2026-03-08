@@ -431,14 +431,6 @@ function QbDesktopCard({ configured }: { configured: boolean }) {
   )
 }
 
-// Session token helper for QB Desktop card
-let sessionToken = ''
-supabase.auth.getSession().then(({ data: { session } }) => {
-  sessionToken = session?.access_token || ''
-})
-supabase.auth.onAuthStateChange((_, session) => {
-  sessionToken = session?.access_token || ''
-})
 
 // ─── Integrations Tab ────────────────────────────────────────────────────────
 function IntegrationsTab() {
