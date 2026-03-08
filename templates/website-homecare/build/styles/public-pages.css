@@ -2,11 +2,11 @@
    These values are injected by the factory generator.
    Do not edit manually — use the admin panel or regenerate. */
 :root {
-  --color-primary: #1736cf;
-  --color-primary-light: #4a69ff;
-  --color-secondary: #36914d;
-  --color-accent: #1736cf;
-  --color-accent-light: #4a69ff;
+  --color-primary: {{PRIMARY_COLOR}};
+  --color-primary-light: {{PRIMARY_COLOR}};
+  --color-secondary: {{SECONDARY_COLOR}};
+  --color-accent: {{PRIMARY_COLOR}};
+  --color-accent-light: {{PRIMARY_COLOR}};
   --font-heading: 'Montserrat', sans-serif;
   --font-body: 'Montserrat', sans-serif;
   --border-radius: 8px;

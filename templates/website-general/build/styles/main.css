@@ -2,11 +2,11 @@
    These values are injected by the factory generator.
    Do not edit manually — use the admin panel or regenerate. */
 :root {
-  --color-primary: #1e3a5f;
-  --color-primary-light: #2d4a6f;
-  --color-secondary: #2c5282;
-  --color-accent: #ed8936;
-  --color-accent-light: #f6ad55;
+  --color-primary: {{PRIMARY_COLOR}};
+  --color-primary-light: {{PRIMARY_COLOR}};
+  --color-secondary: {{SECONDARY_COLOR}};
+  --color-accent: {{PRIMARY_COLOR}};
+  --color-accent-light: {{PRIMARY_COLOR}};
   --font-heading: 'Montserrat', sans-serif;
   --font-body: 'Montserrat', sans-serif;
   --border-radius: 8px;
@@ -19,13 +19,13 @@
 
 /* ========== CSS Variables ========== */
 :root {
-  /* Colors - Navy/Gold scheme */
-  --navy: #1a2744;
-  --navy-light: #2a3a5c;
-  --navy-dark: #0d1626;
-  --gold: #c9a227;
-  --gold-light: #d4b84a;
-  --gold-dark: #a88920;
+  /* Colors - Brand scheme (injected by factory) */
+  --navy: {{SECONDARY_COLOR}};
+  --navy-light: {{SECONDARY_COLOR}};
+  --navy-dark: {{SECONDARY_COLOR}};
+  --gold: {{PRIMARY_COLOR}};
+  --gold-light: {{PRIMARY_COLOR}};
+  --gold-dark: {{PRIMARY_COLOR}};
   --white: #ffffff;
   --off-white: #f8f9fa;
   --gray-100: #f5f5f5;

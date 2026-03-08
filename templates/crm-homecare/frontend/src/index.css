@@ -1,10 +1,10 @@
 :root {
     --color-teal: {{PRIMARY_COLOR}};
-    --color-teal-dark: #1E9A89;
-    --color-teal-light: #E8F8F6;
-    --color-gold: #C9A227;
-    --color-gold-light: #D4AF37;
-    --color-gold-pale: #FDF8E8;
+    --color-teal-dark: {{PRIMARY_COLOR}};
+    --color-teal-light: {{PRIMARY_COLOR}};
+    --color-gold: {{SECONDARY_COLOR}};
+    --color-gold-light: {{SECONDARY_COLOR}};
+    --color-gold-pale: {{SECONDARY_COLOR}};
     --color-cream: #FDFCFA;
     --color-white: #FFFFFF;
     --color-text: #2D3A3A;
@@ -1276,7 +1276,7 @@ body {
   }
 
   .btn-primary {
-    background: linear-gradient(135deg, {{PRIMARY_COLOR}}, #1E9A89) !important;
+    background: linear-gradient(135deg, {{PRIMARY_COLOR}}, {{SECONDARY_COLOR}}) !important;
     box-shadow: 0 2px 8px rgba(42, 187, 167, 0.3) !important;
   }
 

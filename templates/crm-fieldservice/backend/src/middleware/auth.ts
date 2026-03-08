@@ -43,7 +43,7 @@ export const requireRole = (...roles: string[]) => async (c: Context, next: Next
   await next()
 }
 
-export const requireAdmin = requireRole('admin')
-export const requireManager = requireRole('admin', 'manager')
+export const requireAdmin = requireRole('admin', 'owner')
+export const requireManager = requireRole('admin', 'owner', 'manager')
 
 export default authenticate

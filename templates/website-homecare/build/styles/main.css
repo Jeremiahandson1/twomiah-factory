@@ -7,15 +7,15 @@
 
 /* ========== CSS Variables ========== */
 :root {
-  /* Primary — Dark Teal (headings, footer, nav text, secondary buttons) */
+  /* Primary — Dark (headings, footer, nav text, secondary buttons) */
   --navy:       {{SECONDARY_COLOR}};
-  --navy-light: #00695c;
-  --navy-dark:  #00251a;
+  --navy-light: {{SECONDARY_COLOR}};
+  --navy-dark:  {{SECONDARY_COLOR}};
 
-  /* Brand — Teal (primary buttons, links, accents, service bar) */
+  /* Brand — Primary (buttons, links, accents, service bar) */
   --gold:       {{PRIMARY_COLOR}};
-  --gold-light: #4db6ac;
-  --gold-dark:  #00796b;
+  --gold-light: {{PRIMARY_COLOR}};
+  --gold-dark:  {{PRIMARY_COLOR}};
 
   /* Warm Accent — Amber (badges, trust indicators, highlights) */
   --warm:      #f59e0b;
@@ -34,10 +34,10 @@
 
   /* Admin / compat aliases */
   --color-primary:       {{PRIMARY_COLOR}};
-  --color-primary-dark:  #00796b;
-  --color-primary-light: #b2dfdb;
+  --color-primary-dark:  {{PRIMARY_COLOR}};
+  --color-primary-light: {{PRIMARY_COLOR}};
   --color-secondary:     {{SECONDARY_COLOR}};
-  --color-accent:        #f59e0b;
+  --color-accent:        {{ACCENT_COLOR}};
   --font-heading: 'Nunito', sans-serif;
   --font-body:    'Open Sans', sans-serif;
   --border-radius: 10px;

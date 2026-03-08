@@ -192,6 +192,8 @@ if (hasFrontendBuild) {
   const relRoot = path.relative(process.cwd(), FRONTEND_DIST)
   app.use('/assets/*', serveStatic({ root: relRoot }))
   app.use('/favicon.ico', serveStatic({ root: relRoot }))
+  app.use('/favicon.png', serveStatic({ root: relRoot }))
+  app.use('/logo.*', serveStatic({ root: relRoot }))
 
   // SPA fallback: serve index.html for all non-API GET requests
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')

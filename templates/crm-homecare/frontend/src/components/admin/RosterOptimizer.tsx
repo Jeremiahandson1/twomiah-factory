@@ -197,7 +197,7 @@ export default function RosterOptimizer({ token }) {
 
       {/* Header Banner */}
       <div style={{
-        background: 'linear-gradient(135deg, #1e3a5f 0%, #0f766e 100%)',
+        background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-teal) 100%)',
         borderRadius: '12px', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', color: '#fff',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -403,7 +403,7 @@ export default function RosterOptimizer({ token }) {
                 fontWeight: '700', fontSize: '1.05rem',
                 background: running || activeCgCount === 0 || activeClCount === 0
                   ? '#9CA3AF'
-                  : 'linear-gradient(135deg, #1e3a5f, #0f766e)',
+                  : 'linear-gradient(135deg, var(--color-gold), var(--color-teal))',
                 color: '#fff',
                 boxShadow: running ? 'none' : '0 4px 18px rgba(15,118,110,0.4)',
                 transition: 'all 0.2s',

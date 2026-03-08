@@ -19,9 +19,9 @@
   --shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
   --off-white: #f9fafb;
-  --corp-navy: #1a2744;
-  --corp-navy-light: #2a3f6a;
-  --corp-gold: #b08d3e;
+  --corp-navy: var(--navy);
+  --corp-navy-light: var(--navy-light);
+  --corp-gold: var(--gold);
 }
 
 /* ── Body ── */

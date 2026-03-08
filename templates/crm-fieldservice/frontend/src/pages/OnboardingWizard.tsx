@@ -54,6 +54,10 @@ export default function OnboardingWizard() {
     phone: '',
     email: '',
     address: '',
+    city: '',
+    state: '',
+    zip: '',
+    website: '',
     logo: '',
   });
 
@@ -72,7 +76,11 @@ export default function OnboardingWizard() {
         name: company.name || '',
         phone: company.phone || '',
         email: company.email || '',
-        address: [company.address, company.city, company.state, company.zip].filter(Boolean).join(', '),
+        address: company.address || '',
+        city: company.city || '',
+        state: company.state || '',
+        zip: company.zip || '',
+        website: company.website || '',
         logo: company.logo || '',
       });
     }
@@ -106,10 +114,13 @@ export default function OnboardingWizard() {
         name: profile.name,
         phone: profile.phone,
         email: profile.email,
+        address: profile.address,
+        city: profile.city,
+        state: profile.state,
+        zip: profile.zip,
       };
-      if (profile.logo) {
-        profileUpdate.logo = profile.logo;
-      }
+      if (profile.website) profileUpdate.website = profile.website;
+      if (profile.logo) profileUpdate.logo = profile.logo;
 
       // Merge onboarding settings into existing settings
       const currentSettings = (company?.settings && typeof company.settings === 'object') ? company.settings : {};
@@ -326,14 +337,61 @@ function StepProfile({ profile, onChange }: { profile: any; onChange: (field: st
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
             <MapPin className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-            Address
+            Street Address
           </label>
           <input
             type="text"
             value={profile.address}
             onChange={e => onChange('address', e.target.value)}
             className="w-full px-3 py-2.5 border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
-            placeholder="123 Main St, City, State 12345"
+            placeholder="123 Main St"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">City</label>
+            <input
+              type="text"
+              value={profile.city}
+              onChange={e => onChange('city', e.target.value)}
+              className="w-full px-3 py-2.5 border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+              placeholder="City"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">State</label>
+            <input
+              type="text"
+              value={profile.state}
+              onChange={e => onChange('state', e.target.value)}
+              className="w-full px-3 py-2.5 border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+              placeholder="State"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ZIP</label>
+            <input
+              type="text"
+              value={profile.zip}
+              onChange={e => onChange('zip', e.target.value)}
+              className="w-full px-3 py-2.5 border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+              placeholder="12345"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <Globe className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+            Website
+          </label>
+          <input
+            type="url"
+            value={profile.website}
+            onChange={e => onChange('website', e.target.value)}
+            className="w-full px-3 py-2.5 border dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
+            placeholder="https://yourcompany.com"
           />
         </div>
 
@@ -431,6 +489,12 @@ function StepReady({ profile, features }: { profile: any; features: Record<strin
           <p className="text-gray-900 dark:text-white font-medium">{profile.name || 'Not set'}</p>
           {profile.email && <p className="text-sm text-gray-600 dark:text-slate-400">{profile.email}</p>}
           {profile.phone && <p className="text-sm text-gray-600 dark:text-slate-400">{profile.phone}</p>}
+          {(profile.address || profile.city) && (
+            <p className="text-sm text-gray-600 dark:text-slate-400">
+              {[profile.address, profile.city, profile.state, profile.zip].filter(Boolean).join(', ')}
+            </p>
+          )}
+          {profile.website && <p className="text-sm text-gray-600 dark:text-slate-400">{profile.website}</p>}
         </div>
 
         <hr className="dark:border-slate-700" />

@@ -19,7 +19,7 @@ export const authenticate = async (c: Context, next: Next) => {
 
 export const requireAdmin = async (c: Context, next: Next) => {
   const user = c.get('user')
-  if (!user || user.role !== 'admin') {
+  if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
     return c.json({ error: 'Admin access required' }, 403)
   }
   await next()
