@@ -29,6 +29,9 @@ body {
   background: var(--white);
   background-image: none;
   line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* ── Typography ── */

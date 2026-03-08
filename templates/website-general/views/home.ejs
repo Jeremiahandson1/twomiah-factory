@@ -202,6 +202,7 @@ function getImageUrl(p) {
   <% } %>
 
   <!-- Visualizer CTA -->
+  <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %>
   <section class="visualizer-cta-section" style="
     background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 50%, var(--navy-light) 100%);
     padding: 60px 0;
@@ -237,6 +238,7 @@ function getImageUrl(p) {
       </div>
     </div>
   </section>
+  <% } %>
 
   <!-- Trust Badges -->
   <% if (trustBadges.length > 0) { %>

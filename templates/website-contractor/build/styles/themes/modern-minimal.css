@@ -28,6 +28,9 @@ body {
   background-image: none;
   background: var(--white);
   letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* ── Typography ── */

@@ -30,6 +30,9 @@ body {
   font-family: 'Roboto', Arial, sans-serif;
   background: var(--off-white);
   background-image: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* ── Typography ── */
@@ -55,6 +58,8 @@ header {
   text-transform: uppercase;
   font-size: 0.9rem;
   letter-spacing: 0.05em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .header a:hover,

@@ -306,6 +306,8 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
       transition: background 0.15s, color 0.15s;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     .services-nav ul > li > a:hover {
       background: rgba(255,255,255,0.1);
@@ -471,7 +473,7 @@
           
           <nav class="utility-nav">
             <a href="/gallery">Projects</a>
-            <a href="/visualize">Visualize</a>
+            <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><a href="/visualize">Visualize</a><% } %>
             <a href="/blog">Blog</a>
             <a href="/#about">About</a>
             <a href="/#contact">Contact</a>
@@ -542,7 +544,7 @@
           </li>
         <% }); %>
         <li class="mobile-section-label">More</li>
-        <li><a href="/visualize">Visualize Your Home</a></li>
+        <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
         <li><a href="/gallery">Projects</a></li>
         <li><a href="/blog">Blog</a></li>
         <li><a href="/#about">About</a></li>
@@ -648,7 +650,7 @@
           <div class="footer-col">
             <h4>Company</h4>
             <ul>
-              <li><a href="/visualize">Visualize Your Home</a></li>
+              <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
               <li><a href="/gallery">Projects</a></li>
               <li><a href="/blog">Blog</a></li>
               <li><a href="/#about">About Us</a></li>

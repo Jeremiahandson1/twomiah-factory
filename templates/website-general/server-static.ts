@@ -112,11 +112,13 @@ function loadJSON(filename: string) {
   } catch (e) { return null }
 }
 
+const hasVisualizer = fs.existsSync(path.join(__dirname, 'views', 'visualize.html')) || !!(process.env.VISION_URL)
+
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { settings, menuItems, BASE_URL, ...locals }
+  const shared = { settings, menuItems, BASE_URL, hasVisualizer, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {
@@ -159,8 +161,21 @@ app.get('/', (c) => {
 app.get('/services/:slug', (c) => {
   const slug = c.req.param('slug')
   const services = loadJSON('services.json') || []
-  const service = services.find((s: any) => s.slug === slug)
-  if (!service) return c.text('Service not found', 404)
+  let service = services.find((s: any) => s.slug === slug)
+  if (!service) {
+    const name = slug.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    service = {
+      id: slug, slug, name, title: name,
+      shortDescription: `Professional ${name.toLowerCase()} services for your home.`,
+      description: `{{COMPANY_NAME}} provides expert ${name.toLowerCase()} services throughout {{SERVICE_REGION}}. Contact us today for a free estimate.`,
+      icon: 'wrench', image: '',
+      features: ['Free estimates', 'Licensed and insured', 'Quality workmanship guarantee', 'Experienced professionals'],
+      links: [], offerings: [], faqs: [],
+      seoTitle: `${name} | {{COMPANY_NAME}}`,
+      seoDescription: `Professional ${name.toLowerCase()} services in {{CITY}}, {{STATE}} by {{COMPANY_NAME}}.`,
+      visible: true, order: 99
+    }
+  }
   return renderPage(c, 'service', {
     service, services,
     title: service.seoTitle || service.name + ' | {{COMPANY_NAME}}',

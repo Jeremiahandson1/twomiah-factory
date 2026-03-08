@@ -33,6 +33,9 @@ body {
   background-image: none;
   color: #3d2c1e;
   line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* ── Typography ── */

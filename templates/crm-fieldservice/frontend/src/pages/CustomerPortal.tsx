@@ -10,14 +10,14 @@ import { useAuth } from '../contexts/AuthContext';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function CustomerPortal() {
-  const { user, company, logout } = useAuth();
+  const { user, company, logout, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (!authLoading) fetchStats();
+  }, [authLoading]);
 
   async function fetchStats() {
     try {
@@ -35,9 +35,17 @@ export default function CustomerPortal() {
     }
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600" />
+      </div>
+    );
+  }
+
   const primaryColor = company?.primaryColor || '{{PRIMARY_COLOR}}';
   const companyName = company?.name || import.meta.env.VITE_COMPANY_NAME || 'My Company';
-  
+
   // Determine which products are available based on company settings
   let settings: Record<string, any> = {};
   try {
