@@ -184,10 +184,32 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 }
 
 
+const INDUSTRY_LABELS: Record<string, string> = {
+  general_contractor: 'General Contractor',
+  roofing: 'Roofing',
+  hvac: 'HVAC',
+  plumbing: 'Plumbing',
+  electrical: 'Electrical',
+  remodeling: 'Remodeling',
+  painting: 'Painting',
+  landscaping: 'Landscaping',
+  concrete: 'Concrete & Masonry',
+  flooring: 'Flooring',
+  windows_doors: 'Windows & Doors',
+  siding: 'Siding & Gutters',
+  insulation: 'Insulation',
+  solar: 'Solar',
+  pool_spa: 'Pool & Spa',
+  pest_control: 'Pest Control',
+  commercial_construction: 'Commercial Construction',
+  home_care: 'Home Care',
+}
+
 function buildTokenMap(config: GenerateConfig, slug: string): Record<string, string> {
   const c = config.company || ({} as GenerateConfig['company'])
   const b = config.branding || {}
   const industry = c.industry || ''
+  const industryLabel = INDUSTRY_LABELS[industry] || industry.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Contractor'
 
   const ownerParts = (c.ownerName || 'Admin User').split(' ')
   const firstName = ownerParts[0] || 'Admin'
@@ -222,11 +244,11 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
     '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care.onrender.com' : 'https://' + slug + '-crm.onrender.com',
     '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
-    '{{INDUSTRY}}': c.industry || 'Contractor',
+    '{{INDUSTRY}}': industryLabel,
     '{{META_DESCRIPTION}}': industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'
       : 'Professional services in ' + (c.city || 'your area') + '.',
-    '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'VA APPROVED PROVIDER' : 'Trusted ' + (c.industry || 'Contractor')),
+    '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'VA APPROVED PROVIDER' : 'Trusted ' + industryLabel),
     '{{HERO_BADGE}}': config.content?.heroTagline || (industry === 'home_care' ? 'Compassionate In-Home Care' : 'Licensed & Insured'),
     '{{HERO_TITLE}}': industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : (c.name || 'Your Company') + ' — Quality You Can Trust',
     '{{HERO_DESCRIPTION}}': industry === 'home_care'
