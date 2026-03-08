@@ -26,7 +26,7 @@ export default function DashboardPage() {
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d) setBilling(d) })
         .catch(() => setError('Failed to load billing data'))
-    })
+    }).catch(() => {})
   }, [])
 
   const cards = [

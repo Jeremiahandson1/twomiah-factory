@@ -43,7 +43,7 @@ export default function FactoryPage() {
             company: { ...prev.company, name: data.name, email: data.email || '', phone: data.phone || '', city: data.city || '', state: data.state || '', industry: data.industry || '' },
           }))
         }
-      })
+      }).catch(() => {})
     }
   }, [searchParams])
 

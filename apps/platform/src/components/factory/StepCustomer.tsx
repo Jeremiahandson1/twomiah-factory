@@ -20,6 +20,7 @@ export default function StepCustomer({ config, update, onNext }: Props) {
     supabase.from('tenants').select('id,name,slug,deployment_model,primary_color,email,city,state,phone,industry')
       .order('name')
       .then(({ data }) => { setTenants(data || []); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
   const select = (t: Tenant) => {

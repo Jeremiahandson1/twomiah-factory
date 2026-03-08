@@ -80,14 +80,14 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) return
+      if (!session) { setLoading(false); return }
       fetch(API + '/api/v1/factory/analytics', {
         headers: { Authorization: 'Bearer ' + session.access_token },
       })
         .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load analytics')))
         .then(d => { setData(d); setLoading(false) })
         .catch(e => { setError(e.message); setLoading(false) })
-    })
+    }).catch(() => { setError('Auth failed'); setLoading(false) })
   }, [])
 
   if (loading) {
