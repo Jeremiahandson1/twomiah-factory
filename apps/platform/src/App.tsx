@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import LoginPage from './pages/LoginPage'
+import CareSignupPage from './pages/CareSignupPage'
 import DashboardPage from './pages/DashboardPage'
 import TenantsPage from './pages/TenantsPage'
 import CustomerDetailPage from './pages/CustomerDetailPage'
@@ -33,6 +34,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={!session ? <LoginPage /> : <Navigate to="/" />} />
+        <Route path="/care/signup" element={<CareSignupPage />} />
         <Route path="/" element={session ? <AppLayout /> : <Navigate to="/login" />}>
           <Route index element={<DashboardPage />} />
           <Route path="tenants" element={<TenantsPage />} />
