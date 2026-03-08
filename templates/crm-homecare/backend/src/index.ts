@@ -46,6 +46,10 @@ import stripeRoutes from './routes/stripe.ts'
 import helpRoutes from './routes/help.ts'
 import optimizerRoutes from './routes/optimizer.ts'
 import leadsRoutes from './routes/leads.ts'
+import adlRoutes from './routes/adl.ts'
+import applicationsRoutes from './routes/applications.ts'
+import alertsRoutes from './routes/alerts.ts'
+import emergencyRoutes from './routes/emergency.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -122,6 +126,10 @@ app.route('/api/stripe', stripeRoutes)
 app.route('/api/help', helpRoutes)
 app.route('/api/optimizer', optimizerRoutes)
 app.route('/api/leads', leadsRoutes)
+app.route('/api/adl', adlRoutes)
+app.route('/api/applications', applicationsRoutes)
+app.route('/api/alerts', alertsRoutes)
+app.route('/api/emergency', emergencyRoutes)
 
 // ── Alias mounts: frontend uses shorthand paths for some routes ──
 app.route('/api/schedules', schedulingRoutes)

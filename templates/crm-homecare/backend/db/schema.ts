@@ -987,7 +987,7 @@ export const leadSource = pgTable('lead_source', {
   webhookSecret: text('webhook_secret'),
   enabled: boolean('enabled').default(true).notNull(),
   config: json('config').default({}).notNull(),
-  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => agencies.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -1008,15 +1008,102 @@ export const lead = pgTable('lead', {
   description: text('description'),
   status: text('status').default('new').notNull(),
   rawPayload: json('raw_payload'),
-  convertedContactId: text('converted_contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  convertedContactId: text('converted_contact_id'),
   contactedAt: timestamp('contacted_at'),
   receivedAt: timestamp('received_at').defaultNow().notNull(),
-  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => agencies.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('lead_company_id_idx').on(t.companyId),
   index('lead_status_idx').on(t.status),
-  index('lead_source_platform_idx').on(t.sourcePlatform),
+  index('lead_source_platform_idx2').on(t.sourcePlatform),
   index('lead_received_at_idx').on(t.receivedAt),
+])
+
+// ==================== ADL REQUIREMENTS ====================
+export const adlRequirements = pgTable('adl_requirements', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  adlCategory: text('adl_category').notNull(),
+  assistanceLevel: text('assistance_level').notNull(),
+  frequency: text('frequency'),
+  specialInstructions: text('special_instructions'),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('adl_requirements_client_id_idx').on(t.clientId),
+])
+
+// ==================== ADL LOGS ====================
+export const adlLogs = pgTable('adl_logs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  caregiverId: text('caregiver_id').references(() => users.id),
+  adlCategory: text('adl_category').notNull(),
+  status: text('status').notNull(),
+  assistanceLevel: text('assistance_level'),
+  performedAt: timestamp('performed_at').defaultNow().notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('adl_logs_client_id_idx').on(t.clientId),
+  index('adl_logs_performed_at_idx').on(t.performedAt),
+])
+
+// ==================== JOB APPLICATIONS ====================
+export const applications = pgTable('applications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  status: text('status').default('new').notNull(),
+  desiredPosition: text('desired_position'),
+  desiredPayRate: decimal('desired_pay_rate', { precision: 8, scale: 2 }),
+  availableStartDate: date('available_start_date'),
+  experience: text('experience'),
+  hasCna: boolean('has_cna').default(false).notNull(),
+  hasLpn: boolean('has_lpn').default(false).notNull(),
+  hasRn: boolean('has_rn').default(false).notNull(),
+  hasCpr: boolean('has_cpr').default(false).notNull(),
+  hasFirstAid: boolean('has_first_aid').default(false).notNull(),
+  references: json('references').default([]).notNull(),
+  notes: text('notes'),
+  interviewNotes: text('interview_notes'),
+  hiredUserId: text('hired_user_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('applications_status_idx').on(t.status),
+  index('applications_created_at_idx').on(t.createdAt),
+])
+
+// ==================== ALERTS (GENERIC) ====================
+export const alerts = pgTable('alerts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  alertType: text('alert_type').notNull(),
+  priority: text('priority').default('medium').notNull(),
+  message: text('message').notNull(),
+  status: text('status').default('active').notNull(),
+  dueDate: timestamp('due_date'),
+  relatedEntityType: text('related_entity_type'),
+  relatedEntityId: text('related_entity_id'),
+  acknowledgedAt: timestamp('acknowledged_at'),
+  acknowledgedById: text('acknowledged_by_id').references(() => users.id),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedById: text('resolved_by_id').references(() => users.id),
+  resolution: text('resolution'),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('alerts_status_idx').on(t.status),
+  index('alerts_alert_type_idx').on(t.alertType),
+  index('alerts_priority_idx').on(t.priority),
 ])

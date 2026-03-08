@@ -15,6 +15,13 @@
       "when": 1772958000000,
       "tag": "0002_add_lead_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772962741519,
+      "tag": "0003_handy_sandman",
+      "breakpoints": true
     }
   ]
 }
