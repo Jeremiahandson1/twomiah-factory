@@ -151,18 +151,22 @@ export default function SupportPage() {
   const [feedbackLoading, setFeedbackLoading] = useState(false)
 
   const fetchTickets = async () => {
-    const params = new URLSearchParams()
-    if (filterStatus !== 'all') params.set('status', filterStatus)
-    if (filterPriority !== 'all') params.set('priority', filterPriority)
-    if (search) params.set('search', search)
-    const data = await apiFetch('/support/tickets?' + params.toString())
-    setTickets(data.data || [])
+    try {
+      const params = new URLSearchParams()
+      if (filterStatus !== 'all') params.set('status', filterStatus)
+      if (filterPriority !== 'all') params.set('priority', filterPriority)
+      if (search) params.set('search', search)
+      const data = await apiFetch('/support/tickets?' + params.toString())
+      setTickets(data.data || [])
+    } catch { /* API may not have support tables yet */ }
     setLoading(false)
   }
 
   const fetchStats = async () => {
-    const data = await apiFetch('/support/stats')
-    setStats(data)
+    try {
+      const data = await apiFetch('/support/stats')
+      setStats(data)
+    } catch { /* ignore */ }
   }
 
   useEffect(() => { fetchTickets(); fetchStats() }, [filterStatus, filterPriority, search])

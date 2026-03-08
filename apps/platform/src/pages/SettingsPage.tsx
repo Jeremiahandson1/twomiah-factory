@@ -142,25 +142,25 @@ function ProfileTab() {
       {/* Change Password */}
       <div className="bg-[#181c2e] rounded-xl border border-gray-800 p-6">
         <h3 className="text-lg font-semibold mb-6 flex items-center gap-2"><Key size={18} /> Change Password</h3>
-        <div className="space-y-4 max-w-md">
+        <form onSubmit={e => { e.preventDefault(); handlePasswordChange() }} className="space-y-4 max-w-md">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Current Password</label>
-            <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-[#0f1117] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors" />
+            <input type="password" autoComplete="current-password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className="w-full bg-[#0f1117] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors" />
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">New Password</label>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-[#0f1117] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors" />
+            <input type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-[#0f1117] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors" />
           </div>
           <div>
             <label className="block text-sm text-gray-400 mb-1">Confirm New Password</label>
-            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-[#0f1117] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors" />
+            <input type="password" autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-[#0f1117] border border-gray-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 transition-colors" />
           </div>
           {pwMsg && <p className={pwMsg.type === 'error' ? 'text-red-400 text-sm' : 'text-green-400 text-sm'}>{pwMsg.text}</p>}
-          <button onClick={handlePasswordChange} disabled={pwSaving || !newPassword} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors">
+          <button type="submit" disabled={pwSaving || !newPassword} className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors">
             <Key size={16} />
             {pwSaving ? 'Updating...' : 'Update Password'}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   )
