@@ -81,23 +81,31 @@ export default function LeadInboxPage() {
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const updateStatus = async (id: string, status: string) => {
-    await fetch(`/api/leads/${id}/status`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    fetchLeads();
-    fetchStats();
+    try {
+      await fetch(`/api/leads/${id}/status`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      fetchLeads();
+      fetchStats();
+    } catch (e) {
+      console.error('updateStatus failed:', e);
+    }
   };
 
   const convertToContact = async (id: string) => {
-    const res = await fetch(`/api/leads/${id}/convert`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      fetchLeads();
-      fetchStats();
+    try {
+      const res = await fetch(`/api/leads/${id}/convert`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchLeads();
+        fetchStats();
+      }
+    } catch (e) {
+      console.error('convertToContact failed:', e);
     }
   };
 

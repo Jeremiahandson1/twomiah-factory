@@ -91,9 +91,13 @@ export default function LeadsKanbanPage() {
   useEffect(() => { fetchLeads(); fetchDropdowns(); }, [fetchLeads, fetchDropdowns]);
 
   const updateStage = async (id: string, stage: string) => {
-    await fetch(`/api/sales-leads/${id}`, { method: 'PUT', headers, body: JSON.stringify({ stage }) });
-    setLeads(prev => prev.map(l => l.id === id ? { ...l, stage } : l));
-    setStageDropdown(null);
+    try {
+      await fetch(`/api/sales-leads/${id}`, { method: 'PUT', headers, body: JSON.stringify({ stage }) });
+      setLeads(prev => prev.map(l => l.id === id ? { ...l, stage } : l));
+      setStageDropdown(null);
+    } catch (e) {
+      console.error('updateStage failed:', e);
+    }
   };
 
   const stageCounts = STAGES.reduce((acc, s) => {

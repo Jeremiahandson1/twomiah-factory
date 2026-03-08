@@ -270,6 +270,7 @@ app.post('/login', async (c) => {
 
   // Fetch company separately
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
+  if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
   const tokens = generateTokens(foundUser.id, foundUser.companyId, foundUser.email, foundUser.role)
   await db.update(user).set({ refreshToken: tokens.refreshToken, lastLogin: new Date(), updatedAt: new Date() }).where(eq(user.id, foundUser.id))
@@ -315,6 +316,7 @@ app.get('/me', authenticate, async (c) => {
   if (!foundUser) return c.json({ error: 'User not found' }, 404)
 
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
+  if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
 
   // Import permissions
   const { getPermissions, normalizeRole } = await import('../middleware/permissions.ts')
@@ -354,6 +356,7 @@ app.put('/password', authenticate, async (c) => {
   const data = passwordSchema.parse(await c.req.json())
 
   const [foundUser] = await db.select().from(user).where(eq(user.id, currentUser.userId)).limit(1)
+  if (!foundUser) return c.json({ error: 'User not found' }, 404)
   const valid = await bcrypt.compare(data.currentPassword, foundUser.passwordHash)
   if (!valid) return c.json({ error: 'Current password is incorrect' }, 400)
 

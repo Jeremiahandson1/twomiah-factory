@@ -114,6 +114,7 @@ app.put('/change-password', authenticate, async (c) => {
   const currentUser = c.get('user') as any
   const { currentPassword, newPassword } = await c.req.json()
   const [user] = await db.select().from(users).where(eq(users.id, currentUser.userId)).limit(1)
+  if (!user) return c.json({ error: 'Invalid credentials' }, 401)
   const valid = await bcrypt.compare(currentPassword, user.passwordHash)
   if (!valid) return c.json({ error: 'Current password is incorrect' }, 400)
   const passwordHash = await bcrypt.hash(newPassword, 12)

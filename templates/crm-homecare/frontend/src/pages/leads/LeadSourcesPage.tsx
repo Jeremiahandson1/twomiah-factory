@@ -95,33 +95,45 @@ export default function LeadSourcesPage() {
   useEffect(() => { fetchSources(); }, [fetchSources]);
 
   const addSource = async (platform: string) => {
-    const info = PLATFORMS.find(p => p.value === platform);
-    await fetch('/api/leads/sources', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, label: info?.label || platform }),
-    });
-    setShowAdd(false);
-    setSelectedPlatform('');
-    fetchSources();
+    try {
+      const info = PLATFORMS.find(p => p.value === platform);
+      await fetch('/api/leads/sources', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, label: info?.label || platform }),
+      });
+      setShowAdd(false);
+      setSelectedPlatform('');
+      fetchSources();
+    } catch (e) {
+      console.error('addSource failed:', e);
+    }
   };
 
   const toggleSource = async (source: LeadSource) => {
-    await fetch(`/api/leads/sources/${source.id}`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: !source.enabled }),
-    });
-    fetchSources();
+    try {
+      await fetch(`/api/leads/sources/${source.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !source.enabled }),
+      });
+      fetchSources();
+    } catch (e) {
+      console.error('toggleSource failed:', e);
+    }
   };
 
   const deleteSource = async (id: string) => {
     if (!confirm('Delete this lead source? Existing leads will be kept.')) return;
-    await fetch(`/api/leads/sources/${id}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    fetchSources();
+    try {
+      await fetch(`/api/leads/sources/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      fetchSources();
+    } catch (e) {
+      console.error('deleteSource failed:', e);
+    }
   };
 
   const copyToClipboard = (text: string, field: string) => {

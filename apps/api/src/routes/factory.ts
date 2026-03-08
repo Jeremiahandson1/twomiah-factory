@@ -1801,6 +1801,7 @@ factory.post('/settings/users', requireRole('owner', 'admin'), async (c) => {
       // Invite user via Supabase Auth
       const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email)
       if (inviteErr) throw inviteErr
+      if (!invited?.user) return c.json({ error: 'Failed to create invitation' }, 500)
       const { data, error } = await supabase
         .from('factory_users')
         .insert({ auth_id: invited.user.id, email, role })

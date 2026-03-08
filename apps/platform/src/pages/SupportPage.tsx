@@ -88,6 +88,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
     ...opts,
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session?.access_token, ...(opts?.headers || {}) },
   })
+  if (!res.ok) throw new Error('Request failed')
   return res.json()
 }
 

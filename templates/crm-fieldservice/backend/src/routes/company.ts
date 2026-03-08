@@ -12,6 +12,7 @@ app.use('*', authenticate)
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const [result] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(result)
 })
 
@@ -20,6 +21,7 @@ app.put('/', requireAdmin, async (c) => {
   const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional() })
   const data = schema.parse(await c.req.json())
   const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
+  if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(result)
 })
 
@@ -27,6 +29,7 @@ app.put('/features', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const { features } = await c.req.json()
   const [result] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
+  if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(result)
 })
 
