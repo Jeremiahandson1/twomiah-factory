@@ -32,13 +32,12 @@ export const apiRequest = async (endpoint: string, options: any = {}) => {
     throw new Error('Session expired');
   }
   
-  const data = await response.json();
-  
   if (!response.ok) {
-    throw new Error(data.error || data.message || 'Request failed');
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || err.message || 'Request failed');
   }
-  
-  return data;
+
+  return await response.json();
 };
 
 // ============ AUTH ============
