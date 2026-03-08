@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Bell, BellOff, Phone, Eye, X, Loader2, Clock } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSocket, EVENTS } from '../../contexts/SocketContext';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -17,6 +18,7 @@ function timeAgo(dateStr: string): string {
 
 export default function AlertsPage() {
   const { token } = useAuth();
+  const { connected, subscribe } = useSocket();
   const [alerts, setAlerts] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -45,6 +47,15 @@ export default function AlertsPage() {
 
   useEffect(() => { loadAlerts(); }, [loadAlerts]);
   useEffect(() => { loadCount(); }, [loadCount]);
+
+  // Real-time: prepend new alerts as they arrive via WebSocket
+  useEffect(() => {
+    if (!connected) return;
+    return subscribe(EVENTS.ALERT_CREATED, (alert: any) => {
+      setAlerts(prev => [{ ...alert, alertMessage: alert.message, dismissed: false }, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    });
+  }, [connected, subscribe]);
 
   const handleDismiss = async (id: number) => {
     setDismissing(id);

@@ -4,7 +4,7 @@ import { repairOrder, contact, vehicle, salesLead, serviceSalesAlert, user } fro
 import { eq, and, count, desc, isNull } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import { emitToCompany, EVENTS } from '../services/socket.ts'
+import { emitToCompany, emitToUser, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 
@@ -198,13 +198,15 @@ app.post('/:id/check-in', requirePermission('contacts:update'), async (c) => {
 
       alertCreated = true
 
-      // Real-time notification to the salesperson
-      // TODO: Upgrade to WebSocket push or FCM for instant delivery
-      // Currently: emit socket event that frontend polls/listens for
-      emitToCompany(currentUser.companyId, EVENTS.REFRESH, {
-        entity: 'service_sales_alert',
-        targetUserId: leadRow.lead.assignedTo,
-        alert: { id: alertRecord.id, message },
+      // Real-time push to the specific salesperson's socket
+      emitToUser(leadRow.lead.assignedTo, EVENTS.ALERT_CREATED, {
+        id: alertRecord.id,
+        message,
+        customerName,
+        customerPhone: customer?.phone || null,
+        roNumber: ro.roNumber,
+        vehicleInterest: [leadRow.vehicleYear, leadRow.vehicleMake, leadRow.vehicleModel].filter(Boolean).join(' ') || null,
+        createdAt: alertRecord.createdAt,
       })
     }
   }

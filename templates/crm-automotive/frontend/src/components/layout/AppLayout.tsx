@@ -6,7 +6,7 @@ import {
   LifeBuoy, BookOpen
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSocket } from '../../contexts/SocketContext';
+import { useSocket, EVENTS } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
@@ -27,7 +27,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, company, logout } = useAuth();
-  const { connected } = useSocket();
+  const { connected, subscribe } = useSocket();
   const { theme, setTheme, isDark } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,23 +50,26 @@ export default function AppLayout() {
     return () => document.removeEventListener('keydown', handleEsc);
   }, []);
 
-  // Alert badge count
+  // Alert badge count — fetched once on connect, updated in real time via socket
   const [alertCount, setAlertCount] = useState(0);
   const { token } = useAuth();
+
+  // Fetch count once on mount and whenever socket reconnects
   useEffect(() => {
     if (!token) return;
     fetch('/api/alerts/count', { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.json())
       .then(d => setAlertCount(d.count || 0))
       .catch(() => {});
-    const interval = setInterval(() => {
-      fetch('/api/alerts/count', { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(d => setAlertCount(d.count || 0))
-        .catch(() => {});
-    }, 30000); // Poll every 30s — TODO: replace with WebSocket push
-    return () => clearInterval(interval);
-  }, [token]);
+  }, [token, connected]);
+
+  // Increment badge in real time when a new alert arrives via WebSocket
+  useEffect(() => {
+    if (!connected) return;
+    return subscribe(EVENTS.ALERT_CREATED, () => {
+      setAlertCount(prev => prev + 1);
+    });
+  }, [connected, subscribe]);
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
