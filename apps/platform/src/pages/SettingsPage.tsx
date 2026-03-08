@@ -307,9 +307,12 @@ function QbDesktopCard({ configured }: { configured: boolean }) {
   const [qbStatus, setQbStatus] = useState<any>(null)
 
   useEffect(() => {
-    fetch(`${API_URL}/api/v1/qbwc/status`, {
-      headers: { Authorization: `Bearer ${sessionToken}` },
-    }).then(r => r.json()).then(setQbStatus).catch(() => {})
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) return
+      fetch(`${API_URL}/api/v1/qbwc/status`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).then(r => r.ok ? r.json() : null).then(d => { if (d) setQbStatus(d) }).catch(() => {})
+    })
   }, [])
 
   const handleDownloadQwc = async () => {
