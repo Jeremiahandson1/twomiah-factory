@@ -306,6 +306,7 @@ const sendEmailNotification = async (lead: any) => {
     const emailConfig = settings.emailNotifications;
 
     if (!emailConfig?.enabled) return;
+    if (!emailConfig.recipient || !emailConfig.fromEmail) return;
 
     // Try SendGrid first
     if (emailConfig.sendgridApiKey) {
@@ -315,6 +316,7 @@ const sendEmailNotification = async (lead: any) => {
           'Authorization': `Bearer ${emailConfig.sendgridApiKey}`,
           'Content-Type': 'application/json'
         },
+        signal: AbortSignal.timeout(30_000),
         body: JSON.stringify({
           personalizations: [{
             to: [{ email: emailConfig.recipient }]
@@ -1231,11 +1233,13 @@ app.post('/leads', async (c) => {
     const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET;
     if (CRM_API_URL && WEBHOOK_SECRET) {
       try {
-        await fetch(`${CRM_API_URL}/api/webhooks/leads`, {
+        const webhookRes = await fetch(`${CRM_API_URL}/api/webhooks/leads`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
           body: JSON.stringify({ name, email, phone, service, message, source: source || 'website', address }),
+          signal: AbortSignal.timeout(10_000),
         });
+        if (!webhookRes.ok) console.error('[Webhook] CRM forward failed:', webhookRes.status);
       } catch (e) {
         console.warn('[Leads] Failed to forward lead to CRM:', (e as any).message);
       }
@@ -3001,7 +3005,7 @@ app.post('/help/ai-chat', authMiddleware, async (c) => {
   const systemPrompt = `You are a helpful support assistant for a website content management system. Answer questions about managing pages, media, blog posts, SEO, navigation, and other website features based on the knowledge base articles provided. If you cannot find a relevant answer, suggest the user submit a support ticket.${kbContext}`;
 
   const messages = [
-    ...(conversationHistory || []).map((m: any) => ({ role: m.role, content: m.content })),
+    ...(conversationHistory || []).slice(-20).map((m: any) => ({ role: m.role, content: m.content })),
     { role: 'user' as const, content: message },
   ];
 
@@ -3019,6 +3023,7 @@ app.post('/help/ai-chat', authMiddleware, async (c) => {
         system: systemPrompt,
         messages,
       }),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) return c.json({ reply: 'AI service returned an error. Please try again later.' });

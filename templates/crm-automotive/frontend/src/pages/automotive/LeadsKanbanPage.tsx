@@ -70,6 +70,7 @@ export default function LeadsKanbanPage() {
     setLoading(true);
     try {
       const res = await fetch('/api/sales-leads', { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error('Request failed');
       const json = await res.json();
       setLeads(json.data || json || []);
     } catch { /* ignore */ }
@@ -78,9 +79,9 @@ export default function LeadsKanbanPage() {
 
   const fetchDropdowns = useCallback(async () => {
     const [c, v, t] = await Promise.all([
-      fetch('/api/contacts?type=lead', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => []),
-      fetch('/api/vehicles?status=available', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => []),
-      fetch('/api/team', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => []),
+      fetch('/api/contacts?type=lead', { headers: { Authorization: `Bearer ${token}` } }).then(r => { if (!r.ok) throw new Error('Request failed'); return r.json(); }).catch(() => []),
+      fetch('/api/vehicles?status=available', { headers: { Authorization: `Bearer ${token}` } }).then(r => { if (!r.ok) throw new Error('Request failed'); return r.json(); }).catch(() => []),
+      fetch('/api/team', { headers: { Authorization: `Bearer ${token}` } }).then(r => { if (!r.ok) throw new Error('Request failed'); return r.json(); }).catch(() => []),
     ]);
     setContacts(c.data || c || []);
     setVehicles(v.data || v || []);

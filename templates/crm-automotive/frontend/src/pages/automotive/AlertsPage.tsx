@@ -32,6 +32,7 @@ export default function AlertsPage() {
     try {
       const params = showAll ? '?all=true' : '';
       const res = await fetch(`${API}/api/alerts${params}`, { headers });
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       setAlerts(data.data || data || []);
     } catch { /* */ } finally { setLoading(false); }
@@ -40,6 +41,7 @@ export default function AlertsPage() {
   const loadCount = useCallback(async () => {
     try {
       const res = await fetch(`${API}/api/alerts/count`, { headers });
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       setUnreadCount(data.count || 0);
     } catch { /* */ }

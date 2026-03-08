@@ -55,6 +55,7 @@ export default function ServicePage() {
       const params = new URLSearchParams({ page: String(page), limit: '20' });
       if (statusFilter) params.set('status', statusFilter);
       const res = await fetch(`${API}/api/repair-orders?${params}`, { headers });
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       setOrders(data.data || data || []);
       setTotalPages(data.pagination?.totalPages || 1);
@@ -70,6 +71,8 @@ export default function ServicePage() {
         fetch(`${API}/api/contacts?limit=200`, { headers }),
         fetch(`${API}/api/vehicles?limit=200`, { headers }),
       ]);
+      if (!cRes.ok) throw new Error('Request failed');
+      if (!vRes.ok) throw new Error('Request failed');
       setContacts(await cRes.json().then(d => d.data || d || []));
       setVehicles(await vRes.json().then(d => d.data || d || []));
     } catch { /* */ }
@@ -81,6 +84,7 @@ export default function ServicePage() {
     setCheckingIn(id);
     try {
       const res = await fetch(`${API}/api/repair-orders/${id}/check-in`, { method: 'POST', headers });
+      if (!res.ok) throw new Error('Request failed');
       const data = await res.json();
       if (data.alertTriggered) {
         setAlertBanner({ id, message: data.alertMessage || 'Customer has an active lead.' });
