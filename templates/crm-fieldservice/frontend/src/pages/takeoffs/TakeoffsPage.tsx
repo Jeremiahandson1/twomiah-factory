@@ -16,7 +16,9 @@ const MEASUREMENT_LABELS = {
 /**
  * Material Takeoff Page
  */
-export default function TakeoffsPage({ projectId }) {
+export default function TakeoffsPage({ projectId: propProjectId }) {
+  const [projects, setProjects] = useState([]);
+  const [projectId, setProjectId] = useState(propProjectId || '');
   const [sheets, setSheets] = useState([]);
   const [selectedSheet, setSelectedSheet] = useState(null);
   const [assemblies, setAssemblies] = useState([]);
@@ -24,11 +26,27 @@ export default function TakeoffsPage({ projectId }) {
   const [showNewSheet, setShowNewSheet] = useState(false);
   const [showAddItem, setShowAddItem] = useState(false);
 
+  // Load projects for standalone route (no projectId prop)
   useEffect(() => {
-    loadData();
+    if (!propProjectId) {
+      api.get('/api/projects?limit=100').then(res => {
+        const data = res?.data || res || [];
+        setProjects(data);
+        if (data.length > 0 && !projectId) setProjectId(data[0].id);
+      }).catch(() => {});
+    }
+  }, [propProjectId]);
+
+  useEffect(() => {
+    if (propProjectId) setProjectId(propProjectId);
+  }, [propProjectId]);
+
+  useEffect(() => {
+    if (projectId) loadData();
   }, [projectId]);
 
   const loadData = async () => {
+    if (!projectId) { setLoading(false); return; }
     setLoading(true);
     try {
       const [sheetsRes, assembliesRes] = await Promise.all([
@@ -58,8 +76,46 @@ export default function TakeoffsPage({ projectId }) {
     }
   };
 
+  if (!projectId && !propProjectId) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center p-8">
+          <Calculator className="w-12 h-12 mx-auto text-gray-400 mb-3" />
+          <p className="text-gray-500 mb-4">Select a project to view takeoffs</p>
+          {projects.length > 0 ? (
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="px-4 py-2 border rounded-lg text-sm"
+            >
+              <option value="">Choose a project...</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          ) : (
+            <p className="text-sm text-gray-400">No projects found. Create a project first.</p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full">
+    <div className="flex h-full flex-col">
+      {/* Project selector (standalone mode) */}
+      {!propProjectId && projects.length > 1 && (
+        <div className="px-4 py-2 border-b bg-white flex items-center gap-2">
+          <span className="text-sm text-gray-500">Project:</span>
+          <select
+            value={projectId}
+            onChange={(e) => { setProjectId(e.target.value); setSelectedSheet(null); }}
+            className="px-3 py-1.5 border rounded-lg text-sm font-medium"
+          >
+            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+      )}
+
+      <div className="flex flex-1 overflow-hidden">
       {/* Sidebar - Sheets List */}
       <div className="w-64 border-r bg-gray-50 flex flex-col">
         <div className="p-4 border-b">

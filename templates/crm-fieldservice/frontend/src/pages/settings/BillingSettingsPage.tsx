@@ -4,7 +4,7 @@ import {
   Plus, Package, Calendar, Receipt, X, ChevronRight
 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const PLANS = {
   starter: { id: 'starter', name: 'Starter', price: 49, priceAnnual: 39, users: 2 },

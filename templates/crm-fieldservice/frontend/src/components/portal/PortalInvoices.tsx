@@ -4,7 +4,7 @@ import { Receipt, Download, AlertCircle, CheckCircle, Clock, Loader2, CreditCard
 import { usePortal } from '../../contexts/PortalContext';
 import { PaymentModal } from '../payments/PaymentForm';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const STATUS_STYLES = {
   draft: 'bg-gray-100 text-gray-700',

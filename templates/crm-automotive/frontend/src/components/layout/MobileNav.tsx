@@ -163,7 +163,7 @@ export default function MobileNav() {
           {/* Settings */}
           <div className="mt-4 pt-4 border-t px-2">
             <NavLink
-              to="/settings"
+              to="/crm/settings"
               className={({ isActive }) => `
                 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                 ${isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}
