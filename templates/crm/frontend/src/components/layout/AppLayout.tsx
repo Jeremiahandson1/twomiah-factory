@@ -192,7 +192,7 @@ export default function AppLayout() {
         <div className="border-t dark:border-slate-800 p-3">
 
           <NavLink
-            to="/settings"
+            to="/crm/settings"
             className={({ isActive }) => `
               flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
               ${isActive ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}
@@ -293,7 +293,7 @@ export default function AppLayout() {
                       </div>
                       <div className="py-1">
                         <NavLink
-                          to="/settings"
+                          to="/crm/settings"
                           className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700"
                           role="menuitem"
                           onClick={() => setUserMenuOpen(false)}

@@ -155,5 +155,81 @@
     "seoDescription": "Free exterior home inspection in {{CITY}}, {{STATE}}. Roof, siding, gutters, and windows. No obligation from {{COMPANY_NAME}}.",
     "visible": true,
     "order": 6
+  },
+  {
+    "id": "insulation",
+    "name": "Insulation",
+    "title": "Insulation",
+    "slug": "insulation",
+    "shortDescription": "Energy-efficient insulation solutions that lower utility bills and improve year-round comfort.",
+    "description": "{{COMPANY_NAME}} provides professional insulation installation throughout {{SERVICE_REGION}}. From attic blown-in insulation to spray foam and air sealing, we help homeowners cut energy costs and maintain a comfortable home in every season.",
+    "icon": "thermometer",
+    "image": "",
+    "features": [
+      "Blown-in attic insulation",
+      "Spray foam insulation (open and closed cell)",
+      "Wall cavity insulation",
+      "Air sealing and draft elimination",
+      "Energy audit and assessment"
+    ],
+    "links": [
+      { "label": "Attic Insulation", "href": "/services/insulation" },
+      { "label": "Spray Foam", "href": "/services/insulation" },
+      { "label": "Air Sealing", "href": "/services/insulation" }
+    ],
+    "seoTitle": "Insulation Contractor in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Professional insulation installation in {{CITY}}, {{STATE}}. Blown-in, spray foam, and air sealing by {{COMPANY_NAME}}. Free estimates.",
+    "visible": true,
+    "order": 7
+  },
+  {
+    "id": "remodeling",
+    "name": "Remodeling",
+    "title": "Remodeling",
+    "slug": "remodeling",
+    "shortDescription": "Complete exterior remodeling services that transform your home's look and increase its value.",
+    "description": "Transform your home with {{COMPANY_NAME}}'s exterior remodeling services. Whether you need a full exterior makeover or targeted upgrades, our team handles siding, trim, soffits, fascia, and more — delivering a cohesive new look that boosts curb appeal and property value.",
+    "icon": "hammer",
+    "image": "",
+    "features": [
+      "Full exterior renovation",
+      "Siding, trim, and accent updates",
+      "Soffit and fascia replacement",
+      "Color consultation and design",
+      "Financing options available"
+    ],
+    "links": [
+      { "label": "Exterior Remodeling", "href": "/services/remodeling" },
+      { "label": "New Construction", "href": "/services/new-construction" }
+    ],
+    "seoTitle": "Exterior Remodeling in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Exterior remodeling services in {{CITY}}, {{STATE}}. Full exterior renovation and upgrades by {{COMPANY_NAME}}. Free estimates.",
+    "visible": true,
+    "order": 8
+  },
+  {
+    "id": "new-construction",
+    "name": "New Construction",
+    "title": "New Construction",
+    "slug": "new-construction",
+    "shortDescription": "Exterior installation for new builds — roofing, siding, windows, gutters, and insulation done right the first time.",
+    "description": "{{COMPANY_NAME}} partners with builders and homeowners throughout {{SERVICE_REGION}} to deliver complete exterior packages for new construction. From roofing and siding to windows, gutters, and insulation, we ensure every detail meets high standards of quality and efficiency.",
+    "icon": "building",
+    "image": "",
+    "features": [
+      "Complete exterior packages for new builds",
+      "Builder-friendly scheduling and coordination",
+      "Roofing, siding, windows, gutters, and insulation",
+      "Energy-efficient material options",
+      "Warranty on all workmanship"
+    ],
+    "links": [
+      { "label": "Builder Partnerships", "href": "/services/new-construction" },
+      { "label": "Exterior Packages", "href": "/services/new-construction" }
+    ],
+    "seoTitle": "New Construction Exterior in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "New construction exterior services in {{CITY}}, {{STATE}}. Roofing, siding, windows, and gutters for new builds by {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 9
   }
 ]
