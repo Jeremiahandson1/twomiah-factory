@@ -130,6 +130,17 @@
       "frontend": {
         "pages": ["PayrollPage"]
       }
+    },
+
+    "lead_inbox": {
+      "description": "Unified lead inbox from external sources (Angi, HomeAdvisor, Thumbtack, Google LSA, Houzz)",
+      "backend": {
+        "routes": ["leads.ts"],
+        "services": []
+      },
+      "frontend": {
+        "pages": ["leads/LeadInboxPage", "leads/LeadSourcesPage"]
+      }
     }
 
   },

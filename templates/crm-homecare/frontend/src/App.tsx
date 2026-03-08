@@ -12,6 +12,8 @@ import { ToastContainer, toast } from './components/Toast';
 import { ConfirmModal } from './components/ConfirmModal';
 import { setSessionExpiredCallback } from './config';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import LeadInboxPage from './pages/leads/LeadInboxPage';
+import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 
 const App = () => {
   return (
@@ -29,6 +31,10 @@ const App = () => {
 
         {/* Client portal */}
         <Route path="/portal/*"          element={<PortalApp />} />
+
+        {/* Lead Inbox */}
+        <Route path="leads" element={<LeadInboxPage />} />
+        <Route path="lead-sources" element={<LeadSourcesPage />} />
 
         {/* Staff app */}
         <Route path="/*"                 element={<MainApp />} />

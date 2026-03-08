@@ -2469,3 +2469,48 @@ export const pushSubscription = pgTable('push_subscription', {
 }, (t) => [
   index('push_subscription_user_id_idx').on(t.userId),
 ])
+
+// ==================== LEAD INBOX ====================
+
+export const leadSource = pgTable('lead_source', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  platform: text('platform').notNull(),
+  label: text('label').notNull(),
+  inboundEmail: text('inbound_email'),
+  webhookUrl: text('webhook_url'),
+  webhookSecret: text('webhook_secret'),
+  enabled: boolean('enabled').default(true).notNull(),
+  config: json('config').default({}).notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('lead_source_company_id_idx').on(t.companyId),
+  index('lead_source_platform_idx').on(t.platform),
+])
+
+export const lead = pgTable('lead', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourcePlatform: text('source_platform').notNull(),
+  sourceId: text('source_id').references(() => leadSource.id, { onDelete: 'set null' }),
+  homeownerName: text('homeowner_name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  jobType: text('job_type'),
+  location: text('location'),
+  budget: text('budget'),
+  description: text('description'),
+  status: text('status').default('new').notNull(),
+  rawPayload: json('raw_payload'),
+  convertedContactId: text('converted_contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  contactedAt: timestamp('contacted_at'),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('lead_company_id_idx').on(t.companyId),
+  index('lead_status_idx').on(t.status),
+  index('lead_source_platform_idx').on(t.sourcePlatform),
+  index('lead_received_at_idx').on(t.receivedAt),
+])

@@ -11,9 +11,9 @@ type Props = {
 }
 
 const CRM_PRESETS = [
-  { id: 'service-starter', name: 'Service Starter', icon: '🔧', description: 'HVAC, plumbing, electrical, cleaning', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','drag_drop_calendar','recurring_jobs','online_booking','service_dispatch','pricebook','time_tracking','online_payments','expense_tracking','two_way_texting','google_reviews'] },
-  { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, roofing, general contracting', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews'] },
-  { id: 'contractor-suite', name: 'Contractor Suite', icon: '🏢', description: 'Full commercial construction', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','rfis','change_orders','punch_lists','daily_logs','inspections','bid_management','takeoff_tools','selections','time_tracking','gps_tracking','photo_capture','fleet','online_payments','expense_tracking','job_costing','quickbooks','documents','reports','client_portal','call_tracking'] },
+  { id: 'service-starter', name: 'Service Starter', icon: '🔧', description: 'HVAC, plumbing, electrical, cleaning', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','drag_drop_calendar','recurring_jobs','online_booking','service_dispatch','pricebook','time_tracking','online_payments','expense_tracking','two_way_texting','google_reviews','lead_inbox'] },
+  { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, roofing, general contracting', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox'] },
+  { id: 'contractor-suite', name: 'Contractor Suite', icon: '🏢', description: 'Full commercial construction', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','rfis','change_orders','punch_lists','daily_logs','inspections','bid_management','takeoff_tools','selections','time_tracking','gps_tracking','photo_capture','fleet','online_payments','expense_tracking','job_costing','quickbooks','documents','reports','client_portal','call_tracking','lead_inbox'] },
   { id: 'everything', name: 'Enterprise', icon: '🚀', description: 'Every feature enabled', features: 'all' as const },
 ]
 
@@ -79,6 +79,7 @@ const CRM_REGISTRY = [
     { id: 'two_way_texting', name: 'Two-Way Texting', description: 'SMS communication with clients', core: false },
     { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', core: false },
     { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', core: false },
+    { id: 'lead_inbox', name: 'Lead Inbox', description: 'Unified lead feed from Angi, Thumbtack, HomeAdvisor, Google LSA', core: false },
   ]},
   { category: 'Marketing', features: [
     { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', core: false },

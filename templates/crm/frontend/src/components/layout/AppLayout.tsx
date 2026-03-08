@@ -6,7 +6,8 @@ import {
   BookOpen, ClipboardCheck, Target, Settings, LogOut, Bell, Search,
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
-  MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen
+  MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
+  Inbox, ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -49,6 +50,8 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'] },
   { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'] },
   { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'] },
+  { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
+  { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 ];

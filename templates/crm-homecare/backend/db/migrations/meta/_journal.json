@@ -8,6 +8,13 @@
       "when": 1772785270509,
       "tag": "0000_misty_rhodey",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772958000000,
+      "tag": "0002_add_lead_inbox",
+      "breakpoints": true
     }
   ]
 }

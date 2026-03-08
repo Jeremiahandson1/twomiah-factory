@@ -50,6 +50,14 @@
       "frontend": { "features": ["AIReceptionistPage.tsx"] },
       "sidebar": null
     },
+    "lead_inbox": {
+      "backend": { "routes": ["leads.ts"] },
+      "frontend": { "pages": ["leads/LeadInboxPage.tsx", "leads/LeadSourcesPage.tsx"] },
+      "sidebar": [
+        { "id": "leads", "label": "Lead Inbox", "icon": "Inbox", "path": "/leads" },
+        { "id": "lead-sources", "label": "Lead Sources", "icon": "ExternalLink", "path": "/lead-sources" }
+      ]
+    },
     "consumer_financing": {
       "backend": { "routes": ["wisetack.ts"], "services": ["wisetack.ts"] },
       "frontend": { "features": ["FinancingPage.tsx"], "components": ["financing/WisetackFinancing.tsx"] },

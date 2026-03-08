@@ -55,6 +55,8 @@ import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
 import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
+import LeadInboxPage from './pages/leads/LeadInboxPage';
+import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
@@ -171,6 +173,8 @@ function App() {
                     <Route path="reports" element={<ReportsDashboard />} />
                     <Route path="selections" element={<SelectionsPage />} />
                     <Route path="support" element={<SupportPage />} />
+                    <Route path="leads" element={<LeadInboxPage />} />
+                    <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="dispatch" element={<DispatchBoard />} />
                     <Route path="maintenance" element={<MaintenanceContracts />} />
                     <Route path="parts" element={<PartsInventory />} />
