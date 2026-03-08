@@ -10,6 +10,7 @@ import { execFile } from 'child_process';
 import { fileURLToPath } from 'url';
 import appPaths from '../config/paths.ts';
 import { createBackup, listBackups, backupsDir } from '../services/autoBackup.ts';
+import { uploadFile, deleteFile, listFiles, getImageUrl, USE_R2 } from '../services/storage.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2253,25 +2254,52 @@ app.post('/upload', authMiddleware, async (c) => {
 
   try {
     const uniqueName = `${Date.now()}-${crypto.randomUUID()}${ext}`;
-    const filePath = path.join(uploadsDir, uniqueName);
-
-    // Write the file to disk
     const arrayBuffer = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+    let buffer = Buffer.from(arrayBuffer);
 
     let optimizationResult: any = { optimized: false };
 
-    if (optimize) {
-      optimizationResult = await optimizeImage(filePath, filePath);
+    if (optimize && !ext.match(/\.(svg|ico)$/)) {
+      // Optimize in-memory using sharp before uploading
+      const tmpIn = path.join(uploadsDir, `_tmp_${uniqueName}`);
+      const tmpOut = path.join(uploadsDir, `_opt_${uniqueName}`);
+      fs.writeFileSync(tmpIn, buffer);
+      optimizationResult = await optimizeImage(tmpIn, tmpOut);
+      if (fs.existsSync(tmpOut)) {
+        buffer = fs.readFileSync(tmpOut);
+        try { fs.unlinkSync(tmpOut); } catch {}
+      }
+      try { fs.unlinkSync(tmpIn); } catch {}
     }
 
-    // Generate thumbnail for gallery use
+    // Generate thumbnail in-memory
     const thumbName = `thumb_${uniqueName}`;
-    const thumbPath = path.join(uploadsDir, thumbName);
-    await generateThumbnail(filePath, thumbPath);
+    let thumbBuffer: Buffer | null = null;
+    try {
+      thumbBuffer = await sharp(buffer)
+        .resize(300, 300, { fit: 'cover' })
+        .jpeg({ quality: 70 })
+        .toBuffer();
+    } catch (err) {
+      console.error('Thumbnail generation error:', err);
+    }
 
-    const imageUrl = `/uploads/${uniqueName}`;
-    const thumbUrl = `/uploads/${thumbName}`;
+    // Upload main image + thumbnail to storage (R2 or local)
+    const contentType = file.type || 'image/jpeg';
+    const imageUrl = await uploadFile(buffer, uniqueName, contentType);
+    let thumbUrl = '';
+    if (thumbBuffer) {
+      thumbUrl = await uploadFile(thumbBuffer, thumbName, 'image/jpeg');
+    }
+
+    // Save metadata (folder, altText, uploadedAt) for R2 image listing
+    try {
+      const metaFile = path.join(dataDir, 'image-meta.json');
+      let meta: any = {};
+      if (fs.existsSync(metaFile)) meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      meta[uniqueName] = { folder, altText, uploadedAt: new Date().toISOString() };
+      fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+    } catch {}
 
     logActivity('image_uploaded', {
       filename: uniqueName,
@@ -2320,25 +2348,44 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
     const images = await Promise.all(fileArray.map(async (file) => {
       const ext = path.extname(file.name).toLowerCase();
       const uniqueName = `${Date.now()}-${crypto.randomUUID()}${ext}`;
-      const filePath = path.join(uploadsDir, uniqueName);
 
       const arrayBuffer = await file.arrayBuffer();
-      fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+      let buffer = Buffer.from(arrayBuffer);
 
       let optimizationResult: any = { optimized: false };
 
-      if (optimize) {
-        optimizationResult = await optimizeImage(filePath, filePath);
+      if (optimize && !ext.match(/\.(svg|ico)$/)) {
+        const tmpIn = path.join(uploadsDir, `_tmp_${uniqueName}`);
+        const tmpOut = path.join(uploadsDir, `_opt_${uniqueName}`);
+        fs.writeFileSync(tmpIn, buffer);
+        optimizationResult = await optimizeImage(tmpIn, tmpOut);
+        if (fs.existsSync(tmpOut)) {
+          buffer = fs.readFileSync(tmpOut);
+          try { fs.unlinkSync(tmpOut); } catch {}
+        }
+        try { fs.unlinkSync(tmpIn); } catch {}
       }
 
-      // Generate thumbnail
+      // Generate thumbnail in-memory
       const thumbName = `thumb_${uniqueName}`;
-      const thumbPath = path.join(uploadsDir, thumbName);
-      await generateThumbnail(filePath, thumbPath);
+      let thumbBuffer: Buffer | null = null;
+      try {
+        thumbBuffer = await sharp(buffer)
+          .resize(300, 300, { fit: 'cover' })
+          .jpeg({ quality: 70 })
+          .toBuffer();
+      } catch {}
+
+      const contentType = file.type || 'image/jpeg';
+      const imageUrl = await uploadFile(buffer, uniqueName, contentType);
+      let thumbUrl = '';
+      if (thumbBuffer) {
+        thumbUrl = await uploadFile(thumbBuffer, thumbName, 'image/jpeg');
+      }
 
       return {
-        url: `/uploads/${uniqueName}`,
-        thumbnail: `/uploads/${thumbName}`,
+        url: imageUrl,
+        thumbnail: thumbUrl,
         filename: uniqueName,
         folder,
         optimization: optimizationResult
@@ -2353,9 +2400,9 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
   }
 });
 
-app.get('/images', authMiddleware, (c) => {
+app.get('/images', authMiddleware, async (c) => {
   try {
-    const files = fs.readdirSync(uploadsDir);
+    const files = await listFiles();
     const metaFile = path.join(dataDir, 'image-meta.json');
     let meta: any = {};
 
@@ -2365,13 +2412,20 @@ app.get('/images', authMiddleware, (c) => {
 
     const images = files
       .filter(f => /\.(jpg|jpeg|png|gif|webp|svg|ico)$/i.test(f) && !f.startsWith('thumb_'))
-      .map(filename => ({
-        filename,
-        url: `/uploads/${filename}`,
-        uploadedAt: fs.statSync(path.join(uploadsDir, filename)).mtime,
-        folder: meta[filename]?.folder || 'Uncategorized',
-        altText: meta[filename]?.altText || ''
-      }))
+      .map(filename => {
+        let uploadedAt: Date | string = meta[filename]?.uploadedAt || new Date();
+        // For local storage, read mtime from disk
+        if (!USE_R2) {
+          try { uploadedAt = fs.statSync(path.join(uploadsDir, filename)).mtime; } catch {}
+        }
+        return {
+          filename,
+          url: getImageUrl(filename),
+          uploadedAt,
+          folder: meta[filename]?.folder || 'Uncategorized',
+          altText: meta[filename]?.altText || ''
+        };
+      })
       .sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
     return c.json(images);
   } catch (err) {
@@ -2400,21 +2454,18 @@ app.put('/images/:filename', authMiddleware, async (c) => {
   }
 });
 
-app.delete('/images/:filename', authMiddleware, (c) => {
+app.delete('/images/:filename', authMiddleware, async (c) => {
   const filename = c.req.param('filename');
   if (filename.includes('..') || filename.includes('/')) {
     return c.json({ error: 'Invalid filename' }, 400);
   }
 
-  const filepath = path.join(uploadsDir, filename);
   try {
-    if (fs.existsSync(filepath)) {
-      fs.unlinkSync(filepath);
-      logActivity('image_deleted', { filename });
-      return c.json({ message: 'Image deleted' });
-    } else {
-      return c.json({ error: 'Image not found' }, 404);
-    }
+    await deleteFile(filename);
+    // Also delete thumbnail
+    await deleteFile(`thumb_${filename}`).catch(() => {});
+    logActivity('image_deleted', { filename });
+    return c.json({ message: 'Image deleted' });
   } catch (err) {
     return c.json({ error: 'Server error' }, 500);
   }
@@ -2439,18 +2490,10 @@ app.post('/bulk/images', authMiddleware, async (c) => {
           continue;
         }
 
-        const filepath = path.join(uploadsDir, filename);
-        const thumbPath = path.join(uploadsDir, `thumb_${filename}`);
-
         try {
-          if (fs.existsSync(filepath)) {
-            fs.unlinkSync(filepath);
-            deleted++;
-          }
-          // Also delete thumbnail if exists
-          if (fs.existsSync(thumbPath)) {
-            fs.unlinkSync(thumbPath);
-          }
+          await deleteFile(filename);
+          await deleteFile(`thumb_${filename}`).catch(() => {});
+          deleted++;
         } catch (err) {
           failed++;
         }

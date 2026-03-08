@@ -21,7 +21,8 @@
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
     "sharp": "^0.33.2",
-    "@sendgrid/mail": "^8.1.0"
+    "@sendgrid/mail": "^8.1.0",
+    "@aws-sdk/client-s3": "^3.600.0"
   },
   "devDependencies": {
     "drizzle-kit": "^0.24.0",
