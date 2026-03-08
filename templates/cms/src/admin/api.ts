@@ -189,6 +189,10 @@ export const submitLead = async (data) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || err.message || 'Submit failed');
+  }
   return response.json();
 };
 
