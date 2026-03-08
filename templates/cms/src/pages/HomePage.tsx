@@ -454,7 +454,7 @@ function HomePage({ onFormSuccess }: { onFormSuccess: () => void }) {
       {/* Map Section */}
       <section className="map-section">
         <iframe 
-          src={`https://www.google.com/maps/embed/v1/place?key={{GOOGLE_MAPS_API_KEY}}&q=${encodeURIComponent(address + ', ' + city + ', ' + state + ' ' + zip)}`}
+          src={`https://maps.google.com/maps?q=${encodeURIComponent(address + ', ' + city + ', ' + state + ' ' + zip)}&output=embed`}
           allowFullScreen="" 
           loading="lazy"
           title="Location Map"
