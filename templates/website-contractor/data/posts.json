@@ -1,1 +1,50 @@
-[]
+[
+  {
+    "id": "blog1",
+    "title": "Signs You Need a New Roof: What Every Homeowner Should Know",
+    "slug": "signs-you-need-new-roof",
+    "excerpt": "Missing shingles, granules in gutters, and daylight through the attic are all warning signs. Here's how to know when it's time for a roof replacement.",
+    "content": "Your roof protects everything underneath it, but most homeowners don't think about it until there's a problem. Here are the top signs it might be time for a replacement:\n\n**1. Age** — Most asphalt shingle roofs last 20-25 years. If yours is approaching that age, it's time for an inspection.\n\n**2. Missing or curling shingles** — Wind and UV exposure degrade shingles over time. Missing shingles leave your decking exposed to moisture.\n\n**3. Granules in gutters** — Those dark granules protect shingles from UV. Heavy granule loss means your roof is nearing the end of its life.\n\n**4. Daylight through the attic** — If you can see light through your roof boards, water can get through too.\n\n**5. Sagging areas** — This indicates structural damage to the decking and requires immediate attention.\n\nIf you notice any of these signs, contact us for a free roof inspection. We'll give you an honest assessment and help you understand your options — including insurance coverage if storm damage is involved.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Roofing",
+    "tags": ["roofing", "maintenance", "inspection"],
+    "seoTitle": "7 Signs You Need a New Roof | {{COMPANY_NAME}}",
+    "seoDescription": "How to tell if your roof needs replacing. Warning signs every {{CITY}} homeowner should watch for. Free inspections from {{COMPANY_NAME}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-02-15T00:00:00Z",
+    "updatedAt": "2026-02-15T00:00:00Z"
+  },
+  {
+    "id": "blog2",
+    "title": "Siding Comparison: Vinyl vs. Fiber Cement vs. Engineered Wood",
+    "slug": "siding-comparison-vinyl-fiber-cement-wood",
+    "excerpt": "Choosing new siding? We break down the pros, cons, cost, and longevity of the three most popular siding materials for {{CITY}} homes.",
+    "content": "When it's time for new siding, {{CITY}} homeowners typically choose between three options. Here's how they compare:\n\n## Vinyl Siding\n**Cost:** $$ | **Lifespan:** 20-30 years\n- Most affordable option\n- Low maintenance (no painting)\n- Wide range of colors and styles\n- Can warp in extreme heat\n\n## Fiber Cement (James Hardie)\n**Cost:** $$$ | **Lifespan:** 30-50 years\n- Exceptional durability\n- Resists fire, rot, and insects\n- Holds paint well\n- Heavier, requires professional installation\n\n## Engineered Wood (LP SmartSide)\n**Cost:** $$$ | **Lifespan:** 25-40 years\n- Natural wood appearance\n- Lighter than fiber cement\n- Treated to resist moisture and insects\n- Requires periodic painting\n\n## Our Recommendation\nFor most {{CITY}} homeowners, **fiber cement** offers the best long-term value. However, **vinyl** is an excellent choice for budget-conscious projects, and **engineered wood** is perfect if you want that authentic wood look without the maintenance of real wood.\n\nContact us for a free estimate on any siding material — we'll help you choose what's right for your home and budget.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Siding",
+    "tags": ["siding", "comparison", "materials"],
+    "seoTitle": "Vinyl vs Fiber Cement vs Engineered Wood Siding | {{COMPANY_NAME}}",
+    "seoDescription": "Compare vinyl, fiber cement, and engineered wood siding for your {{CITY}} home. Cost, durability, and maintenance compared by {{COMPANY_NAME}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-02-01T00:00:00Z",
+    "updatedAt": "2026-02-01T00:00:00Z"
+  },
+  {
+    "id": "blog3",
+    "title": "Why Attic Insulation Is the Best Investment for {{CITY}} Homeowners",
+    "slug": "attic-insulation-energy-savings",
+    "excerpt": "Most homes in {{STATE}} are under-insulated. Upgrading your attic insulation can cut heating costs by 15-25% and pays for itself within a few winters.",
+    "content": "If your heating bills keep climbing, the problem might be above your head — literally. Most homes in {{CITY}} were built with insulation that doesn't meet today's energy codes.\n\n## The Numbers\n- The DOE recommends **R-49 to R-60** for attics in our climate zone\n- Most older homes have **R-19 or less**\n- Proper insulation can reduce heating costs by **15-25%**\n\n## Signs Your Attic Needs More Insulation\n1. **Uneven temperatures** between rooms\n2. **Ice dams** forming on your roof in winter\n3. **High energy bills** compared to similar homes\n4. **Insulation below the floor joists** — you should not be able to see the joists\n\n## Types of Attic Insulation\n- **Blown-in fiberglass** — Most common, excellent coverage\n- **Blown-in cellulose** — Good for existing homes, fills gaps well\n- **Spray foam** — Best air sealing, highest R-value per inch\n\n## The Bottom Line\nAttic insulation is one of the fastest-payback home improvements you can make. Most projects pay for themselves in 2-4 heating seasons through energy savings alone.\n\nWe offer free attic inspections and can tell you exactly where you stand. Contact us to schedule yours.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Insulation",
+    "tags": ["insulation", "energy-savings", "attic"],
+    "seoTitle": "Attic Insulation Guide for {{CITY}} Homeowners | {{COMPANY_NAME}}",
+    "seoDescription": "Save 15-25% on heating with proper attic insulation. Free inspection for {{CITY}} homeowners from {{COMPANY_NAME}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-01-15T00:00:00Z",
+    "updatedAt": "2026-01-15T00:00:00Z"
+  }
+]

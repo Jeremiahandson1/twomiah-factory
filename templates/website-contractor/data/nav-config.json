@@ -1,9 +1,62 @@
 {
   "items": [
     {
-      "id": "services",
-      "label": "Services",
-      "href": "/services",
+      "id": "roofing",
+      "label": "Roofing",
+      "href": "/services/roofing",
+      "visible": true,
+      "children": [
+        { "label": "Roof Replacement", "href": "/services/roofing" },
+        { "label": "Roof Repair", "href": "/services/roofing" },
+        { "label": "Storm Damage", "href": "/services/roofing" },
+        { "label": "Metal Roofing", "href": "/services/roofing" },
+        { "label": "Flat Roofing", "href": "/services/roofing" }
+      ]
+    },
+    {
+      "id": "siding",
+      "label": "Siding",
+      "href": "/services/siding",
+      "visible": true,
+      "children": [
+        { "label": "Vinyl Siding", "href": "/services/siding" },
+        { "label": "Fiber Cement Siding", "href": "/services/siding" },
+        { "label": "Engineered Wood", "href": "/services/siding" }
+      ]
+    },
+    {
+      "id": "windows",
+      "label": "Windows & Doors",
+      "href": "/services/windows",
+      "visible": true,
+      "children": [
+        { "label": "Replacement Windows", "href": "/services/windows" },
+        { "label": "Entry Doors", "href": "/services/windows" },
+        { "label": "Patio Doors", "href": "/services/windows" }
+      ]
+    },
+    {
+      "id": "insulation",
+      "label": "Insulation",
+      "href": "/services/insulation",
+      "visible": true,
+      "children": [
+        { "label": "Attic Insulation", "href": "/services/insulation" },
+        { "label": "Wall Insulation", "href": "/services/insulation" },
+        { "label": "Spray Foam", "href": "/services/insulation" }
+      ]
+    },
+    {
+      "id": "remodeling",
+      "label": "Remodeling",
+      "href": "/services/remodeling",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "new-construction",
+      "label": "New Construction",
+      "href": "/services/new-construction",
       "visible": true,
       "children": []
     },
@@ -11,14 +64,14 @@
       "id": "gallery",
       "label": "Gallery",
       "href": "/gallery",
-      "visible": false,
+      "visible": true,
       "children": []
     },
     {
       "id": "blog",
       "label": "Blog",
       "href": "/blog",
-      "visible": false,
+      "visible": true,
       "children": []
     },
     {

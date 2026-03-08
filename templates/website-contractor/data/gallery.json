@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "id": "p1",
+    "title": "Complete Roof Replacement",
+    "category": "Roofing",
+    "description": "Full tear-off and replacement with architectural shingles. Completed in one day with full cleanup.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["roofing", "shingles"],
+    "createdAt": "2026-01-15T00:00:00Z"
+  },
+  {
+    "id": "p2",
+    "title": "Vinyl Siding Installation",
+    "category": "Siding",
+    "description": "Complete siding replacement with insulated vinyl. Includes new soffit, fascia, and seamless gutters.",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["siding", "vinyl"],
+    "createdAt": "2026-01-10T00:00:00Z"
+  },
+  {
+    "id": "p3",
+    "title": "Energy-Efficient Window Upgrade",
+    "category": "Windows & Doors",
+    "description": "Replaced 14 original windows with triple-pane energy-efficient models. Noticeable reduction in heating costs.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["windows", "energy-efficiency"],
+    "createdAt": "2026-01-05T00:00:00Z"
+  },
+  {
+    "id": "p4",
+    "title": "Storm Damage Restoration",
+    "category": "Roofing",
+    "description": "Insurance-backed roof and gutter restoration after severe hail damage. Coordinated directly with the adjuster.",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["roofing", "storm-damage", "insurance"],
+    "createdAt": "2025-12-20T00:00:00Z"
+  },
+  {
+    "id": "p5",
+    "title": "Metal Roof Installation",
+    "category": "Roofing",
+    "description": "Hidden-fastener standing seam metal roof with seamless gutters. Designed for maximum longevity and curb appeal.",
+    "location": "{{NEARBY_CITY_3}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["roofing", "metal"],
+    "createdAt": "2025-12-15T00:00:00Z"
+  },
+  {
+    "id": "p6",
+    "title": "Full Exterior Remodel",
+    "category": "Siding",
+    "description": "New fiber cement siding, entry door, trim work, and soffit. Complete exterior transformation.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["siding", "remodeling"],
+    "createdAt": "2025-12-10T00:00:00Z"
+  }
+]

@@ -16,6 +16,7 @@
       "id": "licensed",
       "type": "custom",
       "label": "Licensed & Insured",
+      "sublabel": "Full coverage on every project",
       "icon": "shield",
       "enabled": true
     },
@@ -23,6 +24,7 @@
       "id": "local",
       "type": "custom",
       "label": "Locally Owned",
+      "sublabel": "Serving {{SERVICE_REGION}}",
       "icon": "home",
       "enabled": true
     },
@@ -30,6 +32,7 @@
       "id": "guaranteed",
       "type": "custom",
       "label": "Satisfaction Guaranteed",
+      "sublabel": "Backed by our workmanship warranty",
       "icon": "check",
       "enabled": true
     },
@@ -37,13 +40,14 @@
       "id": "experience",
       "type": "custom",
       "label": "Years of Experience",
+      "sublabel": "Trusted by hundreds of homeowners",
       "icon": "star",
       "enabled": true
     }
   ],
   "ctaSection": {
-    "title": "Ready to start your project?",
-    "description": "Contact us today for a free, no-obligation estimate. We serve {{SERVICE_REGION}} and surrounding areas.",
+    "title": "Increase your comfort.\nDecrease your energy bills.",
+    "description": "Find out how we can improve your home's efficiency and curb appeal. Free estimates for {{SERVICE_REGION}} homeowners.",
     "primaryButtonText": "Get a Free Estimate",
     "primaryButtonLink": "#contact",
     "secondaryButtonText": "Call {{COMPANY_PHONE}}",

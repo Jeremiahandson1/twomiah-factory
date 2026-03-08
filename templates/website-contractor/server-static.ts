@@ -148,8 +148,14 @@ app.get('/', (c) => {
   const services = loadJSON('services.json') || []
   const testimonials = loadJSON('testimonials.json') || []
   const settings = loadJSON('settings.json') || {}
+  const gallery = loadJSON('gallery.json') || []
+  const featuredProjects = gallery.filter((p: any) => p.featured !== false).slice(0, 6)
+  const posts = loadJSON('posts.json') || []
+  const recentPosts = posts.filter((p: any) => p.published).slice(0, 3)
+  const navConfig = loadJSON('nav-config.json') || {}
+  const menuItems = (navConfig.items || []).filter((i: any) => i.visible !== false)
   return renderPage(c, 'home', {
-    homepage, services, testimonials,
+    homepage, services, testimonials, featuredProjects, recentPosts, menuItems,
     title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
     description: settings.seoDescription || 'Professional contractor services',
     canonicalUrl: BASE_URL + '/',
