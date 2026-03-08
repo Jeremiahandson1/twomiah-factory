@@ -33,7 +33,9 @@ function AdminGallery() {
   const loadProjects = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/admin/gallery`);
+      const response = await fetch(`${API_BASE}/admin/gallery`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
       if (response.ok) {
         const data = await response.json();
         setProjects(data);

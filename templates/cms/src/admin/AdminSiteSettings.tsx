@@ -84,7 +84,7 @@ function AdminSiteSettings() {
       const token = localStorage.getItem('adminToken');
       const response = await fetch(`${API_BASE}/admin/leads`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
           name: 'Test Lead',
           email: 'test@example.com',

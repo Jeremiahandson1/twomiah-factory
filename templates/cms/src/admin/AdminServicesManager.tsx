@@ -227,7 +227,9 @@ function AdminServicesManager() {
   const loadServices = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/admin/services-data`);
+      const response = await fetch(`${API_BASE}/admin/services-data`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
       if (response.ok) {
         setServices(await response.json());
       } else {

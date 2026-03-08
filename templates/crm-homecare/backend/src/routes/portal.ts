@@ -724,6 +724,7 @@ app.get('/portal/invoices/:invoiceId/pdf', portalAuth, async (c) => {
     .where(eq(invoiceLineItems.invoiceId, invoiceId))
 
   const [agency] = await db.select().from(agencies).limit(1)
+  if (!agency) return c.json({ error: 'Agency not found' }, 404)
 
   const { generateInvoicePDF } = await import('../services/pdf.ts')
   const pdfBuffer = await generateInvoicePDF({ ...inv, lineItems }, agency, client)

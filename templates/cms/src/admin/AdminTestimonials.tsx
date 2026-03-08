@@ -21,7 +21,9 @@ function AdminTestimonials() {
   const loadTestimonials = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/admin/testimonials`);
+      const response = await fetch(`${API_BASE}/admin/testimonials`, {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
       if (response.ok) {
         const data = await response.json();
         setTestimonials(data);

@@ -68,6 +68,7 @@ app.post('/log', async (c) => {
 app.patch('/log/:id/pin', async (c) => {
   const id = c.req.param('id')
   const [log] = await db.select().from(communicationLog).where(eq(communicationLog.id, id)).limit(1)
+  if (!log) return c.json({ error: 'Message not found' }, 404)
   const [updated] = await db.update(communicationLog).set({ isPinned: !log.isPinned, updatedAt: new Date() }).where(eq(communicationLog.id, id)).returning()
   return c.json(updated)
 })

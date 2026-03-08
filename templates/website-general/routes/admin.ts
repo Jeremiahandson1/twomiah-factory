@@ -1125,7 +1125,7 @@ app.get('/sitemap.xml', (c) => {
     });
 
     services.forEach((service: any) => {
-      xml += `  <url>\n    <loc>${baseUrl}/services/${service.id}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+      xml += `  <url>\n    <loc>${baseUrl}/services/${service.slug}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
     });
 
     Object.entries(pages).forEach(([id, page]: [string, any]) => {
@@ -1464,7 +1464,7 @@ function handleDeletePage(c: Context, hasSubId = false) {
     }
 
     // If we didn't find it anywhere, 404
-    if (!pages[pageId] === undefined && !deletedFromServices) {
+    if (pages[pageId] === undefined && !deletedFromServices) {
       return c.json({ error: 'Page not found' }, 404);
     }
 

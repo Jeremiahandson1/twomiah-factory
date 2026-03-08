@@ -89,7 +89,10 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
           ownerName: config.company?.ownerName,
         }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'AI generation failed')
+      }
       const data = await res.json()
       updateContent({
         heroTagline: data.heroTagline || content.heroTagline,
