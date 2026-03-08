@@ -202,7 +202,7 @@ function AdminAnalytics() {
     load(period);
     // Load GA ID
     const token = localStorage.getItem('adminToken');
-    fetch(`${API_BASE}/admin/settings`, { headers: { Authorization: `Bearer ${token}` } })
+    fetch(`${API_BASE}/admin/site-settings`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : {})
       .then(s => setGaId(s.googleAnalyticsId || s.gaId || s?.analytics?.googleAnalyticsId || ''))
       .catch(() => {});
@@ -394,7 +394,7 @@ function AdminAnalytics() {
           <div style={{ padding: '14px 16px', background: 'var(--admin-bg, #f9fafb)', border: '1px solid var(--admin-border, #e5e7eb)', borderRadius: 10, fontSize: 12, color: 'var(--admin-text-muted)' }}>
             <strong style={{ color: 'var(--admin-text)' }}>📊 How tracking works</strong><br />
             Page views, device type, and traffic source are tracked automatically on every page load with no external scripts. UTM parameters are captured from ad and email links. Session tracking uses anonymous browser session IDs. For geographic data and deeper behavior analytics, connect Google Analytics in{' '}
-            <a href="/admin/settings" style={{ color: 'var(--admin-primary)' }}>Site Settings</a>.
+            <a href="/admin/site-settings" style={{ color: 'var(--admin-primary)' }}>Site Settings</a>.
           </div>
         </>
       )}

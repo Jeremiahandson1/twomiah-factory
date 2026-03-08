@@ -213,6 +213,7 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
           </div>
         )}
       </div>
+      </div>
 
       {/* New Sheet Modal */}
       {showNewSheet && (

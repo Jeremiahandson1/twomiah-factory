@@ -123,6 +123,12 @@ app.route('/api/help', helpRoutes)
 app.route('/api/optimizer', optimizerRoutes)
 app.route('/api/leads', leadsRoutes)
 
+// ── Alias mounts: frontend uses shorthand paths for some routes ──
+app.route('/api/schedules', schedulingRoutes)
+app.route('/api/time-entries', timeTrackingRoutes)
+app.route('/api/users', caregiversRoutes)
+app.route('/api/route-optimizer', optimizerRoutes)
+
 // Error handler
 app.onError(errorHandler)
 

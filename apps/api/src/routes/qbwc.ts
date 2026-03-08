@@ -85,9 +85,6 @@ qbwc.get('/status', authenticate, (c) => {
 
 qbwc.post('/test', authenticate, requireRole('owner', 'admin'), async (c) => {
   try {
-    const { buildSyncRequests } = await import('../services/qbwc')
-    // @ts-ignore — buildSyncRequests is not exported but we can access it
-    // Actually let's just check config
     const configured = !!(process.env.QBWC_PASSWORD)
     if (!configured) return c.json({ error: 'QBWC_PASSWORD not set' }, 400)
 
