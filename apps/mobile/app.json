@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Twomiah",
+    "slug": "twomiah-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "twomiah",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1e40af"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.twomiah.crm",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take job site photos and scan documents",
+        "NSLocationWhenInUseUsageDescription": "Clock in at job sites and verify field check-ins",
+        "NSLocationAlwaysUsageDescription": "Track location for route optimization"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1e40af"
+      },
+      "package": "com.twomiah.crm",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "googleServicesFile": "./google-services.json"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        { "cameraPermission": "Allow Twomiah to take job site photos" }
+      ],
+      [
+        "expo-location",
+        { "locationWhenInUsePermission": "Allow Twomiah to access your location for field check-ins" }
+      ],
+      [
+        "expo-notifications",
+        { "icon": "./assets/notification-icon.png", "color": "#1e40af" }
+      ],
+      [
+        "expo-image-picker",
+        { "photosPermission": "Allow Twomiah to access your photos for job site documentation" }
+      ]
+    ],
+    "extra": {
+      "eas": { "projectId": "" },
+      "apiUrl": "",
+      "companyName": "{{COMPANY_NAME}}",
+      "primaryColor": "{{PRIMARY_COLOR}}"
+    }
+  }
+}

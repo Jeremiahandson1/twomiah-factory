@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, API_URL } from '../supabase'
-import { User, Users, Plug, Save, Trash2, Plus, Shield, Eye, Pencil, Crown, Check, X, RefreshCw, Key } from 'lucide-react'
+import { User, Users, Plug, Save, Trash2, Plus, Shield, Eye, Pencil, Crown, Check, X, RefreshCw, Key, Download, Monitor, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
 
 type Tab = 'profile' | 'team' | 'integrations'
 
@@ -300,6 +300,143 @@ function TeamTab() {
 }
 
 
+// ─── QB Desktop Setup Card ──────────────────────────────────────────────────
+function QbDesktopCard({ configured }: { configured: boolean }) {
+  const [showSetup, setShowSetup] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [qbStatus, setQbStatus] = useState<any>(null)
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/v1/qbwc/status`, {
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    }).then(r => r.json()).then(setQbStatus).catch(() => {})
+  }, [])
+
+  const handleDownloadQwc = async () => {
+    setDownloading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(`${API_URL}/api/v1/qbwc/qwc`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      })
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'TwomiahFactory.qwc'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch { /* */ } finally {
+      setDownloading(false)
+    }
+  }
+
+  return (
+    <div className="bg-[#181c2e] rounded-xl border border-gray-800 p-6 col-span-full">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold ${configured ? 'bg-green-500/10 text-green-400' : 'bg-blue-500/10 text-blue-400'}`}>
+            <Monitor size={24} />
+          </div>
+          <div>
+            <p className="text-white font-semibold text-lg">QuickBooks Desktop</p>
+            <p className={`text-sm mt-0.5 ${configured ? 'text-green-400' : 'text-yellow-400'}`}>
+              {configured ? 'Configured — QB Desktop will sync on schedule' : 'Set QBWC_PASSWORD env var to enable'}
+            </p>
+            {qbStatus?.syncs && (
+              <p className="text-xs text-gray-500 mt-1">Syncs: {qbStatus.syncs.join(', ')} every {qbStatus.syncInterval}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {configured && (
+            <button onClick={handleDownloadQwc} disabled={downloading} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors">
+              <Download size={14} />
+              {downloading ? 'Downloading...' : 'Download .qwc'}
+            </button>
+          )}
+          <button onClick={() => setShowSetup(!showSetup)} className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium text-gray-300 transition-colors">
+            <BookOpen size={14} />
+            Setup Guide
+            {showSetup ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+      </div>
+
+      {showSetup && (
+        <div className="mt-6 bg-[#0f1117] rounded-lg border border-gray-800 p-5 text-sm text-gray-300 space-y-4">
+          <h4 className="text-white font-semibold text-base">QuickBooks Web Connector Setup</h4>
+          <p className="text-gray-400">
+            The QB Web Connector (QBWC) is a free Intuit utility that runs on the same Windows machine as QuickBooks Desktop.
+            It polls this server on a schedule and pushes customers, invoices, and payments into your QB company file.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">1</span>
+              <div>
+                <p className="text-white font-medium">Set the QBWC_PASSWORD environment variable</p>
+                <p className="text-gray-400 mt-1">Add <code className="bg-gray-800 px-1.5 py-0.5 rounded text-blue-300">QBWC_PASSWORD</code> to your Render environment variables. Choose a strong password — this is the shared secret between the Web Connector and this server.</p>
+                <p className="text-gray-500 mt-1">Optional: set <code className="bg-gray-800 px-1.5 py-0.5 rounded text-blue-300">QBWC_USERNAME</code> (default: <code className="bg-gray-800 px-1.5 py-0.5 rounded text-gray-400">twomiah</code>)</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">2</span>
+              <div>
+                <p className="text-white font-medium">Install QuickBooks Web Connector</p>
+                <p className="text-gray-400 mt-1">Download QBWC from <span className="text-blue-400">developer.intuit.com</span> and install it on the same Windows PC where QuickBooks Desktop is running. Works with QB Desktop 2006 and later.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">3</span>
+              <div>
+                <p className="text-white font-medium">Download and import the .qwc file</p>
+                <p className="text-gray-400 mt-1">Click "Download .qwc" above, then open the file with QBWC (File → Add an Application). QBWC will ask you to authorize access — click Yes and select your company file.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">4</span>
+              <div>
+                <p className="text-white font-medium">Enter the password in QBWC</p>
+                <p className="text-gray-400 mt-1">QBWC will prompt for a password. Enter the same password you set in <code className="bg-gray-800 px-1.5 py-0.5 rounded text-blue-300">QBWC_PASSWORD</code>. Check "Save password" so it doesn't ask again.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">5</span>
+              <div>
+                <p className="text-white font-medium">Sync runs automatically</p>
+                <p className="text-gray-400 mt-1">QBWC will sync every 30 minutes. You can also click "Update Selected" in QBWC to sync immediately. QuickBooks must be open for sync to work.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mt-4">
+            <p className="text-yellow-300 text-xs font-medium">Note: QuickBooks Desktop must be running on the same machine as the Web Connector. QBWC runs as a Windows system tray application. The computer must be on and connected to the internet for scheduled syncs.</p>
+          </div>
+
+          <div className="bg-gray-800/50 rounded-lg p-3 mt-2">
+            <p className="text-gray-400 text-xs"><strong className="text-gray-300">What gets synced:</strong> New factory customers → QB Customers. Paid Stripe invoices (last 30 days) → QB Invoices + Payments. One-way push — changes in QB Desktop are not synced back.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Session token helper for QB Desktop card
+let sessionToken = ''
+supabase.auth.getSession().then(({ data: { session } }) => {
+  sessionToken = session?.access_token || ''
+})
+supabase.auth.onAuthStateChange((_, session) => {
+  sessionToken = session?.access_token || ''
+})
+
 // ─── Integrations Tab ────────────────────────────────────────────────────────
 function IntegrationsTab() {
   const [integrations, setIntegrations] = useState<Record<string, Integration>>({})
@@ -316,6 +453,9 @@ function IntegrationsTab() {
 
   if (loading) return <div className="text-gray-400 p-8">Checking integrations...</div>
 
+  const qbDesktop = integrations.qb_desktop
+  const otherIntegrations = Object.entries(integrations).filter(([key]) => key !== 'qb_desktop')
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -325,7 +465,7 @@ function IntegrationsTab() {
         </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Object.entries(integrations).map(([key, integration]) => (
+        {otherIntegrations.map(([key, integration]) => (
           <div key={key} className="bg-[#181c2e] rounded-xl border border-gray-800 p-5 flex items-center gap-4">
             <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg font-bold ${integration.configured ? 'bg-green-500/10 text-green-400' : 'bg-gray-800 text-gray-600'}`}>
               {integration.label.charAt(0)}
@@ -339,6 +479,9 @@ function IntegrationsTab() {
             <div className={`w-3 h-3 rounded-full ${integration.configured ? 'bg-green-500' : 'bg-gray-600'}`} />
           </div>
         ))}
+
+        {/* QB Desktop gets its own expanded card */}
+        {qbDesktop && <QbDesktopCard configured={qbDesktop.configured} />}
       </div>
       {Object.keys(integrations).length === 0 && (
         <div className="text-center text-gray-500 py-8">No integrations data available</div>

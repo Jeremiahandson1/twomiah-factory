@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { bodyLimit } from 'hono/body-limit'
 import factoryRoutes from './routes/factory.ts'
+import qbwcRoutes from './routes/qbwc.ts'
 
 const app = new Hono()
 
@@ -11,6 +12,8 @@ app.use('*', logger())
 app.use('*', bodyLimit({ maxSize: 15 * 1024 * 1024, onError: (c) => c.json({ error: 'Request body too large (max 15 MB)' }, 413) }))
 app.use('*', cors({
   origin: (origin) => {
+    // No origin = non-browser client (QBWC, curl, etc.) — allow through
+    if (!origin) return '*'
     const allowed = [
       'https://twomiah-factory-platform.onrender.com',
     ]
@@ -26,6 +29,7 @@ app.use('*', cors({
 app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
 
 app.route('/api/v1/factory', factoryRoutes)
+app.route('/api/v1/qbwc', qbwcRoutes)
 
 const port = Number(process.env.PORT || '3001') || 3001
 console.log(`[API] Twomiah Factory API running on port ${port}`)

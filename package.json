@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "mobile:dev": "cd apps/mobile && expo start",
+    "mobile:android": "cd apps/mobile && expo run:android",
+    "mobile:ios": "cd apps/mobile && expo run:ios",
+    "mobile:build:apk": "cd apps/mobile && eas build --platform android --profile preview",
+    "mobile:build:ios": "cd apps/mobile && eas build --platform ios --profile preview"
   },
   "devDependencies": {
     "turbo": "^2.8.12"

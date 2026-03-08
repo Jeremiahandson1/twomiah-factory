@@ -12,5 +12,7 @@
     "lint": {
       "dependsOn": ["^build"]
     }
-  }
+  },
+  "ui": "tui",
+  "globalPassThroughEnv": ["EXPO_TOKEN"]
 }
