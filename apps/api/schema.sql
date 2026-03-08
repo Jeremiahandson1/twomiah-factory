@@ -232,6 +232,27 @@ create policy "Service role full access on support_knowledge_base"
   with check (true);
 
 
+-- ─── Factory Users (RBAC) ─────────────────────────────────────────────────
+
+create table if not exists factory_users (
+  id          uuid primary key default uuid_generate_v4(),
+  auth_id     uuid not null unique,
+  email       text not null,
+  name        text,
+  role        text not null default 'viewer' check (role in ('owner', 'admin', 'editor', 'viewer')),
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists idx_factory_users_auth_id on factory_users(auth_id);
+create index if not exists idx_factory_users_email on factory_users(email);
+
+alter table factory_users enable row level security;
+create policy "Service role full access on factory_users"
+  on factory_users for all
+  using (true)
+  with check (true);
+
+
 -- ─── Product Feedback Tracker ───────────────────────────────────────────────
 
 create table if not exists product_feedback (

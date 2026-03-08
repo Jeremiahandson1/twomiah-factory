@@ -8,6 +8,8 @@ import TenantsPage from './pages/TenantsPage'
 import CustomerDetailPage from './pages/CustomerDetailPage'
 import FactoryPage from './pages/FactoryPage'
 import SupportPage from './pages/SupportPage'
+import AnalyticsPage from './pages/AnalyticsPage'
+import SettingsPage from './pages/SettingsPage'
 import AppLayout from './components/AppLayout'
 
 export default function App() {
@@ -37,6 +39,8 @@ export default function App() {
           <Route path="tenants/:id" element={<CustomerDetailPage />} />
           <Route path="factory" element={<FactoryPage />} />
           <Route path="support" element={<SupportPage />} />
+          <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

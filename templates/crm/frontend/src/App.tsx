@@ -1,5 +1,6 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { SocketProvider } from './contexts/SocketContext';
 import { PermissionsProvider } from './contexts/PermissionsContext';
@@ -55,6 +56,7 @@ import ReportsDashboard from './pages/reports/ReportsDashboard';
 import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
 import HelpPage from './pages/help/HelpPage';
+import OnboardingWizard from './pages/OnboardingWizard';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
@@ -84,6 +86,15 @@ import {
 } from './components/portal';
 
 
+/** Redirects to onboarding wizard if the company hasn't completed it yet. */
+function OnboardingGate({ children }: { children: React.ReactNode }) {
+  const { company } = useAuth();
+  if (company && company.settings?.onboardingComplete !== true) {
+    return <Navigate to="/crm/onboarding" replace />;
+  }
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -108,8 +119,11 @@ function App() {
                   {/* Customer Portal — unified hub after login */}
                   <Route path="/" element={<ProtectedRoute><CustomerPortal /></ProtectedRoute>} />
 
+                  {/* Onboarding wizard — shown before CRM if not completed */}
+                  <Route path="/crm/onboarding" element={<ProtectedRoute><OnboardingWizard /></ProtectedRoute>} />
+
                   {/* CRM — full business management interface */}
-                  <Route path="/crm" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                  <Route path="/crm" element={<ProtectedRoute><OnboardingGate><AppLayout /></OnboardingGate></ProtectedRoute>}>
                     <Route index element={<DashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />

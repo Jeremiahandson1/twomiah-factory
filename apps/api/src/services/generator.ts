@@ -281,6 +281,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ENABLE_SANDATA_EVV}}': 'false',
     '{{ENABLE_GUSTO}}': 'false',
     '{{ENABLE_WORCS}}': 'false',
+    '{{ADS_ENABLED}}': config.features?.paid_ads ? 'true' : 'false',
+    '{{ADS_API_KEY}}': config.features?.paid_ads ? crypto.randomBytes(24).toString('hex') : '',
     '{{DATABASE_URL}}': 'postgresql://USER:PASSWORD@HOST:5432/' + slug + '_crm',
     '{{TWILIO_ACCOUNT_SID}}': (config.integrations?.twilio?.accountSid || '').trim(),
     '{{TWILIO_AUTH_TOKEN}}': (config.integrations?.twilio?.authToken || '').trim(),

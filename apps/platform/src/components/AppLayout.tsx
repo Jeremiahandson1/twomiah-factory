@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Factory, LogOut, Zap, LifeBuoy } from 'lucide-react'
+import { LayoutDashboard, Users, Factory, LogOut, Zap, LifeBuoy, BarChart3, Settings } from 'lucide-react'
 import { supabase } from '../supabase'
 
 export default function AppLayout() {
@@ -15,6 +15,8 @@ export default function AppLayout() {
     { to: '/tenants', icon: Users, label: 'Customers' },
     { to: '/factory', icon: Factory, label: 'Factory' },
     { to: '/support', icon: LifeBuoy, label: 'Support' },
+    { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+    { to: '/settings', icon: Settings, label: 'Settings' },
   ]
 
   return (

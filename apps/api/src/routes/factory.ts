@@ -1,9 +1,10 @@
 import { Hono } from 'hono'
-import { authenticate, supabase } from '../middleware/auth'
+import { authenticate, supabase, requireRole } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
+import { notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 const factory = new Hono()
@@ -30,8 +31,8 @@ factory.use('*', async (c, next) => {
 })
 
 
-// ─── Generate ─────────────────────────────────────────────────────────────────
-factory.post('/generate', async (c) => {
+// ─── Generate (editor+) ───────────────────────────────────────────────────────
+factory.post('/generate', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const config = await c.req.json() as GenerateConfig
     if (!config.products?.length) return c.json({ error: 'At least one product must be selected' }, 400)
@@ -163,8 +164,8 @@ factory.get('/download/:buildId/:filename', async (c) => {
 })
 
 
-// ─── Generate Content with AI ─────────────────────────────────────────────────
-factory.post('/generate-content', async (c) => {
+// ─── Generate Content with AI (editor+) ──────────────────────────────────────
+factory.post('/generate-content', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
     if (parsed.error) return parsed.error
@@ -366,7 +367,7 @@ factory.get('/deploy/config', (c) => {
   return c.json({ configured: isConfigured() })
 })
 
-factory.post('/customers/:id/deploy', async (c) => {
+factory.post('/customers/:id/deploy', requireRole('owner', 'admin'), async (c) => {
   try {
     if (!isConfigured()) {
       return c.json({ error: 'Deploy not configured', missing: getMissingConfig() }, 400)
@@ -499,6 +500,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.deployedUrl) tenantUpdate.render_frontend_url = result.deployedUrl
       if (result.apiUrl) tenantUpdate.render_backend_url = result.apiUrl
       if (result.siteUrl) tenantUpdate.website_url = result.siteUrl
+      if (result.adsUrl) tenantUpdate.ads_url = result.adsUrl
 
       // Auto-create Stripe subscription if tenant doesn't already have one
       if (!tenant.stripe_subscription_id && tenant.deployment_model === 'saas') {
@@ -527,10 +529,18 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     }
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
+
+    // Send email notification
+    if (result.success) {
+      notifyDeployComplete(tenant, { apiUrl: result.apiUrl, deployedUrl: result.deployedUrl, siteUrl: result.siteUrl, repoUrl: result.repoUrl, adsUrl: result.adsUrl }).catch(e => console.warn('[Email] Deploy complete notification failed:', e.message))
+    } else {
+      notifyDeployFailed(tenant, result.errors.join('; ') || 'Unknown error').catch(e => console.warn('[Email] Deploy failed notification failed:', e.message))
+    }
   } catch (err: any) {
     console.error('[Deploy] Background deploy failed:', err.message)
     const { error: failErr } = await supabase.from('factory_jobs').update({ status: 'failed' }).eq('id', job.id)
     if (failErr) console.error('[Deploy] Failed to set failed status:', failErr.message)
+    notifyDeployFailed(tenant, err.message).catch(e => console.warn('[Email] Deploy failed notification failed:', e.message))
   }
 }
 
@@ -603,7 +613,7 @@ factory.get('/customers/:id/deploy/stream', async (c) => {
 
 
 // ─── Redeploy ─────────────────────────────────────────────────────────────────
-factory.post('/customers/:id/redeploy', async (c) => {
+factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
   const id = c.req.param('id')
   if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -632,7 +642,7 @@ factory.post('/customers/:id/redeploy', async (c) => {
 
 
 // ─── Update Service Settings ─────────────────────────────────────────────────
-factory.patch('/customers/:id/service/:role', async (c) => {
+factory.patch('/customers/:id/service/:role', requireRole('owner', 'admin'), async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
   const id = c.req.param('id')
   const role = c.req.param('role') // 'frontend', 'backend', 'site'
@@ -702,7 +712,7 @@ factory.post('/cleanup', async (c) => {
 
 
 // ─── Regenerate ──────────────────────────────────────────────────────────────
-factory.post('/customers/:id/regenerate', async (c) => {
+factory.post('/customers/:id/regenerate', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -762,7 +772,7 @@ factory.post('/customers/:id/regenerate', async (c) => {
 
 
 // ─── Delete Job ──────────────────────────────────────────────────────────────
-factory.delete('/jobs/:id', async (c) => {
+factory.delete('/jobs/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const jobId = c.req.param('id')
     if (!UUID_RE.test(jobId)) return c.json({ error: 'Invalid job ID format' }, 400)
@@ -793,7 +803,7 @@ factory.get('/stripe/config', (c) => {
 
 
 // ─── Checkout: Subscription ─────────────────────────────────────────────────
-factory.post('/customers/:id/checkout/subscription', async (c) => {
+factory.post('/customers/:id/checkout/subscription', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -823,7 +833,7 @@ factory.post('/customers/:id/checkout/subscription', async (c) => {
 
 
 // ─── Checkout: License ──────────────────────────────────────────────────────
-factory.post('/customers/:id/checkout/license', async (c) => {
+factory.post('/customers/:id/checkout/license', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -851,7 +861,7 @@ factory.post('/customers/:id/checkout/license', async (c) => {
 
 
 // ─── Checkout: Deploy Service ────────────────────────────────────────────────
-factory.post('/customers/:id/checkout/deploy-service', async (c) => {
+factory.post('/customers/:id/checkout/deploy-service', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -903,6 +913,21 @@ factory.post('/stripe/webhook', async (c) => {
       await supabase.from('tenants').update(result.updates).eq(result.lookupField, result.lookupValue)
     }
 
+    // Send email notification for past-due billing
+    if (result.handled && result.updates?.billing_status === 'past_due') {
+      const lookupQuery = result.factoryCustomerId
+        ? supabase.from('tenants').select('name, email, stripe_subscription_id').eq('id', result.factoryCustomerId).single()
+        : result.lookupField && result.lookupValue
+          ? supabase.from('tenants').select('name, email, stripe_subscription_id').eq(result.lookupField, result.lookupValue).single()
+          : null
+      if (lookupQuery) {
+        const { data: pastDueTenant } = await lookupQuery
+        if (pastDueTenant) {
+          notifyBillingPastDue(pastDueTenant).catch(e => console.warn('[Email] Billing past-due notification failed:', e.message))
+        }
+      }
+    }
+
     return c.json({ received: true })
   } catch (err: any) {
     console.error('[Stripe] Webhook handler error:', err.message)
@@ -912,7 +937,7 @@ factory.post('/stripe/webhook', async (c) => {
 
 
 // ─── Billing Portal ─────────────────────────────────────────────────────────
-factory.post('/customers/:id/billing-portal', async (c) => {
+factory.post('/customers/:id/billing-portal', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -961,6 +986,120 @@ factory.get('/billing/summary', async (c) => {
   } catch (err: any) {
     console.error('[Billing] Summary error:', err)
     return c.json({ mrr: 0, arr: 0, totalOneTimeRevenue: 0, activeSubscriptions: 0, pastDueCount: 0 })
+  }
+})
+
+
+// ─── Analytics ──────────────────────────────────────────────────────────────
+factory.get('/analytics', async (c) => {
+  try {
+    // Fetch all tenants
+    const { data: tenants } = await supabase.from('tenants')
+      .select('id, created_at, plan, monthly_amount, features, products, status')
+
+    const all = tenants || []
+
+    // Revenue by month
+    const revByMonth: Record<string, { mrr: number; count: number }> = {}
+    for (const t of all) {
+      if (!t.created_at) continue
+      const m = t.created_at.slice(0, 7)
+      if (!revByMonth[m]) revByMonth[m] = { mrr: 0, count: 0 }
+      revByMonth[m].mrr += parseFloat(t.monthly_amount) || 0
+      revByMonth[m].count += 1
+    }
+    const revenueByMonth = Object.entries(revByMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, v]) => ({ month, mrr: Math.round(v.mrr * 100) / 100, count: v.count }))
+
+    // Customer growth
+    const growthByMonth: Record<string, number> = {}
+    for (const t of all) {
+      if (!t.created_at) continue
+      const m = t.created_at.slice(0, 7)
+      growthByMonth[m] = (growthByMonth[m] || 0) + 1
+    }
+    const sortedMonths = Object.keys(growthByMonth).sort()
+    let cumulative = 0
+    const customerGrowth = sortedMonths.map(month => {
+      const newCount = growthByMonth[month]
+      cumulative += newCount
+      return { month, total: cumulative, new: newCount }
+    })
+
+    // Plan distribution
+    const planCounts: Record<string, number> = {}
+    for (const t of all) {
+      const p = t.plan || 'unknown'
+      planCounts[p] = (planCounts[p] || 0) + 1
+    }
+    const planDistribution = Object.entries(planCounts).map(([plan, count]) => ({ plan, count }))
+
+    // Deploy metrics from factory_jobs
+    const { data: jobs } = await supabase.from('factory_jobs').select('status')
+    const allJobs = jobs || []
+    const deployMetrics = {
+      total: allJobs.length,
+      successful: allJobs.filter((j: any) => j.status === 'deployed' || j.status === 'complete').length,
+      failed: allJobs.filter((j: any) => j.status === 'failed').length,
+    }
+
+    // Ticket metrics
+    const { data: tickets } = await supabase.from('support_tickets')
+      .select('status, resolved_at, created_at, rating')
+    const allTickets = tickets || []
+    const openTickets = allTickets.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length
+    const resolved = allTickets.filter((t: any) => t.resolved_at && t.created_at)
+    let avgResolutionHours = 0
+    if (resolved.length > 0) {
+      const totalHours = resolved.reduce((sum: number, t: any) => {
+        return sum + (new Date(t.resolved_at).getTime() - new Date(t.created_at).getTime()) / 3600000
+      }, 0)
+      avgResolutionHours = Math.round((totalHours / resolved.length) * 10) / 10
+    }
+    const rated = allTickets.filter((t: any) => t.rating != null)
+    const avgRating = rated.length > 0
+      ? Math.round((rated.reduce((s: number, t: any) => s + t.rating, 0) / rated.length) * 10) / 10
+      : 0
+
+    const ticketMetrics = { open: openTickets, avgResolutionHours, avgRating }
+
+    // Feature adoption from tenants.features JSON
+    const featureCounts: Record<string, number> = {}
+    for (const t of all) {
+      const feats = Array.isArray(t.features) ? t.features : []
+      for (const f of feats) {
+        if (typeof f === 'string') featureCounts[f] = (featureCounts[f] || 0) + 1
+      }
+    }
+    const featureAdoption = Object.entries(featureCounts)
+      .map(([feature, count]) => ({ feature, count }))
+      .sort((a, b) => b.count - a.count)
+
+    // Top products from tenants.products
+    const productCounts: Record<string, number> = {}
+    for (const t of all) {
+      const prods = Array.isArray(t.products) ? t.products : []
+      for (const p of prods) {
+        if (typeof p === 'string') productCounts[p] = (productCounts[p] || 0) + 1
+      }
+    }
+    const topProducts = Object.entries(productCounts)
+      .map(([product, count]) => ({ product, count }))
+      .sort((a, b) => b.count - a.count)
+
+    return c.json({
+      revenueByMonth,
+      customerGrowth,
+      planDistribution,
+      deployMetrics,
+      ticketMetrics,
+      featureAdoption,
+      topProducts,
+    })
+  } catch (err: any) {
+    console.error('[Analytics] Error:', err)
+    return c.json({ error: 'Failed to load analytics' }, 500)
   }
 })
 
@@ -1165,8 +1304,8 @@ factory.get('/support/tickets/:id', async (c) => {
   return c.json({ ...ticket, messages: messages || [] })
 })
 
-// Create ticket (from Factory dashboard)
-factory.post('/support/tickets', async (c) => {
+// Create ticket (from Factory dashboard, editor+)
+factory.post('/support/tickets', requireRole('owner', 'admin', 'editor'), async (c) => {
   const parsed = await parseJsonBody(c)
   if (parsed.error) return parsed.error
   const body = parsed.data
@@ -1222,6 +1361,13 @@ factory.post('/support/tickets', async (c) => {
 
   const { data: ticket, error } = await supabase.from('support_tickets').insert(record).select().single()
   if (error) return c.json({ error: error.message }, 500)
+
+  // Send email notification for new ticket
+  if (ticket) {
+    const { data: ticketTenant } = await supabase.from('tenants').select('email').eq('id', body.tenant_id).single()
+    notifyNewTicket(ticket, ticketTenant?.email).catch(e => console.warn('[Email] New ticket notification failed:', e.message))
+  }
+
   return c.json(ticket, 201)
 })
 
@@ -1275,6 +1421,16 @@ factory.post('/support/tickets/:id/messages', async (c) => {
   }).select().single()
 
   if (error) return c.json({ error: error.message }, 500)
+
+  // Send email notification for ticket reply (skip internal notes)
+  if (data && !body.is_internal) {
+    const { data: fullTicket } = await supabase.from('support_tickets').select('number, subject, submitter_email, tenant_id').eq('id', ticketId).single()
+    if (fullTicket) {
+      const { data: replyTenant } = await supabase.from('tenants').select('email').eq('id', fullTicket.tenant_id).single()
+      notifyTicketReply(fullTicket, data, replyTenant?.email).catch(e => console.warn('[Email] Ticket reply notification failed:', e.message))
+    }
+  }
+
   return c.json(data, 201)
 })
 
@@ -1497,7 +1653,7 @@ function sanitizeCSSColor(str: string): string {
   return /^#[0-9a-fA-F]{3,8}$/.test(str.trim()) ? str.trim() : '#f97316'
 }
 
-factory.post('/preview', async (c) => {
+factory.post('/preview', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
     if (parsed.error) return parsed.error
@@ -1521,7 +1677,7 @@ factory.post('/preview', async (c) => {
 
 
 // ─── Customer Domain ────────────────────────────────────────────────────────
-factory.post('/customers/:id/domain', async (c) => {
+factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -1555,6 +1711,181 @@ factory.post('/customers/:id/domain', async (c) => {
     }
 
     return c.json({ success: true, domain, renderErrors: renderErrors.length ? renderErrors : undefined })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Settings: Current User Profile ──────────────────────────────────────────
+factory.get('/settings/profile', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const { data, error } = await supabase
+      .from('factory_users')
+      .select('id, auth_id, email, name, role, created_at')
+      .eq('auth_id', userId)
+      .maybeSingle()
+    if (error) throw error
+    return c.json(data || { email: '', name: '', role: 'viewer' })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.patch('/settings/profile', async (c) => {
+  try {
+    const userId = c.get('userId')
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { name } = parsed.data
+    const { data, error } = await supabase
+      .from('factory_users')
+      .update({ name })
+      .eq('auth_id', userId)
+      .select('id, auth_id, email, name, role, created_at')
+      .single()
+    if (error) throw error
+    return c.json(data)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Settings: Team Management (owner/admin only) ────────────────────────────
+factory.get('/settings/users', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const { data, error } = await supabase
+      .from('factory_users')
+      .select('id, auth_id, email, name, role, created_at')
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    return c.json(data || [])
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.post('/settings/users', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { email, role } = parsed.data
+    if (!email) return c.json({ error: 'email is required' }, 400)
+    const validRoles = ['admin', 'editor', 'viewer']
+    if (!role || !validRoles.includes(role)) return c.json({ error: 'role must be one of: ' + validRoles.join(', ') }, 400)
+
+    // Check if user already exists
+    const { data: existing } = await supabase
+      .from('factory_users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle()
+    if (existing) return c.json({ error: 'User with this email already exists' }, 409)
+
+    // Create a placeholder entry — auth_id will be filled when they log in
+    // For now use a deterministic UUID from email or generate one
+    const { data: authUser } = await supabase.auth.admin.getUserByEmail(email)
+    const authId = authUser?.user?.id || null
+
+    if (authId) {
+      const { data, error } = await supabase
+        .from('factory_users')
+        .insert({ auth_id: authId, email, role })
+        .select('id, auth_id, email, name, role, created_at')
+        .single()
+      if (error) throw error
+      return c.json(data, 201)
+    } else {
+      // Invite user via Supabase Auth
+      const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email)
+      if (inviteErr) throw inviteErr
+      const { data, error } = await supabase
+        .from('factory_users')
+        .insert({ auth_id: invited.user.id, email, role })
+        .select('id, auth_id, email, name, role, created_at')
+        .single()
+      if (error) throw error
+      return c.json(data, 201)
+    }
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.patch('/settings/users/:id', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const targetId = c.req.param('id')
+    if (!UUID_RE.test(targetId)) return c.json({ error: 'Invalid user ID format' }, 400)
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { role } = parsed.data
+    const validRoles = ['owner', 'admin', 'editor', 'viewer']
+    if (!role || !validRoles.includes(role)) return c.json({ error: 'role must be one of: ' + validRoles.join(', ') }, 400)
+
+    // Prevent non-owners from assigning owner role
+    const callerRole = c.get('userRole')
+    if (role === 'owner' && callerRole !== 'owner') return c.json({ error: 'Only owners can assign owner role' }, 403)
+
+    // Prevent demoting the last owner
+    if (role !== 'owner') {
+      const { data: target } = await supabase.from('factory_users').select('role').eq('id', targetId).single()
+      if (target?.role === 'owner') {
+        const { count } = await supabase.from('factory_users').select('id', { count: 'exact', head: true }).eq('role', 'owner')
+        if (count && count <= 1) return c.json({ error: 'Cannot demote the last owner' }, 400)
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('factory_users')
+      .update({ role })
+      .eq('id', targetId)
+      .select('id, auth_id, email, name, role, created_at')
+      .single()
+    if (error) throw error
+    return c.json(data)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.delete('/settings/users/:id', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const targetId = c.req.param('id')
+    if (!UUID_RE.test(targetId)) return c.json({ error: 'Invalid user ID format' }, 400)
+
+    // Prevent removing the last owner
+    const { data: target } = await supabase.from('factory_users').select('role').eq('id', targetId).single()
+    if (target?.role === 'owner') {
+      const { count } = await supabase.from('factory_users').select('id', { count: 'exact', head: true }).eq('role', 'owner')
+      if (count && count <= 1) return c.json({ error: 'Cannot remove the last owner' }, 400)
+    }
+
+    // Prevent removing yourself
+    const callerFactoryUserId = c.get('factoryUserId')
+    if (callerFactoryUserId === targetId) return c.json({ error: 'Cannot remove yourself' }, 400)
+
+    const { error } = await supabase.from('factory_users').delete().eq('id', targetId)
+    if (error) throw error
+    return c.json({ success: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Settings: Integration Status ────────────────────────────────────────────
+factory.get('/settings/integrations', async (c) => {
+  try {
+    const integrations = {
+      render: { configured: !!(process.env.RENDER_API_KEY), label: 'Render' },
+      github: { configured: !!(process.env.GITHUB_TOKEN), label: 'GitHub' },
+      stripe: { configured: !!(process.env.STRIPE_SECRET_KEY), label: 'Stripe' },
+      sendgrid: { configured: !!(process.env.SENDGRID_API_KEY), label: 'SendGrid' },
+      supabase_visualizer: { configured: !!(process.env.VISUALIZER_SUPABASE_URL && process.env.VISUALIZER_SUPABASE_KEY), label: 'Visualizer Supabase' },
+    }
+    return c.json(integrations)
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
