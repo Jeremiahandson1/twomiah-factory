@@ -447,7 +447,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
     const allRouteFiles = new Set(
       (indexContent.match(/from '\.\/routes\/([^']+)'/g) || [])
         .map((m: string) => m.match(/\/([^/]+)'/)?.[1])
-        .filter(Boolean)
+        .filter((x): x is string => !!x)
     )
     for (const routeFile of allRouteFiles) {
       if (!routeFile || neededRoutes.has(routeFile) || routeFile === 'auth.ts' || routeFile === 'factory.ts') continue
@@ -654,7 +654,8 @@ function getExtFromDataUrl(dataUrl: string): string | null {
 
 function writeDataUrl(dataUrl: string, filePath: string) {
   const base64 = dataUrl.split(',')[1]
-  if (base64) fs.writeFileSync(filePath, Buffer.from(base64, 'base64'))
+  if (!base64) return
+  fs.writeFileSync(filePath, Buffer.from(base64, 'base64'))
 }
 
 function updateSettingsField(dir: string, field: string, value: string) {

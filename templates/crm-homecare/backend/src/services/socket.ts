@@ -5,7 +5,7 @@ import logger from './logger.ts'
 let io: Server
 
 export const initializeSocket = (server: any) => {
-  const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(s => s.trim())
+  const allowedOrigins = (process.env.FRONTEND_URL || '').split(',').map(s => s.trim())
   io = new Server(server, {
     cors: {
       origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {

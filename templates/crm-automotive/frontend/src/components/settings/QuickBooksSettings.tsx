@@ -31,12 +31,12 @@ export default function QuickBooksSettings() {
 
   const loadStatus = async () => {
     try {
-      const statusRes = await api.get('/quickbooks/status');
+      const statusRes = await api.get('/api/quickbooks/status');
       setStatus(statusRes);
 
       if (statusRes.connected) {
         try {
-          const info = await api.get('/quickbooks/company-info');
+          const info = await api.get('/api/quickbooks/company-info');
           setCompanyInfo(info);
         } catch (e) {
           // Company info is optional
@@ -51,7 +51,7 @@ export default function QuickBooksSettings() {
 
   const handleConnect = async () => {
     try {
-      const { url } = await api.get('/quickbooks/auth-url');
+      const { url } = await api.get('/api/quickbooks/auth-url');
       window.location.href = url;
     } catch (error) {
       setMessage({ type: 'error', text: 'Failed to start connection' });
@@ -62,7 +62,7 @@ export default function QuickBooksSettings() {
     if (!confirm('Disconnect QuickBooks? This will stop all syncing.')) return;
 
     try {
-      await api.post('/quickbooks/disconnect');
+      await api.post('/api/quickbooks/disconnect');
       setStatus({ connected: false });
       setCompanyInfo(null);
       setMessage({ type: 'success', text: 'QuickBooks disconnected' });
@@ -79,13 +79,13 @@ export default function QuickBooksSettings() {
       let result;
       switch (type) {
         case 'customers':
-          result = await api.post('/quickbooks/sync/customers');
+          result = await api.post('/api/quickbooks/sync/customers');
           break;
         case 'invoices':
-          result = await api.post('/quickbooks/sync/invoices');
+          result = await api.post('/api/quickbooks/sync/invoices');
           break;
         case 'import-customers':
-          result = await api.post('/quickbooks/import/customers');
+          result = await api.post('/api/quickbooks/import/customers');
           break;
         default:
           throw new Error('Unknown sync type');

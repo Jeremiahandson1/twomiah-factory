@@ -28,7 +28,7 @@ export default function StripeSettings() {
 
   const loadStatus = async () => {
     try {
-      const statusRes = await api.get('/stripe/account-status');
+      const statusRes = await api.get('/api/stripe/account-status');
       setStatus(statusRes);
     } catch (error) {
       console.error('Failed to load Stripe status:', error);
@@ -39,7 +39,7 @@ export default function StripeSettings() {
 
   const handleConnect = async () => {
     try {
-      const { url } = await api.post('/stripe/onboarding');
+      const { url } = await api.post('/api/stripe/onboarding');
       window.location.href = url;
     } catch (error) {
       setMessage({ type: 'error', text: 'Failed to start onboarding' });

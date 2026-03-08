@@ -89,7 +89,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit(currentUser, 'vehicle', created.id, 'created', null, created)
+  await audit.log({ action: 'create', entity: 'vehicle', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'vehicle' })
   return c.json(created, 201)
 })
@@ -104,7 +104,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   if (!existing) return c.json({ error: 'Vehicle not found' }, 404)
 
   const [updated] = await db.update(vehicle).set({ ...body, updatedAt: new Date() }).where(eq(vehicle.id, id)).returning()
-  await audit(currentUser, 'vehicle', id, 'updated', existing, updated)
+  await audit.log({ action: 'update', entity: 'vehicle', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'vehicle' })
   return c.json(updated)
 })
@@ -117,7 +117,7 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
   if (!existing) return c.json({ error: 'Vehicle not found' }, 404)
 
   await db.delete(vehicle).where(eq(vehicle.id, id))
-  await audit(currentUser, 'vehicle', id, 'deleted', existing, null)
+  await audit.log({ action: 'delete', entity: 'vehicle', entityId: id, metadata: existing, req: { user: currentUser } })
   return c.json({ success: true })
 })
 

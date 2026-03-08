@@ -61,7 +61,7 @@ function AdminHomepage() {
     setHomepage(prev => ({
       ...prev,
       [section]: {
-        ...prev[section],
+        ...(prev[section] || {}),
         [field]: value
       }
     }));

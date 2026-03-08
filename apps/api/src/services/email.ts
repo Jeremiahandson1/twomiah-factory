@@ -40,6 +40,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
         subject,
         content: [{ type: 'text/html', value: html }],
       }),
+      signal: AbortSignal.timeout(30_000),
     })
 
     if (res.status === 202 || res.status === 200) {

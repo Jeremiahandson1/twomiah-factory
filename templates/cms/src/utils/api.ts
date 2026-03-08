@@ -16,13 +16,17 @@ export async function fetchApi(endpoint: string, options: any = {}) {
   }
 
   const response = await fetch(url, config);
-  const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.message || 'Something went wrong');
+    let message = 'Something went wrong';
+    try {
+      const errorData = await response.json();
+      message = errorData.message || message;
+    } catch {}
+    throw new Error(message);
   }
 
-  return data;
+  return await response.json();
 }
 
 export const api = {

@@ -1224,7 +1224,7 @@ app.post('/leads', async (c) => {
     fs.writeFileSync(leadsFile, JSON.stringify(leads, null, 2));
     logActivity('lead_received', { name, email });
 
-    sendEmailNotification(newLead);
+    sendEmailNotification(newLead).catch(e => console.error('[Email] notification failed:', e));
 
     // Forward lead to CRM if configured
     const CRM_API_URL = process.env.CRM_API_URL;
@@ -2963,6 +2963,7 @@ app.post('/help/ai-chat', authMiddleware, async (c) => {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1024, system: systemPrompt, messages }),
     });
+    if (!res.ok) return c.json({ reply: 'AI service returned an error. Please try again later.' });
     const data = await res.json() as any;
     return c.json({ reply: data.content?.[0]?.text || 'Sorry, I could not process that request.' });
   } catch { return c.json({ reply: 'AI service is temporarily unavailable. Please try again later.' }); }

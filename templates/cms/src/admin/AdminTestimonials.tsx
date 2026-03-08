@@ -22,8 +22,10 @@ function AdminTestimonials() {
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE}/admin/testimonials`);
-      const data = await response.json();
-      setTestimonials(data);
+      if (response.ok) {
+        const data = await response.json();
+        setTestimonials(data);
+      }
     } catch (err) {
       toast.error('Failed to load testimonials');
     }

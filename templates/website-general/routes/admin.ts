@@ -1224,7 +1224,7 @@ app.post('/leads', async (c) => {
     fs.writeFileSync(leadsFile, JSON.stringify(leads, null, 2));
     logActivity('lead_received', { name, email });
 
-    sendEmailNotification(newLead);
+    sendEmailNotification(newLead).catch(e => console.error('[Email] notification failed:', e));
 
     // Forward lead to CRM if configured
     const CRM_API_URL = process.env.CRM_API_URL;
@@ -3021,6 +3021,7 @@ app.post('/help/ai-chat', authMiddleware, async (c) => {
       }),
     });
 
+    if (!res.ok) return c.json({ reply: 'AI service returned an error. Please try again later.' });
     const data = await res.json() as any;
     const reply = data.content?.[0]?.text || 'Sorry, I could not process that request.';
     return c.json({ reply });

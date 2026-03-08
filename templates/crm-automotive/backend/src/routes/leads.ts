@@ -41,7 +41,7 @@ app.post('/sources', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit(currentUser, 'lead_source', source.id, 'created', null, source)
+  await audit.log({ action: 'create', entity: 'lead_source', entityId: source.id, metadata: source, req: { user: currentUser } })
   return c.json(source, 201)
 })
 
@@ -73,7 +73,7 @@ app.delete('/sources/:id', requirePermission('contacts:delete'), async (c) => {
   if (!existing) return c.json({ error: 'Source not found' }, 404)
 
   await db.delete(leadSource).where(eq(leadSource.id, id))
-  await audit(currentUser, 'lead_source', id, 'deleted', existing, null)
+  await audit.log({ action: 'delete', entity: 'lead_source', entityId: id, metadata: existing, req: { user: currentUser } })
   return c.json({ success: true })
 })
 
@@ -201,7 +201,7 @@ app.post('/:id/convert', requirePermission('contacts:create'), async (c) => {
     updatedAt: new Date(),
   }).where(eq(lead.id, id))
 
-  await audit(currentUser, 'lead', id, 'converted', existing, { contactId: newContact.id })
+  await audit.log({ action: 'status_change', entity: 'lead', entityId: id, metadata: { contactId: newContact.id }, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'lead' })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'contact' })
 

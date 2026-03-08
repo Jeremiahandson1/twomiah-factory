@@ -57,7 +57,7 @@ export async function subscribe() {
   let vapidKey = localStorage.getItem(VAPID_PUBLIC_KEY_STORAGE);
   
   if (!vapidKey) {
-    const response = await api.get('/push/vapid-public-key');
+    const response = await api.get('/api/push/vapid-public-key');
     vapidKey = response.key;
     localStorage.setItem(VAPID_PUBLIC_KEY_STORAGE, vapidKey);
   }
@@ -72,7 +72,7 @@ export async function subscribe() {
   });
 
   // Send subscription to server
-  await api.post('/push/subscribe', {
+  await api.post('/api/push/subscribe', {
     subscription: subscription.toJSON(),
   });
 
@@ -88,7 +88,7 @@ export async function unsubscribe() {
 
   if (subscription) {
     // Notify server
-    await api.post('/push/unsubscribe', {
+    await api.post('/api/push/unsubscribe', {
       endpoint: subscription.endpoint,
     });
 
@@ -132,7 +132,7 @@ export async function getSubscription() {
  * Send test notification
  */
 export async function sendTest() {
-  return api.post('/push/test');
+  return api.post('/api/push/test');
 }
 
 /**

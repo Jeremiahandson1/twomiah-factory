@@ -69,7 +69,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit(currentUser, 'repair_order', created.id, 'created', null, created)
+  await audit.log({ action: 'create', entity: 'repair_order', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'repair_order' })
   return c.json(created, 201)
 })
@@ -87,7 +87,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   if (body.status === 'closed' && !existing.completedAt) updates.completedAt = new Date()
 
   const [updated] = await db.update(repairOrder).set(updates).where(eq(repairOrder.id, id)).returning()
-  await audit(currentUser, 'repair_order', id, 'updated', existing, updated)
+  await audit.log({ action: 'update', entity: 'repair_order', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'repair_order' })
   return c.json(updated)
 })

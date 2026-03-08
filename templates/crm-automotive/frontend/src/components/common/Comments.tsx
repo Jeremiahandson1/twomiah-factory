@@ -24,7 +24,7 @@ export default function Comments({ entityType, entityId }) {
 
   const loadComments = async () => {
     try {
-      const data = await api.get(`/comments/${entityType}/${entityId}`);
+      const data = await api.get(`/api/comments/${entityType}/${entityId}`);
       setComments(data);
     } catch (error) {
       console.error('Failed to load comments:', error);
@@ -39,7 +39,7 @@ export default function Comments({ entityType, entityId }) {
 
     setSubmitting(true);
     try {
-      const comment = await api.post(`/comments/${entityType}/${entityId}`, {
+      const comment = await api.post(`/api/comments/${entityType}/${entityId}`, {
         content: newComment,
         parentId: replyingTo,
       });
@@ -68,7 +68,7 @@ export default function Comments({ entityType, entityId }) {
     if (!confirm('Delete this comment?')) return;
 
     try {
-      await api.delete(`/comments/${commentId}`);
+      await api.delete(`/api/comments/${commentId}`);
       setComments(prev => prev.filter(c => c.id !== commentId));
     } catch (error) {
       alert('Failed to delete comment');
@@ -155,7 +155,7 @@ function CommentItem({ comment, onDelete, onReply, isReply = false }) {
 
   const handleLike = async () => {
     try {
-      await api.post(`/comments/${comment.id}/react`, { reaction: 'like' });
+      await api.post(`/api/comments/${comment.id}/react`, { reaction: 'like' });
       setLiked(!liked);
     } catch (error) {
       console.error('Failed to react:', error);
@@ -260,7 +260,7 @@ export function ActivityFeed({ entityType, entityId, limit = 20 }) {
 
   const loadActivity = async () => {
     try {
-      const data = await api.get(`/comments/activity/${entityType}/${entityId}?limit=${limit}`);
+      const data = await api.get(`/api/comments/activity/${entityType}/${entityId}?limit=${limit}`);
       setActivities(data);
     } catch (error) {
       console.error('Failed to load activity:', error);
@@ -353,7 +353,7 @@ export function GlobalActivityFeed({ limit = 20 }) {
 
   const loadFeed = async () => {
     try {
-      const result = await api.get(`/comments/activity/feed?limit=${limit}`);
+      const result = await api.get(`/api/comments/activity/feed?limit=${limit}`);
       setData(result);
     } catch (error) {
       console.error('Failed to load activity feed:', error);

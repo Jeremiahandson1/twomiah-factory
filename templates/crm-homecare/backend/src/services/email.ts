@@ -10,7 +10,7 @@ import logger from './logger.ts'
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@{{COMPANY_DOMAIN}}'
 const FROM_NAME = process.env.FROM_NAME || '{{COMPANY_NAME}}'
-const APP_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
+const APP_URL = process.env.FRONTEND_URL || ''
 
 type EmailProvider = 'sendgrid' | 'mailgun' | 'ses' | 'resend' | 'postmark' | 'smtp' | 'console'
 

@@ -44,7 +44,7 @@ function AdminSiteSettings() {
     setSettings(prev => ({
       ...prev,
       [parent]: {
-        ...prev[parent],
+        ...(prev[parent] || {}),
         [child]: value
       }
     }));

@@ -43,7 +43,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
       if (jobId) params.append('jobId', jobId);
       if (filter) params.append('category', filter);
       
-      const result = await api.get(`/photos?${params}`);
+      const result = await api.get(`/api/photos?${params}`);
       setPhotos(result.data || []);
     } catch (error) {
       console.error('Failed to load photos:', error);
@@ -66,7 +66,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
     
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/photos/bulk`, {
+      const response = await fetch(`${API_URL}/api/photos/bulk`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
@@ -94,7 +94,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
     if (!confirm('Delete this photo?')) return;
     
     try {
-      await api.delete(`/photos/${photoId}`);
+      await api.delete(`/api/photos/${photoId}`);
       setPhotos(photos.filter(p => p.id !== photoId));
       if (selectedPhoto?.id === photoId) setSelectedPhoto(null);
     } catch (error) {
@@ -192,7 +192,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
               onClick={() => setSelectedPhoto(photo)}
             >
               <img
-                src={`${API_URL}/photos/${photo.id}/thumbnail`}
+                src={`${API_URL}/api/photos/${photo.id}/thumbnail`}
                 alt={photo.caption || 'Photo'}
                 className="w-full h-full object-cover"
                 loading="lazy"
@@ -291,7 +291,7 @@ function PhotoLightbox({ photo, photos, onClose, onNavigate, onDelete }) {
 
       {/* Image */}
       <img
-        src={`${API_URL}/photos/${photo.id}/file`}
+        src={`${API_URL}/api/photos/${photo.id}/file`}
         alt={photo.caption || 'Photo'}
         className="max-w-full max-h-[85vh] object-contain"
       />
@@ -353,7 +353,7 @@ export function PhotoDropzone({ projectId, jobId, onUpload, category }) {
     
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_URL}/photos/bulk`, {
+      const response = await fetch(`${API_URL}/api/photos/bulk`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,

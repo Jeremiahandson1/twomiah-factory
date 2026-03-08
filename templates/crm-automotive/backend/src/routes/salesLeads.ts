@@ -88,7 +88,7 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit(currentUser, 'sales_lead', created.id, 'created', null, created)
+  await audit.log({ action: 'create', entity: 'sales_lead', entityId: created.id, metadata: created, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
   return c.json(created, 201)
 })
@@ -108,7 +108,7 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   }
 
   const [updated] = await db.update(salesLead).set(updates).where(eq(salesLead.id, id)).returning()
-  await audit(currentUser, 'sales_lead', id, 'updated', existing, updated)
+  await audit.log({ action: 'update', entity: 'sales_lead', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
   return c.json(updated)
 })
@@ -203,7 +203,7 @@ app.post('/import-adf', requirePermission('contacts:create'), async (c) => {
     companyId: currentUser.companyId,
   }).returning()
 
-  await audit(currentUser, 'sales_lead', lead.id, 'created', null, { source: 'adf_xml', contact: name })
+  await audit.log({ action: 'create', entity: 'sales_lead', entityId: lead.id, metadata: { source: 'adf_xml', contact: name }, req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'sales_lead' })
 
   return c.json({ success: true, contact: contactRecord, lead, vehicleMatched: !!vehicleId }, 201)
