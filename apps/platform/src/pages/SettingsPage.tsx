@@ -316,14 +316,6 @@ function IntegrationsTab() {
 
   if (loading) return <div className="text-gray-400 p-8">Checking integrations...</div>
 
-  const icons: Record<string, string> = {
-    render: '/icons/render.svg',
-    github: '/icons/github.svg',
-    stripe: '/icons/stripe.svg',
-    sendgrid: '/icons/sendgrid.svg',
-    supabase_visualizer: '/icons/supabase.svg',
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
