@@ -64,7 +64,7 @@ function useUndoRedo(initialState: any) {
 // ============================================
 // WYSIWYG EDITOR - ENHANCED
 // ============================================
-function WysiwygEditor({ value, onChange, placeholder, onImageInsert }: { value: string; onChange: (html: string) => void; placeholder?: string; onImageInsert?: () => void }) {
+function WysiwygEditor({ value, onChange, placeholder, onImageInsert }: { value: string; onChange: (html: string) => void; placeholder?: string; onImageInsert?: (cb: (url: string) => void) => void }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
@@ -235,7 +235,7 @@ function SEOAnalyzer({ pageData }: { pageData: any }) {
 
   return (
     <div className="seo-analyzer">
-      <div className="seo-score" style={{ '--score-color': getScoreColor(analysis.score) }}>
+      <div className="seo-score" style={{ '--score-color': getScoreColor(analysis.score) } as React.CSSProperties}>
         <div className="seo-score-circle">
           <span className="seo-score-number">{analysis.score}</span>
           <span className="seo-score-label">SEO Score</span>
@@ -465,8 +465,8 @@ function PageEditor() {
   
   // Core state
   const [pageData, setPageData] = useState(null);
-  const [formData, setFormData] = useState({});
-  const [originalData, setOriginalData] = useState({});
+  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [originalData, setOriginalData] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState('saved');
   const [lastSaved, setLastSaved] = useState(null);
@@ -666,7 +666,7 @@ function PageEditor() {
   };
 
   const getBreadcrumbs = () => {
-    const crumbs = [
+    const crumbs: { label: string; to?: string }[] = [
       { label: 'Dashboard', to: '/admin' },
       { label: 'Pages', to: '/pages' }
     ];
@@ -911,13 +911,13 @@ function PageEditor() {
                         <div className="preview-card-image">
                           {formData.heroImage || formData.socialImage ? (
                             <img src={formData.socialImage || formData.heroImage} alt="" 
-                              onError={(e) => e.target.style.display = 'none'} />
+                              onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
                           ) : (
                             <span style={{ color: 'var(--admin-text-muted)', fontSize: '0.875rem' }}>No image set</span>
                           )}
                         </div>
                         <div className="preview-card-content">
-                          <div className="preview-card-domain">{{DOMAIN}}</div>
+                          <div className="preview-card-domain">{"{{DOMAIN}}"}</div>
                           <div className="preview-card-title">{formData.metaTitle || formData.title || 'Page Title'}</div>
                           <div className="preview-card-desc">{formData.metaDescription || 'Add a meta description to see how it appears when shared.'}</div>
                         </div>

@@ -45,7 +45,7 @@ function GalleryPage() {
         <div className="gallery-hero-content">
           <div className="container">
             <h1>Our Work</h1>
-            <p>Browse our portfolio of completed projects throughout the {{SERVICE_REGION}}</p>
+            <p>Browse our portfolio of completed projects throughout the {"{{SERVICE_REGION}}"}</p>
           </div>
         </div>
       </section>
@@ -156,7 +156,7 @@ function GalleryPage() {
             <p>Contact us today for a free estimate on your roofing, siding, or window project.</p>
             <div className="cta-buttons">
               <Link to="/#contact" className="btn btn-primary btn-lg">Get Free Estimate</Link>
-              <a href="tel:{{COMPANY_PHONE_RAW}}" className="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+              <a href="tel:{{COMPANY_PHONE_RAW}}" className="btn btn-outline-light btn-lg">Call {"{{COMPANY_PHONE}}"}</a>
             </div>
           </div>
         </div>

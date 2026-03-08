@@ -204,7 +204,7 @@ function AdminAnalytics() {
     const token = localStorage.getItem('adminToken');
     fetch(`${API_BASE}/admin/site-settings`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : {})
-      .then(s => setGaId(s.googleAnalyticsId || s.gaId || s?.analytics?.googleAnalyticsId || ''))
+      .then((s: any) => setGaId(s.googleAnalyticsId || s.gaId || s?.analytics?.googleAnalyticsId || ''))
       .catch(() => {});
   }, []);
 
@@ -215,7 +215,7 @@ function AdminAnalytics() {
     return n.toLocaleString();
   };
 
-  const changePeriod = (p: string) => {
+  const changePeriod = (p: number) => {
     setPeriod(p);
     load(p);
   };

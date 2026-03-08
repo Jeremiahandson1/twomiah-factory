@@ -6,7 +6,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '/api';
 export const getToken = () => localStorage.getItem('adminToken');
 
 // Make authenticated API request
-export const apiRequest = async (endpoint, options = {}) => {
+export const apiRequest = async (endpoint: string, options: any = {}) => {
   const token = getToken();
   
   const config = {

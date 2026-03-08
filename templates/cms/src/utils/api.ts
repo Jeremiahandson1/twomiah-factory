@@ -1,6 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-export async function fetchApi(endpoint, options = {}) {
+export async function fetchApi(endpoint: string, options: any = {}) {
   const url = `${API_BASE}${endpoint}`;
   
   const config = {

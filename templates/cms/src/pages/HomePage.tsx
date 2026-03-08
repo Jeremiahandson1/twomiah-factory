@@ -140,7 +140,7 @@ function HomePage({ onFormSuccess }: { onFormSuccess: () => void }) {
       {/* Hero Section */}
       <section 
         className={`hero-video ${hero.image ? 'hero-animated' : ''}`}
-        style={{ '--hero-speed': `${hero.animationSpeed || 10}s` }}
+        style={{ '--hero-speed': `${hero.animationSpeed || 10}s` } as React.CSSProperties}
       >
         {hero.image ? (
           <>
@@ -431,7 +431,7 @@ function HomePage({ onFormSuccess }: { onFormSuccess: () => void }) {
                   <label htmlFor="message">Project Details</label>
                   <textarea
                     id="message"
-                    rows="4"
+                    rows={4}
                     value={formData.message}
                     onChange={(e) => setFormData({...formData, message: e.target.value})}
                     placeholder="Tell us about your project..."
@@ -455,7 +455,7 @@ function HomePage({ onFormSuccess }: { onFormSuccess: () => void }) {
       <section className="map-section">
         <iframe 
           src={`https://maps.google.com/maps?q=${encodeURIComponent(address + ', ' + city + ', ' + state + ' ' + zip)}&output=embed`}
-          allowFullScreen="" 
+          allowFullScreen
           loading="lazy"
           title="Location Map"
         ></iframe>

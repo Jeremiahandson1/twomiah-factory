@@ -58,7 +58,7 @@ function CustomPage() {
       {page.heroImage ? (
         <section 
           className={`custom-hero has-image animation-${page.heroAnimation || 'none'}`}
-          style={{ '--hero-speed': `${animationSpeed}s` }}
+          style={{ '--hero-speed': `${animationSpeed}s` } as React.CSSProperties}
         >
           <div 
             className="custom-hero-bg"
@@ -100,10 +100,10 @@ function CustomPage() {
       <section className="custom-cta">
         <div className="container">
           <h2>Have Questions?</h2>
-          <p>Contact {{COMPANY_NAME}} today. We're here to help with all your construction needs.</p>
+          <p>Contact {"{{COMPANY_NAME}}"} today. We're here to help with all your construction needs.</p>
           <div className="cta-buttons">
             <Link to="/#contact" className="btn btn-primary btn-lg">Contact Us</Link>
-            <a href="tel:{{COMPANY_PHONE_RAW}}" className="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+            <a href="tel:{{COMPANY_PHONE_RAW}}" className="btn btn-outline-light btn-lg">Call {"{{COMPANY_PHONE}}"}</a>
           </div>
         </div>
       </section>

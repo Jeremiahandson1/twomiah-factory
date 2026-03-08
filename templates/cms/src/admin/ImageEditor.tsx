@@ -283,8 +283,8 @@ function ImageEditor({ src, onSave, onCancel, cropPresets, folder = 'Edited' }: 
         ctx.rotate((rotation * Math.PI) / 180);
         ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2, img.naturalWidth, img.naturalHeight);
       }
-      const blob = await new Promise(r => out.toBlob(r, 'image/jpeg', 0.92));
-      const file = new File([blob], `edited_${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const blob = await new Promise<Blob | null>(r => out.toBlob(r, 'image/jpeg', 0.92));
+      const file = new File([blob!], `edited_${Date.now()}.jpg`, { type: 'image/jpeg' });
       const result = await uploadImage(file, folder);
       onSave(result.url);
     } catch (err) {

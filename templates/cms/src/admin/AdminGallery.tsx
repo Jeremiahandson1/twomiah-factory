@@ -172,7 +172,7 @@ function AdminGallery() {
     const files = e.dataTransfer?.files;
     if (files?.length > 0) {
       // Create a fake event to reuse handleImageUpload
-      handleImageUpload({ target: { files } });
+      handleImageUpload({ target: { files } } as any);
     }
   };
 

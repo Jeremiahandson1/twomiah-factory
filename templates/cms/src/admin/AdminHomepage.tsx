@@ -3,6 +3,7 @@ import { getImageUrl } from '../utils/imageUrl';
 import AdminLayout from './AdminLayout';
 import { useToast } from './Toast';
 import ImagePicker from './ImagePicker';
+import { uploadImage } from './api';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 

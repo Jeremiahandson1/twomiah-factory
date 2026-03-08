@@ -43,7 +43,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     } else {
       document.body.classList.remove('admin-dark-mode');
     }
-    localStorage.setItem('adminDarkMode', darkMode);
+    localStorage.setItem('adminDarkMode', String(darkMode));
   }, [darkMode]);
 
   const login = async (password: string) => {

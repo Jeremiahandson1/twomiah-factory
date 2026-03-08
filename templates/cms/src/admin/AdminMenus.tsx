@@ -193,7 +193,7 @@ function AdminMenus() {
   };
 
   const addMenuItem = () => {
-    let item = {
+    let item: any = {
       id: `custom-${Date.now()}`,
       label: newItem.label,
       href: newItem.href,

@@ -115,7 +115,7 @@ function AdminSettings() {
       <div className="admin-section">
         <h2>Site Information</h2>
         <div className="settings-info">
-          <p><strong>Site:</strong> {{COMPANY_NAME}}</p>
+          <p><strong>Site:</strong> {"{{COMPANY_NAME}}"}</p>
           <p><strong>Admin Panel Version:</strong> 2.0.0</p>
           <p><strong>Data Location:</strong> backend/data/</p>
           <p><strong>Uploads Location:</strong> frontend/public/uploads/</p>

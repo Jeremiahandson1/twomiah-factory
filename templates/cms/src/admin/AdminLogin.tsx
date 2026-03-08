@@ -33,7 +33,7 @@ function AdminLogin() {
             <path d="M20 4L4 16V36H36V16L20 4Z" stroke="currentColor" strokeWidth="2" fill="none"/>
             <rect x="15" y="22" width="10" height="14" stroke="currentColor" strokeWidth="2"/>
           </svg>
-          <span>{{COMPANY_NAME}} Admin</span>
+          <span>{"{{COMPANY_NAME}}"} Admin</span>
         </div>
         
         <h1>Sign In</h1>
@@ -59,7 +59,7 @@ function AdminLogin() {
         </form>
         
         <p style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--admin-text-muted)', textAlign: 'center' }}>
-          Default password: <code style={{ background: 'var(--admin-surface-hover)', padding: '2px 6px', borderRadius: '4px' }}>{{DEFAULT_PASSWORD}}</code>
+          Default password: <code style={{ background: 'var(--admin-surface-hover)', padding: '2px 6px', borderRadius: '4px' }}>{"{{DEFAULT_PASSWORD}}"}</code>
         </p>
       </div>
     </div>

@@ -41,9 +41,9 @@ function Footer() {
                     <rect x="15" y="22" width="10" height="14" stroke="currentColor" strokeWidth="2"/>
                   </svg>
                 </div>
-                <span>{{COMPANY_NAME_UPPER}}</span>
+                <span>{"{{COMPANY_NAME_UPPER}}"}</span>
               </div>
-              <p>Quality services for customers throughout the {{CITY}} area. Licensed, insured, and committed to excellence.</p>
+              <p>Quality services for customers throughout the {"{{CITY}}"} area. Licensed, insured, and committed to excellence.</p>
               <div className="social-links">
                 {settings?.socialLinks?.facebook && (
                   <a href={settings.socialLinks.facebook} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
@@ -154,8 +154,8 @@ function Footer() {
 
       <div className="footer-bottom">
         <div className="container">
-          <p>&copy; {currentYear} {{COMPANY_NAME}}. All rights reserved.</p>
-          <p>Serving {{CITY}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_1}}, and the {{SERVICE_REGION}}</p>
+          <p>&copy; {currentYear} {"{{COMPANY_NAME}}"}. All rights reserved.</p>
+          <p>Serving {"{{CITY}}"}, {"{{NEARBY_CITY_4}}"}, {"{{NEARBY_CITY_1}}"}, and the {"{{SERVICE_REGION}}"}</p>
         </div>
       </div>
     </footer>

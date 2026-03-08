@@ -10,7 +10,7 @@ function CommandPalette({ isOpen, onClose, onToggleDarkMode }: { isOpen: boolean
 
   // Build searchable items
   const allItems = useMemo(() => {
-    const items = [
+    const items: { type: string; label: string; icon: string; action: () => void; subtitle?: string }[] = [
       // Navigation
       { type: 'nav', label: 'Dashboard', icon: '📊', action: () => navigate('/admin') },
       { type: 'nav', label: 'All Pages', icon: '📄', action: () => navigate('/pages') },
