@@ -61,6 +61,12 @@ const CRM_REGISTRY = [
     { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', core: false },
     { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', core: false },
   ]},
+  { category: 'Automotive', features: [
+    { id: 'vehicle_inventory', name: 'Vehicle Inventory', description: 'VIN decode, stock management, pricing', core: false },
+    { id: 'sales_pipeline', name: 'Sales Pipeline', description: 'Kanban lead pipeline with ADF/XML import', core: false },
+    { id: 'service_department', name: 'Service Department', description: 'Repair orders and service check-in', core: false },
+    { id: 'service_to_sales', name: 'Service-to-Sales Bridge', description: 'Alert salespeople when their leads check into service', core: false },
+  ]},
   { category: 'Field Operations', features: [
     { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', core: false },
     { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', core: false },

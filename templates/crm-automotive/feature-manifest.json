@@ -1,0 +1,52 @@
+{
+  "_comment": "Twomiah Drive — Automotive Dealership Feature Manifest. Maps feature IDs to backend routes, frontend pages, and sidebar nav entries.",
+
+  "core": {
+    "_comment": "Always included — cannot be disabled",
+    "features": ["contacts", "team", "dashboard", "vehicle_inventory", "sales_pipeline", "service_department", "service_to_sales"],
+    "backend": {
+      "routes": ["auth.ts", "contacts.ts", "team.ts", "company.ts", "dashboard.ts", "audit.ts", "support.ts", "leads.ts", "vehicles.ts", "salesLeads.ts", "repairOrders.ts", "alerts.ts"],
+      "services": ["audit.ts", "logger.ts", "socket.ts"],
+      "middleware": ["auth.ts", "permissions.ts", "security.ts"]
+    },
+    "frontend": {
+      "pages": ["LoginPage.tsx", "RegisterPage.tsx", "ForgotPasswordPage.tsx", "ResetPasswordPage.tsx", "DashboardPage.tsx", "ContactsPage.tsx", "TeamPage.tsx", "SettingsPage.tsx", "automotive/InventoryPage.tsx", "automotive/LeadsKanbanPage.tsx", "automotive/ServicePage.tsx", "automotive/AlertsPage.tsx"],
+      "components": ["auth/", "layout/", "common/", "ui/", "detail/"]
+    },
+    "sidebar": [
+      { "id": "dashboard", "label": "Dashboard", "icon": "Home", "path": "/" },
+      { "id": "inventory", "label": "Inventory", "icon": "Car", "path": "/inventory" },
+      { "id": "leads", "label": "Sales Leads", "icon": "Target", "path": "/leads" },
+      { "id": "service", "label": "Service", "icon": "Wrench", "path": "/service" },
+      { "id": "alerts", "label": "Alerts", "icon": "Bell", "path": "/alerts" },
+      { "id": "contacts", "label": "Contacts", "icon": "Users", "path": "/contacts" },
+      { "id": "team", "label": "Team", "icon": "Users", "path": "/team" }
+    ]
+  },
+
+  "features": {},
+
+  "deployment": {
+    "buildCommand": "bun install && cd ../frontend && bun install && VITE_API_URL=\"\" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend",
+    "startCommand": "bun db/migrate.ts && bun db/seed.ts && bun src/index.ts",
+    "seed": {
+      "company": {
+        "name": "{{COMPANY_NAME}}",
+        "slug": "{{COMPANY_SLUG}}",
+        "email": "{{COMPANY_EMAIL}}",
+        "phone": "{{COMPANY_PHONE}}",
+        "address": "{{COMPANY_ADDRESS}}",
+        "city": "{{CITY}}",
+        "state": "{{STATE}}",
+        "zip": "{{ZIP}}",
+        "primaryColor": "{{PRIMARY_COLOR}}",
+        "enabledFeatures": "{{ENABLED_FEATURES}}"
+      },
+      "adminUser": {
+        "email": "{{ADMIN_EMAIL}}",
+        "password": "{{HASHED_DEFAULT_PASSWORD}}",
+        "role": "owner"
+      }
+    }
+  }
+}

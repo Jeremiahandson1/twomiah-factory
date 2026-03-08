@@ -450,6 +450,7 @@ export async function deployCustomer(
   const { region = 'ohio', plan = 'starter', dbPlan = 'basic_256mb', products = factoryCustomer.products || ['crm'] } = options
   const slug = factoryCustomer.slug
   const isHomeCare = factoryCustomer.industry === 'home_care' || factoryCustomer.config?.company?.industry === 'home_care'
+  const isAutomotive = factoryCustomer.industry === 'automotive' || factoryCustomer.config?.company?.industry === 'automotive'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')
@@ -491,7 +492,7 @@ export async function deployCustomer(
     let dbInfo: any = null
     if (products.includes('crm')) {
       try {
-        const dbSlug = isHomeCare ? slug + '-care' : slug
+        const dbSlug = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug
         console.log('[Deploy] Creating DB:', dbSlug + '-db')
         const db = await createRenderDatabase(dbSlug, region, dbPlan)
         createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
@@ -548,9 +549,9 @@ export async function deployCustomer(
         ]
         if (dbInfo?.internalConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbInfo.internalConnectionString })
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isAutomotive ? slug + '-drive-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isAutomotive ? 'crm-automotive' : 'crm'
 
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)

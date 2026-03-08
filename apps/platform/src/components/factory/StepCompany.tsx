@@ -29,6 +29,7 @@ export const INDUSTRY_OPTIONS = [
   { value: 'commercial_construction', label: 'Commercial Construction' },
   { value: 'field_service', label: 'Field Service (HVAC/Plumbing)' },
   { value: 'home_care', label: 'Home Care / Senior Care' },
+  { value: 'automotive', label: 'Automotive Dealership (Twomiah Drive)' },
   { value: 'other', label: 'Other (blank slate)' },
 ]
 
