@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
-import { Building, User, CreditCard, Check, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Building, User, CreditCard, Check, X, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -13,6 +13,15 @@ const PLANS = {
     priceAnnual: 39,
     description: 'Everything you need to run a service business',
     users: 2,
+    highlights: [
+      'Contacts / CRM',
+      'Jobs & work orders',
+      'Quotes & invoicing',
+      'Payment processing',
+      'Time & expense tracking',
+      'Customer portal',
+      'Mobile app access',
+    ],
   },
   pro: {
     id: 'pro',
@@ -22,6 +31,18 @@ const PLANS = {
     description: 'Scale your field operations',
     users: 5,
     popular: true,
+    highlights: [
+      'Everything in Starter',
+      'Team management',
+      'Two-way SMS',
+      'GPS tracking & geofencing',
+      'Route optimization',
+      'Online booking',
+      'Service agreements',
+      'QuickBooks sync',
+      'Recurring jobs',
+      'Job costing reports',
+    ],
   },
   business: {
     id: 'business',
@@ -30,6 +51,17 @@ const PLANS = {
     priceAnnual: 239,
     description: 'Run your entire operation',
     users: 15,
+    highlights: [
+      'Everything in Pro',
+      'Inventory management',
+      'Equipment tracking',
+      'Fleet management',
+      'Email campaigns',
+      'Workflow automations',
+      'Custom forms',
+      'Consumer financing',
+      'Advanced reporting',
+    ],
   },
   construction: {
     id: 'construction',
@@ -38,8 +70,69 @@ const PLANS = {
     priceAnnual: 479,
     description: 'Complete construction management',
     users: 20,
+    highlights: [
+      'Everything in Business',
+      'Projects & phases',
+      'Change orders & RFIs',
+      'Daily logs & inspections',
+      'Punch lists',
+      'Bid management',
+      'Gantt charts',
+      'Selections portal',
+      'Draw schedules (AIA)',
+      'Lien waivers',
+    ],
   },
 };
+
+const FEATURE_COMPARISON = [
+  { category: 'Core', features: [
+    { name: 'Contacts / CRM', starter: true, pro: true, business: true, construction: true },
+    { name: 'Jobs & Work Orders', starter: true, pro: true, business: true, construction: true },
+    { name: 'Quotes & Estimates', starter: true, pro: true, business: true, construction: true },
+    { name: 'Invoicing & Payments', starter: true, pro: true, business: true, construction: true },
+    { name: 'Time & Expense Tracking', starter: true, pro: true, business: true, construction: true },
+    { name: 'Customer Portal', starter: true, pro: true, business: true, construction: true },
+    { name: 'Mobile App', starter: true, pro: true, business: true, construction: true },
+  ]},
+  { category: 'Field Operations', features: [
+    { name: 'Team Management', starter: false, pro: true, business: true, construction: true },
+    { name: 'Two-Way SMS', starter: false, pro: true, business: true, construction: true },
+    { name: 'GPS Tracking & Geofencing', starter: false, pro: true, business: true, construction: true },
+    { name: 'Route Optimization', starter: false, pro: true, business: true, construction: true },
+    { name: 'Online Booking', starter: false, pro: true, business: true, construction: true },
+    { name: 'Service Agreements', starter: false, pro: true, business: true, construction: true },
+    { name: 'Pricebook / Flat Rate', starter: false, pro: true, business: true, construction: true },
+    { name: 'QuickBooks Sync', starter: false, pro: true, business: true, construction: true },
+    { name: 'Recurring Jobs', starter: false, pro: true, business: true, construction: true },
+  ]},
+  { category: 'Operations & Marketing', features: [
+    { name: 'Inventory Management', starter: false, pro: false, business: true, construction: true },
+    { name: 'Equipment Tracking', starter: false, pro: false, business: true, construction: true },
+    { name: 'Fleet Management', starter: false, pro: false, business: true, construction: true },
+    { name: 'Email Campaigns', starter: false, pro: false, business: true, construction: true },
+    { name: 'Workflow Automations', starter: false, pro: false, business: true, construction: true },
+    { name: 'Custom Forms', starter: false, pro: false, business: true, construction: true },
+    { name: 'Consumer Financing', starter: false, pro: false, business: true, construction: true },
+    { name: 'Advanced Reporting', starter: false, pro: false, business: true, construction: true },
+  ]},
+  { category: 'Construction Management', features: [
+    { name: 'Projects & Phases', starter: false, pro: false, business: false, construction: true },
+    { name: 'Change Orders & RFIs', starter: false, pro: false, business: false, construction: true },
+    { name: 'Daily Logs & Inspections', starter: false, pro: false, business: false, construction: true },
+    { name: 'Punch Lists', starter: false, pro: false, business: false, construction: true },
+    { name: 'Gantt Charts', starter: false, pro: false, business: false, construction: true },
+    { name: 'Selections Portal', starter: false, pro: false, business: false, construction: true },
+    { name: 'Draw Schedules (AIA)', starter: false, pro: false, business: false, construction: true },
+    { name: 'Lien Waivers', starter: false, pro: false, business: false, construction: true },
+  ]},
+  { category: 'Limits', features: [
+    { name: 'Contacts', starter: '500', pro: '2,500', business: '10,000', construction: '25,000' },
+    { name: 'Jobs / month', starter: '100', pro: '500', business: '2,000', construction: '5,000' },
+    { name: 'Storage', starter: '5 GB', pro: '25 GB', business: '100 GB', construction: '250 GB' },
+    { name: 'SMS Credits', starter: '—', pro: '500', business: '2,000', construction: '5,000' },
+  ]},
+];
 
 const INDUSTRIES = [
   { value: 'plumber', label: 'Plumbing' },
@@ -406,6 +499,9 @@ export default function SignupPage() {
 }
 
 function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle }) {
+  const [showComparison, setShowComparison] = useState(false);
+  const tierKeys = ['starter', 'pro', 'business', 'construction'];
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h2>
@@ -434,12 +530,12 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
             <button
               key={plan.id}
               onClick={() => setSelectedPlan(plan.id)}
-              className={`p-4 rounded-lg border-2 text-left transition ${
+              className={`relative p-4 rounded-lg border-2 text-left transition ${
                 isSelected ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
               }`}
             >
               {plan.popular && (
-                <span className="text-xs font-semibold text-orange-500 uppercase">Most Popular</span>
+                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-orange-500 text-white text-xs font-semibold px-3 py-0.5 rounded-full">Most Popular</span>
               )}
               <h3 className="text-lg font-bold text-gray-900 mt-1">{plan.name}</h3>
               <div className="mt-2">
@@ -447,8 +543,16 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
                 <span className="text-gray-500">/mo</span>
               </div>
               <p className="text-sm text-gray-500 mt-1">{plan.users} users included</p>
-              <p className="text-sm text-gray-600 mt-2">{plan.description}</p>
-              <div className="mt-3 flex items-center justify-center">
+              <p className="text-sm text-gray-600 mt-2 mb-3">{plan.description}</p>
+              <ul className="space-y-1 mb-3">
+                {plan.highlights.map((h, i) => (
+                  <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">
+                    <Check className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
+                    {h}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-center justify-center">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                   isSelected ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
                 }`}>
@@ -459,6 +563,59 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
           );
         })}
       </div>
+
+      {/* Compare all features toggle */}
+      <div className="mt-6 text-center">
+        <button
+          onClick={() => setShowComparison(!showComparison)}
+          className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+        >
+          {showComparison ? 'Hide full comparison' : 'Compare all features across plans'}
+        </button>
+      </div>
+
+      {showComparison && (
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-left py-3 pr-4 font-medium text-gray-500 w-1/3">Feature</th>
+                {tierKeys.map(k => (
+                  <th key={k} className={`text-center py-3 px-2 font-semibold ${selectedPlan === k ? 'text-orange-600' : 'text-gray-700'}`}>
+                    {PLANS[k].name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {FEATURE_COMPARISON.map((group) => (
+                <React.Fragment key={group.category}>
+                  <tr>
+                    <td colSpan={5} className="pt-4 pb-2 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                      {group.category}
+                    </td>
+                  </tr>
+                  {group.features.map((f) => (
+                    <tr key={f.name} className="border-b border-gray-100">
+                      <td className="py-2 pr-4 text-gray-700">{f.name}</td>
+                      {tierKeys.map(k => {
+                        const val = f[k];
+                        return (
+                          <td key={k} className={`text-center py-2 px-2 ${selectedPlan === k ? 'bg-orange-50/50' : ''}`}>
+                            {val === true ? <Check className="w-4 h-4 text-green-500 mx-auto" /> :
+                             val === false ? <X className="w-4 h-4 text-gray-300 mx-auto" /> :
+                             <span className="text-gray-700 font-medium">{val}</span>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Heart, Shield, Check, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User } from 'lucide-react'
+import { Heart, Shield, Check, X, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User } from 'lucide-react'
 import { API_URL } from '../supabase'
 
 // ─── Care-specific pricing ─────────────────────────────────────────────────
@@ -13,10 +13,11 @@ const PLANS = {
     users: 3,
     features: [
       'Client & caregiver management',
-      'Basic scheduling',
+      'Basic scheduling & calendar',
       'Care plan documentation',
       'Caregiver mobile app',
       'Secure messaging',
+      'Document storage',
     ],
   },
   professional: {
@@ -34,6 +35,8 @@ const PLANS = {
       'Family portal access',
       'Billing & invoicing',
       'Custom care assessments',
+      'Authorization tracking',
+      'Caregiver training logs',
     ],
   },
   enterprise: {
@@ -48,12 +51,62 @@ const PLANS = {
       'Multi-location support',
       'Advanced reporting & analytics',
       'API access & integrations',
-      'Payroll export',
+      'Payroll export (Gusto, ADP)',
       'Dedicated account manager',
       'Custom onboarding',
     ],
   },
 }
+
+const CARE_FEATURE_COMPARISON = [
+  { category: 'Client Management', features: [
+    { name: 'Client profiles & intake', essentials: true, professional: true, enterprise: true },
+    { name: 'Emergency contacts & physicians', essentials: true, professional: true, enterprise: true },
+    { name: 'Care plan documentation', essentials: true, professional: true, enterprise: true },
+    { name: 'Custom care assessments', essentials: false, professional: true, enterprise: true },
+    { name: 'Authorization tracking & alerts', essentials: false, professional: true, enterprise: true },
+    { name: 'Family portal (visit logs & updates)', essentials: false, professional: true, enterprise: true },
+  ]},
+  { category: 'Caregiver Management', features: [
+    { name: 'Caregiver profiles & availability', essentials: true, professional: true, enterprise: true },
+    { name: 'Certification & license tracking', essentials: true, professional: true, enterprise: true },
+    { name: 'Caregiver mobile app', essentials: true, professional: true, enterprise: true },
+    { name: 'Automated shift matching', essentials: false, professional: true, enterprise: true },
+    { name: 'Training module & compliance logs', essentials: false, professional: true, enterprise: true },
+    { name: 'Applicant tracking & onboarding', essentials: false, professional: false, enterprise: true },
+  ]},
+  { category: 'Scheduling & Visits', features: [
+    { name: 'Drag-and-drop scheduling', essentials: true, professional: true, enterprise: true },
+    { name: 'Recurring shift templates', essentials: true, professional: true, enterprise: true },
+    { name: 'Secure messaging', essentials: true, professional: true, enterprise: true },
+    { name: 'GPS clock-in / clock-out', essentials: false, professional: true, enterprise: true },
+    { name: 'EVV (Electronic Visit Verification)', essentials: false, professional: true, enterprise: true },
+    { name: 'Geofencing & visit validation', essentials: false, professional: true, enterprise: true },
+    { name: 'Open shift board (caregiver pickup)', essentials: false, professional: false, enterprise: true },
+  ]},
+  { category: 'Billing & Payroll', features: [
+    { name: 'Basic invoicing', essentials: true, professional: true, enterprise: true },
+    { name: 'Insurance & Medicaid billing', essentials: false, professional: true, enterprise: true },
+    { name: 'Batch invoice generation', essentials: false, professional: true, enterprise: true },
+    { name: 'Payer-rate configuration', essentials: false, professional: true, enterprise: true },
+    { name: 'Payroll export (Gusto, ADP)', essentials: false, professional: false, enterprise: true },
+    { name: 'Revenue & payer-mix reports', essentials: false, professional: false, enterprise: true },
+  ]},
+  { category: 'Compliance & Reporting', features: [
+    { name: 'Document storage', essentials: true, professional: true, enterprise: true },
+    { name: 'Background check tracking', essentials: true, professional: true, enterprise: true },
+    { name: 'HIPAA audit log', essentials: false, professional: true, enterprise: true },
+    { name: 'Custom reports & dashboards', essentials: false, professional: false, enterprise: true },
+    { name: 'Multi-location management', essentials: false, professional: false, enterprise: true },
+    { name: 'API access & integrations', essentials: false, professional: false, enterprise: true },
+  ]},
+  { category: 'Limits', features: [
+    { name: 'Active clients', essentials: '50', professional: '250', enterprise: 'Unlimited' },
+    { name: 'Active caregivers', essentials: '25', professional: '100', enterprise: 'Unlimited' },
+    { name: 'Storage', essentials: '5 GB', professional: '50 GB', enterprise: '250 GB' },
+    { name: 'SMS credits / month', essentials: '—', professional: '500', enterprise: '2,000' },
+  ]},
+]
 
 const ADDONS = [
   { id: 'evv', name: 'EVV Integration', price: 29, description: 'GPS-verified clock-in/out for Medicaid compliance' },
@@ -381,6 +434,9 @@ export default function CareSignupPage() {
 // ─── Step Components ────────────────────────────────────────────────────────
 
 function PlanStep({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle, selectedAddons, toggleAddon }: any) {
+  const [showComparison, setShowComparison] = useState(false)
+  const tierKeys = ['essentials', 'professional', 'enterprise'] as const
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-1">Choose your plan</h2>
@@ -402,7 +458,7 @@ function PlanStep({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle
       </div>
 
       {/* Plan cards */}
-      <div className="grid md:grid-cols-3 gap-4 mb-10">
+      <div className="grid md:grid-cols-3 gap-4 mb-6">
         {Object.values(PLANS).map((plan) => {
           const p = billingCycle === 'annual' ? plan.priceAnnual : plan.price
           const isSelected = selectedPlan === plan.id
@@ -447,6 +503,62 @@ function PlanStep({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle
           )
         })}
       </div>
+
+      {/* Feature comparison toggle */}
+      <div className="text-center mb-8">
+        <button
+          onClick={() => setShowComparison(!showComparison)}
+          className="text-teal-600 hover:text-teal-700 text-sm font-medium underline underline-offset-2"
+        >
+          {showComparison ? 'Hide feature comparison' : 'Compare all features across plans'}
+        </button>
+      </div>
+
+      {/* Feature comparison table */}
+      {showComparison && (
+        <div className="mb-10 overflow-x-auto border border-gray-200 rounded-xl">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="text-left p-3 font-semibold text-gray-700 w-2/5">Feature</th>
+                {tierKeys.map((k) => (
+                  <th key={k} className="text-center p-3 font-semibold text-gray-700 capitalize">{k}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {CARE_FEATURE_COMPARISON.map((group, gi) => (
+                <React.Fragment key={gi}>
+                  <tr>
+                    <td colSpan={4} className="bg-teal-50 px-3 py-2 font-bold text-teal-800 text-xs uppercase tracking-wide">
+                      {group.category}
+                    </td>
+                  </tr>
+                  {group.features.map((feat, fi) => (
+                    <tr key={fi} className={fi % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                      <td className="px-3 py-2 text-gray-700">{feat.name}</td>
+                      {tierKeys.map((k) => {
+                        const v = (feat as any)[k]
+                        return (
+                          <td key={k} className="text-center px-3 py-2">
+                            {v === true ? (
+                              <Check className="w-4 h-4 text-teal-500 mx-auto" />
+                            ) : v === false ? (
+                              <X className="w-4 h-4 text-gray-300 mx-auto" />
+                            ) : (
+                              <span className="text-gray-700 font-medium">{v}</span>
+                            )}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Add-ons */}
       <div>
