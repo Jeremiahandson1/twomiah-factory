@@ -228,7 +228,11 @@ function AdminServicesManager() {
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE}/admin/services-data`);
-      setServices(await response.json());
+      if (response.ok) {
+        setServices(await response.json());
+      } else {
+        throw new Error('Failed to load');
+      }
     } catch (err) { toast.error('Failed to load services'); }
     setLoading(false);
   };

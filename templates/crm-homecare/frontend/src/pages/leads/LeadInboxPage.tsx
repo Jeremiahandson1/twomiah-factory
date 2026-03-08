@@ -63,6 +63,7 @@ export default function LeadInboxPage() {
     if (search) params.set('search', search);
 
     const res = await fetch(`/api/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { setLoading(false); return; }
     const json = await res.json();
     setLeads(json.data || []);
     setTotalPages(json.pagination?.pages || 1);
@@ -71,6 +72,7 @@ export default function LeadInboxPage() {
 
   const fetchStats = useCallback(async () => {
     const res = await fetch('/api/leads/stats', { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return;
     const json = await res.json();
     setStats(json);
   }, [token]);

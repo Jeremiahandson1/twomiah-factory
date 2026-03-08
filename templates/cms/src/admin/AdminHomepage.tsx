@@ -22,8 +22,12 @@ function AdminHomepage() {
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE}/admin/homepage`);
-      const data = await response.json();
-      setHomepage(data);
+      if (response.ok) {
+        const data = await response.json();
+        setHomepage(data);
+      } else {
+        throw new Error('Failed to load');
+      }
     } catch (err) {
       toast.error('Failed to load homepage content');
     }
@@ -78,6 +82,7 @@ function AdminHomepage() {
 
   // Trust badge handlers
   const handleBadgeChange = (index: number, field: string, value: any) => {
+    if (!homepage) return;
     const badges = [...homepage.trustBadges];
     badges[index] = { ...badges[index], [field]: value };
     setHomepage(prev => ({ ...prev, trustBadges: badges }));
@@ -105,6 +110,7 @@ function AdminHomepage() {
 
   // Service area handlers
   const handleServiceAreaChange = (index: number, value: string) => {
+    if (!homepage) return;
     const areas = [...homepage.serviceAreas];
     areas[index] = value;
     setHomepage(prev => ({ ...prev, serviceAreas: areas }));

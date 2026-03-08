@@ -19,6 +19,7 @@
 
 import { supabase } from '../middleware/auth'
 import Stripe from 'stripe'
+import crypto from 'crypto'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -271,7 +272,7 @@ async function processQbResponse(responseXml: string, stepIndex: number, request
     const statusCode = responseXml.match(/statusCode="(\d+)"/)
     const code = statusCode ? statusCode[1] : '0'
 
-    if (code !== '0' && code !== '0') {
+    if (code !== '0') {
       const msg = responseXml.match(/statusMessage="([^"]*)"/)
       console.warn(`[QBWC] QB returned status ${code}: ${msg?.[1] || 'unknown'}`)
       return

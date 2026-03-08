@@ -28,7 +28,7 @@ const BASE_URL = process.env.SITE_URL || '{{SITE_URL}}'
 
 app.use('*', secureHeaders())
 
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000,http://localhost:5173').split(',').map(s => s.trim())
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(s => s.trim())
 app.use('*', cors({
   origin: (origin) => allowedOrigins.includes(origin) ? origin : null,
   credentials: true,

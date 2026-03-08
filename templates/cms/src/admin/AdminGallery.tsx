@@ -34,8 +34,12 @@ function AdminGallery() {
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE}/admin/gallery`);
-      const data = await response.json();
-      setProjects(data);
+      if (response.ok) {
+        const data = await response.json();
+        setProjects(data);
+      } else {
+        throw new Error('Failed to load');
+      }
     } catch (err) {
       toast.error('Failed to load projects');
     }

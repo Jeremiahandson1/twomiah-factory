@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Briefcase, Globe, Palette, BarChart3, Users, FileText,
-  DollarSign, Calendar, ArrowRight, ExternalLink, Settings,
-  TrendingUp, Clock, CheckCircle2, AlertCircle, LogOut
+import {
+  Briefcase, Globe, Palette, Users, FileText,
+  DollarSign, ArrowRight, ExternalLink, Settings,
+  Clock, LogOut
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -39,9 +39,14 @@ export default function CustomerPortal() {
   const companyName = company?.name || import.meta.env.VITE_COMPANY_NAME || 'My Company';
   
   // Determine which products are available based on company settings
-  const settings = typeof company?.settings === 'string' 
-    ? JSON.parse(company.settings) 
-    : (company?.settings || {});
+  let settings: Record<string, any> = {};
+  try {
+    settings = typeof company?.settings === 'string'
+      ? JSON.parse(company.settings)
+      : (company?.settings || {});
+  } catch {
+    // Invalid JSON in settings, use defaults
+  }
   
   const products = settings.products || ['crm']; // default: CRM always available
   const siteUrl = settings.siteUrl || null;

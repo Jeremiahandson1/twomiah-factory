@@ -86,6 +86,7 @@ export default function LeadSourcesPage() {
   const fetchSources = useCallback(async () => {
     setLoading(true);
     const res = await fetch('/api/leads/sources', { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) { setLoading(false); return; }
     const json = await res.json();
     setSources(json.data || []);
     setLoading(false);
