@@ -1,0 +1,74 @@
+[
+  {
+    "id": "p1",
+    "title": "Central AC Installation",
+    "category": "AC Service",
+    "description": "Complete central air conditioning installation for a 2,400 sq ft home. High-efficiency unit with smart thermostat integration.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["ac", "installation"],
+    "createdAt": "2026-01-15T00:00:00Z"
+  },
+  {
+    "id": "p2",
+    "title": "Tankless Water Heater Upgrade",
+    "category": "Water Heaters",
+    "description": "Replaced a 15-year-old tank water heater with a high-efficiency tankless unit. Endless hot water with lower energy bills.",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["water-heater", "tankless"],
+    "createdAt": "2026-01-10T00:00:00Z"
+  },
+  {
+    "id": "p3",
+    "title": "Complete HVAC System Replacement",
+    "category": "Heating",
+    "description": "Full HVAC system replacement including furnace, AC unit, and ductwork modification. Improved efficiency by over 40%.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["hvac", "furnace", "ac"],
+    "createdAt": "2026-01-05T00:00:00Z"
+  },
+  {
+    "id": "p4",
+    "title": "Whole-House Duct Cleaning & Sealing",
+    "category": "Ductwork",
+    "description": "Complete duct system cleaning and aeroseal duct sealing. Reduced energy waste and eliminated hot/cold spots throughout the home.",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["ductwork", "air-quality"],
+    "createdAt": "2025-12-20T00:00:00Z"
+  },
+  {
+    "id": "p5",
+    "title": "Emergency Burst Pipe Repair",
+    "category": "Plumbing",
+    "description": "Responded to an emergency burst pipe call on a winter night. Isolated the leak, repaired the damaged section, and restored water service within hours.",
+    "location": "{{NEARBY_CITY_3}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["plumbing", "emergency"],
+    "createdAt": "2025-12-15T00:00:00Z"
+  },
+  {
+    "id": "p6",
+    "title": "Ductless Mini-Split Installation",
+    "category": "AC Service",
+    "description": "Installed a multi-zone ductless mini-split system for a home addition without existing ductwork. Provides both heating and cooling.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["ac", "mini-split", "heating"],
+    "createdAt": "2025-12-10T00:00:00Z"
+  }
+]

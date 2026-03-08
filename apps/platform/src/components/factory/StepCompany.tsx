@@ -27,6 +27,7 @@ export const INDUSTRY_OPTIONS = [
   { value: 'pool_spa', label: 'Pool & Spa' },
   { value: 'pest_control', label: 'Pest Control' },
   { value: 'commercial_construction', label: 'Commercial Construction' },
+  { value: 'field_service', label: 'Field Service (HVAC/Plumbing)' },
   { value: 'home_care', label: 'Home Care / Senior Care' },
   { value: 'other', label: 'Other (blank slate)' },
 ]

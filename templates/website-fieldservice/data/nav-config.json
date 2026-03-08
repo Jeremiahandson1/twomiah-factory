@@ -1,0 +1,90 @@
+{
+  "items": [
+    {
+      "id": "ac-service",
+      "label": "AC Service",
+      "href": "/services/ac-service",
+      "visible": true,
+      "children": [
+        { "label": "AC Installation", "href": "/services/ac-service" },
+        { "label": "AC Repair", "href": "/services/ac-service" },
+        { "label": "Mini-Split Systems", "href": "/services/ac-service" },
+        { "label": "AC Tune-Up", "href": "/services/ac-service" }
+      ]
+    },
+    {
+      "id": "heating",
+      "label": "Heating",
+      "href": "/services/heating",
+      "visible": true,
+      "children": [
+        { "label": "Furnace Installation", "href": "/services/heating" },
+        { "label": "Furnace Repair", "href": "/services/heating" },
+        { "label": "Heat Pumps", "href": "/services/heating" },
+        { "label": "Boiler Service", "href": "/services/heating" }
+      ]
+    },
+    {
+      "id": "plumbing",
+      "label": "Plumbing",
+      "href": "/services/plumbing",
+      "visible": true,
+      "children": [
+        { "label": "Leak Repair", "href": "/services/plumbing" },
+        { "label": "Drain Cleaning", "href": "/services/plumbing" },
+        { "label": "Fixture Installation", "href": "/services/plumbing" },
+        { "label": "Sewer Service", "href": "/services/plumbing" }
+      ]
+    },
+    {
+      "id": "ductwork",
+      "label": "Ductwork",
+      "href": "/services/ductwork",
+      "visible": true,
+      "children": [
+        { "label": "Duct Cleaning", "href": "/services/ductwork" },
+        { "label": "Duct Sealing", "href": "/services/ductwork" },
+        { "label": "Air Quality Testing", "href": "/services/ductwork" }
+      ]
+    },
+    {
+      "id": "water-heaters",
+      "label": "Water Heaters",
+      "href": "/services/water-heaters",
+      "visible": true,
+      "children": [
+        { "label": "Tank Water Heaters", "href": "/services/water-heaters" },
+        { "label": "Tankless Water Heaters", "href": "/services/water-heaters" },
+        { "label": "Water Heater Repair", "href": "/services/water-heaters" }
+      ]
+    },
+    {
+      "id": "maintenance",
+      "label": "Maintenance Plans",
+      "href": "/services/maintenance",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "gallery",
+      "label": "Gallery",
+      "href": "/gallery",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "blog",
+      "label": "Blog",
+      "href": "/blog",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "href": "/contact",
+      "visible": true,
+      "children": []
+    }
+  ]
+}

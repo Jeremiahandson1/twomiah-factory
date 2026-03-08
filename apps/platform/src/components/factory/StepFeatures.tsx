@@ -55,6 +55,12 @@ const CRM_REGISTRY = [
     { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', core: false },
     { id: 'pricebook', name: 'Pricebook', description: 'Standardized pricing catalog', core: false },
   ]},
+  { category: 'Field Service', features: [
+    { id: 'dispatch_board', name: 'Dispatch Board', description: 'Real-time tech dispatch and scheduling', core: false },
+    { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Recurring service agreements', core: false },
+    { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', core: false },
+    { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', core: false },
+  ]},
   { category: 'Field Operations', features: [
     { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', core: false },
     { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', core: false },
@@ -172,6 +178,7 @@ export default function StepFeatures({ config, setConfig, onNext, onBack }: Prop
           <CRMFeatures
             selected={config.features.crm}
             onChange={f => setFeatures('crm', f)}
+            industry={config.company?.industry}
           />
         )
       )}
@@ -215,11 +222,16 @@ function HomeCareIncluded() {
   )
 }
 
-function CRMFeatures({ selected, onChange }: { selected: string[], onChange: (f: string[]) => void }) {
+const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing'])
+
+function CRMFeatures({ selected, onChange, industry }: { selected: string[], onChange: (f: string[]) => void, industry?: string }) {
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
-  const allFeatures = CRM_REGISTRY.flatMap(c => c.features)
+  const filteredRegistry = CRM_REGISTRY.filter(c =>
+    c.category !== 'Field Service' || FIELD_SERVICE_INDUSTRIES.has(industry || '')
+  )
+  const allFeatures = filteredRegistry.flatMap(c => c.features)
   const allIds = allFeatures.map(f => f.id)
   const coreIds = allFeatures.filter(f => f.core).map(f => f.id)
 
@@ -257,7 +269,7 @@ function CRMFeatures({ selected, onChange }: { selected: string[], onChange: (f:
         <button onClick={() => onChange([...coreIds])} className="text-gray-400 text-xs hover:text-gray-300">Core only</button>
       </div>
 
-      {CRM_REGISTRY.map(cat => {
+      {filteredRegistry.map(cat => {
         const filtered = cat.features.filter(f =>
           !search || f.name.toLowerCase().includes(search.toLowerCase())
         )

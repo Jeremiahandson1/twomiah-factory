@@ -1,0 +1,164 @@
+[
+  {
+    "id": "ac-service",
+    "name": "AC Installation & Repair",
+    "title": "AC Installation & Repair",
+    "slug": "ac-service",
+    "shortDescription": "Expert air conditioning installation, repair, and replacement to keep your home cool and comfortable all summer.",
+    "description": "{{COMPANY_NAME}} provides complete AC services for homeowners throughout {{SERVICE_REGION}}. Whether you need a new central air system, a repair on your existing unit, or a seasonal tune-up, our NATE-certified technicians deliver reliable results with flat-rate pricing and same-day service available.",
+    "icon": "snowflake",
+    "image": "",
+    "features": [
+      "Central AC installation and replacement",
+      "AC repair and diagnostics",
+      "Ductless mini-split systems",
+      "Seasonal tune-ups and maintenance",
+      "24/7 emergency cooling service"
+    ],
+    "links": [
+      { "label": "AC Installation", "href": "/services/ac-service" },
+      { "label": "AC Repair", "href": "/services/ac-service" },
+      { "label": "Mini-Split Systems", "href": "/services/ac-service" },
+      { "label": "AC Tune-Up", "href": "/services/ac-service" }
+    ],
+    "seoTitle": "AC Installation & Repair in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Professional air conditioning installation, repair, and maintenance in {{CITY}}, {{STATE}}. Same-day service and flat-rate pricing from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 1
+  },
+  {
+    "id": "heating",
+    "name": "Heating & Furnace",
+    "title": "Heating & Furnace",
+    "slug": "heating",
+    "shortDescription": "Furnace installation, repair, and heat pump services to keep your family warm through the coldest months.",
+    "description": "Don't get caught in the cold. {{COMPANY_NAME}} installs and repairs furnaces, heat pumps, and boilers throughout {{SERVICE_REGION}}. Our certified technicians diagnose issues fast and provide upfront pricing so you know the cost before work begins.",
+    "icon": "flame",
+    "image": "",
+    "features": [
+      "Furnace installation and replacement",
+      "Furnace repair and diagnostics",
+      "Heat pump installation and service",
+      "Boiler repair and maintenance",
+      "24/7 emergency heating service"
+    ],
+    "links": [
+      { "label": "Furnace Installation", "href": "/services/heating" },
+      { "label": "Furnace Repair", "href": "/services/heating" },
+      { "label": "Heat Pumps", "href": "/services/heating" },
+      { "label": "Boiler Service", "href": "/services/heating" }
+    ],
+    "seoTitle": "Heating & Furnace Service in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Furnace installation, repair, and heat pump services in {{CITY}}, {{STATE}}. 24/7 emergency heating from {{COMPANY_NAME}}. Free estimates.",
+    "visible": true,
+    "order": 2
+  },
+  {
+    "id": "plumbing",
+    "name": "Plumbing Services",
+    "title": "Plumbing Services",
+    "slug": "plumbing",
+    "shortDescription": "Full-service plumbing from leak repairs and drain cleaning to repiping and fixture installation.",
+    "description": "From dripping faucets to major pipe repairs, {{COMPANY_NAME}} handles all your plumbing needs in {{SERVICE_REGION}}. Our licensed plumbers arrive on time, diagnose the problem quickly, and provide flat-rate pricing before starting any work.",
+    "icon": "droplets",
+    "image": "",
+    "features": [
+      "Leak detection and pipe repair",
+      "Drain cleaning and sewer service",
+      "Fixture installation and replacement",
+      "Garbage disposal repair",
+      "Emergency plumbing 24/7"
+    ],
+    "links": [
+      { "label": "Leak Repair", "href": "/services/plumbing" },
+      { "label": "Drain Cleaning", "href": "/services/plumbing" },
+      { "label": "Fixture Installation", "href": "/services/plumbing" },
+      { "label": "Sewer Service", "href": "/services/plumbing" }
+    ],
+    "seoTitle": "Plumbing Services in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Licensed plumbing services in {{CITY}}, {{STATE}}. Leak repair, drain cleaning, fixture installation, and 24/7 emergency service from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 3
+  },
+  {
+    "id": "ductwork",
+    "name": "Duct Cleaning & Sealing",
+    "title": "Duct Cleaning & Sealing",
+    "slug": "ductwork",
+    "shortDescription": "Professional duct cleaning and sealing to improve air quality, reduce allergens, and lower energy bills.",
+    "description": "Leaky and dirty ductwork can waste up to 30% of your heating and cooling energy. {{COMPANY_NAME}} provides professional duct cleaning, sealing, and repair throughout {{SERVICE_REGION}} — improving your indoor air quality and reducing your utility bills.",
+    "icon": "wind",
+    "image": "",
+    "features": [
+      "Complete duct system cleaning",
+      "Duct sealing and insulation",
+      "Duct repair and replacement",
+      "Indoor air quality testing",
+      "Dryer vent cleaning"
+    ],
+    "links": [
+      { "label": "Duct Cleaning", "href": "/services/ductwork" },
+      { "label": "Duct Sealing", "href": "/services/ductwork" },
+      { "label": "Air Quality Testing", "href": "/services/ductwork" },
+      { "label": "Dryer Vent Cleaning", "href": "/services/ductwork" }
+    ],
+    "seoTitle": "Duct Cleaning & Sealing in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Professional duct cleaning and sealing in {{CITY}}, {{STATE}}. Improve air quality and lower energy bills with {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 4
+  },
+  {
+    "id": "water-heaters",
+    "name": "Water Heater Install & Repair",
+    "title": "Water Heater Install & Repair",
+    "slug": "water-heaters",
+    "shortDescription": "Tank and tankless water heater installation, repair, and replacement — with same-day service available.",
+    "description": "No hot water? {{COMPANY_NAME}} provides fast water heater repair and replacement throughout {{SERVICE_REGION}}. We install and service both traditional tank and tankless water heaters, helping you choose the right option for your home's needs and budget.",
+    "icon": "thermometer",
+    "image": "",
+    "features": [
+      "Tank water heater installation",
+      "Tankless water heater installation",
+      "Water heater repair and diagnostics",
+      "Same-day replacement available",
+      "Energy-efficient upgrades"
+    ],
+    "links": [
+      { "label": "Tank Water Heaters", "href": "/services/water-heaters" },
+      { "label": "Tankless Water Heaters", "href": "/services/water-heaters" },
+      { "label": "Water Heater Repair", "href": "/services/water-heaters" },
+      { "label": "Water Heater Replacement", "href": "/services/water-heaters" }
+    ],
+    "seoTitle": "Water Heater Installation & Repair in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Water heater installation and repair in {{CITY}}, {{STATE}}. Tank and tankless options with same-day service from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 5
+  },
+  {
+    "id": "maintenance",
+    "name": "Maintenance Plans",
+    "title": "Maintenance Plans",
+    "slug": "maintenance",
+    "shortDescription": "Preventive maintenance plans that extend equipment life, prevent breakdowns, and save you money year-round.",
+    "description": "The best way to avoid expensive HVAC and plumbing emergencies is to prevent them. {{COMPANY_NAME}}'s maintenance plans include seasonal tune-ups for your AC and furnace, priority scheduling, repair discounts, and peace of mind knowing your systems are running at peak efficiency.",
+    "icon": "clipboard-check",
+    "image": "",
+    "features": [
+      "Seasonal AC and furnace tune-ups",
+      "Priority scheduling for plan members",
+      "Discounts on all repairs",
+      "Extended equipment lifespan",
+      "No overtime charges for members"
+    ],
+    "links": [
+      { "label": "AC Maintenance", "href": "/services/maintenance" },
+      { "label": "Furnace Maintenance", "href": "/services/maintenance" },
+      { "label": "Plumbing Inspection", "href": "/services/maintenance" },
+      { "label": "Plan Details", "href": "/services/maintenance" }
+    ],
+    "seoTitle": "HVAC Maintenance Plans in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Preventive HVAC and plumbing maintenance plans in {{CITY}}, {{STATE}}. Seasonal tune-ups, priority service, and repair discounts from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 6
+  }
+]

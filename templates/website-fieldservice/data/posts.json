@@ -1,0 +1,50 @@
+[
+  {
+    "id": "blog1",
+    "title": "5 Signs Your AC Needs Replacement",
+    "slug": "signs-ac-needs-replacement",
+    "excerpt": "Warm air, strange noises, and rising energy bills are all red flags. Here's how to know when it's time to replace your air conditioner instead of repairing it again.",
+    "content": "Your air conditioner works hard to keep you comfortable, but it won't last forever. Here are the top signs it's time for a replacement:\n\n**1. Age** — Most central AC units last 10-15 years. If yours is approaching that range, replacement is often more cost-effective than another repair.\n\n**2. Frequent repairs** — If you're calling for repairs every season, those costs add up fast. A new high-efficiency unit can pay for itself in avoided repair bills and lower energy costs.\n\n**3. Rising energy bills** — As AC systems age, they lose efficiency. If your bills keep climbing despite normal usage, your unit is working harder than it should.\n\n**4. Uneven cooling** — Hot spots in some rooms and cold spots in others often mean your system can no longer distribute air effectively.\n\n**5. Strange noises or odors** — Grinding, squealing, or musty smells indicate serious mechanical or mold issues that may not be worth repairing.\n\n## What to Do Next\nIf you're experiencing any of these signs, contact us for a free in-home evaluation. We'll assess your current system, explain your options, and provide a flat-rate quote with no pressure.",
+    "featuredImage": "",
+    "published": true,
+    "category": "AC Service",
+    "tags": ["ac", "replacement", "maintenance"],
+    "seoTitle": "5 Signs Your AC Needs Replacement | {{COMPANY_NAME}}",
+    "seoDescription": "How to tell if your AC needs replacing. Warning signs every {{CITY}} homeowner should watch for. Free evaluations from {{COMPANY_NAME}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-02-15T00:00:00Z",
+    "updatedAt": "2026-02-15T00:00:00Z"
+  },
+  {
+    "id": "blog2",
+    "title": "Annual Furnace Maintenance Checklist",
+    "slug": "annual-furnace-maintenance-checklist",
+    "excerpt": "A well-maintained furnace runs safer, lasts longer, and costs less to operate. Use this checklist to keep your heating system in top shape before winter hits.",
+    "content": "Annual furnace maintenance is one of the simplest ways to avoid expensive breakdowns and keep your heating bills under control. Here's what should be done each fall:\n\n## Professional Tune-Up Checklist\n- **Inspect and replace the air filter** — A dirty filter restricts airflow and forces your furnace to work harder\n- **Check the thermostat** — Verify it's reading accurately and programmed for the season\n- **Inspect the heat exchanger** — Cracks can leak carbon monoxide into your home\n- **Clean and adjust burners** — Ensures even, efficient combustion\n- **Test safety controls** — Verify all shutoffs and sensors are functioning\n- **Lubricate moving parts** — Reduces friction and extends component life\n- **Check the flue and venting** — Ensure exhaust gases are properly vented outside\n\n## DIY Between Visits\n1. **Change your filter every 1-3 months** during heating season\n2. **Keep vents and registers clear** of furniture and rugs\n3. **Listen for unusual noises** — banging, rattling, or squealing\n4. **Check your carbon monoxide detectors** — replace batteries annually\n\n## The Bottom Line\nA $150 tune-up can prevent a $3,000 emergency repair. Our maintenance plans include annual inspections and priority scheduling so you never have to worry about being caught off guard.\n\nContact us to schedule your fall furnace tune-up.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Heating",
+    "tags": ["furnace", "maintenance", "heating"],
+    "seoTitle": "Annual Furnace Maintenance Checklist | {{COMPANY_NAME}}",
+    "seoDescription": "Keep your furnace running safely and efficiently with this annual maintenance checklist from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-02-01T00:00:00Z",
+    "updatedAt": "2026-02-01T00:00:00Z"
+  },
+  {
+    "id": "blog3",
+    "title": "Tankless vs Traditional Water Heaters: Which Is Right for You?",
+    "slug": "tankless-vs-traditional-water-heaters",
+    "excerpt": "Thinking about upgrading your water heater? We compare tankless and traditional tank models on cost, efficiency, lifespan, and performance to help you decide.",
+    "content": "When your water heater needs replacing, you have two main options. Here's how they compare for {{CITY}} homeowners:\n\n## Traditional Tank Water Heaters\n**Cost:** $800-$1,500 installed | **Lifespan:** 8-12 years\n- Lower upfront cost\n- Simple installation and replacement\n- Stores 40-80 gallons of hot water\n- Takes up more space\n- Standby heat loss wastes energy\n\n## Tankless Water Heaters\n**Cost:** $2,000-$4,500 installed | **Lifespan:** 15-20 years\n- Endless hot water on demand\n- 24-34% more energy efficient for average households\n- Compact, wall-mounted design\n- Higher upfront cost\n- May require gas line or electrical upgrades\n\n## Which Should You Choose?\nFor most {{CITY}} homeowners, **tankless is the better long-term investment** if you plan to stay in your home for 5+ years. The energy savings and longer lifespan offset the higher upfront cost. However, a **traditional tank** is the smart choice if you're on a tight budget or need a quick same-day replacement.\n\n## Our Recommendation\nWe install both types and will help you choose based on your household size, hot water usage, and budget. Contact us for a free estimate — we'll assess your current setup and recommend the best option for your home.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Water Heaters",
+    "tags": ["water-heater", "tankless", "comparison"],
+    "seoTitle": "Tankless vs Traditional Water Heaters | {{COMPANY_NAME}}",
+    "seoDescription": "Compare tankless and traditional water heaters for your {{CITY}} home. Cost, efficiency, and lifespan compared by {{COMPANY_NAME}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-01-15T00:00:00Z",
+    "updatedAt": "2026-01-15T00:00:00Z"
+  }
+]
