@@ -11,7 +11,7 @@
  */
 
 import { db } from '../../db/index.ts';
-import { sql, eq, and, gte, lte, count, desc } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 // We use raw SQL since the auditLog table may not be in schema yet.
 // If you add it, replace sql`` calls with proper Drizzle query builder usage.
@@ -140,47 +140,23 @@ export async function query({
   page?: number;
   limit?: number;
 }) {
-  const conditions: string[] = ['company_id = ' + `'${companyId}'`];
+  // Build conditions using sql tagged template (parameterised) instead of sql.raw
+  const conditions = [sql`company_id = ${companyId}`];
+  if (entity)    conditions.push(sql`entity = ${entity}`);
+  if (entityId)  conditions.push(sql`entity_id = ${entityId}`);
+  if (action)    conditions.push(sql`action = ${action}`);
+  if (userId)    conditions.push(sql`user_id = ${userId}`);
+  if (startDate) conditions.push(sql`created_at >= ${new Date(startDate)}`);
+  if (endDate)   conditions.push(sql`created_at <= ${new Date(endDate)}`);
 
-  // Build raw SQL conditions for safety; ideally use parameterized queries
-  // For a production app, add the auditLog table to schema and use the query builder.
-
-  let whereClause = `company_id = $1`;
-  const params: unknown[] = [companyId];
-  let paramIdx = 2;
-
-  if (entity) {
-    whereClause += ` AND entity = $${paramIdx++}`;
-    params.push(entity);
-  }
-  if (entityId) {
-    whereClause += ` AND entity_id = $${paramIdx++}`;
-    params.push(entityId);
-  }
-  if (action) {
-    whereClause += ` AND action = $${paramIdx++}`;
-    params.push(action);
-  }
-  if (userId) {
-    whereClause += ` AND user_id = $${paramIdx++}`;
-    params.push(userId);
-  }
-  if (startDate) {
-    whereClause += ` AND created_at >= $${paramIdx++}`;
-    params.push(new Date(startDate));
-  }
-  if (endDate) {
-    whereClause += ` AND created_at <= $${paramIdx++}`;
-    params.push(new Date(endDate));
-  }
-
+  const where = conditions.reduce((acc, cond, i) => i === 0 ? cond : sql`${acc} AND ${cond}`);
   const offset = (page - 1) * limit;
 
   const dataResult = await db.execute(
-    sql.raw(`SELECT * FROM audit_log WHERE ${whereClause} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`)
+    sql`SELECT * FROM audit_log WHERE ${where} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`
   );
   const countResult = await db.execute(
-    sql.raw(`SELECT COUNT(*)::int as total FROM audit_log WHERE ${whereClause}`)
+    sql`SELECT COUNT(*)::int as total FROM audit_log WHERE ${where}`
   );
 
   const data = (dataResult as any).rows || dataResult;
