@@ -14,6 +14,7 @@ import AdmZip from 'adm-zip'
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
 const SUPABASE_MGMT_API = 'https://api.supabase.com/v1'
+const CLOUDFLARE_API = 'https://api.cloudflare.com/client/v4'
 const FETCH_TIMEOUT = 30_000 // 30s timeout for API calls
 
 function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETCH_TIMEOUT): Promise<Response> {
@@ -47,6 +48,17 @@ function isSupabaseManagementConfigured(): boolean {
   return !!(process.env.SUPABASE_MANAGEMENT_API_KEY && process.env.SUPABASE_ORG_ID)
 }
 
+function cloudflareHeaders(): Record<string, string> {
+  return {
+    'Authorization': 'Bearer ' + process.env.CLOUDFLARE_API_TOKEN,
+    'Content-Type': 'application/json',
+  }
+}
+
+function isR2Configured(): boolean {
+  return !!(process.env.CLOUDFLARE_API_TOKEN && process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY)
+}
+
 export function isConfigured(): boolean {
   return !!(
     process.env.RENDER_API_KEY &&
@@ -64,6 +76,10 @@ export function getMissingConfig(): string[] {
   if (!process.env.GITHUB_ORG) missing.push('GITHUB_ORG')
   if (!process.env.SUPABASE_MANAGEMENT_API_KEY) missing.push('SUPABASE_MANAGEMENT_API_KEY')
   if (!process.env.SUPABASE_ORG_ID) missing.push('SUPABASE_ORG_ID')
+  if (!process.env.CLOUDFLARE_API_TOKEN) missing.push('CLOUDFLARE_API_TOKEN')
+  if (!process.env.R2_ACCOUNT_ID) missing.push('R2_ACCOUNT_ID')
+  if (!process.env.R2_ACCESS_KEY_ID) missing.push('R2_ACCESS_KEY_ID')
+  if (!process.env.R2_SECRET_ACCESS_KEY) missing.push('R2_SECRET_ACCESS_KEY')
   return missing
 }
 
@@ -147,7 +163,7 @@ export async function pushToGitHub(repoFullName: string, extractDir: string) {
   return { success: true }
 }
 
-async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project'; id: string; name?: string }>) {
+async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket'; id: string; name?: string }>) {
   for (const resource of resources.reverse()) {
     try {
       switch (resource.type) {
@@ -166,6 +182,10 @@ async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | '
         case 'supabase_project':
           console.log('[Deploy] Rollback: deleting Supabase project', resource.id)
           await deleteSupabaseProject(resource.id)
+          break
+        case 'r2_bucket':
+          console.log('[Deploy] Rollback: deleting R2 bucket', resource.id)
+          await deleteR2Bucket(resource.id)
           break
       }
     } catch (e: any) {
@@ -282,6 +302,63 @@ async function deleteSupabaseProject(ref: string): Promise<void> {
   } catch (e: any) {
     console.warn('[Deploy] Could not delete Supabase project:', ref, e.message)
   }
+}
+
+
+// ─── Cloudflare R2 Bucket Provisioning ───────────────────────────────────────
+
+async function createR2Bucket(slug: string): Promise<string> {
+  const accountId = process.env.R2_ACCOUNT_ID!
+  const bucketName = slug + '-media'
+
+  const res = await fetchWithTimeout(
+    CLOUDFLARE_API + '/accounts/' + accountId + '/r2/buckets',
+    {
+      method: 'PUT',
+      headers: cloudflareHeaders(),
+      body: JSON.stringify({ name: bucketName }),
+    },
+  )
+
+  if (!res.ok) {
+    const body = await res.text()
+    // Bucket already exists — not an error
+    if (res.status === 409 || body.includes('already exists')) {
+      console.log('[Deploy] R2 bucket already exists:', bucketName)
+      return bucketName
+    }
+    throw new Error('R2 bucket creation failed (' + res.status + '): ' + body)
+  }
+
+  console.log('[Deploy] Created R2 bucket:', bucketName)
+  return bucketName
+}
+
+async function deleteR2Bucket(bucketName: string): Promise<void> {
+  const accountId = process.env.R2_ACCOUNT_ID
+  if (!accountId || !process.env.CLOUDFLARE_API_TOKEN) return
+  try {
+    const res = await fetchWithTimeout(
+      CLOUDFLARE_API + '/accounts/' + accountId + '/r2/buckets/' + bucketName,
+      { method: 'DELETE', headers: cloudflareHeaders() },
+    )
+    if (res.ok) console.log('[Deploy] Deleted R2 bucket:', bucketName)
+    else console.warn('[Deploy] Failed to delete R2 bucket', bucketName, '- status:', res.status)
+  } catch (e: any) {
+    console.warn('[Deploy] Could not delete R2 bucket:', bucketName, e.message)
+  }
+}
+
+/** Returns the R2 env vars to inject into a deployed Render service */
+function getR2EnvVars(bucketName: string): Array<{ key: string; value: string }> {
+  const accountId = process.env.R2_ACCOUNT_ID!
+  return [
+    { key: 'R2_ACCOUNT_ID', value: accountId },
+    { key: 'R2_ACCESS_KEY_ID', value: process.env.R2_ACCESS_KEY_ID! },
+    { key: 'R2_SECRET_ACCESS_KEY', value: process.env.R2_SECRET_ACCESS_KEY! },
+    { key: 'R2_BUCKET_NAME', value: bucketName },
+    { key: 'R2_PUBLIC_URL', value: 'https://' + accountId + '.r2.cloudflarestorage.com/' + bucketName },
+  ]
 }
 
 
@@ -566,6 +643,7 @@ export interface DeployResult {
   visionUrl?: string
   adsUrl?: string
   supabaseProjectRef?: string
+  r2BucketName?: string
 }
 
 export async function deployCustomer(
@@ -587,7 +665,7 @@ export async function deployCustomer(
   const encryptionKey = crypto.randomBytes(32).toString('hex')
 
   // Collect created resource IDs for rollback on failure
-  const createdResources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project'; id: string; name?: string }> = []
+  const createdResources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket'; id: string; name?: string }> = []
 
   let extractDir = ''
   try {
@@ -671,6 +749,26 @@ export async function deployCustomer(
       }
     }
 
+    // Step 4b: R2 media bucket (shared credentials, per-customer bucket)
+    let r2BucketName: string | null = null
+    let r2EnvVars: Array<{ key: string; value: string }> = []
+    if (isR2Configured()) {
+      try {
+        const bucketSlug = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug
+        r2BucketName = await createR2Bucket(bucketSlug)
+        createdResources.push({ type: 'r2_bucket', id: r2BucketName })
+        r2EnvVars = getR2EnvVars(r2BucketName)
+        results.steps.push({ step: 'r2_bucket', status: 'ok', bucket: r2BucketName })
+        results.r2BucketName = r2BucketName
+      } catch (r2Err: any) {
+        // Non-critical — services can still run without media storage
+        console.warn('[Deploy] R2 bucket creation failed (non-blocking):', r2Err.message)
+        results.steps.push({ step: 'r2_bucket', status: 'warning', error: r2Err.message })
+      }
+    } else {
+      console.log('[Deploy] R2 not configured — skipping media bucket creation')
+    }
+
     // Build integration env vars from config
     const integrationEnvVars: Array<{ key: string; value: string }> = []
     const integrations = factoryCustomer.config?.integrations
@@ -698,6 +796,7 @@ export async function deployCustomer(
           { key: 'ENCRYPTION_KEY', value: encryptionKey },
           { key: 'PORT', value: '10000' },
           ...integrationEnvVars,
+          ...r2EnvVars,
         ]
         if (dbConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbConnectionString })
         if (supabaseProject) {
@@ -760,6 +859,7 @@ export async function deployCustomer(
             { key: 'PORT', value: '10000' },
             { key: 'JWT_SECRET', value: jwtSecret },
             { key: 'SITE_NAME', value: factoryCustomer.name || slug },
+            ...r2EnvVars,
           ],
           plan, region,
         })

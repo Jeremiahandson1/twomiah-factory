@@ -61,6 +61,9 @@ create table if not exists tenants (
   -- Supabase project (dedicated per customer)
   supabase_project_ref text,
 
+  -- R2 media bucket (per customer)
+  r2_bucket_name text,
+
   -- Notes
   notes           text
 );
