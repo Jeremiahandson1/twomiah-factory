@@ -13,6 +13,7 @@ import AdmZip from 'adm-zip'
 
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
+const SUPABASE_MGMT_API = 'https://api.supabase.com/v1'
 const FETCH_TIMEOUT = 30_000 // 30s timeout for API calls
 
 function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETCH_TIMEOUT): Promise<Response> {
@@ -35,6 +36,17 @@ function githubHeaders(): Record<string, string> {
   }
 }
 
+function supabaseManagementHeaders(): Record<string, string> {
+  return {
+    'Authorization': 'Bearer ' + process.env.SUPABASE_MANAGEMENT_API_KEY,
+    'Content-Type': 'application/json',
+  }
+}
+
+function isSupabaseManagementConfigured(): boolean {
+  return !!(process.env.SUPABASE_MANAGEMENT_API_KEY && process.env.SUPABASE_ORG_ID)
+}
+
 export function isConfigured(): boolean {
   return !!(
     process.env.RENDER_API_KEY &&
@@ -50,6 +62,8 @@ export function getMissingConfig(): string[] {
   if (!process.env.RENDER_OWNER_ID) missing.push('RENDER_OWNER_ID')
   if (!process.env.GITHUB_TOKEN) missing.push('GITHUB_TOKEN')
   if (!process.env.GITHUB_ORG) missing.push('GITHUB_ORG')
+  if (!process.env.SUPABASE_MANAGEMENT_API_KEY) missing.push('SUPABASE_MANAGEMENT_API_KEY')
+  if (!process.env.SUPABASE_ORG_ID) missing.push('SUPABASE_ORG_ID')
   return missing
 }
 
@@ -133,7 +147,7 @@ export async function pushToGitHub(repoFullName: string, extractDir: string) {
   return { success: true }
 }
 
-async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database'; id: string; name?: string }>) {
+async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project'; id: string; name?: string }>) {
   for (const resource of resources.reverse()) {
     try {
       switch (resource.type) {
@@ -149,10 +163,124 @@ async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | '
           console.log('[Deploy] Rollback: deleting Render database', resource.name || resource.id)
           await fetchWithTimeout(RENDER_API + '/postgres/' + resource.id, { method: 'DELETE', headers: renderHeaders() })
           break
+        case 'supabase_project':
+          console.log('[Deploy] Rollback: deleting Supabase project', resource.id)
+          await deleteSupabaseProject(resource.id)
+          break
       }
     } catch (e: any) {
       console.warn('[Deploy] Rollback failed for', resource.type, resource.id, ':', e.message)
     }
+  }
+}
+
+
+// ─── Supabase Management API ─────────────────────────────────────────────────
+
+/** Map Render regions to Supabase regions */
+function toSupabaseRegion(renderRegion: string): string {
+  const map: Record<string, string> = {
+    'ohio': 'us-east-1',
+    'oregon': 'us-west-1',
+    'virginia': 'us-east-1',
+    'frankfurt': 'eu-central-1',
+    'singapore': 'ap-southeast-1',
+  }
+  return map[renderRegion] || 'us-east-1'
+}
+
+interface SupabaseProjectResult {
+  ref: string
+  dbPass: string
+  region: string
+  supabaseUrl: string
+  anonKey: string
+  serviceRoleKey: string
+  connectionString: string
+}
+
+async function createSupabaseProject(slug: string, region = 'ohio', plan = 'free'): Promise<SupabaseProjectResult> {
+  const dbPass = crypto.randomBytes(24).toString('base64url')
+  const supabaseRegion = toSupabaseRegion(region)
+
+  const res = await fetchWithTimeout(SUPABASE_MGMT_API + '/projects', {
+    method: 'POST',
+    headers: supabaseManagementHeaders(),
+    body: JSON.stringify({
+      name: slug,
+      organization_id: process.env.SUPABASE_ORG_ID,
+      db_pass: dbPass,
+      region: supabaseRegion,
+      plan,
+    }),
+  }, 60_000)
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error('Supabase project creation failed (' + res.status + '): ' + err)
+  }
+
+  const project = await res.json() as any
+  const ref = project.id
+  console.log('[Deploy] Created Supabase project:', ref, 'region:', supabaseRegion)
+
+  // Wait for project to become ready
+  await waitForSupabaseProject(ref)
+
+  // Fetch API keys
+  const keys = await getSupabaseApiKeys(ref)
+
+  const supabaseUrl = 'https://' + ref + '.supabase.co'
+  const connectionString = 'postgresql://postgres.' + ref + ':' + encodeURIComponent(dbPass) + '@aws-0-' + supabaseRegion + '.pooler.supabase.com:6543/postgres'
+
+  return {
+    ref,
+    dbPass,
+    region: supabaseRegion,
+    supabaseUrl,
+    anonKey: keys.anonKey,
+    serviceRoleKey: keys.serviceRoleKey,
+    connectionString,
+  }
+}
+
+async function waitForSupabaseProject(ref: string, maxAttempts = 30, intervalMs = 10_000): Promise<void> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const res = await fetchWithTimeout(SUPABASE_MGMT_API + '/projects/' + ref, {
+      headers: supabaseManagementHeaders(),
+    })
+    if (res.ok) {
+      const project = await res.json() as any
+      console.log('[Deploy] Supabase project', ref, 'status:', project.status, '(attempt', attempt + 1 + ')')
+      if (project.status === 'ACTIVE_HEALTHY') return
+    }
+    await sleep(intervalMs)
+  }
+  throw new Error('Supabase project ' + ref + ' did not become ready within ' + Math.round(maxAttempts * intervalMs / 1000) + 's')
+}
+
+async function getSupabaseApiKeys(ref: string): Promise<{ anonKey: string; serviceRoleKey: string }> {
+  const res = await fetchWithTimeout(SUPABASE_MGMT_API + '/projects/' + ref + '/api-keys', {
+    headers: supabaseManagementHeaders(),
+  })
+  if (!res.ok) throw new Error('Failed to fetch Supabase API keys for project ' + ref)
+  const keys = await res.json() as any[]
+  const anonKey = keys.find((k: any) => k.name === 'anon')?.api_key || ''
+  const serviceRoleKey = keys.find((k: any) => k.name === 'service_role')?.api_key || ''
+  if (!anonKey || !serviceRoleKey) throw new Error('Missing API keys for Supabase project ' + ref)
+  return { anonKey, serviceRoleKey }
+}
+
+async function deleteSupabaseProject(ref: string): Promise<void> {
+  try {
+    const res = await fetchWithTimeout(SUPABASE_MGMT_API + '/projects/' + ref, {
+      method: 'DELETE',
+      headers: supabaseManagementHeaders(),
+    })
+    if (res.ok) console.log('[Deploy] Deleted Supabase project:', ref)
+    else console.warn('[Deploy] Failed to delete Supabase project', ref, '- status:', res.status)
+  } catch (e: any) {
+    console.warn('[Deploy] Could not delete Supabase project:', ref, e.message)
   }
 }
 
@@ -437,6 +565,7 @@ export interface DeployResult {
   siteUrl?: string
   visionUrl?: string
   adsUrl?: string
+  supabaseProjectRef?: string
 }
 
 export async function deployCustomer(
@@ -458,7 +587,7 @@ export async function deployCustomer(
   const encryptionKey = crypto.randomBytes(32).toString('hex')
 
   // Collect created resource IDs for rollback on failure
-  const createdResources: Array<{ type: 'repo' | 'service' | 'database'; id: string; name?: string }> = []
+  const createdResources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project'; id: string; name?: string }> = []
 
   let extractDir = ''
   try {
@@ -488,34 +617,57 @@ export async function deployCustomer(
     const twomiahEnvId = process.env.RENDER_PROJECT_ENV_ID || null
     const deployedResourceIds: string[] = []
 
-    // Step 4: Render Postgres (only for CRM products)
-    let dbInfo: any = null
+    // Step 4: Database provisioning (only for CRM products)
+    // Prefer dedicated Supabase project per customer; fall back to Render Postgres
+    let dbConnectionString: string | null = null
+    let supabaseProject: SupabaseProjectResult | null = null
     if (products.includes('crm')) {
-      try {
-        const dbSlug = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug
-        console.log('[Deploy] Creating DB:', dbSlug + '-db')
-        const db = await createRenderDatabase(dbSlug, region, dbPlan)
-        createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
-        results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
-        results.services.database = db
-        if (db.id) deployedResourceIds.push(db.id)
+      const dbSlug = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug
 
-        console.log('[Deploy] Waiting for DB to be ready...')
-        let dbReady = false
-        for (let attempt = 0; attempt < 20; attempt++) {
-          await sleep(15000)
-          try {
-            const connInfo = await getDatabaseConnectionInfo(db.id)
-            if (connInfo?.internalConnectionString) { dbInfo = connInfo; dbReady = true; break }
-          } catch (_e) { /* not ready yet */ }
+      if (isSupabaseManagementConfigured()) {
+        // ── Dedicated Supabase project per customer ──
+        try {
+          console.log('[Deploy] Creating dedicated Supabase project:', dbSlug)
+          supabaseProject = await createSupabaseProject(dbSlug, region)
+          createdResources.push({ type: 'supabase_project', id: supabaseProject.ref, name: dbSlug })
+          results.steps.push({ step: 'supabase_project', status: 'ok', ref: supabaseProject.ref })
+          results.services.database = { type: 'supabase', ref: supabaseProject.ref, url: supabaseProject.supabaseUrl }
+          results.supabaseProjectRef = supabaseProject.ref
+          dbConnectionString = supabaseProject.connectionString
+        } catch (sbErr: any) {
+          results.steps.push({ step: 'supabase_project', status: 'error', error: sbErr.message })
+          results.errors.push('Supabase project creation failed: ' + sbErr.message)
+          results.success = false; results.status = 'failed'
+          await rollbackResources(createdResources)
+          return results
         }
-        if (!dbReady) throw new Error('DB did not become ready in time')
-      } catch (dbErr: any) {
-        results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
-        results.errors.push('Database creation failed: ' + dbErr.message)
-        results.success = false; results.status = 'failed'
-        await rollbackResources(createdResources)
-        return results
+      } else {
+        // ── Fallback: Render Postgres ──
+        try {
+          console.log('[Deploy] Creating Render DB (Supabase Management API not configured):', dbSlug + '-db')
+          const db = await createRenderDatabase(dbSlug, region, dbPlan)
+          createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
+          results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
+          results.services.database = db
+          if (db.id) deployedResourceIds.push(db.id)
+
+          console.log('[Deploy] Waiting for DB to be ready...')
+          let dbReady = false
+          for (let attempt = 0; attempt < 20; attempt++) {
+            await sleep(15000)
+            try {
+              const connInfo = await getDatabaseConnectionInfo(db.id)
+              if (connInfo?.internalConnectionString) { dbConnectionString = connInfo.internalConnectionString; dbReady = true; break }
+            } catch (_e) { /* not ready yet */ }
+          }
+          if (!dbReady) throw new Error('DB did not become ready in time')
+        } catch (dbErr: any) {
+          results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
+          results.errors.push('Database creation failed: ' + dbErr.message)
+          results.success = false; results.status = 'failed'
+          await rollbackResources(createdResources)
+          return results
+        }
       }
     }
 
@@ -547,7 +699,12 @@ export async function deployCustomer(
           { key: 'PORT', value: '10000' },
           ...integrationEnvVars,
         ]
-        if (dbInfo?.internalConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbInfo.internalConnectionString })
+        if (dbConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbConnectionString })
+        if (supabaseProject) {
+          backendEnvVars.push({ key: 'SUPABASE_URL', value: supabaseProject.supabaseUrl })
+          backendEnvVars.push({ key: 'SUPABASE_ANON_KEY', value: supabaseProject.anonKey })
+          backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
+        }
 
         const crmApiName = isHomeCare ? slug + '-care-api' : isAutomotive ? slug + '-drive-api' : slug + '-api'
         const crmFrontName = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug + '-crm'

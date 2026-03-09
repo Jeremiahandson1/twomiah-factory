@@ -501,6 +501,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.apiUrl) tenantUpdate.render_backend_url = result.apiUrl
       if (result.siteUrl) tenantUpdate.website_url = result.siteUrl
       if (result.adsUrl) tenantUpdate.ads_url = result.adsUrl
+      if (result.supabaseProjectRef) tenantUpdate.supabase_project_ref = result.supabaseProjectRef
 
       // Auto-create Stripe subscription if tenant doesn't already have one
       if (!tenant.stripe_subscription_id && tenant.deployment_model === 'saas') {
