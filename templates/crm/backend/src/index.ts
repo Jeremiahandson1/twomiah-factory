@@ -76,6 +76,7 @@ import timeTrackingRoutes from './routes/timeTracking.ts'
 import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
+import adsRoutes from './routes/ads.ts'
 import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 let webhooksRoutes: any = null
@@ -181,6 +182,7 @@ app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/warranties', warrantiesRoutes)
 app.route('/api/weather', weatherRoutes)
 app.route('/api/support', supportRoutes)
+app.route('/api/ads', adsRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 

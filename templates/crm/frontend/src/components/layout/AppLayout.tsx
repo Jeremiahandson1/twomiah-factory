@@ -40,6 +40,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/inventory', icon: Warehouse, label: 'Inventory', features: ['inventory'] },
   { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
+  { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'] },
   { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },

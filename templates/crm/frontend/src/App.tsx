@@ -58,6 +58,7 @@ import SupportPage from './pages/support/SupportPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
+import AdsPage from './pages/ads/AdsPage';
 import VisualizerPage from './pages/VisualizerPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
@@ -170,6 +171,7 @@ function App() {
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
+                    <Route path="ads" element={<AdsPage />} />
                     <Route path="visualizer" element={<VisualizerPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>
