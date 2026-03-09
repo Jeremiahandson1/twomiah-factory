@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { lead, leadSource } from '../../db/schema.ts'
-import { contact } from '../../db/schema.ts'
+import { clients } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, sql, gte } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -181,17 +181,18 @@ app.post('/:id/convert', requirePermission('contacts:create'), async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Lead not found' }, 404)
 
-  // Create contact from lead
-  const [newContact] = await db.insert(contact).values({
-    id: createId(),
-    name: existing.homeownerName,
+  // Create client from lead
+  const nameParts = (existing.homeownerName || '').trim().split(/\s+/)
+  const firstName = nameParts[0] || 'Unknown'
+  const lastName = nameParts.slice(1).join(' ') || 'Unknown'
+
+  const [newContact] = await db.insert(clients).values({
+    firstName,
+    lastName,
     email: existing.email || undefined,
     phone: existing.phone || undefined,
     address: existing.location || undefined,
-    source: existing.sourcePlatform,
-    type: 'lead',
     notes: `Converted from ${existing.sourcePlatform} lead. Job type: ${existing.jobType || 'N/A'}. Budget: ${existing.budget || 'N/A'}. Description: ${existing.description || 'N/A'}`,
-    companyId: currentUser.companyId,
   }).returning()
 
   // Update lead status

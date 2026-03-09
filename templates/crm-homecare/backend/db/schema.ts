@@ -1107,3 +1107,178 @@ export const alerts = pgTable('alerts', {
   index('alerts_alert_type_idx').on(t.alertType),
   index('alerts_priority_idx').on(t.priority),
 ])
+
+// ==================== CARE PLANS ====================
+export const carePlans = pgTable('care_plans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  serviceType: text('service_type'),
+  frequency: text('frequency'),
+  careGoals: text('care_goals'),
+  specialInstructions: text('special_instructions'),
+  precautions: text('precautions'),
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  status: text('status').default('active').notNull(),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('care_plans_client_id_idx').on(t.clientId),
+])
+
+// ==================== CARE TYPES ====================
+export const careTypes = pgTable('care_types', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  hourlyRate: decimal('hourly_rate', { precision: 8, scale: 2 }),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+// ==================== CAREGIVER CARE TYPE RATES ====================
+export const caregiverCareTypeRates = pgTable('caregiver_care_type_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  careTypeId: text('care_type_id').notNull().references(() => careTypes.id, { onDelete: 'cascade' }),
+  hourlyRate: decimal('hourly_rate', { precision: 8, scale: 2 }),
+  overtimeRate: decimal('overtime_rate', { precision: 8, scale: 2 }),
+  holidayRate: decimal('holiday_rate', { precision: 8, scale: 2 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('caregiver_care_type_rates_caregiver_idx').on(t.caregiverId),
+])
+
+// ==================== CERTIFICATIONS ====================
+export const certificationRecords = pgTable('certification_records', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  certificationType: text('certification_type').notNull(),
+  issuingBody: text('issuing_body'),
+  issueDate: date('issue_date'),
+  expiryDate: date('expiry_date'),
+  documentUrl: text('document_url'),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('certification_records_caregiver_idx').on(t.caregiverId),
+])
+
+// ==================== INCIDENTS ====================
+export const incidents = pgTable('incidents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').references(() => clients.id),
+  caregiverId: text('caregiver_id').references(() => users.id),
+  incidentType: text('incident_type').notNull(),
+  severity: text('severity').default('low').notNull(),
+  date: date('date').notNull(),
+  description: text('description').notNull(),
+  involvedParties: text('involved_parties'),
+  actionTaken: text('action_taken'),
+  investigationStatus: text('investigation_status').default('open').notNull(),
+  resolvedAt: timestamp('resolved_at'),
+  resolvedById: text('resolved_by_id').references(() => users.id),
+  reportedById: text('reported_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('incidents_status_idx').on(t.investigationStatus),
+])
+
+// ==================== MEDICATIONS ====================
+export const medications = pgTable('medications', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  dosage: text('dosage'),
+  frequency: text('frequency'),
+  route: text('route'),
+  indication: text('indication'),
+  prescribedBy: text('prescribed_by'),
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  status: text('status').default('active').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('medications_client_idx').on(t.clientId),
+])
+
+// ==================== MEDICATION LOGS ====================
+export const medicationLogs = pgTable('medication_logs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  medicationId: text('medication_id').notNull().references(() => medications.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull().references(() => clients.id),
+  caregiverId: text('caregiver_id').references(() => users.id),
+  administeredAt: timestamp('administered_at').notNull(),
+  status: text('status').default('given').notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+// ==================== SHIFT SWAPS ====================
+export const shiftSwaps = pgTable('shift_swaps', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scheduleId: text('schedule_id').references(() => schedules.id),
+  requesterId: text('requester_id').notNull().references(() => users.id),
+  targetId: text('target_id').references(() => users.id),
+  clientId: text('client_id').references(() => clients.id),
+  shiftDate: date('shift_date').notNull(),
+  startTime: time('start_time'),
+  endTime: time('end_time'),
+  reason: text('reason'),
+  status: text('status').default('pending').notNull(),
+  reviewedById: text('reviewed_by_id').references(() => users.id),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('shift_swaps_status_idx').on(t.status),
+])
+
+// ==================== TRAINING RECORDS ====================
+export const trainingRecords = pgTable('training_records', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  trainingName: text('training_name').notNull(),
+  provider: text('provider'),
+  completedDate: date('completed_date'),
+  expiryDate: date('expiry_date'),
+  hoursCompleted: decimal('hours_completed', { precision: 5, scale: 1 }),
+  certificateUrl: text('certificate_url'),
+  status: text('status').default('completed').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('training_records_caregiver_idx').on(t.caregiverId),
+])
+
+// ==================== MILEAGE ====================
+export const mileageEntries = pgTable('mileage_entries', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date: date('date').notNull(),
+  startLocation: text('start_location'),
+  endLocation: text('end_location'),
+  miles: decimal('miles', { precision: 7, scale: 2 }).notNull(),
+  ratePerMile: decimal('rate_per_mile', { precision: 5, scale: 3 }).default('0.670'),
+  amount: decimal('amount', { precision: 8, scale: 2 }),
+  clientId: text('client_id').references(() => clients.id),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('mileage_entries_caregiver_idx').on(t.caregiverId),
+])
+
+// ==================== PROSPECT APPOINTMENTS ====================
+export const prospectAppointments = pgTable('prospect_appointments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  leadId: text('lead_id').references(() => lead.id),
+  scheduledDate: date('scheduled_date').notNull(),
+  scheduledTime: time('scheduled_time'),
+  notes: text('notes'),
+  status: text('status').default('scheduled').notNull(),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})

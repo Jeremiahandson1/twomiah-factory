@@ -23,6 +23,7 @@ export const initializeSocket = (server: any) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
       ;(socket as any).userId = decoded.userId
       ;(socket as any).role = decoded.role
+      ;(socket as any).companyId = decoded.companyId
       next()
     } catch {
       next(new Error('Authentication error'))
@@ -31,6 +32,7 @@ export const initializeSocket = (server: any) => {
 
   io.on('connection', (socket) => {
     socket.join(`user:${(socket as any).userId}`)
+    if ((socket as any).companyId) socket.join(`company:${(socket as any).companyId}`)
     logger.info(`Socket connected: ${(socket as any).userId}`)
 
     socket.on('disconnect', () => {
@@ -41,8 +43,16 @@ export const initializeSocket = (server: any) => {
   return io
 }
 
+export const EVENTS = {
+  REFRESH: 'refresh',
+} as const
+
 export const emitToUser = (userId: string, event: string, data: any) => {
   if (io) io.to(`user:${userId}`).emit(event, data)
+}
+
+export const emitToCompany = (companyId: string, event: string, data: any) => {
+  if (io) io.to(`company:${companyId}`).emit(event, data)
 }
 
 export const emitToAll = (event: string, data: any) => {
