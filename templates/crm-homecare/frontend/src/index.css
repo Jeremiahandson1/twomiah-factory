@@ -1309,8 +1309,8 @@ body {
   /* ── Login page ── */
   .login-container {
     padding: 1.5rem;
-    align-items: flex-start;
-    padding-top: 4rem;
+    align-items: center;
+    justify-content: center;
   }
 
   .login-card {
