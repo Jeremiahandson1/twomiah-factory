@@ -22,12 +22,19 @@ const supabase = new Proxy({} as SupabaseClient, {
 export async function authenticate(c: Context, next: Next) {
   const auth = c.req.header('Authorization')
   if (!auth?.startsWith('Bearer ')) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    console.warn('[Auth] Missing or malformed Authorization header')
+    return c.json({ error: 'Missing Authorization header' }, 401)
   }
   const token = auth.slice(7)
+  if (!token || token === 'undefined' || token === 'null') {
+    console.warn('[Auth] Token is empty or literal "undefined"/"null" — frontend session likely expired')
+    return c.json({ error: 'Session expired — please sign in again' }, 401)
+  }
   const { data: { user }, error } = await supabase.auth.getUser(token)
   if (error || !user) {
-    return c.json({ error: 'Unauthorized' }, 401)
+    const reason = error?.message || 'user not found'
+    console.warn('[Auth] Token validation failed:', reason)
+    return c.json({ error: 'Invalid token: ' + reason }, 401)
   }
   c.set('user', user)
   c.set('userId', user.id)

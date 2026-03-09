@@ -958,30 +958,31 @@ factory.post('/customers/:id/billing-portal', requireRole('owner', 'admin'), asy
 // ─── Billing Summary ────────────────────────────────────────────────────────
 factory.get('/billing/summary', async (c) => {
   try {
-    const { data: subscriptions } = await supabase.from('tenants')
-      .select('name, monthly_amount, plan')
-      .eq('billing_type', 'subscription').eq('billing_status', 'active')
+    // Single query instead of 3 sequential queries (fixes 23s response times)
+    const { data: tenants } = await supabase.from('tenants')
+      .select('name, monthly_amount, one_time_amount, paid_at, plan, email, billing_type, billing_status')
+      .or('billing_status.eq.active,billing_status.eq.past_due,billing_type.eq.one_time')
 
-    const { data: oneTime } = await supabase.from('tenants')
-      .select('name, one_time_amount, paid_at')
-      .eq('billing_type', 'one_time')
+    const all = tenants || []
+    const subscriptions = all.filter((t: any) => t.billing_type === 'subscription' && t.billing_status === 'active')
+      .map((t: any) => ({ name: t.name, monthly_amount: t.monthly_amount, plan: t.plan }))
+    const oneTime = all.filter((t: any) => t.billing_type === 'one_time')
+      .map((t: any) => ({ name: t.name, one_time_amount: t.one_time_amount, paid_at: t.paid_at }))
+    const pastDue = all.filter((t: any) => t.billing_status === 'past_due')
+      .map((t: any) => ({ name: t.name, monthly_amount: t.monthly_amount, email: t.email }))
 
-    const { data: pastDue } = await supabase.from('tenants')
-      .select('name, monthly_amount, email')
-      .eq('billing_status', 'past_due')
-
-    const mrr = (subscriptions || []).reduce((sum: number, t: any) => sum + (parseFloat(t.monthly_amount) || 0), 0)
-    const totalOneTime = (oneTime || []).reduce((sum: number, t: any) => sum + (parseFloat(t.one_time_amount) || 0), 0)
+    const mrr = subscriptions.reduce((sum: number, t: any) => sum + (parseFloat(t.monthly_amount) || 0), 0)
+    const totalOneTime = oneTime.reduce((sum: number, t: any) => sum + (parseFloat(t.one_time_amount) || 0), 0)
 
     return c.json({
       mrr,
       arr: mrr * 12,
       totalOneTimeRevenue: totalOneTime,
-      activeSubscriptions: (subscriptions || []).length,
-      pastDueCount: (pastDue || []).length,
-      pastDueCustomers: pastDue || [],
-      subscriptions: subscriptions || [],
-      oneTimeCustomers: oneTime || [],
+      activeSubscriptions: subscriptions.length,
+      pastDueCount: pastDue.length,
+      pastDueCustomers: pastDue,
+      subscriptions,
+      oneTimeCustomers: oneTime,
     })
   } catch (err: any) {
     console.error('[Billing] Summary error:', err)
@@ -993,11 +994,14 @@ factory.get('/billing/summary', async (c) => {
 // ─── Analytics ──────────────────────────────────────────────────────────────
 factory.get('/analytics', async (c) => {
   try {
-    // Fetch all tenants
-    const { data: tenants } = await supabase.from('tenants')
-      .select('id, created_at, plan, monthly_amount, features, products, status')
+    // Parallel queries instead of sequential (fixes slow response times)
+    const [tenantsRes, jobsRes, ticketsRes] = await Promise.all([
+      supabase.from('tenants').select('id, created_at, plan, monthly_amount, features, products, status'),
+      supabase.from('factory_jobs').select('status'),
+      supabase.from('support_tickets').select('status, resolved_at, created_at, rating'),
+    ])
 
-    const all = tenants || []
+    const all = tenantsRes.data || []
 
     // Revenue by month
     const revByMonth: Record<string, { mrr: number; count: number }> = {}
@@ -1036,8 +1040,7 @@ factory.get('/analytics', async (c) => {
     const planDistribution = Object.entries(planCounts).map(([plan, count]) => ({ plan, count }))
 
     // Deploy metrics from factory_jobs
-    const { data: jobs } = await supabase.from('factory_jobs').select('status')
-    const allJobs = jobs || []
+    const allJobs = jobsRes.data || []
     const deployMetrics = {
       total: allJobs.length,
       successful: allJobs.filter((j: any) => j.status === 'deployed' || j.status === 'complete').length,
@@ -1045,9 +1048,7 @@ factory.get('/analytics', async (c) => {
     }
 
     // Ticket metrics
-    const { data: tickets } = await supabase.from('support_tickets')
-      .select('status, resolved_at, created_at, rating')
-    const allTickets = tickets || []
+    const allTickets = ticketsRes.data || []
     const openTickets = allTickets.filter((t: any) => t.status === 'open' || t.status === 'in_progress').length
     const resolved = allTickets.filter((t: any) => t.resolved_at && t.created_at)
     let avgResolutionHours = 0
@@ -1265,27 +1266,29 @@ factory.get('/support/tickets', async (c) => {
 
 // Support ticket stats for dashboard
 factory.get('/support/stats', async (c) => {
-  const { data: all } = await supabase.from('support_tickets').select('status, priority')
+  // Single query instead of 3 sequential queries (fixes 23s response times)
+  const { data: all } = await supabase.from('support_tickets')
+    .select('status, priority, rating, sla_resolve_due')
 
+  const tickets = all || []
   const stats: Record<string, number> = { open: 0, in_progress: 0, waiting: 0, resolved: 0, closed: 0, total: 0 }
+  const now = new Date().toISOString()
   let slaBreach = 0
-  for (const t of all || []) {
+  const ratings: number[] = []
+
+  for (const t of tickets) {
     stats[t.status] = (stats[t.status] || 0) + 1
     stats.total++
+    // SLA breach check inline
+    if ((t.status === 'open' || t.status === 'in_progress') && t.sla_resolve_due && t.sla_resolve_due < now) {
+      slaBreach++
+    }
+    // Collect ratings inline
+    if (t.rating != null) ratings.push(t.rating)
   }
 
-  // SLA breaches
-  const { data: breached } = await supabase.from('support_tickets')
-    .select('id')
-    .in('status', ['open', 'in_progress'])
-    .lt('sla_resolve_due', new Date().toISOString())
-
-  stats.sla_breached = breached?.length || 0
-
-  // Average rating
-  const { data: rated } = await supabase.from('support_tickets').select('rating').not('rating', 'is', null)
-  const ratings = (rated || []).map((r: any) => r.rating).filter(Boolean)
-  const avgRating = ratings.length > 0 ? (ratings.reduce((a: number, b: number) => a + b, 0) / ratings.length).toFixed(1) : null
+  stats.sla_breached = slaBreach
+  const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : null
 
   return c.json({ ...stats, avgRating, ratedCount: ratings.length })
 })

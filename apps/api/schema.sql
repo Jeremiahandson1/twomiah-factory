@@ -65,6 +65,8 @@ create table if not exists tenants (
 create index if not exists idx_tenants_slug on tenants(slug);
 create index if not exists idx_tenants_status on tenants(status);
 create index if not exists idx_tenants_billing_status on tenants(billing_status);
+create index if not exists idx_tenants_billing_type on tenants(billing_type);
+create index if not exists idx_tenants_billing_composite on tenants(billing_type, billing_status);
 create index if not exists idx_tenants_stripe_subscription on tenants(stripe_subscription_id);
 
 
@@ -177,6 +179,7 @@ create index if not exists idx_support_tickets_tenant on support_tickets(tenant_
 create index if not exists idx_support_tickets_status on support_tickets(status);
 create index if not exists idx_support_tickets_priority on support_tickets(priority);
 create index if not exists idx_support_tickets_assigned on support_tickets(assigned_to);
+create index if not exists idx_support_tickets_sla_due on support_tickets(sla_resolve_due) where status in ('open', 'in_progress');
 
 alter table support_tickets enable row level security;
 create policy "Service role full access on support_tickets"
