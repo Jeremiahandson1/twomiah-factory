@@ -171,6 +171,15 @@ export const FEATURE_CATEGORIES = [
     ]
   },
   {
+    id: 'addons',
+    name: 'Add-Ons',
+    icon: 'Sparkles',
+    description: 'Optional white-labeled products',
+    features: [
+      { id: 'visualizer', name: 'Home Visualizer', description: 'AI-powered visualization tool — white-labeled and embedded in your website' },
+    ]
+  },
+  {
     id: 'advanced',
     name: 'Advanced Features & AI',
     icon: 'Sparkles',

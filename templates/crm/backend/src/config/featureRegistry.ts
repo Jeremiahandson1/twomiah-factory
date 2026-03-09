@@ -354,6 +354,23 @@ export const FEATURE_REGISTRY = {
   },
 
   // ============================================
+  // ADD-ONS (optional white-labeled products)
+  // ============================================
+  addons: {
+    name: 'Add-Ons',
+    description: 'Optional white-labeled products',
+    features: {
+      visualizer: {
+        id: 'visualizer',
+        name: 'Home Visualizer',
+        description: 'AI-powered home visualization tool embedded in your site',
+        icon: 'camera',
+        routes: ['/visualizer', '/api/visualizer'],
+      },
+    },
+  },
+
+  // ============================================
   // REPORTING
   // ============================================
   reporting: {

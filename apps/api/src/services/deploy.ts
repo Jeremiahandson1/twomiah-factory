@@ -679,6 +679,10 @@ export async function deployCustomer(
         if (results.services.site?.id) {
           await updateRenderEnvVars(results.services.site.id, [{ key: 'VISION_URL', value: visionUrl }])
         }
+        // Set VISION_URL on the CRM backend so the visualizer page can iframe it
+        if (results.services.backend?.id) {
+          await updateRenderEnvVars(results.services.backend.id, [{ key: 'VISION_URL', value: visionUrl }])
+        }
       } catch (err: any) {
         results.steps.push({ step: 'render_vision', status: 'error', error: err.message })
         results.errors.push('Vision: ' + err.message)
