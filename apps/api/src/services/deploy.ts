@@ -632,8 +632,11 @@ export async function deployCustomer(
       }
     }
 
-    // Step 8: Vision service
-    if (products.includes('vision')) {
+    // Step 8: Vision
+    // Standalone (vision only, no website) → create a separate Render service.
+    // Bundled with website → embedded in the contractor template, no separate service.
+    if (products.includes('vision') && !products.includes('website')) {
+      // Standalone Vision — separate Render service
       try {
         const visionName = slug + '-vision'
         await findAndDeleteRenderService(visionName)
@@ -643,16 +646,15 @@ export async function deployCustomer(
           { key: 'NODE_ENV', value: 'production' },
           { key: 'PORT', value: '10000' },
         ]
-        // Add Vision-specific env vars from customer config/integrations if available
-        const integrations = factoryCustomer.config?.integrations || {} as any
-        if (integrations.supabaseUrl) visionEnvVars.push({ key: 'NEXT_PUBLIC_SUPABASE_URL', value: integrations.supabaseUrl })
-        if (integrations.supabaseAnonKey) visionEnvVars.push({ key: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', value: integrations.supabaseAnonKey })
-        if (integrations.supabaseServiceKey) visionEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: integrations.supabaseServiceKey })
-        if (integrations.openaiKey) visionEnvVars.push({ key: 'OPENAI_API_KEY', value: integrations.openaiKey })
-        if (integrations.stripeSecretKey) visionEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripeSecretKey })
-        if (integrations.stripePublishableKey) visionEnvVars.push({ key: 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', value: integrations.stripePublishableKey })
-        if (integrations.stripeWebhookSecret) visionEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: integrations.stripeWebhookSecret })
-        if (integrations.resendKey) visionEnvVars.push({ key: 'RESEND_API_KEY', value: integrations.resendKey })
+        const visionIntegrations = factoryCustomer.config?.integrations || {} as any
+        if (visionIntegrations.supabaseUrl) visionEnvVars.push({ key: 'NEXT_PUBLIC_SUPABASE_URL', value: visionIntegrations.supabaseUrl })
+        if (visionIntegrations.supabaseAnonKey) visionEnvVars.push({ key: 'NEXT_PUBLIC_SUPABASE_ANON_KEY', value: visionIntegrations.supabaseAnonKey })
+        if (visionIntegrations.supabaseServiceKey) visionEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: visionIntegrations.supabaseServiceKey })
+        if (visionIntegrations.openaiKey) visionEnvVars.push({ key: 'OPENAI_API_KEY', value: visionIntegrations.openaiKey })
+        if (visionIntegrations.stripeSecretKey) visionEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: visionIntegrations.stripeSecretKey })
+        if (visionIntegrations.stripePublishableKey) visionEnvVars.push({ key: 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY', value: visionIntegrations.stripePublishableKey })
+        if (visionIntegrations.stripeWebhookSecret) visionEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: visionIntegrations.stripeWebhookSecret })
+        if (visionIntegrations.resendKey) visionEnvVars.push({ key: 'RESEND_API_KEY', value: visionIntegrations.resendKey })
 
         const vision = await createRenderWebService({
           name: visionName, repoFullName: repo.full_name, rootDir: 'vision',
@@ -660,7 +662,7 @@ export async function deployCustomer(
           envVars: visionEnvVars,
           plan: 'standard', region,
         })
-        console.log('[Deploy] Vision creation response:', JSON.stringify(vision, null, 2))
+        console.log('[Deploy] Vision (standalone) creation response:', JSON.stringify(vision, null, 2))
         const visionSvc = vision.service || vision
         results.steps.push({ step: 'render_vision', status: 'ok', serviceId: visionSvc.id })
         results.services.vision = visionSvc
@@ -671,17 +673,8 @@ export async function deployCustomer(
         const visionSlug = visionSvc.slug || visionName
         const visionUrl = 'https://' + visionSlug + '.onrender.com'
         results.visionUrl = visionUrl
-        // Set NEXT_PUBLIC_BASE_URL on the vision service now that we know the actual URL
         if (visionSvc.id) {
           await updateRenderEnvVars(visionSvc.id, [{ key: 'NEXT_PUBLIC_BASE_URL', value: visionUrl }])
-        }
-        // Set VISION_URL on the website service so /visualize redirects work
-        if (results.services.site?.id) {
-          await updateRenderEnvVars(results.services.site.id, [{ key: 'VISION_URL', value: visionUrl }])
-        }
-        // Set VISION_URL on the CRM backend so the visualizer page can iframe it
-        if (results.services.backend?.id) {
-          await updateRenderEnvVars(results.services.backend.id, [{ key: 'VISION_URL', value: visionUrl }])
         }
       } catch (err: any) {
         results.steps.push({ step: 'render_vision', status: 'error', error: err.message })
@@ -689,13 +682,22 @@ export async function deployCustomer(
       }
     }
 
-    // Register tenant with shared home-visualizer so /visualize embed works
-    if (products.includes('website') && (factoryCustomer.config?.features?.website || []).includes('visualizer')) {
+    // Bundled Vision — integrated into contractor website template.
+    // Register tenant with shared Vision backend and set VISION_URL on site + CRM.
+    if (products.includes('website') && (products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer'))) {
       try {
         await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
         results.steps.push({ step: 'visualizer_tenant', status: 'ok' })
+
+        const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://twomiah-vision.onrender.com'
+        results.visionUrl = sharedVisionUrl
+        if (results.services.site?.id) {
+          await updateRenderEnvVars(results.services.site.id, [{ key: 'VISION_URL', value: sharedVisionUrl }])
+        }
+        if (results.services.backend?.id) {
+          await updateRenderEnvVars(results.services.backend.id, [{ key: 'VISION_URL', value: sharedVisionUrl }])
+        }
       } catch (err: any) {
-        // Non-critical — tenant can be registered manually later
         console.warn('[Deploy] Could not register visualizer tenant:', err.message)
         results.steps.push({ step: 'visualizer_tenant', status: 'warning', error: err.message })
       }

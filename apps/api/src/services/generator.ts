@@ -163,7 +163,9 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding)
     }
 
-    if (products.includes('vision')) {
+    // Only clone vision repo for standalone vision (no website).
+    // When bundled with the website, the visualizer is built into the contractor template.
+    if (products.includes('vision') && !products.includes('website')) {
       cloneVisionRepo(path.join(workDir, 'vision'))
     }
 
@@ -685,7 +687,7 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
   if (products.includes('website')) {
     readme += '## Website (`/website`)\n\n```bash\ncd website && bun install && bun start\n```\n\n'
   }
-  if (products.includes('vision')) {
+  if (products.includes('vision') && !products.includes('website')) {
     readme += '## Twomiah Vision (`/vision`)\n\nAI home exterior visualizer (Next.js).\n\n```bash\ncd vision && npm install && npm run build && npm start\n```\n\nRequires env vars: see `vision/env.example`\n\n'
   }
   readme += '## Deploy to Render\n\nPush to GitHub and select `render.yaml` as your Render Blueprint.\n'
