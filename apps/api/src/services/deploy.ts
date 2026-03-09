@@ -559,7 +559,7 @@ export async function deployCustomer(
 
         // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
-        const backendBuild = bunSetup + ' && bun install && cd ../frontend && bun install && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend'
+        const backendBuild = bunSetup + ' && cd ../frontend && bun install && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install'
         const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',

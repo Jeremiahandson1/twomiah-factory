@@ -8,7 +8,7 @@ services:
     runtime: node
     plan: starter
     rootDir: crm-automotive/backend
-    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && bun install && cd ../frontend && bun install && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend
+    buildCommand: curl -fsSL https://bun.sh/install | bash && export PATH="$HOME/.bun/bin:$PATH" && cd ../frontend && bun install && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install
     startCommand: export PATH="$HOME/.bun/bin:$PATH" && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts
     envVars:
       - key: DATABASE_URL
