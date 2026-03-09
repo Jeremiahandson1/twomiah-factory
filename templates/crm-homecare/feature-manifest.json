@@ -31,7 +31,9 @@
       ],
       "services": [
         "logger.ts",
-        "socket.ts"
+        "socket.ts",
+        "email.ts",
+        "pdf.ts"
       ]
     },
     "frontend": {
@@ -136,7 +138,7 @@
       "description": "Unified lead inbox from external sources (Angi, HomeAdvisor, Thumbtack, Google LSA, Houzz)",
       "backend": {
         "routes": ["leads.ts"],
-        "services": []
+        "services": ["audit.ts"]
       },
       "frontend": {
         "pages": ["leads/LeadInboxPage", "leads/LeadSourcesPage"]

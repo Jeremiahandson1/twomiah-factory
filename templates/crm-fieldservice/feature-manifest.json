@@ -106,7 +106,7 @@
       "sidebar": null
     },
     "map_view": {
-      "backend": { "routes": ["maps.ts"] },
+      "backend": { "routes": ["maps.ts"], "services": ["geocoding.ts"] },
       "frontend": { "components": ["common/Maps.tsx"] },
       "sidebar": null
     },
@@ -186,7 +186,7 @@
       "sidebar": null
     },
     "client_portal": {
-      "backend": { "routes": ["portal.ts", "portal-selections.ts"] },
+      "backend": { "routes": ["portal.ts", "portal-selections.ts"], "services": ["selections.ts"] },
       "frontend": { "components": ["portal/"] },
       "sidebar": null
     },

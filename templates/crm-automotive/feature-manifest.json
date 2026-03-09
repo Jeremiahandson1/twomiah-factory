@@ -6,7 +6,7 @@
     "features": ["contacts", "team", "dashboard", "vehicle_inventory", "sales_pipeline", "service_department", "service_to_sales"],
     "backend": {
       "routes": ["auth.ts", "contacts.ts", "team.ts", "company.ts", "dashboard.ts", "audit.ts", "support.ts", "leads.ts", "vehicles.ts", "salesLeads.ts", "repairOrders.ts", "alerts.ts"],
-      "services": ["audit.ts", "logger.ts", "socket.ts"],
+      "services": ["audit.ts", "email.ts", "logger.ts", "socket.ts"],
       "middleware": ["auth.ts", "permissions.ts", "security.ts"]
     },
     "frontend": {
