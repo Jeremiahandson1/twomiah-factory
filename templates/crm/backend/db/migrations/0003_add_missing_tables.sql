@@ -20,3 +20,28 @@ CREATE TABLE IF NOT EXISTS "quickbooks_connection" (
 );
 
 CREATE INDEX IF NOT EXISTS "qb_connection_company_id_idx" ON "quickbooks_connection" ("company_id");
+
+-- Add missing columns to call_log table
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "source" text;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "campaign" text;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "medium" text;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "keyword" text;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "landing_page" text;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "direction" text DEFAULT 'inbound';
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "start_time" timestamp;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "end_time" timestamp;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "transcription" text;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "tags" json;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "first_time_caller" boolean DEFAULT false;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "provider_id" text;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "is_lead" boolean DEFAULT false;
+ALTER TABLE "call_log" ADD COLUMN IF NOT EXISTS "lead_value" numeric(12, 2);
+
+-- Add missing columns to tracking_number table
+ALTER TABLE "tracking_number" ADD COLUMN IF NOT EXISTS "campaign" text;
+ALTER TABLE "tracking_number" ADD COLUMN IF NOT EXISTS "medium" text;
+ALTER TABLE "tracking_number" ADD COLUMN IF NOT EXISTS "provider_id" text;
+ALTER TABLE "tracking_number" ADD COLUMN IF NOT EXISTS "provider" text;
+ALTER TABLE "tracking_number" ADD COLUMN IF NOT EXISTS "updated_at" timestamp DEFAULT now();
+-- Make forward_to nullable (service passes null)
+ALTER TABLE "tracking_number" ALTER COLUMN "forward_to" DROP NOT NULL;
