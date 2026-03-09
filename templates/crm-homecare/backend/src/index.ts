@@ -84,6 +84,7 @@ import schedulesAllRoutes from './routes/schedulesAll.ts'
 import schedulesEnhancedRoutes from './routes/schedulesEnhanced.ts'
 import shiftSwapsRoutes from './routes/shiftSwaps.ts'
 import trainingRecordsRoutes from './routes/trainingRecords.ts'
+import failsafeRoutes from './routes/failsafe.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -198,6 +199,7 @@ app.route('/api/schedules-all', schedulesAllRoutes)
 app.route('/api/schedules-enhanced', schedulesEnhancedRoutes)
 app.route('/api/shift-swaps', shiftSwapsRoutes)
 app.route('/api/training-records', trainingRecordsRoutes)
+app.route('/api/failsafe', failsafeRoutes)
 
 // ── Alias mounts: frontend uses shorthand paths for some routes ──
 app.route('/api/schedules', schedulingRoutes)
@@ -207,6 +209,9 @@ app.route('/api/route-optimizer', optimizerRoutes)
 
 // Error handler
 app.onError(errorHandler)
+
+// ── API 404 handler: catch unmatched /api/* before SPA fallback returns HTML ──
+app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
 
 // ─── Serve frontend SPA from backend (no separate static site needed) ────────
 const hasFrontendBuild = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'))

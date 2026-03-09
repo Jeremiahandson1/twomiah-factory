@@ -343,6 +343,65 @@ app.post('/:id/background-checks', requireAdmin, async (c) => {
   return c.json(safe, 201)
 })
 
+// GET /api/users/caregivers — list users with role=caregiver (alias-only route)
+app.get('/caregivers', async (c) => {
+  const { search, isActive = 'true', page = '1', limit = '50' } = c.req.query()
+  const skip = (parseInt(page) - 1) * parseInt(limit)
+  const conditions: any[] = [eq(users.role, 'caregiver')]
+  if (isActive !== 'all') conditions.push(eq(users.isActive, isActive === 'true'))
+  if (search) {
+    conditions.push(
+      or(
+        ilike(users.firstName, '%' + search + '%'),
+        ilike(users.lastName, '%' + search + '%'),
+        ilike(users.email, '%' + search + '%'),
+      )
+    )
+  }
+  const whereClause = and(...conditions)
+  const [rows, [{ value: total }]] = await Promise.all([
+    db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email, phone: users.phone, isActive: users.isActive, role: users.role })
+      .from(users).where(whereClause).orderBy(asc(users.lastName)).offset(skip).limit(parseInt(limit)),
+    db.select({ value: count() }).from(users).where(whereClause),
+  ])
+  return c.json({ users: rows, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+})
+
+// GET /api/users/admins — list users with role=admin
+app.get('/admins', async (c) => {
+  const { page = '1', limit = '50' } = c.req.query()
+  const skip = (parseInt(page) - 1) * parseInt(limit)
+  const whereClause = or(eq(users.role, 'admin'), eq(users.role, 'owner'))
+  const [rows, [{ value: total }]] = await Promise.all([
+    db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email, phone: users.phone, isActive: users.isActive, role: users.role })
+      .from(users).where(whereClause).orderBy(asc(users.lastName)).offset(skip).limit(parseInt(limit)),
+    db.select({ value: count() }).from(users).where(whereClause),
+  ])
+  return c.json({ users: rows, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+})
+
+// PUT /api/users/:id/reset-password
+app.put('/:id/reset-password', requireAdmin, async (c) => {
+  const id = c.req.param('id')
+  const { password } = await c.req.json()
+  if (!password || password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400)
+  const passwordHash = await bcrypt.hash(password, 12)
+  await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, id))
+  return c.json({ success: true })
+})
+
+// POST /api/users/convert-to-admin
+app.post('/convert-to-admin', requireAdmin, async (c) => {
+  const { userId } = await c.req.json()
+  if (!userId) return c.json({ error: 'userId required' }, 400)
+  const [updated] = await db.update(users)
+    .set({ role: 'admin', updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning()
+  if (!updated) return c.json({ error: 'User not found' }, 404)
+  return c.json({ id: updated.id, role: updated.role })
+})
+
 // PATCH /api/caregivers/:id/toggle-active
 app.patch('/:id/toggle-active', requireAdmin, async (c) => {
   const id = c.req.param('id')

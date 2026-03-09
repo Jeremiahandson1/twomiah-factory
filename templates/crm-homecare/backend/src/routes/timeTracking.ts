@@ -174,6 +174,103 @@ app.get('/active', requireAdmin, async (c) => {
   return c.json(result)
 })
 
+// GET /api/time-entries/recent — recent entries for the current caregiver
+app.get('/recent', async (c) => {
+  const user = c.get('user') as any
+  const limit = parseInt(c.req.query('limit') || '10')
+  const conditions = [eq(timeEntries.isComplete, true)]
+  if (user.role === 'caregiver') conditions.push(eq(timeEntries.caregiverId, user.userId))
+
+  const entries = await db.select({
+    id: timeEntries.id,
+    caregiverId: timeEntries.caregiverId,
+    clientId: timeEntries.clientId,
+    startTime: timeEntries.startTime,
+    endTime: timeEntries.endTime,
+    durationMinutes: timeEntries.durationMinutes,
+    isComplete: timeEntries.isComplete,
+    notes: timeEntries.notes,
+    clientFirstName: clients.firstName,
+    clientLastName: clients.lastName,
+  })
+    .from(timeEntries)
+    .leftJoin(clients, eq(clients.id, timeEntries.clientId))
+    .where(and(...conditions))
+    .orderBy(desc(timeEntries.startTime))
+    .limit(limit)
+
+  return c.json(entries.map(e => ({
+    ...e,
+    client: { firstName: e.clientFirstName, lastName: e.clientLastName },
+  })))
+})
+
+// GET /api/time-entries/check-warnings — check for clock-in/out warnings
+app.get('/check-warnings', async (c) => {
+  const user = c.get('user') as any
+  const warnings: any[] = []
+
+  // Check for long-running active sessions (> 12 hours)
+  const activeEntries = await db.select({ id: timeEntries.id, startTime: timeEntries.startTime, caregiverId: timeEntries.caregiverId })
+    .from(timeEntries)
+    .where(and(isNull(timeEntries.endTime), eq(timeEntries.isComplete, false)))
+
+  const now = Date.now()
+  for (const entry of activeEntries) {
+    const hours = (now - entry.startTime.getTime()) / 3600000
+    if (hours > 12) {
+      warnings.push({ type: 'long_session', timeEntryId: entry.id, caregiverId: entry.caregiverId, hours: Math.round(hours) })
+    }
+  }
+
+  return c.json({ warnings })
+})
+
+// GET /api/time-entries/caregiver-history/:id — time entry history for a specific caregiver
+app.get('/caregiver-history/:id', async (c) => {
+  const caregiverId = c.req.param('id')
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = parseInt(c.req.query('limit') || '50')
+  const skip = (page - 1) * limit
+
+  const [entries, [{ value: total }]] = await Promise.all([
+    db.select({
+      id: timeEntries.id,
+      clientId: timeEntries.clientId,
+      startTime: timeEntries.startTime,
+      endTime: timeEntries.endTime,
+      durationMinutes: timeEntries.durationMinutes,
+      billableMinutes: timeEntries.billableMinutes,
+      isComplete: timeEntries.isComplete,
+      notes: timeEntries.notes,
+      clientFirstName: clients.firstName,
+      clientLastName: clients.lastName,
+    })
+      .from(timeEntries)
+      .leftJoin(clients, eq(clients.id, timeEntries.clientId))
+      .where(eq(timeEntries.caregiverId, caregiverId))
+      .orderBy(desc(timeEntries.startTime))
+      .offset(skip)
+      .limit(limit),
+    db.select({ value: count() }).from(timeEntries).where(eq(timeEntries.caregiverId, caregiverId)),
+  ])
+
+  return c.json({
+    entries: entries.map(e => ({ ...e, client: { firstName: e.clientFirstName, lastName: e.clientLastName } })),
+    total, page, pages: Math.ceil(total / limit),
+  })
+})
+
+// GET /api/time-entries/caregiver-gps/:id — GPS trail for a caregiver's recent entries
+app.get('/caregiver-gps/:id', async (c) => {
+  const caregiverId = c.req.param('id')
+  const points = await db.select().from(gpsTracking)
+    .where(eq(gpsTracking.caregiverId, caregiverId))
+    .orderBy(desc(gpsTracking.timestamp))
+    .limit(100)
+  return c.json(points)
+})
+
 // POST /api/time-tracking/clock-in
 app.post('/clock-in', async (c) => {
   const user = c.get('user') as any
@@ -268,6 +365,71 @@ app.post('/gps', async (c) => {
       speed,
       heading,
     })
+    .returning()
+  return c.json(point, 201)
+})
+
+// POST /api/time-entries/:id/clock-out — parameterized clock-out (frontend uses this path)
+app.post('/:id/clock-out', async (c) => {
+  const user = c.get('user') as any
+  const timeEntryId = c.req.param('id')
+  const body = await c.req.json()
+  const { clockOutLocation, notes } = body
+  const caregiverId = user.role === 'caregiver' ? user.userId : body.caregiverId
+
+  const [entry] = await db.select().from(timeEntries)
+    .where(and(eq(timeEntries.id, timeEntryId), eq(timeEntries.caregiverId, caregiverId), isNull(timeEntries.endTime)))
+    .limit(1)
+  if (!entry) return c.json({ error: 'Active time entry not found' }, 404)
+
+  const endTime = new Date()
+  const durationMinutes = Math.round((endTime.getTime() - entry.startTime.getTime()) / 60000)
+
+  const [updated] = await db.update(timeEntries)
+    .set({
+      endTime,
+      durationMinutes,
+      billableMinutes: durationMinutes,
+      clockOutLocation,
+      notes: notes || entry.notes,
+      isComplete: true,
+      updatedAt: new Date(),
+    })
+    .where(eq(timeEntries.id, entry.id))
+    .returning()
+
+  if (process.env.ENABLE_SANDATA_EVV === 'true') {
+    try {
+      const clockIn = entry.clockInLocation as any
+      const clockOut = clockOutLocation as any
+      await db.insert(evvVisits).values({
+        timeEntryId: entry.id,
+        clientId: entry.clientId,
+        caregiverId: entry.caregiverId,
+        serviceDate: entry.startTime.toISOString().split('T')[0],
+        actualStart: entry.startTime,
+        actualEnd: endTime,
+        gpsInLat: clockIn?.lat ?? null,
+        gpsInLng: clockIn?.lng ?? null,
+        gpsOutLat: clockOut?.lat ?? null,
+        gpsOutLng: clockOut?.lng ?? null,
+        evvMethod: (clockIn?.lat || clockOut?.lat) ? 'gps' : 'manual',
+      }).onConflictDoNothing()
+    } catch (evvErr: any) {
+      console.warn('[EVV] Auto-create failed for time entry', entry.id, ':', evvErr.message)
+    }
+  }
+
+  return c.json(updated)
+})
+
+// POST /api/time-entries/:id/gps — parameterized GPS log (frontend uses this path)
+app.post('/:id/gps', async (c) => {
+  const user = c.get('user') as any
+  const timeEntryId = c.req.param('id')
+  const { latitude, longitude, accuracy, speed, heading } = await c.req.json()
+  const [point] = await db.insert(gpsTracking)
+    .values({ caregiverId: user.userId, timeEntryId, latitude, longitude, accuracy, speed, heading })
     .returning()
   return c.json(point, 201)
 })
