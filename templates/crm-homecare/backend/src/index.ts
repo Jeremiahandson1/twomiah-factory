@@ -50,6 +50,40 @@ import adlRoutes from './routes/adl.ts'
 import applicationsRoutes from './routes/applications.ts'
 import alertsRoutes from './routes/alerts.ts'
 import emergencyRoutes from './routes/emergency.ts'
+import absencesRoutes from './routes/absences.ts'
+import auditLogsRoutes from './routes/auditLogs.ts'
+import backgroundChecksRoutes from './routes/backgroundChecks.ts'
+import blackoutDatesRoutes from './routes/blackoutDates.ts'
+import carePlansRoutes from './routes/carePlans.ts'
+import careTypesRoutes from './routes/careTypes.ts'
+import caregiverAvailabilityRoutes from './routes/caregiverAvailability.ts'
+import caregiverCareTypeRatesRoutes from './routes/caregiverCareTypeRates.ts'
+import caregiverProfileRoutes from './routes/caregiverProfile.ts'
+import certificationsRoutes from './routes/certifications.ts'
+import communicationLogRoutes from './routes/communicationLog.ts'
+import expensesRoutes from './routes/expenses.ts'
+import familyPortalRoutes from './routes/familyPortal.ts'
+import forecastRoutes from './routes/forecast.ts'
+import gustoRoutes from './routes/gusto.ts'
+import incidentsRoutes from './routes/incidents.ts'
+import matchingRoutes from './routes/matching.ts'
+import medicationsRoutes from './routes/medications.ts'
+import messagesRoutes from './routes/messages.ts'
+import mileageRoutes from './routes/mileage.ts'
+import noShowRoutes from './routes/noShow.ts'
+import notificationSettingsRoutes from './routes/notificationSettings.ts'
+import openShiftsRoutes from './routes/openShifts.ts'
+import performanceReviewsRoutes from './routes/performanceReviews.ts'
+import prospectAppointmentsRoutes from './routes/prospectAppointments.ts'
+import prospectsRoutes from './routes/prospects.ts'
+import ptoRoutes from './routes/pto.ts'
+import referralSourcesRoutes from './routes/referralSources.ts'
+import rosterOptimizerRoutes from './routes/rosterOptimizer.ts'
+import sandataRoutes from './routes/sandata.ts'
+import schedulesAllRoutes from './routes/schedulesAll.ts'
+import schedulesEnhancedRoutes from './routes/schedulesEnhanced.ts'
+import shiftSwapsRoutes from './routes/shiftSwaps.ts'
+import trainingRecordsRoutes from './routes/trainingRecords.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -130,6 +164,40 @@ app.route('/api/adl', adlRoutes)
 app.route('/api/applications', applicationsRoutes)
 app.route('/api/alerts', alertsRoutes)
 app.route('/api/emergency', emergencyRoutes)
+app.route('/api/absences', absencesRoutes)
+app.route('/api/audit-logs', auditLogsRoutes)
+app.route('/api/background-checks', backgroundChecksRoutes)
+app.route('/api/blackout-dates', blackoutDatesRoutes)
+app.route('/api/care-plans', carePlansRoutes)
+app.route('/api/care-types', careTypesRoutes)
+app.route('/api/caregiver-availability', caregiverAvailabilityRoutes)
+app.route('/api/caregiver-care-type-rates', caregiverCareTypeRatesRoutes)
+app.route('/api/caregiver-profile', caregiverProfileRoutes)
+app.route('/api/certifications', certificationsRoutes)
+app.route('/api/communication-log', communicationLogRoutes)
+app.route('/api/expenses', expensesRoutes)
+app.route('/api/family-portal', familyPortalRoutes)
+app.route('/api/forecast', forecastRoutes)
+app.route('/api/gusto', gustoRoutes)
+app.route('/api/incidents', incidentsRoutes)
+app.route('/api/matching', matchingRoutes)
+app.route('/api/medications', medicationsRoutes)
+app.route('/api/messages', messagesRoutes)
+app.route('/api/mileage', mileageRoutes)
+app.route('/api/no-show', noShowRoutes)
+app.route('/api/notification-settings', notificationSettingsRoutes)
+app.route('/api/open-shifts', openShiftsRoutes)
+app.route('/api/performance-reviews', performanceReviewsRoutes)
+app.route('/api/prospect-appointments', prospectAppointmentsRoutes)
+app.route('/api/prospects', prospectsRoutes)
+app.route('/api/pto', ptoRoutes)
+app.route('/api/referral-sources', referralSourcesRoutes)
+app.route('/api/roster-optimizer', rosterOptimizerRoutes)
+app.route('/api/sandata', sandataRoutes)
+app.route('/api/schedules-all', schedulesAllRoutes)
+app.route('/api/schedules-enhanced', schedulesEnhancedRoutes)
+app.route('/api/shift-swaps', shiftSwapsRoutes)
+app.route('/api/training-records', trainingRecordsRoutes)
 
 // ── Alias mounts: frontend uses shorthand paths for some routes ──
 app.route('/api/schedules', schedulingRoutes)
