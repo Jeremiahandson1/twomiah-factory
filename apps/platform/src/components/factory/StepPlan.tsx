@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Check, Lock, Sparkles, ArrowRight } from 'lucide-react'
+import { Check, Sparkles, ArrowRight } from 'lucide-react'
 import type { FactoryConfig } from './types'
 import {
   type ProductLine, type PlanSelection,
@@ -15,7 +14,7 @@ type Props = {
   onNext: () => void
 }
 
-export default function StepPlan({ product, config, setConfig, plan, setPlan, onNext }: Props) {
+export default function StepPlan({ product, setConfig, plan, setPlan, onNext }: Props) {
   const meta = PRODUCT_META[product]
   const plans = PLANS_BY_PRODUCT[product]
   const isAnnual = plan.billingCycle === 'annual'
