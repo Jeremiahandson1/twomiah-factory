@@ -228,6 +228,29 @@ app.post('/clock-out', async (c) => {
     .where(eq(timeEntries.id, entry.id))
     .returning()
 
+  // Auto-create EVV visit on clock-out (non-blocking)
+  if (process.env.ENABLE_SANDATA_EVV === 'true') {
+    try {
+      const clockIn = entry.clockInLocation as any
+      const clockOut = clockOutLocation as any
+      await db.insert(evvVisits).values({
+        timeEntryId: entry.id,
+        clientId: entry.clientId,
+        caregiverId: entry.caregiverId,
+        serviceDate: entry.startTime.toISOString().split('T')[0],
+        actualStart: entry.startTime,
+        actualEnd: endTime,
+        gpsInLat: clockIn?.lat ?? null,
+        gpsInLng: clockIn?.lng ?? null,
+        gpsOutLat: clockOut?.lat ?? null,
+        gpsOutLng: clockOut?.lng ?? null,
+        evvMethod: (clockIn?.lat || clockOut?.lat) ? 'gps' : 'manual',
+      }).onConflictDoNothing()
+    } catch (evvErr: any) {
+      console.warn('[EVV] Auto-create failed for time entry', entry.id, ':', evvErr.message)
+    }
+  }
+
   return c.json(updated)
 })
 
