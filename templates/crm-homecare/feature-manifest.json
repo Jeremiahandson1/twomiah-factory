@@ -27,7 +27,12 @@
         "audit.ts",
         "payers.ts",
         "serviceCodes.ts",
-        "authorizations.ts"
+        "authorizations.ts",
+        "help.ts",
+        "adl.ts",
+        "applications.ts",
+        "alerts.ts",
+        "emergency.ts"
       ],
       "services": [
         "logger.ts",

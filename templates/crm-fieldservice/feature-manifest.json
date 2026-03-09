@@ -6,7 +6,7 @@
     "features": ["contacts", "jobs", "quotes", "invoices", "scheduling", "team", "dashboard"],
     "backend": {
       "routes": ["auth.ts", "contacts.ts", "jobs.ts", "quotes.ts", "invoices.ts", "time.ts", "team.ts", "company.ts", "dashboard.ts", "projects.ts", "expenses.ts", "documents.ts", "payroll.ts", "webhooks.ts", "agencyAdmin.ts", "audit.ts", "billing.ts", "bulk.ts", "comments.ts", "export.ts", "gapFeatures.ts", "import.ts", "integrations.ts", "migration.ts", "portal-messages.ts", "push.ts", "search.ts", "support.ts", "tasks.ts", "weather.ts"],
-      "services": ["audit.ts", "billing.ts", "bulk.ts", "comments.ts", "customForms.ts", "drawSchedules.ts", "email.ts", "export.ts", "fileUpload.ts", "import.ts", "lienWaivers.ts", "logger.ts", "migration.ts", "pdf.ts", "push.ts", "search.ts", "socket.ts", "tasks.ts", "weather.ts"],
+      "services": ["audit.ts", "billing.ts", "booking.ts", "bulk.ts", "comments.ts", "customForms.ts", "drawSchedules.ts", "email.ts", "export.ts", "fileUpload.ts", "import.ts", "jobCosting.ts", "lienWaivers.ts", "logger.ts", "migration.ts", "pdf.ts", "push.ts", "search.ts", "socket.ts", "tasks.ts", "weather.ts"],
       "middleware": ["auth.ts", "featureGate.ts", "permissions.ts", "security.ts"]
     },
     "frontend": {
