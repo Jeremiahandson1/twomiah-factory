@@ -1,11 +1,15 @@
 import { useState } from 'react'
-import { Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { Search, ChevronDown, ChevronUp, Lock } from 'lucide-react'
 import type { FactoryConfig } from './types'
 import { NavButtons } from './StepProducts'
+import {
+  type PlanSelection, PLANS_BY_PRODUCT, getPlanTierIndex, getFeatureTier,
+} from './planData'
 
 type Props = {
   config: FactoryConfig
   setConfig: React.Dispatch<React.SetStateAction<FactoryConfig>>
+  plan?: PlanSelection
   onNext: () => void
   onBack: () => void
 }
@@ -129,7 +133,7 @@ const HOMECARE_MODULES = [
   { icon: '📱', label: 'Caregiver Portal', desc: 'Mobile clock in/out, shift pickup' },
 ]
 
-export default function StepFeatures({ config, setConfig, onNext, onBack }: Props) {
+export default function StepFeatures({ config, setConfig, plan, onNext, onBack }: Props) {
   const hasWebsite = config.products.includes('website')
   const hasCRM = config.products.includes('crm')
   const isHomeCare = config.company?.industry === 'home_care'
@@ -186,6 +190,7 @@ export default function StepFeatures({ config, setConfig, onNext, onBack }: Prop
             selected={config.features.crm}
             onChange={f => setFeatures('crm', f)}
             industry={config.company?.industry}
+            plan={plan}
           />
         )
       )}
@@ -231,9 +236,25 @@ function HomeCareIncluded() {
 
 const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing'])
 
-function CRMFeatures({ selected, onChange, industry }: { selected: string[], onChange: (f: string[]) => void, industry?: string }) {
+function CRMFeatures({ selected, onChange, industry, plan }: { selected: string[], onChange: (f: string[]) => void, industry?: string, plan?: PlanSelection }) {
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+
+  // Plan-based feature locking
+  const hasPlan = plan && plan.planId
+  const currentTierIdx = hasPlan ? getPlanTierIndex(plan.product, plan.planId) : -1
+  const plans = hasPlan ? PLANS_BY_PRODUCT[plan.product] : []
+  const planFeatures = hasPlan ? new Set(plans[currentTierIdx]?.features || []) : new Set<string>()
+
+  // Determine if a feature is locked by plan (included in current tier — can't uncheck)
+  const isLockedByPlan = (featureId: string) => hasPlan && planFeatures.has(featureId)
+  // Determine if a feature requires upgrade (exists in a higher tier only)
+  const getUpgradeTier = (featureId: string): string | null => {
+    if (!hasPlan) return null
+    const featureTierIdx = getFeatureTier(plan.product, featureId)
+    if (featureTierIdx < 0 || featureTierIdx <= currentTierIdx) return null
+    return plans[featureTierIdx]?.name || null
+  }
 
   const filteredRegistry = CRM_REGISTRY.filter(c =>
     c.category !== 'Field Service' || FIELD_SERVICE_INDUSTRIES.has(industry || '')
@@ -244,26 +265,38 @@ function CRMFeatures({ selected, onChange, industry }: { selected: string[], onC
 
   const toggle = (id: string) => {
     if (coreIds.includes(id)) return
+    if (isLockedByPlan(id)) return // Can't uncheck plan features
+    if (getUpgradeTier(id)) return // Can't check upgrade features
     onChange(selected.includes(id) ? selected.filter(f => f !== id) : [...selected, id])
   }
 
   const applyPreset = (preset: typeof CRM_PRESETS[0]) => {
+    if (hasPlan) return // Presets disabled when plan controls features
     if (preset.features === 'all') onChange([...allIds])
     else onChange([...preset.features])
   }
 
   return (
     <div className="mb-4">
-      <div className="grid grid-cols-4 gap-2 mb-4">
-        {CRM_PRESETS.map(p => (
-          <button key={p.id} onClick={() => applyPreset(p)}
-            className="text-left p-3 border border-gray-700 hover:border-gray-600 rounded-xl bg-gray-800/50 transition-all">
-            <div className="text-xl mb-1">{p.icon}</div>
-            <div className="text-white text-xs font-semibold">{p.name}</div>
-            <div className="text-gray-500 text-xs mt-0.5">{p.description}</div>
-          </button>
-        ))}
-      </div>
+      {hasPlan && (
+        <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mb-4">
+          <div className="text-orange-400 text-sm font-semibold">Features set by your plan — {plans[currentTierIdx]?.name}</div>
+          <p className="text-orange-300/70 text-xs mt-1">Features included in your plan are locked. Higher-tier features show upgrade labels.</p>
+        </div>
+      )}
+
+      {!hasPlan && (
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {CRM_PRESETS.map(p => (
+            <button key={p.id} onClick={() => applyPreset(p)}
+              className="text-left p-3 border border-gray-700 hover:border-gray-600 rounded-xl bg-gray-800/50 transition-all">
+              <div className="text-xl mb-1">{p.icon}</div>
+              <div className="text-white text-xs font-semibold">{p.name}</div>
+              <div className="text-gray-500 text-xs mt-0.5">{p.description}</div>
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-3 mb-3">
         <div className="relative flex-1">
@@ -272,8 +305,12 @@ function CRMFeatures({ selected, onChange, industry }: { selected: string[], onC
             className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-8 pr-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500" />
         </div>
         <span className="text-gray-500 text-xs whitespace-nowrap">{selected.length}/{allIds.length} selected</span>
-        <button onClick={() => onChange([...allIds])} className="text-orange-400 text-xs hover:text-orange-300 font-semibold">All</button>
-        <button onClick={() => onChange([...coreIds])} className="text-gray-400 text-xs hover:text-gray-300">Core only</button>
+        {!hasPlan && (
+          <>
+            <button onClick={() => onChange([...allIds])} className="text-orange-400 text-xs hover:text-orange-300 font-semibold">All</button>
+            <button onClick={() => onChange([...coreIds])} className="text-gray-400 text-xs hover:text-gray-300">Core only</button>
+          </>
+        )}
       </div>
 
       {filteredRegistry.map(cat => {
@@ -294,17 +331,28 @@ function CRMFeatures({ selected, onChange, industry }: { selected: string[], onC
             </button>
             {isOpen && (
               <div className="px-4 py-2 bg-gray-900/50">
-                {filtered.map(f => (
-                  <div key={f.id} onClick={() => toggle(f.id)}
-                    className={`flex items-center gap-3 py-2 ${f.core ? 'cursor-default' : 'cursor-pointer'}`}>
-                    <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${selected.includes(f.id) ? (f.core ? 'border-green-500 bg-green-500' : 'border-orange-500 bg-orange-500') : 'border-gray-600'}`}>
-                      {selected.includes(f.id) && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                {filtered.map(f => {
+                  const locked = f.core || isLockedByPlan(f.id)
+                  const upgradeTo = getUpgradeTier(f.id)
+                  const isUpgrade = !!upgradeTo
+                  return (
+                    <div key={f.id} onClick={() => toggle(f.id)}
+                      className={`flex items-center gap-3 py-2 ${locked || isUpgrade ? 'cursor-default' : 'cursor-pointer'} ${isUpgrade ? 'opacity-50' : ''}`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 border-2 transition-all ${
+                        isUpgrade ? 'border-gray-600 bg-transparent' :
+                        selected.includes(f.id) ? (locked ? 'border-green-500 bg-green-500' : 'border-orange-500 bg-orange-500') : 'border-gray-600'
+                      }`}>
+                        {selected.includes(f.id) && !isUpgrade && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+                        {isUpgrade && <Lock size={10} className="text-gray-500" />}
+                      </div>
+                      <span className={`text-sm ${isUpgrade ? 'text-gray-500' : 'text-white'}`}>{f.name}</span>
+                      {f.core && <span className="text-green-500 text-xs">CORE</span>}
+                      {isLockedByPlan(f.id) && !f.core && <span className="text-green-500 text-xs">PLAN</span>}
+                      {isUpgrade && <span className="text-yellow-500 text-xs">Upgrade to {upgradeTo}</span>}
+                      {!isUpgrade && f.description && <span className="text-gray-500 text-xs">{f.description}</span>}
                     </div>
-                    <span className="text-white text-sm">{f.name}</span>
-                    {f.core && <span className="text-green-500 text-xs">CORE</span>}
-                    {f.description && <span className="text-gray-500 text-xs">{f.description}</span>}
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

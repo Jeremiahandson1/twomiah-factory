@@ -35,6 +35,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={!session ? <LoginPage /> : <Navigate to="/" />} />
         <Route path="/care/signup" element={<CareSignupPage />} />
+        <Route path="/signup/:product" element={<FactoryPage />} />
         <Route path="/" element={session ? <AppLayout /> : <Navigate to="/login" />}>
           <Route index element={<DashboardPage />} />
           <Route path="tenants" element={<TenantsPage />} />
