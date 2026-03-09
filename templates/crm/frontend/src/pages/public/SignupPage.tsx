@@ -291,7 +291,9 @@ export default function SignupPage() {
         throw new Error(data.error || 'Failed to create account');
       }
 
-      sessionStorage.setItem('signup_token', data.token);
+      // Store tokens properly for the API client
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
       sessionStorage.setItem('signup_company_id', data.company.id);
       setStep(3);
     } catch (err) {
@@ -302,36 +304,10 @@ export default function SignupPage() {
   };
 
   const handleStartTrial = async () => {
-    setLoading(true);
-    setError('');
-
-    try {
-      const token = sessionStorage.getItem('signup_token');
-      
-      const response = await fetch(`${API_URL}/api/billing/start-trial`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ plan: selectedPlan }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to start trial');
-      }
-
-      localStorage.setItem('token', token);
-      sessionStorage.removeItem('signup_token');
-      sessionStorage.removeItem('signup_company_id');
-      navigate('/?welcome=true');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    // Trial is already started on signup (14-day trial built in).
+    // Just navigate to the app — tokens are already in localStorage.
+    sessionStorage.removeItem('signup_company_id');
+    navigate('/?welcome=true');
   };
 
   const handleSubscribe = async () => {
@@ -339,8 +315,8 @@ export default function SignupPage() {
     setError('');
 
     try {
-      const token = sessionStorage.getItem('signup_token');
-      
+      const token = localStorage.getItem('accessToken');
+
       const response = await fetch(`${API_URL}/api/billing/create-checkout`, {
         method: 'POST',
         headers: {

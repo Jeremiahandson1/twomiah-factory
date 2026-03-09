@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import {
   Inbox, Phone, MessageSquare, UserPlus, XCircle, Filter,
   Search, RefreshCw, ExternalLink, Clock, TrendingUp, ChevronDown
@@ -43,7 +42,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export default function LeadInboxPage() {
-  const { token } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,25 +53,36 @@ export default function LeadInboxPage() {
   const [showStats, setShowStats] = useState(true);
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('accessToken');
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: '25' });
-    if (statusFilter) params.set('status', statusFilter);
-    if (sourceFilter) params.set('source', sourceFilter);
-    if (search) params.set('search', search);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '25' });
+      if (statusFilter) params.set('status', statusFilter);
+      if (sourceFilter) params.set('source', sourceFilter);
+      if (search) params.set('search', search);
 
-    const res = await fetch(`/api/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    setLeads(json.data || []);
-    setTotalPages(json.pagination?.pages || 1);
+      const res = await fetch(`/api/leads?${params}`, { headers: getAuthHeaders() });
+      if (!res.ok) { setLoading(false); return; }
+      const json = await res.json();
+      setLeads(json.data || []);
+      setTotalPages(json.pagination?.pages || 1);
+    } catch { /* network error */ }
     setLoading(false);
-  }, [token, page, statusFilter, sourceFilter, search]);
+  }, [page, statusFilter, sourceFilter, search]);
 
   const fetchStats = useCallback(async () => {
-    const res = await fetch('/api/leads/stats', { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    setStats(json);
-  }, [token]);
+    try {
+      const res = await fetch('/api/leads/stats', { headers: getAuthHeaders() });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.totals && json.stats) setStats(json);
+    } catch { /* network error */ }
+  }, []);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -81,7 +90,7 @@ export default function LeadInboxPage() {
   const updateStatus = async (id: string, status: string) => {
     await fetch(`/api/leads/${id}/status`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
     fetchLeads();
@@ -91,7 +100,7 @@ export default function LeadInboxPage() {
   const convertToContact = async (id: string) => {
     const res = await fetch(`/api/leads/${id}/convert`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: getAuthHeaders(),
     });
     if (res.ok) {
       fetchLeads();

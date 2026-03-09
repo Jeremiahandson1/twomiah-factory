@@ -12,22 +12,24 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<any>(null);
+  const [activity, setActivity] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!authLoading) fetchStats();
+    if (!authLoading) fetchDashboardData();
   }, [authLoading]);
 
-  async function fetchStats() {
+  async function fetchDashboardData() {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_URL}/api/dashboard/stats`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        setStats(await res.json());
-      }
+      const headers = { 'Authorization': `Bearer ${token}` };
+      const [statsRes, activityRes] = await Promise.all([
+        fetch(`${API_URL}/api/dashboard/stats`, { headers }).catch(() => null),
+        fetch(`${API_URL}/api/dashboard/recent-activity`, { headers }).catch(() => null),
+      ]);
+      if (statsRes?.ok) setStats(await statsRes.json());
+      if (activityRes?.ok) setActivity(await activityRes.json());
     } catch (err) {
       // Stats may not be available yet
     } finally {
@@ -114,10 +116,10 @@ export default function CustomerPortal() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {[
-              { label: 'Contacts', value: stats.contactCount || 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: stats.openJobCount || stats.jobCount || 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: stats.pendingQuoteCount || 0, icon: FileText, color: 'amber' },
-              { label: 'Revenue (MTD)', value: `$${(stats.monthlyRevenue || 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
+              { label: 'Open Jobs', value: stats.jobs?.today ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Pending Quotes', value: stats.quotes?.pending ?? 0, icon: FileText, color: 'amber' },
+              { label: 'Outstanding', value: `$${(stats.invoices?.outstandingValue ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ].map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
@@ -225,16 +227,27 @@ export default function CustomerPortal() {
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
-            {stats?.recentActivity?.length > 0 ? (
-              stats.recentActivity.slice(0, 5).map((item, i) => (
-                <div key={i} className="px-6 py-3 flex items-center gap-3">
-                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                  <span className="text-sm text-slate-700">{item.description}</span>
-                  <span className="text-xs text-slate-400 ml-auto">
-                    {new Date(item.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              ))
+            {(activity?.recentJobs?.length > 0 || activity?.recentQuotes?.length > 0 || activity?.recentInvoices?.length > 0) ? (
+              <>
+                {(activity.recentJobs || []).slice(0, 3).map((item: any) => (
+                  <div key={item.id} className="px-6 py-3 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-blue-400" />
+                    <span className="text-sm text-slate-700">Job: {item.title || item.number} — {item.status?.replace('_', ' ') || 'pending'}</span>
+                    <span className="text-xs text-slate-400 ml-auto">
+                      {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}
+                    </span>
+                  </div>
+                ))}
+                {(activity.recentQuotes || []).slice(0, 2).map((item: any) => (
+                  <div key={item.id} className="px-6 py-3 flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-sm text-slate-700">Quote: {item.name || item.number} — ${Number(item.total || 0).toLocaleString()}</span>
+                    <span className="text-xs text-slate-400 ml-auto">
+                      {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}
+                    </span>
+                  </div>
+                ))}
+              </>
             ) : (
               <div className="px-6 py-8 text-center">
                 <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />

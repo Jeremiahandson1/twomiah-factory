@@ -156,21 +156,13 @@ app.post('/signup', async (c) => {
     return { company: newCompany, user: newUser }
   })
 
-  // Generate auth token
-  const token = jwt.sign(
-    {
-      userId: result.user.id,
-      companyId: result.company.id,
-      email: result.user.email,
-      role: result.user.role,
-    },
-    process.env.JWT_SECRET!,
-    { expiresIn: '24h' }
-  )
+  // Generate token pair (same as login/register)
+  const tokens = generateTokens(result.user.id, result.company.id, result.user.email, result.user.role)
+  await db.update(user).set({ refreshToken: tokens.refreshToken, updatedAt: new Date() }).where(eq(user.id, result.user.id))
 
   // Send welcome email
   try {
-    await emailService.sendWelcomeEmail(data.email, {
+    await emailService.sendWelcome(data.email, {
       firstName: data.firstName,
       companyName: data.companyName,
       plan: data.plan,
@@ -187,7 +179,6 @@ app.post('/signup', async (c) => {
   })
 
   return c.json({
-    token,
     user: {
       id: result.user.id,
       email: result.user.email,
@@ -200,9 +191,11 @@ app.post('/signup', async (c) => {
       name: result.company.name,
       slug: result.company.slug,
       enabledFeatures: result.company.enabledFeatures,
+      settings: result.company.settings,
       plan: data.plan,
       trialEndsAt,
     },
+    ...tokens,
   }, 201)
 })
 

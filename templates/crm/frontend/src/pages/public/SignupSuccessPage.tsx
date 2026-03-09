@@ -18,7 +18,7 @@ export default function SignupSuccessPage() {
       if (!sessionId) {
         // No session ID means they came from free trial flow
         if (token) {
-          localStorage.setItem('token', token);
+          localStorage.setItem('accessToken', token);
           sessionStorage.removeItem('signup_token');
           sessionStorage.removeItem('signup_company_id');
         }
@@ -40,7 +40,7 @@ export default function SignupSuccessPage() {
 
         // Store the token and clean up
         if (token) {
-          localStorage.setItem('token', token);
+          localStorage.setItem('accessToken', token);
           sessionStorage.removeItem('signup_token');
           sessionStorage.removeItem('signup_company_id');
         }

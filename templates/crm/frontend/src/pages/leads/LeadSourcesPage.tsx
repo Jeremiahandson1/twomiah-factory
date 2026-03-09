@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import {
   Settings, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Check,
   ExternalLink, Mail, Webhook, Info
@@ -76,20 +75,27 @@ const PLATFORMS = [
 ];
 
 export default function LeadSourcesPage() {
-  const { token } = useAuth();
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [copiedField, setCopiedField] = useState('');
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('accessToken');
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const fetchSources = useCallback(async () => {
     setLoading(true);
-    const res = await fetch('/api/leads/sources', { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    setSources(json.data || []);
+    try {
+      const res = await fetch('/api/leads/sources', { headers: getAuthHeaders() });
+      if (!res.ok) { setLoading(false); return; }
+      const json = await res.json();
+      setSources(json.data || []);
+    } catch { /* network error */ }
     setLoading(false);
-  }, [token]);
+  }, []);
 
   useEffect(() => { fetchSources(); }, [fetchSources]);
 
@@ -97,7 +103,7 @@ export default function LeadSourcesPage() {
     const info = PLATFORMS.find(p => p.value === platform);
     await fetch('/api/leads/sources', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ platform, label: info?.label || platform }),
     });
     setShowAdd(false);
@@ -108,7 +114,7 @@ export default function LeadSourcesPage() {
   const toggleSource = async (source: LeadSource) => {
     await fetch(`/api/leads/sources/${source.id}`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !source.enabled }),
     });
     fetchSources();
@@ -118,7 +124,7 @@ export default function LeadSourcesPage() {
     if (!confirm('Delete this lead source? Existing leads will be kept.')) return;
     await fetch(`/api/leads/sources/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: getAuthHeaders(),
     });
     fetchSources();
   };

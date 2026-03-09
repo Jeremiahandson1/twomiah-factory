@@ -94,14 +94,14 @@ export default function DashboardPage() {
           <div className="divide-y">
             {activity?.recentJobs?.length > 0 ? activity.recentJobs.map((job) => (
               <div key={job.id} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{job.title}</p>
-                <p className="text-sm text-gray-500">{job.number}</p>
+                <p className="font-medium text-gray-900 truncate">{job.title || 'Untitled'}</p>
+                <p className="text-sm text-gray-500">{job.number || '—'}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   job.status === 'completed' ? 'bg-green-100 text-green-700' :
                   job.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                   'bg-gray-100 text-gray-700'
                 }`}>
-                  {job.status.replace('_', ' ')}
+                  {(job.status || 'pending').replace('_', ' ')}
                 </span>
               </div>
             )) : (
@@ -119,15 +119,15 @@ export default function DashboardPage() {
           <div className="divide-y">
             {activity?.recentQuotes?.length > 0 ? activity.recentQuotes.map((quote) => (
               <div key={quote.id} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{quote.name}</p>
-                <p className="text-sm text-gray-500">{quote.number} • ${Number(quote.total).toLocaleString()}</p>
+                <p className="font-medium text-gray-900 truncate">{quote.name || 'Untitled'}</p>
+                <p className="text-sm text-gray-500">{quote.number || '—'} • ${Number(quote.total || 0).toLocaleString()}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   quote.status === 'approved' ? 'bg-green-100 text-green-700' :
                   quote.status === 'sent' ? 'bg-blue-100 text-blue-700' :
                   quote.status === 'rejected' ? 'bg-red-100 text-red-700' :
                   'bg-gray-100 text-gray-700'
                 }`}>
-                  {quote.status}
+                  {quote.status || 'draft'}
                 </span>
               </div>
             )) : (
@@ -145,10 +145,10 @@ export default function DashboardPage() {
           <div className="divide-y">
             {activity?.recentInvoices?.length > 0 ? activity.recentInvoices.map((invoice) => (
               <div key={invoice.id} className="p-4">
-                <p className="font-medium text-gray-900">{invoice.number}</p>
+                <p className="font-medium text-gray-900">{invoice.number || '—'}</p>
                 <p className="text-sm text-gray-500">
-                  ${Number(invoice.total).toLocaleString()}
-                  {Number(invoice.balance) > 0 && (
+                  ${Number(invoice.total || 0).toLocaleString()}
+                  {Number(invoice.balance || 0) > 0 && (
                     <span className="text-orange-500"> (${Number(invoice.balance).toLocaleString()} due)</span>
                   )}
                 </p>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
                   invoice.status === 'overdue' ? 'bg-red-100 text-red-700' :
                   'bg-gray-100 text-gray-700'
                 }`}>
-                  {invoice.status}
+                  {invoice.status || 'draft'}
                 </span>
               </div>
             )) : (
