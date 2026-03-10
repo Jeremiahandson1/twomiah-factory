@@ -1,6 +1,8 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import * as schema from './schema'
+import * as estimatorSchema from './schema-estimator'
 
-export const db = drizzle(process.env.DATABASE_URL!, { schema })
+const allSchema = { ...schema, ...estimatorSchema }
+export const db = drizzle(process.env.DATABASE_URL!, { schema: allSchema })
 export type DB = typeof db
-export { schema }
+export { schema, estimatorSchema }
