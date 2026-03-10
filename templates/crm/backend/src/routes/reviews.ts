@@ -8,6 +8,34 @@ import { reviewRequest } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 
 const app = new Hono()
+
+// ── Public tracking endpoint (no auth) ────────────────────────────────────────
+
+app.get('/track/:requestId/click', async (c) => {
+  const requestId = c.req.param('requestId')
+  await reviews.markReviewCompleted(requestId, { clicked: true })
+
+  const [request] = await db.select().from(reviewRequest)
+    .where(eq(reviewRequest.id, requestId))
+    .limit(1)
+
+  if (request?.reviewLink) {
+    return c.redirect(request.reviewLink)
+  }
+
+  // Fallback: look up Google review URL from company settings
+  if (request?.companyId) {
+    const settings = await reviews.getReviewSettings(request.companyId)
+    if (settings.reviewLink) {
+      return c.redirect(settings.reviewLink)
+    }
+  }
+
+  return c.text('Review link not found', 404)
+})
+
+// ── Authenticated endpoints ───────────────────────────────────────────────────
+
 app.use('*', authenticate)
 
 // Get review settings
@@ -43,14 +71,14 @@ app.get('/stats', async (c) => {
   return c.json(stats)
 })
 
-// Get review requests
-app.get('/requests', async (c) => {
+// List review requests
+app.get('/', async (c) => {
   const user = c.get('user') as any
   const status = c.req.query('status')
   const limit = c.req.query('limit')
   const page = c.req.query('page')
   const requests = await reviews.getReviewRequests(user.companyId, {
-    status,
+    status: status || undefined,
     limit: parseInt(limit!) || 50,
     page: parseInt(page!) || 1,
   })
@@ -101,24 +129,7 @@ app.post('/follow-up/:requestId', async (c) => {
   return c.json(result)
 })
 
-// Track click (public endpoint with request ID)
-app.get('/track/:requestId/click', async (c) => {
-  const requestId = c.req.param('requestId')
-  await reviews.markReviewCompleted(requestId, { clicked: true })
-
-  // Get the review link and redirect
-  const [request] = await db.select().from(reviewRequest)
-    .where(eq(reviewRequest.id, requestId))
-    .limit(1)
-
-  if ((request as any)?.reviewLink) {
-    return c.redirect((request as any).reviewLink)
-  } else {
-    return c.text('Link not found', 404)
-  }
-})
-
-// Process scheduled requests (called by cron job)
+// Process scheduled requests (manual trigger)
 app.post('/process-scheduled', requireRole('admin', 'owner'), async (c) => {
   const results = await reviews.processScheduledRequests()
   return c.json({ processed: results.length, results })

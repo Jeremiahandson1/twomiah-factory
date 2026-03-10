@@ -55,6 +55,7 @@ import MessagesPage from './pages/messages/MessagesPage';
 import ReportsDashboard from './pages/reports/ReportsDashboard';
 import SelectionsPage from './pages/selections/SelectionsPage';
 import SupportPage from './pages/support/SupportPage';
+import ReviewsPage from './pages/reviews/ReviewsPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
@@ -168,6 +169,7 @@ function App() {
                     <Route path="messages" element={<MessagesPage />} />
                     <Route path="reports" element={<ReportsDashboard />} />
                     <Route path="selections" element={<SelectionsPage />} />
+                    <Route path="reviews" element={<ReviewsPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />

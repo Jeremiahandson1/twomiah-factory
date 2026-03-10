@@ -958,17 +958,23 @@ export const pricebookItem = pgTable('pricebook_item', {
 
 export const reviewRequest = pgTable('review_request', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  status: text('status').default('pending').notNull(),
+  status: text('status').default('pending').notNull(), // pending, sent, clicked, completed, failed
+  channel: text('channel').default('both').notNull(), // sms, email, both
   sentAt: timestamp('sent_at'),
+  clickedAt: timestamp('clicked_at'),
+  followUpSentAt: timestamp('follow_up_sent_at'),
   openedAt: timestamp('opened_at'),
   submittedAt: timestamp('submitted_at'),
+  reviewLink: text('review_link'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('review_request_company_id_idx').on(t.companyId),
+  index('review_request_status_idx').on(t.status),
 ])
 
 export const review = pgTable('review', {

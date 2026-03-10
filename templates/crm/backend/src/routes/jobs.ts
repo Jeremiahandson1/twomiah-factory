@@ -1,10 +1,11 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, company } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, asc, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import reviews from '../services/reviews.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -210,6 +211,16 @@ app.post('/:id/complete', async (c) => {
 
   const [updated] = await db.update(job).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(eq(job.id, id)).returning()
   emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status: 'completed' })
+
+  // Auto-schedule review request if reviews feature is enabled
+  try {
+    const [comp] = await db.select({ enabledFeatures: company.enabledFeatures }).from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+    const features = (comp?.enabledFeatures || []) as string[]
+    if (features.includes('review_requests')) {
+      reviews.scheduleReviewRequest(id).catch(err => console.warn('[Jobs] Review schedule failed:', err.message))
+    }
+  } catch (_e) { /* non-critical */ }
+
   return c.json(updated)
 })
 
