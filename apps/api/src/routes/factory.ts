@@ -462,7 +462,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     console.log('[Deploy] Using freshly generated zip:', zipPath)
 
     const result = await deployCustomer(
-      { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: config },
+      { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: job.template?.split('+') || ['crm'], config: config, planId: tenant.plan },
       zipPath, options
     )
 

@@ -789,12 +789,14 @@ export async function deployCustomer(
     // Step 5 & 6: CRM backend + frontend
     if (products.includes('crm')) {
       try {
+        const tenantPlan = factoryCustomer.planId || factoryCustomer.config?.company?.plan || factoryCustomer.config?.plan || 'starter'
         const backendEnvVars = [
           { key: 'NODE_ENV', value: 'production' },
           { key: 'JWT_SECRET', value: jwtSecret },
           { key: 'JWT_REFRESH_SECRET', value: jwtRefreshSecret },
           { key: 'ENCRYPTION_KEY', value: encryptionKey },
           { key: 'PORT', value: '10000' },
+          { key: 'FEATURE_PACKAGE', value: tenantPlan },
           ...integrationEnvVars,
           ...r2EnvVars,
         ]
