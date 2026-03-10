@@ -259,9 +259,10 @@ const ApplicationForm = () => {
                 <input
                   type="text"
                   name="state"
-                  maxLength="2"
+                  maxLength={2}
+                  placeholder="WI"
                   value={formData.state}
-                  onChange={handleInputChange}
+                  onChange={(e) => handleInputChange({ ...e, target: { ...e.target, name: 'state', value: e.target.value.toUpperCase() } })}
                 />
               </div>
               <div className="form-group">
