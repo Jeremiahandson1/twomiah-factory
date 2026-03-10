@@ -1,6 +1,7 @@
 import { db, schema } from './index'
 import { hash } from 'bcryptjs'
 import { createId } from '@paralleldrive/cuid2'
+import { seedEstimatorDemo } from './seeds/estimatorDemo'
 
 const {
   company,
@@ -416,6 +417,9 @@ async function seed() {
       version: 1,
       active: true,
     })
+
+    // Seed estimator demo data
+    await seedEstimatorDemo(companyId, territoryId)
 
     console.log('Demo data seeded successfully')
   }
