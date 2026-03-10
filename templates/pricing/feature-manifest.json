@@ -1,0 +1,210 @@
+{
+  "template": "pricing",
+  "version": "1.0.0",
+  "description": "In-home sales pricing tool with pricebook management, quote builder, contract signing, and commission tracking",
+  "core": {
+    "auth": {
+      "description": "JWT authentication with role-based access",
+      "backend": [
+        "src/routes/auth.ts",
+        "src/middleware/auth.ts",
+        "src/middleware/tenant.ts"
+      ],
+      "frontend": [
+        "src/pages/Login.jsx",
+        "src/stores/authStore.js",
+        "src/lib/api.js"
+      ],
+      "schema": ["user"]
+    },
+    "pricebook": {
+      "description": "Product categories, products, price ranges, addons, and guardrails",
+      "backend": [
+        "src/routes/categories.ts",
+        "src/routes/products.ts",
+        "src/routes/price-ranges.ts",
+        "src/routes/addons.ts",
+        "src/routes/guardrails.ts"
+      ],
+      "frontend": [
+        "src/pages/pricebook/Categories.jsx",
+        "src/pages/pricebook/Products.jsx",
+        "src/pages/pricebook/PriceRanges.jsx",
+        "src/pages/pricebook/Addons.jsx",
+        "src/pages/pricebook/Guardrails.jsx"
+      ],
+      "schema": ["productCategory", "product", "priceRange", "addon", "pricingGuardrail"]
+    },
+    "quotes": {
+      "description": "Quote builder, presentation mode, and customer signing",
+      "backend": [
+        "src/routes/quotes.ts",
+        "src/routes/quote-lines.ts",
+        "src/routes/quote-present.ts"
+      ],
+      "frontend": [
+        "src/pages/quotes/QuoteList.jsx",
+        "src/pages/quotes/QuoteBuilder.jsx",
+        "src/pages/quotes/QuotePresent.jsx",
+        "src/pages/quotes/CustomerSign.jsx",
+        "src/components/quote/ProductSelector.jsx",
+        "src/components/quote/MeasurementInput.jsx",
+        "src/components/quote/TierSelector.jsx",
+        "src/components/quote/AddonPicker.jsx",
+        "src/components/quote/PriceSummary.jsx"
+      ],
+      "schema": ["quote", "quoteLine", "quoteLineAddon"]
+    },
+    "dashboard": {
+      "description": "Sales dashboard with KPIs and charts",
+      "backend": ["src/routes/dashboard.ts"],
+      "frontend": [
+        "src/pages/Dashboard.jsx",
+        "src/components/dashboard/KpiCards.jsx",
+        "src/components/dashboard/SalesChart.jsx"
+      ],
+      "schema": []
+    },
+    "reps": {
+      "description": "Sales rep profile management",
+      "backend": ["src/routes/reps.ts"],
+      "frontend": [
+        "src/pages/reps/RepList.jsx",
+        "src/pages/reps/RepDetail.jsx"
+      ],
+      "schema": ["repProfile"]
+    },
+    "settings": {
+      "description": "Company settings and branding",
+      "backend": ["src/routes/settings.ts"],
+      "frontend": ["src/pages/Settings.jsx"],
+      "schema": ["company"]
+    }
+  },
+  "features": {
+    "territories": {
+      "description": "Territory-based pricing and rep assignment",
+      "backend": ["src/routes/territories.ts"],
+      "frontend": [
+        "src/pages/territories/TerritoryList.jsx",
+        "src/pages/territories/TerritoryDetail.jsx"
+      ],
+      "schema": ["territory"]
+    },
+    "promotions": {
+      "description": "Time-limited promotions and promo codes",
+      "backend": ["src/routes/promotions.ts"],
+      "frontend": [
+        "src/pages/promotions/PromotionList.jsx",
+        "src/pages/promotions/PromotionForm.jsx"
+      ],
+      "schema": ["promotion"]
+    },
+    "contracts": {
+      "description": "Contract templates, population, and e-signature",
+      "backend": [
+        "src/routes/contracts.ts",
+        "src/routes/contract-templates.ts"
+      ],
+      "frontend": [
+        "src/pages/contracts/ContractTemplates.jsx",
+        "src/pages/contracts/ContractSign.jsx",
+        "src/components/contracts/SignaturePad.jsx"
+      ],
+      "schema": ["contractTemplate", "quoteContract"]
+    },
+    "financing": {
+      "description": "Wisetack and multi-lender financing integration",
+      "backend": [
+        "src/routes/financing.ts",
+        "src/routes/financing-lenders.ts"
+      ],
+      "frontend": [
+        "src/pages/financing/FinancingOptions.jsx",
+        "src/pages/financing/LenderSettings.jsx"
+      ],
+      "schema": ["financingLender"]
+    },
+    "inflation": {
+      "description": "BLS inflation data overlay on quotes",
+      "backend": ["src/routes/inflation.ts"],
+      "frontend": [
+        "src/components/quote/InflationOverlay.jsx"
+      ],
+      "schema": ["quoteInflationSnapshot"]
+    },
+    "commissions": {
+      "description": "Commission calculation and tracking",
+      "backend": ["src/routes/commissions.ts"],
+      "frontend": [
+        "src/pages/commissions/CommissionList.jsx",
+        "src/pages/commissions/CommissionDetail.jsx"
+      ],
+      "schema": ["commissionRecord"]
+    },
+    "analytics": {
+      "description": "Advanced sales analytics and reporting",
+      "backend": ["src/routes/analytics.ts"],
+      "frontend": [
+        "src/pages/analytics/SalesAnalytics.jsx",
+        "src/pages/analytics/RepPerformance.jsx"
+      ],
+      "schema": []
+    },
+    "resource_library": {
+      "description": "Product resource library (PDFs, images, videos) with R2 storage",
+      "backend": ["src/routes/resources.ts"],
+      "frontend": [
+        "src/pages/resources/ResourceLibrary.jsx",
+        "src/pages/resources/ResourceUpload.jsx"
+      ],
+      "schema": ["resourceLibraryItem"]
+    },
+    "import": {
+      "description": "CSV/XLSX pricebook import",
+      "backend": ["src/routes/import.ts"],
+      "frontend": [
+        "src/pages/import/PricebookImport.jsx"
+      ],
+      "schema": ["pricebookImport"]
+    },
+    "crm_sync": {
+      "description": "Sync signed quotes to CRM as jobs",
+      "backend": ["src/routes/crm-sync.ts"],
+      "frontend": [
+        "src/pages/settings/CrmIntegration.jsx"
+      ],
+      "schema": []
+    },
+    "offline": {
+      "description": "Offline quote creation with sync",
+      "backend": ["src/routes/sync.ts"],
+      "frontend": [
+        "src/lib/offlineStore.js",
+        "src/lib/syncManager.js",
+        "src/components/OfflineIndicator.jsx"
+      ],
+      "schema": []
+    },
+    "audit_log": {
+      "description": "Audit trail for pricing changes and quote modifications",
+      "backend": [
+        "src/routes/audit-log.ts",
+        "src/middleware/audit.ts"
+      ],
+      "frontend": [
+        "src/pages/audit/AuditLog.jsx"
+      ],
+      "schema": ["auditLog"]
+    },
+    "price_adjustments": {
+      "description": "Rep price adjustments with manager PIN override",
+      "backend": ["src/routes/price-adjustments.ts"],
+      "frontend": [
+        "src/components/quote/PriceAdjustment.jsx",
+        "src/components/quote/ManagerPinModal.jsx"
+      ],
+      "schema": ["quotePriceAdjustment"]
+    }
+  }
+}

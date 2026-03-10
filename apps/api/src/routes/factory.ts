@@ -38,7 +38,7 @@ factory.post('/generate', requireRole('owner', 'admin', 'editor'), async (c) => 
     if (!config.products?.length) return c.json({ error: 'At least one product must be selected' }, 400)
     if (!config.company?.name) return c.json({ error: 'Company name is required' }, 400)
 
-    const validProducts = ['website', 'cms', 'crm', 'vision']
+    const validProducts = ['website', 'cms', 'crm', 'vision', 'pricing']
     const invalid = config.products.filter(p => !validProducts.includes(p))
     if (invalid.length) return c.json({ error: 'Invalid products: ' + invalid.join(', ') }, 400)
 

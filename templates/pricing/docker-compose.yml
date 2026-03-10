@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  {{COMPANY_SLUG}}-pricing-db:
+    image: postgres:16-alpine
+    container_name: {{COMPANY_SLUG}}-pricing-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: {{COMPANY_SLUG}}_pricing
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5432:5432'
+    volumes:
+      - pricing_pgdata:/var/lib/postgresql/data
+
+  {{COMPANY_SLUG}}-pricing-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: {{COMPANY_SLUG}}-pricing-api
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    ports:
+      - '10000:10000'
+    depends_on:
+      - {{COMPANY_SLUG}}-pricing-db
+
+  {{COMPANY_SLUG}}-pricing-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: {{COMPANY_SLUG}}-pricing-frontend
+    restart: unless-stopped
+    ports:
+      - '3000:80'
+    depends_on:
+      - {{COMPANY_SLUG}}-pricing-api
+
+volumes:
+  pricing_pgdata:

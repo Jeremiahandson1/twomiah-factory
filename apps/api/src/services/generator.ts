@@ -163,6 +163,28 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding)
     }
 
+    if (products.includes('pricing')) {
+      copyTemplate('pricing', path.join(workDir, 'pricing'), tokens)
+      writeBrandingAssets(path.join(workDir, 'pricing', 'frontend', 'public'), config.branding)
+      processEnvTemplate(path.join(workDir, 'pricing', 'backend'), tokens)
+      processEnvTemplate(path.join(workDir, 'pricing', 'frontend'), tokens)
+
+      const pricingRenderTemplate = path.join(workDir, 'pricing', 'render.yaml.template')
+      if (fs.existsSync(pricingRenderTemplate)) {
+        let renderContent = fs.readFileSync(pricingRenderTemplate, 'utf8')
+        renderContent = injectTokens(renderContent, tokens)
+        const existingRender = path.join(workDir, 'render.yaml')
+        if (fs.existsSync(existingRender)) {
+          // Append pricing services to existing render.yaml
+          fs.appendFileSync(existingRender, '\n' + renderContent, 'utf8')
+        } else {
+          fs.writeFileSync(existingRender, renderContent, 'utf8')
+        }
+        fs.writeFileSync(path.join(workDir, 'pricing', 'render.yaml'), renderContent, 'utf8')
+        fs.unlinkSync(pricingRenderTemplate)
+      }
+    }
+
     // Only clone vision repo for standalone vision (no website).
     // When bundled with the website, the visualizer is built into the contractor template.
     if (products.includes('vision') && !products.includes('website')) {

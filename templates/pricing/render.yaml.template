@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: {{COMPANY_SLUG}}-pricing-api
+    runtime: node
+    region: oregon
+    rootDir: pricing/backend
+    buildCommand: bun install && bun run db:generate && bun run db:migrate
+    startCommand: bun start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: {{COMPANY_SLUG}}-pricing-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://pricing.{{COMPANY_SLUG}}.com
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    healthCheckPath: /api/health
+
+  - type: web
+    name: {{COMPANY_SLUG}}-pricing-frontend
+    runtime: static
+    rootDir: pricing/frontend
+    buildCommand: bun install && bun run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+databases:
+  - name: {{COMPANY_SLUG}}-pricing-db
+    databaseName: {{COMPANY_SLUG}}_pricing
+    region: oregon
+    plan: starter

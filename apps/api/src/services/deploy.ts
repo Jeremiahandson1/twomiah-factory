@@ -851,6 +851,80 @@ export async function deployCustomer(
       }
     }
 
+    // Step 6b: Pricing service (Twomiah Price)
+    if (products.includes('pricing')) {
+      // Pricing requires its own database — create one if CRM didn't already
+      if (!dbConnectionString) {
+        try {
+          const pricingDbSlug = slug + '-pricing'
+          if (isSupabaseManagementConfigured()) {
+            supabaseProject = await createSupabaseProject(pricingDbSlug, region)
+            createdResources.push({ type: 'supabase_project', id: supabaseProject.ref, name: pricingDbSlug })
+            results.steps.push({ step: 'pricing_supabase', status: 'ok', ref: supabaseProject.ref })
+            dbConnectionString = supabaseProject.connectionString
+          } else {
+            const pdb = await createRenderDatabase(pricingDbSlug, region, dbPlan)
+            createdResources.push({ type: 'database', id: pdb.id, name: pricingDbSlug + '-db' })
+            results.steps.push({ step: 'pricing_render_db', status: 'ok', dbId: pdb.id })
+            if (pdb.id) deployedResourceIds.push(pdb.id)
+            let dbReady = false
+            for (let attempt = 0; attempt < 20; attempt++) {
+              await sleep(15000)
+              try {
+                const connInfo = await getDatabaseConnectionInfo(pdb.id)
+                if (connInfo?.internalConnectionString) { dbConnectionString = connInfo.internalConnectionString; dbReady = true; break }
+              } catch (_e) { /* not ready yet */ }
+            }
+            if (!dbReady) throw new Error('Pricing DB did not become ready in time')
+          }
+        } catch (pdbErr: any) {
+          results.steps.push({ step: 'pricing_db', status: 'error', error: pdbErr.message })
+          results.errors.push('Pricing DB: ' + pdbErr.message)
+        }
+      }
+
+      try {
+        const pricingApiName = slug + '-pricing-api'
+        await findAndDeleteRenderService(pricingApiName)
+        const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
+        const pricingBuild = bunSetup + ' && cd ../frontend && bun install && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install'
+        const pricingStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
+        const pricingEnvVars = [
+          { key: 'NODE_ENV', value: 'production' },
+          { key: 'JWT_SECRET', value: jwtSecret },
+          { key: 'PORT', value: '10000' },
+          ...r2EnvVars,
+        ]
+        if (dbConnectionString) pricingEnvVars.push({ key: 'DATABASE_URL', value: dbConnectionString })
+        if (supabaseProject) {
+          pricingEnvVars.push({ key: 'SUPABASE_URL', value: supabaseProject.supabaseUrl })
+          pricingEnvVars.push({ key: 'SUPABASE_ANON_KEY', value: supabaseProject.anonKey })
+        }
+        // Link to CRM if also deploying CRM
+        if (results.apiUrl) pricingEnvVars.push({ key: 'CRM_API_URL', value: results.apiUrl })
+
+        const pricing = await createRenderWebService({
+          name: pricingApiName, repoFullName: repo.full_name, rootDir: 'pricing/backend',
+          buildCommand: pricingBuild,
+          startCommand: pricingStart,
+          envVars: pricingEnvVars, plan, region,
+        })
+        const pricingSvc = pricing.service || pricing
+        results.steps.push({ step: 'render_pricing', status: 'ok', serviceId: pricingSvc.id })
+        results.services.pricing = pricingSvc
+        if (pricingSvc.id) {
+          createdResources.push({ type: 'service', id: pricingSvc.id, name: pricingApiName })
+          deployedResourceIds.push(pricingSvc.id)
+        }
+        const pricingUrl = 'https://' + (pricingSvc.slug || pricingApiName) + '.onrender.com'
+        results.pricingUrl = pricingUrl
+        if (!results.deployedUrl) results.deployedUrl = pricingUrl
+      } catch (err: any) {
+        results.steps.push({ step: 'render_pricing', status: 'error', error: err.message })
+        results.errors.push('Pricing: ' + err.message)
+      }
+    }
+
     // Step 7: Website service
     if (products.includes('website')) {
       try {
