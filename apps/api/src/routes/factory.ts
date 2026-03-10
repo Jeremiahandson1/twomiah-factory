@@ -1889,7 +1889,7 @@ factory.get('/settings/integrations', async (c) => {
       github: { configured: !!(process.env.GITHUB_TOKEN), label: 'GitHub' },
       stripe: { configured: !!(process.env.STRIPE_SECRET_KEY), label: 'Stripe' },
       sendgrid: { configured: !!(process.env.SENDGRID_API_KEY), label: 'SendGrid' },
-      supabase_visualizer: { configured: !!(process.env.VISUALIZER_SUPABASE_URL && process.env.VISUALIZER_SUPABASE_KEY), label: 'Visualizer Supabase' },
+      supabase_visualizer: { configured: !!(process.env.VISION_SUPABASE_URL && process.env.VISION_SUPABASE_SERVICE_KEY), label: 'Vision Supabase' },
       qb_online: { configured: !!(process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET), label: 'QuickBooks Online' },
       qb_desktop: { configured: !!(process.env.QBWC_PASSWORD), label: 'QuickBooks Desktop' },
     }

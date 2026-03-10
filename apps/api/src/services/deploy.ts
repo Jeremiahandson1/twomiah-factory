@@ -163,7 +163,7 @@ export async function pushToGitHub(repoFullName: string, extractDir: string) {
   return { success: true }
 }
 
-async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket'; id: string; name?: string }>) {
+async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket' | 'vision_tenant'; id: string; name?: string }>) {
   for (const resource of resources.reverse()) {
     try {
       switch (resource.type) {
@@ -186,6 +186,10 @@ async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | '
         case 'r2_bucket':
           console.log('[Deploy] Rollback: deleting R2 bucket', resource.id)
           await deleteR2Bucket(resource.id)
+          break
+        case 'vision_tenant':
+          console.log('[Deploy] Rollback: deleting Vision tenant', resource.id)
+          await deleteVisionTenant(resource.id)
           break
       }
     } catch (e: any) {
@@ -665,7 +669,7 @@ export async function deployCustomer(
   const encryptionKey = crypto.randomBytes(32).toString('hex')
 
   // Collect created resource IDs for rollback on failure
-  const createdResources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket'; id: string; name?: string }> = []
+  const createdResources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket' | 'vision_tenant'; id: string; name?: string }> = []
 
   let extractDir = ''
   try {
@@ -947,6 +951,7 @@ export async function deployCustomer(
     if (products.includes('website') && (products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer'))) {
       try {
         await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
+        createdResources.push({ type: 'vision_tenant', id: slug })
         results.steps.push({ step: 'visualizer_tenant', status: 'ok' })
 
         const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://twomiah-vision.onrender.com'
@@ -1102,11 +1107,31 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
+async function deleteVisionTenant(slug: string) {
+  const supabaseUrl = process.env.VISION_SUPABASE_URL
+  const supabaseKey = process.env.VISION_SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !supabaseKey) return
+
+  const res = await fetchWithTimeout(supabaseUrl + '/rest/v1/tenants?slug=eq.' + encodeURIComponent(slug), {
+    method: 'DELETE',
+    headers: {
+      'apikey': supabaseKey,
+      'Authorization': 'Bearer ' + supabaseKey,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  if (!res.ok && res.status !== 404) {
+    throw new Error('Vision tenant delete failed (' + res.status + '): ' + await res.text())
+  }
+  console.log('[Deploy] Deleted Vision tenant:', slug)
+}
+
 async function registerVisualizerTenant(slug: string, companyName: string, company?: any) {
-  const supabaseUrl = process.env.VISUALIZER_SUPABASE_URL
-  const supabaseKey = process.env.VISUALIZER_SUPABASE_KEY
+  const supabaseUrl = process.env.VISION_SUPABASE_URL
+  const supabaseKey = process.env.VISION_SUPABASE_SERVICE_KEY
   if (!supabaseUrl || !supabaseKey) {
-    console.log('[Deploy] Skipping visualizer tenant registration — VISUALIZER_SUPABASE_URL/KEY not set')
+    console.log('[Deploy] Skipping visualizer tenant registration — VISION_SUPABASE_URL/SERVICE_KEY not set')
     return
   }
 
