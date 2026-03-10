@@ -205,6 +205,34 @@
         "src/components/quote/ManagerPinModal.jsx"
       ],
       "schema": ["quotePriceAdjustment"]
+    },
+    "estimator": {
+      "description": "Materials + labor estimation engine with Good/Better/Best tiers, pitch multipliers, and waste factors",
+      "backend": [
+        "src/routes/estimator.ts",
+        "src/services/estimatorEngine.ts"
+      ],
+      "frontend": [
+        "src/pages/estimator/EstimatorNewPage.tsx",
+        "src/pages/estimator/EstimatorBuilderPage.tsx",
+        "src/pages/estimator/EstimatorPresentPage.tsx",
+        "src/pages/estimator/EstimatorSignPage.tsx",
+        "src/pages/admin/EstimatorAdminPage.tsx",
+        "src/components/quote/MeasurementInputCard.tsx",
+        "src/components/quote/EstimateBreakdown.tsx"
+      ],
+      "schema": ["estimatorProduct", "estimatorMaterialTier", "pitchMultiplier", "estimatorAddon", "estimate", "estimateContract"]
+    },
+    "mobile": {
+      "description": "React Native Expo mobile app with offline-first SQLite, Skia signatures, and full quote/estimator flows",
+      "mobile": [
+        "mobile/app/",
+        "mobile/components/",
+        "mobile/hooks/",
+        "mobile/lib/",
+        "mobile/store/"
+      ],
+      "schema": []
     }
   }
 }

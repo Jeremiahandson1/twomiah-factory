@@ -719,6 +719,9 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
     const crmDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'field_service' ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : 'crm'
     readme += '## CRM (`/' + crmDir + '`)\n\n```bash\ncd ' + crmDir + '/backend && bun install\nbunx drizzle-kit migrate && bun db/seed.ts\nbun start\n```\n\n'
   }
+  if (products.includes('pricing')) {
+    readme += '## Pricing Tool (`/pricing`)\n\n```bash\n# Backend\ncd pricing/backend && bun install\nbunx drizzle-kit migrate && bun db/seed.ts\nbun start\n\n# Frontend\ncd pricing/frontend && bun install && bun run dev\n\n# Mobile (optional)\ncd pricing/mobile && bun install && npx expo start\n```\n\n'
+  }
   if (products.includes('website')) {
     readme += '## Website (`/website`)\n\n```bash\ncd website && bun install && bun start\n```\n\n'
   }
