@@ -248,25 +248,24 @@ app.get('/p/:pageId', (c) => {
 })
 
 // ===========================================
-// VISION APP REDIRECT
+// VISUALIZER PAGE
 // ===========================================
 
-const visualizePage = path.join(__dirname, 'views', 'visualize.html')
-if (fs.existsSync(visualizePage)) {
-  app.get('/visualize', (c) => {
-    const html = fs.readFileSync(visualizePage, 'utf8')
-    return c.html(html)
+const VISION_URL = process.env.VISION_URL || ''
+const TENANT_SLUG = process.env.TENANT_SLUG || '{{COMPANY_SLUG}}'
+
+app.get('/visualize', (c) => {
+  if (!VISION_URL) return c.redirect('/', 302)
+  const services = loadJSON('services.json') || []
+  return renderPage(c, 'visualize', {
+    VISION_URL,
+    TENANT_SLUG,
+    services,
+    title: 'Visualize Your Project | {{COMPANY_NAME}}',
+    description: 'Upload a photo of your home and preview different materials, colors, and styles before any work begins.',
+    canonicalUrl: BASE_URL + '/visualize',
   })
-} else {
-  const VISION_URL = process.env.VISION_URL || ''
-  if (VISION_URL) {
-    app.get('/visualize', (c) => c.redirect(VISION_URL, 302))
-    app.get('/visualize/*', (c) => {
-      const sub = c.req.path.replace('/visualize', '')
-      return c.redirect(VISION_URL + sub, 302)
-    })
-  }
-}
+})
 
 // ===========================================
 // ERROR HANDLING

@@ -859,6 +859,7 @@ export async function deployCustomer(
             { key: 'PORT', value: '10000' },
             { key: 'JWT_SECRET', value: jwtSecret },
             { key: 'SITE_NAME', value: factoryCustomer.name || slug },
+            { key: 'TENANT_SLUG', value: slug },
             ...r2EnvVars,
           ],
           plan, region,
