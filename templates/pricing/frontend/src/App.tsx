@@ -7,49 +7,42 @@ import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import QuotesListPage from './pages/QuotesListPage'
 
-// Lazy-load placeholder pages for routes not yet built
-import { lazy, Suspense } from 'react'
+// Phase 1 pages
+import QuoteNewPage from './pages/QuoteNewPage'
+import QuoteBuilderPage from './pages/QuoteBuilderPage'
+import PresentModePage from './pages/PresentModePage'
+import SignaturePage from './pages/SignaturePage'
+import PaymentPage from './pages/PaymentPage'
+import CommissionsPage from './pages/CommissionsPage'
+import CustomerQuotePage from './pages/CustomerQuotePage'
 
-function PageLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500" />
-    </div>
-  )
-}
+// Admin pages
+import PricebookPage from './pages/admin/PricebookPage'
+import RepsPage from './pages/admin/RepsPage'
+import AnalyticsPage from './pages/admin/AnalyticsPage'
+import ContractsPage from './pages/admin/ContractsPage'
+import PromotionsPage from './pages/admin/PromotionsPage'
+import TerritoriesPage from './pages/admin/TerritoriesPage'
+import FinancingPage from './pages/admin/FinancingPage'
+import SettingsPage from './pages/admin/SettingsPage'
+import ImportPage from './pages/admin/ImportPage'
 
-// Placeholder component for pages not yet implemented
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="p-6 lg:p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">{title}</h1>
-      <p className="text-gray-500">This page is under construction.</p>
-    </div>
-  )
-}
+// Phase 2 — Estimator
+import EstimatorNewPage from './pages/estimator/EstimatorNewPage'
+import EstimatorBuilderPage from './pages/estimator/EstimatorBuilderPage'
+import EstimatorPresentPage from './pages/estimator/EstimatorPresentPage'
+import EstimatorSignPage from './pages/estimator/EstimatorSignPage'
+import EstimatorAdminPage from './pages/admin/EstimatorAdminPage'
 
-// Route placeholders
-const QuoteNewPage = () => <PlaceholderPage title="New Quote" />
-const QuoteBuilderPage = () => <PlaceholderPage title="Quote Builder" />
-const PresentModePage = () => <PlaceholderPage title="Present Mode" />
-const SignaturePage = () => <PlaceholderPage title="Signature Capture" />
-const PaymentPage = () => <PlaceholderPage title="Payment" />
-const CommissionsPage = () => <PlaceholderPage title="Commissions" />
-const PricebookPage = () => <PlaceholderPage title="Pricebook" />
-const RepsPage = () => <PlaceholderPage title="Reps Management" />
-const AnalyticsPage = () => <PlaceholderPage title="Analytics" />
-const ContractsPage = () => <PlaceholderPage title="Contracts" />
-const PromotionsPage = () => <PlaceholderPage title="Promotions" />
-const TerritoriesPage = () => <PlaceholderPage title="Territories" />
-const FinancingPage = () => <PlaceholderPage title="Financing" />
-const SettingsPage = () => <PlaceholderPage title="Settings" />
-const CustomerQuotePage = () => <PlaceholderPage title="Customer Quote View" />
+// Offline
+import { OfflineBanner } from './components/offline/OfflineBanner'
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+          <OfflineBanner />
           <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
@@ -71,6 +64,12 @@ export default function App() {
               <Route path="quote/:id/payment" element={<PaymentPage />} />
               <Route path="quotes" element={<QuotesListPage />} />
               <Route path="commissions" element={<CommissionsPage />} />
+
+              {/* Estimator routes */}
+              <Route path="estimator/new" element={<EstimatorNewPage />} />
+              <Route path="estimator/:id" element={<EstimatorBuilderPage />} />
+              <Route path="estimator/:id/present" element={<EstimatorPresentPage />} />
+              <Route path="estimator/:id/sign" element={<EstimatorSignPage />} />
 
               {/* Admin routes */}
               <Route
@@ -126,6 +125,22 @@ export default function App() {
                 element={
                   <ProtectedRoute roles={['admin', 'manager']}>
                     <FinancingPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="admin/estimator"
+                element={
+                  <ProtectedRoute roles={['admin', 'manager']}>
+                    <EstimatorAdminPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="admin/import"
+                element={
+                  <ProtectedRoute roles={['admin', 'manager']}>
+                    <ImportPage />
                   </ProtectedRoute>
                 }
               />
