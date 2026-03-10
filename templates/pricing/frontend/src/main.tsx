@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { registerServiceWorker } from './lib/registerSW'
 
 class GlobalErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -48,3 +49,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </GlobalErrorBoundary>
   </React.StrictMode>
 )
+
+// Register service worker for offline support
+registerServiceWorker()
