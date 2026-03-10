@@ -23,6 +23,7 @@ import repsRoutes from './routes/reps';
 import settingsRoutes from './routes/settings';
 import importRoutes from './routes/import';
 import syncRoutes from './routes/sync';
+import estimatorRoutes from './routes/estimator';
 
 // Handle uncaught exceptions
 handleUncaughtExceptions();
@@ -88,6 +89,7 @@ app.route('/api/reps', repsRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/import', importRoutes);
 app.route('/api/sync', syncRoutes);
+app.route('/api/estimator', estimatorRoutes);
 
 // Serve frontend SPA from frontend-dist
 app.use('/assets/*', serveStatic({ root: './frontend-dist' }));
