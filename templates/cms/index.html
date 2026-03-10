@@ -9,10 +9,29 @@
   
   <title>{{CITY}} Area Contractor | {{COMPANY_NAME}}</title>
   
-  <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <!-- Favicon (dynamically updated from site settings on load) -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" id="dynamic-favicon">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" id="dynamic-favicon-png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <script>
+    // Fetch tenant favicon from site settings so the admin panel shows the correct icon
+    (function() {
+      var token = localStorage.getItem('adminToken');
+      if (!token) return;
+      fetch('/admin/site-settings', { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(s) {
+          var fav = s && (s.favicon || s.logo);
+          if (fav) {
+            var el = document.getElementById('dynamic-favicon');
+            var el2 = document.getElementById('dynamic-favicon-png');
+            if (el) el.href = fav;
+            if (el2) el2.href = fav;
+          }
+        })
+        .catch(function() {});
+    })();
+  </script>
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">

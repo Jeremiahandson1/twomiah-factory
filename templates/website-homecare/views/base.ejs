@@ -29,9 +29,14 @@
   <meta name="twitter:description" content="<%= description %>">
   
   <!-- Favicon -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="shortcut icon" href="/favicon.ico">
+  <%
+    const faviconUrl = (typeof settings !== 'undefined' && settings && settings.favicon)
+      ? (settings.favicon.startsWith('http') ? settings.favicon : (settings.favicon.startsWith('/') ? settings.favicon : '/' + settings.favicon))
+      : '/favicon.ico';
+  %>
+  <link rel="icon" type="image/png" sizes="32x32" href="<%= faviconUrl %>">
+  <link rel="icon" type="image/x-icon" href="<%= faviconUrl %>">
+  <link rel="shortcut icon" href="<%= faviconUrl %>">
   
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">

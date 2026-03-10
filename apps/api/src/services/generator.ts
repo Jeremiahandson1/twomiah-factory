@@ -623,6 +623,19 @@ function writeBrandingAssets(targetDir: string, branding: GenerateConfig['brandi
     // Also write to targetDir root for Vite-based projects (CRM frontend/public/)
     writeDataUrl(branding.favicon, path.join(targetDir, 'favicon.png'))
     writeDataUrl(branding.favicon, path.join(targetDir, 'favicon.ico'))
+    // Write to CMS dist/ directory so the admin panel also gets the tenant favicon
+    const distDir = path.join(targetDir, 'dist')
+    if (fs.existsSync(distDir)) {
+      writeDataUrl(branding.favicon, path.join(distDir, 'favicon.png'))
+      writeDataUrl(branding.favicon, path.join(distDir, 'favicon.ico'))
+      writeDataUrl(branding.favicon, path.join(distDir, 'favicon-32.png'))
+    }
+    // Write to CRM frontend public/ directory
+    const crmPublicDir = path.join(targetDir, 'frontend', 'public')
+    if (fs.existsSync(crmPublicDir)) {
+      writeDataUrl(branding.favicon, path.join(crmPublicDir, 'favicon.ico'))
+      writeDataUrl(branding.favicon, path.join(crmPublicDir, 'favicon.png'))
+    }
     updateSettingsField(targetDir, 'favicon', '/favicon.png')
   }
 
