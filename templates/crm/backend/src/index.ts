@@ -200,7 +200,21 @@ if (hasFrontendBuild) {
 
   // SPA fallback: serve index.html for all non-API GET requests
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
+
+  // Register known SPA route prefixes explicitly before the catch-all
+  // so they are matched deterministically and never fall through to notFound
+  app.get('/admin/*', (c) => c.html(indexHtml))
+  app.get('/crm/*', (c) => c.html(indexHtml))
+  app.get('/login', (c) => c.html(indexHtml))
+  app.get('/register', (c) => c.html(indexHtml))
   app.get('*', (c) => c.html(indexHtml))
+
+  // Catch any non-GET requests to SPA routes that slip through
+  app.notFound((c) => {
+    if (c.req.method === 'GET') return c.html(indexHtml)
+    return c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
+  })
+
   logger.info('Serving frontend from ' + FRONTEND_DIST)
 } else {
   app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))

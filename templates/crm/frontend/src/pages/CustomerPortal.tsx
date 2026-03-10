@@ -10,11 +10,25 @@ import { useAuth } from '../contexts/AuthContext';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function CustomerPortal() {
-  const { user, company, logout, loading: authLoading } = useAuth();
+  const { user, company, logout, loading: authLoading, checkAuth } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState<any>(null);
   const [activity, setActivity] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [configReady, setConfigReady] = useState(false);
+
+  // Ensure company config (including settings) is fully loaded before rendering cards.
+  // After login the response may not include settings — refetch via /me if needed.
+  useEffect(() => {
+    if (authLoading) return;
+    if (company && company.settings !== undefined) {
+      setConfigReady(true);
+    } else if (company) {
+      checkAuth().finally(() => setConfigReady(true));
+    } else {
+      setConfigReady(true); // no company = not logged in, let page render
+    }
+  }, [authLoading, company]);
 
   useEffect(() => {
     if (!authLoading) fetchDashboardData();
@@ -37,8 +51,8 @@ export default function CustomerPortal() {
     }
   }
 
-  // Show loading spinner while auth is resolving to prevent race condition
-  if (authLoading) {
+  // Show loading spinner while auth or company config is resolving to prevent race condition
+  if (authLoading || !configReady) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600" />
