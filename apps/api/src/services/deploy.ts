@@ -954,7 +954,7 @@ export async function deployCustomer(
         createdResources.push({ type: 'vision_tenant', id: slug })
         results.steps.push({ step: 'visualizer_tenant', status: 'ok' })
 
-        const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://twomiah-vision.onrender.com'
+        const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
         results.visionUrl = sharedVisionUrl
         if (results.services.site?.id) {
           await updateRenderEnvVars(results.services.site.id, [{ key: 'VISION_URL', value: sharedVisionUrl }])
