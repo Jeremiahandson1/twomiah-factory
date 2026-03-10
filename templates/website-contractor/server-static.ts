@@ -112,7 +112,7 @@ function loadJSON(filename: string) {
   } catch (e) { return null }
 }
 
-const hasVisualizer = fs.existsSync(path.join(__dirname, 'views', 'visualize.html')) || !!(process.env.VISION_URL)
+const hasVisualizer = fs.existsSync(path.join(__dirname, 'views', 'visualize.ejs')) || fs.existsSync(path.join(__dirname, 'views', 'visualize.html')) || !!(process.env.VISION_URL)
 
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
