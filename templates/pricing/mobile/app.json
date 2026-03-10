@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Twomiah Price",
+    "slug": "twomiah-price",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1e3a5f"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.twomiah.price",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1e3a5f"
+      },
+      "package": "com.twomiah.price"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-background-fetch",
+      "expo-task-manager",
+      "expo-haptics",
+      "expo-screen-orientation",
+      "expo-crypto",
+      [
+        "react-native-reanimated/plugin"
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "scheme": "twomiah-price"
+  }
+}
