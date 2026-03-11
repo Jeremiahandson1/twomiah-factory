@@ -2,6 +2,7 @@
 // Unified scheduling hub — 3 main tabs, slide-in create panel, fluid workflows
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 import AutoFillButton from './AutoFillButton';
 import DragDropScheduler from './DragDropScheduler';
 import ScheduleOptimizer from './ScheduleOptimizer';
@@ -15,7 +16,8 @@ function getWeekStart(date) {
   return d;
 }
 
-const SchedulingHub = ({ token }) => {
+const SchedulingHub = () => {
+  const { token } = useAuth();
   // ── Navigation state ──
   const [mainTab, setMainTab]           = useState('schedule');
   const [scheduleView, setScheduleView] = useState('grid');
@@ -683,7 +685,7 @@ const SchedulingHub = ({ token }) => {
             <strong style={{ fontSize: '0.88rem' }}>Week of {new Date(weekOf + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong>
             <button className='btn btn-secondary btn-sm' onClick={() => navigateWeek(1)}>▶</button>
             <button className='btn btn-sm btn-primary' onClick={() => setWeekOf(getWeekStart(new Date()).toISOString().split('T')[0])}>Today</button>
-            <AutoFillButton weekOf={weekOf} token={token} onComplete={loadWeekView} />
+            <AutoFillButton weekOf={weekOf} onComplete={loadWeekView} />
           </div>
         )}
         {scheduleView === 'month' && (
@@ -701,7 +703,7 @@ const SchedulingHub = ({ token }) => {
         <button className='btn btn-primary' style={{ marginLeft: scheduleView === 'grid' ? 'auto' : '0', fontSize: '0.88rem' }} onClick={() => openCreatePanel()}>+ New Schedule</button>
       </div>
 
-      {scheduleView === 'grid' && <DragDropScheduler token={token} onScheduleChange={() => {}} />}
+      {scheduleView === 'grid' && <DragDropScheduler onScheduleChange={() => {}} />}
 
       {scheduleView === 'week' && (
         <div>
@@ -935,8 +937,8 @@ const SchedulingHub = ({ token }) => {
         </div>
       )}
 
-      {toolsTab === 'optimizer' && <ScheduleOptimizer token={token} caregivers={caregivers} clients={clients} />}
-      {toolsTab === 'roster'    && <RosterOptimizer token={token} />}
+      {toolsTab === 'optimizer' && <ScheduleOptimizer caregivers={caregivers} clients={clients} />}
+      {toolsTab === 'roster'    && <RosterOptimizer />}
     </div>
   );
 

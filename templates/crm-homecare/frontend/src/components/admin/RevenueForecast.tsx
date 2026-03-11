@@ -1,13 +1,15 @@
 // RevenueForecast.jsx — projected vs actual revenue, auth utilization, weekly outlook
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 const fmt$ = (n) => '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtH = (n) => parseFloat(n || 0).toFixed(1) + 'h';
 
-export default function RevenueForecast({ token }) {
+export default function RevenueForecast() {
+  const { token } = useAuth();
   const [data, setData] = useState(null);
   const [utilData, setUtilData] = useState([]);
   const [loading, setLoading] = useState(true);

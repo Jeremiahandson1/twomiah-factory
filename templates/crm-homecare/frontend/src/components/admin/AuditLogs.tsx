@@ -2,8 +2,10 @@ import { toast } from '../Toast';
 // src/components/admin/AuditLogs.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const AuditLogs = ({ token }) => {
+const AuditLogs = () => {
+  const { token } = useAuth();
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [loading, setLoading] = useState(true);

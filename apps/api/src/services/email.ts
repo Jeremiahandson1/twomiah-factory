@@ -92,30 +92,87 @@ function kv(label: string, value: string): string {
   return `<p style="margin:4px 0;color:#333;"><strong style="color:#666;">${label}:</strong> ${value}</p>`
 }
 
+// ─── Product name helper ────────────────────────────────────────────────────
+
+function getProductName(industry?: string, products?: string[]): string {
+  if (industry === 'home_care') return 'Care'
+  if (industry === 'automotive') return 'Drive'
+  if (industry === 'field_service' || industry === 'hvac' || industry === 'plumbing' || industry === 'electrical') return 'Wrench'
+  if (products?.includes('crm-fieldservice')) return 'Wrench'
+  if (products?.includes('crm-homecare')) return 'Care'
+  if (products?.includes('crm-automotive')) return 'Drive'
+  return 'Build'
+}
+
 // ─── Notification helpers ────────────────────────────────────────────────────
 
-export async function notifyDeployComplete(
-  tenant: { name: string; email?: string; slug: string },
-  urls: { apiUrl?: string; deployedUrl?: string; siteUrl?: string; repoUrl?: string }
+export async function notifyWelcome(
+  tenant: { name: string; email?: string; plan?: string; industry?: string; products?: string[] }
 ): Promise<boolean> {
   if (!tenant.email) return false
+
+  const product = getProductName(tenant.industry, tenant.products)
+  const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+  const trialEndStr = trialEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+  const body = `
+    <p style="color:#333;line-height:1.6;">Welcome aboard! Your <strong>Twomiah ${product}</strong> account for <strong>${tenant.name}</strong> has been created.</p>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
+      ${kv('Company', tenant.name)}
+      ${kv('Plan', planLabel)}
+      ${kv('Free trial ends', trialEndStr)}
+    </div>
+    <p style="color:#333;line-height:1.6;">We&rsquo;re building your system now. This typically takes a few minutes. You&rsquo;ll receive a second email with your login URL and temporary password as soon as everything is ready.</p>
+    <p style="color:#666;font-size:14px;">If you have questions in the meantime, just reply to this email.</p>`
+
+  return sendEmail(
+    tenant.email,
+    `Welcome to Twomiah ${product} — your trial has started`,
+    wrap(`Welcome to Twomiah ${product}`, body)
+  )
+}
+
+export async function notifyDeployComplete(
+  tenant: { name: string; email?: string; slug: string; industry?: string; products?: string[]; admin_password?: string },
+  urls: { apiUrl?: string; deployedUrl?: string; siteUrl?: string; repoUrl?: string; adsUrl?: string }
+): Promise<boolean> {
+  if (!tenant.email) return false
+
+  const product = getProductName(tenant.industry, tenant.products)
 
   const urlLines: string[] = []
   if (urls.deployedUrl) urlLines.push(kv('CRM', `<a href="${urls.deployedUrl}">${urls.deployedUrl}</a>`))
   if (urls.siteUrl) urlLines.push(kv('Website', `<a href="${urls.siteUrl}">${urls.siteUrl}</a>`))
   if (urls.apiUrl && urls.apiUrl !== urls.deployedUrl) urlLines.push(kv('API', `<a href="${urls.apiUrl}">${urls.apiUrl}</a>`))
-  if (urls.repoUrl) urlLines.push(kv('GitHub', `<a href="${urls.repoUrl}">${urls.repoUrl}</a>`))
+
+  const passwordLine = tenant.admin_password
+    ? `<p style="color:#333;line-height:1.6;">Your temporary password is: <code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;font-size:14px;">${tenant.admin_password}</code><br><span style="color:#666;font-size:13px;">Please change this after your first login.</span></p>`
+    : `<p style="color:#333;line-height:1.6;">Log in with the email and password you created during signup.</p>`
 
   const body = `
-    <p style="color:#333;line-height:1.6;">Great news! The deployment for <strong>${tenant.name}</strong> (<code>${tenant.slug}</code>) has completed successfully.</p>
+    <p style="color:#333;line-height:1.6;">Great news! Your <strong>Twomiah ${product}</strong> CRM for <strong>${tenant.name}</strong> is ready to use.</p>
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:16px;margin:16px 0;">
-      <p style="margin:0 0 8px;color:#166534;font-weight:600;">&#10003; Deployment Successful</p>
+      <p style="margin:0 0 8px;color:#166534;font-weight:600;">&#10003; Your CRM is live</p>
       ${urlLines.join('\n      ')}
     </div>
-    <p style="color:#666;font-size:14px;">Services are starting up on Render. The first build may take a few minutes to go live.</p>
-    ${urls.deployedUrl ? btn(urls.deployedUrl, 'Open Application') : ''}`
+    ${passwordLine}
+    <div style="background:#f8f8fa;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0 0 12px;color:#1a1a2e;font-weight:600;">3 things to do first:</p>
+      <ol style="margin:0;padding-left:20px;color:#333;line-height:1.8;">
+        <li>Complete the onboarding wizard to set up your company profile</li>
+        <li>Add your first ${product === 'Care' ? 'client' : 'contact'} and create a ${product === 'Care' ? 'care plan' : 'job'}</li>
+        <li>Invite your team members from Settings</li>
+      </ol>
+    </div>
+    <p style="color:#666;font-size:14px;">Services may take a few minutes to fully start up after deployment.</p>
+    ${urls.deployedUrl ? btn(urls.deployedUrl, 'Log In to Your CRM') : ''}`
 
-  return sendEmail(tenant.email, 'Deployment Complete: ' + tenant.name, wrap('Deployment Complete', body))
+  return sendEmail(
+    tenant.email,
+    `Your Twomiah ${product} CRM is ready`,
+    wrap(`Your ${product} CRM is Ready`, body)
+  )
 }
 
 export async function notifyDeployFailed(

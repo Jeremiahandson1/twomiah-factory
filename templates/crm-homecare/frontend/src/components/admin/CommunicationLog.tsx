@@ -3,6 +3,7 @@
 // Can be embedded inside ClientDetail, CaregiverProfile, or used standalone
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -20,7 +21,8 @@ const LOG_TYPES = [
 
 const DIRECTIONS = ['inbound', 'outbound', 'internal'];
 
-export default function CommunicationLog({ token, entityType, entityId, entityName, compact = false }) {
+export default function CommunicationLog({ entityType, entityId, entityName, compact = false }) {
+  const { token } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);

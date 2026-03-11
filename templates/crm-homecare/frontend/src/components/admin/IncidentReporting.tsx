@@ -2,8 +2,10 @@ import { confirm } from '../ConfirmModal';
 // src/components/admin/IncidentReporting.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const IncidentReporting = ({ token }) => {
+const IncidentReporting = () => {
+  const { token } = useAuth();
   const [clients, setClients] = useState([]);
   const [caregivers, setCaregivers] = useState([]);
   const [incidents, setIncidents] = useState([]);

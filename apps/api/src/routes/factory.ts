@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
-import { notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 const factory = new Hono()
@@ -547,6 +547,52 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
 }
 
 
+// ─── Auto-Deploy after Stripe Checkout ────────────────────────────────────────
+async function triggerAutoDeploy(tenantId: string) {
+  if (!isConfigured()) {
+    console.warn('[AutoDeploy] Skipping — deploy infrastructure not configured')
+    return
+  }
+
+  const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+  if (!tenant) { console.warn('[AutoDeploy] Tenant not found:', tenantId); return }
+
+  // Skip if already deployed or deploying
+  if (tenant.render_frontend_url || tenant.render_backend_url) {
+    console.log('[AutoDeploy] Tenant already deployed, skipping:', tenant.slug)
+    return
+  }
+
+  // Check no deploy already in progress
+  const { data: activeJobs } = await supabase.from('factory_jobs').select('id').eq('tenant_id', tenantId).eq('status', 'deploying')
+  if (activeJobs?.length) {
+    console.log('[AutoDeploy] Deploy already in progress for:', tenant.slug)
+    return
+  }
+
+  // Get latest factory job (must have a generated build)
+  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+  if (!job) {
+    console.warn('[AutoDeploy] No build found for tenant:', tenant.slug, '— skipping auto-deploy')
+    return
+  }
+
+  console.log('[AutoDeploy] Triggering deploy for', tenant.slug, 'after successful checkout')
+
+  // Set tenant status to deploying
+  await supabase.from('tenants').update({ status: 'deploying' }).eq('id', tenantId)
+
+  // Set job status to deploying
+  await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
+
+  // Fire-and-forget — same pattern as admin deploy button
+  runDeploy(tenant, job, {}).catch(err => {
+    console.error('[AutoDeploy] Background deploy failed for', tenant.slug, ':', err.message)
+    supabase.from('tenants').update({ status: 'deploy_failed' }).eq('id', tenantId)
+      .then(() => {}).catch(() => {})
+  })
+}
+
 // ─── Deploy Status ────────────────────────────────────────────────────────────
 factory.get('/customers/:id/deploy/status', async (c) => {
   const id = c.req.param('id')
@@ -915,6 +961,15 @@ factory.post('/stripe/webhook', async (c) => {
       await supabase.from('tenants').update(result.updates).eq(result.lookupField, result.lookupValue)
     }
 
+    // Auto-deploy on checkout.session.completed (subscription or one_time payment)
+    if (result.handled && result.factoryCustomerId && event.type === 'checkout.session.completed' &&
+        result.updates?.billing_type && result.updates.billing_type !== 'deploy_service') {
+      // Fire-and-forget: trigger deploy pipeline if tenant has a build and isn't already deploying
+      triggerAutoDeploy(result.factoryCustomerId).catch(err =>
+        console.error('[Stripe] Auto-deploy trigger error:', err.message)
+      )
+    }
+
     // Send email notification for past-due billing
     if (result.handled && result.updates?.billing_status === 'past_due') {
       const lookupQuery = result.factoryCustomerId
@@ -1208,6 +1263,9 @@ factory.post('/public/signup', async (c) => {
     }
 
     console.log('[Signup] New tenant created:', tenant.id, tenant.name, tenant.plan)
+
+    // Send welcome email immediately (non-blocking)
+    notifyWelcome(tenant).catch(e => console.warn('[Email] Welcome email failed:', e.message))
 
     // If Stripe is configured and this is a SaaS subscription, create a checkout session
     let checkoutUrl = null

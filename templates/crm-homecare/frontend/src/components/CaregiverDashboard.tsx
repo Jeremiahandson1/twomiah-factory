@@ -10,6 +10,7 @@ import CaregiverHelp from './caregiver/CaregiverHelp';
 import CaregiverMessages from './caregiver/CaregiverMessages';
 import { useGeolocation, useHaptics, useOfflineSync, useBackgroundGeolocation, isNative, platform } from '../hooks/useNative';
 import OfflineBanner from './OfflineBanner';
+import { useAuth } from '../contexts/AuthContext';
 
 const subscribeToPush = async (token) => {
   try {
@@ -31,7 +32,8 @@ const subscribeToPush = async (token) => {
   }
 };
 
-const CaregiverDashboard = ({ user, token, onLogout }) => {
+const CaregiverDashboard = ({ onLogout }) => {
+  const { user, token } = useAuth();
   const [currentPage, setCurrentPage] = useState('home');
   const [schedules, setSchedules] = useState([]);
   const [clients, setClients] = useState([]);
@@ -1081,10 +1083,10 @@ const CaregiverDashboard = ({ user, token, onLogout }) => {
         </div>
       )}
 
-      <CaregiverClientModal clientId={viewingClientId} isOpen={!!viewingClientId} onClose={() => setViewingClientId(null)} token={token} />
+      <CaregiverClientModal clientId={viewingClientId} isOpen={!!viewingClientId} onClose={() => setViewingClientId(null)} />
 
       {/* Messages Modal */}
-      {showMessages && <CaregiverMessages token={token} onClose={() => { setShowMessages(false); setUnreadMessages(0); }} />}
+      {showMessages && <CaregiverMessages onClose={() => { setShowMessages(false); setUnreadMessages(0); }} />}
 
       {/* Help Modal */}
       {showHelp && <CaregiverHelp onClose={() => setShowHelp(false)} />}
@@ -1093,7 +1095,7 @@ const CaregiverDashboard = ({ user, token, onLogout }) => {
       {showMissReport && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
           <div style={{ background: '#fff', borderRadius: '16px 16px 0 0', padding: '1.5rem', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <ShiftMissReport token={token} userId={user.id} onClose={() => setShowMissReport(false)} />
+            <ShiftMissReport userId={user.id} onClose={() => setShowMissReport(false)} />
           </div>
         </div>
       )}

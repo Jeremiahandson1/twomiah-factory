@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // Complete payroll: Overtime, Mileage, PTO, Shift Differentials, Pay Stubs, Exports
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const PayrollProcessing = ({ token }) => {
+const PayrollProcessing = () => {
+  const { token } = useAuth();
   const [payPeriod, setPayPeriod] = useState({
     startDate: new Date(new Date().setDate(new Date().getDate() - 14)).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]

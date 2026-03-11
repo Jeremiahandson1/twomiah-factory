@@ -2,6 +2,7 @@
 // Simple start/stop mileage tracking for caregivers
 import React, { useState } from 'react';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 
 // Calculate distance between two GPS points (Haversine formula)
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -18,7 +19,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return straightLine * 1.3;
 };
 
-const MileageTracker = ({ token, caregiverId }) => {
+const MileageTracker = ({ caregiverId }) => {
+  const { token } = useAuth();
   const [tripState, setTripState] = useState('idle'); // idle, started, ended
   const [startPoint, setStartPoint] = useState(null);
   const [endPoint, setEndPoint] = useState(null);

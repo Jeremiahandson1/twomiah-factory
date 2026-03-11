@@ -2,8 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ShiftMissReport = ({ token, userId, onClose }) => {
+const ShiftMissReport = ({ userId, onClose }) => {
+  const { token } = useAuth();
   const [upcomingShifts, setUpcomingShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

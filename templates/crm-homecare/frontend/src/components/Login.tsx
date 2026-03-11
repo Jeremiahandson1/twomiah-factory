@@ -1,8 +1,9 @@
-// src/components/Login.jsx
+// src/components/Login.tsx
 import React, { useState } from 'react';
-import { API_BASE_URL } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 
-const Login = ({ onLogin }) => {
+const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) => {
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,20 +16,10 @@ const Login = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Error ${response.status}`);
-      }
-
-      onLogin(data.accessToken, data.user);
-    } catch (err) {
+      const data = await login(email.trim().toLowerCase(), password);
+      // Legacy callback for backward compat (App.tsx MainApp)
+      if (onLogin) onLogin(data.accessToken, data.user);
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
@@ -40,7 +31,7 @@ const Login = ({ onLogin }) => {
       <div className="login-card">
         <h1>{{COMPANY_NAME}}</h1>
         <p>Home Care CRM</p>
-        
+
         {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
@@ -89,14 +80,12 @@ const Login = ({ onLogin }) => {
                 }}
               >
                 {showPassword ? (
-                  /* Eye-off SVG */
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
                     <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
                     <line x1="1" y1="1" x2="23" y2="23"/>
                   </svg>
                 ) : (
-                  /* Eye SVG */
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                     <circle cx="12" cy="12" r="3"/>

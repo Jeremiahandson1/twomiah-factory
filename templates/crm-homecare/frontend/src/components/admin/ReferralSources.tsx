@@ -1,8 +1,10 @@
 // src/components/admin/ReferralSources.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL, getReferralSources, createReferralSource } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ReferralSources = ({ token }) => {
+const ReferralSources = () => {
+  const { token } = useAuth();
   const [sources, setSources] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);

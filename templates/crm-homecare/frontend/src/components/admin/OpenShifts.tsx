@@ -1,8 +1,10 @@
 // src/components/admin/OpenShifts.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const OpenShifts = ({ token }) => {
+const OpenShifts = () => {
+  const { token } = useAuth();
   const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ status: 'open', urgency: '' });

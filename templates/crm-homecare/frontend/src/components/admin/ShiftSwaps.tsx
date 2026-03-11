@@ -1,8 +1,10 @@
 // src/components/admin/ShiftSwaps.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ShiftSwaps = ({ token }) => {
+const ShiftSwaps = () => {
+  const { token } = useAuth();
   const [swaps, setSwaps] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ status: '' });

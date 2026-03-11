@@ -3,6 +3,7 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import EditClientModal from './EditClientModal';
+import { useAuth } from '../../contexts/AuthContext';
 
 // AddressLink component - opens Google Maps
 const AddressLink = ({ address, city, state, zip }) => {
@@ -84,7 +85,8 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) 
   </div>
 );
 
-const ClientsManagement = ({ token }) => {
+const ClientsManagement = () => {
+  const { token } = useAuth();
   const [clients, setClients] = useState([]);
   const [referralSources, setReferralSources] = useState([]);
   const [careTypes, setCareTypes] = useState([]);
@@ -470,7 +472,7 @@ const ClientsManagement = ({ token }) => {
         </div>
       )}
 
-      <EditClientModal client={selectedClient} referralSources={referralSources} careTypes={careTypes} isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedClient(null); }} onSuccess={loadData} token={token} />
+      <EditClientModal client={selectedClient} referralSources={referralSources} careTypes={careTypes} isOpen={showEditModal} onClose={() => { setShowEditModal(false); setSelectedClient(null); }} onSuccess={loadData} />
     </div>
   );
 };

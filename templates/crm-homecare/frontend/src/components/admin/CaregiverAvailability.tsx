@@ -1,8 +1,10 @@
 // src/components/admin/CaregiverAvailability.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const CaregiverAvailability = ({ token }) => {
+const CaregiverAvailability = () => {
+  const { token } = useAuth();
   const [caregivers, setCaregivers] = useState([]);
   const [selectedCaregiverId, setSelectedCaregiverId] = useState('');
   const [availability, setAvailability] = useState(null);

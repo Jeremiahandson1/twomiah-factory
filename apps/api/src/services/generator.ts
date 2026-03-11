@@ -12,6 +12,7 @@ import bcrypt from 'bcryptjs'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
 const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
+const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', 'electrical'])
 
 const TEXT_EXTS = new Set([
   '.js', '.jsx', '.ts', '.tsx', '.ejs', '.html', '.css', '.json',
@@ -156,7 +157,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
     if (products.includes('crm')) {
       const crmIndustry = config.company?.industry || ''
-      const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : crmIndustry === 'field_service' ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : 'crm'
+      const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : 'crm'
       const crmOutputDir = crmTemplate
       copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), tokens)
       processCRM(path.join(workDir, crmOutputDir), config, tokens)
@@ -269,8 +270,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
     '{{SITE_URL}}': 'https://' + (c.domain || slug + '.com'),
     '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
-    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive.onrender.com' : 'https://' + slug + '-crm.onrender.com',
-    '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
+    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive.onrender.com' : 'https://' + slug + '-crm.onrender.com',
+    '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
     '{{INDUSTRY}}': industryLabel,
     '{{META_DESCRIPTION}}': industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'

@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // src/components/admin/AlertsManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const AlertsManagement = ({ token }) => {
+const AlertsManagement = () => {
+  const { token } = useAuth();
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ type: '', priority: '', status: 'active' });

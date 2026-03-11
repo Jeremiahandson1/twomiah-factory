@@ -2,8 +2,10 @@ import { toast } from '../Toast';
 // src/components/admin/BackgroundChecks.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const BackgroundChecks = ({ token }) => {
+const BackgroundChecks = () => {
+  const { token } = useAuth();
   const [checks, setChecks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ status: '', type: '' });

@@ -1,8 +1,10 @@
 // src/components/admin/AddCaregiverModal.jsx
 import React, { useState } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const AddCaregiverModal = ({ isOpen, onClose, onSuccess, token }) => {
+const AddCaregiverModal = ({ isOpen, onClose, onSuccess }) => {
+  const { token } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',

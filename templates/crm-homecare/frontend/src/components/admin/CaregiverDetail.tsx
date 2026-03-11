@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
 const fmtHrs = (n) => n != null ? `${parseFloat(n||0).toFixed(2)}h` : '—';
@@ -34,7 +35,8 @@ const TABS = [
   { id: 'evv', label: '📍 EVV / Geofence' },
 ];
 
-export default function CaregiverDetail({ caregiverId, token, onBack, onHireComplete }) {
+export default function CaregiverDetail({ caregiverId, onBack, onHireComplete }) {
+  const { token } = useAuth();
   const [tab, setTab] = useState('overview');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

@@ -2,8 +2,10 @@
 // Company-Wide Smart Matching & Schedule Optimizer
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const CompanyOptimizer = ({ token }) => {
+const CompanyOptimizer = () => {
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('skills');
   const [capabilities, setCapabilities] = useState([]);
   const [caregivers, setCaregivers] = useState([]);

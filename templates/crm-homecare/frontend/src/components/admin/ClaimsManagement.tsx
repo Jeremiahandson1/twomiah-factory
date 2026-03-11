@@ -2,8 +2,10 @@ import { toast } from '../Toast';
 // src/components/admin/ClaimsManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ClaimsManagement = ({ token }) => {
+const ClaimsManagement = () => {
+  const { token } = useAuth();
   const [claims, setClaims] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ status: '', payerId: '' });

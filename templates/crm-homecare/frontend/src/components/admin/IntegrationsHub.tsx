@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const fmt$ = (n) => n != null ? `$${parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}` : '—';
@@ -61,7 +62,8 @@ const TABS = [
 ];
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
-const IntegrationsHub = ({ token }) => {
+const IntegrationsHub = () => {
+  const { token } = useAuth();
   const [tab, setTab] = useState('overview');
   const [sandataConfig, setSandataConfig] = useState(null);
   const [gustoConfig, setGustoConfig] = useState(null);

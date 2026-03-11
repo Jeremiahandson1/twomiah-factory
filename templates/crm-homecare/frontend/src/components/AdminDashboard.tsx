@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { getDashboardSummary } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from './Toast';
 import HelpPanel from './HelpPanel';
 import ImpersonationModal from './ImpersonationModal';
@@ -121,7 +122,8 @@ const NAV_SECTIONS = [
 // All searchable items flattened
 const ALL_ITEMS = NAV_SECTIONS.flatMap(s => s.items);
 
-const AdminDashboard = ({ user, token, onLogout, onImpersonate }) => {
+const AdminDashboard = ({ onLogout, onImpersonate }) => {
+  const { user, token } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [showHelp, setShowHelp] = useState(false);
   const [showImpersonation, setShowImpersonation] = useState(false);
@@ -233,50 +235,49 @@ const AdminDashboard = ({ user, token, onLogout, onImpersonate }) => {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard': return <DashboardOverview summary={summary} token={token} onNavigate={handlePageClick} />;
-      case 'referrals': return <ReferralSources token={token} />;
-      case 'clients': return <ClientsManagement token={token} />;
-      case 'caregivers': return <CaregiverManagement token={token} onViewProfile={handleViewCaregiverProfile} onViewHistory={handleViewCaregiverHistory} />;
-      case 'billing': return <BillingDashboard token={token} />;
-      case 'scheduling': return <SchedulingHub token={token} />;
-      case 'emergency-coverage': return <EmergencyCoverage token={token} />;
-      case 'route-optimizer': return <RouteOptimizer token={token} />;
-      case 'company-optimizer': return <CompanyOptimizer token={token} />;
-      case 'onboarding': return <ClientOnboarding token={token} />;
-      case 'performance': return <PerformanceRatings token={token} />;
-      case 'applications': return <ApplicationsDashboard token={token} />;
-      case 'care-plans': return <CarePlans token={token} />;
-      case 'incidents': return <IncidentReporting token={token} />;
-      case 'notifications': return <NotificationCenter token={token} />;
-      case 'messages': return <MessageBoard token={token} />;
-      case 'integrations': return <IntegrationsHub token={token} />;
-      case 'compliance': return <ComplianceTracking token={token} />;
-      case 'reports': return <ReportsAnalytics token={token} />;
-      case 'payroll': return <PayrollProcessing token={token} />;
-      case 'expenses': return <ExpenseManagement token={token} />;
-      case 'audit-logs': return <AuditLogs token={token} />;
-      case 'login-activity': return <LoginActivity token={token} />;
+      case 'dashboard': return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
+      case 'referrals': return <ReferralSources />;
+      case 'clients': return <ClientsManagement />;
+      case 'caregivers': return <CaregiverManagement onViewProfile={handleViewCaregiverProfile} onViewHistory={handleViewCaregiverHistory} />;
+      case 'billing': return <BillingDashboard />;
+      case 'scheduling': return <SchedulingHub />;
+      case 'emergency-coverage': return <EmergencyCoverage />;
+      case 'route-optimizer': return <RouteOptimizer />;
+      case 'company-optimizer': return <CompanyOptimizer />;
+      case 'onboarding': return <ClientOnboarding />;
+      case 'performance': return <PerformanceRatings />;
+      case 'applications': return <ApplicationsDashboard />;
+      case 'care-plans': return <CarePlans />;
+      case 'incidents': return <IncidentReporting />;
+      case 'notifications': return <NotificationCenter />;
+      case 'messages': return <MessageBoard />;
+      case 'integrations': return <IntegrationsHub />;
+      case 'compliance': return <ComplianceTracking />;
+      case 'reports': return <ReportsAnalytics />;
+      case 'payroll': return <PayrollProcessing />;
+      case 'expenses': return <ExpenseManagement />;
+      case 'audit-logs': return <AuditLogs />;
+      case 'login-activity': return <LoginActivity />;
       case 'caregiver-profile': return selectedCaregiverId ? (
-        <CaregiverProfile caregiverId={selectedCaregiverId} token={token}
-          onBack={() => { setSelectedCaregiverId(null); setCurrentPage('caregivers'); }} />
+        <CaregiverProfile caregiverId={selectedCaregiverId} onBack={() => { setSelectedCaregiverId(null); setCurrentPage('caregivers'); }} />
       ) : null;
       case 'caregiver-history': return selectedCaregiverId ? (
         <CaregiverHistory caregiverId={selectedCaregiverId} caregiverName={selectedCaregiverName}
-          token={token} onBack={() => { setSelectedCaregiverId(null); setCurrentPage('caregivers'); }} />
+          onBack={() => { setSelectedCaregiverId(null); setCurrentPage('caregivers'); }} />
       ) : null;
-      case 'claims': return <ClaimsManagement token={token} />;
-      case 'medications': return <MedicationsManagement token={token} />;
-      case 'documents': return <DocumentsManagement token={token} />;
-      case 'adl': return <ADLTracking token={token} />;
-      case 'background-checks': return <BackgroundChecks token={token} />;
-      case 'sms': return <SMSManagement token={token} />;
-      case 'family-portal': return <FamilyPortalAdmin token={token} />;
-      case 'alerts': return <AlertsManagement token={token} />;
-      case 'communication-log': return <CommunicationLog token={token} entityType='client' entityId={null} entityName='All Entries' />;
-      case 'no-show-alerts': return <NoShowAlerts token={token} />;
-      case 'form-builder': return <FormBuilder token={token} />;
-      case 'revenue-forecast': return <RevenueForecast token={token} />;
-      default: return <DashboardOverview summary={summary} token={token} onNavigate={handlePageClick} />;
+      case 'claims': return <ClaimsManagement />;
+      case 'medications': return <MedicationsManagement />;
+      case 'documents': return <DocumentsManagement />;
+      case 'adl': return <ADLTracking />;
+      case 'background-checks': return <BackgroundChecks />;
+      case 'sms': return <SMSManagement />;
+      case 'family-portal': return <FamilyPortalAdmin />;
+      case 'alerts': return <AlertsManagement />;
+      case 'communication-log': return <CommunicationLog entityType='client' entityId={null} entityName='All Entries' />;
+      case 'no-show-alerts': return <NoShowAlerts />;
+      case 'form-builder': return <FormBuilder />;
+      case 'revenue-forecast': return <RevenueForecast />;
+      default: return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
     }
   };
 
@@ -469,12 +470,11 @@ const AdminDashboard = ({ user, token, onLogout, onImpersonate }) => {
           </div>
         </div>
 
-        <HelpPanel isOpen={showHelp} onClose={() => setShowHelp(false)} currentPage={currentPage} token={token} />
+        <HelpPanel isOpen={showHelp} onClose={() => setShowHelp(false)} currentPage={currentPage} />
 
         {/* Impersonation modal */}
         {showImpersonation && (
           <ImpersonationModal
-            token={token}
             onImpersonate={(impToken, impUser) => {
               setShowImpersonation(false);
               onImpersonate(impToken, impUser);

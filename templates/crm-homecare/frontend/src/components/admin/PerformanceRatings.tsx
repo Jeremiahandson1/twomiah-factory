@@ -2,8 +2,10 @@ import { confirm } from '../ConfirmModal';
 // src/components/admin/PerformanceRatings.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const PerformanceRatings = ({ token }) => {
+const PerformanceRatings = () => {
+  const { token } = useAuth();
   const [caregivers, setCaregivers] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);

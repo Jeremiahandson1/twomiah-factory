@@ -1,6 +1,7 @@
 // src/components/admin/EditClientModal.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
 const formatDateForInput = (dateString) => {
   if (!dateString) return '';
@@ -8,7 +9,8 @@ const formatDateForInput = (dateString) => {
   return date.toISOString().split('T')[0];
 };
 
-const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen, onClose, onSuccess, token }) => {
+const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen, onClose, onSuccess }) => {
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('basic');
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);

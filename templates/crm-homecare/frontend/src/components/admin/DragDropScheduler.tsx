@@ -1,6 +1,7 @@
 // SchedulerGrid.jsx - Weekly schedule grid: click cell to create, click shift to edit/delete
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
 const PALETTE = [
   '#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6',
@@ -42,7 +43,8 @@ function getWeekDates(weekStart) {
 const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const DAY_FULL  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
-export default function SchedulerGrid({ token, onScheduleChange }) {
+export default function SchedulerGrid({ onScheduleChange }) {
+  const { token } = useAuth();
   const [weekOf, setWeekOf]             = useState(getWeekStart(new Date()));
   const [caregivers, setCaregivers]     = useState([]);
   const [clients, setClients]           = useState([]);

@@ -3,8 +3,10 @@ import { confirm } from '../ConfirmModal';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ComplianceTracking = ({ token }) => {
+const ComplianceTracking = () => {
+  const { token } = useAuth();
   const [caregivers, setCaregivers] = useState([]);
   const [selectedCaregiverId, setSelectedCaregiverId] = useState('');
   const [backgroundCheck, setBackgroundCheck] = useState(null);
@@ -676,7 +678,7 @@ const ComplianceTracking = ({ token }) => {
 
           {/* Overview Tab */}
           {tab === 'overview' && (
-            <ExpiryOverview token={token} />
+            <ExpiryOverview />
           )}
         </>
       )}
@@ -685,7 +687,8 @@ const ComplianceTracking = ({ token }) => {
 };
 
 // ─── All-Caregivers Expiry Overview ───────────────────────────────────────────
-const ExpiryOverview = ({ token }) => {
+const ExpiryOverview = () => {
+  const { token } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(60);

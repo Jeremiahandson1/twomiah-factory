@@ -1,50 +1,101 @@
+import React from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 
-const AuthContext = createContext(null);
+const AuthContext = createContext<any>(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<any>(null);
+  const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchMe = useCallback(async () => {
-    if (!api.accessToken) { setLoading(false); return; }
+  const checkAuth = useCallback(async () => {
+    if (!api.accessToken) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      const data = await api.get('/auth/me');
-      setUser(data);
-    } catch {
+      const [userData, companyData] = await Promise.all([
+        api.getMe(),
+        api.company.get(),
+      ]);
+      setUser(userData);
+      setCompany(companyData);
+    } catch (err) {
+      console.error('Auth check failed:', err);
       api.clearTokens();
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchMe(); }, [fetchMe]);
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
-  const login = async (email, password) => {
-    const data = await api.post('/auth/login', { email, password });
-    api.setTokens(data.accessToken, data.refreshToken);
-    setUser(data.user);
-    return data.user;
+  const login = async (email: string, password: string) => {
+    setError(null);
+    try {
+      const data = await api.login(email, password);
+      setUser(data.user);
+      // Fetch company after login
+      const companyData = await api.company.get();
+      setCompany(companyData);
+      return data;
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+      throw err;
+    }
   };
 
   const logout = async () => {
-    try { await api.post('/auth/logout', {}); } catch (_) {}
-    api.clearTokens();
-    setUser(null);
+    try {
+      await api.logout();
+    } finally {
+      setUser(null);
+      setCompany(null);
+    }
   };
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'billing';
+  const updateCompany = (updates: any) => {
+    setCompany((prev: any) => ({ ...prev, ...updates }));
+  };
+
+  const isAuthenticated = !!user;
+  const isAdmin = user?.role === 'admin';
+  const isCaregiver = user?.role === 'caregiver';
+
+  // Expose token for components still using raw fetch() during migration
+  const token = api.accessToken;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAdmin }}>
+    <AuthContext.Provider value={{
+      user,
+      company,
+      loading,
+      error,
+      isAuthenticated,
+      isAdmin,
+      isCaregiver,
+      token,
+      login,
+      logout,
+      checkAuth,
+      updateCompany,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
-};
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
+}
+
+export default AuthContext;

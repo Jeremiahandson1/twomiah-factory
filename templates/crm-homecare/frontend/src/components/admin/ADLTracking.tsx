@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // src/components/admin/ADLTracking.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ADLTracking = ({ token }) => {
+const ADLTracking = () => {
+  const { token } = useAuth();
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [requirements, setRequirements] = useState([]);

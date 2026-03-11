@@ -234,7 +234,22 @@ function HomeCareIncluded() {
   )
 }
 
-const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing'])
+// Map industry → which CRM_REGISTRY categories to show
+const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', 'electrical'])
+const AUTOMOTIVE_INDUSTRIES = new Set(['automotive'])
+
+const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
+  'crm': new Set(['Core', 'Construction', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-fieldservice': new Set(['Core', 'Service Trade', 'Field Service', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-automotive': new Set(['Core', 'Automotive', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+}
+
+function getTemplateFromIndustry(industry?: string): string {
+  if (!industry) return 'crm'
+  if (FIELD_SERVICE_INDUSTRIES.has(industry)) return 'crm-fieldservice'
+  if (AUTOMOTIVE_INDUSTRIES.has(industry)) return 'crm-automotive'
+  return 'crm'
+}
 
 function CRMFeatures({ selected, onChange, industry, plan }: { selected: string[], onChange: (f: string[]) => void, industry?: string, plan?: PlanSelection }) {
   const [search, setSearch] = useState('')
@@ -256,9 +271,9 @@ function CRMFeatures({ selected, onChange, industry, plan }: { selected: string[
     return plans[featureTierIdx]?.name || null
   }
 
-  const filteredRegistry = CRM_REGISTRY.filter(c =>
-    c.category !== 'Field Service' || FIELD_SERVICE_INDUSTRIES.has(industry || '')
-  )
+  const template = getTemplateFromIndustry(industry)
+  const allowedCategories = TEMPLATE_CATEGORIES[template] || TEMPLATE_CATEGORIES['crm']
+  const filteredRegistry = CRM_REGISTRY.filter(c => allowedCategories.has(c.category))
   const allFeatures = filteredRegistry.flatMap(c => c.features)
   const allIds = allFeatures.map(f => f.id)
   const coreIds = allFeatures.filter(f => f.core).map(f => f.id)

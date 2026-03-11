@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, supportKnowledgeBase, contact, equipment, job, site, quote, quoteLineItem, serviceAgreement, agreementPlan, jobPhoto, smsConversation, smsMessage } from './schema.ts'
+import { company, user, supportKnowledgeBase, contact, equipment, job, site, quote, quoteLineItem, serviceAgreement, agreementPlan, jobPhoto, smsConversation, smsMessage, pricebookCategory, pricebookItem } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -458,6 +458,78 @@ async function main() {
         },
       ])
       console.log('Created 3 demo SMS messages on Johnson contact')
+    }
+  }
+
+  // ── INDUSTRY-SPECIFIC PRICEBOOK & CATEGORIES ─────────
+  const industry = '{{INDUSTRY}}'
+
+  const SERVICE_CATEGORIES: Record<string, string[]> = {
+    'HVAC':       ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
+    'Plumbing':   ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
+    'Electrical': ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
+  }
+  const DEFAULT_CATEGORIES = ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection']
+
+  type PricebookSeed = { name: string; description?: string; price: string; type: string; category: string }
+  const INDUSTRY_PRICEBOOK: Record<string, PricebookSeed[]> = {
+    'HVAC': [
+      { name: 'AC Tune-Up', price: '89.00', type: 'service', category: 'Maintenance' },
+      { name: 'Furnace Tune-Up', price: '89.00', type: 'service', category: 'Maintenance' },
+      { name: 'AC Installation', description: 'Full AC system install — priced per estimate', price: '0.00', type: 'service', category: 'Install' },
+      { name: 'Furnace Replacement', description: 'Full furnace replacement — priced per estimate', price: '0.00', type: 'service', category: 'Install' },
+      { name: 'Refrigerant Recharge', price: '150.00', type: 'service', category: 'Repair' },
+      { name: 'Filter Replacement', price: '25.00', type: 'service', category: 'Maintenance' },
+      { name: 'Thermostat Install', price: '120.00', type: 'service', category: 'Install' },
+      { name: 'Duct Cleaning', price: '299.00', type: 'service', category: 'Maintenance' },
+    ],
+    'Plumbing': [
+      { name: 'Drain Cleaning', price: '150.00', type: 'service', category: 'Repair' },
+      { name: 'Water Heater Install', description: 'Full water heater install — priced per estimate', price: '0.00', type: 'service', category: 'Install' },
+      { name: 'Leak Repair', description: 'Leak diagnosis and repair — priced per estimate', price: '0.00', type: 'service', category: 'Repair' },
+      { name: 'Toilet Replace', price: '200.00', type: 'service', category: 'Install' },
+      { name: 'Faucet Install', price: '120.00', type: 'service', category: 'Install' },
+      { name: 'Sewer Camera Inspection', price: '250.00', type: 'service', category: 'Inspection' },
+    ],
+    'Electrical': [
+      { name: 'Panel Upgrade', description: 'Electrical panel upgrade — priced per estimate', price: '0.00', type: 'service', category: 'Install' },
+      { name: 'Outlet Install', price: '120.00', type: 'service', category: 'Install' },
+      { name: 'Ceiling Fan Install', price: '150.00', type: 'service', category: 'Install' },
+      { name: 'EV Charger Install', description: 'EV charger installation — priced per estimate', price: '0.00', type: 'service', category: 'Install' },
+      { name: 'Lighting Install', price: '100.00', type: 'service', category: 'Install' },
+      { name: 'Safety Inspection', price: '200.00', type: 'service', category: 'Inspection' },
+    ],
+  }
+
+  // Seed service categories
+  const existingCats = await db.select().from(pricebookCategory).where(eq(pricebookCategory.companyId, comp.id)).limit(1)
+  if (existingCats.length === 0) {
+    const categories = SERVICE_CATEGORIES[industry] || DEFAULT_CATEGORIES
+    const catMap: Record<string, string> = {}
+    for (let i = 0; i < categories.length; i++) {
+      const [cat] = await db.insert(pricebookCategory).values({
+        name: categories[i],
+        sortOrder: i,
+        companyId: comp.id,
+      }).returning()
+      catMap[categories[i]] = cat.id
+    }
+    console.log(`Seeded ${categories.length} service categories for ${industry}`)
+
+    // Seed pricebook items linked to categories
+    const items = INDUSTRY_PRICEBOOK[industry]
+    if (items) {
+      for (const item of items) {
+        await db.insert(pricebookItem).values({
+          name: item.name,
+          description: item.description || null,
+          price: item.price,
+          type: item.type,
+          companyId: comp.id,
+          categoryId: catMap[item.category] || null,
+        })
+      }
+      console.log(`Seeded ${items.length} pricebook items for ${industry}`)
     }
   }
 

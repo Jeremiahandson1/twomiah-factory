@@ -2,8 +2,10 @@
 // What caregivers see when they click on a client - care-focused info only, no admin/billing
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 
-const CaregiverClientModal = ({ clientId, isOpen, onClose, token }) => {
+const CaregiverClientModal = ({ clientId, isOpen, onClose }) => {
+  const { token } = useAuth();
   const [client, setClient] = useState(null);
   const [visitNotes, setVisitNotes] = useState([]);
   const [loading, setLoading] = useState(true);

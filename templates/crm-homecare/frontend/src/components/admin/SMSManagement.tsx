@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // src/components/admin/SMSManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const SMSManagement = ({ token }) => {
+const SMSManagement = () => {
+  const { token } = useAuth();
   const [messages, setMessages] = useState([]);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -1,6 +1,7 @@
 // src/components/admin/LoginActivity.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Parses a user-agent string into a human-readable device/browser summary
 function parseUserAgent(ua) {
@@ -40,7 +41,8 @@ const FAIL_LABELS = {
   account_inactive: 'Inactive account',
 };
 
-const LoginActivity = ({ token }) => {
+const LoginActivity = () => {
+  const { token } = useAuth();
   const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ total: 0, page: 1, pages: 1 });

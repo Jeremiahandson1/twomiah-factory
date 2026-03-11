@@ -2,8 +2,10 @@ import { toast } from '../Toast';
 // src/components/admin/ReportsAnalytics.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ReportsAnalytics = ({ token }) => {
+const ReportsAnalytics = () => {
+  const { token } = useAuth();
   const [reportType, setReportType] = useState('overview');
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],

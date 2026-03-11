@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_COLORS = ['#8B5CF6', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4'];
@@ -27,7 +28,8 @@ function suggestVisits(hrs) {
   return 6;
 }
 
-export default function RosterOptimizer({ token }) {
+export default function RosterOptimizer() {
+  const { token } = useAuth();
   // ── Data ─────────────────────────────────────────────────────────────────
   const [roster, setRoster]         = useState(null);   // raw roster from API
   const [caregivers, setCaregivers] = useState([]);     // [{id,name,targetHours,...}]

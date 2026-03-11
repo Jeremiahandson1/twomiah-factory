@@ -2,6 +2,7 @@
 // Shift timeline + GPS route viewer for admin
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
 const formatDuration = (minutes) => {
   if (!minutes) return '—';
@@ -24,7 +25,8 @@ const formatTime = (dt) => {
 };
 
 // Simple inline map using Leaflet via CDN
-const GPSRouteMap = ({ timeEntryId, token, onClose }) => {
+const GPSRouteMap = ({ timeEntryId, onClose }) => {
+  const { token } = useAuth();
   const mapRef = useRef(null);
   const [points, setPoints] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,7 +143,8 @@ const GPSRouteMap = ({ timeEntryId, token, onClose }) => {
   );
 };
 
-const CaregiverHistory = ({ caregiverId, caregiverName, token, onBack }) => {
+const CaregiverHistory = ({ caregiverId, caregiverName, onBack }) => {
+  const { token } = useAuth();
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState({
@@ -352,7 +355,6 @@ const CaregiverHistory = ({ caregiverId, caregiverName, token, onBack }) => {
       {selectedEntryId && (
         <GPSRouteMap
           timeEntryId={selectedEntryId}
-          token={token}
           onClose={() => setSelectedEntryId(null)}
         />
       )}

@@ -1,8 +1,10 @@
 // src/components/admin/ClientOnboarding.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ClientOnboarding = ({ token }) => {
+const ClientOnboarding = () => {
+  const { token } = useAuth();
   const [clients, setClients] = useState([]);
   const [expandedClient, setExpandedClient] = useState(null);
   const [expandedStep, setExpandedStep] = useState(null);

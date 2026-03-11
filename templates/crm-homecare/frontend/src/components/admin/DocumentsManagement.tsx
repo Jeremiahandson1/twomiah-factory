@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // src/components/admin/DocumentsManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const DocumentsManagement = ({ token }) => {
+const DocumentsManagement = () => {
+  const { token } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({ entityType: '', category: '' });

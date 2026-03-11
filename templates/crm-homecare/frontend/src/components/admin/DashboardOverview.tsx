@@ -1,8 +1,10 @@
 // src/components/admin/DashboardOverview.jsx
 import React, { useState, useEffect } from 'react';
 import { getDashboardReferrals, getDashboardHours } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const DashboardOverview = ({ summary, token, onNavigate }) => {
+const DashboardOverview = ({ summary, onNavigate }) => {
+  const { token } = useAuth();
   const [referrals, setReferrals] = useState([]);
   const [caregiverHours, setCaregiverHours] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -2,8 +2,10 @@ import { confirm } from '../ConfirmModal';
 // src/components/admin/CarePlans.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const CarePlans = ({ token }) => {
+const CarePlans = () => {
+  const { token } = useAuth();
   const [clients, setClients] = useState([]);
   const [carePlans, setCarePlans] = useState({});
   const [loading, setLoading] = useState(true);

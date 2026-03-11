@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // src/components/admin/ApplicationDetail.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ApplicationDetail = ({ applicationId, token, onBack }) => {
+const ApplicationDetail = ({ applicationId, onBack }) => {
+  const { token } = useAuth();
   const [app, setApp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');

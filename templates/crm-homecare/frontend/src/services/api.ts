@@ -1,17 +1,23 @@
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-class ApiService {
+class ApiClient {
+  baseUrl: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+
   constructor() {
     this.baseUrl = API_URL;
-    this.accessToken = localStorage.getItem('accessToken');
+    this.accessToken = localStorage.getItem('accessToken') || localStorage.getItem('token');
     this.refreshToken = localStorage.getItem('refreshToken');
   }
 
-  setTokens(accessToken, refreshToken) {
+  setTokens(accessToken: string, refreshToken: string) {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
+    // Remove legacy 'token' key if present
+    localStorage.removeItem('token');
   }
 
   clearTokens() {
@@ -19,56 +25,113 @@ class ApiService {
     this.refreshToken = null;
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('token');
   }
 
-  async request(method, path, body, options = {}) {
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
-    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
+  async request(endpoint: string, options: RequestInit = {}): Promise<any> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers: Record<string, string> = {
+      ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(this.accessToken && { Authorization: `Bearer ${this.accessToken}` }),
+      ...((options.headers as Record<string, string>) || {}),
+    };
 
-    const res = await fetch(`${this.baseUrl}/api${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-
-    // Auto-refresh on 401
-    if (res.status === 401 && this.refreshToken && !options._retry) {
-      const refreshed = await this.refresh();
-      if (refreshed) return this.request(method, path, body, { ...options, _retry: true });
-      this.clearTokens();
-      window.location.href = '/login';
-      return;
-    }
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
-
-    if (res.status === 204) return null;
-    return res.json();
-  }
-
-  async refresh() {
     try {
-      const res = await fetch(`${this.baseUrl}/api/auth/refresh`, {
+      const response = await fetch(url, { ...options, headers });
+
+      // Handle 401 — try to refresh token
+      if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
+        const refreshed = await this.refreshAccessToken();
+        if (refreshed) {
+          headers.Authorization = `Bearer ${this.accessToken}`;
+          return fetch(url, { ...options, headers }).then(r => this.handleResponse(r));
+        } else {
+          this.clearTokens();
+          window.location.href = '/login';
+          throw new Error('Session expired');
+        }
+      }
+
+      return this.handleResponse(response);
+    } catch (error) {
+      console.error('API Error:', error);
+      throw error;
+    }
+  }
+
+  async handleResponse(response: Response) {
+    if (response.status === 204) return null;
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const error: any = new Error(data?.error || 'Request failed');
+      error.status = response.status;
+      error.data = data;
+      throw error;
+    }
+
+    return data;
+  }
+
+  async refreshAccessToken(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken }),
       });
-      if (!res.ok) return false;
-      const { accessToken, refreshToken } = await res.json();
-      this.setTokens(accessToken, refreshToken);
+
+      if (!response.ok) return false;
+
+      const data = await response.json();
+      this.setTokens(data.accessToken, data.refreshToken);
       return true;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }
 
-  get(path, opts) { return this.request('GET', path, null, opts); }
-  post(path, body, opts) { return this.request('POST', path, body, opts); }
-  put(path, body, opts) { return this.request('PUT', path, body, opts); }
-  patch(path, body, opts) { return this.request('PATCH', path, body, opts); }
-  delete(path, opts) { return this.request('DELETE', path, null, opts); }
+  // Auth
+  async login(email: string, password: string) {
+    const result = await this.request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+    this.setTokens(result.accessToken, result.refreshToken);
+    return result;
+  }
+
+  async logout() {
+    await this.request('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    this.clearTokens();
+  }
+
+  async getMe() {
+    return this.request('/api/auth/me');
+  }
+
+  // Generic CRUD
+  async get(endpoint: string, params: Record<string, any> = {}) {
+    const query = new URLSearchParams(params).toString();
+    return this.request(`${endpoint}${query ? '?' + query : ''}`);
+  }
+
+  async post(endpoint: string, data: any = {}) {
+    return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async put(endpoint: string, data: any = {}) {
+    return this.request(endpoint, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async del(endpoint: string) {
+    return this.request(endpoint, { method: 'DELETE' });
+  }
+
+  // Company/Agency
+  company = {
+    get: () => this.get('/api/company'),
+    update: (data: any) => this.request('/api/company', { method: 'PUT', body: JSON.stringify(data) }),
+  };
 }
 
-export const api = new ApiService();
+export const api = new ApiClient();
 export default api;

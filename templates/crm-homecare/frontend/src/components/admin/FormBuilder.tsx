@@ -1,6 +1,7 @@
 // FormBuilder.jsx — Create custom forms, fill & submit against clients/caregivers
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -17,7 +18,8 @@ const CATEGORIES = ['assessment','incident','physician_order','consent','intake'
 
 const genId = () => Math.random().toString(36).slice(2, 8);
 
-export default function FormBuilder({ token }) {
+export default function FormBuilder() {
+  const { token } = useAuth();
   const [tab, setTab] = useState('templates');
   const [templates, setTemplates] = useState([]);
   const [submissions, setSubmissions] = useState([]);

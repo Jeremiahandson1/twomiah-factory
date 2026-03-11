@@ -5,11 +5,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_COLORS = ['#8B5CF6','#3B82F6','#10B981','#F59E0B','#EF4444','#EC4899','#06B6D4'];
 
-export default function ScheduleOptimizer({ token, caregivers: allCaregivers, clients: allClients }) {
+export default function ScheduleOptimizer({ caregivers: allCaregivers, clients: allClients }) {
+  const { token } = useAuth();
   // ── State ──────────────────────────────────────────────────────────────────
   const [selectedCaregivers, setSelectedCaregivers] = useState([]); // [{id, name, allocatedHours}]
   const [selectedClients, setSelectedClients]       = useState([]); // [{id, name, hoursPerWeek, visitsPerWeek, auth, preferredDays, timeWindowStart, timeWindowEnd}]

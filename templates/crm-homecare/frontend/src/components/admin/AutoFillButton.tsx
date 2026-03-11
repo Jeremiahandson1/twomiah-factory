@@ -1,16 +1,17 @@
 import React, { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
+import { useAuth } from '../../contexts/AuthContext';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 /**
  * AutoFillButton - Automatically assigns best-fit caregivers to open shifts
- * 
+ *
  * @param {string} weekOf - ISO date string for the week start (YYYY-MM-DD)
- * @param {string} token - JWT auth token
  * @param {function} onComplete - Callback fired after successful fill
  */
-const AutoFillButton = ({ weekOf, token, onComplete }) => {
+const AutoFillButton = ({ weekOf, onComplete }) => {
+  const { token } = useAuth();
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -404,7 +405,6 @@ const styles = {
 // PropTypes
 AutoFillButton.propTypes = {
   weekOf: PropTypes.string.isRequired,
-  token: PropTypes.string.isRequired,
   onComplete: PropTypes.func
 };
 

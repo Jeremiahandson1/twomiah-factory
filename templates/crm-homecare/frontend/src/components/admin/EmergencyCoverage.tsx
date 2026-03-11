@@ -3,8 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
 import { confirm } from '../ConfirmModal';
+import { useAuth } from '../../contexts/AuthContext';
 
-const EmergencyCoverage = ({ token }) => {
+const EmergencyCoverage = () => {
+  const { token } = useAuth();
   const [missReports, setMissReports] = useState([]);
   const [availableCaregivers, setAvailableCaregivers] = useState([]);
   const [clients, setClients] = useState([]);

@@ -1,10 +1,12 @@
 // NoShowAlerts.jsx — monitor + configure automated no-show detection
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const API = import.meta.env.VITE_API_URL || '';
 
-export default function NoShowAlerts({ token }) {
+export default function NoShowAlerts() {
+  const { token } = useAuth();
   const [alerts, setAlerts] = useState([]);
   const [stats, setStats] = useState({});
   const [config, setConfig] = useState({ grace_minutes: 15, notify_admin: true, notify_caregiver: true, notify_client_family: false, admin_phone: '', admin_email: '', is_active: true });

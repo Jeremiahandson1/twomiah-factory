@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // src/components/admin/MedicationsManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const MedicationsManagement = ({ token }) => {
+const MedicationsManagement = () => {
+  const { token } = useAuth();
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [medications, setMedications] = useState([]);

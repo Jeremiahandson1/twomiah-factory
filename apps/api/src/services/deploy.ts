@@ -660,8 +660,10 @@ export async function deployCustomer(
 ): Promise<DeployResult> {
   const { region = 'ohio', plan = 'starter', dbPlan = 'basic_256mb', products = factoryCustomer.products || ['crm'] } = options
   const slug = factoryCustomer.slug
-  const isHomeCare = factoryCustomer.industry === 'home_care' || factoryCustomer.config?.company?.industry === 'home_care'
-  const isAutomotive = factoryCustomer.industry === 'automotive' || factoryCustomer.config?.company?.industry === 'automotive'
+  const ind = factoryCustomer.industry || factoryCustomer.config?.company?.industry || ''
+  const isHomeCare = ind === 'home_care'
+  const isFieldService = ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind)
+  const isAutomotive = ind === 'automotive'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')
@@ -704,7 +706,7 @@ export async function deployCustomer(
     let dbConnectionString: string | null = null
     let supabaseProject: SupabaseProjectResult | null = null
     if (products.includes('crm')) {
-      const dbSlug = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug
+      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : slug
 
       if (isSupabaseManagementConfigured()) {
         // ── Dedicated Supabase project per customer ──
@@ -758,7 +760,7 @@ export async function deployCustomer(
     let r2EnvVars: Array<{ key: string; value: string }> = []
     if (isR2Configured()) {
       try {
-        const bucketSlug = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug
+        const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : slug
         r2BucketName = await createR2Bucket(bucketSlug)
         createdResources.push({ type: 'r2_bucket', id: r2BucketName })
         r2EnvVars = getR2EnvVars(r2BucketName)
@@ -811,9 +813,9 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isAutomotive ? slug + '-drive-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isAutomotive ? slug + '-drive' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isAutomotive ? 'crm-automotive' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : 'crm'
 
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)

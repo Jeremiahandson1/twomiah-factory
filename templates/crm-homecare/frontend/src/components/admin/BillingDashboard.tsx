@@ -4,6 +4,7 @@ import { toast } from '../Toast';
 // Complete billing system: Invoicing, A/R Aging, Authorizations, Claims, Payments
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Helper to parse date without timezone shift
 const parseDate = (dateStr) => {
@@ -48,7 +49,8 @@ const generateTimeOptions = () => {
 
 const TIME_OPTIONS = generateTimeOptions();
 
-const BillingDashboard = ({ token }) => {
+const BillingDashboard = () => {
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('invoices');
   const [invoices, setInvoices] = useState([]);
   const [clients, setClients] = useState([]);

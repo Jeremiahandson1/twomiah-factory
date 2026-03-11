@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import AddCaregiverModal from './AddCaregiverModal';
 import CaregiverDetail from './CaregiverDetail';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Mobile-friendly caregiver card
 const CaregiverCard = ({ caregiver, formatCurrency, onEdit, onRates, onProfile, onPromote }) => (
@@ -57,7 +58,8 @@ const CaregiverCard = ({ caregiver, formatCurrency, onEdit, onRates, onProfile, 
   </div>
 );
 
-const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
+const CaregiverManagement = ({ onViewProfile, onViewHistory }) => {
+  const { token } = useAuth();
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [detailId, setDetailId] = useState(null);
   const [caregivers, setCaregivers] = useState([]);
@@ -268,7 +270,7 @@ const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
 
   // Show full detail view when a caregiver is clicked
   if (detailId) {
-    return <CaregiverDetail caregiverId={detailId} token={token} onBack={() => { setDetailId(null); loadCaregivers(); }} />;
+    return <CaregiverDetail caregiverId={detailId} onBack={() => { setDetailId(null); loadCaregivers(); }} />;
   }
 
   return (
@@ -435,11 +437,10 @@ const CaregiverManagement = ({ token, onViewProfile, onViewHistory }) => {
         </div>
       )}
 
-      <AddCaregiverModal 
+      <AddCaregiverModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
         onSuccess={loadData}
-        token={token}
       />
 
       {/* Edit Caregiver Modal */}

@@ -1,8 +1,10 @@
 // src/components/admin/CaregiverProfile.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const CaregiverProfile = ({ caregiverId, token, onBack }) => {
+const CaregiverProfile = ({ caregiverId, onBack }) => {
+  const { token } = useAuth();
   const [caregiver, setCaregiver] = useState(null);
   const [profile, setProfile] = useState(null);
   const [certifications, setCertifications] = useState([]);

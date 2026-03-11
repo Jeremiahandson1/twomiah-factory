@@ -1,8 +1,10 @@
 // src/components/ImpersonationModal.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 
-const ImpersonationModal = ({ token, onImpersonate, onClose }) => {
+const ImpersonationModal = ({ onImpersonate, onClose }) => {
+  const { token } = useAuth();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);

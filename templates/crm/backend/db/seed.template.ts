@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, supportKnowledgeBase } from './schema.ts'
+import { company, user, supportKnowledgeBase, pricebookCategory, pricebookItem } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -77,6 +77,45 @@ async function main() {
     }
     console.log('Seeded', helpArticles.length, 'help articles')
   }
+
+  // ── INDUSTRY-SPECIFIC SEED DATA ──────────────────────
+  const industry = '{{INDUSTRY}}'
+
+  const INDUSTRY_CATEGORIES: Record<string, string[]> = {
+    'Roofing': ['Roof Replacement', 'Roof Repair', 'Gutter Installation', 'Gutter Cleaning', 'Roof Inspection', 'Storm Damage Assessment'],
+    'General Contractor': ['Foundation', 'Framing', 'Electrical Rough-in', 'Plumbing Rough-in', 'Insulation', 'Drywall', 'Painting', 'Flooring', 'Final Walkthrough'],
+    'Remodeling': ['Kitchen Remodel', 'Bathroom Remodel', 'Basement Finish', 'Addition', 'Deck/Patio', 'Interior Demo', 'Tile Work', 'Cabinet Install'],
+  }
+
+  const INDUSTRY_STATUSES: Record<string, string[]> = {
+    'Roofing': ['Lead', 'Estimate Sent', 'Approved', 'Scheduled', 'In Progress', 'Punch List', 'Complete', 'Invoiced'],
+  }
+
+  const DEFAULT_CATEGORIES = ['General Services', 'Repairs', 'Installation', 'Consultation', 'Maintenance']
+  const DEFAULT_STATUSES = ['Estimate', 'Scheduled', 'In Progress', 'Complete', 'Invoiced']
+
+  const existingCats = await db.select().from(pricebookCategory).where(eq(pricebookCategory.companyId, comp.id)).limit(1)
+  if (existingCats.length === 0) {
+    const categories = INDUSTRY_CATEGORIES[industry] || DEFAULT_CATEGORIES
+    for (let i = 0; i < categories.length; i++) {
+      await db.insert(pricebookCategory).values({
+        name: categories[i],
+        sortOrder: i,
+        companyId: comp.id,
+      })
+    }
+    console.log(`Seeded ${categories.length} service categories for ${industry}`)
+  }
+
+  // Store job statuses in company settings
+  const statuses = INDUSTRY_STATUSES[industry] || DEFAULT_STATUSES
+  await db.update(company).set({
+    settings: {
+      ...((comp.settings as any) || {}),
+      jobStatuses: statuses,
+    },
+  }).where(eq(company.id, comp.id))
+  console.log(`Set ${statuses.length} job statuses for ${industry}`)
 
   console.log('')
   console.log('Login credentials:')

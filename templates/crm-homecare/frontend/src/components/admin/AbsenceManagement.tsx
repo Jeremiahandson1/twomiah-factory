@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 // src/components/admin/AbsenceManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const AbsenceManagement = ({ token }) => {
+const AbsenceManagement = () => {
+  const { token } = useAuth();
   const [absences, setAbsences] = useState([]);
   const [caregivers, setCaregivers] = useState([]);
   const [loading, setLoading] = useState(true);

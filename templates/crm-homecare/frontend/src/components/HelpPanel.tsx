@@ -2,6 +2,7 @@
 // Slide-out admin help panel with searchable articles, FAQ, and AI chat
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
+import { useAuth } from '../contexts/AuthContext';
 
 const HELP_ARTICLES = [
   {
@@ -280,7 +281,8 @@ For large date ranges (e.g., a full year), PDFs may be multiple pages. The recor
   },
 ];
 
-const HelpPanel = ({ isOpen, onClose, currentPage = '', token = '' }) => {
+const HelpPanel = ({ isOpen, onClose, currentPage = '' }) => {
+  const { token } = useAuth();
   const [search, setSearch] = useState('');
   const [activeSection, setActiveSection] = useState(null);
   const [activeArticle, setActiveArticle] = useState(null);

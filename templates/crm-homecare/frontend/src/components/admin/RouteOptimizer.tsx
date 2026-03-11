@@ -2,8 +2,10 @@
 // Route & Schedule Optimizer v2 — Complete rebuild
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const RouteOptimizer = ({ token }) => {
+const RouteOptimizer = () => {
+  const { token } = useAuth();
   // ── Core state ──────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('planner');
   const [caregivers, setCaregivers] = useState([]);

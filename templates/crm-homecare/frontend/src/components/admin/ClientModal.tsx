@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { createClient } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { X } from 'lucide-react';
 
 const SERVICE_TYPES = ['personal_care', 'companionship', 'respite_care', 'skilled_nursing', 'homemaker'];
 
 export default function ClientModal({ onClose, onSaved }) {
+  const { token } = useAuth();
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -19,7 +21,7 @@ export default function ClientModal({ onClose, onSaved }) {
     if (!form.firstName || !form.lastName) return toast('First and last name required', 'error');
     setLoading(true);
     try {
-      await createClient(form);
+      await createClient(form, token);
       toast('Client created', 'success');
       onSaved();
     } catch (err) { toast(err.message, 'error'); }

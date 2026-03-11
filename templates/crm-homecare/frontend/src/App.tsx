@@ -1,16 +1,17 @@
-// src/App.jsx - Main application component
+// src/App.tsx — Main application component (AuthContext + Router pattern)
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import AdminDashboard from './components/AdminDashboard';
 import CaregiverDashboard from './components/CaregiverDashboard';
+import OnboardingWizard from './pages/OnboardingWizard';
 import PaymentPage, { PaymentSuccess } from './components/PaymentPage';
 import PortalLogin from './components/portal/PortalLogin';
 import PortalSetup from './components/portal/PortalSetup';
 import ClientPortal from './components/portal/ClientPortal';
 import { ToastContainer, toast } from './components/Toast';
 import { ConfirmModal } from './components/ConfirmModal';
-import { setSessionExpiredCallback } from './config';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
@@ -36,8 +37,8 @@ const App = () => {
         <Route path="leads" element={<LeadInboxPage />} />
         <Route path="lead-sources" element={<LeadSourcesPage />} />
 
-        {/* Staff app */}
-        <Route path="/*"                 element={<MainApp />} />
+        {/* Staff app — wrapped in AuthProvider */}
+        <Route path="/*"                 element={<AuthProvider><MainApp /></AuthProvider>} />
       </Routes>
     </BrowserRouter>
   );
@@ -63,7 +64,6 @@ const PortalApp = () => {
           handleLogout();
           return;
         }
-        // role must be 'client'
         if (payload.role !== 'client') {
           handleLogout();
           return;
@@ -79,7 +79,6 @@ const PortalApp = () => {
   const handleLogin = (token, clientData) => {
     localStorage.setItem('portal_token', token);
     setToken(token);
-    // Merge JWT payload with name from response
     const payload = JSON.parse(atob(token.split('.')[1]));
     setClient({ ...payload, firstName: clientData.firstName, lastName: clientData.lastName });
   };
@@ -95,50 +94,24 @@ const PortalApp = () => {
   );
 };
 
-// ── Staff App ─────────────────────────────────────────────────────────────────
+// ── Staff App (uses AuthContext) ─────────────────────────────────────────────
 const MainApp = () => {
-  const [user, setUser]         = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const [token, setToken]       = useState(localStorage.getItem('token'));
+  const { user, company, loading, isAdmin, isCaregiver, token, login, logout } = useAuth();
 
   // Impersonation state — keeps original admin session intact
   const [impersonationToken, setImpersonationToken] = useState(null);
   const [impersonationUser, setImpersonationUser]   = useState(null);
 
-  const handleLogout = useCallback((expired = false) => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
+  const handleLogout = useCallback(() => {
     setImpersonationToken(null);
     setImpersonationUser(null);
-    if (expired) toast('Your session has expired. Please log in again.', 'warning');
-  }, []);
+    logout();
+  }, [logout]);
 
-  useEffect(() => {
-    setSessionExpiredCallback(() => handleLogout(true));
-  }, [handleLogout]);
-
-  useEffect(() => {
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.exp && payload.exp * 1000 < Date.now()) {
-          handleLogout(true);
-          return;
-        }
-        setUser(payload);
-      } catch {
-        localStorage.removeItem('token');
-        setToken(null);
-      }
-    }
-    setLoading(false);
-  }, [token]);
-
-  const handleLogin = (token, userData) => {
-    localStorage.setItem('token', token);
-    setToken(token);
-    setUser(userData);
+  const handleLogin = async (loginToken, userData) => {
+    // Login component calls onLogin(token, user) — but we use AuthContext now
+    // The login was already done via AuthContext.login() in the Login component
+    // This callback is kept for backward compat with the Login component
   };
 
   const handleImpersonate = (impToken, impUser) => {
@@ -160,7 +133,6 @@ const MainApp = () => {
   if (impersonationToken && impersonationUser) {
     return (
       <ErrorBoundary>
-        {/* Impersonation banner */}
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999,
           background: '#f97316', color: '#fff',
@@ -169,7 +141,7 @@ const MainApp = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
         }}>
           <span>
-            👁️ Viewing as <strong>{impersonationUser.name}</strong>
+            Viewing as <strong>{impersonationUser.name}</strong>
             <span style={{ fontWeight: 400, opacity: 0.85, marginLeft: '0.5rem' }}>
               ({impersonationUser.role}) — read-only debug view
             </span>
@@ -182,33 +154,39 @@ const MainApp = () => {
               cursor: 'pointer', fontWeight: 700, fontSize: '0.82rem'
             }}
           >
-            ✕ Exit
+            Exit
           </button>
         </div>
-        {/* Offset content below banner */}
         <div style={{ paddingTop: '2.5rem' }}>
           {impersonationUser.role === 'admin'
-            ? <AdminDashboard user={impersonationUser} token={impersonationToken} onLogout={exitImpersonation} />
-            : <CaregiverDashboard user={impersonationUser} token={impersonationToken} onLogout={exitImpersonation} />
+            ? <AdminDashboard onLogout={exitImpersonation} />
+            : <CaregiverDashboard onLogout={exitImpersonation} />
           }
         </div>
       </ErrorBoundary>
     );
   }
 
-  if (user.role === 'admin') {
+  // Onboarding gate — show wizard if admin hasn't completed onboarding
+  if (isAdmin && company && company.settings?.onboardingComplete !== true) {
+    return (
+      <ErrorBoundary>
+        <OnboardingWizard />
+      </ErrorBoundary>
+    );
+  }
+
+  if (isAdmin) {
     return (
       <ErrorBoundary>
         <AdminDashboard
-          user={user}
-          token={token}
           onLogout={handleLogout}
           onImpersonate={handleImpersonate}
         />
       </ErrorBoundary>
     );
   } else {
-    return <ErrorBoundary><CaregiverDashboard user={user} token={token} onLogout={handleLogout} /></ErrorBoundary>;
+    return <ErrorBoundary><CaregiverDashboard onLogout={handleLogout} /></ErrorBoundary>;
   }
 };
 

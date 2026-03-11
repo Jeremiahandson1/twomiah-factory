@@ -2,8 +2,10 @@
 // Professional scheduling calendar modeled after When I Work / Deputy
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ScheduleCalendar = ({ token }) => {
+const ScheduleCalendar = () => {
+  const { token } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState('month'); // 'month' or 'week'
   const [schedules, setSchedules] = useState([]);

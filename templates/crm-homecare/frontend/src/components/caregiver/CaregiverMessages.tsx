@@ -3,8 +3,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '../../config';
 import { toast } from '../Toast';
+import { useAuth } from '../../contexts/AuthContext';
 
-const CaregiverMessages = ({ token, onClose }) => {
+const CaregiverMessages = ({ onClose }) => {
+  const { token } = useAuth();
   const [view, setView] = useState('inbox');
   const [threads, setThreads] = useState([]);
   const [activeThread, setActiveThread] = useState(null);

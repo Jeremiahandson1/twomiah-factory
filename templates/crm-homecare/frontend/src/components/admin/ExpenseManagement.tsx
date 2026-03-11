@@ -4,8 +4,10 @@ import { toast } from '../Toast';
 // Complete expense tracking: Categories, Filtering, Reports, Receipt Management, Budgets
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ExpenseManagement = ({ token }) => {
+const ExpenseManagement = () => {
+  const { token } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);

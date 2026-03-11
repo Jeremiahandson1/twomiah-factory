@@ -3,8 +3,10 @@ import { toast } from '../Toast';
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import ApplicationDetail from './ApplicationDetail';
+import { useAuth } from '../../contexts/AuthContext';
 
-const ApplicationsDashboard = ({ token }) => {
+const ApplicationsDashboard = () => {
+  const { token } = useAuth();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('applied');
@@ -103,9 +105,8 @@ const ApplicationsDashboard = ({ token }) => {
 
   if (selectedApp) {
     return (
-      <ApplicationDetail 
+      <ApplicationDetail
         applicationId={selectedApp.id}
-        token={token}
         onBack={() => {
           setSelectedApp(null);
           loadApplications();

@@ -1,8 +1,10 @@
 // src/components/admin/NotificationCenter.jsx
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
+import { useAuth } from '../../contexts/AuthContext';
 
-const NotificationCenter = ({ token }) => {
+const NotificationCenter = () => {
+  const { token } = useAuth();
   const [tab, setTab] = useState('log'); // log or settings
   const [notifications, setNotifications] = useState([]);
   const [settings, setSettings] = useState({});
