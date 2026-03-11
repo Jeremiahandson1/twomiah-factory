@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
@@ -169,6 +169,17 @@ export default function JobDetailPage() {
                 <Link to={`/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
                   <p className="text-sm text-gray-500">Contact</p>
                   <p className="font-medium">{job.contact.name}</p>
+                </Link>
+              )}
+              {job.equipment && (
+                <Link to={`/equipment`} className="block p-3 bg-orange-50 rounded-lg hover:bg-orange-100">
+                  <p className="text-sm text-gray-500 flex items-center gap-1"><Wrench className="w-3.5 h-3.5" /> Equipment</p>
+                  <p className="font-medium">{job.equipment.name}</p>
+                  <p className="text-sm text-gray-500">
+                    {[job.equipment.manufacturer, job.equipment.model].filter(Boolean).join(' ')}
+                    {job.equipment.serialNumber && <span className="ml-1 font-mono text-xs">S/N: {job.equipment.serialNumber}</span>}
+                  </p>
+                  {job.equipment.location && <p className="text-xs text-gray-400 mt-1">{job.equipment.location}</p>}
                 </Link>
               )}
             </div>

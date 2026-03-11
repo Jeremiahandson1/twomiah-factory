@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2, 
-  Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare
+import {
+  ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
+  Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare,
+  Wrench, Shield, Plus
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -255,6 +256,70 @@ export default function ContactDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Equipment */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">Equipment</h2>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500">{contact.equipment?.length || 0}</span>
+                <Link
+                  to={`/equipment?contactId=${id}`}
+                  className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Add Equipment
+                </Link>
+              </div>
+            </div>
+            {contact.equipment?.length > 0 ? (
+              <div className="divide-y">
+                {contact.equipment.map(eq => (
+                  <Link
+                    key={eq.id}
+                    to={`/equipment`}
+                    className="p-4 flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
+                        <Wrench className="w-5 h-5 text-orange-500" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{eq.name}</p>
+                        <p className="text-sm text-gray-500">
+                          {[eq.manufacturer, eq.model].filter(Boolean).join(' ') || 'No model info'}
+                          {eq.serialNumber && <span className="ml-2 font-mono text-xs">S/N: {eq.serialNumber}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right text-sm">
+                      {eq.warrantyExpiry && (
+                        <div className="flex items-center gap-1 justify-end">
+                          <Shield className={`w-3.5 h-3.5 ${new Date(eq.warrantyExpiry) > new Date() ? 'text-green-500' : 'text-gray-400'}`} />
+                          <span className={new Date(eq.warrantyExpiry) > new Date() ? 'text-green-600' : 'text-gray-400'}>
+                            Warranty {new Date(eq.warrantyExpiry) > new Date() ? 'active' : 'expired'}
+                          </span>
+                        </div>
+                      )}
+                      {eq.purchaseDate && (
+                        <p className="text-gray-400">
+                          Installed {new Date(eq.purchaseDate).toLocaleDateString()}
+                        </p>
+                      )}
+                      {eq.location && (
+                        <p className="text-gray-400">{eq.location}</p>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center text-gray-400">
+                <Wrench className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No equipment on file</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sidebar */}
@@ -274,6 +339,10 @@ export default function ContactDetailPage() {
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Invoices</span>
                 <span className="font-medium">{contact.invoices?.length || 0}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Equipment</span>
+                <span className="font-medium">{contact.equipment?.length || 0}</span>
               </div>
               {contact.source && (
                 <div className="flex items-center justify-between">

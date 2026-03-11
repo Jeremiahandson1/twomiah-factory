@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, supportKnowledgeBase } from './schema.ts'
+import { company, user, supportKnowledgeBase, contact, equipment, job } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -76,6 +76,172 @@ async function main() {
       })
     }
     console.log('Seeded', helpArticles.length, 'help articles')
+  }
+
+  // Seed demo contacts and equipment if none exist
+  const existingContacts = await db.select().from(contact).where(eq(contact.companyId, comp.id)).limit(1)
+  if (existingContacts.length === 0) {
+    // Create demo customers
+    const [johnson] = await db.insert(contact).values({
+      name: 'Sarah Johnson',
+      type: 'client',
+      email: 'sarah.johnson@email.com',
+      phone: '(555) 234-5678',
+      address: '1842 Oak Valley Dr',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
+      source: 'Google',
+      companyId: comp.id,
+    }).returning()
+
+    const [martinez] = await db.insert(contact).values({
+      name: 'Robert Martinez',
+      type: 'client',
+      email: 'rmartinez@email.com',
+      phone: '(555) 876-5432',
+      address: '305 Elm Street',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
+      source: 'Referral',
+      companyId: comp.id,
+    }).returning()
+
+    await db.insert(contact).values({
+      name: 'Lisa Chen',
+      type: 'lead',
+      email: 'lchen@email.com',
+      phone: '(555) 345-6789',
+      address: '22 Maple Court',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
+      source: 'Website',
+      companyId: comp.id,
+    }).returning()
+
+    console.log('Created 3 demo contacts')
+
+    // Create demo equipment linked to customers
+    const [eq1] = await db.insert(equipment).values({
+      name: 'Central AC Unit',
+      manufacturer: 'Carrier',
+      model: '24ACC636A003',
+      serialNumber: 'CAR-2019-48271',
+      status: 'active',
+      location: 'Backyard (east side)',
+      purchaseDate: new Date('2019-06-15'),
+      warrantyExpiry: new Date('2029-06-15'),
+      notes: '3-ton, 16 SEER. Annual tune-up due each spring.',
+      companyId: comp.id,
+      contactId: johnson.id,
+    }).returning()
+
+    await db.insert(equipment).values({
+      name: 'Gas Furnace',
+      manufacturer: 'Lennox',
+      model: 'SL280UHV070V36B',
+      serialNumber: 'LNX-2019-93847',
+      status: 'active',
+      location: 'Basement utility room',
+      purchaseDate: new Date('2019-06-15'),
+      warrantyExpiry: new Date('2029-06-15'),
+      notes: '70K BTU, two-stage variable speed. Paired with Carrier AC.',
+      companyId: comp.id,
+      contactId: johnson.id,
+    }).returning()
+
+    const [eq3] = await db.insert(equipment).values({
+      name: 'Tankless Water Heater',
+      manufacturer: 'Rinnai',
+      model: 'RU199iN',
+      serialNumber: 'RIN-2021-55102',
+      status: 'active',
+      location: 'Garage wall mount',
+      purchaseDate: new Date('2021-11-03'),
+      warrantyExpiry: new Date('2033-11-03'),
+      notes: '199K BTU natural gas. Descale annually.',
+      companyId: comp.id,
+      contactId: martinez.id,
+    }).returning()
+
+    const [eq4] = await db.insert(equipment).values({
+      name: 'Heat Pump System',
+      manufacturer: 'Trane',
+      model: 'XR15',
+      serialNumber: 'TRN-2016-22039',
+      status: 'needs_repair',
+      location: 'Side yard',
+      purchaseDate: new Date('2016-03-22'),
+      warrantyExpiry: new Date('2026-03-22'),
+      notes: '3.5-ton heat pump. Compressor making noise — needs diagnostic.',
+      companyId: comp.id,
+      contactId: martinez.id,
+    }).returning()
+
+    console.log('Created 4 demo equipment records')
+
+    // Create demo jobs linked to equipment
+    await db.insert(job).values({
+      number: 'JOB-00001',
+      title: 'Annual AC Tune-Up',
+      description: 'Spring maintenance on Carrier central AC. Check refrigerant levels, clean coils, inspect electrical connections.',
+      status: 'completed',
+      priority: 'normal',
+      jobType: 'maintenance',
+      scheduledDate: new Date('2025-04-10'),
+      scheduledTime: '09:00',
+      estimatedHours: '1.5',
+      address: johnson.address,
+      city: johnson.city,
+      state: johnson.state,
+      zip: johnson.zip,
+      completedAt: new Date('2025-04-10'),
+      companyId: comp.id,
+      contactId: johnson.id,
+      equipmentId: eq1.id,
+    }).returning()
+
+    await db.insert(job).values({
+      number: 'JOB-00002',
+      title: 'Heat Pump Diagnostic — Compressor Noise',
+      description: 'Customer reports loud rattling from outdoor unit. Inspect compressor, check mounting bolts, test capacitor and contactors.',
+      status: 'scheduled',
+      priority: 'high',
+      jobType: 'repair',
+      scheduledDate: new Date('2026-03-15'),
+      scheduledTime: '10:00',
+      estimatedHours: '2',
+      address: martinez.address,
+      city: martinez.city,
+      state: martinez.state,
+      zip: martinez.zip,
+      companyId: comp.id,
+      contactId: martinez.id,
+      equipmentId: eq4.id,
+    })
+
+    await db.insert(job).values({
+      number: 'JOB-00003',
+      title: 'Tankless Water Heater Descaling',
+      description: 'Annual flush and descale of Rinnai tankless unit. Check for error codes, inspect venting.',
+      status: 'scheduled',
+      priority: 'normal',
+      jobType: 'maintenance',
+      scheduledDate: new Date('2026-03-20'),
+      scheduledTime: '14:00',
+      estimatedHours: '1',
+      address: martinez.address,
+      city: martinez.city,
+      state: martinez.state,
+      zip: martinez.zip,
+      companyId: comp.id,
+      contactId: martinez.id,
+      equipmentId: eq3.id,
+    })
+
+    console.log('Created 3 demo service calls linked to equipment')
   }
 
   console.log('')

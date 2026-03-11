@@ -64,6 +64,7 @@ export const FEATURE_CATEGORIES = [
       { id: 'photo_capture', name: 'Photo & Video Capture', description: 'Capture before/after photos and videos on job sites' },
       { id: 'daily_logs', name: 'Daily Logs', description: 'Record daily job progress, weather, and activities' },
       { id: 'job_followups', name: 'Automated Service Call Follow-ups', description: 'Follow up with customers after service call completion' },
+      { id: 'tech_mobile_view', name: 'Technician Mobile View', description: 'Mobile-optimized field view for technicians with job queue, navigation, status flow, and inspection checklists' },
     ]
   },
   {

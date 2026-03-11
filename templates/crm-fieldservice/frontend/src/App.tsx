@@ -65,6 +65,7 @@ import DispatchBoard from './pages/fieldservice/DispatchBoard';
 import MaintenanceContracts from './pages/fieldservice/MaintenanceContracts';
 import PartsInventory from './pages/fieldservice/PartsInventory';
 import FlatRatePricebook from './pages/fieldservice/FlatRatePricebook';
+import TechView from './pages/fieldservice/TechView';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
@@ -179,6 +180,7 @@ function App() {
                     <Route path="maintenance" element={<MaintenanceContracts />} />
                     <Route path="parts" element={<PartsInventory />} />
                     <Route path="pricebook-rates" element={<FlatRatePricebook />} />
+                    <Route path="tech" element={<TechView />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>
 

@@ -15,6 +15,8 @@ import {
   equipmentCategory,
   equipmentMaintenance,
   contact,
+  job,
+  user,
 } from '../../db/schema.ts';
 import { eq, and, lte, gte, count, asc, desc, ilike, or, sql } from 'drizzle-orm';
 
@@ -62,6 +64,8 @@ export async function createEquipment(companyId: string, data: {
   warrantyExpiry?: string;
   notes?: string;
   categoryId?: string;
+  contactId?: string;
+  locationId?: string;
 }) {
   const [result] = await db.insert(equipment).values({
     companyId,
@@ -74,6 +78,8 @@ export async function createEquipment(companyId: string, data: {
     warrantyExpiry: data.warrantyExpiry ? new Date(data.warrantyExpiry) : null,
     notes: data.notes || null,
     categoryId: data.categoryId || null,
+    contactId: data.contactId || null,
+    locationId: data.locationId || null,
     status: 'active',
   }).returning();
   return result;
@@ -83,11 +89,13 @@ export async function createEquipment(companyId: string, data: {
  * Get equipment list
  */
 export async function getEquipment(companyId: string, {
+  contactId,
   status,
   search,
   page = 1,
   limit = 50,
 }: {
+  contactId?: string;
   status?: string;
   search?: string;
   page?: number;
@@ -95,6 +103,7 @@ export async function getEquipment(companyId: string, {
 } = {}) {
   const conditions = [eq(equipment.companyId, companyId)];
 
+  if (contactId) conditions.push(eq(equipment.contactId, contactId));
   if (status) conditions.push(eq(equipment.status, status));
 
   if (search) {
@@ -119,9 +128,17 @@ export async function getEquipment(companyId: string, {
       .where(whereClause),
   ]);
 
+  // Fetch contact names for equipment with contactId
+  const contactIds = [...new Set(data.filter(e => e.contactId).map(e => e.contactId!))];
+  const contacts = contactIds.length
+    ? await db.select({ id: contact.id, name: contact.name }).from(contact).where(eq(contact.companyId, companyId))
+    : [];
+  const contactMap = Object.fromEntries(contacts.map(c => [c.id, c]));
+
   // Add computed fields
   const enriched = data.map(eq_item => ({
     ...eq_item,
+    contact: eq_item.contactId ? contactMap[eq_item.contactId] || null : null,
     warrantyActive: eq_item.warrantyExpiry ? new Date(eq_item.warrantyExpiry) > new Date() : false,
     age: eq_item.purchaseDate
       ? Math.floor((Date.now() - new Date(eq_item.purchaseDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
@@ -145,26 +162,50 @@ export async function getEquipmentDetails(equipmentId: string, companyId: string
 
   if (!result) return null;
 
-  // Fetch maintenance history
-  const maintenanceHistory = await db.select()
-    .from(equipmentMaintenance)
-    .where(eq(equipmentMaintenance.equipmentId, equipmentId))
-    .orderBy(desc(equipmentMaintenance.performedAt));
+  // Fetch maintenance history, category, linked contact, and linked jobs in parallel
+  const [maintenanceHistory, categoryResult, contactResult, linkedJobs] = await Promise.all([
+    db.select()
+      .from(equipmentMaintenance)
+      .where(eq(equipmentMaintenance.equipmentId, equipmentId))
+      .orderBy(desc(equipmentMaintenance.performedAt)),
+    result.categoryId
+      ? db.select().from(equipmentCategory).where(eq(equipmentCategory.id, result.categoryId)).limit(1)
+      : Promise.resolve([]),
+    result.contactId
+      ? db.select({ id: contact.id, name: contact.name, phone: contact.phone, email: contact.email }).from(contact).where(eq(contact.id, result.contactId)).limit(1)
+      : Promise.resolve([]),
+    db.select({
+      id: job.id,
+      number: job.number,
+      title: job.title,
+      status: job.status,
+      jobType: job.jobType,
+      scheduledDate: job.scheduledDate,
+      completedAt: job.completedAt,
+      assignedToId: job.assignedToId,
+    }).from(job)
+      .where(and(eq(job.equipmentId, equipmentId), eq(job.companyId, companyId)))
+      .orderBy(desc(job.scheduledDate)),
+  ]);
 
-  // Fetch category
-  let category = null;
-  if (result.categoryId) {
-    const [cat] = await db.select()
-      .from(equipmentCategory)
-      .where(eq(equipmentCategory.id, result.categoryId))
-      .limit(1);
-    category = cat || null;
-  }
+  // Fetch assigned tech names for linked jobs
+  const techIds = [...new Set(linkedJobs.filter(j => j.assignedToId).map(j => j.assignedToId!))];
+  const techs = techIds.length
+    ? await db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName }).from(user).where(eq(user.companyId, companyId))
+    : [];
+  const techMap = Object.fromEntries(techs.map(t => [t.id, t]));
+
+  const jobsWithTechs = linkedJobs.map(j => ({
+    ...j,
+    assignedTo: j.assignedToId ? techMap[j.assignedToId] || null : null,
+  }));
 
   return {
     ...result,
-    category,
+    category: categoryResult[0] || null,
+    contact: contactResult[0] || null,
     maintenanceHistory,
+    linkedJobs: jobsWithTechs,
   };
 }
 

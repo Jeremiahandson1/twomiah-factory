@@ -497,8 +497,10 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
 
 function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
   const [history, setHistory] = useState([]);
+  const [linkedJobs, setLinkedJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [tab, setTab] = useState('jobs');
 
   useEffect(() => {
     loadHistory();
@@ -506,13 +508,25 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
 
   const loadHistory = async () => {
     try {
-      const data = await api.get(`/api/equipment/${equipment.id}/history`);
-      setHistory(data || []);
+      const [historyData, detailData] = await Promise.all([
+        api.get(`/api/equipment/${equipment.id}/history`),
+        api.get(`/api/equipment/${equipment.id}`),
+      ]);
+      setHistory(historyData || []);
+      setLinkedJobs(detailData?.linkedJobs || []);
     } catch (error) {
       console.error('Failed to load history:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const statusColors = {
+    scheduled: 'bg-blue-100 text-blue-700',
+    dispatched: 'bg-purple-100 text-purple-700',
+    in_progress: 'bg-yellow-100 text-yellow-700',
+    completed: 'bg-green-100 text-green-700',
+    cancelled: 'bg-gray-100 text-gray-600',
   };
 
   return (
@@ -523,7 +537,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-bold">Service History</h2>
-              <p className="text-gray-500">{equipment.name}</p>
+              <p className="text-gray-500">{equipment.name}{equipment.manufacturer ? ` — ${equipment.manufacturer}` : ''}{equipment.model ? ` ${equipment.model}` : ''}</p>
             </div>
             <button
               onClick={() => setShowAddForm(true)}
@@ -533,41 +547,93 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
             </button>
           </div>
 
+          {/* Tabs */}
+          <div className="flex gap-1 mb-4 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setTab('jobs')}
+              className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'jobs' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Service Calls ({linkedJobs.length})
+            </button>
+            <button
+              onClick={() => setTab('maintenance')}
+              className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${tab === 'maintenance' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Maintenance Records ({history.length})
+            </button>
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
-          ) : history.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              No service history yet
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {history.map(record => (
-                <div key={record.id} className="p-4 border rounded-lg">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">{record.serviceType}</p>
-                      <p className="text-sm text-gray-500">
-                        {new Date(record.serviceDate).toLocaleDateString()}
-                        {record.technician && ` • ${record.technician.firstName} ${record.technician.lastName}`}
-                      </p>
+          ) : tab === 'jobs' ? (
+            linkedJobs.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                No service calls linked to this equipment yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {linkedJobs.map(j => (
+                  <div key={j.id} className="p-4 border rounded-lg">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-gray-400">{j.number}</span>
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full capitalize ${statusColors[j.status] || 'bg-gray-100 text-gray-600'}`}>
+                            {j.status?.replace('_', ' ')}
+                          </span>
+                        </div>
+                        <p className="font-medium text-gray-900 mt-1">{j.title}</p>
+                        <p className="text-sm text-gray-500">
+                          {j.jobType && <span className="capitalize">{j.jobType}</span>}
+                          {j.scheduledDate && <span> — {new Date(j.scheduledDate).toLocaleDateString()}</span>}
+                          {j.assignedTo && <span> — {j.assignedTo.firstName} {j.assignedTo.lastName}</span>}
+                        </p>
+                      </div>
+                      {j.completedAt && (
+                        <span className="text-xs text-green-600">
+                          Completed {new Date(j.completedAt).toLocaleDateString()}
+                        </span>
+                      )}
                     </div>
-                    {record.cost > 0 && (
-                      <span className="text-gray-900 font-medium">${record.cost}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : (
+            history.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                No maintenance records yet
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {history.map(record => (
+                  <div key={record.id} className="p-4 border rounded-lg">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">{record.serviceType || record.type}</p>
+                        <p className="text-sm text-gray-500">
+                          {new Date(record.serviceDate || record.performedAt).toLocaleDateString()}
+                          {record.technician && ` — ${record.technician.firstName} ${record.technician.lastName}`}
+                        </p>
+                      </div>
+                      {record.cost > 0 && (
+                        <span className="text-gray-900 font-medium">${record.cost}</span>
+                      )}
+                    </div>
+                    {record.description && (
+                      <p className="mt-2 text-gray-600">{record.description}</p>
+                    )}
+                    {record.recommendations && (
+                      <p className="mt-2 text-sm text-orange-600">
+                        Recommendation: {record.recommendations}
+                      </p>
                     )}
                   </div>
-                  {record.description && (
-                    <p className="mt-2 text-gray-600">{record.description}</p>
-                  )}
-                  {record.recommendations && (
-                    <p className="mt-2 text-sm text-orange-600">
-                      Recommendation: {record.recommendations}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
           )}
 
           <button onClick={onClose} className="w-full mt-4 px-4 py-2 border rounded-lg">

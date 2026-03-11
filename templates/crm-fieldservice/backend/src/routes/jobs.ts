@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, equipment } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, asc, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -15,6 +15,7 @@ const jobSchema = z.object({
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   assignedToId: z.string().optional().transform(v => v === '' ? undefined : v),
+  equipmentId: z.string().optional().transform(v => v === '' ? undefined : v),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
@@ -49,22 +50,26 @@ app.get('/', async (c) => {
   const projectIds = [...new Set(data.filter(j => j.projectId).map(j => j.projectId!))]
   const contactIds = [...new Set(data.filter(j => j.contactId).map(j => j.contactId!))]
   const userIds = [...new Set(data.filter(j => j.assignedToId).map(j => j.assignedToId!))]
+  const equipmentIds = [...new Set(data.filter(j => j.equipmentId).map(j => j.equipmentId!))]
 
-  const [projects, contacts, users] = await Promise.all([
+  const [projects, contacts, users, equipmentList] = await Promise.all([
     projectIds.length ? db.select({ id: project.id, name: project.name }).from(project).where(eq(project.companyId, currentUser.companyId)) : Promise.resolve([]),
     contactIds.length ? db.select({ id: contact.id, name: contact.name }).from(contact).where(eq(contact.companyId, currentUser.companyId)) : Promise.resolve([]),
     userIds.length ? db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName }).from(user).where(eq(user.companyId, currentUser.companyId)) : Promise.resolve([]),
+    equipmentIds.length ? db.select({ id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model }).from(equipment).where(eq(equipment.companyId, currentUser.companyId)) : Promise.resolve([]),
   ])
 
   const projectMap = Object.fromEntries(projects.map(p => [p.id, p]))
   const contactMap = Object.fromEntries(contacts.map(ct => [ct.id, ct]))
   const userMap = Object.fromEntries(users.map(u => [u.id, u]))
+  const equipmentMap = Object.fromEntries(equipmentList.map(e => [e.id, e]))
 
   const dataWithRelations = data.map(j => ({
     ...j,
     project: j.projectId ? projectMap[j.projectId] || null : null,
     contact: j.contactId ? contactMap[j.contactId] || null : null,
     assignedTo: j.assignedToId ? userMap[j.assignedToId] || null : null,
+    equipment: j.equipmentId ? equipmentMap[j.equipmentId] || null : null,
   }))
 
   return c.json({ data: dataWithRelations, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
@@ -115,14 +120,15 @@ app.get('/:id', async (c) => {
   const [foundJob] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
   if (!foundJob) return c.json({ error: 'Job not found' }, 404)
 
-  const [jobProject, jobContact, assignedUser, entries] = await Promise.all([
+  const [jobProject, jobContact, assignedUser, entries, jobEquipment] = await Promise.all([
     foundJob.projectId ? db.select().from(project).where(eq(project.id, foundJob.projectId)).limit(1) : Promise.resolve([]),
     foundJob.contactId ? db.select().from(contact).where(eq(contact.id, foundJob.contactId)).limit(1) : Promise.resolve([]),
     foundJob.assignedToId ? db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, phone: user.phone }).from(user).where(eq(user.id, foundJob.assignedToId)).limit(1) : Promise.resolve([]),
     db.select().from(timeEntry).where(eq(timeEntry.jobId, id)).orderBy(desc(timeEntry.date)).limit(10),
+    foundJob.equipmentId ? db.select({ id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model, serialNumber: equipment.serialNumber, location: equipment.location }).from(equipment).where(eq(equipment.id, foundJob.equipmentId)).limit(1) : Promise.resolve([]),
   ])
 
-  return c.json({ ...foundJob, project: jobProject[0] || null, contact: jobContact[0] || null, assignedTo: assignedUser[0] || null, timeEntries: entries })
+  return c.json({ ...foundJob, project: jobProject[0] || null, contact: jobContact[0] || null, assignedTo: assignedUser[0] || null, equipment: jobEquipment[0] || null, timeEntries: entries })
 })
 
 app.post('/', async (c) => {
@@ -139,13 +145,14 @@ app.post('/', async (c) => {
   }).returning()
 
   // Fetch related data for response
-  const [jobProject, jobContact, assignedUser] = await Promise.all([
+  const [jobProject, jobContact, assignedUser, jobEquipment] = await Promise.all([
     newJob.projectId ? db.select({ id: project.id, name: project.name }).from(project).where(eq(project.id, newJob.projectId)).limit(1) : Promise.resolve([]),
     newJob.contactId ? db.select({ id: contact.id, name: contact.name }).from(contact).where(eq(contact.id, newJob.contactId)).limit(1) : Promise.resolve([]),
     newJob.assignedToId ? db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName }).from(user).where(eq(user.id, newJob.assignedToId)).limit(1) : Promise.resolve([]),
+    newJob.equipmentId ? db.select({ id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model }).from(equipment).where(eq(equipment.id, newJob.equipmentId)).limit(1) : Promise.resolve([]),
   ])
 
-  const jobWithRelations = { ...newJob, project: jobProject[0] || null, contact: jobContact[0] || null, assignedTo: assignedUser[0] || null }
+  const jobWithRelations = { ...newJob, project: jobProject[0] || null, contact: jobContact[0] || null, assignedTo: assignedUser[0] || null, equipment: jobEquipment[0] || null }
   emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, jobWithRelations)
   return c.json(jobWithRelations, 201)
 })
@@ -166,13 +173,14 @@ app.put('/:id', async (c) => {
   }).where(eq(job.id, id)).returning()
 
   // Fetch related data for response
-  const [jobProject, jobContact, assignedUser] = await Promise.all([
+  const [jobProject, jobContact, assignedUser, jobEquipment] = await Promise.all([
     updated.projectId ? db.select({ id: project.id, name: project.name }).from(project).where(eq(project.id, updated.projectId)).limit(1) : Promise.resolve([]),
     updated.contactId ? db.select({ id: contact.id, name: contact.name }).from(contact).where(eq(contact.id, updated.contactId)).limit(1) : Promise.resolve([]),
     updated.assignedToId ? db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName }).from(user).where(eq(user.id, updated.assignedToId)).limit(1) : Promise.resolve([]),
+    updated.equipmentId ? db.select({ id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model }).from(equipment).where(eq(equipment.id, updated.equipmentId)).limit(1) : Promise.resolve([]),
   ])
 
-  const jobWithRelations = { ...updated, project: jobProject[0] || null, contact: jobContact[0] || null, assignedTo: assignedUser[0] || null }
+  const jobWithRelations = { ...updated, project: jobProject[0] || null, contact: jobContact[0] || null, assignedTo: assignedUser[0] || null, equipment: jobEquipment[0] || null }
   emitToCompany(currentUser.companyId, EVENTS.JOB_UPDATED, jobWithRelations)
   return c.json(jobWithRelations)
 })

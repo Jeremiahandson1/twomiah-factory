@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit, Trash2, Search, Play, CheckCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -8,7 +8,7 @@ import { Modal, ConfirmModal } from '../components/ui/Modal';
 
 const statuses = ['scheduled', 'dispatched', 'in_progress', 'completed', 'cancelled'];
 const priorities = ['low', 'normal', 'high', 'urgent'];
-const initialForm = { title: '', description: '', status: 'scheduled', priority: 'normal', type: '', scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', notes: '' };
+const initialForm = { title: '', description: '', status: 'scheduled', priority: 'normal', type: '', scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', notes: '' };
 
 export default function JobsPage() {
   const toast = useToast();
@@ -16,6 +16,7 @@ export default function JobsPage() {
     const [data, setData] = useState([]);
   const [projects, setProjects] = useState([]);
   const [contacts, setContacts] = useState([]);
+  const [customerEquipment, setCustomerEquipment] = useState([]);
   const [useAddressOnFile, setUseAddressOnFile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState(null);
@@ -47,8 +48,22 @@ export default function JobsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [search, statusFilter]);
 
-  const openCreate = () => { setEditing(null); setForm(initialForm); setUseAddressOnFile(false); setModalOpen(true); };
-  const openEdit = (item) => { setEditing(item); setForm({ ...initialForm, ...item, scheduledDate: item.scheduledDate?.split('T')[0] || '', estimatedHours: item.estimatedHours || '' }); setModalOpen(true); };
+  const loadCustomerEquipment = async (contactId) => {
+    if (!contactId) { setCustomerEquipment([]); return; }
+    try {
+      const res = await api.get('/api/equipment', { contactId, limit: 100 });
+      setCustomerEquipment(res.data || []);
+    } catch { setCustomerEquipment([]); }
+  };
+
+  const openCreate = () => { setEditing(null); setForm(initialForm); setCustomerEquipment([]); setUseAddressOnFile(false); setModalOpen(true); };
+  const openEdit = (item) => {
+    setEditing(item);
+    setForm({ ...initialForm, ...item, scheduledDate: item.scheduledDate?.split('T')[0] || '', estimatedHours: item.estimatedHours || '', equipmentId: item.equipmentId || '' });
+    if (item.contactId) loadCustomerEquipment(item.contactId);
+    else setCustomerEquipment([]);
+    setModalOpen(true);
+  };
 
   const handleSave = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return; }
@@ -119,6 +134,7 @@ export default function JobsPage() {
                 setForm({
                   ...form,
                   contactId: e.target.value,
+                  equipmentId: '',
                   ...(hasAddress ? {
                     address: selectedContact.address || '',
                     city: selectedContact.city || '',
@@ -127,7 +143,23 @@ export default function JobsPage() {
                   } : {})
                 });
                 setUseAddressOnFile(!!hasAddress);
+                loadCustomerEquipment(e.target.value);
               }} className="w-full px-3 py-2 border rounded-lg text-gray-900"><option value="">Select...</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+          {customerEquipment.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                <Wrench className="w-3.5 h-3.5 inline mr-1" />Equipment
+              </label>
+              <select value={form.equipmentId} onChange={(e) => setForm({...form, equipmentId: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900">
+                <option value="">No specific unit</option>
+                {customerEquipment.map(eq => (
+                  <option key={eq.id} value={eq.id}>
+                    {eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}{eq.serialNumber ? ` (${eq.serialNumber})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div><label className="block text-sm font-medium mb-1">Scheduled Date</label><input type="date" value={form.scheduledDate} onChange={(e) => setForm({...form, scheduledDate: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Scheduled Time</label><input type="time" value={form.scheduledTime} onChange={(e) => setForm({...form, scheduledTime: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
           <div><label className="block text-sm font-medium mb-1">Estimated Hours</label><input type="number" value={form.estimatedHours} onChange={(e) => setForm({...form, estimatedHours: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
