@@ -297,14 +297,21 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
     maintenanceIntervalMonths: equipment?.maintenanceIntervalMonths || 12,
     condition: equipment?.condition || 'good',
     contactId: equipment?.contactId || '',
+    siteId: equipment?.siteId || '',
     notes: equipment?.notes || '',
   });
   const [contacts, setContacts] = useState([]);
+  const [sites, setSites] = useState([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadContacts();
   }, []);
+
+  useEffect(() => {
+    if (form.contactId) loadSites(form.contactId);
+    else setSites([]);
+  }, [form.contactId]);
 
   const loadContacts = async () => {
     try {
@@ -313,6 +320,13 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
     } catch (error) {
       console.error('Failed to load contacts:', error);
     }
+  };
+
+  const loadSites = async (contactId) => {
+    try {
+      const data = await api.get(`/api/contacts/${contactId}/sites`);
+      setSites(Array.isArray(data) ? data : []);
+    } catch { setSites([]); }
   };
 
   const handleSubmit = async (e) => {
@@ -347,7 +361,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
                 <select
                   value={form.contactId}
-                  onChange={(e) => setForm({ ...form, contactId: e.target.value })}
+                  onChange={(e) => setForm({ ...form, contactId: e.target.value, siteId: '' })}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 >
@@ -357,6 +371,22 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                   ))}
                 </select>
               </div>
+
+              {sites.length > 0 && (
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <select
+                    value={form.siteId}
+                    onChange={(e) => setForm({ ...form, siteId: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="">No specific location</option>
+                    {sites.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Equipment Name</label>

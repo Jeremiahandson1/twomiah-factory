@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench, MapPinned } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -8,7 +8,7 @@ import { Modal, ConfirmModal } from '../components/ui/Modal';
 
 const statuses = ['scheduled', 'dispatched', 'in_progress', 'completed', 'cancelled'];
 const priorities = ['low', 'normal', 'high', 'urgent'];
-const initialForm = { title: '', description: '', status: 'scheduled', priority: 'normal', type: '', scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', notes: '' };
+const initialForm = { title: '', description: '', status: 'scheduled', priority: 'normal', type: '', scheduledDate: '', scheduledTime: '', estimatedHours: '', address: '', city: '', state: '', zip: '', projectId: '', contactId: '', assignedToId: '', equipmentId: '', siteId: '', notes: '' };
 
 export default function JobsPage() {
   const toast = useToast();
@@ -17,6 +17,7 @@ export default function JobsPage() {
   const [projects, setProjects] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [customerEquipment, setCustomerEquipment] = useState([]);
+  const [customerSites, setCustomerSites] = useState([]);
   const [useAddressOnFile, setUseAddressOnFile] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState(null);
@@ -56,12 +57,20 @@ export default function JobsPage() {
     } catch { setCustomerEquipment([]); }
   };
 
-  const openCreate = () => { setEditing(null); setForm(initialForm); setCustomerEquipment([]); setUseAddressOnFile(false); setModalOpen(true); };
+  const loadCustomerSites = async (contactId) => {
+    if (!contactId) { setCustomerSites([]); return; }
+    try {
+      const res = await api.get(`/api/contacts/${contactId}/sites`);
+      setCustomerSites(Array.isArray(res) ? res : []);
+    } catch { setCustomerSites([]); }
+  };
+
+  const openCreate = () => { setEditing(null); setForm(initialForm); setCustomerEquipment([]); setCustomerSites([]); setUseAddressOnFile(false); setModalOpen(true); };
   const openEdit = (item) => {
     setEditing(item);
-    setForm({ ...initialForm, ...item, scheduledDate: item.scheduledDate?.split('T')[0] || '', estimatedHours: item.estimatedHours || '', equipmentId: item.equipmentId || '' });
-    if (item.contactId) loadCustomerEquipment(item.contactId);
-    else setCustomerEquipment([]);
+    setForm({ ...initialForm, ...item, scheduledDate: item.scheduledDate?.split('T')[0] || '', estimatedHours: item.estimatedHours || '', equipmentId: item.equipmentId || '', siteId: item.siteId || '' });
+    if (item.contactId) { loadCustomerEquipment(item.contactId); loadCustomerSites(item.contactId); }
+    else { setCustomerEquipment([]); setCustomerSites([]); }
     setModalOpen(true);
   };
 
@@ -135,6 +144,7 @@ export default function JobsPage() {
                   ...form,
                   contactId: e.target.value,
                   equipmentId: '',
+                  siteId: '',
                   ...(hasAddress ? {
                     address: selectedContact.address || '',
                     city: selectedContact.city || '',
@@ -144,6 +154,7 @@ export default function JobsPage() {
                 });
                 setUseAddressOnFile(!!hasAddress);
                 loadCustomerEquipment(e.target.value);
+                loadCustomerSites(e.target.value);
               }} className="w-full px-3 py-2 border rounded-lg text-gray-900"><option value="">Select...</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
           {customerEquipment.length > 0 && (
             <div>
@@ -156,6 +167,27 @@ export default function JobsPage() {
                   <option key={eq.id} value={eq.id}>
                     {eq.name}{eq.manufacturer ? ` — ${eq.manufacturer}` : ''}{eq.model ? ` ${eq.model}` : ''}{eq.serialNumber ? ` (${eq.serialNumber})` : ''}
                   </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {customerSites.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                <MapPinned className="w-3.5 h-3.5 inline mr-1" />Location
+              </label>
+              <select value={form.siteId} onChange={(e) => {
+                const selectedSite = customerSites.find(s => s.id === e.target.value);
+                setForm({
+                  ...form,
+                  siteId: e.target.value,
+                  ...(selectedSite?.address ? { address: selectedSite.address, city: selectedSite.city || '', state: selectedSite.state || '', zip: selectedSite.zip || '' } : {}),
+                });
+                if (selectedSite?.address) setUseAddressOnFile(true);
+              }} className="w-full px-3 py-2 border rounded-lg text-gray-900">
+                <option value="">No specific location</option>
+                {customerSites.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}{s.address ? ` — ${s.address}` : ''}</option>
                 ))}
               </select>
             </div>

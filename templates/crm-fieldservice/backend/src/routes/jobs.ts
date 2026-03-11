@@ -16,6 +16,7 @@ const jobSchema = z.object({
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   assignedToId: z.string().optional().transform(v => v === '' ? undefined : v),
   equipmentId: z.string().optional().transform(v => v === '' ? undefined : v),
+  siteId: z.string().optional().transform(v => v === '' ? undefined : v),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),

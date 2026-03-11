@@ -96,6 +96,26 @@ export const contact = pgTable('contact', {
   index('contact_type_idx').on(t.type),
 ])
 
+// ==================== SITES / LOCATIONS ====================
+
+export const site = pgTable('site', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  accessNotes: text('access_notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('site_company_id_idx').on(t.companyId),
+  index('site_contact_id_idx').on(t.contactId),
+])
+
 // ==================== PROJECTS ====================
 
 export const project = pgTable('project', {
@@ -166,12 +186,14 @@ export const job = pgTable('job', {
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
   equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
   index('job_status_idx').on(t.status),
   index('job_scheduled_date_idx').on(t.scheduledDate),
   index('job_assigned_to_id_idx').on(t.assignedToId),
   index('job_equipment_id_idx').on(t.equipmentId),
+  index('job_site_id_idx').on(t.siteId),
 ])
 
 // ==================== QUOTES ====================
@@ -1074,12 +1096,14 @@ export const equipment = pgTable('equipment', {
   categoryId: text('category_id').references(() => equipmentCategory.id),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   locationId: text('location_id'),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('equipment_company_id_idx').on(t.companyId),
   index('equipment_contact_id_idx').on(t.contactId),
+  index('equipment_site_id_idx').on(t.siteId),
 ])
 
 export const equipmentMaintenance = pgTable('equipment_maintenance', {

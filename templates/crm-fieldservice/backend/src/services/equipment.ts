@@ -66,6 +66,7 @@ export async function createEquipment(companyId: string, data: {
   categoryId?: string;
   contactId?: string;
   locationId?: string;
+  siteId?: string;
 }) {
   const [result] = await db.insert(equipment).values({
     companyId,
@@ -80,6 +81,7 @@ export async function createEquipment(companyId: string, data: {
     categoryId: data.categoryId || null,
     contactId: data.contactId || null,
     locationId: data.locationId || null,
+    siteId: data.siteId || null,
     status: 'active',
   }).returning();
   return result;

@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, supportKnowledgeBase, contact, equipment, job } from './schema.ts'
+import { company, user, supportKnowledgeBase, contact, equipment, job, site } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -125,6 +125,31 @@ async function main() {
 
     console.log('Created 3 demo contacts')
 
+    // Create demo sites for Martinez (commercial account)
+    const [martinezOffice] = await db.insert(site).values({
+      name: 'Main Office',
+      address: '305 Elm Street',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
+      accessNotes: 'Front desk reception. Ask for building manager.',
+      companyId: comp.id,
+      contactId: martinez.id,
+    }).returning()
+
+    const [martinezWarehouse] = await db.insert(site).values({
+      name: 'Warehouse B',
+      address: '780 Industrial Blvd',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
+      accessNotes: 'Gate code: 4829. Loading dock on east side. Call ahead.',
+      companyId: comp.id,
+      contactId: martinez.id,
+    }).returning()
+
+    console.log('Created 2 demo sites for Martinez')
+
     // Create demo equipment linked to customers
     const [eq1] = await db.insert(equipment).values({
       name: 'Central AC Unit',
@@ -166,6 +191,7 @@ async function main() {
       notes: '199K BTU natural gas. Descale annually.',
       companyId: comp.id,
       contactId: martinez.id,
+      siteId: martinezOffice.id,
     }).returning()
 
     const [eq4] = await db.insert(equipment).values({
@@ -180,6 +206,7 @@ async function main() {
       notes: '3.5-ton heat pump. Compressor making noise — needs diagnostic.',
       companyId: comp.id,
       contactId: martinez.id,
+      siteId: martinezWarehouse.id,
     }).returning()
 
     console.log('Created 4 demo equipment records')

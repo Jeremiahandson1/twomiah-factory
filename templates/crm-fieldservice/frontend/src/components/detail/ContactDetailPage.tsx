@@ -3,8 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
   Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare,
-  Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight
+  Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight,
+  MapPinned, ChevronRight, X
 } from 'lucide-react';
+import { Modal } from '../ui/Modal';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
@@ -23,6 +25,11 @@ export default function ContactDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [portalStatus, setPortalStatus] = useState<any>(null);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [siteModalOpen, setSiteModalOpen] = useState(false);
+  const [siteForm, setSiteForm] = useState({ name: '', address: '', city: '', state: '', zip: '', accessNotes: '' });
+  const [savingSite, setSavingSite] = useState(false);
+  const [siteDetail, setSiteDetail] = useState<any>(null);
+  const [siteDetailLoading, setSiteDetailLoading] = useState(false);
 
   useEffect(() => {
     loadContact();
@@ -51,6 +58,34 @@ export default function ContactDetailPage() {
       toast.error(err.message || 'Failed to update portal access');
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  const handleCreateSite = async () => {
+    if (!siteForm.name.trim()) return;
+    setSavingSite(true);
+    try {
+      await api.post(`/api/contacts/${id}/sites`, siteForm);
+      toast.success('Location added');
+      setSiteModalOpen(false);
+      setSiteForm({ name: '', address: '', city: '', state: '', zip: '', accessNotes: '' });
+      loadContact();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add location');
+    } finally {
+      setSavingSite(false);
+    }
+  };
+
+  const openSiteDetail = async (siteId: string) => {
+    setSiteDetailLoading(true);
+    try {
+      const data = await api.get(`/api/contacts/sites/${siteId}`);
+      setSiteDetail(data);
+    } catch {
+      toast.error('Failed to load site details');
+    } finally {
+      setSiteDetailLoading(false);
     }
   };
 
@@ -360,6 +395,54 @@ export default function ContactDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Locations / Sites */}
+          {(contact.sites?.length > 0 || contact.type === 'client') && (
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Locations</h2>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">{contact.sites?.length || 0}</span>
+                  <button
+                    onClick={() => setSiteModalOpen(true)}
+                    className="px-3 py-1.5 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Location
+                  </button>
+                </div>
+              </div>
+              {contact.sites?.length > 0 ? (
+                <div className="divide-y">
+                  {contact.sites.map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => openSiteDetail(s.id)}
+                      className="w-full p-4 flex items-center justify-between hover:bg-gray-50 text-left"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
+                          <MapPinned className="w-5 h-5 text-blue-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{s.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {[s.address, s.city].filter(Boolean).join(', ') || 'No address'}
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-300" />
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-gray-400">
+                  <MapPinned className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No locations added — useful for commercial accounts with multiple sites</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sidebar */}
@@ -491,6 +574,107 @@ export default function ContactDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Add Location Modal */}
+      <Modal isOpen={siteModalOpen} onClose={() => setSiteModalOpen(false)} title="Add Location" size="md">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Location Name *</label>
+            <input value={siteForm.name} onChange={(e) => setSiteForm({ ...siteForm, name: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder='e.g. "Main Warehouse", "Downtown Office"' />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Address</label>
+            <input value={siteForm.address} onChange={(e) => setSiteForm({ ...siteForm, address: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div><label className="block text-sm font-medium mb-1">City</label><input value={siteForm.city} onChange={(e) => setSiteForm({ ...siteForm, city: e.target.value })} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">State</label><input value={siteForm.state} onChange={(e) => setSiteForm({ ...siteForm, state: e.target.value })} className="w-full px-3 py-2 border rounded-lg" /></div>
+            <div><label className="block text-sm font-medium mb-1">ZIP</label><input value={siteForm.zip} onChange={(e) => setSiteForm({ ...siteForm, zip: e.target.value })} className="w-full px-3 py-2 border rounded-lg" /></div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Access Notes</label>
+            <textarea value={siteForm.accessNotes} onChange={(e) => setSiteForm({ ...siteForm, accessNotes: e.target.value })} rows={2} className="w-full px-3 py-2 border rounded-lg" placeholder="Gate codes, contact on site, parking instructions..." />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button onClick={() => setSiteModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button>
+            <button onClick={handleCreateSite} disabled={savingSite || !siteForm.name.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{savingSite ? 'Saving...' : 'Add Location'}</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Site Detail Modal */}
+      {siteDetail && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setSiteDetail(null)} />
+          <div className="relative min-h-screen flex items-center justify-center p-4">
+            <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    <MapPinned className="w-5 h-5 text-blue-500" />
+                    {siteDetail.name}
+                  </h2>
+                  <p className="text-sm text-gray-500">{[siteDetail.address, siteDetail.city, siteDetail.state, siteDetail.zip].filter(Boolean).join(', ')}</p>
+                </div>
+                <button onClick={() => setSiteDetail(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
+              </div>
+
+              {siteDetail.accessNotes && (
+                <div className="mb-4 p-3 bg-yellow-50 rounded-lg">
+                  <p className="text-xs font-semibold text-yellow-700 uppercase mb-1">Access Notes</p>
+                  <p className="text-sm text-yellow-800">{siteDetail.accessNotes}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Equipment at this location ({siteDetail.equipment?.length || 0})</h3>
+                  {siteDetail.equipment?.length > 0 ? (
+                    <div className="divide-y border rounded-lg">
+                      {siteDetail.equipment.map((eq: any) => (
+                        <div key={eq.id} className="p-3 flex items-center gap-3">
+                          <Wrench className="w-4 h-4 text-orange-500" />
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{eq.name}</p>
+                            <p className="text-xs text-gray-500">{[eq.manufacturer, eq.model].filter(Boolean).join(' ')}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">No equipment at this location</p>
+                  )}
+                  <Link
+                    to={`/equipment?contactId=${id}&siteId=${siteDetail.id}`}
+                    className="mt-2 inline-flex items-center gap-1 text-sm text-orange-600 hover:text-orange-700"
+                  >
+                    <Plus className="w-3 h-3" /> Add Equipment to This Location
+                  </Link>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-2">Service History ({siteDetail.jobs?.length || 0})</h3>
+                  {siteDetail.jobs?.length > 0 ? (
+                    <div className="divide-y border rounded-lg">
+                      {siteDetail.jobs.map((j: any) => (
+                        <Link key={j.id} to={`/jobs/${j.id}`} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                          <div>
+                            <p className="font-medium text-gray-900 text-sm">{j.title}</p>
+                            <p className="text-xs text-gray-500">{j.number} — {j.scheduledDate ? new Date(j.scheduledDate).toLocaleDateString() : ''}</p>
+                          </div>
+                          <StatusBadge status={j.status} />
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">No jobs at this location</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation */}
       <ConfirmModal
