@@ -91,6 +91,43 @@ export const caregiverAvailability = pgTable('caregiver_availability', {
   maxHoursPerWeek: integer('max_hours_per_week').default(40).notNull(),
   weeklyAvailability: json('weekly_availability'),
   notes: text('notes'),
+  // Per-day availability
+  mondayAvailable: boolean('monday_available').default(true),
+  mondayStartTime: time('monday_start_time'),
+  mondayEndTime: time('monday_end_time'),
+  tuesdayAvailable: boolean('tuesday_available').default(true),
+  tuesdayStartTime: time('tuesday_start_time'),
+  tuesdayEndTime: time('tuesday_end_time'),
+  wednesdayAvailable: boolean('wednesday_available').default(true),
+  wednesdayStartTime: time('wednesday_start_time'),
+  wednesdayEndTime: time('wednesday_end_time'),
+  thursdayAvailable: boolean('thursday_available').default(true),
+  thursdayStartTime: time('thursday_start_time'),
+  thursdayEndTime: time('thursday_end_time'),
+  fridayAvailable: boolean('friday_available').default(true),
+  fridayStartTime: time('friday_start_time'),
+  fridayEndTime: time('friday_end_time'),
+  saturdayAvailable: boolean('saturday_available').default(false),
+  saturdayStartTime: time('saturday_start_time'),
+  saturdayEndTime: time('saturday_end_time'),
+  sundayAvailable: boolean('sunday_available').default(false),
+  sundayStartTime: time('sunday_start_time'),
+  sundayEndTime: time('sunday_end_time'),
+  // Preferred hours (optimizer tries these first, falls back to full window)
+  mondayPreferredStart: time('monday_preferred_start'),
+  mondayPreferredEnd: time('monday_preferred_end'),
+  tuesdayPreferredStart: time('tuesday_preferred_start'),
+  tuesdayPreferredEnd: time('tuesday_preferred_end'),
+  wednesdayPreferredStart: time('wednesday_preferred_start'),
+  wednesdayPreferredEnd: time('wednesday_preferred_end'),
+  thursdayPreferredStart: time('thursday_preferred_start'),
+  thursdayPreferredEnd: time('thursday_preferred_end'),
+  fridayPreferredStart: time('friday_preferred_start'),
+  fridayPreferredEnd: time('friday_preferred_end'),
+  saturdayPreferredStart: time('saturday_preferred_start'),
+  saturdayPreferredEnd: time('saturday_preferred_end'),
+  sundayPreferredStart: time('sunday_preferred_start'),
+  sundayPreferredEnd: time('sunday_preferred_end'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -266,12 +303,20 @@ export const schedules = pgTable('schedules', {
   scheduleType: text('schedule_type').default('recurring').notNull(),
   isActive: boolean('is_active').default(true).notNull(),
   dayOfWeek: integer('day_of_week'),
+  date: date('date'),
+  status: text('status').default('active'),
   notes: text('notes'),
+  careTypeId: text('care_type_id'),
+  // Split shift support
+  isSplitShift: boolean('is_split_shift').default(false),
+  splitShiftGroupId: text('split_shift_group_id'),
+  splitSegment: integer('split_segment'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('schedules_client_id_idx').on(t.clientId),
   index('schedules_caregiver_id_idx').on(t.caregiverId),
+  index('schedules_split_group_idx').on(t.splitShiftGroupId),
 ])
 
 // ==================== OPEN SHIFTS ====================
@@ -558,6 +603,44 @@ export const claims = pgTable('claims', {
   index('claims_edi_batch_id_idx').on(t.ediBatchId),
   index('claims_evv_visit_id_idx').on(t.evvVisitId),
   index('claims_status_idx').on(t.status),
+])
+
+// ==================== PAYMENTS ====================
+export const payments = pgTable('payments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  payerId: text('payer_id').references(() => referralSources.id),
+  payerName: text('payer_name'),
+  checkNumber: text('check_number'),
+  checkDate: date('check_date'),
+  checkAmount: decimal('check_amount', { precision: 12, scale: 2 }).notNull(),
+  paymentDate: date('payment_date'),
+  paymentMethod: text('payment_method').default('check'),
+  scanImagePath: text('scan_image_path'),
+  aiExtractedData: json('ai_extracted_data'),
+  reconciliationStatus: text('reconciliation_status').default('unreconciled'),
+  reconciliationNotes: text('reconciliation_notes'),
+  totalMatched: decimal('total_matched', { precision: 12, scale: 2 }).default('0'),
+  underpaymentAmount: decimal('underpayment_amount', { precision: 12, scale: 2 }).default('0'),
+  overpaymentAmount: decimal('overpayment_amount', { precision: 12, scale: 2 }).default('0'),
+  createdBy: text('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('payments_payer_idx').on(t.payerId),
+  index('payments_status_idx').on(t.reconciliationStatus),
+  index('payments_date_idx').on(t.paymentDate),
+])
+
+export const paymentClaimMatches = pgTable('payment_claim_matches', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  paymentId: text('payment_id').notNull().references(() => payments.id, { onDelete: 'cascade' }),
+  claimId: text('claim_id').notNull().references(() => claims.id),
+  matchedAmount: decimal('matched_amount', { precision: 12, scale: 2 }).notNull(),
+  matchType: text('match_type').default('auto'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('pcm_payment_idx').on(t.paymentId),
+  index('pcm_claim_idx').on(t.claimId),
 ])
 
 // ==================== REMITTANCE BATCHES ====================

@@ -70,13 +70,22 @@ export default function RosterOptimizer({ token }) {
           ...cg,
           targetHours: parseFloat(cg.max_hours_per_week) || 40,
           enabled: true,
+          preferredStart: '',
+          preferredEnd: '',
         })));
-        setClients(data.clients.map(cl => ({
-          ...cl,
-          hoursPerWeek: parseFloat(cl.assigned_hours_per_week) || 0,
-          visitsPerWeek: suggestVisits(parseFloat(cl.assigned_hours_per_week)),
-          enabled: true,
-        })));
+        setClients(data.clients.map(cl => {
+          const hrs = parseFloat(cl.assigned_hours_per_week) || 0;
+          const allowedDays = Array.isArray(cl.service_allowed_days) ? cl.service_allowed_days : [];
+          return {
+            ...cl,
+            hoursPerWeek: hrs,
+            visitsPerWeek: cl.service_days_per_week || suggestVisits(hrs),
+            enabled: true,
+            preferredDays: allowedDays,
+            timeWindowStart: '',
+            timeWindowEnd: '',
+          };
+        }));
       } catch (err) {
         setLoadError(err.message);
       } finally {
@@ -89,12 +98,25 @@ export default function RosterOptimizer({ token }) {
   const updateCg = (id, field, value) =>
     setCaregivers(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
 
+  const updateCgField = (id, field, value) =>
+    setCaregivers(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+
   const toggleAllCg = (val) =>
     setCaregivers(prev => prev.map(c => ({ ...c, enabled: val })));
 
   // ── Client helpers ────────────────────────────────────────────────────────
   const updateCl = (id, field, value) =>
     setClients(prev => prev.map(c => c.id === id ? { ...c, [field]: parseFloat(value) || 0 } : c));
+
+  const updateClRaw = (id, field, value) =>
+    setClients(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+
+  const toggleClDay = (id, day) =>
+    setClients(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const days = c.preferredDays || [];
+      return { ...c, preferredDays: days.includes(day) ? days.filter(d => d !== day) : [...days, day].sort((a, b) => a - b) };
+    }));
 
   const toggleAllCl = (val) =>
     setClients(prev => prev.map(c => ({ ...c, enabled: val })));
@@ -113,8 +135,17 @@ export default function RosterOptimizer({ token }) {
       const data = await api('/api/roster-optimizer/run', {
         method: 'POST',
         body: JSON.stringify({
-          caregivers: activeCg.map(c => ({ id: c.id, targetHours: c.targetHours })),
-          clients: activeCl.map(c => ({ id: c.id, hoursPerWeek: c.hoursPerWeek, visitsPerWeek: c.visitsPerWeek })),
+          caregivers: activeCg.map(c => ({
+            id: c.id, targetHours: c.targetHours,
+            preferredStart: c.preferredStart || null,
+            preferredEnd: c.preferredEnd || null,
+          })),
+          clients: activeCl.map(c => ({
+            id: c.id, hoursPerWeek: c.hoursPerWeek, visitsPerWeek: c.visitsPerWeek,
+            preferredDays: c.preferredDays?.length ? c.preferredDays : null,
+            timeWindowStart: c.timeWindowStart || null,
+            timeWindowEnd: c.timeWindowEnd || null,
+          })),
         }),
       });
       setResult(data);
@@ -197,7 +228,7 @@ export default function RosterOptimizer({ token }) {
 
       {/* Header Banner */}
       <div style={{
-        background: 'linear-gradient(135deg, var(--color-gold) 0%, var(--color-teal) 100%)',
+        background: 'linear-gradient(135deg, #1e3a5f 0%, #0f766e 100%)',
         borderRadius: '12px', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', color: '#fff',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
@@ -276,35 +307,53 @@ export default function RosterOptimizer({ token }) {
                   .filter(cg => !cgFilter || `${cg.first_name} ${cg.last_name}`.toLowerCase().includes(cgFilter.toLowerCase()))
                   .map((cg, idx) => (
                   <div key={cg.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '0.6rem',
                     padding: '0.6rem 0.75rem', borderRadius: '8px',
                     background: cg.enabled ? '#F0F9FF' : '#F9FAFB',
                     border: `1.5px solid ${cg.enabled ? cgColorFor(cg.id) + '40' : '#E5E7EB'}`,
                     opacity: cg.enabled ? 1 : 0.55,
                   }}>
-                    <input type="checkbox" checked={cg.enabled}
-                      onChange={e => updateCg(cg.id, 'enabled', e.target.checked)}
-                      style={{ cursor: 'pointer', width: 'auto', flexShrink: 0 }} />
-                    <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: cgColorFor(cg.id), flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: '600', fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {cg.first_name} {cg.last_name}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <input type="checkbox" checked={cg.enabled}
+                        onChange={e => updateCg(cg.id, 'enabled', e.target.checked)}
+                        style={{ cursor: 'pointer', width: 'auto', flexShrink: 0 }} />
+                      <div style={{ width: '9px', height: '9px', borderRadius: '50%', background: cgColorFor(cg.id), flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: '600', fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {cg.first_name} {cg.last_name}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#6B7280' }}>
+                          {cg.current_weekly_hours}h existing · {cg.active_client_count} clients
+                        </div>
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: '#6B7280' }}>
-                        {cg.current_weekly_hours}h existing · {cg.active_client_count} clients
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
+                        <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>Target:</span>
+                        <input
+                          type="number" min="1" max="80" step="0.5"
+                          value={cg.targetHours}
+                          onChange={e => updateCg(cg.id, 'targetHours', parseFloat(e.target.value) || 0)}
+                          disabled={!cg.enabled}
+                          style={{ width: '52px', padding: '0.25rem 0.3rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem', textAlign: 'center' }}
+                        />
+                        <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>h</span>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0 }}>
-                      <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>Target:</span>
-                      <input
-                        type="number" min="1" max="80" step="0.5"
-                        value={cg.targetHours}
-                        onChange={e => updateCg(cg.id, 'targetHours', parseFloat(e.target.value) || 0)}
-                        disabled={!cg.enabled}
-                        style={{ width: '52px', padding: '0.25rem 0.3rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem', textAlign: 'center' }}
-                      />
-                      <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>h</span>
-                    </div>
+                    {cg.enabled && (
+                      <div style={{ marginTop: '0.4rem', paddingTop: '0.4rem', borderTop: '1px solid #E5E7EB' }}>
+                        <label style={{ fontSize: '0.68rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.2rem' }}>
+                          Preferred Shift <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(empty = any time)</span>
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem' }}>
+                          <input type="time" value={cg.preferredStart || ''}
+                            onChange={e => updateCgField(cg.id, 'preferredStart', e.target.value)}
+                            style={{ padding: '0.2rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.78rem', boxSizing: 'border-box' }}
+                          />
+                          <input type="time" value={cg.preferredEnd || ''}
+                            onChange={e => updateCgField(cg.id, 'preferredEnd', e.target.value)}
+                            style={{ padding: '0.2rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.78rem', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -362,28 +411,68 @@ export default function RosterOptimizer({ token }) {
                       </div>
                     </div>
                     {cl.enabled && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
-                        <div>
-                          <label style={{ fontSize: '0.68rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.15rem' }}>Hrs / Week</label>
-                          <input type="number" min="0" max="80" step="0.25"
-                            value={cl.hoursPerWeek}
-                            onChange={e => updateCl(cl.id, 'hoursPerWeek', e.target.value)}
-                            style={{ width: '100%', padding: '0.3rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ fontSize: '0.68rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.15rem' }}>Visits / Week</label>
-                          <input type="number" min="1" max="7"
-                            value={cl.visitsPerWeek}
-                            onChange={e => updateCl(cl.id, 'visitsPerWeek', e.target.value)}
-                            style={{ width: '100%', padding: '0.3rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                        {cl.hoursPerWeek > 0 && cl.visitsPerWeek > 0 && (
-                          <div style={{ gridColumn: '1/-1', fontSize: '0.7rem', color: '#6B7280' }}>
-                            ≈ {(cl.hoursPerWeek / cl.visitsPerWeek).toFixed(1)}h per visit
+                      <div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                          <div>
+                            <label style={{ fontSize: '0.68rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.15rem' }}>Hrs / Week</label>
+                            <div style={{ padding: '0.3rem', borderRadius: '6px', border: '1px solid #E5E7EB', fontSize: '0.85rem', background: '#F3F4F6', color: '#374151', fontWeight: '600' }}>
+                              {cl.hoursPerWeek}h
+                            </div>
                           </div>
-                        )}
+                          <div>
+                            <label style={{ fontSize: '0.68rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.15rem' }}>Visits / Week</label>
+                            <input type="number" min="1" max="7"
+                              value={cl.visitsPerWeek}
+                              onChange={e => updateCl(cl.id, 'visitsPerWeek', e.target.value)}
+                              style={{ width: '100%', padding: '0.3rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.85rem', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          {cl.hoursPerWeek > 0 && cl.visitsPerWeek > 0 && (
+                            <div style={{ gridColumn: '1/-1', fontSize: '0.7rem', color: '#6B7280' }}>
+                              ≈ {(cl.hoursPerWeek / cl.visitsPerWeek).toFixed(1)}h per visit
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Preferred Visit Days */}
+                        <div style={{ marginTop: '0.4rem' }}>
+                          <label style={{ fontSize: '0.68rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.2rem' }}>
+                            Visit Days <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(empty = auto)</span>
+                          </label>
+                          <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap' }}>
+                            {DAY_NAMES.map((d, i) => {
+                              const isSel = (cl.preferredDays || []).includes(i);
+                              return (
+                                <button key={i} type="button" onClick={() => toggleClDay(cl.id, i)}
+                                  style={{
+                                    padding: '0.15rem 0.35rem', borderRadius: '4px', fontSize: '0.68rem', fontWeight: '700',
+                                    cursor: 'pointer', border: 'none',
+                                    background: isSel ? DAY_COLORS[i] : '#F3F4F6',
+                                    color: isSel ? '#fff' : '#9CA3AF',
+                                  }}>
+                                  {d}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Visit Time Window */}
+                        <div style={{ marginTop: '0.4rem' }}>
+                          <label style={{ fontSize: '0.68rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.2rem' }}>
+                            Time Window <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(empty = any)</span>
+                          </label>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem' }}>
+                            <input type="time" value={cl.timeWindowStart || ''}
+                              onChange={e => updateClRaw(cl.id, 'timeWindowStart', e.target.value)}
+                              style={{ padding: '0.2rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.78rem', boxSizing: 'border-box' }}
+                            />
+                            <input type="time" value={cl.timeWindowEnd || ''}
+                              onChange={e => updateClRaw(cl.id, 'timeWindowEnd', e.target.value)}
+                              style={{ padding: '0.2rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.78rem', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -403,7 +492,7 @@ export default function RosterOptimizer({ token }) {
                 fontWeight: '700', fontSize: '1.05rem',
                 background: running || activeCgCount === 0 || activeClCount === 0
                   ? '#9CA3AF'
-                  : 'linear-gradient(135deg, var(--color-gold), var(--color-teal))',
+                  : 'linear-gradient(135deg, #1e3a5f, #0f766e)',
                 color: '#fff',
                 boxShadow: running ? 'none' : '0 4px 18px rgba(15,118,110,0.4)',
                 transition: 'all 0.2s',
@@ -505,7 +594,7 @@ export default function RosterOptimizer({ token }) {
               </span>
             </h4>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <button onClick={() => setSelected(result.proposals.size === selected.size ? new Set() : new Set(result.proposals.map(p => p.id)))}
+              <button onClick={() => setSelected(result.proposals.length === selected.size ? new Set() : new Set(result.proposals.map(p => p.id)))}
                 style={{ padding: '0.3rem 0.75rem', borderRadius: '6px', border: '1px solid #D1D5DB', background: '#fff', fontSize: '0.78rem', cursor: 'pointer' }}>
                 {selected.size === result.proposals.length ? 'Deselect All' : 'Select All'}
               </button>
@@ -538,7 +627,7 @@ export default function RosterOptimizer({ token }) {
                       <td style={{ padding: '0.4rem 0.75rem', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cgColorFor(cg.id), flexShrink: 0 }} />
-                          <span style={{ fontSize: '0.83rem', fontWeight: '600', whiteSpace: 'nowrap' }}>{cg.name.split(' ')[0]}</span>
+                          <span style={{ fontSize: '0.83rem', fontWeight: '600', whiteSpace: 'nowrap' }}>{(cg.name || '').split(' ')[0]}</span>
                         </div>
                         <div style={{ fontSize: '0.68rem', color: '#9CA3AF', paddingLeft: '1.1rem' }}>{cg.totalHours}/{cg.targetHours}h</div>
                       </td>

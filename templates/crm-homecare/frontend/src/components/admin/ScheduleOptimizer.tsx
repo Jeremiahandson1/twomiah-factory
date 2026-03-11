@@ -12,7 +12,7 @@ const DAY_COLORS = ['#8B5CF6','#3B82F6','#10B981','#F59E0B','#EF4444','#EC4899',
 export default function ScheduleOptimizer({ token, caregivers: allCaregivers, clients: allClients }) {
   // ── State ──────────────────────────────────────────────────────────────────
   const [selectedCaregivers, setSelectedCaregivers] = useState([]); // [{id, name, allocatedHours}]
-  const [selectedClients, setSelectedClients]       = useState([]); // [{id, name, hoursPerWeek, visitsPerWeek, auth}]
+  const [selectedClients, setSelectedClients]       = useState([]); // [{id, name, hoursPerWeek, visitsPerWeek, auth, preferredDays, timeWindowStart, timeWindowEnd}]
   const [cgDropdown, setCgDropdown]   = useState('');
   const [clDropdown, setClDropdown]   = useState('');
   const [loadingClient, setLoadingClient] = useState(null);
@@ -43,7 +43,7 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
     if (!id || selectedCaregivers.find(c => c.id === id)) return;
     const cg = allCaregivers.find(c => c.id === id);
     if (!cg) return;
-    setSelectedCaregivers(prev => [...prev, { id, name: `${cg.first_name} ${cg.last_name}`, allocatedHours: 40 }]);
+    setSelectedCaregivers(prev => [...prev, { id, name: `${cg.first_name} ${cg.last_name}`, allocatedHours: 40, preferredStart: '', preferredEnd: '' }]);
     setCgDropdown('');
   };
 
@@ -51,6 +51,9 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
 
   const updateCgHours = (id, hours) =>
     setSelectedCaregivers(prev => prev.map(c => c.id === id ? { ...c, allocatedHours: parseFloat(hours) || 0 } : c));
+
+  const updateCgField = (id, field, value) =>
+    setSelectedCaregivers(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
 
   // ── Add / Remove Clients ───────────────────────────────────────────────────
   const addClient = async (id) => {
@@ -62,22 +65,31 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
     setClDropdown('');
     try {
       const data = await api(`/api/optimizer/client-data/${id}`);
+      const hrs = data.assignedHoursPerWeek || data.authorizedHoursPerWeek || 0;
+      // Pre-populate allowed days from client record if available
+      const allowedDays = Array.isArray(data.serviceAllowedDays) ? data.serviceAllowedDays : [];
       setSelectedClients(prev => [...prev, {
         id,
         name: `${cl.first_name} ${cl.last_name}`,
-        hoursPerWeek: data.assignedHoursPerWeek || data.authorizedHoursPerWeek || 0,
-        visitsPerWeek: suggestVisits(data.assignedHoursPerWeek || data.authorizedHoursPerWeek || 0),
+        hoursPerWeek: hrs,
+        visitsPerWeek: data.serviceDaysPerWeek || suggestVisits(hrs),
         authorizedHoursPerWeek: data.authorizedHoursPerWeek,
         remainingHours: data.remainingHours,
         existingDays: data.existingScheduleDays || [],
-        auth: data.authorization
+        auth: data.authorization,
+        preferredDays: allowedDays,
+        timeWindowStart: '',
+        timeWindowEnd: '',
       }]);
     } catch {
       setSelectedClients(prev => [...prev, {
         id, name: `${cl.first_name} ${cl.last_name}`,
         hoursPerWeek: 0, visitsPerWeek: 3,
         authorizedHoursPerWeek: 0, remainingHours: 0,
-        existingDays: [], auth: null
+        existingDays: [], auth: null,
+        preferredDays: [],
+        timeWindowStart: '',
+        timeWindowEnd: '',
       }]);
     } finally {
       setLoadingClient(null);
@@ -88,6 +100,16 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
 
   const updateClientField = (id, field, value) =>
     setSelectedClients(prev => prev.map(c => c.id === id ? { ...c, [field]: parseFloat(value) || 0 } : c));
+
+  const updateClientRaw = (id, field, value) =>
+    setSelectedClients(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c));
+
+  const toggleClientDay = (id, day) =>
+    setSelectedClients(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const days = c.preferredDays || [];
+      return { ...c, preferredDays: days.includes(day) ? days.filter(d => d !== day) : [...days, day].sort((a, b) => a - b) };
+    }));
 
   // ── Run Optimizer ──────────────────────────────────────────────────────────
   const runOptimizer = async () => {
@@ -100,8 +122,17 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
       const data = await api('/api/optimizer/run', {
         method: 'POST',
         body: JSON.stringify({
-          caregivers: selectedCaregivers.map(c => ({ id: c.id, allocatedHours: c.allocatedHours })),
-          clients: selectedClients.map(c => ({ id: c.id, visitsPerWeek: c.visitsPerWeek, hoursPerWeek: c.hoursPerWeek }))
+          caregivers: selectedCaregivers.map(c => ({
+            id: c.id, allocatedHours: c.allocatedHours,
+            preferredStart: c.preferredStart || null,
+            preferredEnd: c.preferredEnd || null,
+          })),
+          clients: selectedClients.map(c => ({
+            id: c.id, visitsPerWeek: c.visitsPerWeek, hoursPerWeek: c.hoursPerWeek,
+            preferredDays: c.preferredDays?.length ? c.preferredDays : null,
+            timeWindowStart: c.timeWindowStart || null,
+            timeWindowEnd: c.timeWindowEnd || null,
+          }))
         })
       });
       setResult(data);
@@ -219,23 +250,41 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {selectedCaregivers.map(cg => (
                   <div key={cg.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '0.75rem',
                     padding: '0.75rem', borderRadius: '8px',
                     background: '#F8FAFF', border: `2px solid ${cgColor(cg.id)}30`
                   }}>
-                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: cgColor(cg.id), flexShrink: 0 }} />
-                    <div style={{ flex: 1, fontWeight: '600', fontSize: '0.9rem' }}>{cg.name}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <label style={{ fontSize: '0.78rem', color: '#6B7280', whiteSpace: 'nowrap' }}>Hrs/wk:</label>
-                      <input
-                        type="number" min="1" max="80" step="0.5"
-                        value={cg.allocatedHours}
-                        onChange={e => updateCgHours(cg.id, e.target.value)}
-                        style={{ width: '60px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.9rem', textAlign: 'center' }}
-                      />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: cgColor(cg.id), flexShrink: 0 }} />
+                      <div style={{ flex: 1, fontWeight: '600', fontSize: '0.9rem' }}>{cg.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <label style={{ fontSize: '0.78rem', color: '#6B7280', whiteSpace: 'nowrap' }}>Hrs/wk:</label>
+                        <input
+                          type="number" min="1" max="80" step="0.5"
+                          value={cg.allocatedHours}
+                          onChange={e => updateCgHours(cg.id, e.target.value)}
+                          style={{ width: '60px', padding: '0.3rem 0.4rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.9rem', textAlign: 'center' }}
+                        />
+                      </div>
+                      <button onClick={() => removeCaregiver(cg.id)}
+                        style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1rem', padding: '0.2rem' }}>✕</button>
                     </div>
-                    <button onClick={() => removeCaregiver(cg.id)}
-                      style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontSize: '1rem', padding: '0.2rem' }}>✕</button>
+
+                    {/* Preferred Shift Hours */}
+                    <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #E5E7EB' }}>
+                      <label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.25rem' }}>
+                        Preferred Shift <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(empty = any time)</span>
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                        <input type="time" value={cg.preferredStart || ''}
+                          onChange={e => updateCgField(cg.id, 'preferredStart', e.target.value)}
+                          style={{ padding: '0.25rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.82rem' }}
+                        />
+                        <input type="time" value={cg.preferredEnd || ''}
+                          onChange={e => updateCgField(cg.id, 'preferredEnd', e.target.value)}
+                          style={{ padding: '0.25rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.82rem' }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -303,16 +352,13 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
                       </div>
                     )}
 
-                    {/* Editable fields */}
+                    {/* Hours (read-only from auth) + Visits (editable) */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                       <div>
                         <label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.2rem' }}>Hours/Week</label>
-                        <input
-                          type="number" min="0" max="80" step="0.25"
-                          value={cl.hoursPerWeek}
-                          onChange={e => updateClientField(cl.id, 'hoursPerWeek', e.target.value)}
-                          style={{ width: '100%', padding: '0.35rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.9rem' }}
-                        />
+                        <div style={{ padding: '0.35rem', borderRadius: '6px', border: '1px solid #E5E7EB', fontSize: '0.9rem', background: '#F3F4F6', color: '#374151', fontWeight: '600' }}>
+                          {cl.hoursPerWeek}h
+                        </div>
                       </div>
                       <div>
                         <label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.2rem' }}>Visits/Week</label>
@@ -329,6 +375,46 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
                         ≈ {(cl.hoursPerWeek / cl.visitsPerWeek).toFixed(1)}h per visit
                       </div>
                     )}
+
+                    {/* Preferred Visit Days */}
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.25rem' }}>
+                        Visit Days <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(leave empty = auto)</span>
+                      </label>
+                      <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                        {DAY_NAMES.map((d, i) => {
+                          const isSelected = (cl.preferredDays || []).includes(i);
+                          return (
+                            <button key={i} type="button" onClick={() => toggleClientDay(cl.id, i)}
+                              style={{
+                                padding: '0.2rem 0.45rem', borderRadius: '5px', fontSize: '0.72rem', fontWeight: '700',
+                                cursor: 'pointer', border: 'none',
+                                background: isSelected ? DAY_COLORS[i] : '#F3F4F6',
+                                color: isSelected ? '#fff' : '#9CA3AF',
+                              }}>
+                              {d}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Visit Time Window */}
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <label style={{ fontSize: '0.72rem', fontWeight: '700', color: '#374151', display: 'block', marginBottom: '0.25rem' }}>
+                        Visit Time Window <span style={{ fontWeight: '400', color: '#9CA3AF' }}>(leave empty = any time)</span>
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                        <input type="time" value={cl.timeWindowStart || ''}
+                          onChange={e => updateClientRaw(cl.id, 'timeWindowStart', e.target.value)}
+                          style={{ padding: '0.25rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.82rem' }}
+                        />
+                        <input type="time" value={cl.timeWindowEnd || ''}
+                          onChange={e => updateClientRaw(cl.id, 'timeWindowEnd', e.target.value)}
+                          style={{ padding: '0.25rem', borderRadius: '5px', border: '1px solid #D1D5DB', fontSize: '0.82rem' }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -476,7 +562,7 @@ export default function ScheduleOptimizer({ token, caregivers: allCaregivers, cl
                       <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: cgColor(cg.id) }} />
-                          <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{cg.name.split(' ')[0]}</span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{(cg.name || '').split(' ')[0]}</span>
                         </div>
                       </td>
                       {[0,1,2,3,4,5,6].map(day => {
