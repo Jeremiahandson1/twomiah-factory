@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Loader2, Check, ExternalLink, ToggleLeft, ToggleRight,
-  MessageSquare, Mail, CreditCard, BookOpen, AlertCircle, RefreshCw
+  MessageSquare, Mail, CreditCard, BookOpen, AlertCircle, RefreshCw,
+  Phone, Copy, Send
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -12,11 +13,12 @@ export default function IntegrationsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [integrations, setIntegrations] = useState({
-    quickbooks: { connected: false, companyName: null, lastSync: null },
+    quickbooks: { connected: false, companyName: null, lastSync: null, syncEnabled: false },
     stripe: { connected: false, accountId: null, chargesEnabled: false },
     sms: { enabled: false, usage: 0 },
     email: { enabled: false, usage: 0 },
   });
+  const [testPhone, setTestPhone] = useState('');
 
   useEffect(() => {
     loadIntegrations();
@@ -138,6 +140,51 @@ export default function IntegrationsPage() {
     }
   };
 
+  const handleAutoSyncToggle = async () => {
+    setSaving('autosync');
+    try {
+      const newVal = !integrations.quickbooks.syncEnabled;
+      await fetch(`${API_URL}/api/quickbooks/auto-sync`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ enabled: newVal }),
+      });
+      setIntegrations(prev => ({
+        ...prev,
+        quickbooks: { ...prev.quickbooks, syncEnabled: newVal },
+      }));
+      setSuccess(`Auto-sync ${newVal ? 'enabled' : 'disabled'}`);
+    } catch (err) {
+      setError('Failed to update auto-sync');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const handleTestSms = async () => {
+    if (!testPhone.trim()) { setError('Enter a phone number'); return; }
+    setSaving('testsms');
+    try {
+      await fetch(`${API_URL}/api/sms/test`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ to: testPhone }),
+      });
+      setSuccess('Test SMS sent');
+      setTestPhone('');
+    } catch (err) {
+      setError('Failed to send test SMS');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const copyWebhookUrl = () => {
+    const url = `${window.location.origin}/api/sms/webhook/incoming`;
+    navigator.clipboard.writeText(url);
+    setSuccess('Webhook URL copied');
+  };
+
   const handleSyncNow = async () => {
     setSaving('sync');
     try {
@@ -204,6 +251,22 @@ export default function IntegrationsPage() {
                         Last synced: {new Date(integrations.quickbooks.lastSync).toLocaleString()}
                       </p>
                     )}
+                    <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                      <button
+                        onClick={handleAutoSyncToggle}
+                        disabled={saving === 'autosync'}
+                        className="flex items-center"
+                      >
+                        {saving === 'autosync' ? (
+                          <Loader2 className="w-8 h-8 text-gray-400 animate-spin" />
+                        ) : integrations.quickbooks.syncEnabled ? (
+                          <ToggleRight className="w-8 h-8 text-green-500" />
+                        ) : (
+                          <ToggleLeft className="w-8 h-8 text-gray-300" />
+                        )}
+                      </button>
+                      <span className="text-gray-600">Sync invoices automatically when marked paid</span>
+                    </label>
                   </div>
                 )}
               </div>
@@ -323,6 +386,61 @@ export default function IntegrationsPage() {
             </button>
           </div>
         </div>
+
+        {/* Twilio SMS Settings */}
+        {integrations.sms.enabled && (
+          <div className="bg-white rounded-xl border p-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                <Phone className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900">Twilio Settings</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Configure your Twilio account for two-way texting.
+                </p>
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Incoming Webhook URL</label>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs bg-gray-50 px-3 py-2 rounded-lg border text-gray-700 truncate">
+                        {window.location.origin}/api/sms/webhook/incoming
+                      </code>
+                      <button
+                        onClick={copyWebhookUrl}
+                        className="p-2 hover:bg-gray-100 rounded-lg text-gray-500"
+                        title="Copy URL"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Paste this into your Twilio phone number's webhook settings.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Send Test SMS</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="tel"
+                        placeholder="+1 (555) 123-4567"
+                        value={testPhone}
+                        onChange={(e) => setTestPhone(e.target.value)}
+                        className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                      />
+                      <button
+                        onClick={handleTestSms}
+                        disabled={saving === 'testsms'}
+                        className="px-3 py-2 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 flex items-center gap-1"
+                      >
+                        {saving === 'testsms' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        Test
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Email */}
         <div className="bg-white rounded-xl border p-6">

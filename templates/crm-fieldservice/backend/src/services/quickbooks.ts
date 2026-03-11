@@ -9,7 +9,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, invoice, invoiceLineItem, payment, company } from '../../db/schema.ts'
+import { contact, invoice, invoiceLineItem, payment, company, qbIntegration } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc, sql, asc } from 'drizzle-orm'
 
 // NOTE: The Drizzle schema does not have a dedicated `quickBooksConnection` table.
@@ -101,53 +101,47 @@ export async function refreshAccessToken(refreshToken: string) {
 export async function saveConnection(companyId: string, { accessToken, refreshToken, realmId, expiresIn }: { accessToken: string; refreshToken: string; realmId: string; expiresIn: number }) {
   const expiresAt = new Date(Date.now() + expiresIn * 1000)
 
-  // Upsert via raw SQL since quickbooks_connection table not in schema
-  const result = await db.execute(sql`
-    INSERT INTO quickbooks_connection (company_id, access_token, refresh_token, realm_id, expires_at, is_connected)
-    VALUES (${companyId}, ${accessToken}, ${refreshToken}, ${realmId}, ${expiresAt}, true)
-    ON CONFLICT (company_id) DO UPDATE SET
-      access_token = ${accessToken},
-      refresh_token = ${refreshToken},
-      realm_id = ${realmId},
-      expires_at = ${expiresAt},
-      is_connected = true
-    RETURNING *
-  `)
+  // Upsert qb_integration
+  const [existing] = await db.select().from(qbIntegration).where(eq(qbIntegration.companyId, companyId)).limit(1)
+  if (existing) {
+    await db.update(qbIntegration).set({
+      accessToken, refreshToken, realmId, tokenExpiresAt: expiresAt, syncEnabled: true, updatedAt: new Date(),
+    }).where(eq(qbIntegration.companyId, companyId))
+  } else {
+    await db.insert(qbIntegration).values({
+      companyId, accessToken, refreshToken, realmId, tokenExpiresAt: expiresAt, syncEnabled: true,
+    })
+  }
 
-  return result.rows?.[0] ?? result
+  return { companyId, realmId }
 }
 
 /**
  * Get valid access token (refresh if needed)
  */
 export async function getValidToken(companyId: string): Promise<{ token: string; realmId: string }> {
-  const connResult = await db.execute(sql`
-    SELECT * FROM quickbooks_connection WHERE company_id = ${companyId}
-  `)
-  const connection = (connResult.rows?.[0] ?? null) as any
+  const [connection] = await db.select().from(qbIntegration).where(eq(qbIntegration.companyId, companyId)).limit(1)
 
-  if (!connection || !connection.is_connected) {
+  if (!connection || !connection.syncEnabled) {
     throw new Error('QuickBooks not connected')
   }
 
   // Check if token is expired or expiring soon (5 min buffer)
   const buffer = 5 * 60 * 1000
-  if (new Date() >= new Date(new Date(connection.expires_at).getTime() - buffer)) {
-    // Refresh token
-    const tokens = await refreshAccessToken(connection.refresh_token)
+  if (connection.tokenExpiresAt && new Date() >= new Date(new Date(connection.tokenExpiresAt).getTime() - buffer)) {
+    const tokens = await refreshAccessToken(connection.refreshToken!)
 
-    await db.execute(sql`
-      UPDATE quickbooks_connection SET
-        access_token = ${tokens.access_token},
-        refresh_token = ${tokens.refresh_token},
-        expires_at = ${new Date(Date.now() + tokens.expires_in * 1000)}
-      WHERE company_id = ${companyId}
-    `)
+    await db.update(qbIntegration).set({
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1000),
+      updatedAt: new Date(),
+    }).where(eq(qbIntegration.companyId, companyId))
 
-    return { token: tokens.access_token, realmId: connection.realm_id }
+    return { token: tokens.access_token, realmId: connection.realmId! }
   }
 
-  return { token: connection.access_token, realmId: connection.realm_id }
+  return { token: connection.accessToken!, realmId: connection.realmId! }
 }
 
 /**
@@ -184,33 +178,30 @@ async function apiRequest(companyId: string, method: string, endpoint: string, b
  * Disconnect QuickBooks
  */
 export async function disconnect(companyId: string) {
-  await db.execute(sql`
-    UPDATE quickbooks_connection SET
-      is_connected = false,
-      access_token = NULL,
-      refresh_token = NULL
-    WHERE company_id = ${companyId}
-  `)
+  await db.update(qbIntegration).set({
+    syncEnabled: false,
+    accessToken: null,
+    refreshToken: null,
+    updatedAt: new Date(),
+  }).where(eq(qbIntegration.companyId, companyId))
 }
 
 /**
  * Get connection status
  */
 export async function getConnectionStatus(companyId: string) {
-  const connResult = await db.execute(sql`
-    SELECT * FROM quickbooks_connection WHERE company_id = ${companyId}
-  `)
-  const connection = (connResult.rows?.[0] ?? null) as any
+  const [connection] = await db.select().from(qbIntegration).where(eq(qbIntegration.companyId, companyId)).limit(1)
 
   if (!connection) {
     return { connected: false }
   }
 
   return {
-    connected: connection.is_connected,
-    realmId: connection.realm_id,
-    lastSyncAt: connection.last_sync_at,
-    expiresAt: connection.expires_at,
+    connected: connection.syncEnabled,
+    realmId: connection.realmId,
+    lastSyncAt: connection.lastSyncedAt,
+    syncEnabled: connection.syncEnabled,
+    expiresAt: connection.tokenExpiresAt,
   }
 }
 
@@ -238,15 +229,10 @@ export async function createCustomer(companyId: string, contactData: any) {
 
   const result = await apiRequest(companyId, 'POST', '/customer', { Customer: customerData })
 
-  // Save QBO ID to contact's customFields
-  const [c] = await db.select().from(contact).where(eq(contact.id, contactData.id))
-  if (c) {
-    const customFields = (c.customFields as any) || {}
-    customFields.qboCustomerId = result.Customer.Id
-    await db.update(contact)
-      .set({ customFields })
-      .where(eq(contact.id, contactData.id))
-  }
+  // Save QBO customer ID on contact
+  await db.update(contact)
+    .set({ qbCustomerId: result.Customer.Id } as any)
+    .where(eq(contact.id, contactData.id))
 
   return result.Customer
 }
@@ -255,16 +241,15 @@ export async function createCustomer(companyId: string, contactData: any) {
  * Update customer in QuickBooks
  */
 export async function updateCustomer(companyId: string, contactData: any) {
-  const customFields = (contactData.customFields as any) || {}
-  if (!customFields.qboCustomerId) {
+  if (!contactData.qbCustomerId) {
     return createCustomer(companyId, contactData)
   }
 
   // Get current customer to get SyncToken
-  const current = await apiRequest(companyId, 'GET', `/customer/${customFields.qboCustomerId}`)
+  const current = await apiRequest(companyId, 'GET', `/customer/${contactData.qbCustomerId}`)
 
   const customerData: any = {
-    Id: customFields.qboCustomerId,
+    Id: contactData.qbCustomerId,
     SyncToken: current.Customer.SyncToken,
     DisplayName: contactData.name,
     CompanyName: contactData.company || undefined,
@@ -294,8 +279,7 @@ export async function syncAllCustomers(companyId: string) {
 
   for (const c of contacts) {
     try {
-      const customFields = (c.customFields as any) || {}
-      if (customFields.qboCustomerId) {
+      if ((c as any).qbCustomerId) {
         await updateCustomer(companyId, c)
         results.push({ id: c.id, success: true, action: 'updated' })
       } else {
@@ -307,9 +291,7 @@ export async function syncAllCustomers(companyId: string) {
     }
   }
 
-  await db.execute(sql`
-    UPDATE quickbooks_connection SET last_sync_at = NOW() WHERE company_id = ${companyId}
-  `)
+  await db.update(qbIntegration).set({ lastSyncedAt: new Date(), updatedAt: new Date() }).where(eq(qbIntegration.companyId, companyId))
 
   return results
 }
@@ -324,15 +306,13 @@ export async function syncAllCustomers(companyId: string) {
 export async function createInvoice(companyId: string, invoiceData: any) {
   // Ensure customer exists
   const [c] = await db.select().from(contact).where(eq(contact.id, invoiceData.contactId))
-  const customFields = (c?.customFields as any) || {}
 
-  if (!customFields.qboCustomerId) {
+  if (!(c as any)?.qbCustomerId) {
     await createCustomer(companyId, c)
   }
 
   // Re-fetch contact for updated QBO ID
   const [updatedContact] = await db.select().from(contact).where(eq(contact.id, invoiceData.contactId))
-  const updatedCustomFields = (updatedContact?.customFields as any) || {}
 
   const lineItems = (invoiceData.lineItems || []).map((item: any, index: number) => ({
     LineNum: index + 1,
@@ -346,7 +326,7 @@ export async function createInvoice(companyId: string, invoiceData: any) {
   }))
 
   const qboInvoiceData: any = {
-    CustomerRef: { value: updatedCustomFields.qboCustomerId },
+    CustomerRef: { value: (updatedContact as any)?.qbCustomerId },
     DocNumber: invoiceData.number,
     TxnDate: invoiceData.issueDate ? new Date(invoiceData.issueDate).toISOString().split('T')[0] : undefined,
     DueDate: invoiceData.dueDate ? new Date(invoiceData.dueDate).toISOString().split('T')[0] : undefined,
@@ -356,9 +336,9 @@ export async function createInvoice(companyId: string, invoiceData: any) {
 
   const result = await apiRequest(companyId, 'POST', '/invoice', { Invoice: qboInvoiceData })
 
-  // Save QBO ID - store in notes since invoice table doesn't have qboInvoiceId
+  // Save QBO invoice ID
   await db.update(invoice)
-    .set({ notes: `${invoiceData.notes || ''}\n[QBO:${result.Invoice.Id}]`.trim() })
+    .set({ qbInvoiceId: result.Invoice.Id, syncedAt: new Date() } as any)
     .where(eq(invoice.id, invoiceData.id))
 
   return result.Invoice
@@ -368,16 +348,13 @@ export async function createInvoice(companyId: string, invoiceData: any) {
  * Update invoice in QuickBooks
  */
 export async function updateInvoice(companyId: string, invoiceData: any) {
-  // Extract QBO ID from notes
-  const qboIdMatch = invoiceData.notes?.match(/\[QBO:(\d+)\]/)
-  if (!qboIdMatch) {
+  if (!invoiceData.qbInvoiceId) {
     return createInvoice(companyId, invoiceData)
   }
-  const qboInvoiceId = qboIdMatch[1]
+  const qboInvoiceId = invoiceData.qbInvoiceId
 
   const current = await apiRequest(companyId, 'GET', `/invoice/${qboInvoiceId}`)
   const [c] = await db.select().from(contact).where(eq(contact.id, invoiceData.contactId))
-  const customFields = (c?.customFields as any) || {}
 
   const lineItems = (invoiceData.lineItems || []).map((item: any, index: number) => ({
     LineNum: index + 1,
@@ -393,7 +370,7 @@ export async function updateInvoice(companyId: string, invoiceData: any) {
   const qboInvoiceData: any = {
     Id: qboInvoiceId,
     SyncToken: current.Invoice.SyncToken,
-    CustomerRef: { value: customFields.qboCustomerId },
+    CustomerRef: { value: (c as any)?.qbCustomerId },
     DocNumber: invoiceData.number,
     TxnDate: invoiceData.issueDate ? new Date(invoiceData.issueDate).toISOString().split('T')[0] : undefined,
     DueDate: invoiceData.dueDate ? new Date(invoiceData.dueDate).toISOString().split('T')[0] : undefined,
@@ -432,15 +409,13 @@ export async function syncAllInvoices(companyId: string, { startDate, endDate }:
         ? await db.select().from(contact).where(eq(contact.id, inv.contactId))
         : [null]
 
-      const customFields = (c?.customFields as any) || {}
-      if (c && !customFields.qboCustomerId) {
+      if (c && !(c as any).qbCustomerId) {
         await createCustomer(companyId, c)
       }
 
       const invoiceWithItems = { ...inv, lineItems, contact: c }
 
-      const qboIdMatch = inv.notes?.match(/\[QBO:(\d+)\]/)
-      if (qboIdMatch) {
+      if ((inv as any).qbInvoiceId) {
         await updateInvoice(companyId, invoiceWithItems)
         results.push({ id: inv.id, number: inv.number, success: true, action: 'updated' })
       } else {
@@ -452,9 +427,7 @@ export async function syncAllInvoices(companyId: string, { startDate, endDate }:
     }
   }
 
-  await db.execute(sql`
-    UPDATE quickbooks_connection SET last_sync_at = NOW() WHERE company_id = ${companyId}
-  `)
+  await db.update(qbIntegration).set({ lastSyncedAt: new Date(), updatedAt: new Date() }).where(eq(qbIntegration.companyId, companyId))
 
   return results
 }
@@ -468,21 +441,19 @@ export async function syncAllInvoices(companyId: string, { startDate, endDate }:
  */
 export async function createPayment(companyId: string, paymentData: any, invoiceData: any) {
   const [c] = await db.select().from(contact).where(eq(contact.id, invoiceData.contactId))
-  const customFields = (c?.customFields as any) || {}
-  const qboIdMatch = invoiceData.notes?.match(/\[QBO:(\d+)\]/)
 
-  if (!customFields.qboCustomerId || !qboIdMatch) {
+  if (!(c as any)?.qbCustomerId || !invoiceData.qbInvoiceId) {
     throw new Error('Customer and invoice must be synced to QuickBooks first')
   }
 
   const qboPaymentData: any = {
-    CustomerRef: { value: customFields.qboCustomerId },
+    CustomerRef: { value: (c as any)?.qbCustomerId },
     TotalAmt: Number(paymentData.amount),
     TxnDate: paymentData.paidAt ? new Date(paymentData.paidAt).toISOString().split('T')[0] : undefined,
     Line: [{
       Amount: Number(paymentData.amount),
       LinkedTxn: [{
-        TxnId: qboIdMatch[1],
+        TxnId: invoiceData.qbInvoiceId,
         TxnType: 'Invoice',
       }],
     }],
@@ -517,10 +488,7 @@ export async function importCustomers(companyId: string) {
       .from(contact)
       .where(eq(contact.companyId, companyId))
 
-    const existing = existingContacts.find(c => {
-      const cf = (c.customFields as any) || {}
-      return cf.qboCustomerId === customer.Id
-    })
+    const existing = existingContacts.find(c => (c as any).qbCustomerId === customer.Id)
 
     if (existing) {
       // Update
@@ -540,7 +508,6 @@ export async function importCustomers(companyId: string) {
       imported.push({ qboId: customer.Id, action: 'updated', id: existing.id })
     } else {
       // Create
-      const customFieldsData = { qboCustomerId: customer.Id }
       const [created] = await db.insert(contact).values({
         companyId,
         type: 'client',
@@ -552,8 +519,8 @@ export async function importCustomers(companyId: string) {
         city: customer.BillAddr?.City,
         state: customer.BillAddr?.CountrySubDivisionCode,
         zip: customer.BillAddr?.PostalCode,
-        customFields: customFieldsData,
-      }).returning()
+        qbCustomerId: customer.Id,
+      } as any).returning()
 
       imported.push({ qboId: customer.Id, action: 'created', id: created.id })
     }

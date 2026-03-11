@@ -87,6 +87,8 @@ export const contact = pgTable('contact', {
   portalToken: text('portal_token'),
   portalTokenExp: timestamp('portal_token_exp'),
   lastPortalVisit: timestamp('last_portal_visit'),
+  qbCustomerId: text('qb_customer_id'),
+  optedOutSms: boolean('opted_out_sms').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -266,6 +268,8 @@ export const invoice = pgTable('invoice', {
   terms: text('terms'),
   sentAt: timestamp('sent_at'),
   paidAt: timestamp('paid_at'),
+  qbInvoiceId: text('qb_invoice_id'),
+  syncedAt: timestamp('synced_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -2201,6 +2205,21 @@ export const oauthState = pgTable('oauth_state', {
   index('oauth_state_state_idx').on(t.state),
 ])
 
+export const qbIntegration = pgTable('qb_integration', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().unique().references(() => company.id, { onDelete: 'cascade' }),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  realmId: text('realm_id'),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  syncEnabled: boolean('sync_enabled').default(false).notNull(),
+  lastSyncedAt: timestamp('last_synced_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('qb_integration_company_id_idx').on(t.companyId),
+])
+
 export const photo = pgTable('photo', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
@@ -2220,6 +2239,21 @@ export const photo = pgTable('photo', {
 }, (t) => [
   index('photo_company_id_idx').on(t.companyId),
   index('photo_entity_type_entity_id_idx').on(t.entityType, t.entityId),
+])
+
+export const jobPhoto = pgTable('job_photo', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+  url: text('url').notNull(),
+  thumbnailUrl: text('thumbnail_url'),
+  caption: text('caption'),
+  takenAt: timestamp('taken_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('job_photo_company_id_idx').on(t.companyId),
+  index('job_photo_job_id_idx').on(t.jobId),
 ])
 
 export const pricebookGoodBetterBest = pgTable('pricebook_good_better_best', {

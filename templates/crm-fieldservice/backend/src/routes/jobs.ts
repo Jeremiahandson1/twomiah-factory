@@ -1,10 +1,12 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { job, project, contact, user, timeEntry, equipment } from '../../db/schema.ts'
+import { job, project, contact, user, timeEntry, equipment, jobPhoto } from '../../db/schema.ts'
 import { eq, and, gte, lt, count, asc, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import storage from '../services/storage.ts'
+import smsService from '../services/sms.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -207,6 +209,10 @@ app.post('/:id/start', async (c) => {
 
   const [updated] = await db.update(job).set({ status: 'in_progress', updatedAt: new Date() }).where(eq(job.id, id)).returning()
   emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status: 'in_progress' })
+
+  // Auto-send SMS to contact
+  smsService.sendJobUpdate(currentUser.companyId, id, 'on_site').catch(() => {})
+
   return c.json(updated)
 })
 
@@ -219,6 +225,9 @@ app.post('/:id/complete', async (c) => {
 
   const [updated] = await db.update(job).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(eq(job.id, id)).returning()
   emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status: 'completed' })
+
+  // Auto-send SMS to contact
+  smsService.sendJobUpdate(currentUser.companyId, id, 'completed').catch(() => {})
 
   // If linked to a service agreement, auto-generate the next scheduled job
   let nextServiceDate = null
@@ -245,7 +254,76 @@ app.post('/:id/dispatch', async (c) => {
 
   const [updated] = await db.update(job).set({ status: 'dispatched', updatedAt: new Date() }).where(eq(job.id, id)).returning()
   emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status: 'dispatched' })
+
+  // Auto-send SMS — technician is on the way
+  smsService.sendJobUpdate(currentUser.companyId, id, 'on_my_way').catch(() => {})
+
   return c.json(updated)
+})
+
+// ============================================
+// PHOTOS
+// ============================================
+
+const MAX_PHOTO_SIZE = 10 * 1024 * 1024 // 10MB
+
+app.post('/:id/photos', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Job not found' }, 404)
+
+  const formData = await c.req.formData()
+  const file = formData.get('photo') as File
+  if (!file) return c.json({ error: 'No photo provided' }, 400)
+  if (file.size > MAX_PHOTO_SIZE) return c.json({ error: 'Photo exceeds 10MB limit' }, 400)
+  if (!file.type.startsWith('image/')) return c.json({ error: 'File must be an image' }, 400)
+
+  const buffer = Buffer.from(await file.arrayBuffer())
+  const { url } = await storage.uploadPhoto(currentUser.companyId, id, { buffer, type: file.type, name: file.name })
+  const caption = formData.get('caption') as string || null
+
+  const [photo] = await db.insert(jobPhoto).values({
+    companyId: currentUser.companyId,
+    jobId: id,
+    uploadedById: currentUser.userId,
+    url,
+    caption,
+  }).returning()
+
+  return c.json(photo, 201)
+})
+
+app.get('/:id/photos', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Job not found' }, 404)
+
+  const photos = await db.select().from(jobPhoto)
+    .where(and(eq(jobPhoto.jobId, id), eq(jobPhoto.companyId, currentUser.companyId)))
+    .orderBy(desc(jobPhoto.createdAt))
+
+  return c.json(photos)
+})
+
+app.delete('/:id/photos/:photoId', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+  const photoId = c.req.param('photoId')
+
+  const [existing] = await db.select().from(jobPhoto)
+    .where(and(eq(jobPhoto.id, photoId), eq(jobPhoto.jobId, id), eq(jobPhoto.companyId, currentUser.companyId)))
+    .limit(1)
+
+  if (!existing) return c.json({ error: 'Photo not found' }, 404)
+
+  try { await storage.deletePhoto(existing.url) } catch {}
+  await db.delete(jobPhoto).where(eq(jobPhoto.id, photoId))
+
+  return c.body(null, 204)
 })
 
 export default app

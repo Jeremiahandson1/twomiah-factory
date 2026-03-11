@@ -5,6 +5,7 @@ import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, compa
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
+import { sendSMS } from '../services/sms.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -196,6 +197,18 @@ app.post('/:id/send', async (c) => {
 
   const [updated] = await db.update(quote).set({ status: 'sent', sentAt: new Date(), updatedAt: new Date() }).where(eq(quote.id, id)).returning()
   emitToCompany(currentUser.companyId, EVENTS.QUOTE_SENT, { id: updated.id, number: updated.number })
+
+  // Auto-send SMS when quote is sent
+  if (updated.contactId) {
+    const [contactRow] = await db.select().from(contact).where(eq(contact.id, updated.contactId))
+    if (contactRow?.phone) {
+      const [companyRow] = await db.select().from(company).where(eq(company.id, currentUser.companyId))
+      const portalUrl = process.env.CUSTOMER_PORTAL_URL || ''
+      const msg = `Hi ${contactRow.name?.split(' ')[0] || 'there'}, ${companyRow?.name || 'we'} just sent you a quote (#${updated.number}) for $${Number(updated.total || 0).toFixed(2)}. View it here: ${portalUrl}/quotes/${updated.id}`
+      sendSMS(currentUser.companyId, { contactId: contactRow.id, message: msg }).catch(() => {})
+    }
+  }
+
   return c.json(updated)
 })
 

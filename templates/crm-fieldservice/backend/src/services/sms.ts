@@ -47,6 +47,7 @@ export async function sendSMS(
   if (!toPhone && contactId) {
     const [contactRow] = await db.select().from(contact).where(eq(contact.id, contactId))
     if (!contactRow?.phone) throw new Error('Contact has no phone number')
+    if ((contactRow as any).optedOutSms) return null as any
     toPhone = contactRow.phone
   }
 
@@ -536,6 +537,7 @@ export async function sendJobUpdate(companyId: string, jobId: string, updateType
 
   const [contactRow] = await db.select().from(contact).where(eq(contact.id, jobRow.contactId))
   if (!contactRow?.phone) return null
+  if ((contactRow as any).optedOutSms) return null
 
   const [companyRow] = await db.select().from(company).where(eq(company.id, companyId))
 
@@ -552,7 +554,9 @@ export async function sendJobUpdate(companyId: string, jobId: string, updateType
   const templates: Record<string, string> = {
     scheduled: `Hi {{first_name}}, your appointment with {{company_name}} is confirmed for {{job_date}} at {{job_time}}. Reply CONFIRM to confirm or RESCHEDULE to change.`,
     on_way: `Good news! {{tech_name}} from {{company_name}} is on the way and should arrive in approximately 15-20 minutes.`,
+    on_my_way: `Good news! {{tech_name}} from {{company_name}} is on the way and should arrive in approximately 15-20 minutes.`,
     started: `{{tech_name}} has arrived and started work on your {{job_title}}. We'll notify you when complete.`,
+    on_site: `{{tech_name}} has arrived and started work on your {{job_title}}. We'll notify you when complete.`,
     completed: `Your service is complete! Thank you for choosing {{company_name}}. We'd love your feedback: {{link}}`,
     reminder: `Reminder: Your appointment with {{company_name}} is tomorrow at {{job_time}}. Reply CONFIRM or RESCHEDULE.`,
   }

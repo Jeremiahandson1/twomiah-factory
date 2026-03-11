@@ -184,6 +184,21 @@ class ApiClient {
     complete: (id) => this.action('/api/jobs', id, 'complete'),
   };
 
+  // SMS
+  sms = {
+    conversations: (params) => this.get('/api/sms/conversations', params),
+    messages: (conversationId) => this.get(`/api/sms/conversations/${conversationId}/messages`),
+    send: (data) => this.post('/api/sms/send', data),
+    jobUpdate: (jobId, data) => this.post(`/api/sms/job-update/${jobId}`, data),
+  };
+
+  // Photos
+  photos = {
+    listForJob: (jobId) => this.get(`/api/jobs/${jobId}/photos`),
+    upload: (jobId, formData) => this.request(`/api/jobs/${jobId}/photos`, { method: 'POST', body: formData }),
+    delete: (jobId, photoId) => this.request(`/api/jobs/${jobId}/photos/${photoId}`, { method: 'DELETE' }),
+  };
+
   // Quotes
   quotes = {
     list: (params) => this.get('/api/quotes', params),

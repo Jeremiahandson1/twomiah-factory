@@ -4,7 +4,7 @@ import {
   Navigation, CheckCircle, AlertTriangle, Wrench, Zap,
   Shield, Settings2, Camera, ClipboardList, Loader2,
   Thermometer, Wind, Droplets, Gauge, Plug, ArrowRight,
-  Truck, Flag, X, FileText, Package,
+  Truck, Flag, X, FileText, Package, Trash2,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -381,9 +381,74 @@ function JobDetailScreen({
   onChecklist: () => void;
   actionLoading: boolean;
 }) {
+  const toast = useToast();
   const [completionNotes, setCompletionNotes] = useState('');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const addr = [job.address, job.city, job.state, job.zip].filter(Boolean).join(', ');
+
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [photoCaption, setPhotoCaption] = useState('');
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [fullscreenPhoto, setFullscreenPhoto] = useState<any>(null);
+
+  useEffect(() => {
+    loadPhotos();
+  }, [job.id]);
+
+  const loadPhotos = async () => {
+    setPhotosLoading(true);
+    try {
+      const data = await api.get(`/api/jobs/${job.id}/photos`);
+      setPhotos(Array.isArray(data) ? data : []);
+    } catch {} finally {
+      setPhotosLoading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('Photo must be under 10MB');
+      return;
+    }
+    setPreviewFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setPhotoCaption('');
+  };
+
+  const handleUpload = async () => {
+    if (!previewFile) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('photo', previewFile);
+      if (photoCaption) formData.append('caption', photoCaption);
+      await api.request(`/api/jobs/${job.id}/photos`, { method: 'POST', body: formData });
+      toast.success('Photo uploaded');
+      setPreviewFile(null);
+      setPreviewUrl('');
+      loadPhotos();
+    } catch {
+      toast.error('Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId: string) => {
+    try {
+      await api.request(`/api/jobs/${job.id}/photos/${photoId}`, { method: 'DELETE' });
+      toast.success('Photo deleted');
+      setFullscreenPhoto(null);
+      loadPhotos();
+    } catch {
+      toast.error('Failed to delete photo');
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
@@ -505,6 +570,73 @@ function JobDetailScreen({
           <div className="bg-white rounded-xl p-4 shadow-sm">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Notes</h3>
             <pre className="text-sm text-gray-600 whitespace-pre-wrap font-sans">{job.internalNotes}</pre>
+          </div>
+        )}
+
+        {/* Photos */}
+        <div className="bg-white rounded-xl p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Photos</h3>
+            <span className="text-xs text-gray-400">{photos.length}</span>
+          </div>
+
+          {/* Thumbnail Grid */}
+          {photos.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {photos.map(p => (
+                <button key={p.id} onClick={() => setFullscreenPhoto(p)} className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                  <img src={p.thumbnailUrl || p.url} alt={p.caption || 'Job photo'} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Upload Preview */}
+          {previewUrl && (
+            <div className="mb-3 space-y-2">
+              <img src={previewUrl} alt="Preview" className="w-full rounded-lg max-h-48 object-cover" />
+              <input
+                value={photoCaption}
+                onChange={(e) => setPhotoCaption(e.target.value)}
+                placeholder="Add caption (optional)"
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+              <div className="flex gap-2">
+                <button onClick={() => { setPreviewFile(null); setPreviewUrl(''); }} className="flex-1 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg">Cancel</button>
+                <button onClick={handleUpload} disabled={uploading} className="flex-1 py-2 text-sm text-white bg-blue-600 rounded-lg disabled:opacity-50">
+                  {uploading ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Add Photo Button */}
+          {!previewUrl && (
+            <label className="flex items-center justify-center gap-2 w-full py-3 bg-gray-100 rounded-lg text-sm font-medium text-gray-600 active:bg-gray-200 cursor-pointer">
+              <Camera className="w-5 h-5" />
+              Take / Add Photo
+              <input type="file" accept="image/*" capture="environment" onChange={handleFileSelect} className="hidden" />
+            </label>
+          )}
+        </div>
+
+        {/* Fullscreen Photo */}
+        {fullscreenPhoto && (
+          <div className="fixed inset-0 bg-black z-50 flex flex-col">
+            <div className="flex items-center justify-between p-4">
+              <button onClick={() => setFullscreenPhoto(null)} className="p-2 text-white">
+                <X className="w-6 h-6" />
+              </button>
+              <button onClick={() => handleDeletePhoto(fullscreenPhoto.id)} className="p-2 text-red-400">
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 flex items-center justify-center p-4">
+              <img src={fullscreenPhoto.url} alt={fullscreenPhoto.caption || ''} className="max-w-full max-h-full object-contain" />
+            </div>
+            {fullscreenPhoto.caption && (
+              <p className="text-white text-center p-4 text-sm">{fullscreenPhoto.caption}</p>
+            )}
           </div>
         )}
       </div>

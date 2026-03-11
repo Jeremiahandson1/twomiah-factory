@@ -254,7 +254,7 @@ app.post('/login', async (c) => {
   const loginSchema = z.object({ email: z.string().email(), password: z.string() })
   const data = loginSchema.parse(await c.req.json())
 
-  const [foundUser] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
+  const [foundUser] = await db.select().from(user).where(eq(user.email, data.email.toLowerCase().trim())).limit(1)
   if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
   if (!foundUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
 

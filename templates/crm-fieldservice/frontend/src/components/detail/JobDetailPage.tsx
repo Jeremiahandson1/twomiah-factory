@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, MapPin, Calendar, Clock, User, Play, CheckCircle, Wrench, Camera, X } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
@@ -16,8 +16,11 @@ export default function JobDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [photos, setPhotos] = useState([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [fullscreenPhoto, setFullscreenPhoto] = useState(null);
 
-  useEffect(() => { loadJob(); }, [id]);
+  useEffect(() => { loadJob(); loadPhotos(); }, [id]);
 
   const loadJob = async () => {
     setLoading(true);
@@ -29,6 +32,16 @@ export default function JobDetailPage() {
       toast.error('Failed to load service call');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPhotos = async () => {
+    setPhotosLoading(true);
+    try {
+      const data = await api.get(`/api/jobs/${id}/photos`);
+      setPhotos(Array.isArray(data) ? data : []);
+    } catch {} finally {
+      setPhotosLoading(false);
     }
   };
 
@@ -49,6 +62,17 @@ export default function JobDetailPage() {
       loadJob();
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const handleDeletePhoto = async (photoId) => {
+    try {
+      await api.request(`/api/jobs/${id}/photos/${photoId}`, { method: 'DELETE' });
+      toast.success('Photo deleted');
+      setFullscreenPhoto(null);
+      loadPhotos();
+    } catch {
+      toast.error('Failed to delete');
     }
   };
 
@@ -153,6 +177,22 @@ export default function JobDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Photos */}
+          {photos.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="font-semibold mb-4 flex items-center gap-2">
+                <Camera className="w-4 h-4" /> Photos ({photos.length})
+              </h2>
+              <div className="grid grid-cols-4 gap-3">
+                {photos.map(p => (
+                  <button key={p.id} onClick={() => setFullscreenPhoto(p)} className="aspect-square rounded-lg overflow-hidden bg-gray-100 hover:opacity-80 transition-opacity">
+                    <img src={p.thumbnailUrl || p.url} alt={p.caption || 'Job photo'} className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -186,6 +226,26 @@ export default function JobDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Fullscreen Photo */}
+      {fullscreenPhoto && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex flex-col">
+          <div className="flex items-center justify-between p-4">
+            <button onClick={() => setFullscreenPhoto(null)} className="p-2 text-white hover:text-gray-300">
+              <X className="w-6 h-6" />
+            </button>
+            <button onClick={() => handleDeletePhoto(fullscreenPhoto.id)} className="p-2 text-red-400 hover:text-red-300">
+              <Trash2 className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4">
+            <img src={fullscreenPhoto.url} alt={fullscreenPhoto.caption || ''} className="max-w-full max-h-full object-contain" />
+          </div>
+          {fullscreenPhoto.caption && (
+            <p className="text-white text-center p-4 text-sm">{fullscreenPhoto.caption}</p>
+          )}
+        </div>
+      )}
 
       <ConfirmModal isOpen={deleteOpen} onClose={() => setDeleteOpen(false)} onConfirm={handleDelete} title="Delete Service Call" message={`Delete "${job.title}"?`} confirmText="Delete" />
     </div>

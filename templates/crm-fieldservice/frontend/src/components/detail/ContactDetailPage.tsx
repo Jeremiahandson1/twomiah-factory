@@ -30,11 +30,29 @@ export default function ContactDetailPage() {
   const [savingSite, setSavingSite] = useState(false);
   const [siteDetail, setSiteDetail] = useState<any>(null);
   const [siteDetailLoading, setSiteDetailLoading] = useState(false);
+  const [smsMessages, setSmsMessages] = useState<any[]>([]);
+  const [smsLoading, setSmsLoading] = useState(false);
+  const [smsInput, setSmsInput] = useState('');
+  const [smsSending, setSmsSending] = useState(false);
 
   useEffect(() => {
     loadContact();
     loadPortalStatus();
+    loadSmsMessages();
   }, [id]);
+
+  const loadSmsMessages = async () => {
+    setSmsLoading(true);
+    try {
+      const res = await api.get(`/api/sms/conversations`, { contactId: id });
+      if (res.data?.length > 0) {
+        const convo = await api.get(`/api/sms/conversations/${res.data[0].conversation.id}`);
+        setSmsMessages(convo.messages || []);
+      }
+    } catch {} finally {
+      setSmsLoading(false);
+    }
+  };
 
   const loadPortalStatus = async () => {
     try {
@@ -98,6 +116,30 @@ export default function ContactDetailPage() {
       toast.error(err.message || 'Failed to send invite');
     } finally {
       setPortalLoading(false);
+    }
+  };
+
+  const handleSendSms = async () => {
+    if (!smsInput.trim()) return;
+    setSmsSending(true);
+    try {
+      await api.post('/api/sms/send', { contactId: id, message: smsInput });
+      setSmsInput('');
+      loadSmsMessages();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send message');
+    } finally {
+      setSmsSending(false);
+    }
+  };
+
+  const handleToggleOptOut = async () => {
+    try {
+      await api.put(`/api/contacts/${id}`, { optedOutSms: !contact.optedOutSms });
+      toast.success(contact.optedOutSms ? 'SMS opted back in' : 'SMS opted out');
+      loadContact();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update opt-out');
     }
   };
 
@@ -443,6 +485,47 @@ export default function ContactDetailPage() {
               )}
             </div>
           )}
+
+          {/* Messages */}
+          <div className="bg-white rounded-lg shadow-sm">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" /> Messages
+              </h2>
+              <button onClick={handleToggleOptOut} className={`text-xs px-2 py-1 rounded ${contact.optedOutSms ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                {contact.optedOutSms ? 'Opted Out — Re-enable' : 'Opt Out SMS'}
+              </button>
+            </div>
+            <div className="max-h-80 overflow-y-auto p-4 space-y-2">
+              {smsMessages.length === 0 && !smsLoading && (
+                <p className="text-center text-sm text-gray-400 py-6">No messages yet</p>
+              )}
+              {smsMessages.map(m => (
+                <div key={m.message.id} className={`flex ${m.message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${m.message.direction === 'outbound' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-900'}`}>
+                    <p>{m.message.body}</p>
+                    <p className={`text-[10px] mt-1 ${m.message.direction === 'outbound' ? 'text-blue-200' : 'text-gray-400'}`}>
+                      {new Date(m.message.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {!contact.optedOutSms && (
+              <div className="p-3 border-t flex gap-2">
+                <input
+                  value={smsInput}
+                  onChange={(e) => setSmsInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSendSms()}
+                  placeholder="Type a message..."
+                  className="flex-1 px-3 py-2 border rounded-lg text-sm"
+                />
+                <button onClick={handleSendSms} disabled={smsSending || !smsInput.trim()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm disabled:opacity-50">
+                  {smsSending ? '...' : 'Send'}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sidebar */}

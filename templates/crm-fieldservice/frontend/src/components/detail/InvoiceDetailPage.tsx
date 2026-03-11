@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Send, DollarSign, Download, RefreshCw, BookOpen } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
@@ -19,6 +19,7 @@ export default function InvoiceDetailPage() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '' });
   const [recording, setRecording] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => { loadInvoice(); }, [id]);
 
@@ -70,6 +71,19 @@ export default function InvoiceDetailPage() {
       toast.error(err.message);
     } finally {
       setRecording(false);
+    }
+  };
+
+  const handleSyncToQB = async () => {
+    setSyncing(true);
+    try {
+      await api.post(`/api/quickbooks/sync/invoice/${id}`, {});
+      toast.success('Synced to QuickBooks');
+      loadInvoice();
+    } catch (err) {
+      toast.error('QuickBooks sync failed');
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -191,6 +205,23 @@ export default function InvoiceDetailPage() {
               <div>
                 <p className="text-gray-500">Created</p>
                 <p>{new Date(invoice.createdAt).toLocaleDateString()}</p>
+              </div>
+              <div className="pt-3 mt-3 border-t">
+                <p className="text-gray-500 mb-1">QuickBooks</p>
+                {invoice.syncedAt ? (
+                  <div className="flex items-center gap-1.5">
+                    <BookOpen className="w-3.5 h-3.5 text-green-500" />
+                    <span className="text-green-600 text-sm">Synced {new Date(invoice.syncedAt).toLocaleDateString()}</span>
+                    <button onClick={handleSyncToQB} disabled={syncing} className="ml-auto text-gray-400 hover:text-gray-600">
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={handleSyncToQB} disabled={syncing} className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                    {syncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
+                    {syncing ? 'Syncing...' : 'Sync to QuickBooks'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

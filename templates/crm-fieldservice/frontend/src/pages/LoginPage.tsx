@@ -15,7 +15,7 @@ export default function LoginPage() {
     setLocalError('');
 
     try {
-      await login(formData.email, formData.password);
+      await login(formData.email.toLowerCase().trim(), formData.password);
       navigate('/');
     } catch (err) {
       setLocalError(err.message || 'Login failed');

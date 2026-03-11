@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, supportKnowledgeBase, contact, equipment, job, site, quote, quoteLineItem, serviceAgreement, agreementPlan } from './schema.ts'
+import { company, user, supportKnowledgeBase, contact, equipment, job, site, quote, quoteLineItem, serviceAgreement, agreementPlan, jobPhoto, smsConversation, smsMessage } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -212,7 +212,7 @@ async function main() {
     console.log('Created 4 demo equipment records')
 
     // Create demo jobs linked to equipment
-    await db.insert(job).values({
+    const [job1] = await db.insert(job).values({
       number: 'JOB-00001',
       title: 'Annual AC Tune-Up',
       description: 'Spring maintenance on Carrier central AC. Check refrigerant levels, clean coils, inspect electrical connections.',
@@ -398,6 +398,66 @@ async function main() {
       })
 
       console.log('Created 1 demo agreement plan + 1 agreement with quarterly auto-scheduling')
+    }
+
+    // Create demo photos on JOB-00001
+    const [adminUser] = await db.select().from(user).where(eq(user.email, '{{ADMIN_EMAIL}}')).limit(1)
+    const existingPhotos = await db.select().from(jobPhoto).where(eq(jobPhoto.companyId, comp.id)).limit(1)
+    if (existingPhotos.length === 0 && job1 && adminUser) {
+      await db.insert(jobPhoto).values([
+        {
+          companyId: comp.id,
+          jobId: job1.id,
+          uploadedById: adminUser.id,
+          url: 'https://placehold.co/800x600/e2e8f0/475569?text=AC+Unit+Before',
+          caption: 'AC unit before service — dirty coils visible',
+        },
+        {
+          companyId: comp.id,
+          jobId: job1.id,
+          uploadedById: adminUser.id,
+          url: 'https://placehold.co/800x600/e2e8f0/475569?text=AC+Unit+After',
+          caption: 'AC unit after service — coils cleaned and refrigerant topped off',
+        },
+      ])
+      console.log('Created 2 demo photos on JOB-00001')
+    }
+
+    // Create demo SMS messages on Johnson contact
+    const existingSms = await db.select().from(smsConversation).where(eq(smsConversation.companyId, comp.id)).limit(1)
+    if (existingSms.length === 0 && johnson) {
+      const phone = johnson.phone || '+15551234567'
+      const [convo] = await db.insert(smsConversation).values({
+        companyId: comp.id,
+        phoneNumber: phone,
+        contactId: johnson.id,
+        status: 'active',
+        lastMessageAt: new Date(),
+      }).returning()
+
+      await db.insert(smsMessage).values([
+        {
+          conversationId: convo.id,
+          direction: 'outbound',
+          body: 'Hi Sarah, this is {{COMPANY_NAME}} confirming your AC tune-up tomorrow at 9:00 AM. Reply STOP to opt out.',
+          status: 'delivered',
+          sentById: adminUser.id,
+        },
+        {
+          conversationId: convo.id,
+          direction: 'inbound',
+          body: 'What time will you arrive?',
+          status: 'received',
+        },
+        {
+          conversationId: convo.id,
+          direction: 'outbound',
+          body: 'Between 2-4pm, we\'ll text when on the way.',
+          status: 'delivered',
+          sentById: adminUser.id,
+        },
+      ])
+      console.log('Created 3 demo SMS messages on Johnson contact')
     }
   }
 
