@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
   Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare,
-  Wrench, Shield, Plus
+  Wrench, Shield, Plus, Globe, Send, Loader2, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -21,10 +21,50 @@ export default function ContactDetailPage() {
   const [error, setError] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [portalStatus, setPortalStatus] = useState<any>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
     loadContact();
+    loadPortalStatus();
   }, [id]);
+
+  const loadPortalStatus = async () => {
+    try {
+      const data = await api.get(`/api/portal/contacts/${id}/status`);
+      setPortalStatus(data);
+    } catch {}
+  };
+
+  const togglePortal = async () => {
+    setPortalLoading(true);
+    try {
+      if (portalStatus?.enabled) {
+        await api.post(`/api/portal/contacts/${id}/disable`);
+        toast.success('Portal access disabled');
+      } else {
+        await api.post(`/api/portal/contacts/${id}/enable`);
+        toast.success('Portal access enabled');
+      }
+      await loadPortalStatus();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update portal access');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const resendPortalInvite = async () => {
+    setPortalLoading(true);
+    try {
+      await api.post(`/api/portal/contacts/${id}/send-link`);
+      toast.success('Portal invite sent');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send invite');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   const loadContact = async () => {
     setLoading(true);
@@ -397,6 +437,58 @@ export default function ContactDetailPage() {
               </Link>
             </div>
           </div>
+
+          {/* Portal Access */}
+          {contact.email && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-blue-500" />
+                Portal Access
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">Status</span>
+                  <button
+                    onClick={togglePortal}
+                    disabled={portalLoading}
+                    className="flex items-center gap-1.5"
+                  >
+                    {portalStatus?.enabled ? (
+                      <ToggleRight className="w-6 h-6 text-green-500" />
+                    ) : (
+                      <ToggleLeft className="w-6 h-6 text-gray-400" />
+                    )}
+                    <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600' : 'text-gray-400'}`}>
+                      {portalStatus?.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Email</span>
+                  <span className="text-gray-900">{contact.email}</span>
+                </div>
+
+                {portalStatus?.lastVisit && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Last Login</span>
+                    <span className="text-gray-900">{new Date(portalStatus.lastVisit).toLocaleDateString()}</span>
+                  </div>
+                )}
+
+                {portalStatus?.enabled && (
+                  <button
+                    onClick={resendPortalInvite}
+                    disabled={portalLoading}
+                    className="w-full mt-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2"
+                  >
+                    {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Resend Portal Invite
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -2519,3 +2519,17 @@ export const lead = pgTable('lead', {
   index('lead_source_platform_idx').on(t.sourcePlatform),
   index('lead_received_at_idx').on(t.receivedAt),
 ])
+
+// ==================== CUSTOMER PORTAL SESSIONS ====================
+
+export const portalSession = pgTable('portal_session', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  token: text('token').notNull().unique(),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('portal_session_token_idx').on(t.token),
+  index('portal_session_contact_id_idx').on(t.contactId),
+])

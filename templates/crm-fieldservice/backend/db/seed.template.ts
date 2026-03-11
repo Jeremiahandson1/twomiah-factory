@@ -92,6 +92,7 @@ async function main() {
       state: '{{STATE}}',
       zip: '{{ZIP}}',
       source: 'Google',
+      portalEnabled: true,
       companyId: comp.id,
     }).returning()
 
@@ -105,6 +106,7 @@ async function main() {
       state: '{{STATE}}',
       zip: '{{ZIP}}',
       source: 'Referral',
+      portalEnabled: true,
       companyId: comp.id,
     }).returning()
 

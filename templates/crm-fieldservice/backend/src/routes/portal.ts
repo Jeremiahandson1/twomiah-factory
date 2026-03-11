@@ -7,13 +7,14 @@
 
 import { Hono } from 'hono'
 import crypto from 'crypto'
-import { eq, and, inArray, count, sum, sql, desc, asc } from 'drizzle-orm'
+import { eq, and, inArray, count, sum, sql, desc, asc, gte } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job, message } from '../../db/schema.ts'
+import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job, message, portalSession, equipment, serviceAgreement, agreementVisit, formSubmission, user } from '../../db/schema.ts'
 import selections from '../services/selections.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
-import emailService from '../services/email.ts'
+import emailService, { send } from '../services/email.ts'
+import { emitToCompany, EVENTS } from '../services/socket.ts'
 
 const app = new Hono()
 
@@ -1021,6 +1022,386 @@ app.post('/p/:token/messages/:messageId/read', portalAuth, async (c) => {
     .where(eq(message.id, messageId))
 
   return c.json({ success: true })
+})
+
+// =============================================
+// CUSTOMER PORTAL — PIN-based auth (no password)
+// =============================================
+
+function generatePin(): string {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+function generateSessionToken(): string {
+  return crypto.randomBytes(48).toString('hex')
+}
+
+// Middleware: authenticate customer portal session
+async function customerPortalAuth(c: any, next: any) {
+  const authHeader = c.req.header('Authorization')
+  const token = authHeader?.replace('Bearer ', '')
+
+  if (!token) return c.json({ error: 'Portal session required' }, 401)
+
+  const [session] = await db.select({
+    id: portalSession.id,
+    contactId: portalSession.contactId,
+    companyId: portalSession.companyId,
+    expiresAt: portalSession.expiresAt,
+  }).from(portalSession).where(eq(portalSession.token, token)).limit(1)
+
+  if (!session) return c.json({ error: 'Invalid session' }, 401)
+  if (new Date() > new Date(session.expiresAt)) {
+    await db.delete(portalSession).where(eq(portalSession.id, session.id))
+    return c.json({ error: 'Session expired' }, 401)
+  }
+
+  const [cust] = await db.select({
+    id: contact.id,
+    name: contact.name,
+    email: contact.email,
+    phone: contact.phone,
+    address: contact.address,
+    city: contact.city,
+    state: contact.state,
+    zip: contact.zip,
+    companyId: contact.companyId,
+    portalEnabled: contact.portalEnabled,
+  }).from(contact).where(eq(contact.id, session.contactId)).limit(1)
+
+  if (!cust || !cust.portalEnabled) return c.json({ error: 'Portal access disabled' }, 403)
+
+  // Update last portal visit
+  await db.update(contact).set({ lastPortalVisit: new Date() }).where(eq(contact.id, cust.id))
+
+  const [comp] = await db.select({
+    id: company.id,
+    name: company.name,
+    logo: company.logo,
+    primaryColor: company.primaryColor,
+    phone: company.phone,
+    email: company.email,
+  }).from(company).where(eq(company.id, session.companyId)).limit(1)
+
+  c.set('customerPortal', { contact: cust, company: comp })
+  await next()
+}
+
+// POST /api/portal/request-access — customer enters email, gets PIN
+app.post('/request-access', async (c) => {
+  const { email } = await c.req.json()
+  if (!email) return c.json({ error: 'Email is required' }, 400)
+
+  // Find contact by email (across all companies) with portal enabled
+  const [cust] = await db.select({
+    id: contact.id,
+    name: contact.name,
+    email: contact.email,
+    companyId: contact.companyId,
+    portalEnabled: contact.portalEnabled,
+  }).from(contact).where(and(eq(contact.email, email.toLowerCase().trim()), eq(contact.portalEnabled, true))).limit(1)
+
+  // Always return success to prevent email enumeration
+  if (!cust) return c.json({ success: true })
+
+  const pin = generatePin()
+  const pinExpiry = new Date(Date.now() + 10 * 60 * 1000) // 10 minutes
+
+  await db.update(contact).set({
+    portalToken: pin,
+    portalTokenExp: pinExpiry,
+    updatedAt: new Date(),
+  }).where(eq(contact.id, cust.id))
+
+  // Get company name for the email
+  const [comp] = await db.select({ name: company.name }).from(company).where(eq(company.id, cust.companyId)).limit(1)
+
+  // Send PIN via email
+  try {
+    await send(cust.email!, 'portalInvite', {
+      contactName: cust.name,
+      companyName: comp?.name || 'Your Service Provider',
+      portalUrl: `Your login code is: ${pin}`,
+    })
+  } catch { /* email not configured — non-blocking */ }
+
+  return c.json({ success: true })
+})
+
+// POST /api/portal/login — email + PIN → session token
+app.post('/login', async (c) => {
+  const { email, pin } = await c.req.json()
+  if (!email || !pin) return c.json({ error: 'Email and PIN are required' }, 400)
+
+  const [cust] = await db.select({
+    id: contact.id,
+    name: contact.name,
+    email: contact.email,
+    companyId: contact.companyId,
+    portalEnabled: contact.portalEnabled,
+    portalToken: contact.portalToken,
+    portalTokenExp: contact.portalTokenExp,
+  }).from(contact).where(and(eq(contact.email, email.toLowerCase().trim()), eq(contact.portalEnabled, true))).limit(1)
+
+  if (!cust || cust.portalToken !== pin) {
+    return c.json({ error: 'Invalid email or code' }, 401)
+  }
+
+  if (cust.portalTokenExp && new Date() > new Date(cust.portalTokenExp)) {
+    return c.json({ error: 'Code has expired. Please request a new one.' }, 401)
+  }
+
+  // Create session (valid for 30 days)
+  const token = generateSessionToken()
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+  await db.insert(portalSession).values({
+    token,
+    contactId: cust.id,
+    companyId: cust.companyId,
+    expiresAt,
+  })
+
+  // Clear the PIN
+  await db.update(contact).set({
+    portalToken: null,
+    portalTokenExp: null,
+    lastPortalVisit: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(contact.id, cust.id))
+
+  // Get company info
+  const [comp] = await db.select({
+    name: company.name,
+    logo: company.logo,
+    primaryColor: company.primaryColor,
+  }).from(company).where(eq(company.id, cust.companyId)).limit(1)
+
+  return c.json({
+    token,
+    expiresAt,
+    contact: { name: cust.name, email: cust.email },
+    company: comp,
+  })
+})
+
+// GET /api/portal/me — customer profile
+app.get('/me', customerPortalAuth, async (c) => {
+  const { contact: cust, company: comp } = c.get('customerPortal') as any
+  return c.json({ contact: cust, company: comp })
+})
+
+// GET /api/portal/equipment — customer's equipment
+app.get('/equipment', customerPortalAuth, async (c) => {
+  const { contact: cust } = c.get('customerPortal') as any
+
+  const eqList = await db.select({
+    id: equipment.id,
+    name: equipment.name,
+    model: equipment.model,
+    manufacturer: equipment.manufacturer,
+    serialNumber: equipment.serialNumber,
+    status: equipment.status,
+    location: equipment.location,
+    purchaseDate: equipment.purchaseDate,
+    warrantyExpiry: equipment.warrantyExpiry,
+  }).from(equipment).where(and(eq(equipment.contactId, cust.id), eq(equipment.companyId, cust.companyId))).orderBy(asc(equipment.name))
+
+  // Get last service date per equipment
+  const enriched = await Promise.all(eqList.map(async (eqItem) => {
+    const [lastJob] = await db.select({
+      completedAt: job.completedAt,
+    }).from(job).where(and(eq(job.equipmentId, eqItem.id), eq(job.status, 'completed'))).orderBy(desc(job.completedAt)).limit(1)
+    return { ...eqItem, lastServiceDate: lastJob?.completedAt || null }
+  }))
+
+  return c.json(enriched)
+})
+
+// GET /api/portal/equipment/:id/history — service history for one unit
+app.get('/equipment/:equipmentId/history', customerPortalAuth, async (c) => {
+  const { contact: cust } = c.get('customerPortal') as any
+  const equipmentId = c.req.param('equipmentId')
+
+  // Verify equipment belongs to this customer
+  const [eqUnit] = await db.select().from(equipment).where(and(eq(equipment.id, equipmentId), eq(equipment.contactId, cust.id))).limit(1)
+  if (!eqUnit) return c.json({ error: 'Equipment not found' }, 404)
+
+  // Get jobs linked to this equipment
+  const jobs = await db.select({
+    id: job.id,
+    title: job.title,
+    status: job.status,
+    jobType: job.jobType,
+    scheduledDate: job.scheduledDate,
+    completedAt: job.completedAt,
+    notes: job.notes,
+    assignedToId: job.assignedToId,
+  }).from(job).where(eq(job.equipmentId, equipmentId)).orderBy(desc(job.scheduledDate))
+
+  // Get tech first names
+  const techIds = [...new Set(jobs.filter(j => j.assignedToId).map(j => j.assignedToId!))]
+  const techs = techIds.length ? await db.select({ id: user.id, firstName: user.firstName }).from(user).where(inArray(user.id, techIds)) : []
+  const techMap = Object.fromEntries(techs.map(t => [t.id, t.firstName]))
+
+  // Get checklist submissions per job
+  const jobIds = jobs.map(j => j.id)
+  const checklists = jobIds.length ? await db.select({
+    jobId: formSubmission.jobId,
+    values: formSubmission.values,
+  }).from(formSubmission).where(inArray(formSubmission.jobId, jobIds)) : []
+  const checklistMap: Record<string, any[]> = {}
+  for (const cl of checklists) {
+    if ((cl.values as any)?.type === 'hvac_inspection_checklist') {
+      if (!checklistMap[cl.jobId!]) checklistMap[cl.jobId!] = []
+      checklistMap[cl.jobId!].push(cl.values)
+    }
+  }
+
+  const history = jobs.map(j => ({
+    id: j.id,
+    title: j.title,
+    status: j.status,
+    jobType: j.jobType,
+    scheduledDate: j.scheduledDate,
+    completedAt: j.completedAt,
+    notes: j.notes,
+    techName: j.assignedToId ? techMap[j.assignedToId] || null : null,
+    checklist: checklistMap[j.id] || null,
+  }))
+
+  return c.json({ equipment: eqUnit, history })
+})
+
+// GET /api/portal/agreements — customer's service agreements
+app.get('/agreements', customerPortalAuth, async (c) => {
+  const { contact: cust } = c.get('customerPortal') as any
+
+  const agreements = await db.select({
+    id: serviceAgreement.id,
+    name: serviceAgreement.name,
+    status: serviceAgreement.status,
+    startDate: serviceAgreement.startDate,
+    endDate: serviceAgreement.endDate,
+    renewalType: serviceAgreement.renewalType,
+    billingFrequency: serviceAgreement.billingFrequency,
+    amount: serviceAgreement.amount,
+    terms: serviceAgreement.terms,
+    notes: serviceAgreement.notes,
+  }).from(serviceAgreement).where(eq(serviceAgreement.contactId, cust.id)).orderBy(desc(serviceAgreement.startDate))
+
+  // Get next scheduled visit per agreement
+  const enriched = await Promise.all(agreements.map(async (a) => {
+    const [nextVisit] = await db.select({
+      scheduledDate: agreementVisit.scheduledDate,
+    }).from(agreementVisit).where(and(eq(agreementVisit.agreementId, a.id), eq(agreementVisit.status, 'scheduled'))).orderBy(asc(agreementVisit.scheduledDate)).limit(1)
+    return { ...a, nextVisitDate: nextVisit?.scheduledDate || null }
+  }))
+
+  return c.json(enriched)
+})
+
+// GET /api/portal/invoices — customer's invoices
+app.get('/invoices', customerPortalAuth, async (c) => {
+  const { contact: cust } = c.get('customerPortal') as any
+
+  const invoices = await db.select({
+    id: invoice.id,
+    number: invoice.number,
+    status: invoice.status,
+    total: invoice.total,
+    amountPaid: invoice.amountPaid,
+    issueDate: invoice.issueDate,
+    dueDate: invoice.dueDate,
+  }).from(invoice).where(eq(invoice.contactId, cust.id)).orderBy(desc(invoice.issueDate))
+
+  return c.json(invoices)
+})
+
+// GET /api/portal/invoices/:id — single invoice detail
+app.get('/invoices/:invoiceId', customerPortalAuth, async (c) => {
+  const { contact: cust, company: comp } = c.get('customerPortal') as any
+  const invoiceId = c.req.param('invoiceId')
+
+  const [inv] = await db.select().from(invoice).where(and(eq(invoice.id, invoiceId), eq(invoice.contactId, cust.id))).limit(1)
+  if (!inv) return c.json({ error: 'Invoice not found' }, 404)
+
+  const lineItems = await db.select().from(invoiceLineItem).where(eq(invoiceLineItem.invoiceId, invoiceId)).orderBy(asc(invoiceLineItem.sortOrder))
+  const payments = await db.select().from(payment).where(eq(payment.invoiceId, invoiceId)).orderBy(desc(payment.paidAt))
+
+  return c.json({ ...inv, lineItems, payments, company: comp })
+})
+
+// POST /api/portal/invoices/:id/pay — create Stripe payment intent
+app.post('/invoices/:invoiceId/pay', customerPortalAuth, async (c) => {
+  const { contact: cust } = c.get('customerPortal') as any
+  const invoiceId = c.req.param('invoiceId')
+
+  const [inv] = await db.select().from(invoice).where(and(eq(invoice.id, invoiceId), eq(invoice.contactId, cust.id))).limit(1)
+  if (!inv) return c.json({ error: 'Invoice not found' }, 404)
+
+  if (inv.status === 'paid') return c.json({ error: 'Invoice already paid' }, 400)
+
+  try {
+    const stripeService = (await import('../services/stripe.ts')).default
+    const result = await stripeService.createPaymentIntent(inv, cust)
+    return c.json(result)
+  } catch (err: any) {
+    return c.json({ error: err.message || 'Payment processing unavailable' }, 500)
+  }
+})
+
+// POST /api/portal/service-request — customer submits service request
+app.post('/service-request', customerPortalAuth, async (c) => {
+  const { contact: cust } = c.get('customerPortal') as any
+  const { equipmentId, description, urgency, preferredContact } = await c.req.json()
+
+  if (!description) return c.json({ error: 'Issue description is required' }, 400)
+
+  // Get next job number
+  const [lastJob] = await db.select({ number: job.number }).from(job).where(eq(job.companyId, cust.companyId)).orderBy(desc(job.createdAt)).limit(1)
+  const lastNum = lastJob ? parseInt(lastJob.number.replace('JOB-', '')) : 0
+  const nextNumber = `JOB-${String(lastNum + 1).padStart(5, '0')}`
+
+  // Verify equipment belongs to customer if provided
+  let eqName = ''
+  if (equipmentId) {
+    const [eqRow] = await db.select({ name: equipment.name }).from(equipment).where(and(eq(equipment.id, equipmentId), eq(equipment.contactId, cust.id))).limit(1)
+    if (eqRow) eqName = eqRow.name
+  }
+
+  const title = eqName ? `Service Request: ${eqName}` : 'Service Request from Customer Portal'
+
+  const [newJob] = await db.insert(job).values({
+    number: nextNumber,
+    title,
+    description,
+    status: 'scheduled',
+    priority: urgency === 'urgent' ? 'high' : 'normal',
+    jobType: 'repair',
+    source: 'customer_portal',
+    address: cust.address,
+    city: cust.city,
+    state: cust.state,
+    zip: cust.zip,
+    internalNotes: `[${new Date().toISOString()}] Customer portal request\nPreferred contact: ${preferredContact || 'any'}\nUrgency: ${urgency || 'routine'}`,
+    companyId: cust.companyId,
+    contactId: cust.id,
+    equipmentId: equipmentId || null,
+  }).returning()
+
+  // Notify contractor via socket
+  try {
+    emitToCompany(cust.companyId, EVENTS.JOB_CREATED, { id: newJob.id, number: nextNumber, source: 'customer_portal' })
+  } catch { /* socket not available — non-blocking */ }
+
+  const responseHours = urgency === 'urgent' ? 4 : 24
+
+  return c.json({
+    success: true,
+    jobNumber: nextNumber,
+    responseHours,
+  }, 201)
 })
 
 export default app

@@ -121,6 +121,7 @@ export const FEATURE_CATEGORIES = [
       { id: 'communication_history', name: 'Communication History', description: 'Track all communications with clients' },
       { id: 'lead_management', name: 'Lead Management / Tagging', description: 'Track leads through your sales pipeline' },
       { id: 'client_portal', name: 'Client Portal (Self-Service)', description: 'Give clients a portal to view jobs and pay invoices' },
+      { id: 'customer_portal', name: 'Customer Portal', description: 'Self-service portal for customers to view equipment, agreements, invoices, and request service' },
       { id: 'subcontractor_portal', name: 'Subcontractor Portal', description: 'Portal for subcontractors to view assignments' },
     ]
   },

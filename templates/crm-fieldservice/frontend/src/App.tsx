@@ -67,6 +67,16 @@ import PartsInventory from './pages/fieldservice/PartsInventory';
 import FlatRatePricebook from './pages/fieldservice/FlatRatePricebook';
 import TechView from './pages/fieldservice/TechView';
 
+// Customer Portal Pages
+import PortalLogin from './pages/portal/PortalLogin';
+import PortalLayout from './pages/portal/PortalLayout';
+import PortalDashboard from './pages/portal/PortalDashboard';
+import PortalEquipment from './pages/portal/PortalEquipment';
+import PortalEquipmentDetail from './pages/portal/PortalEquipmentDetail';
+import PortalAgreements from './pages/portal/PortalAgreements';
+import PortalInvoices from './pages/portal/PortalInvoices';
+import PortalServiceRequest from './pages/portal/PortalServiceRequest';
+
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
 import ProjectDetailPage from './components/detail/ProjectDetailPage';
@@ -182,6 +192,17 @@ function App() {
                     <Route path="pricebook-rates" element={<FlatRatePricebook />} />
                     <Route path="tech" element={<TechView />} />
                     <Route path="help" element={<HelpPage />} />
+                  </Route>
+
+                  {/* Customer Portal (PIN-based auth) */}
+                  <Route path="/portal/login" element={<PortalLogin />} />
+                  <Route path="/portal" element={<PortalLayout />}>
+                    <Route index element={<PortalDashboard />} />
+                    <Route path="equipment" element={<PortalEquipment />} />
+                    <Route path="equipment/:id" element={<PortalEquipmentDetail />} />
+                    <Route path="agreements" element={<PortalAgreements />} />
+                    <Route path="invoices" element={<PortalInvoices />} />
+                    <Route path="service-request" element={<PortalServiceRequest />} />
                   </Route>
 
                   {/* Client Portal (public, token-based auth) */}
