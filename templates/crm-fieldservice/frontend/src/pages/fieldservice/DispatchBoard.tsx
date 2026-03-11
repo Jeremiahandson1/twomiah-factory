@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   ClipboardList, Calendar, Clock, MapPin, User, Users,
   AlertTriangle, Play, CheckCircle, Loader2, ChevronLeft,
-  ChevronRight, Phone, Wrench, Zap, Shield, Settings2
+  ChevronRight, Phone, Wrench, Zap, Shield, Settings2, RefreshCw
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -273,6 +273,11 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
           <span className="text-xs font-medium uppercase text-gray-500 dark:text-slate-400">
             {serviceType}
           </span>
+          {job.serviceAgreementId && (
+            <span className="flex items-center gap-0.5 text-xs text-blue-600 bg-blue-50 dark:bg-blue-500/10 dark:text-blue-400 px-1.5 py-0.5 rounded-full" title="Recurring maintenance">
+              <RefreshCw className="w-3 h-3" /> Recurring
+            </span>
+          )}
         </div>
         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PRIORITY_BADGES[priority]}`}>
           {priority}

@@ -599,11 +599,18 @@ function PlanFormModal({ plan, onSave, onClose }) {
 }
 
 function AgreementFormModal({ agreement, plans, onSave, onClose }) {
+  const defaultNextDate = new Date();
+  defaultNextDate.setDate(defaultNextDate.getDate() + 30);
+
   const [form, setForm] = useState({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
     startDate: agreement?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
     autoRenew: agreement?.autoRenew ?? true,
+    autoSchedule: agreement?.autoSchedule ?? false,
+    recurrenceFrequency: (agreement?.recurrenceRule as any)?.frequency || 'quarterly',
+    nextServiceDate: agreement?.nextServiceDate?.split('T')[0] || defaultNextDate.toISOString().split('T')[0],
+    reminderDaysBefore: agreement?.reminderDaysBefore ?? 7,
   });
   const [contacts, setContacts] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -625,10 +632,42 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload: any = {
+        planId: form.planId,
+        contactId: form.contactId,
+        startDate: form.startDate,
+        autoRenew: form.autoRenew,
+      };
+
       if (agreement) {
-        await api.put(`/api/agreements/${agreement.id}`, form);
+        await api.put(`/api/agreements/${agreement.id}`, payload);
+        // Save recurrence separately if enabled
+        if (form.autoSchedule) {
+          await api.put(`/api/agreements/${agreement.id}/recurrence`, {
+            recurrenceRule: { frequency: form.recurrenceFrequency },
+            nextServiceDate: form.nextServiceDate,
+            autoSchedule: true,
+            reminderDaysBefore: form.reminderDaysBefore,
+          });
+        } else if (agreement?.autoSchedule) {
+          // Was on, now off
+          await api.put(`/api/agreements/${agreement.id}/recurrence`, {
+            recurrenceRule: { frequency: form.recurrenceFrequency },
+            nextServiceDate: form.nextServiceDate,
+            autoSchedule: false,
+            reminderDaysBefore: form.reminderDaysBefore,
+          });
+        }
       } else {
-        await api.post('/api/agreements', form);
+        const created = await api.post('/api/agreements', payload);
+        if (form.autoSchedule && created?.id) {
+          await api.put(`/api/agreements/${created.id}/recurrence`, {
+            recurrenceRule: { frequency: form.recurrenceFrequency },
+            nextServiceDate: form.nextServiceDate,
+            autoSchedule: true,
+            reminderDaysBefore: form.reminderDaysBefore,
+          });
+        }
       }
       onSave();
     } catch (error) {
@@ -638,13 +677,17 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
     }
   };
 
+  const reminderDate = form.autoSchedule && form.nextServiceDate
+    ? (() => { const d = new Date(form.nextServiceDate); d.setDate(d.getDate() - form.reminderDaysBefore); return d.toLocaleDateString(); })()
+    : null;
+
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
           <h2 className="text-lg font-bold mb-4">{agreement ? 'Edit Agreement' : 'New Agreement'}</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
@@ -699,12 +742,72 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
               <span className="text-sm text-gray-700">Auto-renew when term ends</span>
             </label>
 
+            {/* Scheduling Section */}
+            <div className="border-t pt-4 mt-4">
+              <label className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  checked={form.autoSchedule}
+                  onChange={(e) => setForm({ ...form, autoSchedule: e.target.checked })}
+                  className="w-4 h-4 rounded text-orange-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Auto-schedule recurring visits</span>
+              </label>
+
+              {form.autoSchedule && (
+                <div className="space-y-3 pl-6 border-l-2 border-orange-200">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                    <select
+                      value={form.recurrenceFrequency}
+                      onChange={(e) => setForm({ ...form, recurrenceFrequency: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    >
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Quarterly</option>
+                      <option value="biannual">Every 6 Months</option>
+                      <option value="annual">Annual</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Next Service Date</label>
+                    <input
+                      type="date"
+                      value={form.nextServiceDate}
+                      onChange={(e) => setForm({ ...form, nextServiceDate: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Generate job this many days before visit</label>
+                    <input
+                      type="number"
+                      value={form.reminderDaysBefore}
+                      onChange={(e) => setForm({ ...form, reminderDaysBefore: parseInt(e.target.value) || 7 })}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      min="0"
+                      max="60"
+                    />
+                  </div>
+
+                  {reminderDate && (
+                    <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+                      <p>Next visit: <strong>{new Date(form.nextServiceDate).toLocaleDateString()}</strong></p>
+                      <p>Job will be created on: <strong>{reminderDate}</strong></p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3 pt-4">
               <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg">
                 Cancel
               </button>
               <button type="submit" disabled={saving} className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg">
-                {saving ? 'Saving...' : 'Create Agreement'}
+                {saving ? 'Saving...' : agreement ? 'Update Agreement' : 'Create Agreement'}
               </button>
             </div>
           </form>

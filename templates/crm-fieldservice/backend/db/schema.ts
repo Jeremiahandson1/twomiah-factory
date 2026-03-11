@@ -187,6 +187,7 @@ export const job = pgTable('job', {
   quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
   equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
   siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
+  serviceAgreementId: text('service_agreement_id'),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
   index('job_status_idx').on(t.status),
@@ -215,14 +216,19 @@ export const quote = pgTable('quote', {
   sentAt: timestamp('sent_at'),
   viewedAt: timestamp('viewed_at'),
   approvedAt: timestamp('approved_at'),
+  customerMessage: text('customer_message'),
   signature: text('signature'),
   signedAt: timestamp('signed_at'),
+  declinedAt: timestamp('declined_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  siteId: text('site_id').references(() => site.id, { onDelete: 'set null' }),
+  equipmentId: text('equipment_id').references(() => equipment.id, { onDelete: 'set null' }),
+  convertedToJobId: text('converted_to_job_id'),
 }, (t) => [
   index('quote_company_id_idx').on(t.companyId),
   index('quote_status_idx').on(t.status),
@@ -1046,6 +1052,12 @@ export const serviceAgreement = pgTable('service_agreement', {
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   terms: text('terms'),
   notes: text('notes'),
+
+  recurrenceRule: json('recurrence_rule'),
+  nextServiceDate: timestamp('next_service_date'),
+  autoSchedule: boolean('auto_schedule').default(false).notNull(),
+  reminderDaysBefore: integer('reminder_days_before').default(7).notNull(),
+  lastGeneratedJobId: text('last_generated_job_id'),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),

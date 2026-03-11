@@ -454,6 +454,156 @@ export async function getExpiringAgreements(companyId: string, daysAhead = 60) {
     .orderBy(asc(serviceAgreement.endDate));
 }
 
+// ============================================
+// RECURRING SCHEDULING
+// ============================================
+
+/**
+ * Set recurrence rule on an agreement
+ */
+export async function setRecurrence(agreementId: string, companyId: string, data: {
+  recurrenceRule: { frequency: string; dayOfMonth?: number; monthOfYear?: number[] };
+  nextServiceDate: string;
+  autoSchedule?: boolean;
+  reminderDaysBefore?: number;
+}) {
+  const [updated] = await db.update(serviceAgreement)
+    .set({
+      recurrenceRule: data.recurrenceRule,
+      nextServiceDate: new Date(data.nextServiceDate),
+      autoSchedule: data.autoSchedule ?? false,
+      reminderDaysBefore: data.reminderDaysBefore ?? 7,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId)))
+    .returning();
+  return updated;
+}
+
+/**
+ * Advance nextServiceDate by recurrence interval
+ */
+function advanceDate(current: Date, rule: { frequency: string; dayOfMonth?: number; monthOfYear?: number[] }): Date {
+  const next = new Date(current);
+  switch (rule.frequency) {
+    case 'monthly': next.setMonth(next.getMonth() + 1); break;
+    case 'quarterly': next.setMonth(next.getMonth() + 3); break;
+    case 'biannual': next.setMonth(next.getMonth() + 6); break;
+    case 'annual': next.setFullYear(next.getFullYear() + 1); break;
+  }
+  if (rule.dayOfMonth) next.setDate(rule.dayOfMonth);
+  return next;
+}
+
+/**
+ * Generate next scheduled job for an agreement
+ */
+export async function generateNextJob(agreementId: string, companyId: string) {
+  const [agr] = await db.select()
+    .from(serviceAgreement)
+    .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId)))
+    .limit(1);
+  if (!agr) throw new Error('Agreement not found');
+  if (!agr.nextServiceDate || !agr.recurrenceRule) throw new Error('No recurrence configured');
+
+  // Prevent double-generation: check if lastGeneratedJobId is still scheduled/in_progress
+  if (agr.lastGeneratedJobId) {
+    const [lastJob] = await db.select({ status: job.status })
+      .from(job)
+      .where(eq(job.id, agr.lastGeneratedJobId))
+      .limit(1);
+    if (lastJob && !['completed', 'cancelled'].includes(lastJob.status)) {
+      throw new Error('Previous scheduled job still pending');
+    }
+  }
+
+  // Get contact for address
+  const [agrContact] = await db.select()
+    .from(contact)
+    .where(eq(contact.id, agr.contactId))
+    .limit(1);
+
+  const [{ value: cnt }] = await db.select({ value: count() })
+    .from(job)
+    .where(eq(job.companyId, companyId));
+
+  const [newJob] = await db.insert(job).values({
+    number: `JOB-${String(Number(cnt) + 1).padStart(5, '0')}`,
+    title: `${agr.name} — Scheduled Maintenance`,
+    description: `Auto-generated from service agreement: ${agr.name}`,
+    status: 'scheduled',
+    priority: 'normal',
+    jobType: 'maintenance',
+    scheduledDate: agr.nextServiceDate,
+    address: agrContact?.address || '',
+    city: agrContact?.city || '',
+    state: agrContact?.state || '',
+    zip: agrContact?.zip || '',
+    notes: `Service Agreement: ${agr.number}`,
+    companyId,
+    contactId: agr.contactId,
+    serviceAgreementId: agreementId,
+  }).returning();
+
+  // Advance to next date
+  const rule = agr.recurrenceRule as { frequency: string; dayOfMonth?: number; monthOfYear?: number[] };
+  const nextDate = advanceDate(agr.nextServiceDate, rule);
+
+  await db.update(serviceAgreement)
+    .set({
+      lastGeneratedJobId: newJob.id,
+      nextServiceDate: nextDate,
+      updatedAt: new Date(),
+    })
+    .where(eq(serviceAgreement.id, agreementId));
+
+  return { job: newJob, nextServiceDate: nextDate };
+}
+
+/**
+ * Background scanner — find agreements due for job generation
+ */
+export async function scanAndGenerateJobs() {
+  const now = new Date();
+
+  // Find all auto-schedule agreements where nextServiceDate - reminderDays <= now
+  const allActive = await db.select()
+    .from(serviceAgreement)
+    .where(and(
+      eq(serviceAgreement.status, 'active'),
+      eq(serviceAgreement.autoSchedule, true),
+    ));
+
+  let generated = 0;
+  for (const agr of allActive) {
+    if (!agr.nextServiceDate || !agr.recurrenceRule) continue;
+
+    const triggerDate = new Date(agr.nextServiceDate);
+    triggerDate.setDate(triggerDate.getDate() - (agr.reminderDaysBefore || 7));
+
+    if (triggerDate > now) continue;
+
+    // Check if last generated job is still pending
+    if (agr.lastGeneratedJobId) {
+      const [lastJob] = await db.select({ status: job.status })
+        .from(job)
+        .where(eq(job.id, agr.lastGeneratedJobId))
+        .limit(1);
+      if (lastJob && !['completed', 'cancelled'].includes(lastJob.status)) continue;
+    }
+
+    try {
+      await generateNextJob(agr.id, agr.companyId);
+      generated++;
+    } catch (err) {
+      console.error(`Failed to generate job for agreement ${agr.id}:`, err);
+    }
+  }
+
+  if (generated > 0) console.log(`Auto-scheduled ${generated} maintenance jobs`);
+  return generated;
+}
+
 export default {
   getPlans,
   createPlan,
@@ -471,4 +621,7 @@ export default {
   processAgreementBilling,
   getAgreementStats,
   getExpiringAgreements,
+  setRecurrence,
+  generateNextJob,
+  scanAndGenerateJobs,
 };

@@ -195,7 +195,9 @@ class ApiClient {
     send: (id) => this.action('/api/quotes', id, 'send'),
     approve: (id) => this.action('/api/quotes', id, 'approve'),
     reject: (id) => this.action('/api/quotes', id, 'reject'),
+    decline: (id) => this.action('/api/quotes', id, 'decline'),
     convertToInvoice: (id) => this.action('/api/quotes', id, 'convert-to-invoice'),
+    convertToJob: (id) => this.action('/api/quotes', id, 'convert-to-job'),
     downloadPdf: (id) => `${this.baseUrl}/api/quotes/${id}/pdf`,
   };
 

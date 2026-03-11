@@ -97,8 +97,14 @@ export default function JobsPage() {
   };
 
   const handleComplete = async (job) => {
-    try { await api.jobs.complete(job.id); toast.success('Service call completed'); load(); }
-    catch (err) { toast.error(err.message); }
+    try {
+      const result = await api.jobs.complete(job.id);
+      toast.success('Service call completed');
+      if (result.nextServiceDate) {
+        toast.success(`Next maintenance visit scheduled for ${new Date(result.nextServiceDate).toLocaleDateString()}`);
+      }
+      load();
+    } catch (err) { toast.error(err.message); }
   };
 
   const columns = [

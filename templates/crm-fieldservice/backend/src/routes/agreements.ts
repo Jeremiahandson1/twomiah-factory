@@ -153,4 +153,23 @@ app.get('/reports/expiring', async (c) => {
   return c.json(expiring)
 })
 
+// ============================================
+// RECURRING SCHEDULING
+// ============================================
+
+app.put('/:id/recurrence', requirePermission('agreements:update'), async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  const result = await agreements.setRecurrence(id, user.companyId, body)
+  return c.json(result)
+})
+
+app.post('/:id/schedule-next', requirePermission('agreements:update'), async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const result = await agreements.generateNextJob(id, user.companyId)
+  return c.json(result)
+})
+
 export default app

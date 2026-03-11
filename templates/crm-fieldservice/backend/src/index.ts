@@ -218,6 +218,13 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 initializeSocket(server as any)
 syncFeatures().catch(console.error)
 
+// Recurring scheduling background job — scan every 6 hours
+import('./services/agreements.ts').then(({ default: agreementService }) => {
+  const runScheduler = () => agreementService.scanAndGenerateJobs().catch(console.error)
+  runScheduler() // Run on startup
+  setInterval(runScheduler, 6 * 60 * 60 * 1000) // Then every 6 hours
+}).catch(console.error)
+
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)
   process.exit(0)

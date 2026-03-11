@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Copy } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Send, Check, X, FileText, Download, Copy, Briefcase, Wrench, MapPinned } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
 import { SkeletonDetail } from '../common/Skeleton';
@@ -61,6 +61,26 @@ export default function QuoteDetailPage() {
     }
   };
 
+  const handleDecline = async () => {
+    try {
+      await api.quotes.decline(id);
+      toast.success('Quote declined');
+      loadQuote();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleConvertToJob = async () => {
+    try {
+      const newJob = await api.quotes.convertToJob(id);
+      toast.success('Job created from quote');
+      navigate(`/jobs/${newJob.id}`);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
   const handleConvertToInvoice = async () => {
     try {
       const invoice = await api.quotes.convertToInvoice(id);
@@ -94,9 +114,19 @@ export default function QuoteDetailPage() {
               <Send className="w-4 h-4" /> Send
             </button>
           )}
-          {quote.status === 'sent' && (
-            <button onClick={handleApprove} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
-              <Check className="w-4 h-4" /> Approve
+          {(quote.status === 'sent' || quote.status === 'draft') && (
+            <>
+              <button onClick={handleApprove} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
+                <Check className="w-4 h-4" /> Mark Approved
+              </button>
+              <button onClick={handleDecline} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+                <X className="w-4 h-4" /> Mark Declined
+              </button>
+            </>
+          )}
+          {quote.status === 'approved' && !quote.convertedToJobId && (
+            <button onClick={handleConvertToJob} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+              <Briefcase className="w-4 h-4" /> Convert to Job
             </button>
           )}
           {quote.status === 'approved' && (
@@ -104,14 +134,30 @@ export default function QuoteDetailPage() {
               <Copy className="w-4 h-4" /> Create Invoice
             </button>
           )}
-          <Link to={`/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
-            <Edit className="w-4 h-4" /> Edit
-          </Link>
-          <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
-            <Trash2 className="w-4 h-4" />
-          </button>
+          <a href={api.quotes.downloadPdf(id)} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+            <Download className="w-4 h-4" /> PDF
+          </a>
+          {['draft', 'sent'].includes(quote.status) && (
+            <Link to={`/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+              <Edit className="w-4 h-4" /> Edit
+            </Link>
+          )}
+          {quote.status === 'draft' && (
+            <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
+
+      {quote.convertedToJobId && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+          <p className="text-green-800">This quote has been converted to a job.</p>
+          <Link to={`/jobs/${quote.convertedToJobId}`} className="text-green-700 font-medium hover:underline flex items-center gap-1">
+            <Briefcase className="w-4 h-4" /> View Job
+          </Link>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -146,9 +192,16 @@ export default function QuoteDetailPage() {
             </table>
           </div>
 
+          {quote.customerMessage && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="font-semibold mb-2">Customer Message</h2>
+              <p className="text-gray-700 whitespace-pre-wrap">{quote.customerMessage}</p>
+            </div>
+          )}
+
           {quote.notes && (
             <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="font-semibold mb-2">Notes</h2>
+              <h2 className="font-semibold mb-2">Internal Notes</h2>
               <p className="text-gray-700 whitespace-pre-wrap">{quote.notes}</p>
             </div>
           )}
@@ -159,6 +212,46 @@ export default function QuoteDetailPage() {
               <p className="text-gray-700 whitespace-pre-wrap text-sm">{quote.terms}</p>
             </div>
           )}
+
+          {/* Status Timeline */}
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <h2 className="font-semibold mb-4">Timeline</h2>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 text-sm">
+                <div className="w-2 h-2 rounded-full bg-gray-400" />
+                <span className="text-gray-500">Created</span>
+                <span className="text-gray-900">{new Date(quote.createdAt).toLocaleDateString()}</span>
+              </div>
+              {quote.sentAt && (
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                  <span className="text-gray-500">Sent</span>
+                  <span className="text-gray-900">{new Date(quote.sentAt).toLocaleDateString()}</span>
+                </div>
+              )}
+              {quote.viewedAt && (
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span className="text-gray-500">Viewed</span>
+                  <span className="text-gray-900">{new Date(quote.viewedAt).toLocaleDateString()}</span>
+                </div>
+              )}
+              {quote.approvedAt && (
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-gray-500">Approved</span>
+                  <span className="text-gray-900">{new Date(quote.approvedAt).toLocaleDateString()}</span>
+                </div>
+              )}
+              {quote.declinedAt && (
+                <div className="flex items-center gap-3 text-sm">
+                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                  <span className="text-gray-500">Declined</span>
+                  <span className="text-gray-900">{new Date(quote.declinedAt).toLocaleDateString()}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -175,6 +268,18 @@ export default function QuoteDetailPage() {
                 <div>
                   <p className="text-gray-500">Project</p>
                   <Link to={`/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
+                </div>
+              )}
+              {quote.equipment && (
+                <div>
+                  <p className="text-gray-500 flex items-center gap-1"><Wrench className="w-3 h-3" /> Equipment</p>
+                  <p className="text-gray-900">{quote.equipment.name}{quote.equipment.manufacturer ? ` — ${quote.equipment.manufacturer}` : ''}{quote.equipment.model ? ` ${quote.equipment.model}` : ''}</p>
+                </div>
+              )}
+              {quote.site && (
+                <div>
+                  <p className="text-gray-500 flex items-center gap-1"><MapPinned className="w-3 h-3" /> Location</p>
+                  <p className="text-gray-900">{quote.site.name}{quote.site.address ? ` — ${quote.site.address}` : ''}</p>
                 </div>
               )}
               {quote.expiryDate && (

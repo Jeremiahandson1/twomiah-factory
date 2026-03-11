@@ -219,7 +219,21 @@ app.post('/:id/complete', async (c) => {
 
   const [updated] = await db.update(job).set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() }).where(eq(job.id, id)).returning()
   emitToCompany(currentUser.companyId, EVENTS.JOB_STATUS_CHANGED, { id: updated.id, status: 'completed' })
-  return c.json(updated)
+
+  // If linked to a service agreement, auto-generate the next scheduled job
+  let nextServiceDate = null
+  if (updated.serviceAgreementId) {
+    try {
+      const agreementService = (await import('../services/agreements.ts')).default
+      const result = await agreementService.generateNextJob(updated.serviceAgreementId, currentUser.companyId)
+      nextServiceDate = result.nextServiceDate
+    } catch (err) {
+      // Silently fail — the daily scanner will pick it up
+      console.log('Auto-schedule next job skipped:', (err as Error).message)
+    }
+  }
+
+  return c.json({ ...updated, nextServiceDate })
 })
 
 app.post('/:id/dispatch', async (c) => {

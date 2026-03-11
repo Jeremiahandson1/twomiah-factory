@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, supportKnowledgeBase, contact, equipment, job, site } from './schema.ts'
+import { company, user, supportKnowledgeBase, contact, equipment, job, site, quote, quoteLineItem, serviceAgreement, agreementPlan } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -271,6 +271,134 @@ async function main() {
     })
 
     console.log('Created 3 demo service calls linked to equipment')
+
+    // Create demo quotes
+    const existingQuotes = await db.select().from(quote).where(eq(quote.companyId, comp.id)).limit(1)
+    if (existingQuotes.length === 0) {
+      // Draft quote for Johnson — capacitor replacement
+      await db.insert(quote).values({
+        number: 'QTE-00001',
+        name: 'AC Capacitor Replacement',
+        status: 'draft',
+        subtotal: '340.00',
+        taxRate: '0',
+        taxAmount: '0',
+        discount: '0',
+        total: '340.00',
+        customerMessage: 'Your AC unit is running but the start capacitor is showing signs of wear. Replacing it now will prevent a breakdown during peak summer.',
+        notes: 'Johnson called about AC making clicking noise on startup.',
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        companyId: comp.id,
+        contactId: johnson.id,
+        equipmentId: eq1.id,
+      }).returning().then(async ([q]) => {
+        await db.insert(quoteLineItem).values([
+          { description: 'Start/Run Capacitor (45/5 MFD)', quantity: '1', unitPrice: '85.00', total: '85.00', sortOrder: 0, quoteId: q.id },
+          { description: 'Diagnostic Fee', quantity: '1', unitPrice: '95.00', total: '95.00', sortOrder: 1, quoteId: q.id },
+          { description: 'Labor — Capacitor Install', quantity: '1', unitPrice: '160.00', total: '160.00', sortOrder: 2, quoteId: q.id },
+        ])
+      })
+
+      // Approved quote for Martinez — coil cleaning + refrigerant, already converted to job
+      const [martinezQuote] = await db.insert(quote).values({
+        number: 'QTE-00002',
+        name: 'Evaporator Coil Cleaning & Refrigerant Recharge',
+        status: 'approved',
+        subtotal: '1240.00',
+        taxRate: '0',
+        taxAmount: '0',
+        discount: '0',
+        total: '1240.00',
+        customerMessage: 'The evaporator coil on the warehouse heat pump is heavily soiled and refrigerant is 1.5 lbs low. Cleaning and recharging will restore cooling capacity.',
+        notes: 'Martinez warehouse unit — low performance complaint.',
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        sentAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        approvedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        companyId: comp.id,
+        contactId: martinez.id,
+        equipmentId: eq4.id,
+        siteId: martinezWarehouse.id,
+      }).returning()
+
+      await db.insert(quoteLineItem).values([
+        { description: 'Evaporator Coil Chemical Cleaning', quantity: '1', unitPrice: '450.00', total: '450.00', sortOrder: 0, quoteId: martinezQuote.id },
+        { description: 'R-410A Refrigerant (1.5 lbs)', quantity: '1.5', unitPrice: '120.00', total: '180.00', sortOrder: 1, quoteId: martinezQuote.id },
+        { description: 'System Flush & Vacuum', quantity: '1', unitPrice: '275.00', total: '275.00', sortOrder: 2, quoteId: martinezQuote.id },
+        { description: 'Labor — Diagnostic & Service (2 hrs)', quantity: '2', unitPrice: '167.50', total: '335.00', sortOrder: 3, quoteId: martinezQuote.id },
+      ])
+
+      // Create the converted job from this quote
+      const [convertedJob] = await db.insert(job).values({
+        number: 'JOB-00004',
+        title: 'Evaporator Coil Cleaning & Refrigerant Recharge',
+        description: 'Converted from Quote QTE-00002',
+        status: 'scheduled',
+        priority: 'normal',
+        jobType: 'repair',
+        scheduledDate: new Date('2026-03-25'),
+        scheduledTime: '09:00',
+        estimatedHours: '2',
+        estimatedValue: '1240.00',
+        address: '780 Industrial Blvd',
+        city: '{{CITY}}',
+        state: '{{STATE}}',
+        zip: '{{ZIP}}',
+        companyId: comp.id,
+        contactId: martinez.id,
+        quoteId: martinezQuote.id,
+        equipmentId: eq4.id,
+        siteId: martinezWarehouse.id,
+      }).returning()
+
+      // Link the quote back to the job
+      await db.update(quote).set({ convertedToJobId: convertedJob.id }).where(eq(quote.id, martinezQuote.id))
+
+      console.log('Created 2 demo quotes (1 draft, 1 approved → converted to job)')
+    }
+
+    // Create demo agreement plan + agreement with recurrence
+    const existingAgreements = await db.select().from(serviceAgreement).where(eq(serviceAgreement.companyId, comp.id)).limit(1)
+    if (existingAgreements.length === 0) {
+      // Create a plan first
+      const [plan] = await db.insert(agreementPlan).values({
+        name: 'HVAC Maintenance Plan',
+        description: 'Quarterly HVAC tune-ups with priority scheduling and 10% discount on repairs.',
+        price: '299.00',
+        billingFrequency: 'annual',
+        visitsIncluded: 4,
+        discountPercent: '10',
+        priorityService: true,
+        durationMonths: 12,
+        autoRenew: true,
+        active: true,
+        companyId: comp.id,
+      }).returning()
+
+      // Create agreement for Johnson with auto-scheduling
+      const ninetyDays = new Date()
+      ninetyDays.setDate(ninetyDays.getDate() + 90)
+
+      await db.insert(serviceAgreement).values({
+        number: 'AGR-00001',
+        name: 'HVAC Maintenance Plan — Johnson',
+        status: 'active',
+        startDate: new Date('2025-06-01'),
+        endDate: new Date('2026-06-01'),
+        billingFrequency: 'annual',
+        amount: '299.00',
+        renewalType: 'auto',
+        notes: 'Covers both AC and furnace. Quarterly visits.',
+        planId: plan.id,
+        recurrenceRule: { frequency: 'quarterly' },
+        nextServiceDate: ninetyDays,
+        autoSchedule: true,
+        reminderDaysBefore: 7,
+        companyId: comp.id,
+        contactId: johnson.id,
+      })
+
+      console.log('Created 1 demo agreement plan + 1 agreement with quarterly auto-scheduling')
+    }
   }
 
   console.log('')

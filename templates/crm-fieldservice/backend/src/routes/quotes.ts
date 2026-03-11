@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company } from '../../db/schema.ts'
+import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, equipment, site } from '../../db/schema.ts'
 import { eq, and, count, desc, asc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
@@ -14,10 +14,13 @@ const quoteSchema = z.object({
   name: z.string().min(1),
   contactId: z.string().optional().transform(v => v === '' ? undefined : v),
   projectId: z.string().optional().transform(v => v === '' ? undefined : v),
+  siteId: z.string().optional().transform(v => v === '' ? undefined : v),
+  equipmentId: z.string().optional().transform(v => v === '' ? undefined : v),
   expiryDate: z.string().optional(),
   taxRate: z.number().default(0),
   discount: z.number().default(0),
   notes: z.string().optional(),
+  customerMessage: z.string().optional(),
   terms: z.string().optional(),
   lineItems: z.array(lineItemSchema).default([]),
 })
@@ -90,13 +93,15 @@ app.get('/:id', async (c) => {
   const [foundQuote] = await db.select().from(quote).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).limit(1)
   if (!foundQuote) return c.json({ error: 'Quote not found' }, 404)
 
-  const [quoteContact, quoteProject, lineItems] = await Promise.all([
+  const [quoteContact, quoteProject, lineItems, quoteEquipment, quoteSite] = await Promise.all([
     foundQuote.contactId ? db.select().from(contact).where(eq(contact.id, foundQuote.contactId)).limit(1) : Promise.resolve([]),
     foundQuote.projectId ? db.select().from(project).where(eq(project.id, foundQuote.projectId)).limit(1) : Promise.resolve([]),
     db.select().from(quoteLineItem).where(eq(quoteLineItem.quoteId, id)).orderBy(asc(quoteLineItem.sortOrder)),
+    foundQuote.equipmentId ? db.select({ id: equipment.id, name: equipment.name, manufacturer: equipment.manufacturer, model: equipment.model }).from(equipment).where(eq(equipment.id, foundQuote.equipmentId)).limit(1) : Promise.resolve([]),
+    foundQuote.siteId ? db.select({ id: site.id, name: site.name, address: site.address }).from(site).where(eq(site.id, foundQuote.siteId)).limit(1) : Promise.resolve([]),
   ])
 
-  return c.json({ ...foundQuote, contact: quoteContact[0] || null, project: quoteProject[0] || null, lineItems })
+  return c.json({ ...foundQuote, contact: quoteContact[0] || null, project: quoteProject[0] || null, equipment: quoteEquipment[0] || null, site: quoteSite[0] || null, lineItems })
 })
 
 app.post('/', async (c) => {
@@ -139,6 +144,7 @@ app.put('/:id', async (c) => {
 
   const [existing] = await db.select().from(quote).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Quote not found' }, 404)
+  if (!['draft', 'sent'].includes(existing.status)) return c.json({ error: 'Only draft or sent quotes can be edited' }, 400)
 
   const { lineItems, ...quoteData } = data
   let totals: Record<string, string> = {}
@@ -178,6 +184,7 @@ app.delete('/:id', async (c) => {
 
   const [existing] = await db.select().from(quote).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Quote not found' }, 404)
+  if (existing.status !== 'draft') return c.json({ error: 'Only draft quotes can be deleted' }, 400)
 
   await db.delete(quote).where(eq(quote.id, id))
   return c.body(null, 204)
@@ -205,6 +212,60 @@ app.post('/:id/reject', async (c) => {
   const id = c.req.param('id')
   const [updated] = await db.update(quote).set({ status: 'rejected', updatedAt: new Date() }).where(eq(quote.id, id)).returning()
   return c.json(updated)
+})
+
+app.post('/:id/decline', async (c) => {
+  const id = c.req.param('id')
+  const [updated] = await db.update(quote).set({ status: 'declined', declinedAt: new Date(), updatedAt: new Date() }).where(eq(quote.id, id)).returning()
+  return c.json(updated)
+})
+
+app.post('/:id/convert-to-job', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [foundQuote] = await db.select().from(quote).where(and(eq(quote.id, id), eq(quote.companyId, currentUser.companyId))).limit(1)
+  if (!foundQuote) return c.json({ error: 'Quote not found' }, 404)
+  if (foundQuote.status !== 'approved') return c.json({ error: 'Only approved quotes can be converted to jobs' }, 400)
+  if (foundQuote.convertedToJobId) return c.json({ error: 'Quote already converted to a job' }, 400)
+
+  const quoteItems = await db.select().from(quoteLineItem).where(eq(quoteLineItem.quoteId, id))
+  const [{ value: cnt }] = await db.select({ value: count() }).from(job).where(eq(job.companyId, currentUser.companyId))
+
+  // Build job description from line items
+  const description = quoteItems.map(li => `${li.description} (${Number(li.quantity)} × $${Number(li.unitPrice).toFixed(2)})`).join('\n')
+
+  // Get contact address for job
+  let address = '', city = '', state = '', zip = ''
+  if (foundQuote.siteId) {
+    const [s] = await db.select().from(site).where(eq(site.id, foundQuote.siteId)).limit(1)
+    if (s) { address = s.address || ''; city = s.city || ''; state = s.state || ''; zip = s.zip || '' }
+  } else if (foundQuote.contactId) {
+    const [ct] = await db.select().from(contact).where(eq(contact.id, foundQuote.contactId)).limit(1)
+    if (ct) { address = ct.address || ''; city = ct.city || ''; state = ct.state || ''; zip = ct.zip || '' }
+  }
+
+  const [newJob] = await db.insert(job).values({
+    number: `JOB-${String(Number(cnt) + 1).padStart(5, '0')}`,
+    title: foundQuote.name,
+    description,
+    status: 'scheduled',
+    priority: 'normal',
+    estimatedValue: foundQuote.total,
+    address, city, state, zip,
+    notes: `Converted from Quote ${foundQuote.number}`,
+    companyId: currentUser.companyId,
+    contactId: foundQuote.contactId,
+    quoteId: foundQuote.id,
+    equipmentId: foundQuote.equipmentId,
+    siteId: foundQuote.siteId,
+  }).returning()
+
+  // Link quote back to job
+  await db.update(quote).set({ convertedToJobId: newJob.id, updatedAt: new Date() }).where(eq(quote.id, id))
+
+  emitToCompany(currentUser.companyId, EVENTS.JOB_CREATED, newJob)
+  return c.json(newJob, 201)
 })
 
 app.post('/:id/convert-to-invoice', async (c) => {
