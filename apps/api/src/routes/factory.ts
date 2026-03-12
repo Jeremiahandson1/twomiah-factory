@@ -2044,7 +2044,7 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
 
-    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, products, industry, database_url').eq('id', id).single()
+    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, products, industry, database_url, status').eq('id', id).single()
     if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
 
     // Determine which template this tenant uses
@@ -2055,8 +2055,16 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
       : ind === 'roofing' ? 'crm-roof'
       : 'crm'
 
-    const enabledFeatures: string[] = tenant.features || []
     const availableFeatures = getFeaturesForTemplate(template)
+
+    // If tenant is active but has no features stored, default to all available features enabled
+    // (deployed tenants get all features baked in during generation)
+    let enabledFeatures: string[] = tenant.features || []
+    if (enabledFeatures.length === 0 && tenant.status === 'active') {
+      enabledFeatures = availableFeatures.map(f => f.id)
+      // Backfill the tenant record so this only happens once
+      await supabase.from('tenants').update({ features: enabledFeatures }).eq('id', id)
+    }
 
     // Get audit log (last 50 entries)
     const { data: auditLog } = await supabase
