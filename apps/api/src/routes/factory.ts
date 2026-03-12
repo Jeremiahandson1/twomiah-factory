@@ -7,6 +7,8 @@ import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStor
 import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue } from '../services/email'
 import fs from 'fs'
 import path from 'path'
+import pg from 'pg'
+import { FEATURE_REGISTRY, FEATURE_MAP, getFeaturesForTemplate } from '../config/featureRegistry'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
@@ -503,6 +505,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.adsUrl) tenantUpdate.ads_url = result.adsUrl
       if (result.supabaseProjectRef) tenantUpdate.supabase_project_ref = result.supabaseProjectRef
       if (result.r2BucketName) tenantUpdate.r2_bucket_name = result.r2BucketName
+      if (result.dbConnectionString) tenantUpdate.database_url = result.dbConnectionString
 
       // Auto-create Stripe subscription if tenant doesn't already have one
       if (!tenant.stripe_subscription_id && tenant.deployment_model === 'saas') {
@@ -1933,6 +1936,128 @@ factory.delete('/settings/users/:id', requireRole('owner', 'admin'), async (c) =
     const { error } = await supabase.from('factory_users').delete().eq('id', targetId)
     if (error) throw error
     return c.json({ success: true })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Feature Management ──────────────────────────────────────────────────────
+
+// Get features for a tenant (with registry metadata + audit log)
+factory.get('/customers/:id/features', async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
+
+    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, products, industry, database_url').eq('id', id).single()
+    if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+    // Determine which template this tenant uses
+    const ind = tenant.industry || ''
+    const template = ind === 'home_care' ? 'crm-homecare'
+      : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? 'crm-fieldservice'
+      : ind === 'automotive' ? 'crm-automotive'
+      : 'crm'
+
+    const enabledFeatures: string[] = tenant.features || []
+    const availableFeatures = getFeaturesForTemplate(template)
+
+    // Get audit log (last 50 entries)
+    const { data: auditLog } = await supabase
+      .from('tenant_feature_audit')
+      .select('*')
+      .eq('tenant_id', id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    return c.json({
+      enabledFeatures,
+      availableFeatures,
+      template,
+      plan: tenant.plan,
+      hasDatabaseUrl: !!tenant.database_url,
+      auditLog: auditLog || [],
+      registry: FEATURE_REGISTRY,
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Update features for a tenant (sync to Factory DB + deployed CRM)
+factory.patch('/customers/:id/features', async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
+
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { features, note } = parsed.data
+    if (!Array.isArray(features)) return c.json({ error: 'features must be an array of strings' }, 400)
+
+    // Get current tenant
+    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, industry, database_url, slug').eq('id', id).single()
+    if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+    const previousFeatures: string[] = tenant.features || []
+    const newFeatures: string[] = features.filter((f: any) => typeof f === 'string')
+
+    // Determine what changed
+    const added = newFeatures.filter(f => !previousFeatures.includes(f))
+    const removed = previousFeatures.filter(f => !newFeatures.includes(f))
+    const action = added.length > 0 && removed.length > 0 ? 'bulk_update'
+      : added.length > 0 ? 'enable'
+      : removed.length > 0 ? 'disable'
+      : 'bulk_update'
+
+    // Update Factory tenant record
+    const { error: updateErr } = await supabase.from('tenants').update({ features: newFeatures }).eq('id', id)
+    if (updateErr) throw updateErr
+
+    // Sync to deployed CRM database if connection string available
+    let syncedToCrm = false
+    if (tenant.database_url) {
+      try {
+        const client = new pg.Client({ connectionString: tenant.database_url, ssl: { rejectUnauthorized: false } })
+        await client.connect()
+        await client.query(
+          `UPDATE company SET enabled_features = $1::jsonb WHERE slug = $2`,
+          [JSON.stringify(newFeatures), tenant.slug]
+        )
+        await client.end()
+        syncedToCrm = true
+      } catch (syncErr: any) {
+        console.error('[Features] CRM sync failed for', tenant.slug, ':', syncErr.message)
+      }
+    }
+
+    // Get admin email from auth context
+    const user = c.get('user')
+    const adminEmail = user?.email || 'unknown'
+
+    // Write audit log
+    const changedFeatures = [...added, ...removed]
+    if (changedFeatures.length > 0) {
+      await supabase.from('tenant_feature_audit').insert({
+        tenant_id: id,
+        action,
+        features: changedFeatures,
+        previous: previousFeatures,
+        current: newFeatures,
+        changed_by: adminEmail,
+        synced_to_crm: syncedToCrm,
+        note: note || null,
+      })
+    }
+
+    return c.json({
+      success: true,
+      features: newFeatures,
+      syncedToCrm,
+      added,
+      removed,
+    })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

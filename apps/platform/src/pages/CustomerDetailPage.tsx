@@ -7,6 +7,7 @@ import {
   Copy, ChevronRight, DollarSign, CreditCard, Package,
   Save, Trash2, Edit3, Database, Palette
 } from 'lucide-react'
+import FeatureManagement from '../components/factory/FeatureManagement'
 
 type Tenant = {
   id: string; name: string; slug: string; email: string; phone: string
@@ -304,7 +305,6 @@ export default function CustomerDetailPage() {
 
   const latestJob = jobs[0]
   const latestDeployed = jobs.find(j => j.status === 'complete')
-  const enabledFeatures = tenant.features || latestJob?.features || []
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -727,23 +727,12 @@ export default function CustomerDetailPage() {
             </div>
           )}
 
-          {/* Enabled Features */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-white font-semibold mb-3">
-              Enabled Features <span className="text-gray-500 font-normal">({enabledFeatures.length})</span>
-            </h2>
-            {enabledFeatures.length > 0 ? (
-              <div className="flex flex-wrap gap-1.5">
-                {enabledFeatures.map((f: string) => (
-                  <span key={f} className="px-2 py-0.5 bg-gray-800 border border-gray-700 rounded text-gray-400 text-xs capitalize">
-                    {f.replace(/_/g, ' ')}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-600">No features recorded</p>
-            )}
-          </div>
+          {/* Feature Management */}
+          <FeatureManagement
+            tenantId={id!}
+            tenantPlan={tenant.plan}
+            onFeaturesUpdated={(features) => setTenant(prev => prev ? { ...prev, features } : prev)}
+          />
 
           {/* Quick Actions */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">

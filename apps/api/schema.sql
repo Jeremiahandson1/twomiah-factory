@@ -64,6 +64,9 @@ create table if not exists tenants (
   -- R2 media bucket (per customer)
   r2_bucket_name text,
 
+  -- Deployed CRM database connection (for live feature sync)
+  database_url    text,
+
   -- Notes
   notes           text
 );
@@ -283,5 +286,31 @@ create index if not exists idx_product_feedback_category on product_feedback(cat
 alter table product_feedback enable row level security;
 create policy "Service role full access on product_feedback"
   on product_feedback for all
+  using (true)
+  with check (true);
+
+
+-- ─── Tenant Feature Audit Log ─────────────────────────────────────────────
+
+create table if not exists tenant_feature_audit (
+  id              uuid primary key default uuid_generate_v4(),
+  created_at      timestamptz not null default now(),
+
+  tenant_id       uuid not null references tenants(id) on delete cascade,
+  action          text not null,          -- 'enable', 'disable', 'bulk_update'
+  features        text[] not null,        -- features that were changed
+  previous        text[] not null,        -- full feature list before change
+  current         text[] not null,        -- full feature list after change
+  changed_by      text,                   -- admin email or 'system'
+  synced_to_crm   boolean not null default false,
+  note            text
+);
+
+create index if not exists idx_tenant_feature_audit_tenant on tenant_feature_audit(tenant_id);
+create index if not exists idx_tenant_feature_audit_created on tenant_feature_audit(created_at);
+
+alter table tenant_feature_audit enable row level security;
+create policy "Service role full access on tenant_feature_audit"
+  on tenant_feature_audit for all
   using (true)
   with check (true);

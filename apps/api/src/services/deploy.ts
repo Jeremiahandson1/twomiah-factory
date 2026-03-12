@@ -648,6 +648,7 @@ export interface DeployResult {
   adsUrl?: string
   supabaseProjectRef?: string
   r2BucketName?: string
+  dbConnectionString?: string
 }
 
 export async function deployCustomer(
@@ -1076,6 +1077,7 @@ export async function deployCustomer(
       console.log('[Deploy] Assigned', deployedResourceIds.length, 'services to project environment')
     }
 
+    if (dbConnectionString) results.dbConnectionString = dbConnectionString
     results.success = results.errors.length === 0
     results.status = results.success ? 'deployed' : 'partial'
 
