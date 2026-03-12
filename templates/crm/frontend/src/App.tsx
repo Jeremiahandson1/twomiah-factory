@@ -63,6 +63,7 @@ import HelpPage from './pages/help/HelpPage';
 import AdsPage from './pages/ads/AdsPage';
 import VisualizerPage from './pages/VisualizerPage';
 import VisualizerTrialPage from './pages/VisualizerTrialPage';
+import PricebookTrialPage from './pages/PricebookTrialPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // Detail Pages
@@ -179,6 +180,7 @@ function App() {
                     <Route path="ads" element={<AdsPage />} />
                     <Route path="visualizer" element={<VisualizerPage />} />
                     <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
+                    <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>
 

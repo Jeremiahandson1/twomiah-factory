@@ -24,6 +24,7 @@ import LeadInboxPage from './pages/leads/LeadInboxPage'
 import LeadSourcesPage from './pages/leads/LeadSourcesPage'
 import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
 import VisualizerTrialPage from './pages/VisualizerTrialPage'
+import PricebookTrialPage from './pages/PricebookTrialPage'
 import LoginPage from './pages/LoginPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
@@ -81,6 +82,7 @@ export default function App() {
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                 <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                 <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
+                <Route path="pricebook-trial" element={<PricebookTrialPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/crm" />} />

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
-  Clock, LogOut, Camera, Sparkles
+  Clock, LogOut, Camera, Sparkles, BookOpen
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -214,6 +214,29 @@ export default function CustomerPortal() {
                 Edit pages, services, gallery, and content
               </p>
             </a>
+          )}
+
+          {/* Pricebook Promo — show if they don't have it yet */}
+          {!hasFeature('pricebook') && (
+            <div
+              onClick={() => navigate('/crm/pricebook-trial')}
+              className="bg-white rounded-xl border border-amber-200 border-dashed p-6 cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 to-orange-500" />
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-amber-600" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                  <Sparkles className="w-3 h-3" />
+                  FREE TRIAL
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Pricebook</h3>
+              <p className="text-sm text-slate-500">
+                Standardized pricing catalog — consistent quotes, faster estimates
+              </p>
+            </div>
           )}
 
           {/* Visualizer Promo — show if they don't have the feature yet */}
