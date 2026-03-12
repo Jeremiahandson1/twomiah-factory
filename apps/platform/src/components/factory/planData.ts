@@ -2,7 +2,7 @@
 // Plan definitions for all Twomiah products
 // ═══════════════════════════════════════════════════════════════════
 
-export type ProductLine = 'build' | 'care' | 'wrench'
+export type ProductLine = 'build' | 'care' | 'wrench' | 'roof'
 
 export type Plan = {
   id: string
@@ -193,6 +193,67 @@ const WRENCH_PLANS: Plan[] = [
 ]
 
 // ═══════════════════════════════════════════════════════════════════
+// TWOMIAH ROOF — Roofing CRM
+// ═══════════════════════════════════════════════════════════════════
+
+const ROOF_PLANS: Plan[] = [
+  {
+    id: 'roof-solo',
+    name: 'Solo',
+    monthly: 49,
+    annual: 42,
+    features: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'dashboard', 'measurement_reports',
+    ],
+    websiteFeatures: ['contact_form'],
+    websiteDesc: 'Lead Capture (1 page)',
+  },
+  {
+    id: 'roof-starter',
+    name: 'Starter',
+    monthly: 129,
+    annual: 110,
+    highlight: true,
+    features: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'dashboard', 'measurement_reports',
+      'insurance_workflow', 'customer_portal', 'two_way_texting', 'crews', 'materials',
+      'photo_capture', 'pipeline_board',
+    ],
+    websiteFeatures: ['contact_form', 'services_pages', 'testimonials'],
+    websiteDesc: 'Brochure (3–5 pages)',
+  },
+  {
+    id: 'roof-pro',
+    name: 'Pro',
+    monthly: 299,
+    annual: 254,
+    features: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'dashboard', 'measurement_reports',
+      'insurance_workflow', 'customer_portal', 'two_way_texting', 'crews', 'materials',
+      'photo_capture', 'pipeline_board',
+      'canvassing_tool', 'storm_lead_gen', 'quickbooks_sync', 'reports',
+    ],
+    websiteFeatures: ['contact_form', 'services_pages', 'gallery', 'blog', 'testimonials', 'analytics'],
+    websiteDesc: 'Full site (gallery, blog, testimonials)',
+  },
+  {
+    id: 'roof-enterprise',
+    name: 'Enterprise',
+    monthly: 85,  // per user
+    annual: 72,
+    features: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'dashboard', 'measurement_reports',
+      'insurance_workflow', 'customer_portal', 'two_way_texting', 'crews', 'materials',
+      'photo_capture', 'pipeline_board',
+      'canvassing_tool', 'storm_lead_gen', 'quickbooks_sync', 'reports',
+      'inventory', 'fleet', 'documents', 'custom_dashboards', 'ai_receptionist',
+    ],
+    websiteFeatures: ['contact_form', 'services_pages', 'gallery', 'blog', 'testimonials', 'analytics'],
+    websiteDesc: 'Full site + premium features',
+  },
+]
+
+// ═══════════════════════════════════════════════════════════════════
 // SETUP TIERS (one-time, same for all products)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -221,12 +282,14 @@ export const PRODUCT_META: Record<ProductLine, { name: string; tagline: string; 
   build: { name: 'Twomiah Build', tagline: 'Construction CRM', icon: '🏗️', color: '#f97316' },
   care: { name: 'Twomiah Care', tagline: 'Home Care Agency CRM', icon: '🏥', color: '#10b981' },
   wrench: { name: 'Twomiah Wrench', tagline: 'Field Service CRM', icon: '🔧', color: '#3b82f6' },
+  roof: { name: 'Twomiah Roof', tagline: 'Roofing CRM', icon: '🏠', color: '#dc2626' },
 }
 
 export const PLANS_BY_PRODUCT: Record<ProductLine, Plan[]> = {
   build: BUILD_PLANS,
   care: CARE_PLANS,
   wrench: WRENCH_PLANS,
+  roof: ROOF_PLANS,
 }
 
 // Map product line to products array and industry for FactoryConfig
@@ -234,6 +297,7 @@ export const PRODUCT_CONFIG_MAP: Record<ProductLine, { products: string[]; indus
   build: { products: ['website', 'crm'], industry: 'general_contractor' },
   care: { products: ['website', 'crm'], industry: 'home_care' },
   wrench: { products: ['website', 'crm'], industry: 'field_service' },
+  roof: { products: ['website', 'crm'], industry: 'roofing' },
 }
 
 /** Get the tier index for a plan (0-based). Used to determine locked vs upgrade features. */

@@ -12,13 +12,13 @@ export type FeatureDef = {
 
 export const FEATURE_REGISTRY: FeatureDef[] = [
   // Core
-  { id: 'contacts', name: 'Contacts', description: 'Client, lead, vendor management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive'] },
-  { id: 'jobs', name: 'Jobs', description: 'Job tracking and management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-automotive'] },
-  { id: 'quotes', name: 'Quotes', description: 'Professional estimates and quotes', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-automotive'] },
-  { id: 'invoices', name: 'Invoices', description: 'Invoice generation and tracking', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive'] },
-  { id: 'scheduling', name: 'Scheduling', description: 'Calendar and job scheduling', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
+  { id: 'contacts', name: 'Contacts', description: 'Client, lead, vendor management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'jobs', name: 'Jobs', description: 'Job tracking and management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-automotive', 'crm-roof'] },
+  { id: 'quotes', name: 'Quotes', description: 'Professional estimates and quotes', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-automotive', 'crm-roof'] },
+  { id: 'invoices', name: 'Invoices', description: 'Invoice generation and tracking', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'scheduling', name: 'Scheduling', description: 'Calendar and job scheduling', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
   { id: 'team', name: 'Team', description: 'Team member management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
-  { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive'] },
+  { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
 
   // Construction
   { id: 'projects', name: 'Projects', description: 'Multi-phase project management', category: 'Construction', core: false, templates: ['crm'] },
@@ -56,7 +56,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Field Operations
   { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
   { id: 'gps_tracking', name: 'GPS Tracking', description: 'Real-time crew location', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
-  { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice'] },
+  { id: 'photo_capture', name: 'Photo Capture', description: 'Job site photo documentation', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-roof'] },
   { id: 'equipment_tracking', name: 'Equipment', description: 'Equipment and tool tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice'] },
   { id: 'fleet', name: 'Fleet Management', description: 'Vehicle fleet tracking', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice'] },
 
@@ -65,12 +65,12 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice'] },
   { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice'] },
   { id: 'consumer_financing', name: 'Consumer Financing', description: 'Wisetack financing integration', category: 'Finance', core: false, templates: ['crm'] },
-  { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
+  { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
 
   // Communication
-  { id: 'two_way_texting', name: 'Two-Way Texting', description: 'SMS communication with clients', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
+  { id: 'two_way_texting', name: 'Two-Way Texting', description: 'SMS communication with clients', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
   { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice'] },
-  { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice'] },
+  { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-roof'] },
   { id: 'lead_inbox', name: 'Lead Inbox', description: 'Unified lead feed from Angi, Thumbtack, HomeAdvisor, Google LSA', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice'] },
 
   // Marketing
@@ -82,10 +82,19 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Advanced
   { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice'] },
   { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
-  { id: 'reports', name: 'Reports', description: 'Custom reporting dashboard', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
+  { id: 'reports', name: 'Reports', description: 'Custom reporting dashboard', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: ['crm'] },
   { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice'] },
   { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice'] },
+
+  // Roofing
+  { id: 'measurement_reports', name: 'Measurement Reports', description: 'Satellite roof measurement ordering', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim tracking with adjuster info', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'pipeline_board', name: 'Pipeline Board', description: 'Visual Kanban pipeline for roofing jobs', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'crews', name: 'Crews', description: 'Crew management and assignment', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },
+  { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Storm damage lead generation', category: 'Roofing', core: false, templates: ['crm-roof'] },
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))

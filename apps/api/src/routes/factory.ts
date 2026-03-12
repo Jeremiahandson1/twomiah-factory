@@ -1959,6 +1959,7 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
     const template = ind === 'home_care' ? 'crm-homecare'
       : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? 'crm-fieldservice'
       : ind === 'automotive' ? 'crm-automotive'
+      : ind === 'roofing' ? 'crm-roof'
       : 'crm'
 
     const enabledFeatures: string[] = tenant.features || []
