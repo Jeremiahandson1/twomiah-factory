@@ -59,6 +59,22 @@ function isR2Configured(): boolean {
   return !!(process.env.CLOUDFLARE_API_TOKEN && process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY)
 }
 
+/**
+ * Products that require an R2 media bucket for file storage (logos, photos, documents).
+ * Products NOT in this list (e.g. vision-only, standalone pricing pages) skip bucket creation.
+ */
+const PRODUCTS_REQUIRING_R2 = [
+  'crm',       // Twomiah Build (general CRM) — photo uploads, documents, logos
+  'website',   // Full multi-page website with CMS — media uploads
+  'cms',       // CMS product — content media
+  'pricing',   // Pricing tool — product images
+]
+
+/** Check whether a tenant's selected products need an R2 media bucket */
+function needsR2Bucket(products: string[]): boolean {
+  return products.some(p => PRODUCTS_REQUIRING_R2.includes(p))
+}
+
 export function isConfigured(): boolean {
   return !!(
     process.env.RENDER_API_KEY &&
@@ -758,9 +774,15 @@ export async function deployCustomer(
     }
 
     // Step 4b: R2 media bucket (shared credentials, per-customer bucket)
+    // Only create a bucket when the tenant's products actually require file storage.
     let r2BucketName: string | null = null
     let r2EnvVars: Array<{ key: string; value: string }> = []
-    if (isR2Configured()) {
+    if (!isR2Configured()) {
+      console.log('[Deploy] R2 not configured — skipping media bucket creation')
+    } else if (!needsR2Bucket(products)) {
+      console.log('[Deploy] R2 bucket skipped — no file storage required for products:', products.join(', '))
+      results.steps.push({ step: 'r2_bucket', status: 'skipped', reason: 'no products require file storage' })
+    } else {
       try {
         const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : slug
         r2BucketName = await createR2Bucket(bucketSlug)
@@ -773,8 +795,6 @@ export async function deployCustomer(
         console.warn('[Deploy] R2 bucket creation failed (non-blocking):', r2Err.message)
         results.steps.push({ step: 'r2_bucket', status: 'warning', error: r2Err.message })
       }
-    } else {
-      console.log('[Deploy] R2 not configured — skipping media bucket creation')
     }
 
     // Build integration env vars from config
@@ -1184,6 +1204,96 @@ export async function addCustomDomain(serviceId: string, domain: string): Promis
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+
+// ─── R2 Upgrade Path ─────────────────────────────────────────────────────────
+
+/**
+ * Provision an R2 bucket for an existing tenant that didn't get one initially
+ * (e.g. tenant started on a vision-only product and later upgraded to a CRM).
+ *
+ * Creates the bucket, updates the tenant record with r2_bucket_name,
+ * pushes updated R2 env vars to all of the tenant's Render services,
+ * and triggers a redeploy so the new env vars take effect.
+ */
+export async function provisionR2ForExistingTenant(
+  tenantId: string,
+  supabase: any,
+): Promise<{ success: boolean; bucketName?: string; error?: string }> {
+  if (!isR2Configured()) {
+    return { success: false, error: 'R2 is not configured on this Factory instance' }
+  }
+
+  // 1. Fetch tenant
+  const { data: tenant, error: fetchErr } = await supabase
+    .from('tenants')
+    .select('id, slug, industry, r2_bucket_name, render_service_ids')
+    .eq('id', tenantId)
+    .single()
+
+  if (fetchErr || !tenant) {
+    return { success: false, error: 'Tenant not found: ' + (fetchErr?.message || tenantId) }
+  }
+
+  if (tenant.r2_bucket_name) {
+    console.log('[Deploy] Tenant', tenant.slug, 'already has R2 bucket:', tenant.r2_bucket_name)
+    return { success: true, bucketName: tenant.r2_bucket_name }
+  }
+
+  // 2. Create bucket
+  const ind = tenant.industry || ''
+  const bucketSlug = ind === 'home_care' ? tenant.slug + '-care'
+    : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? tenant.slug + '-wrench'
+    : ind === 'automotive' ? tenant.slug + '-drive'
+    : ind === 'roofing' ? tenant.slug + '-roof'
+    : tenant.slug
+
+  let bucketName: string
+  try {
+    bucketName = await createR2Bucket(bucketSlug)
+    console.log('[Deploy] Provisioned R2 bucket for existing tenant', tenant.slug, ':', bucketName)
+  } catch (err: any) {
+    return { success: false, error: 'R2 bucket creation failed: ' + err.message }
+  }
+
+  // 3. Update tenant record
+  const { error: updateErr } = await supabase
+    .from('tenants')
+    .update({ r2_bucket_name: bucketName })
+    .eq('id', tenantId)
+
+  if (updateErr) {
+    console.warn('[Deploy] Failed to update tenant record with R2 bucket:', updateErr.message)
+  }
+
+  // 4. Push R2 env vars to all Render services
+  const r2Env = getR2EnvVars(bucketName)
+  const serviceIds = tenant.render_service_ids as Record<string, string> | null
+  if (serviceIds) {
+    for (const [role, serviceId] of Object.entries(serviceIds)) {
+      try {
+        await updateRenderEnvVars(serviceId, r2Env)
+        console.log('[Deploy] Updated R2 env vars on', role, 'service:', serviceId)
+      } catch (err: any) {
+        console.warn('[Deploy] Failed to update env vars for', role, ':', err.message)
+      }
+    }
+
+    // 5. Trigger redeploy on all services
+    for (const [role, serviceId] of Object.entries(serviceIds)) {
+      try {
+        await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', {
+          method: 'POST', headers: renderHeaders(), body: JSON.stringify({}),
+        })
+        console.log('[Deploy] Triggered redeploy for', role, ':', serviceId)
+      } catch (err: any) {
+        console.warn('[Deploy] Failed to trigger redeploy for', role, ':', err.message)
+      }
+    }
+  }
+
+  return { success: true, bucketName }
 }
 
 async function deleteVisionTenant(slug: string) {
