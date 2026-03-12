@@ -44,7 +44,9 @@ app.post('/estimate/:slug', async (c) => {
     phone: z.string().optional(),
   })
 
-  const data = schema.parse(await c.req.json())
+  const estBody = await c.req.json()
+  if (estBody.email && typeof estBody.email === 'string') estBody.email = estBody.email.toLowerCase().trim()
+  const data = schema.parse(estBody)
 
   const [comp] = await db.select().from(company).where(eq(company.slug, slug)).limit(1)
   if (!comp) return c.json({ error: 'Company not found' }, 404)

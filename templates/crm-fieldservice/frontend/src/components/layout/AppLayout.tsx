@@ -7,7 +7,7 @@ import {
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
-  Radio, FileSignature, Box, BookMarked, Inbox, ExternalLink
+  Radio, FileSignature, Box, BookMarked, Inbox, ExternalLink, Bot
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -44,6 +44,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },
   { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'] },
+  { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'] },
   { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'] },
   { to: '/crm/takeoffs', icon: Scissors, label: 'Takeoffs', features: ['takeoff_tools'] },
   { to: '/crm/tasks', icon: ListTodo, label: 'Tasks', features: ['projects'] },

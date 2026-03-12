@@ -18,6 +18,8 @@ import {
   Shield,
   MapPin,
   Zap,
+  Inbox,
+  Bot,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -31,6 +33,8 @@ const baseNavItems = [
   { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
   { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
+  { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads' },
+  { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
 ]
 
 const fieldNavItems = [

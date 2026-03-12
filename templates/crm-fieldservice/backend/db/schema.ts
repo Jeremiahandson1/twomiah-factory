@@ -2092,11 +2092,42 @@ export const callLog = pgTable('call_log', {
   providerId: text('provider_id'),
   isLead: boolean('is_lead').default(false),
   leadValue: decimal('lead_value', { precision: 12, scale: 2 }),
+  aiSummary: text('ai_summary'),
+  aiResponseSent: boolean('ai_response_sent').default(false),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('call_log_company_id_idx').on(t.companyId),
   index('call_log_contact_id_idx').on(t.contactId),
 ])
+
+// ==================== AI RECEPTIONIST ====================
+
+export const aiReceptionistRule = pgTable('ai_receptionist_rule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(),
+  channel: text('channel').notNull(),
+  messageTemplate: text('message_template').notNull(),
+  delayMinutes: integer('delay_minutes').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  keywordMatch: text('keyword_match'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('ai_receptionist_rule_company_id_idx').on(t.companyId),
+])
+
+export const aiReceptionistSettings = pgTable('ai_receptionist_settings', {
+  companyId: text('company_id').primaryKey().references(() => company.id, { onDelete: 'cascade' }),
+  isEnabled: boolean('is_enabled').default(false).notNull(),
+  businessHoursStart: text('business_hours_start').default('09:00').notNull(),
+  businessHoursEnd: text('business_hours_end').default('17:00').notNull(),
+  timezone: text('timezone').default('America/Chicago').notNull(),
+  greetingText: text('greeting_text'),
+  forwardingNumber: text('forwarding_number'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
 
 export const comment = pgTable('comment', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -2586,7 +2617,7 @@ export const lead = pgTable('lead', {
 }, (t) => [
   index('lead_company_id_idx').on(t.companyId),
   index('lead_status_idx').on(t.status),
-  index('lead_source_platform_idx').on(t.sourcePlatform),
+  index('lead_platform_idx').on(t.sourcePlatform),
   index('lead_received_at_idx').on(t.receivedAt),
 ])
 

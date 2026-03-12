@@ -80,6 +80,7 @@ import supportRoutes from './routes/support.ts'
 import adsRoutes from './routes/ads.ts'
 import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
+import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -186,6 +187,7 @@ app.route('/api/support', supportRoutes)
 app.route('/api/ads', adsRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
+app.route('/api/ai-receptionist', aiReceptionistRoutes)
 
 app.onError(errorHandler)
 

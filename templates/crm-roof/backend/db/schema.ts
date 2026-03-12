@@ -467,6 +467,51 @@ export const stormLead = pgTable('storm_lead', {
   index('storm_lead_event_id_idx').on(t.stormEventId),
 ])
 
+// ==================== LEAD INBOX ====================
+
+export const leadSource = pgTable('lead_source', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  platform: text('platform').notNull(),
+  label: text('label').notNull(),
+  inboundEmail: text('inbound_email'),
+  webhookUrl: text('webhook_url'),
+  webhookSecret: text('webhook_secret'),
+  enabled: boolean('enabled').default(true).notNull(),
+  config: json('config').default({}).notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('lead_source_company_id_idx').on(t.companyId),
+  index('lead_source_platform_idx').on(t.platform),
+])
+
+export const lead = pgTable('lead', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourcePlatform: text('source_platform').notNull(),
+  sourceId: text('source_id').references(() => leadSource.id, { onDelete: 'set null' }),
+  homeownerName: text('homeowner_name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  jobType: text('job_type'),
+  location: text('location'),
+  budget: text('budget'),
+  description: text('description'),
+  status: text('status').default('new').notNull(),
+  rawPayload: json('raw_payload'),
+  convertedContactId: text('converted_contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  contactedAt: timestamp('contacted_at'),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('lead_company_id_idx').on(t.companyId),
+  index('lead_status_idx').on(t.status),
+  index('lead_platform_idx').on(t.sourcePlatform),
+  index('lead_received_at_idx').on(t.receivedAt),
+])
+
 // ==================== QUICKBOOKS ====================
 
 export const qbIntegration = pgTable('qb_integration', {
@@ -557,3 +602,105 @@ export const portalSession = pgTable('portal_session', {
 }, (t) => [
   index('portal_session_company_id_idx').on(t.companyId),
 ])
+
+// ==================== CALL TRACKING ====================
+
+export const trackingNumber = pgTable('tracking_number', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  phoneNumber: text('phone_number').notNull(),
+  forwardTo: text('forward_to'),
+  name: text('name'),
+  source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  providerId: text('provider_id'),
+  provider: text('provider'),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('tracking_number_company_id_idx').on(t.companyId),
+])
+
+export const phoneCall = pgTable('phone_call', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  callerNumber: text('caller_number').notNull(),
+  status: text('status').notNull(),
+  duration: integer('duration'),
+  recordingUrl: text('recording_url'),
+  transcription: text('transcription'),
+
+  trackingNumberId: text('tracking_number_id').notNull().references(() => trackingNumber.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').references(() => company.id),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('phone_call_tracking_number_id_idx').on(t.trackingNumberId),
+])
+
+export const callLog = pgTable('call_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  trackingNumberId: text('tracking_number_id').references(() => trackingNumber.id),
+  contactId: text('contact_id').references(() => contact.id),
+  callerNumber: text('caller_number'),
+  callerName: text('caller_name'),
+  callerCity: text('caller_city'),
+  callerState: text('caller_state'),
+  source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  keyword: text('keyword'),
+  landingPage: text('landing_page'),
+  direction: text('direction').default('inbound'),
+  duration: integer('duration'),
+  status: text('status').default('completed').notNull(),
+  startTime: timestamp('start_time'),
+  endTime: timestamp('end_time'),
+  recordingUrl: text('recording_url'),
+  transcription: text('transcription'),
+  tags: json('tags'),
+  notes: text('notes'),
+  firstTimeCaller: boolean('first_time_caller').default(false),
+  providerId: text('provider_id'),
+  isLead: boolean('is_lead').default(false),
+  leadValue: decimal('lead_value', { precision: 12, scale: 2 }),
+  aiSummary: text('ai_summary'),
+  aiResponseSent: boolean('ai_response_sent').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('call_log_company_id_idx').on(t.companyId),
+  index('call_log_contact_id_idx').on(t.contactId),
+])
+
+// ==================== AI RECEPTIONIST ====================
+
+export const aiReceptionistRule = pgTable('ai_receptionist_rule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(), // after_hours, missed_call, voicemail, new_lead, booking_request, keyword
+  channel: text('channel').notNull(), // sms, email, both
+  messageTemplate: text('message_template').notNull(),
+  delayMinutes: integer('delay_minutes').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  keywordMatch: text('keyword_match'), // for keyword trigger
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('ai_receptionist_rule_company_id_idx').on(t.companyId),
+])
+
+export const aiReceptionistSettings = pgTable('ai_receptionist_settings', {
+  companyId: text('company_id').primaryKey().references(() => company.id, { onDelete: 'cascade' }),
+  isEnabled: boolean('is_enabled').default(false).notNull(),
+  businessHoursStart: text('business_hours_start').default('09:00').notNull(),
+  businessHoursEnd: text('business_hours_end').default('17:00').notNull(),
+  timezone: text('timezone').default('America/Chicago').notNull(),
+  greetingText: text('greeting_text'),
+  forwardingNumber: text('forwarding_number'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})

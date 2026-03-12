@@ -20,6 +20,9 @@ import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
 import CanvassingDashboard from './pages/roofing/CanvassingDashboard'
 import StormLeadsPage from './pages/roofing/StormLeadsPage'
+import LeadInboxPage from './pages/leads/LeadInboxPage'
+import LeadSourcesPage from './pages/leads/LeadSourcesPage'
+import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
 import LoginPage from './pages/LoginPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
@@ -72,7 +75,10 @@ export default function App() {
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="canvassing" element={<CanvassingDashboard />} />
                 <Route path="storm-leads" element={<StormLeadsPage />} />
+                <Route path="leads" element={<LeadInboxPage />} />
+                <Route path="lead-sources" element={<LeadSourcesPage />} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
+                <Route path="ai-receptionist" element={<AIReceptionistPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/crm" />} />

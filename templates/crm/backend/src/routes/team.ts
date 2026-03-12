@@ -40,7 +40,9 @@ app.get('/:id', requirePermission('team:read'), async (c) => {
 
 app.post('/', requirePermission('team:create'), async (c) => {
   const user = c.get('user') as any
-  const data = schema.parse(await c.req.json())
+  const tBody = await c.req.json()
+  if (tBody.email && typeof tBody.email === 'string') tBody.email = tBody.email.toLowerCase().trim()
+  const data = schema.parse(tBody)
   const [member] = await db.insert(teamMember).values({
     ...data,
     hireDate: data.hireDate ? new Date(data.hireDate) : null,
@@ -51,7 +53,9 @@ app.post('/', requirePermission('team:create'), async (c) => {
 
 app.put('/:id', requirePermission('team:update'), async (c) => {
   const id = c.req.param('id')
-  const data = schema.partial().parse(await c.req.json())
+  const tuBody = await c.req.json()
+  if (tuBody.email && typeof tuBody.email === 'string') tuBody.email = tuBody.email.toLowerCase().trim()
+  const data = schema.partial().parse(tuBody)
   const [member] = await db.update(teamMember).set({
     ...data,
     hireDate: data.hireDate ? new Date(data.hireDate) : undefined,

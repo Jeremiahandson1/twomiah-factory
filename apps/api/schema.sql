@@ -57,6 +57,7 @@ create table if not exists tenants (
   render_frontend_url text,
   render_backend_url  text,
   website_url         text,
+  ads_url             text,
 
   -- Supabase project (dedicated per customer)
   supabase_project_ref text,

@@ -11,6 +11,104 @@ import audit from '../services/audit.ts'
 import { createId } from '@paralleldrive/cuid2'
 
 const app = new Hono()
+
+// ─── Public Inbound Endpoints (no auth) ────────────────────────────────────────
+
+app.post('/inbound/email', async (c) => {
+  // This endpoint receives forwarded lead notification emails
+  // No auth — identified by the To address which contains the company ID
+  const body = await c.req.json()
+
+  const { to, from, subject, text, html } = body
+
+  // Extract company ID from inbound email: leads+{companyIdPrefix}-{platform}@inbound.twomiah.com
+  const toMatch = (to || '').match(/leads\+([a-z0-9]+)-([a-z_]+)@/)
+  if (!toMatch) return c.json({ error: 'Invalid inbound address' }, 400)
+
+  const companyIdPrefix = toMatch[1]
+  const platform = toMatch[2]
+
+  // Find company by ID prefix
+  const companies = await db.select().from(leadSource)
+    .where(eq(leadSource.platform, platform))
+  const source = companies.find(s => s.companyId.startsWith(companyIdPrefix))
+  if (!source || !source.enabled) return c.json({ error: 'Source not found or disabled' }, 404)
+
+  // Parse lead details based on platform
+  const parsed = parseLeadEmail(platform, subject || '', text || '', html || '')
+
+  const [newLead] = await db.insert(lead).values({
+    id: createId(),
+    sourcePlatform: platform,
+    sourceId: source.id,
+    homeownerName: parsed.name || 'Unknown',
+    email: parsed.email,
+    phone: parsed.phone,
+    jobType: parsed.jobType,
+    location: parsed.location,
+    budget: parsed.budget,
+    description: parsed.description,
+    status: 'new',
+    rawPayload: body,
+    receivedAt: new Date(),
+    companyId: source.companyId,
+  }).returning()
+
+  emitToCompany(source.companyId, EVENTS.REFRESH, { entity: 'lead' })
+  return c.json({ success: true, leadId: newLead.id }, 201)
+})
+
+app.post('/inbound/webhook/:source', async (c) => {
+  const sourcePlatform = c.req.param('source')
+  const body = await c.req.json()
+
+  // Verify webhook secret if provided
+  const secret = c.req.header('x-webhook-secret') || c.req.query('secret')
+
+  // Find matching source by webhook secret
+  let source: any = null
+  if (secret) {
+    const [found] = await db.select().from(leadSource)
+      .where(and(eq(leadSource.platform, sourcePlatform), eq(leadSource.webhookSecret, secret)))
+      .limit(1)
+    source = found
+  } else {
+    // For platforms that don't support secrets, use company_id from query
+    const companyId = c.req.query('company_id')
+    if (companyId) {
+      const [found] = await db.select().from(leadSource)
+        .where(and(eq(leadSource.platform, sourcePlatform), eq(leadSource.companyId, companyId)))
+        .limit(1)
+      source = found
+    }
+  }
+
+  if (!source || !source.enabled) return c.json({ error: 'Source not found or disabled' }, 404)
+
+  const parsed = parseWebhookPayload(sourcePlatform, body)
+
+  const [newLead] = await db.insert(lead).values({
+    id: createId(),
+    sourcePlatform,
+    sourceId: source.id,
+    homeownerName: parsed.name || 'Unknown',
+    email: parsed.email,
+    phone: parsed.phone,
+    jobType: parsed.jobType,
+    location: parsed.location,
+    budget: parsed.budget,
+    description: parsed.description,
+    status: 'new',
+    rawPayload: body,
+    receivedAt: new Date(),
+    companyId: source.companyId,
+  }).returning()
+
+  emitToCompany(source.companyId, EVENTS.REFRESH, { entity: 'lead' })
+  return c.json({ success: true, leadId: newLead.id }, 201)
+})
+
+// ─── Authenticated Routes ──────────────────────────────────────────────────────
 app.use('*', authenticate)
 
 // ─── Lead Sources CRUD ─────────────────────────────────────────────────────────
@@ -220,104 +318,6 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
 
   await db.delete(lead).where(eq(lead.id, id))
   return c.json({ success: true })
-})
-
-// ─── Inbound Email Parser ───────────────────────────────────────────────────────
-
-app.post('/inbound/email', async (c) => {
-  // This endpoint receives forwarded lead notification emails
-  // No auth — identified by the To address which contains the company ID
-  const body = await c.req.json()
-
-  const { to, from, subject, text, html } = body
-
-  // Extract company ID from inbound email: leads+{companyIdPrefix}-{platform}@inbound.twomiah.com
-  const toMatch = (to || '').match(/leads\+([a-z0-9]+)-([a-z_]+)@/)
-  if (!toMatch) return c.json({ error: 'Invalid inbound address' }, 400)
-
-  const companyIdPrefix = toMatch[1]
-  const platform = toMatch[2]
-
-  // Find company by ID prefix
-  const companies = await db.select().from(leadSource)
-    .where(eq(leadSource.platform, platform))
-  const source = companies.find(s => s.companyId.startsWith(companyIdPrefix))
-  if (!source || !source.enabled) return c.json({ error: 'Source not found or disabled' }, 404)
-
-  // Parse lead details based on platform
-  const parsed = parseLeadEmail(platform, subject || '', text || '', html || '')
-
-  const [newLead] = await db.insert(lead).values({
-    id: createId(),
-    sourcePlatform: platform,
-    sourceId: source.id,
-    homeownerName: parsed.name || 'Unknown',
-    email: parsed.email,
-    phone: parsed.phone,
-    jobType: parsed.jobType,
-    location: parsed.location,
-    budget: parsed.budget,
-    description: parsed.description,
-    status: 'new',
-    rawPayload: body,
-    receivedAt: new Date(),
-    companyId: source.companyId,
-  }).returning()
-
-  emitToCompany(source.companyId, EVENTS.REFRESH, { entity: 'lead' })
-  return c.json({ success: true, leadId: newLead.id }, 201)
-})
-
-// ─── Webhook Endpoint ───────────────────────────────────────────────────────────
-
-app.post('/inbound/webhook/:source', async (c) => {
-  const sourcePlatform = c.req.param('source')
-  const body = await c.req.json()
-
-  // Verify webhook secret if provided
-  const secret = c.req.header('x-webhook-secret') || c.req.query('secret')
-
-  // Find matching source by webhook secret
-  let source: any = null
-  if (secret) {
-    const [found] = await db.select().from(leadSource)
-      .where(and(eq(leadSource.platform, sourcePlatform), eq(leadSource.webhookSecret, secret)))
-      .limit(1)
-    source = found
-  } else {
-    // For platforms that don't support secrets, use company_id from query
-    const companyId = c.req.query('company_id')
-    if (companyId) {
-      const [found] = await db.select().from(leadSource)
-        .where(and(eq(leadSource.platform, sourcePlatform), eq(leadSource.companyId, companyId)))
-        .limit(1)
-      source = found
-    }
-  }
-
-  if (!source || !source.enabled) return c.json({ error: 'Source not found or disabled' }, 404)
-
-  const parsed = parseWebhookPayload(sourcePlatform, body)
-
-  const [newLead] = await db.insert(lead).values({
-    id: createId(),
-    sourcePlatform,
-    sourceId: source.id,
-    homeownerName: parsed.name || 'Unknown',
-    email: parsed.email,
-    phone: parsed.phone,
-    jobType: parsed.jobType,
-    location: parsed.location,
-    budget: parsed.budget,
-    description: parsed.description,
-    status: 'new',
-    rawPayload: body,
-    receivedAt: new Date(),
-    companyId: source.companyId,
-  }).returning()
-
-  emitToCompany(source.companyId, EVENTS.REFRESH, { entity: 'lead' })
-  return c.json({ success: true, leadId: newLead.id }, 201)
 })
 
 // ─── Email Parsers ──────────────────────────────────────────────────────────────

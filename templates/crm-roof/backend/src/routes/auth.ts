@@ -70,7 +70,9 @@ app.post('/signup', async (c) => {
     billingCycle: z.enum(['monthly', 'annual']),
   })
 
-  const data = schema.parse(await c.req.json())
+  const signupBody = await c.req.json()
+  if (signupBody.email && typeof signupBody.email === 'string') signupBody.email = signupBody.email.toLowerCase().trim()
+  const data = schema.parse(signupBody)
 
   // Check if email already exists
   const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
@@ -163,9 +165,11 @@ app.post('/signup', async (c) => {
 // Login
 app.post('/login', async (c) => {
   const loginSchema = z.object({ email: z.string().email(), password: z.string() })
-  const data = loginSchema.parse(await c.req.json())
+  const loginBody = await c.req.json()
+  if (loginBody.email && typeof loginBody.email === 'string') loginBody.email = loginBody.email.toLowerCase().trim()
+  const data = loginSchema.parse(loginBody)
 
-  const [foundUser] = await db.select().from(user).where(eq(user.email, data.email.toLowerCase().trim())).limit(1)
+  const [foundUser] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
   if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
   if (!foundUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
 
@@ -286,7 +290,8 @@ app.put('/password', authenticate, async (c) => {
 
 // Forgot password
 app.post('/forgot-password', async (c) => {
-  const { email } = await c.req.json()
+  const fpBody = await c.req.json()
+  const email = (fpBody.email || '').toLowerCase().trim()
   const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1)
 
   if (foundUser) {

@@ -94,7 +94,9 @@ app.post('/signup', async (c) => {
     billingCycle: z.enum(['monthly', 'annual']),
   })
 
-  const data = schema.parse(await c.req.json())
+  const body = await c.req.json()
+  if (body.email && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
+  const data = schema.parse(body)
 
   // Check if email already exists
   const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
@@ -209,7 +211,9 @@ app.post('/register', async (c) => {
     companyName: z.string().min(1),
     phone: z.string().optional(),
   })
-  const data = registerSchema.parse(await c.req.json())
+  const regBody = await c.req.json()
+  if (regBody.email && typeof regBody.email === 'string') regBody.email = regBody.email.toLowerCase().trim()
+  const data = registerSchema.parse(regBody)
 
   const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
   if (existing) return c.json({ error: 'Email already registered' }, 409)
@@ -252,14 +256,53 @@ app.post('/register', async (c) => {
 // Login
 app.post('/login', async (c) => {
   const loginSchema = z.object({ email: z.string().email(), password: z.string() })
-  const data = loginSchema.parse(await c.req.json())
+  const loginBody = await c.req.json()
+  if (loginBody.email && typeof loginBody.email === 'string') loginBody.email = loginBody.email.toLowerCase().trim()
+  const data = loginSchema.parse(loginBody)
 
-  const [foundUser] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
-  if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
-  if (!foundUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
+  const normalizedEmail = data.email
+
+  // --- DEBUG LOGGING (remove after confirming fix) ---
+  const ua = c.req.header('user-agent') || 'unknown'
+  const origin = c.req.header('origin') || 'none'
+  const ct = c.req.header('content-type') || 'none'
+  const isMobile = /mobile|android|iphone|ipad/i.test(ua)
+  logger.info('[LOGIN DEBUG]', {
+    rawEmail: data.email,
+    normalizedEmail,
+    passwordLength: data.password.length,
+    isMobile,
+    userAgent: ua.substring(0, 120),
+    origin,
+    contentType: ct,
+  })
+  // --- END DEBUG ---
+
+  const [foundUser] = await db.select().from(user).where(eq(user.email, normalizedEmail)).limit(1)
+
+  if (!foundUser) {
+    logger.warn('[LOGIN DEBUG] User not found', { normalizedEmail, rawEmail: data.email })
+    return c.json({ error: 'Invalid email or password' }, 401)
+  }
+  if (!foundUser.isActive) {
+    logger.warn('[LOGIN DEBUG] Account disabled', { email: normalizedEmail })
+    return c.json({ error: 'Account is disabled' }, 401)
+  }
 
   const valid = await bcrypt.compare(data.password, foundUser.passwordHash)
-  if (!valid) return c.json({ error: 'Invalid email or password' }, 401)
+
+  if (!valid) {
+    logger.warn('[LOGIN DEBUG] bcrypt.compare returned false', {
+      email: normalizedEmail,
+      hashPrefix: foundUser.passwordHash.substring(0, 7),
+      hashLength: foundUser.passwordHash.length,
+      passwordLength: data.password.length,
+      isMobile,
+    })
+    return c.json({ error: 'Invalid email or password' }, 401)
+  }
+
+  logger.info('[LOGIN DEBUG] Success', { email: normalizedEmail, isMobile })
 
   // Fetch company separately
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
@@ -361,7 +404,8 @@ app.put('/password', authenticate, async (c) => {
 
 // Forgot password
 app.post('/forgot-password', async (c) => {
-  const { email } = await c.req.json()
+  const body = await c.req.json()
+  const email = body.email?.toLowerCase().trim()
   const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1)
 
   if (foundUser) {

@@ -499,14 +499,30 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     }
 
     if (result.repoUrl) {
-      const tenantUpdate: Record<string, any> = { status: 'active' }
-      if (result.deployedUrl) tenantUpdate.render_frontend_url = result.deployedUrl
-      if (result.apiUrl) tenantUpdate.render_backend_url = result.apiUrl
-      if (result.siteUrl) tenantUpdate.website_url = result.siteUrl
-      if (result.adsUrl) tenantUpdate.ads_url = result.adsUrl
-      if (result.supabaseProjectRef) tenantUpdate.supabase_project_ref = result.supabaseProjectRef
-      if (result.r2BucketName) tenantUpdate.r2_bucket_name = result.r2BucketName
-      if (result.dbConnectionString) tenantUpdate.database_url = result.dbConnectionString
+      // Critical fields — must be saved even if optional columns fail
+      const criticalUpdate: Record<string, any> = { status: 'active' }
+      if (result.deployedUrl) criticalUpdate.render_frontend_url = result.deployedUrl
+      if (result.apiUrl) criticalUpdate.render_backend_url = result.apiUrl
+      if (result.supabaseProjectRef) criticalUpdate.supabase_project_ref = result.supabaseProjectRef
+      if (result.dbConnectionString) criticalUpdate.database_url = result.dbConnectionString
+
+      const { error: criticalErr } = await supabase.from('tenants').update(criticalUpdate).eq('id', tenant.id)
+      if (criticalErr) {
+        console.error('[Deploy] CRITICAL tenant update failed:', criticalErr.message, JSON.stringify(criticalUpdate))
+      } else {
+        console.log('[Deploy] Critical tenant fields saved (status, urls, database_url) for', tenant.slug)
+      }
+
+      // Optional fields — save separately so a missing column doesn't block critical data
+      const optionalUpdate: Record<string, any> = {}
+      if (result.siteUrl) optionalUpdate.website_url = result.siteUrl
+      if (result.adsUrl) optionalUpdate.ads_url = result.adsUrl
+      if (result.r2BucketName) optionalUpdate.r2_bucket_name = result.r2BucketName
+
+      if (Object.keys(optionalUpdate).length > 0) {
+        const { error: optErr } = await supabase.from('tenants').update(optionalUpdate).eq('id', tenant.id)
+        if (optErr) console.warn('[Deploy] Optional tenant fields failed (non-blocking):', optErr.message)
+      }
 
       // Auto-create Stripe subscription if tenant doesn't already have one
       if (!tenant.stripe_subscription_id && tenant.deployment_model === 'saas') {
@@ -517,21 +533,21 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
             plan: tenant.plan,
           })
           if (subResult) {
-            if (subResult.stripeCustomerId) tenantUpdate.stripe_customer_id = subResult.stripeCustomerId
-            if (subResult.subscriptionId) tenantUpdate.stripe_subscription_id = subResult.subscriptionId
-            tenantUpdate.billing_type = 'subscription'
-            tenantUpdate.billing_status = 'active'
+            const billingUpdate: Record<string, any> = {}
+            if (subResult.stripeCustomerId) billingUpdate.stripe_customer_id = subResult.stripeCustomerId
+            if (subResult.subscriptionId) billingUpdate.stripe_subscription_id = subResult.subscriptionId
+            billingUpdate.billing_type = 'subscription'
+            billingUpdate.billing_status = 'active'
             const planPrices: Record<string, number> = { starter: 49, pro: 149, business: 299, construction: 599, enterprise: 199 }
-            tenantUpdate.monthly_amount = tenant.monthly_amount || planPrices[tenant.plan || 'starter'] || 149
-            console.log('[Deploy] Auto-created Stripe subscription for', tenant.slug)
+            billingUpdate.monthly_amount = tenant.monthly_amount || planPrices[tenant.plan || 'starter'] || 149
+            const { error: billErr } = await supabase.from('tenants').update(billingUpdate).eq('id', tenant.id)
+            if (billErr) console.error('[Deploy] Billing update failed:', billErr.message)
+            else console.log('[Deploy] Auto-created Stripe subscription for', tenant.slug)
           }
         } catch (stripeErr: any) {
           console.error('[Deploy] Auto-subscription failed (non-blocking):', stripeErr.message)
         }
       }
-
-      const { error: tenantUpdateErr } = await supabase.from('tenants').update(tenantUpdate).eq('id', tenant.id)
-      if (tenantUpdateErr) console.error('[Deploy] Tenant update error:', tenantUpdateErr.message)
     }
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
@@ -1210,6 +1226,75 @@ factory.get('/plans', (c) => {
       { id: 'integrations', name: 'Integrations', price: 49 },
     ],
   })
+})
+
+
+// ─── Inbound Email Router (SendGrid Inbound Parse → tenant CRM) ──────────────
+// SendGrid posts ALL inbound emails to this single endpoint. We extract the
+// company ID prefix + platform from the To address and forward to the tenant.
+factory.post('/public/inbound-email', async (c) => {
+  try {
+    // SendGrid Inbound Parse sends form-encoded or JSON
+    let body: any
+    const ct = c.req.header('content-type') || ''
+    if (ct.includes('multipart/form-data') || ct.includes('application/x-www-form-urlencoded')) {
+      const formData = await c.req.parseBody()
+      body = {
+        to: formData.to as string,
+        from: formData.from as string,
+        subject: formData.subject as string,
+        text: formData.text as string,
+        html: formData.html as string,
+      }
+    } else {
+      body = await c.req.json()
+    }
+
+    const to = body.to || body.envelope?.to?.[0] || ''
+    const toMatch = to.match(/leads\+([a-z0-9]+)-([a-z_]+)@/)
+    if (!toMatch) {
+      console.log('[InboundEmail] No matching To address pattern:', to)
+      return c.json({ error: 'Invalid inbound address' }, 400)
+    }
+
+    const companyIdPrefix = toMatch[1]
+
+    // Look up tenant by searching for company_id prefix in tenants table
+    // The tenant's CRM database has the company record, but the factory stores
+    // render_backend_url which we need to forward to
+    const { data: tenants } = await supabase
+      .from('tenants')
+      .select('id, render_backend_url, slug')
+      .not('render_backend_url', 'is', null)
+
+    if (!tenants?.length) {
+      console.log('[InboundEmail] No tenants with backend URLs found')
+      return c.json({ error: 'No active tenants' }, 404)
+    }
+
+    // Find tenant whose ID starts with the prefix
+    const tenant = tenants.find((t: any) => t.id.startsWith(companyIdPrefix))
+    if (!tenant?.render_backend_url) {
+      console.log('[InboundEmail] No tenant found for prefix:', companyIdPrefix)
+      return c.json({ error: 'Tenant not found' }, 404)
+    }
+
+    // Forward the email payload to the tenant's CRM backend
+    const targetUrl = `${tenant.render_backend_url}/api/leads/inbound/email`
+    console.log('[InboundEmail] Forwarding to:', targetUrl, 'tenant:', tenant.slug)
+
+    const resp = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+
+    const result = await resp.json()
+    return c.json(result, resp.status as any)
+  } catch (err: any) {
+    console.error('[InboundEmail] Error:', err.message)
+    return c.json({ error: 'Failed to process inbound email' }, 500)
+  }
 })
 
 
@@ -2077,6 +2162,135 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
   }
 })
 
+
+// ─── Tenant Database Health Check ─────────────────────────────────────────────
+
+// Diagnostic: check all tenants for missing database_url
+factory.get('/admin/db-health', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const { data: tenants, error } = await supabase
+      .from('tenants')
+      .select('id, name, slug, status, database_url, supabase_project_ref, render_backend_url')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    const results = (tenants || []).map(t => ({
+      id: t.id,
+      name: t.name,
+      slug: t.slug,
+      status: t.status,
+      hasDatabase: !!t.database_url,
+      hasSupabaseRef: !!t.supabase_project_ref,
+      hasBackendUrl: !!t.render_backend_url,
+      issue: t.status === 'active' && !t.database_url ? 'MISSING_DB_URL' : null,
+    }))
+
+    const missing = results.filter(r => r.issue === 'MISSING_DB_URL')
+
+    return c.json({
+      total: results.length,
+      active: results.filter(r => r.status === 'active').length,
+      missingDbUrl: missing.length,
+      affected: missing,
+      all: results,
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Repair: manually set database_url for a tenant
+factory.patch('/customers/:id/database-url', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
+
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const { database_url } = parsed.data
+    if (!database_url || typeof database_url !== 'string') {
+      return c.json({ error: 'database_url is required (string)' }, 400)
+    }
+
+    // Verify the connection works before saving
+    try {
+      const client = new pg.Client({ connectionString: database_url, ssl: { rejectUnauthorized: false } })
+      await client.connect()
+      const result = await client.query('SELECT current_database() as db')
+      await client.end()
+      console.log('[Repair] Verified DB connection for tenant', id, '- db:', result.rows[0]?.db)
+    } catch (connErr: any) {
+      return c.json({ error: 'Connection test failed: ' + connErr.message }, 400)
+    }
+
+    const { error } = await supabase.from('tenants').update({ database_url }).eq('id', id)
+    if (error) throw error
+
+    return c.json({ success: true, message: 'database_url saved and verified' })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Repair: attempt to recover database_url from Supabase project ref
+factory.post('/customers/:id/repair-db-url', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
+
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('id, slug, supabase_project_ref, database_url')
+      .eq('id', id)
+      .single()
+    if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+    if (tenant.database_url) {
+      return c.json({ message: 'Tenant already has database_url', alreadySet: true })
+    }
+
+    if (!tenant.supabase_project_ref) {
+      return c.json({ error: 'No supabase_project_ref — cannot recover connection string. Use PATCH /database-url to set manually.' }, 400)
+    }
+
+    // Try to get the connection string from Supabase Management API
+    const sbApiKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ACCESS_TOKEN
+    if (!sbApiKey) {
+      return c.json({ error: 'No Supabase access token configured on Factory' }, 500)
+    }
+
+    const res = await fetch(`https://api.supabase.com/v1/projects/${tenant.supabase_project_ref}/postgrest`, {
+      headers: { 'Authorization': `Bearer ${sbApiKey}` },
+    })
+
+    if (!res.ok) {
+      // Try the database connection string endpoint
+      const dbRes = await fetch(`https://api.supabase.com/v1/projects/${tenant.supabase_project_ref}`, {
+        headers: { 'Authorization': `Bearer ${sbApiKey}` },
+      })
+      if (!dbRes.ok) {
+        return c.json({ error: `Supabase API returned ${dbRes.status}. Set database_url manually via PATCH.` }, 400)
+      }
+      const project = await dbRes.json() as any
+      // Build connection string from project info
+      const dbHost = project.database?.host || `db.${tenant.supabase_project_ref}.supabase.co`
+      return c.json({
+        error: 'Could not auto-recover full connection string',
+        hint: `Database host is likely: ${dbHost}. Use PATCH /database-url with the full postgres:// connection string including password.`,
+        supabaseProjectRef: tenant.supabase_project_ref,
+      }, 400)
+    }
+
+    return c.json({
+      error: 'Auto-recovery requires the database password which is not stored. Use PATCH /database-url to set manually.',
+      supabaseProjectRef: tenant.supabase_project_ref,
+      hint: 'Find the connection string in the Supabase dashboard under Project Settings > Database.',
+    }, 400)
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
 
 // ─── Settings: Integration Status ────────────────────────────────────────────
 factory.get('/settings/integrations', async (c) => {

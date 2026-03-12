@@ -87,6 +87,8 @@ import schedulesEnhancedRoutes from './routes/schedulesEnhanced.ts'
 import shiftSwapsRoutes from './routes/shiftSwaps.ts'
 import trainingRecordsRoutes from './routes/trainingRecords.ts'
 import failsafeRoutes from './routes/failsafe.ts'
+import calltrackingRoutes from './routes/calltracking.ts'
+import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -204,6 +206,8 @@ app.route('/api/schedules-enhanced', schedulesEnhancedRoutes)
 app.route('/api/shift-swaps', shiftSwapsRoutes)
 app.route('/api/training-records', trainingRecordsRoutes)
 app.route('/api/failsafe', failsafeRoutes)
+app.route('/api/calltracking', calltrackingRoutes)
+app.route('/api/ai-receptionist', aiReceptionistRoutes)
 
 // ── Alias mounts: frontend uses shorthand paths for some routes ──
 app.route('/api/schedules', schedulingRoutes)

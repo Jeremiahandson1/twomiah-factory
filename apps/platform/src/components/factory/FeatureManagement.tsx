@@ -42,8 +42,39 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
   const [success, setSuccess] = useState<string | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [showAuditLog, setShowAuditLog] = useState(false)
+  const [showDbRepair, setShowDbRepair] = useState(false)
+  const [dbUrl, setDbUrl] = useState('')
+  const [repairing, setRepairing] = useState(false)
 
   useEffect(() => { loadFeatures() }, [tenantId])
+
+  async function repairDbUrl() {
+    if (!dbUrl.trim()) return
+    setRepairing(true)
+    setError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) { setError('Not authenticated'); return }
+
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/database-url', {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ database_url: dbUrl.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
+
+      setHasDatabaseUrl(true)
+      setShowDbRepair(false)
+      setDbUrl('')
+      setSuccess('Database connection saved and verified!')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setRepairing(false)
+    }
+  }
 
   async function loadFeatures() {
     setLoading(true)
@@ -155,9 +186,37 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
       </div>
 
       {!hasDatabaseUrl && (
-        <div className="flex items-start gap-2 px-3 py-2 bg-yellow-900/20 border border-yellow-800/50 rounded-lg mb-4">
-          <AlertTriangle size={14} className="text-yellow-400 mt-0.5 shrink-0" />
-          <p className="text-xs text-yellow-300">No database connection stored. Changes will save to Factory but won't sync to the live CRM until the tenant is redeployed.</p>
+        <div className="px-3 py-2 bg-yellow-900/20 border border-yellow-800/50 rounded-lg mb-4">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={14} className="text-yellow-400 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-xs text-yellow-300">No database connection stored. Changes will save to Factory but won't sync to the live CRM.</p>
+              <button
+                onClick={() => setShowDbRepair(!showDbRepair)}
+                className="text-xs text-yellow-400 hover:text-yellow-200 underline mt-1"
+              >
+                {showDbRepair ? 'Cancel' : 'Add connection string'}
+              </button>
+            </div>
+          </div>
+          {showDbRepair && (
+            <div className="mt-2 flex gap-2">
+              <input
+                type="text"
+                value={dbUrl}
+                onChange={e => setDbUrl(e.target.value)}
+                placeholder="postgres://user:pass@host:5432/dbname"
+                className="flex-1 px-2 py-1 text-xs bg-gray-800 border border-gray-700 rounded text-white placeholder-gray-500"
+              />
+              <button
+                onClick={repairDbUrl}
+                disabled={repairing || !dbUrl.trim()}
+                className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-500 text-white rounded disabled:opacity-50"
+              >
+                {repairing ? 'Testing...' : 'Save'}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

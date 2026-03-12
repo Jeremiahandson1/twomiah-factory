@@ -52,7 +52,9 @@ app.post('/login', async (c) => {
     companySlug: z.string().min(1),
   })
 
-  const data = loginSchema.parse(await c.req.json())
+  const portalBody = await c.req.json()
+  if (portalBody.email && typeof portalBody.email === 'string') portalBody.email = portalBody.email.toLowerCase().trim()
+  const data = loginSchema.parse(portalBody)
 
   // Find company by slug
   const [comp] = await db.select().from(company).where(eq(company.slug, data.companySlug)).limit(1)

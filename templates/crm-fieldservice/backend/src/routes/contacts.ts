@@ -93,7 +93,9 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
 
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
-  const data = contactSchema.parse(await c.req.json())
+  const cBody = await c.req.json()
+  if (cBody.email && typeof cBody.email === 'string') cBody.email = cBody.email.toLowerCase().trim()
+  const data = contactSchema.parse(cBody)
   const [newContact] = await db.insert(contact).values({ ...data, companyId: currentUser.companyId }).returning()
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, newContact)
   audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, req: c.req })
@@ -103,7 +105,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = contactSchema.partial().parse(await c.req.json())
+  const uBody = await c.req.json()
+  if (uBody.email && typeof uBody.email === 'string') uBody.email = uBody.email.toLowerCase().trim()
+  const data = contactSchema.partial().parse(uBody)
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)

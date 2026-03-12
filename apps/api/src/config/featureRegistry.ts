@@ -69,9 +69,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Communication
   { id: 'two_way_texting', name: 'Two-Way Texting', description: 'SMS communication with clients', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
-  { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice'] },
+  { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
   { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-roof'] },
-  { id: 'lead_inbox', name: 'Lead Inbox', description: 'Unified lead feed from Angi, Thumbtack, HomeAdvisor, Google LSA', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice'] },
+  { id: 'lead_inbox', name: 'Lead Inbox', description: 'Unified lead feed from Angi, Thumbtack, HomeAdvisor, Google LSA', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
 
   // Marketing
   { id: 'paid_ads', name: 'Paid Ads Hub (Google + Meta)', description: 'Google & Meta campaign management', category: 'Marketing', core: false, templates: ['crm', 'crm-fieldservice'] },
@@ -84,7 +84,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
   { id: 'reports', name: 'Reports', description: 'Custom reporting dashboard', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: ['crm'] },
-  { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice'] },
+  { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
   { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice'] },
 
   // Roofing

@@ -56,7 +56,9 @@ app.get('/', async (c) => {
 // Create contact
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
-  const data = contactSchema.parse(await c.req.json())
+  const cBody = await c.req.json()
+  if (cBody.email && typeof cBody.email === 'string') cBody.email = cBody.email.toLowerCase().trim()
+  const data = contactSchema.parse(cBody)
 
   const [newContact] = await db.insert(contact).values({
     ...data,
@@ -86,7 +88,9 @@ app.get('/:id', async (c) => {
 app.put('/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = contactSchema.partial().parse(await c.req.json())
+  const uBody = await c.req.json()
+  if (uBody.email && typeof uBody.email === 'string') uBody.email = uBody.email.toLowerCase().trim()
+  const data = contactSchema.partial().parse(uBody)
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)

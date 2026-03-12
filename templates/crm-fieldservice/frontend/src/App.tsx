@@ -48,6 +48,7 @@ import PricebookPage from './pages/pricebook/PricebookPage';
 import AgreementsPage from './pages/agreements/AgreementsPage';
 import WarrantiesPage from './pages/warranties/WarrantiesPage';
 import CallTrackingPage from './pages/calltracking/CallTrackingPage';
+import { AIReceptionistPage } from './components/features/AIReceptionistPage';
 import { RecurringList as RecurringListPage } from './pages/recurring';
 import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
 import TasksPage from './pages/tasks/TasksPage';
@@ -177,6 +178,7 @@ function App() {
                     <Route path="agreements" element={<AgreementsPage />} />
                     <Route path="warranties" element={<WarrantiesPage />} />
                     <Route path="call-tracking" element={<CallTrackingPage />} />
+                    <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                     <Route path="recurring" element={<RecurringListPage />} />
                     <Route path="takeoffs" element={<TakeoffsPage />} />
                     <Route path="tasks" element={<TasksPage />} />

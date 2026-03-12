@@ -1365,3 +1365,105 @@ export const prospectAppointments = pgTable('prospect_appointments', {
   createdById: text('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
+
+// ==================== CALL TRACKING ====================
+
+export const trackingNumber = pgTable('tracking_number', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  phoneNumber: text('phone_number').notNull(),
+  forwardTo: text('forward_to'),
+  name: text('name'),
+  source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  providerId: text('provider_id'),
+  provider: text('provider'),
+  active: boolean('active').default(true).notNull(),
+
+  agencyId: text('agency_id').notNull().references(() => agencies.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('tracking_number_agency_id_idx').on(t.agencyId),
+])
+
+export const phoneCall = pgTable('phone_call', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  callerNumber: text('caller_number').notNull(),
+  status: text('status').notNull(),
+  duration: integer('duration'),
+  recordingUrl: text('recording_url'),
+  transcription: text('transcription'),
+
+  trackingNumberId: text('tracking_number_id').notNull().references(() => trackingNumber.id, { onDelete: 'cascade' }),
+  agencyId: text('agency_id').references(() => agencies.id),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('phone_call_tracking_number_id_idx').on(t.trackingNumberId),
+])
+
+export const callLog = pgTable('call_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  agencyId: text('agency_id').notNull().references(() => agencies.id, { onDelete: 'cascade' }),
+  trackingNumberId: text('tracking_number_id').references(() => trackingNumber.id),
+  clientId: text('client_id').references(() => clients.id),
+  callerNumber: text('caller_number'),
+  callerName: text('caller_name'),
+  callerCity: text('caller_city'),
+  callerState: text('caller_state'),
+  source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  keyword: text('keyword'),
+  landingPage: text('landing_page'),
+  direction: text('direction').default('inbound'),
+  duration: integer('duration'),
+  status: text('status').default('completed').notNull(),
+  startTime: timestamp('start_time'),
+  endTime: timestamp('end_time'),
+  recordingUrl: text('recording_url'),
+  transcription: text('transcription'),
+  tags: json('tags'),
+  notes: text('notes'),
+  firstTimeCaller: boolean('first_time_caller').default(false),
+  providerId: text('provider_id'),
+  isLead: boolean('is_lead').default(false),
+  leadValue: decimal('lead_value', { precision: 12, scale: 2 }),
+  aiSummary: text('ai_summary'),
+  aiResponseSent: boolean('ai_response_sent').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('call_log_agency_id_idx').on(t.agencyId),
+  index('call_log_client_id_idx').on(t.clientId),
+])
+
+// ==================== AI RECEPTIONIST ====================
+
+export const aiReceptionistRule = pgTable('ai_receptionist_rule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  agencyId: text('agency_id').notNull().references(() => agencies.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(), // after_hours, missed_call, voicemail, new_lead, booking_request, keyword
+  channel: text('channel').notNull(), // sms, email, both
+  messageTemplate: text('message_template').notNull(),
+  delayMinutes: integer('delay_minutes').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  keywordMatch: text('keyword_match'), // for keyword trigger
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('ai_receptionist_rule_agency_id_idx').on(t.agencyId),
+])
+
+export const aiReceptionistSettings = pgTable('ai_receptionist_settings', {
+  agencyId: text('agency_id').primaryKey().references(() => agencies.id, { onDelete: 'cascade' }),
+  isEnabled: boolean('is_enabled').default(false).notNull(),
+  businessHoursStart: text('business_hours_start').default('09:00').notNull(),
+  businessHoursEnd: text('business_hours_end').default('17:00').notNull(),
+  timezone: text('timezone').default('America/Chicago').notNull(),
+  greetingText: text('greeting_text'),
+  forwardingNumber: text('forwarding_number'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
