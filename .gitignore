@@ -41,3 +41,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Claude Code
 .claude/
+
+# Temp/debug files
+tmp_*
+
+# Template lock files (generated on install)
+templates/**/bun.lock
+
+# Windows artifacts
+nul/
