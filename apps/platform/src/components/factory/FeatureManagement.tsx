@@ -127,7 +127,7 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
       const data = await res.json()
 
       setOriginal(enabled)
-      const syncMsg = data.syncedToCrm ? 'Synced to live CRM.' : 'Saved to Factory (CRM sync unavailable — no database connection).'
+      const syncMsg = data.syncedToCrm ? 'Synced to live CRM.' : `Saved to Factory only. CRM sync failed: ${data.syncError || 'unknown error'}`
       setSuccess(`Features updated. ${syncMsg}`)
       onFeaturesUpdated?.(enabled)
 

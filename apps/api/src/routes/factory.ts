@@ -2120,6 +2120,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
 
     // Sync to deployed CRM database if connection string available
     let syncedToCrm = false
+    let syncError: string | null = null
     if (tenant.database_url) {
       const ind = tenant.industry || ''
       const isHomeCare = ind === 'home_care'
@@ -2143,8 +2144,11 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
         await client.end()
         syncedToCrm = true
       } catch (syncErr: any) {
+        syncError = syncErr.message
         console.error('[Features] CRM sync failed for', tenant.slug, ':', syncErr.message)
       }
+    } else {
+      syncError = 'No database connection stored'
     }
 
     // Get admin email from auth context
@@ -2170,6 +2174,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
       success: true,
       features: newFeatures,
       syncedToCrm,
+      syncError,
       added,
       removed,
     })
