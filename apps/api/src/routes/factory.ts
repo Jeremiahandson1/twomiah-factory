@@ -505,6 +505,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.apiUrl) criticalUpdate.render_backend_url = result.apiUrl
       if (result.supabaseProjectRef) criticalUpdate.supabase_project_ref = result.supabaseProjectRef
       if (result.dbConnectionString) criticalUpdate.database_url = result.dbConnectionString
+      if (result.factorySyncKey) criticalUpdate.factory_sync_key = result.factorySyncKey
 
       const { error: criticalErr } = await supabase.from('tenants').update(criticalUpdate).eq('id', tenant.id)
       if (criticalErr) {
@@ -2100,7 +2101,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
     if (!Array.isArray(features)) return c.json({ error: 'features must be an array of strings' }, 400)
 
     // Get current tenant
-    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, industry, database_url, slug').eq('id', id).single()
+    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, industry, database_url, slug, render_backend_url, factory_sync_key').eq('id', id).single()
     if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
 
     const previousFeatures: string[] = tenant.features || []
@@ -2118,24 +2119,42 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
     const { error: updateErr } = await supabase.from('tenants').update({ features: newFeatures }).eq('id', id)
     if (updateErr) throw updateErr
 
-    // Sync to deployed CRM database if connection string available
+    // Sync to deployed CRM via HTTP API (preferred) or direct DB (fallback)
     let syncedToCrm = false
     let syncError: string | null = null
-    if (tenant.database_url) {
+
+    if (tenant.render_backend_url && tenant.factory_sync_key) {
+      // HTTP sync via factory sync endpoint
+      try {
+        const syncUrl = tenant.render_backend_url.replace(/\/$/, '') + '/api/internal/sync-features'
+        const syncRes = await fetch(syncUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
+          body: JSON.stringify({ features: newFeatures }),
+        })
+        if (syncRes.ok) {
+          syncedToCrm = true
+        } else {
+          const errData = await syncRes.json().catch(() => ({}))
+          syncError = errData.error || `HTTP ${syncRes.status}`
+        }
+      } catch (syncErr: any) {
+        syncError = syncErr.message
+        console.error('[Features] HTTP sync failed for', tenant.slug, ':', syncErr.message)
+      }
+    } else if (tenant.database_url) {
+      // Fallback: direct DB connection
       const ind = tenant.industry || ''
       const isHomeCare = ind === 'home_care'
       try {
         const client = new pg.Client({ connectionString: tenant.database_url, ssl: { rejectUnauthorized: false } })
         await client.connect()
         if (isHomeCare) {
-          // Home care template uses "agencies" table with "settings" json column
-          // Cast to jsonb for jsonb_set, then back to json for storage
           await client.query(
             `UPDATE agencies SET settings = jsonb_set(COALESCE(settings::jsonb, '{}'), '{enabledFeatures}', $1::jsonb)::json WHERE slug = $2`,
             [JSON.stringify(newFeatures), tenant.slug]
           )
         } else {
-          // Build, Wrench, Automotive templates use "company" table with "enabled_features" json column
           await client.query(
             `UPDATE company SET enabled_features = $1::json WHERE slug = $2`,
             [JSON.stringify(newFeatures), tenant.slug]
@@ -2145,10 +2164,10 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
         syncedToCrm = true
       } catch (syncErr: any) {
         syncError = syncErr.message
-        console.error('[Features] CRM sync failed for', tenant.slug, ':', syncErr.message)
+        console.error('[Features] DB sync failed for', tenant.slug, ':', syncErr.message)
       }
     } else {
-      syncError = 'No database connection stored'
+      syncError = 'No sync method available (no backend URL or database connection)'
     }
 
     // Get admin email from auth context

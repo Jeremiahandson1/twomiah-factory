@@ -8,6 +8,8 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
+import { eq } from 'drizzle-orm'
+import { company } from '../db/schema.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
@@ -187,6 +189,19 @@ app.route('/api/support', supportRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
+
+app.post('/api/internal/sync-features', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  const authHeader = c.req.header('X-Factory-Key')
+  if (authHeader !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { features } = await c.req.json()
+  if (!Array.isArray(features)) return c.json({ error: 'features must be an array' }, 400)
+  const [comp] = await db.select().from(company).limit(1)
+  if (!comp) return c.json({ error: 'No company found' }, 404)
+  const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
+  return c.json({ success: true, features: updated.enabledFeatures })
+})
 
 app.onError(errorHandler)
 

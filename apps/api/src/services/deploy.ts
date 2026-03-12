@@ -665,6 +665,7 @@ export interface DeployResult {
   supabaseProjectRef?: string
   r2BucketName?: string
   dbConnectionString?: string
+  factorySyncKey?: string
 }
 
 export async function deployCustomer(
@@ -687,6 +688,7 @@ export async function deployCustomer(
   const jwtSecret = crypto.randomBytes(48).toString('base64')
   const jwtRefreshSecret = crypto.randomBytes(48).toString('base64')
   const encryptionKey = crypto.randomBytes(32).toString('hex')
+  const factorySyncKey = crypto.randomBytes(32).toString('hex')
 
   // Collect created resource IDs for rollback on failure
   const createdResources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket' | 'vision_tenant'; id: string; name?: string }> = []
@@ -825,6 +827,7 @@ export async function deployCustomer(
           { key: 'ENCRYPTION_KEY', value: encryptionKey },
           { key: 'PORT', value: '10000' },
           { key: 'FEATURE_PACKAGE', value: tenantPlan },
+          { key: 'FACTORY_SYNC_KEY', value: factorySyncKey },
           ...integrationEnvVars,
           ...r2EnvVars,
         ]
@@ -1099,6 +1102,7 @@ export async function deployCustomer(
     }
 
     if (dbConnectionString) results.dbConnectionString = dbConnectionString
+    results.factorySyncKey = factorySyncKey
     results.success = results.errors.length === 0
     results.status = results.success ? 'deployed' : 'partial'
 

@@ -68,6 +68,9 @@ create table if not exists tenants (
   -- Deployed CRM database connection (for live feature sync)
   database_url    text,
 
+  -- Factory sync key (shared secret for HTTP-based feature sync)
+  factory_sync_key text,
+
   -- Notes
   notes           text
 );
