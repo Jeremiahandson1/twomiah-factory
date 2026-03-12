@@ -302,7 +302,28 @@ export default function JobDetailPage() {
               </div>
             </div>
 
-            {/* Insurance - ONLY for insurance jobs */}
+            {/* Insurance Claim Link - ONLY for insurance jobs */}
+            {job.jobType === 'insurance' && (
+              <Link
+                to={`/crm/jobs/${id}/insurance`}
+                className="block bg-orange-50 rounded-xl shadow-sm border border-orange-200 p-4 hover:border-orange-400 transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <Shield className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">Insurance Claim</h2>
+                      <p className="text-xs text-gray-500">View claim details, supplements, Xactimate export</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-orange-400" />
+                </div>
+              </Link>
+            )}
+
+            {/* Insurance Details - ONLY for insurance jobs */}
             {job.jobType === 'insurance' && (
               <div className="bg-white rounded-xl shadow-sm border border-yellow-300 p-6">
                 <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">

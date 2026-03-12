@@ -318,6 +318,115 @@ export const smsMessage = pgTable('sms_message', {
   index('sms_message_company_id_idx').on(t.companyId),
 ])
 
+// ==================== INSURANCE CLAIMS ====================
+
+export const insuranceClaim = pgTable('insurance_claim', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id).unique(),
+
+  // Claim details
+  claimNumber: text('claim_number').notNull(),
+  insuranceCompany: text('insurance_company').notNull(),
+  policyNumber: text('policy_number'),
+  adjusterName: text('adjuster_name'),
+  adjusterPhone: text('adjuster_phone'),
+  adjusterEmail: text('adjuster_email'),
+  adjusterCompany: text('adjuster_company'),
+  dateOfLoss: timestamp('date_of_loss'),
+  causeOfLoss: text('cause_of_loss'),
+
+  // Financials
+  deductible: decimal('deductible', { precision: 10, scale: 2 }),
+  rcv: decimal('rcv', { precision: 10, scale: 2 }),
+  acv: decimal('acv', { precision: 10, scale: 2 }),
+  depreciationHeld: decimal('depreciation_held', { precision: 10, scale: 2 }),
+  supplementAmount: decimal('supplement_amount', { precision: 10, scale: 2 }).default('0').notNull(),
+  finalApprovedAmount: decimal('final_approved_amount', { precision: 10, scale: 2 }),
+
+  // Status
+  claimStatus: text('claim_status').default('filed').notNull(),
+
+  // Dates
+  claimFiledDate: timestamp('claim_filed_date'),
+  adjusterInspectionDate: timestamp('adjuster_inspection_date'),
+  approvalDate: timestamp('approval_date'),
+
+  // Xactimate
+  xactimateScopeUrl: text('xactimate_scope_url'),
+  xactimateExportUrl: text('xactimate_export_url'),
+
+  // Notes
+  denialReason: text('denial_reason'),
+  internalNotes: text('internal_notes'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('insurance_claim_company_id_idx').on(t.companyId),
+  index('insurance_claim_job_id_idx').on(t.jobId),
+])
+
+// ==================== SUPPLEMENTS ====================
+
+export const supplement = pgTable('supplement', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id),
+  claimId: text('claim_id').notNull().references(() => insuranceClaim.id, { onDelete: 'cascade' }),
+  supplementNumber: text('supplement_number').notNull(),
+  status: text('status').default('draft').notNull(),
+  reason: text('reason').notNull(),
+  lineItems: json('line_items').notNull(),
+  totalAmount: decimal('total_amount', { precision: 10, scale: 2 }).notNull(),
+  submittedAt: timestamp('submitted_at'),
+  respondedAt: timestamp('responded_at'),
+  approvedAmount: decimal('approved_amount', { precision: 10, scale: 2 }),
+  denialReason: text('denial_reason'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('supplement_company_id_idx').on(t.companyId),
+  index('supplement_claim_id_idx').on(t.claimId),
+])
+
+// ==================== ADJUSTER CONTACTS ====================
+
+export const adjusterContact = pgTable('adjuster_contact', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  phone: text('phone'),
+  email: text('email'),
+  adjusterCompany: text('company_name'),
+  insuranceCarrier: text('insurance_carrier').notNull(),
+  territory: text('territory'),
+  notes: text('notes'),
+  jobsWorkedTogether: integer('jobs_worked_together').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('adjuster_contact_company_id_idx').on(t.companyId),
+])
+
+// ==================== CLAIM ACTIVITY ====================
+
+export const claimActivity = pgTable('claim_activity', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id),
+  claimId: text('claim_id').notNull().references(() => insuranceClaim.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id),
+  activityType: text('activity_type').notNull(),
+  body: text('body').notNull(),
+  metadata: json('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('claim_activity_company_id_idx').on(t.companyId),
+  index('claim_activity_claim_id_idx').on(t.claimId),
+])
+
 // ==================== PORTAL ====================
 
 export const portalSession = pgTable('portal_session', {

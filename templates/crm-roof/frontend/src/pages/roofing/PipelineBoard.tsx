@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Filter, GripVertical, User, Users, Ruler, Clock } from 'lucide-react';
+import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -277,9 +277,25 @@ export default function PipelineBoard() {
                         )}
 
                         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${typeColor}`}>
-                            {(job.jobType || 'retail').replace('_', ' ')}
-                          </span>
+                          {job.jobType === 'insurance' ? (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+                              INS
+                            </span>
+                          ) : (
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${typeColor}`}>
+                              {(job.jobType || 'retail').replace('_', ' ')}
+                            </span>
+                          )}
+
+                          {/* Insurance claim status dot */}
+                          {job.jobType === 'insurance' && job.claimStatus && (
+                            <span className={`w-2 h-2 rounded-full ${
+                              job.claimStatus === 'approved' || job.claimStatus === 'closed' ? 'bg-green-500' :
+                              job.claimStatus === 'denied' ? 'bg-red-500' :
+                              job.claimStatus === 'filed' ? 'bg-gray-400' :
+                              'bg-yellow-500'
+                            }`} title={`Claim: ${job.claimStatus}`} />
+                          )}
 
                           {job.salesRepId && repMap[job.salesRepId] && (
                             <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
@@ -302,6 +318,27 @@ export default function PipelineBoard() {
                             </span>
                           )}
                         </div>
+
+                        {/* Insurance-specific: RCV + days since loss */}
+                        {job.jobType === 'insurance' && (
+                          <div className="flex items-center gap-2 mt-1">
+                            {job.rcv && (
+                              <span className="flex items-center gap-0.5 text-[10px] text-green-700 font-medium">
+                                <DollarSign className="w-3 h-3" />
+                                {Number(job.rcv).toLocaleString()} RCV
+                              </span>
+                            )}
+                            {job.dateOfLoss && (() => {
+                              const daysSinceLoss = Math.floor((Date.now() - new Date(job.dateOfLoss).getTime()) / (1000 * 60 * 60 * 24));
+                              return daysSinceLoss > 45 ? (
+                                <span className="flex items-center gap-0.5 text-[10px] text-red-600 font-semibold">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  {daysSinceLoss}d loss
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-1 mt-1.5">
                           <Clock className="w-3 h-3 text-gray-400" />

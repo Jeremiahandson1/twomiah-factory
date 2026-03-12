@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   X,
+  Shield,
 } from 'lucide-react'
 
 const navItems = [
@@ -26,6 +27,7 @@ const navItems = [
   { label: 'Materials', icon: Package, to: '/crm/materials' },
   { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
   { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
+  { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
   { label: 'Reports', icon: BarChart3, to: '/crm/reports' },
   { label: 'Settings', icon: Settings, to: '/crm/settings' },
 ]

@@ -15,6 +15,8 @@ import InvoicesPage from './pages/roofing/InvoicesPage'
 import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
+import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
+import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import LoginPage from './pages/LoginPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
@@ -51,6 +53,8 @@ export default function App() {
                 <Route path="pipeline" element={<PipelineBoard />} />
                 <Route path="jobs" element={<JobsPage />} />
                 <Route path="jobs/:id" element={<JobDetailPage />} />
+                <Route path="jobs/:id/insurance" element={<InsuranceClaimPage />} />
+                <Route path="adjusters" element={<AdjusterDirectoryPage />} />
                 <Route path="contacts" element={<ContactsPage />} />
                 <Route path="crews" element={<CrewsPage />} />
                 <Route path="measurements" element={<MeasurementsPage />} />

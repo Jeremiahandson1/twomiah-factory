@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, contact, job, crew, measurementReport, material, invoice } from './schema.ts'
+import { company, user, contact, job, crew, measurementReport, material, invoice, insuranceClaim, supplement, adjusterContact, claimActivity } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -333,6 +333,168 @@ async function main() {
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     })
     console.log('Created invoice for Davis job')
+
+    // ── INSURANCE CLAIMS ──────────────────────────────────
+
+    // Get admin user for activity logging
+    const [adminUser] = await db.select().from(user).where(eq(user.email, '{{ADMIN_EMAIL}}')).limit(1)
+    const adminId = adminUser?.id || 'system'
+
+    // Claim for Johnson job (ROOF-0001) — State Farm, inspection_scheduled
+    const [claim1] = await db.insert(insuranceClaim).values({
+      companyId: comp.id,
+      jobId: job1.id,
+      claimNumber: 'SF-2024-887432',
+      insuranceCompany: 'State Farm',
+      policyNumber: 'HO-9928341',
+      adjusterName: 'Mike Torres',
+      adjusterPhone: '(515) 555-0101',
+      adjusterEmail: 'mtorres@statefarm.com',
+      adjusterCompany: 'State Farm',
+      dateOfLoss: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      causeOfLoss: 'hail',
+      deductible: '1500.00',
+      claimStatus: 'inspection_scheduled',
+      claimFiledDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      adjusterInspectionDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+    }).returning()
+
+    // Activity for claim1
+    await db.insert(claimActivity).values([
+      {
+        companyId: comp.id, jobId: job1.id, claimId: claim1.id, userId: adminId,
+        activityType: 'status_change',
+        body: 'Insurance claim filed with State Farm — Claim #SF-2024-887432',
+        createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      },
+      {
+        companyId: comp.id, jobId: job1.id, claimId: claim1.id, userId: adminId,
+        activityType: 'status_change',
+        body: 'Adjuster assigned — Mike Torres (State Farm)',
+        createdAt: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000),
+      },
+      {
+        companyId: comp.id, jobId: job1.id, claimId: claim1.id, userId: adminId,
+        activityType: 'status_change',
+        body: 'Adjuster inspection scheduled for ' + new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      },
+    ])
+    console.log('Created insurance claim for Johnson job')
+
+    // Claim for Martinez job (ROOF-0002) — Allstate, approved
+    const [claim2] = await db.insert(insuranceClaim).values({
+      companyId: comp.id,
+      jobId: job2.id,
+      claimNumber: 'ALL-2024-44219',
+      insuranceCompany: 'Allstate',
+      policyNumber: 'HO-7723419',
+      adjusterName: 'Bob Hendricks',
+      adjusterPhone: '(414) 555-0303',
+      adjusterEmail: 'bhendricks@allstate.com',
+      adjusterCompany: 'Allstate',
+      dateOfLoss: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000),
+      causeOfLoss: 'hail',
+      deductible: '1000.00',
+      rcv: '14200.00',
+      acv: '11800.00',
+      depreciationHeld: '2400.00',
+      supplementAmount: '1200.00',
+      claimStatus: 'approved',
+      claimFiledDate: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000),
+      adjusterInspectionDate: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),
+      approvalDate: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+    }).returning()
+
+    // Activity for claim2
+    await db.insert(claimActivity).values([
+      {
+        companyId: comp.id, jobId: job2.id, claimId: claim2.id, userId: adminId,
+        activityType: 'status_change',
+        body: 'Insurance claim filed with Allstate — Claim #ALL-2024-44219',
+        createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000),
+      },
+      {
+        companyId: comp.id, jobId: job2.id, claimId: claim2.id, userId: adminId,
+        activityType: 'status_change',
+        body: 'Adjuster assigned — Bob Hendricks (Allstate)',
+        createdAt: new Date(Date.now() - 32 * 24 * 60 * 60 * 1000),
+      },
+      {
+        companyId: comp.id, jobId: job2.id, claimId: claim2.id, userId: adminId,
+        activityType: 'call',
+        body: 'Called adjuster to schedule inspection. Left voicemail.',
+        metadata: { callDuration: '2' },
+        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      },
+      {
+        companyId: comp.id, jobId: job2.id, claimId: claim2.id, userId: adminId,
+        activityType: 'inspection',
+        body: 'Adjuster inspection completed. Bob confirmed hail damage on south-facing slopes.',
+        createdAt: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000),
+      },
+      {
+        companyId: comp.id, jobId: job2.id, claimId: claim2.id, userId: adminId,
+        activityType: 'approval',
+        body: 'Claim approved — RCV $14,200, ACV $11,800, Deductible $1,000',
+        createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      },
+    ])
+    console.log('Created insurance claim for Martinez job')
+
+    // Supplement for Martinez claim
+    await db.insert(supplement).values({
+      companyId: comp.id,
+      jobId: job2.id,
+      claimId: claim2.id,
+      supplementNumber: 'SUP-001',
+      status: 'submitted',
+      reason: 'Code upgrade required per local building code — ice & water shield full deck and upgraded ventilation',
+      lineItems: [
+        { code: 'RFG 180', description: 'Ice & water shield - full deck upgrade', qty: 28, unit: 'SQ', unitPrice: 45, total: 1260 },
+        { code: 'VNT 100', description: 'Ridge vent - code upgrade', qty: 1, unit: 'EA', unitPrice: 350, total: 350 },
+      ],
+      totalAmount: '1200.00',
+      submittedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+    })
+    console.log('Created supplement for Martinez claim')
+
+    // ── ADJUSTER DIRECTORY ──────────────────────────────────
+
+    await db.insert(adjusterContact).values([
+      {
+        companyId: comp.id,
+        name: 'Mike Torres',
+        phone: '(515) 555-0101',
+        email: 'mtorres@statefarm.com',
+        adjusterCompany: 'State Farm',
+        insuranceCarrier: 'State Farm',
+        territory: 'Des Moines, IA',
+        jobsWorkedTogether: 3,
+      },
+      {
+        companyId: comp.id,
+        name: 'Jennifer Walsh',
+        phone: '(312) 555-0202',
+        email: 'jwalsh@crawfordco.com',
+        adjusterCompany: 'Crawford & Company',
+        insuranceCarrier: 'Multiple',
+        territory: 'Midwest',
+        notes: 'Independent adjuster — fair, thorough inspections. Good to work with.',
+        jobsWorkedTogether: 7,
+      },
+      {
+        companyId: comp.id,
+        name: 'Bob Hendricks',
+        phone: '(414) 555-0303',
+        email: 'bhendricks@allstate.com',
+        adjusterCompany: 'Allstate',
+        insuranceCarrier: 'Allstate',
+        territory: 'Wisconsin',
+        jobsWorkedTogether: 2,
+      },
+    ])
+    console.log('Created 3 demo adjuster contacts')
   }
 
   console.log('')

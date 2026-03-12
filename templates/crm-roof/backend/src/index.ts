@@ -26,6 +26,7 @@ import smsRoutes from './routes/sms.ts'
 import portalRoutes from './routes/portal.ts'
 import estimatorRoutes from './routes/estimator.ts'
 import settingsRoutes from './routes/settings.ts'
+import insuranceRoutes from './routes/insurance.ts'
 
 const app = new Hono()
 
@@ -79,6 +80,7 @@ app.route('/api/invoices', invoicesRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/portal', portalRoutes)
 app.route('/api/settings', settingsRoutes)
+app.route('/api/insurance', insuranceRoutes)
 app.route('/api/estimator', estimatorRoutes) // public — no auth
 
 // Error handler
