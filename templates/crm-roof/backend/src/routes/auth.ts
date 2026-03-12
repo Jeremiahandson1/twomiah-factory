@@ -71,7 +71,7 @@ app.post('/signup', async (c) => {
   })
 
   const signupBody = await c.req.json()
-  if (signupBody.email && typeof signupBody.email === 'string') signupBody.email = signupBody.email.toLowerCase().trim()
+  if (typeof signupBody.email === 'string') { signupBody.email = signupBody.email.toLowerCase().trim(); if (!signupBody.email) delete signupBody.email }
   const data = schema.parse(signupBody)
 
   // Check if email already exists
@@ -166,7 +166,7 @@ app.post('/signup', async (c) => {
 app.post('/login', async (c) => {
   const loginSchema = z.object({ email: z.string().email(), password: z.string() })
   const loginBody = await c.req.json()
-  if (loginBody.email && typeof loginBody.email === 'string') loginBody.email = loginBody.email.toLowerCase().trim()
+  if (typeof loginBody.email === 'string') { loginBody.email = loginBody.email.toLowerCase().trim(); if (!loginBody.email) delete loginBody.email }
   const data = loginSchema.parse(loginBody)
 
   const [foundUser] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)

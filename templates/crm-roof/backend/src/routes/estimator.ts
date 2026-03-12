@@ -45,7 +45,7 @@ app.post('/estimate/:slug', async (c) => {
   })
 
   const estBody = await c.req.json()
-  if (estBody.email && typeof estBody.email === 'string') estBody.email = estBody.email.toLowerCase().trim()
+  if (typeof estBody.email === 'string') { estBody.email = estBody.email.toLowerCase().trim(); if (!estBody.email) delete estBody.email }
   const data = schema.parse(estBody)
 
   const [comp] = await db.select().from(company).where(eq(company.slug, slug)).limit(1)

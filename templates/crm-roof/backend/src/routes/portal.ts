@@ -53,7 +53,7 @@ app.post('/login', async (c) => {
   })
 
   const portalBody = await c.req.json()
-  if (portalBody.email && typeof portalBody.email === 'string') portalBody.email = portalBody.email.toLowerCase().trim()
+  if (typeof portalBody.email === 'string') { portalBody.email = portalBody.email.toLowerCase().trim(); if (!portalBody.email) delete portalBody.email }
   const data = loginSchema.parse(portalBody)
 
   // Find company by slug

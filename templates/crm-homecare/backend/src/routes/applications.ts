@@ -35,7 +35,7 @@ app.get('/:id', async (c) => {
 // POST /api/applications (create new application - could be public or admin)
 app.post('/', async (c) => {
   const body = await c.req.json()
-  if (body.email && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
 
   const [row] = await db.insert(applications).values({
     firstName: body.firstName,

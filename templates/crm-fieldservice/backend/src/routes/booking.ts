@@ -87,7 +87,7 @@ const bookingSchema = z.object({
 app.post('/public/:companySlug', async (c) => {
   const companySlug = c.req.param('companySlug')
   const body = await c.req.json()
-  if (body.email && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
   const data = bookingSchema.parse(body)
 
   const [found] = await db.select().from(company).where(eq(company.slug, companySlug)).limit(1)

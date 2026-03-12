@@ -67,8 +67,8 @@ const createCustomerSchema = z.object({
 app.post('/customers', async (c) => {
   const u = c.get('user') as any
   const body = await c.req.json()
-  if (body.email && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
-  if (body.adminEmail && typeof body.adminEmail === 'string') body.adminEmail = body.adminEmail.toLowerCase().trim()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
+  if (typeof body.adminEmail === 'string') { body.adminEmail = body.adminEmail.toLowerCase().trim(); if (!body.adminEmail) delete body.adminEmail }
   const data = createCustomerSchema.parse(body)
 
   // Determine features to enable

@@ -57,7 +57,7 @@ app.get('/', async (c) => {
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
   const cBody = await c.req.json()
-  if (cBody.email && typeof cBody.email === 'string') cBody.email = cBody.email.toLowerCase().trim()
+  if (typeof cBody.email === 'string') { cBody.email = cBody.email.toLowerCase().trim(); if (!cBody.email) delete cBody.email }
   const data = contactSchema.parse(cBody)
 
   const [newContact] = await db.insert(contact).values({
@@ -89,7 +89,7 @@ app.put('/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const uBody = await c.req.json()
-  if (uBody.email && typeof uBody.email === 'string') uBody.email = uBody.email.toLowerCase().trim()
+  if (typeof uBody.email === 'string') { uBody.email = uBody.email.toLowerCase().trim(); if (!uBody.email) delete uBody.email }
   const data = contactSchema.partial().parse(uBody)
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)

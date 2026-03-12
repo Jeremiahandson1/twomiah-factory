@@ -95,7 +95,7 @@ app.post('/signup', async (c) => {
   })
 
   const body = await c.req.json()
-  if (body.email && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
   const data = schema.parse(body)
 
   // Check if email already exists

@@ -20,7 +20,7 @@ app.put('/', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional() })
   const body = await c.req.json()
-  if (body.email && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
   const data = schema.parse(body)
   const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
@@ -56,7 +56,7 @@ app.post('/users', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({ email: z.string().email(), password: z.string().min(8), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).default('user') })
   const body = await c.req.json()
-  if (body.email && typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
   const data = schema.parse(body)
 
   const [existing] = await db.select().from(user).where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId))).limit(1)
