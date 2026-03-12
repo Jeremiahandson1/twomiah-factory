@@ -40,6 +40,8 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
             <input
               id="email"
               type="email"
+              autoCapitalize="none"
+              autoCorrect="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@example.com"
@@ -53,6 +55,9 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
               <input
                 id="password"
                 type={showPassword ? 'text' : 'password'}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
