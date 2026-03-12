@@ -513,6 +513,14 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
         console.log('[Deploy] Critical tenant fields saved (status, urls, database_url) for', tenant.slug)
       }
 
+      // Sync features from config to tenant record so Feature Management shows correct state
+      const deployedFeatures = config.features?.crm || job.features || []
+      if (deployedFeatures.length > 0) {
+        const { error: featErr } = await supabase.from('tenants').update({ features: deployedFeatures }).eq('id', tenant.id)
+        if (featErr) console.warn('[Deploy] Features sync failed (non-blocking):', featErr.message)
+        else console.log('[Deploy] Synced', deployedFeatures.length, 'features to tenant record for', tenant.slug)
+      }
+
       // Optional fields — save separately so a missing column doesn't block critical data
       const optionalUpdate: Record<string, any> = {}
       if (result.siteUrl) optionalUpdate.website_url = result.siteUrl
