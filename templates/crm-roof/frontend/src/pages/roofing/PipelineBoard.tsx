@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTriangle } from 'lucide-react';
+import { Filter, GripVertical, User, Users, Ruler, Clock, DollarSign, AlertTriangle, MapPin, Zap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
@@ -77,6 +77,7 @@ export default function PipelineBoard() {
   const [filterCrew, setFilterCrew] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [filterCanvassing, setFilterCanvassing] = useState(false);
 
   const [dragJobId, setDragJobId] = useState<string | null>(null);
 
@@ -109,6 +110,7 @@ export default function PipelineBoard() {
     if (filterCrew && j.crewId !== filterCrew) return false;
     if (filterType && j.jobType !== filterType) return false;
     if (filterPriority && j.priority !== filterPriority) return false;
+    if (filterCanvassing && j.source !== 'canvassing') return false;
     return true;
   });
 
@@ -220,6 +222,15 @@ export default function PipelineBoard() {
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
+        <button
+          onClick={() => setFilterCanvassing(!filterCanvassing)}
+          className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border font-medium transition ${
+            filterCanvassing ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-600'
+          }`}
+        >
+          <MapPin className="w-3.5 h-3.5" />
+          Canvassing
+        </button>
       </div>
 
       {/* Kanban Board */}
@@ -317,7 +328,28 @@ export default function PipelineBoard() {
                               {job.totalSquares} sq
                             </span>
                           )}
+
+                          {job.source === 'canvassing' && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-blue-600 font-medium">
+                              <MapPin className="w-3 h-3" />
+                              canvass
+                            </span>
+                          )}
+
+                          {job.source === 'storm' && (
+                            <span className="flex items-center gap-0.5 text-[10px] text-amber-600 font-medium">
+                              <Zap className="w-3 h-3" />
+                              storm
+                            </span>
+                          )}
                         </div>
+
+                        {/* Canvassing storm event name from notes */}
+                        {job.source === 'canvassing' && job.notes && job.notes.startsWith('Canvassing lead') && (
+                          <p className="text-[10px] text-blue-500 truncate mt-0.5">
+                            {job.notes.split('—')[1]?.trim() || ''}
+                          </p>
+                        )}
 
                         {/* Insurance-specific: RCV + days since loss */}
                         {job.jobType === 'insurance' && (

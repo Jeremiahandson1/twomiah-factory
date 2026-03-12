@@ -427,6 +427,124 @@ export const claimActivity = pgTable('claim_activity', {
   index('claim_activity_claim_id_idx').on(t.claimId),
 ])
 
+// ==================== STORM EVENTS ====================
+
+export const stormEvent = pgTable('storm_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  eventDate: timestamp('event_date').notNull(),
+  eventType: text('event_type').notNull(),
+  affectedZipCodes: json('affected_zip_codes').default([]).notNull(),
+  hailSizeInches: decimal('hail_size_inches', { precision: 4, scale: 2 }),
+  windSpeedMph: integer('wind_speed_mph'),
+  description: text('description'),
+  leadCount: integer('lead_count').default(0).notNull(),
+  status: text('status').default('detected').notNull(),
+  source: text('source').default('manual').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('storm_event_company_id_idx').on(t.companyId),
+])
+
+export const stormLead = pgTable('storm_lead', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stormEventId: text('storm_event_id').notNull().references(() => stormEvent.id, { onDelete: 'cascade' }),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  lat: decimal('lat', { precision: 10, scale: 7 }),
+  lng: decimal('lng', { precision: 10, scale: 7 }),
+  jobId: text('job_id').references(() => job.id),
+  contactId: text('contact_id').references(() => contact.id),
+  status: text('status').default('new').notNull(),
+  estimatedDamage: text('estimated_damage'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('storm_lead_company_id_idx').on(t.companyId),
+  index('storm_lead_event_id_idx').on(t.stormEventId),
+])
+
+// ==================== QUICKBOOKS ====================
+
+export const qbIntegration = pgTable('qb_integration', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }).unique(),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token').notNull(),
+  realmId: text('realm_id').notNull(),
+  tokenExpiresAt: timestamp('token_expires_at').notNull(),
+  syncEnabled: boolean('sync_enabled').default(false).notNull(),
+  lastSyncedAt: timestamp('last_synced_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('qb_integration_company_id_idx').on(t.companyId),
+])
+
+// ==================== CANVASSING ====================
+
+export const canvassingSession = pgTable('canvassing_session', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id),
+  name: text('name').notNull(),
+  status: text('status').default('active').notNull(),
+  centerLat: decimal('center_lat', { precision: 10, scale: 7 }),
+  centerLng: decimal('center_lng', { precision: 10, scale: 7 }),
+  radiusMiles: decimal('radius_miles', { precision: 5, scale: 2 }),
+  weatherEvent: text('weather_event'),
+  totalDoors: integer('total_doors').default(0).notNull(),
+  answeredDoors: integer('answered_doors').default(0).notNull(),
+  leadsCreated: integer('leads_created').default(0).notNull(),
+  startedAt: timestamp('started_at'),
+  endedAt: timestamp('ended_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('canvassing_session_company_id_idx').on(t.companyId),
+  index('canvassing_session_user_id_idx').on(t.userId),
+])
+
+export const canvassingStop = pgTable('canvassing_stop', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id').notNull().references(() => canvassingSession.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  lat: decimal('lat', { precision: 10, scale: 7 }),
+  lng: decimal('lng', { precision: 10, scale: 7 }),
+  outcome: text('outcome').default('no_answer').notNull(),
+  notes: text('notes'),
+  jobId: text('job_id').references(() => job.id),
+  contactId: text('contact_id').references(() => contact.id),
+  doorHangerLeft: boolean('door_hanger_left').default(false).notNull(),
+  followUpDate: timestamp('follow_up_date'),
+  photos: json('photos').default([]).notNull(),
+  visitedAt: timestamp('visited_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('canvassing_stop_company_id_idx').on(t.companyId),
+  index('canvassing_stop_session_id_idx').on(t.sessionId),
+])
+
+export const canvassingScript = pgTable('canvassing_script', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  isDefault: boolean('is_default').default(false).notNull(),
+  steps: json('steps').default([]).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('canvassing_script_company_id_idx').on(t.companyId),
+])
+
 // ==================== PORTAL ====================
 
 export const portalSession = pgTable('portal_session', {

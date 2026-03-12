@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Get Started — Twomiah Roof</title>
+<meta name="description" content="Sign up for Twomiah Roof. Your roofing CRM, ready in minutes.">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--orange:#FF6B35;--orange-dark:#E55A28;--orange-light:#FF8B5E;--slate:#1E3A5F;--dark:#0D0D0D;--charcoal:#1A1A1A;--white:#FFF;--grad:linear-gradient(135deg,#FF8B5E,#FF6B35)}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--dark);color:var(--white);font-family:'Barlow',sans-serif;min-height:100vh}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 48px;background:rgba(13,13,13,0.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,0.05)}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.nav-icon{width:30px;height:30px}
+.nav-wordmark{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:0.12em;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.nav-back{color:rgba(255,255,255,0.4);text-decoration:none;font-size:12px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;transition:color 0.2s}
+.nav-back:hover{color:var(--white)}
+
+.container{max-width:780px;margin:0 auto;padding:120px 24px 80px}
+.page-title{font-family:'Bebas Neue',sans-serif;font-size:clamp(36px,5vw,56px);letter-spacing:0.04em;line-height:1;margin-bottom:8px;text-align:center}
+.page-sub{font-size:15px;color:rgba(255,255,255,0.45);text-align:center;margin-bottom:48px}
+
+/* Progress */
+.progress{display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:48px;flex-wrap:wrap}
+.step-dot{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;border:2px solid rgba(255,255,255,0.12);color:rgba(255,255,255,0.3);transition:all 0.3s;flex-shrink:0}
+.step-dot.active{border-color:var(--orange);color:var(--orange);background:rgba(255,107,53,0.1)}
+.step-dot.done{border-color:#28C840;color:#28C840;background:rgba(40,200,64,0.1)}
+.step-line{width:40px;height:2px;background:rgba(255,255,255,0.08);flex-shrink:0}
+.step-line.done{background:#28C840}
+
+/* Form Card */
+.form-card{background:var(--charcoal);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:40px 36px}
+.step{display:none}
+.step.active{display:block}
+.step-title{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.04em;margin-bottom:6px}
+.step-desc{font-size:14px;color:rgba(255,255,255,0.4);margin-bottom:28px}
+
+/* Fields */
+.field{margin-bottom:20px}
+.field label{display:block;font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:12px 14px;background:var(--dark);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:var(--white);font-family:'Barlow',sans-serif;font-size:14px;transition:border-color 0.2s;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--orange)}
+.field input::placeholder,.field textarea::placeholder{color:rgba(255,255,255,0.2)}
+.field select{cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23666' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.field select option{background:var(--dark);color:var(--white)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.field-hint{font-size:11px;color:rgba(255,255,255,0.25);margin-top:4px}
+
+/* Color picker */
+.color-row{display:flex;align-items:center;gap:12px}
+.color-row input[type="color"]{width:48px;height:40px;padding:2px;border:1px solid rgba(255,255,255,0.1);border-radius:4px;background:var(--dark);cursor:pointer}
+.color-row input[type="text"]{flex:1}
+
+/* File upload */
+.file-upload{display:flex;align-items:center;gap:12px}
+.file-upload input[type="file"]{display:none}
+.file-btn{padding:10px 18px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:4px;color:rgba(255,255,255,0.5);font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.2s}
+.file-btn:hover{background:rgba(255,255,255,0.1);color:var(--white)}
+.file-name{font-size:13px;color:rgba(255,255,255,0.35)}
+
+/* Plan cards */
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}
+.plan-card{background:var(--dark);border:2px solid rgba(255,255,255,0.08);border-radius:6px;padding:20px 16px;cursor:pointer;transition:all 0.2s;text-align:center}
+.plan-card:hover{border-color:rgba(255,255,255,0.2)}
+.plan-card.selected{border-color:var(--orange);background:rgba(255,107,53,0.06)}
+.plan-card .plan-label{font-size:10px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:var(--orange);margin-bottom:6px}
+.plan-card .plan-price{font-family:'Bebas Neue',sans-serif;font-size:32px;line-height:1;margin-bottom:2px}
+.plan-card .plan-per{font-size:11px;color:rgba(255,255,255,0.3)}
+.plan-card .plan-features{font-size:10px;color:rgba(255,255,255,0.3);margin-top:8px;line-height:1.6}
+
+/* Hosting cards */
+.hosting-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px}
+.hosting-card{background:var(--dark);border:2px solid rgba(255,255,255,0.08);border-radius:6px;padding:24px 20px;cursor:pointer;transition:all 0.2s}
+.hosting-card:hover{border-color:rgba(255,255,255,0.2)}
+.hosting-card.selected{border-color:var(--orange);background:rgba(255,107,53,0.06)}
+.hosting-card h4{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:0.04em;margin-bottom:6px}
+.hosting-card p{font-size:13px;color:rgba(255,255,255,0.4);line-height:1.6}
+
+/* Feature checkboxes */
+.check-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+.check-item{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--dark);border:1px solid rgba(255,255,255,0.08);border-radius:4px;cursor:pointer;transition:all 0.2s}
+.check-item:hover{border-color:rgba(255,255,255,0.2)}
+.check-item.checked{border-color:var(--orange);background:rgba(255,107,53,0.06)}
+.check-item input{display:none}
+.check-box{width:18px;height:18px;border:2px solid rgba(255,255,255,0.2);border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.2s}
+.check-item.checked .check-box{border-color:var(--orange);background:var(--orange)}
+.check-item.checked .check-box::after{content:'\2713';color:white;font-size:11px;font-weight:700}
+.check-label{font-size:13px;color:rgba(255,255,255,0.6)}
+
+/* Summary */
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;margin-bottom:24px}
+.summary-item{padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06)}
+.summary-label{font-size:10px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:3px}
+.summary-value{font-size:14px;color:rgba(255,255,255,0.8)}
+
+/* Buttons */
+.btn-row{display:flex;justify-content:space-between;align-items:center;margin-top:32px}
+.btn-next{background:var(--orange);color:var(--white);padding:14px 32px;border:none;border-radius:4px;font-family:'Barlow',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;cursor:pointer;transition:all 0.2s}
+.btn-next:hover{background:var(--orange-dark)}
+.btn-next:disabled{opacity:0.4;cursor:not-allowed}
+.btn-back{background:none;border:none;color:rgba(255,255,255,0.4);font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:color 0.2s;padding:14px 0}
+.btn-back:hover{color:var(--white)}
+
+/* Toast */
+.toast{position:fixed;top:80px;right:24px;z-index:200;padding:14px 24px;border-radius:6px;font-size:14px;font-weight:600;transform:translateX(120%);transition:transform 0.3s}
+.toast.show{transform:translateX(0)}
+.toast.success{background:#28C840;color:white}
+.toast.error{background:var(--orange);color:white}
+
+footer{background:#090909;border-top:1px solid rgba(255,255,255,0.05);padding:40px 48px 20px}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:20px}
+.footer-links{display:flex;gap:22px;flex-wrap:wrap}
+.footer-links a{color:rgba(255,255,255,0.3);text-decoration:none;font-size:13px;transition:color 0.2s}
+.footer-links a:hover{color:var(--white)}
+.footer-copy{font-size:11px;color:rgba(255,255,255,0.18)}
+
+@media(max-width:768px){
+  nav{padding:14px 20px}
+  .container{padding:110px 16px 60px}
+  .row,.row-3{grid-template-columns:1fr}
+  .plan-grid{grid-template-columns:1fr}
+  .check-grid{grid-template-columns:1fr}
+  .hosting-grid{grid-template-columns:1fr}
+  .summary-grid{grid-template-columns:1fr}
+  .form-card{padding:28px 20px}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="https://twomiah.com" class="nav-logo">
+    <svg class="nav-icon" viewBox="0 0 120 120" fill="none">
+      <defs><linearGradient id="ng" x1="0" y1="120" x2="120" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#FF8B5E"/><stop offset="100%" stop-color="#FF6B35"/></linearGradient></defs>
+      <path d="M42 96 L20 48 L42 60 L52 24 L62 52 L75 40 L60 96 Z" fill="url(#ng)" opacity="0.65"/>
+      <path d="M78 96 L56 44 L68 58 L78 18 L88 50 L104 36 L96 96 Z" fill="url(#ng)"/>
+      <rect x="16" y="96" width="88" height="3" rx="1.5" fill="url(#ng)" opacity="0.45"/>
+    </svg>
+    <span class="nav-wordmark">TWOMIAH ROOF</span>
+  </a>
+  <a href="../../../templates/crm-roof/landing/" class="nav-back">&larr; Back to Roof</a>
+</nav>
+
+<div class="container">
+  <h1 class="page-title">Get Started with <span style="background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Twomiah Roof</span></h1>
+  <p class="page-sub">Fill out the form below and we'll have your roofing CRM ready in minutes.</p>
+
+  <!-- Progress dots -->
+  <div class="progress" id="progress">
+    <div class="step-dot active" data-step="0">1</div><div class="step-line"></div>
+    <div class="step-dot" data-step="1">2</div><div class="step-line"></div>
+    <div class="step-dot" data-step="2">3</div><div class="step-line"></div>
+    <div class="step-dot" data-step="3">4</div><div class="step-line"></div>
+    <div class="step-dot" data-step="4">5</div>
+  </div>
+
+  <div class="form-card">
+
+    <!-- STEP 1: Company Info -->
+    <div class="step active" data-step="0">
+      <div class="step-title">Company Information</div>
+      <div class="step-desc">Tell us about your roofing company.</div>
+      <div class="field">
+        <label>Company Name *</label>
+        <input type="text" id="companyName" placeholder="e.g. Premier Roofing LLC" required>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Phone</label>
+          <input type="tel" id="phone" placeholder="(555) 123-4567">
+        </div>
+        <div class="field">
+          <label>Email</label>
+          <input type="email" id="companyEmail" placeholder="info@premierroofing.com">
+        </div>
+      </div>
+      <div class="field">
+        <label>Address</label>
+        <input type="text" id="address" placeholder="123 Main Street">
+      </div>
+      <div class="row-3">
+        <div class="field">
+          <label>City</label>
+          <input type="text" id="city" placeholder="Dallas">
+        </div>
+        <div class="field">
+          <label>State</label>
+          <select id="state">
+            <option value="">State...</option>
+            <option value="AL">AL</option><option value="AK">AK</option><option value="AZ">AZ</option><option value="AR">AR</option><option value="CA">CA</option><option value="CO">CO</option><option value="CT">CT</option><option value="DE">DE</option><option value="FL">FL</option><option value="GA">GA</option><option value="HI">HI</option><option value="ID">ID</option><option value="IL">IL</option><option value="IN">IN</option><option value="IA">IA</option><option value="KS">KS</option><option value="KY">KY</option><option value="LA">LA</option><option value="ME">ME</option><option value="MD">MD</option><option value="MA">MA</option><option value="MI">MI</option><option value="MN">MN</option><option value="MS">MS</option><option value="MO">MO</option><option value="MT">MT</option><option value="NE">NE</option><option value="NV">NV</option><option value="NH">NH</option><option value="NJ">NJ</option><option value="NM">NM</option><option value="NY">NY</option><option value="NC">NC</option><option value="ND">ND</option><option value="OH">OH</option><option value="OK">OK</option><option value="OR">OR</option><option value="PA">PA</option><option value="RI">RI</option><option value="SC">SC</option><option value="SD">SD</option><option value="TN">TN</option><option value="TX">TX</option><option value="UT">UT</option><option value="VT">VT</option><option value="VA">VA</option><option value="WA">WA</option><option value="WV">WV</option><option value="WI">WI</option><option value="WY">WY</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>ZIP</label>
+          <input type="text" id="zip" placeholder="75201">
+        </div>
+      </div>
+      <div class="field">
+        <label>Service Area Zip Codes</label>
+        <input type="text" id="serviceZips" placeholder="75201, 75202, 75204 (comma-separated)">
+        <div class="field-hint">We'll monitor these zips for storm events and generate leads automatically.</div>
+      </div>
+      <div class="btn-row">
+        <span></span>
+        <button class="btn-next" onclick="nextStep()">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Branding & Plan -->
+    <div class="step" data-step="1">
+      <div class="step-title">Branding &amp; Plan</div>
+      <div class="step-desc">Choose your brand color and plan.</div>
+      <div class="field">
+        <label>Company Logo</label>
+        <div class="file-upload">
+          <label class="file-btn" for="logoFile">Choose File</label>
+          <input type="file" id="logoFile" accept="image/*" onchange="updateFileName(this,'logoName')">
+          <span class="file-name" id="logoName">No file chosen</span>
+        </div>
+        <div class="field-hint">PNG or JPG, at least 400x400px recommended</div>
+      </div>
+      <div class="field">
+        <label>Primary Brand Color</label>
+        <div class="color-row">
+          <input type="color" id="colorPicker" value="#1E3A5F" onchange="document.getElementById('colorHex').value=this.value">
+          <input type="text" id="colorHex" value="#1E3A5F" placeholder="#1E3A5F" onchange="document.getElementById('colorPicker').value=this.value">
+        </div>
+      </div>
+
+      <label style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin:24px 0 12px;display:block">Select a Plan *</label>
+      <div class="plan-grid" id="planGrid">
+        <div class="plan-card" data-plan="starter" onclick="selectPlan(this)">
+          <div class="plan-label">Starter</div>
+          <div class="plan-price">$49</div>
+          <div class="plan-per">/mo &middot; 2 users</div>
+          <div class="plan-features">Pipeline, Contacts, Invoices, Estimator Widget</div>
+        </div>
+        <div class="plan-card" data-plan="pro" onclick="selectPlan(this)">
+          <div class="plan-label">Pro</div>
+          <div class="plan-price">$149</div>
+          <div class="plan-per">/mo &middot; up to 10</div>
+          <div class="plan-features">+ Insurance, Storms, Canvassing, SMS, QuickBooks</div>
+        </div>
+        <div class="plan-card" data-plan="business" onclick="selectPlan(this)">
+          <div class="plan-label">Business</div>
+          <div class="plan-price">$299</div>
+          <div class="plan-per">/mo &middot; up to 25</div>
+          <div class="plan-features">+ Multi-crew, Reports, API, Priority Support</div>
+        </div>
+      </div>
+
+      <label style="font-size:11px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:rgba(255,255,255,0.45);margin-bottom:12px;display:block">Hosting</label>
+      <div class="hosting-grid" id="hostingGrid">
+        <div class="hosting-card selected" data-hosting="saas" onclick="selectHosting(this)">
+          <h4>SaaS (Hosted)</h4>
+          <p>We host and maintain everything. Monthly subscription.</p>
+        </div>
+        <div class="hosting-card" data-hosting="self-hosted" onclick="selectHosting(this)">
+          <h4>Self-Hosted</h4>
+          <p>One-time purchase. Full source code on your server.</p>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-back" onclick="prevStep()">&larr; Back</button>
+        <button class="btn-next" onclick="nextStep()">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Features -->
+    <div class="step" data-step="2">
+      <div class="step-title">Features</div>
+      <div class="step-desc">Select the features you want enabled. All are included with Pro and Business plans.</div>
+
+      <div class="check-grid" id="featuresGrid">
+        <label class="check-item checked" onclick="toggleCheck(this)"><input type="checkbox" value="insurance_workflow" checked><span class="check-box"></span><span class="check-label">Insurance Workflow</span></label>
+        <label class="check-item checked" onclick="toggleCheck(this)"><input type="checkbox" value="storm_lead_gen" checked><span class="check-box"></span><span class="check-label">Storm Lead Gen</span></label>
+        <label class="check-item checked" onclick="toggleCheck(this)"><input type="checkbox" value="canvassing_tool" checked><span class="check-box"></span><span class="check-label">Canvassing Tool</span></label>
+        <label class="check-item checked" onclick="toggleCheck(this)"><input type="checkbox" value="two_way_texting" checked><span class="check-box"></span><span class="check-label">Two-Way SMS</span></label>
+        <label class="check-item checked" onclick="toggleCheck(this)"><input type="checkbox" value="quickbooks_sync" checked><span class="check-box"></span><span class="check-label">QuickBooks Sync</span></label>
+        <label class="check-item checked" onclick="toggleCheck(this)"><input type="checkbox" value="measurement_reports" checked><span class="check-box"></span><span class="check-label">Satellite Measurements</span></label>
+        <label class="check-item checked" onclick="toggleCheck(this)"><input type="checkbox" value="customer_portal" checked><span class="check-box"></span><span class="check-label">Customer Portal</span></label>
+      </div>
+
+      <div class="field">
+        <label>Migrating from another platform?</label>
+        <select id="migrationSource">
+          <option value="">No migration needed</option>
+          <option value="acculynx">AccuLynx</option>
+          <option value="jobnimbus">JobNimbus</option>
+          <option value="roofr">Roofr</option>
+          <option value="jobber">Jobber</option>
+          <option value="companycamp">CompanyCam</option>
+          <option value="spreadsheet">Spreadsheets / Manual</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-back" onclick="prevStep()">&larr; Back</button>
+        <button class="btn-next" onclick="nextStep()">Next &rarr;</button>
+      </div>
+    </div>
+
+    <!-- STEP 4: Admin Account -->
+    <div class="step" data-step="3">
+      <div class="step-title">Admin Account</div>
+      <div class="step-desc">This will be the owner login for your roofing CRM.</div>
+      <div class="row">
+        <div class="field">
+          <label>First Name *</label>
+          <input type="text" id="firstName" placeholder="John">
+        </div>
+        <div class="field">
+          <label>Last Name *</label>
+          <input type="text" id="lastName" placeholder="Smith">
+        </div>
+      </div>
+      <div class="field">
+        <label>Email Address *</label>
+        <input type="email" id="email" placeholder="john@premierroofing.com">
+      </div>
+      <div class="field">
+        <label>Password *</label>
+        <input type="password" id="password" placeholder="At least 8 characters">
+        <div class="field-hint">This will be your CRM admin login password.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn-back" onclick="prevStep()">&larr; Back</button>
+        <button class="btn-next" onclick="nextStep()">Review &rarr;</button>
+      </div>
+    </div>
+
+    <!-- STEP 5: Review & Submit -->
+    <div class="step" data-step="4">
+      <div class="step-title">Review &amp; Submit</div>
+      <div class="step-desc">Double-check everything before we create your account.</div>
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="btn-row">
+        <button class="btn-back" onclick="prevStep()">&larr; Back</button>
+        <button class="btn-next" id="submitBtn" onclick="submitForm()">Submit &amp; Create My CRM</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>
+  <div class="footer-inner">
+    <span class="nav-wordmark">TWOMIAH</span>
+    <div class="footer-links">
+      <a href="https://twomiah.com">Home</a>
+      <a href="https://twomiah.com/build.html">Build</a>
+    </div>
+    <span class="footer-copy">&copy; 2026 Twomiah</span>
+  </div>
+</footer>
+
+<script>
+var currentStep = 0;
+var totalSteps = 5;
+var selectedPlan = '';
+var selectedHosting = 'saas';
+
+// Pre-fill from URL params
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var plan = params.get('plan');
+  if (plan) {
+    setTimeout(function() {
+      var card = document.querySelector('.plan-card[data-plan="' + plan + '"]');
+      if (card) selectPlan(card);
+    }, 100);
+  }
+})();
+
+function selectPlan(el) {
+  document.querySelectorAll('.plan-card').forEach(function(c) { c.classList.remove('selected'); });
+  el.classList.add('selected');
+  selectedPlan = el.getAttribute('data-plan');
+}
+
+function selectHosting(el) {
+  document.querySelectorAll('.hosting-card').forEach(function(c) { c.classList.remove('selected'); });
+  el.classList.add('selected');
+  selectedHosting = el.getAttribute('data-hosting');
+}
+
+function toggleCheck(el) {
+  setTimeout(function() {
+    var cb = el.querySelector('input[type="checkbox"]');
+    if (cb.checked) el.classList.add('checked');
+    else el.classList.remove('checked');
+  }, 10);
+}
+
+function updateFileName(input, spanId) {
+  var name = input.files && input.files[0] ? input.files[0].name : 'No file chosen';
+  document.getElementById(spanId).textContent = name;
+}
+
+function updateProgress() {
+  var dots = document.querySelectorAll('.step-dot');
+  var lines = document.querySelectorAll('.step-line');
+  dots.forEach(function(d, i) {
+    d.classList.remove('active', 'done');
+    if (i < currentStep) d.classList.add('done');
+    else if (i === currentStep) d.classList.add('active');
+  });
+  lines.forEach(function(l, i) {
+    l.classList.toggle('done', i < currentStep);
+  });
+}
+
+function showStep(n) {
+  document.querySelectorAll('.step').forEach(function(s) { s.classList.remove('active'); });
+  document.querySelector('.step[data-step="' + n + '"]').classList.add('active');
+  currentStep = n;
+  updateProgress();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function nextStep() {
+  if (currentStep === 0) {
+    if (!val('companyName')) return toast('Company name is required.', 'error');
+  }
+  if (currentStep === 1) {
+    if (!selectedPlan) return toast('Please select a plan.', 'error');
+  }
+  if (currentStep === 3) {
+    if (!val('firstName') || !val('lastName')) return toast('Name is required.', 'error');
+    if (!val('email') || !val('email').includes('@')) return toast('Valid email is required.', 'error');
+    if (!val('password') || val('password').length < 8) return toast('Password must be at least 8 characters.', 'error');
+    buildSummary();
+  }
+  if (currentStep < totalSteps - 1) showStep(currentStep + 1);
+}
+
+function prevStep() {
+  if (currentStep > 0) showStep(currentStep - 1);
+}
+
+function val(id) {
+  var el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+
+function planLabel(p) {
+  var map = { starter: 'Starter ($49/mo)', pro: 'Pro ($149/mo)', business: 'Business ($299/mo)' };
+  return map[p] || p;
+}
+
+function buildSummary() {
+  var features = [];
+  document.querySelectorAll('#featuresGrid input:checked').forEach(function(cb) { features.push(cb.value.replace(/_/g, ' ')); });
+
+  var items = [
+    ['Company', val('companyName')],
+    ['Phone', val('phone') || '--'],
+    ['Location', [val('city'), val('state'), val('zip')].filter(Boolean).join(', ') || '--'],
+    ['Service Zips', val('serviceZips') || '--'],
+    ['Brand Color', val('colorHex')],
+    ['Plan', planLabel(selectedPlan)],
+    ['Hosting', selectedHosting === 'saas' ? 'SaaS (Hosted)' : 'Self-Hosted'],
+    ['Features', features.length ? features.join(', ') : 'None'],
+    ['Migration', val('migrationSource') || 'None'],
+    ['Admin', val('firstName') + ' ' + val('lastName')],
+    ['Email', val('email')],
+  ];
+
+  var html = '';
+  items.forEach(function(item) {
+    html += '<div class="summary-item"><div class="summary-label">' + item[0] + '</div><div class="summary-value">' + escapeHtml(item[1]) + '</div></div>';
+  });
+  document.getElementById('summaryGrid').innerHTML = html;
+}
+
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function toast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + (type || 'success') + ' show';
+  setTimeout(function() { t.classList.remove('show'); }, 4000);
+}
+
+function submitForm() {
+  var btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  var features = [];
+  document.querySelectorAll('#featuresGrid input:checked').forEach(function(cb) { features.push(cb.value); });
+
+  var serviceZips = val('serviceZips').split(',').map(function(z) { return z.trim(); }).filter(Boolean);
+
+  var data = {
+    name: val('companyName'),
+    slug: val('companyName').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+    email: val('companyEmail') || val('email'),
+    admin_email: val('email'),
+    phone: val('phone'),
+    industry: 'roofing',
+    address: val('address'),
+    city: val('city'),
+    state: val('state'),
+    zip: val('zip'),
+    primary_color: val('colorHex'),
+    plan: selectedPlan,
+    deployment_model: selectedHosting === 'saas' ? 'saas' : 'owned',
+    products: ['crm-roof'],
+    features: features,
+    notes: [
+      'Service zips: ' + (serviceZips.join(', ') || 'none'),
+      val('migrationSource') ? 'Migration from: ' + val('migrationSource') : '',
+      'Admin: ' + val('firstName') + ' ' + val('lastName'),
+    ].filter(Boolean).join(' | '),
+    admin_password: val('password'),
+  };
+
+  var API = 'https://twomiah-factory-api.onrender.com';
+
+  fetch(API + '/api/v1/factory/public/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  .then(function(res) { return res.json().then(function(d) { return { ok: res.ok, data: d }; }); })
+  .then(function(result) {
+    if (result.ok) {
+      toast('Account created! Redirecting...', 'success');
+      if (result.data.checkoutUrl) {
+        setTimeout(function() { window.location.href = result.data.checkoutUrl; }, 1500);
+      } else {
+        btn.textContent = 'Account Created!';
+        document.querySelector('.step[data-step="4"] .step-title').textContent = "You're All Set!";
+        document.querySelector('.step[data-step="4"] .step-desc').textContent = 'Your roofing CRM is being built. Check your email (' + val('email') + ') for login instructions.';
+      }
+    } else {
+      toast(result.data.error || 'Something went wrong. Please try again.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Submit & Create My CRM';
+    }
+  })
+  .catch(function() {
+    toast('Network error. Please check your connection and try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Submit & Create My CRM';
+  });
+}
+</script>
+</body>
+</html>

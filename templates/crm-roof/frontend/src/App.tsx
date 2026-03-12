@@ -17,6 +17,9 @@ import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
 import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
 import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
+import CanvassingView from './pages/roofing/CanvassingView'
+import CanvassingDashboard from './pages/roofing/CanvassingDashboard'
+import StormLeadsPage from './pages/roofing/StormLeadsPage'
 import LoginPage from './pages/LoginPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
@@ -46,6 +49,10 @@ export default function App() {
               <Route path="invoices" element={<PortalInvoices />} />
               <Route path="service-request" element={<PortalServiceRequest />} />
             </Route>
+            {/* Canvassing — mobile-first, no sidebar */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/canvass" element={<CanvassingView />} />
+            </Route>
             {/* CRM */}
             <Route element={<ProtectedRoute />}>
               <Route path="/crm" element={<AppLayout />}>
@@ -63,6 +70,8 @@ export default function App() {
                 <Route path="invoices" element={<InvoicesPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="canvassing" element={<CanvassingDashboard />} />
+                <Route path="storm-leads" element={<StormLeadsPage />} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
               </Route>
             </Route>

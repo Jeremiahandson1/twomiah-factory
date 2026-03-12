@@ -26,9 +26,19 @@ const PIPELINE_ORDER = [
 
 const AUTO_SMS_TEMPLATES: Record<string, string> = {
   inspection_scheduled: 'Hi [FirstName], your roof inspection is scheduled for [date]. – [CompanyName]',
-  signed: 'Hi [FirstName], your contract is signed. We\'ll be in touch to schedule installation. – [CompanyName]',
-  in_production: 'Hi [FirstName], your roof installation has started today. – [CompanyName]',
+  inspected: 'Hi [FirstName], your roof inspection is complete! We\'ll be preparing your estimate shortly. – [CompanyName]',
+  measurement_ordered: 'Hi [FirstName], we\'ve ordered measurements for your roof. We\'ll have your proposal ready soon. – [CompanyName]',
+  proposal_sent: 'Hi [FirstName], your roof proposal is ready for review. Check your email or view it at [portalLink]. – [CompanyName]',
+  signed: 'Hi [FirstName], your contract is signed! We\'ll be in touch to schedule installation. – [CompanyName]',
+  material_ordered: 'Hi [FirstName], materials for your roof have been ordered and are on the way. – [CompanyName]',
+  in_production: 'Hi [FirstName], your roof installation has started today! Our crew is on-site. – [CompanyName]',
+  final_inspection: 'Hi [FirstName], your new roof is complete! We\'ll be doing a final inspection. – [CompanyName]',
   invoiced: 'Hi [FirstName], your invoice is ready. Pay online at [portalLink]. – [CompanyName]',
+  collected: 'Hi [FirstName], payment received — thank you! Your warranty info is at [portalLink]. – [CompanyName]',
+  // Insurance-specific triggers
+  insurance_claim_filed: 'Hi [FirstName], your insurance claim has been filed. We\'ll keep you updated on the process. – [CompanyName]',
+  insurance_approved: 'Great news, [FirstName]! Your insurance claim has been approved. We\'ll schedule your roof replacement soon. – [CompanyName]',
+  supplement_submitted: 'Hi [FirstName], we\'ve submitted a supplement to your insurance for additional work needed. We\'ll follow up. – [CompanyName]',
 }
 
 const jobSchema = z.object({

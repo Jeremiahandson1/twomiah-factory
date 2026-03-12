@@ -16,9 +16,12 @@ import {
   Menu,
   X,
   Shield,
+  MapPin,
+  Zap,
 } from 'lucide-react'
+import { useFeature } from '../../data/features'
 
-const navItems = [
+const baseNavItems = [
   { label: 'Pipeline', icon: LayoutDashboard, to: '/crm/pipeline' },
   { label: 'Jobs', icon: Briefcase, to: '/crm/jobs' },
   { label: 'Contacts', icon: Users, to: '/crm/contacts' },
@@ -28,6 +31,14 @@ const navItems = [
   { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
   { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
+]
+
+const fieldNavItems = [
+  { label: 'Canvassing', icon: MapPin, to: '/crm/canvassing', feature: 'canvassing_tool' },
+  { label: 'Storm Leads', icon: Zap, to: '/crm/storm-leads', feature: 'storm_lead_gen' },
+]
+
+const bottomNavItems = [
   { label: 'Reports', icon: BarChart3, to: '/crm/reports' },
   { label: 'Settings', icon: Settings, to: '/crm/settings' },
 ]
@@ -36,6 +47,20 @@ export default function AppLayout() {
   const { user, company, logout } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const hasCanvassing = useFeature('canvassing_tool')
+  const hasStormLeads = useFeature('storm_lead_gen')
+
+  const activeFieldItems = fieldNavItems.filter(item => {
+    if (item.feature === 'canvassing_tool') return hasCanvassing
+    if (item.feature === 'storm_lead_gen') return hasStormLeads
+    return true
+  })
+
+  const navItems = [
+    ...baseNavItems,
+    ...activeFieldItems,
+    ...bottomNavItems,
+  ]
 
   function handleLogout() {
     logout()

@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
-import { company, user, contact, job, crew, measurementReport, material, invoice, insuranceClaim, supplement, adjusterContact, claimActivity } from './schema.ts'
+import { company, user, contact, job, crew, measurementReport, material, invoice, insuranceClaim, supplement, adjusterContact, claimActivity, canvassingSession, canvassingStop, canvassingScript, stormEvent, stormLead, smsMessage } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -495,6 +495,287 @@ async function main() {
       },
     ])
     console.log('Created 3 demo adjuster contacts')
+
+    // ── CANVASSING ──────────────────────────────────
+
+    // Create canvassing contacts + jobs for the demo session
+    const [canvContact1] = await db.insert(contact).values({
+      companyId: comp.id,
+      firstName: 'Sarah',
+      lastName: 'Williams',
+      phone: '(555) 300-0001',
+      address: '204 Riverside Dr',
+      city: 'Dallas',
+      state: 'TX',
+      zip: '75201',
+      leadSource: 'canvassing',
+      propertyType: 'residential',
+    }).returning()
+
+    const [canvContact2] = await db.insert(contact).values({
+      companyId: comp.id,
+      firstName: 'Mike',
+      lastName: 'Chen',
+      phone: '(555) 300-0002',
+      email: 'mchen@example.com',
+      address: '210 Riverside Dr',
+      city: 'Dallas',
+      state: 'TX',
+      zip: '75201',
+      leadSource: 'canvassing',
+      propertyType: 'residential',
+    }).returning()
+
+    const [canvContact3] = await db.insert(contact).values({
+      companyId: comp.id,
+      firstName: 'Lisa',
+      lastName: 'Park',
+      phone: '(555) 300-0003',
+      address: '218 Riverside Dr',
+      city: 'Dallas',
+      state: 'TX',
+      zip: '75201',
+      leadSource: 'canvassing',
+      propertyType: 'residential',
+    }).returning()
+
+    const [canvJob1] = await db.insert(job).values({
+      companyId: comp.id,
+      contactId: canvContact1.id,
+      jobNumber: 'ROOF-0006',
+      jobType: 'insurance',
+      status: 'lead',
+      propertyAddress: '204 Riverside Dr',
+      city: 'Dallas',
+      state: 'TX',
+      zip: '75201',
+      source: 'canvassing',
+      priority: 'medium',
+      notes: 'Canvassing lead — Hail storm March 10, 2026 — Riverside Heights — March 10 Hail Storm',
+    }).returning()
+
+    const [canvJob2] = await db.insert(job).values({
+      companyId: comp.id,
+      contactId: canvContact2.id,
+      jobNumber: 'ROOF-0007',
+      jobType: 'insurance',
+      status: 'lead',
+      propertyAddress: '210 Riverside Dr',
+      city: 'Dallas',
+      state: 'TX',
+      zip: '75201',
+      source: 'canvassing',
+      priority: 'medium',
+      notes: 'Canvassing lead — Hail storm March 10, 2026 — Riverside Heights — March 10 Hail Storm',
+    }).returning()
+
+    const [canvJob3] = await db.insert(job).values({
+      companyId: comp.id,
+      contactId: canvContact3.id,
+      jobNumber: 'ROOF-0008',
+      jobType: 'insurance',
+      status: 'lead',
+      propertyAddress: '218 Riverside Dr',
+      city: 'Dallas',
+      state: 'TX',
+      zip: '75201',
+      source: 'canvassing',
+      priority: 'high',
+      inspectionDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      notes: 'Canvassing lead — Hail storm March 10, 2026 — Riverside Heights — March 10 Hail Storm\nSignificant hail damage on south-facing slope, missing shingles visible from street.',
+    }).returning()
+
+    // Demo canvassing session
+    const [canvSession] = await db.insert(canvassingSession).values({
+      companyId: comp.id,
+      userId: adminId,
+      name: 'Riverside Heights — March 10 Hail Storm',
+      status: 'completed',
+      centerLat: '32.7900',
+      centerLng: '-96.8000',
+      radiusMiles: '0.50',
+      weatherEvent: 'Hail storm March 10, 2026',
+      totalDoors: 8,
+      answeredDoors: 5,
+      leadsCreated: 3,
+      startedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      endedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000),
+    }).returning()
+
+    // 8 canvassing stops
+    await db.insert(canvassingStop).values([
+      // Stop 1: No answer
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '200 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7901', lng: '-96.8001', outcome: 'no_answer',
+        doorHangerLeft: true, photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      },
+      // Stop 2: No answer
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '202 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7902', lng: '-96.8002', outcome: 'no_answer',
+        doorHangerLeft: true, photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000),
+      },
+      // Stop 3: Interested → lead (Sarah Williams)
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '204 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7903', lng: '-96.8003', outcome: 'interested',
+        jobId: canvJob1.id, contactId: canvContact1.id,
+        notes: '[Hail Damage] [Missing Shingles] Visible damage on south-facing slope',
+        photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 12 * 60 * 1000),
+      },
+      // Stop 4: Not interested
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '206 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7904', lng: '-96.8004', outcome: 'not_interested',
+        notes: 'Homeowner said roof is only 3 years old, not concerned.',
+        photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 18 * 60 * 1000),
+      },
+      // Stop 5: No answer
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '208 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7905', lng: '-96.8005', outcome: 'no_answer',
+        doorHangerLeft: true, followUpDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+        photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 22 * 60 * 1000),
+      },
+      // Stop 6: Interested → lead (Mike Chen)
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '210 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7906', lng: '-96.8006', outcome: 'interested',
+        jobId: canvJob2.id, contactId: canvContact2.id,
+        notes: '[Hail Damage] [Dented Gutters] Multiple dents on gutters, granule loss on shingles',
+        photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000),
+      },
+      // Stop 7: Has contractor
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '214 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7907', lng: '-96.8007', outcome: 'already_has_contractor',
+        notes: 'Already signed with ABC Roofing.',
+        photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 38 * 60 * 1000),
+      },
+      // Stop 8: Appointment set → lead (Lisa Park)
+      {
+        companyId: comp.id, sessionId: canvSession.id, userId: adminId,
+        address: '218 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
+        lat: '32.7908', lng: '-96.8008', outcome: 'appointment_set',
+        jobId: canvJob3.id, contactId: canvContact3.id,
+        notes: '[Hail Damage] [Missing Shingles] [Granule Loss] Significant damage, homeowner very interested. Scheduled inspection.',
+        photos: [],
+        visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
+      },
+    ])
+    console.log('Created canvassing session with 8 stops')
+
+    // Default canvassing script
+    await db.insert(canvassingScript).values({
+      companyId: comp.id,
+      name: 'Hail Damage — Standard Script',
+      isDefault: true,
+      steps: [
+        {
+          title: 'Introduction',
+          body: "Hi, I'm [Name] with [Company]. I'm in the neighborhood today because there was a significant hail storm on March 10th that caused damage to many roofs in this area. Have you had a chance to look at your roof since the storm?",
+          tips: "Be friendly and non-pushy. Mention the specific storm date — it shows you're local and informed. If they haven't looked, that's your opening.",
+        },
+        {
+          title: 'Damage Assessment',
+          body: "I noticed from the street that your roof may have some damage. Would it be okay if I took a quick look from the ground? I can point out anything I see — no obligation at all.",
+          tips: "Never go on the roof without explicit permission. Point out damage from the ground — dented gutters, missing shingles, granule loss in downspouts. Take photos of anything visible.",
+        },
+        {
+          title: 'The Ask',
+          body: "Based on what I can see, I think you may have a legitimate insurance claim. Most homeowners in this area are getting full roof replacements covered by insurance with just their deductible out of pocket. Would you like to learn more about how the process works?",
+          tips: "Don't promise anything specific about coverage. Use phrases like 'may have' and 'legitimate claim'. Let them ask questions. If they're skeptical, mention neighbors who've already filed.",
+        },
+        {
+          title: 'Close',
+          body: "I can schedule a free inspection for you this week. We handle all the insurance paperwork — you just need to be home for about 30 minutes. What day works best for you?",
+          tips: "Offer specific time slots rather than open-ended availability. Get their phone number to confirm. Leave a door hanger if they want to think about it. Always be professional — you represent your company in the neighborhood.",
+        },
+      ],
+    })
+    console.log('Created default canvassing script')
+
+    // ── STORM EVENTS & LEADS ──────────────────────────────────
+
+    const [stormEvt] = await db.insert(stormEvent).values({
+      companyId: comp.id,
+      eventDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+      eventType: 'hail',
+      affectedZipCodes: ['75201', '75202', '75204'],
+      hailSizeInches: '1.75',
+      windSpeedMph: 55,
+      description: 'Severe hailstorm across north Dallas — 1.75" hail reported, 55mph wind gusts',
+      leadCount: 24,
+      status: 'leads_generated',
+      source: 'noaa',
+    }).returning()
+
+    // 6 storm leads
+    const stormLeadData = [
+      { address: '1100 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'converted', estimatedDamage: 'severe', jobId: canvJob1.id, contactId: canvContact1.id },
+      { address: '1104 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'converted', estimatedDamage: 'moderate', jobId: canvJob2.id, contactId: canvContact2.id },
+      { address: '1108 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'new', estimatedDamage: 'moderate' },
+      { address: '1112 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'new', estimatedDamage: 'minor' },
+      { address: '2200 Commerce St', city: 'Dallas', state: 'TX', zip: '75202', status: 'contacted', estimatedDamage: 'severe', notes: 'Homeowner called back, scheduling inspection' },
+      { address: '2204 Commerce St', city: 'Dallas', state: 'TX', zip: '75202', status: 'dismissed', estimatedDamage: 'minor', notes: 'Wrong address — commercial building' },
+    ]
+
+    for (const sl of stormLeadData) {
+      await db.insert(stormLead).values({
+        companyId: comp.id,
+        stormEventId: stormEvt.id,
+        ...sl,
+      })
+    }
+    console.log('Created storm event with 6 leads')
+
+    // ── SMS MESSAGES ──────────────────────────────────
+
+    await db.insert(smsMessage).values([
+      {
+        companyId: comp.id,
+        contactId: johnson.id,
+        jobId: job1.id,
+        direction: 'outbound',
+        body: 'Hi Robert, your roof inspection is scheduled for ' + new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toLocaleDateString() + '. – {{COMPANY_NAME}}',
+        status: 'delivered',
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      },
+      {
+        companyId: comp.id,
+        contactId: johnson.id,
+        jobId: job1.id,
+        direction: 'inbound',
+        body: 'Thanks! We\'ll be home. Is morning or afternoon?',
+        status: 'received',
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000),
+      },
+      {
+        companyId: comp.id,
+        contactId: johnson.id,
+        jobId: job1.id,
+        direction: 'outbound',
+        body: 'Morning works great! Our inspector will be there between 9-10am. See you then!',
+        status: 'delivered',
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000),
+      },
+    ])
+    console.log('Created 3 SMS messages')
   }
 
   console.log('')
