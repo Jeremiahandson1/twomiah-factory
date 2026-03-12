@@ -98,6 +98,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Add-on Products
   { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'instant_estimator', name: 'Instant Roof Estimator', description: 'Google Solar-powered instant roof estimates with embeddable widget and lead capture', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))
