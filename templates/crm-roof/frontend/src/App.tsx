@@ -26,6 +26,7 @@ import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
 import VisualizerTrialPage from './pages/VisualizerTrialPage'
 import PricebookTrialPage from './pages/PricebookTrialPage'
 import EstimatorTrialPage from './pages/EstimatorTrialPage'
+import CustomerPortal from './pages/CustomerPortal'
 import LoginPage from './pages/LoginPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
@@ -54,6 +55,10 @@ export default function App() {
               <Route path="jobs/:id" element={<PortalJobDetail />} />
               <Route path="invoices" element={<PortalInvoices />} />
               <Route path="service-request" element={<PortalServiceRequest />} />
+            </Route>
+            {/* Customer Portal — service hub after login */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<CustomerPortal />} />
             </Route>
             {/* Canvassing — mobile-first, no sidebar */}
             <Route element={<ProtectedRoute />}>
@@ -87,7 +92,7 @@ export default function App() {
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />
               </Route>
             </Route>
-            <Route path="*" element={<Navigate to="/crm" />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </ToastProvider>
       </AuthProvider>
