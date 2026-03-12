@@ -24,6 +24,8 @@ import quotesRoutes from './routes/quotes.ts'
 import invoicesRoutes from './routes/invoices.ts'
 import smsRoutes from './routes/sms.ts'
 import portalRoutes from './routes/portal.ts'
+import estimatorRoutes from './routes/estimator.ts'
+import settingsRoutes from './routes/settings.ts'
 
 const app = new Hono()
 
@@ -76,6 +78,8 @@ app.route('/api/quotes', quotesRoutes)
 app.route('/api/invoices', invoicesRoutes)
 app.route('/api/sms', smsRoutes)
 app.route('/api/portal', portalRoutes)
+app.route('/api/settings', settingsRoutes)
+app.route('/api/estimator', estimatorRoutes) // public — no auth
 
 // Error handler
 app.onError((err, c) => {
@@ -96,6 +100,7 @@ if (hasFrontendBuild) {
   app.use('/favicon.ico', serveStatic({ root: relRoot }))
   app.use('/favicon.png', serveStatic({ root: relRoot }))
   app.use('/logo.*', serveStatic({ root: relRoot }))
+  app.use('/estimator.js', serveStatic({ root: relRoot }))
 
   // SPA fallback: serve index.html for all non-API GET requests
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')

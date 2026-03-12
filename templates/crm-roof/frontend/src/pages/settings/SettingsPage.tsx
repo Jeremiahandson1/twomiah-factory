@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, Building2, Palette, Users, Plus, Send, X, Save } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function SettingsPage() {
   const { token } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [company, setCompany] = useState({ name: '', phone: '', email: '', address: '', city: '', state: '', zip: '' });
   const [branding, setBranding] = useState({ primaryColor: '#3b82f6' });
@@ -182,6 +184,25 @@ export default function SettingsPage() {
                 <Save className="w-4 h-4" /> {savingBranding ? 'Saving...' : 'Save'}
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Instant Estimator */}
+        <div
+          onClick={() => navigate('/crm/settings/estimator')}
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-purple-300 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                <Calculator className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Instant Estimator Widget</h2>
+                <p className="text-xs text-gray-500">Embed a roof cost estimator on your website</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
           </div>
         </div>
 

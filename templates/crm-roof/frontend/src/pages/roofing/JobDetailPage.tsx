@@ -137,16 +137,41 @@ export default function JobDetailPage() {
     }
   };
 
+  const [measurement, setMeasurement] = useState<any>(null);
+
+  // Load measurement report for this job
+  useEffect(() => {
+    if (!id || !token) return;
+    fetch(`/api/measurements/job/${id}`, { headers })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setMeasurement(d))
+      .catch(() => {});
+  }, [id, token]);
+
   const orderMeasurement = async () => {
+    if (!job) return;
     try {
       const res = await fetch('/api/measurements/order', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId: id }),
+        body: JSON.stringify({
+          jobId: id,
+          address: job.propertyAddress || job.address,
+          city: job.city,
+          state: job.state,
+          zip: job.zip,
+        }),
       });
-      if (!res.ok) throw new Error();
-      toast.success('Measurement report ordered');
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error || 'Failed to order measurement');
+        return;
+      }
+      toast.success('Measurement report ordered! Processing...');
       load();
+      // Reload measurement
+      const mRes = await fetch(`/api/measurements/job/${id}`, { headers });
+      if (mRes.ok) setMeasurement(await mRes.json());
     } catch {
       toast.error('Failed to order measurement');
     }
@@ -345,26 +370,79 @@ export default function JobDetailPage() {
               <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
                 <Ruler className="w-4 h-4 text-gray-400" /> Measurement
               </h2>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  {job.measurementStatus && (
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${MEASUREMENT_STATUS_COLORS[job.measurementStatus] || 'bg-gray-100 text-gray-700'}`}>
-                      {formatStatus(job.measurementStatus)}
+              {measurement ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${MEASUREMENT_STATUS_COLORS[measurement.status] || 'bg-gray-100 text-gray-700'}`}>
+                      {formatStatus(measurement.status)}
                     </span>
-                  )}
-                  {job.totalSquares && (
-                    <span className="text-sm text-gray-700">
-                      <span className="font-semibold">{job.totalSquares}</span> total squares
-                    </span>
+                    {measurement.imageryQuality && (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                        measurement.imageryQuality === 'HIGH' ? 'bg-green-100 text-green-700' :
+                        measurement.imageryQuality === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {measurement.imageryQuality}
+                      </span>
+                    )}
+                  </div>
+                  {measurement.status === 'complete' && (
+                    <>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-purple-50 rounded-lg p-2.5 text-center">
+                          <p className="text-lg font-bold text-purple-700">{measurement.totalSquares}</p>
+                          <p className="text-[10px] text-purple-600">Squares</p>
+                        </div>
+                        <div className="bg-blue-50 rounded-lg p-2.5 text-center">
+                          <p className="text-lg font-bold text-blue-700">{measurement.totalArea ? Number(measurement.totalArea).toLocaleString() : '—'}</p>
+                          <p className="text-[10px] text-blue-600">Sqft</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-2.5 text-center">
+                          <p className="text-lg font-bold text-gray-700">{Array.isArray(measurement.segments) ? measurement.segments.length : '—'}</p>
+                          <p className="text-[10px] text-gray-600">Segments</p>
+                        </div>
+                      </div>
+                      {Array.isArray(measurement.segments) && measurement.segments.length > 0 && (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b text-gray-500">
+                              <th className="text-left pb-1 font-medium">Segment</th>
+                              <th className="text-right pb-1 font-medium">Sqft</th>
+                              <th className="text-right pb-1 font-medium">Pitch</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {measurement.segments.map((s: any, i: number) => (
+                              <tr key={i} className="border-b last:border-0">
+                                <td className="py-1 text-gray-900">{s.name}</td>
+                                <td className="py-1 text-right text-gray-600">{Number(s.area).toLocaleString()}</td>
+                                <td className="py-1 text-right text-gray-600">{s.pitch}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </>
                   )}
                 </div>
-                <button
-                  onClick={orderMeasurement}
-                  className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                >
-                  Order Report
-                </button>
-              </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {job.totalSquares && (
+                      <span className="text-sm text-gray-700">
+                        <span className="font-semibold">{job.totalSquares}</span> total squares
+                      </span>
+                    )}
+                    {!job.totalSquares && <p className="text-sm text-gray-400">No measurement report</p>}
+                  </div>
+                  <button
+                    onClick={orderMeasurement}
+                    className="px-3 py-1.5 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                  >
+                    Order Report
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Material Order */}

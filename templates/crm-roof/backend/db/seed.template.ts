@@ -21,13 +21,19 @@ async function main() {
       state: '{{STATE}}',
       zip: '{{ZIP}}',
       primaryColor: '{{PRIMARY_COLOR}}',
-      website: '{{SITE_URL}}',
       enabledFeatures: {{ENABLED_FEATURES_JSON}},
       settings: {
         siteUrl: '{{SITE_URL}}',
         generatedBy: '{{COMPANY_NAME}} Factory',
         generatedAt: new Date().toISOString(),
       },
+      reportCredits: 10,
+      reportPricePerReport: '9.00',
+      estimatorEnabled: true,
+      pricePerSquareLow: '350.00',
+      pricePerSquareHigh: '550.00',
+      estimatorHeadline: 'Get Your Free Roof Estimate',
+      estimatorDisclaimer: 'This is an automated estimate based on satellite data. Final pricing may vary after on-site inspection.',
     }).returning()
     console.log('Created company:', comp.name)
   } else {
@@ -259,7 +265,7 @@ async function main() {
 
     console.log('Created 5 demo jobs')
 
-    // Measurement report for Thompson job
+    // Measurement report for Thompson job — realistic Google Solar API data
     await db.insert(measurementReport).values({
       companyId: comp.id,
       jobId: job3.id,
@@ -272,10 +278,15 @@ async function main() {
       totalSquares: '24.00',
       totalArea: '2400.00',
       segments: [
-        { name: 'Main Roof', area: 1800, pitch: '6/12' },
-        { name: 'Garage', area: 400, pitch: '4/12' },
-        { name: 'Dormer', area: 200, pitch: '8/12' },
+        { name: 'Segment 1', area: 1320, pitch: '6/12', pitchDegrees: 26.6, azimuthDegrees: 180 },
+        { name: 'Segment 2', area: 480, pitch: '6/12', pitchDegrees: 26.6, azimuthDegrees: 0 },
+        { name: 'Segment 3', area: 360, pitch: '4/12', pitchDegrees: 18.4, azimuthDegrees: 270 },
+        { name: 'Segment 4', area: 240, pitch: '8/12', pitchDegrees: 33.7, azimuthDegrees: 90 },
       ],
+      imageryQuality: 'HIGH',
+      imageryDate: '2024-06-15',
+      pitchDegrees: [26.6, 26.6, 18.4, 33.7],
+      center: { lat: 33.0198, lng: -96.6989 },
     })
     console.log('Created measurement report for Thompson job')
 

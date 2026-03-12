@@ -14,6 +14,7 @@ import QuotesPage from './pages/roofing/QuotesPage'
 import InvoicesPage from './pages/roofing/InvoicesPage'
 import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
+import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
 import LoginPage from './pages/LoginPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
@@ -58,6 +59,7 @@ export default function App() {
                 <Route path="invoices" element={<InvoicesPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/crm" />} />

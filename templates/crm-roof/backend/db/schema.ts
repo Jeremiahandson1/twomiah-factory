@@ -18,6 +18,17 @@ export const company = pgTable('company', {
   settings: json('settings').default({}).notNull(),
   integrations: json('integrations').default({}).notNull(),
 
+  // Measurement credits
+  reportCredits: integer('report_credits').default(3).notNull(),
+  reportPricePerReport: decimal('report_price_per_report', { precision: 10, scale: 2 }).default('9.00').notNull(),
+
+  // Instant Estimator
+  estimatorEnabled: boolean('estimator_enabled').default(false).notNull(),
+  pricePerSquareLow: decimal('price_per_square_low', { precision: 10, scale: 2 }).default('350.00').notNull(),
+  pricePerSquareHigh: decimal('price_per_square_high', { precision: 10, scale: 2 }).default('550.00').notNull(),
+  estimatorHeadline: text('estimator_headline').default('Get Your Free Roof Estimate').notNull(),
+  estimatorDisclaimer: text('estimator_disclaimer').default('This is an automated estimate based on satellite data. Final pricing may vary after on-site inspection.').notNull(),
+
   // Stripe
   stripeCustomerId: text('stripe_customer_id').unique(),
 
@@ -171,7 +182,12 @@ export const measurementReport = pgTable('measurement_report', {
   totalSquares: decimal('total_squares', { precision: 10, scale: 2 }),
   totalArea: decimal('total_area', { precision: 10, scale: 2 }),
   segments: json('segments'),
+  imageryQuality: text('imagery_quality'),
+  imageryDate: text('imagery_date'),
+  pitchDegrees: json('pitch_degrees'),
+  center: json('center'),
   reportUrl: text('report_url'),
+  reportPdfUrl: text('report_pdf_url'),
   rawData: json('raw_data'),
   cost: decimal('cost', { precision: 10, scale: 2 }).default('9.00').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
