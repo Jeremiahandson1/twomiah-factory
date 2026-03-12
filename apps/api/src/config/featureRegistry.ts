@@ -97,7 +97,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Storm damage lead generation', category: 'Roofing', core: false, templates: ['crm-roof'] },
 
   // Add-on Products
-  { id: 'visualizer', name: 'Room Visualizer', description: 'AI-powered room visualization for flooring, paint, cabinets', category: 'Add-on Products', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))
