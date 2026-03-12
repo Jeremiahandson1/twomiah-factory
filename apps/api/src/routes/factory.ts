@@ -8,7 +8,7 @@ import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyNewTicke
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
-import { FEATURE_REGISTRY, FEATURE_MAP, getFeaturesForTemplate } from '../config/featureRegistry'
+import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../config/featureRegistry'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
@@ -27,8 +27,9 @@ async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } |
 
 // ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
-  const pub = ['/templates', '/features', '/health', '/plans']
-  if (pub.some(p => c.req.path.endsWith(p)) || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb'))) return next()
+  const pub = ['/templates', '/health', '/plans']
+  const isPublicFeatures = c.req.path.endsWith('/features') && !c.req.path.includes('/customers/')
+  if (pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb'))) return next()
   return authenticate(c, next)
 })
 
@@ -1945,7 +1946,7 @@ factory.delete('/settings/users/:id', requireRole('owner', 'admin'), async (c) =
 // ─── Feature Management ──────────────────────────────────────────────────────
 
 // Get features for a tenant (with registry metadata + audit log)
-factory.get('/customers/:id/features', async (c) => {
+factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
@@ -1986,7 +1987,7 @@ factory.get('/customers/:id/features', async (c) => {
 })
 
 // Update features for a tenant (sync to Factory DB + deployed CRM)
-factory.patch('/customers/:id/features', async (c) => {
+factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
@@ -2018,13 +2019,25 @@ factory.patch('/customers/:id/features', async (c) => {
     // Sync to deployed CRM database if connection string available
     let syncedToCrm = false
     if (tenant.database_url) {
+      const ind = tenant.industry || ''
+      const isHomeCare = ind === 'home_care'
       try {
         const client = new pg.Client({ connectionString: tenant.database_url, ssl: { rejectUnauthorized: false } })
         await client.connect()
-        await client.query(
-          `UPDATE company SET enabled_features = $1::jsonb WHERE slug = $2`,
-          [JSON.stringify(newFeatures), tenant.slug]
-        )
+        if (isHomeCare) {
+          // Home care template uses "agencies" table with "settings" json column
+          // Cast to jsonb for jsonb_set, then back to json for storage
+          await client.query(
+            `UPDATE agencies SET settings = jsonb_set(COALESCE(settings::jsonb, '{}'), '{enabledFeatures}', $1::jsonb)::json WHERE slug = $2`,
+            [JSON.stringify(newFeatures), tenant.slug]
+          )
+        } else {
+          // Build, Wrench, Automotive templates use "company" table with "enabled_features" json column
+          await client.query(
+            `UPDATE company SET enabled_features = $1::json WHERE slug = $2`,
+            [JSON.stringify(newFeatures), tenant.slug]
+          )
+        }
         await client.end()
         syncedToCrm = true
       } catch (syncErr: any) {
