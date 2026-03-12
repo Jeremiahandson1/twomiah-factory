@@ -29,7 +29,7 @@ type Props = {
   onFeaturesUpdated?: (features: string[]) => void
 }
 
-export default function FeatureManagement({ tenantId, tenantPlan, onFeaturesUpdated }: Props) {
+export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props) {
   const [enabled, setEnabled] = useState<string[]>([])
   const [original, setOriginal] = useState<string[]>([])
   const [available, setAvailable] = useState<FeatureDef[]>([])
