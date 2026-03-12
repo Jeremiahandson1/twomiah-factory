@@ -40,13 +40,12 @@ async function main() {
     console.log('Company already exists:', comp.name)
   }
 
-  // Upsert admin user
-  const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
+  // Create admin user only if not already present — never overwrite existing password
   const [existingUser] = await db.select().from(user).where(eq(user.email, '{{ADMIN_EMAIL}}')).limit(1)
   if (existingUser) {
-    await db.update(user).set({ passwordHash, role: 'owner', isActive: true }).where(eq(user.id, existingUser.id))
-    console.log('Updated admin user password')
+    console.log('Admin user already exists - skipping password reset')
   } else {
+    const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
     await db.insert(user).values({
       email: '{{ADMIN_EMAIL}}',
       passwordHash,

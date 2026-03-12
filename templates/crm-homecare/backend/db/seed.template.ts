@@ -30,15 +30,14 @@ async function main() {
   console.log(`Agency: ${agency.name}`)
 
   // ── ADMIN USER ────────────────────────────────────────
-  const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
-
+  // Create admin user only if not already present — never overwrite existing password
   const [existingAdmin] = await db.select().from(users).where(eq(users.email, '{{ADMIN_EMAIL}}')).limit(1)
   let admin: typeof existingAdmin
   if (existingAdmin) {
-    await db.update(users).set({ passwordHash, role: 'admin', isActive: true }).where(eq(users.id, existingAdmin.id))
     admin = existingAdmin
-    console.log('Updated admin user password')
+    console.log('Admin user already exists - skipping password reset')
   } else {
+    const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
     admin = (await db.insert(users).values({
       email: '{{ADMIN_EMAIL}}',
       passwordHash,
