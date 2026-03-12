@@ -2208,26 +2208,28 @@ factory.patch('/customers/:id/database-url', requireRole('owner', 'admin'), asyn
 
     const parsed = await parseJsonBody(c)
     if (parsed.error) return parsed.error
-    const { database_url } = parsed.data
+    const { database_url, skip_test } = parsed.data
     if (!database_url || typeof database_url !== 'string') {
       return c.json({ error: 'database_url is required (string)' }, 400)
     }
 
-    // Verify the connection works before saving
-    try {
-      const client = new pg.Client({ connectionString: database_url, ssl: { rejectUnauthorized: false } })
-      await client.connect()
-      const result = await client.query('SELECT current_database() as db')
-      await client.end()
-      console.log('[Repair] Verified DB connection for tenant', id, '- db:', result.rows[0]?.db)
-    } catch (connErr: any) {
-      return c.json({ error: 'Connection test failed: ' + connErr.message }, 400)
+    // Verify the connection works before saving (skip if requested)
+    if (!skip_test) {
+      try {
+        const client = new pg.Client({ connectionString: database_url, ssl: { rejectUnauthorized: false } })
+        await client.connect()
+        const result = await client.query('SELECT current_database() as db')
+        await client.end()
+        console.log('[Repair] Verified DB connection for tenant', id, '- db:', result.rows[0]?.db)
+      } catch (connErr: any) {
+        return c.json({ error: 'Connection test failed: ' + connErr.message, hint: 'For Render internal DBs, use skip_test: true' }, 400)
+      }
     }
 
     const { error } = await supabase.from('tenants').update({ database_url }).eq('id', id)
     if (error) throw error
 
-    return c.json({ success: true, message: 'database_url saved and verified' })
+    return c.json({ success: true, message: skip_test ? 'database_url saved (untested)' : 'database_url saved and verified' })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }

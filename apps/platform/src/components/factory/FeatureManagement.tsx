@@ -48,7 +48,7 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
 
   useEffect(() => { loadFeatures() }, [tenantId])
 
-  async function repairDbUrl() {
+  async function repairDbUrl(skipTest = false) {
     if (!dbUrl.trim()) return
     setRepairing(true)
     setError(null)
@@ -60,7 +60,7 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
       const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/database-url', {
         method: 'PATCH',
         headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ database_url: dbUrl.trim() }),
+        body: JSON.stringify({ database_url: dbUrl.trim(), skip_test: skipTest }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to save')
@@ -68,7 +68,7 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
       setHasDatabaseUrl(true)
       setShowDbRepair(false)
       setDbUrl('')
-      setSuccess('Database connection saved and verified!')
+      setSuccess(skipTest ? 'Database URL saved (Render internal — not tested)' : 'Database connection saved and verified!')
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -200,20 +200,29 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
             </div>
           </div>
           {showDbRepair && (
-            <div className="mt-2 flex gap-2">
-              <input
-                type="text"
-                value={dbUrl}
-                onChange={e => setDbUrl(e.target.value)}
-                placeholder="postgres://user:pass@host:5432/dbname"
-                className="flex-1 px-2 py-1 text-xs bg-gray-800 border border-gray-700 rounded text-white placeholder-gray-500"
-              />
+            <div className="mt-2 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={dbUrl}
+                  onChange={e => setDbUrl(e.target.value)}
+                  placeholder="postgres://user:pass@host:5432/dbname"
+                  className="flex-1 px-2 py-1 text-xs bg-gray-800 border border-gray-700 rounded text-white placeholder-gray-500"
+                />
+                <button
+                  onClick={() => repairDbUrl(false)}
+                  disabled={repairing || !dbUrl.trim()}
+                  className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-500 text-white rounded disabled:opacity-50"
+                >
+                  {repairing ? 'Saving...' : 'Save'}
+                </button>
+              </div>
               <button
-                onClick={repairDbUrl}
+                onClick={() => repairDbUrl(true)}
                 disabled={repairing || !dbUrl.trim()}
-                className="px-3 py-1 text-xs bg-yellow-600 hover:bg-yellow-500 text-white rounded disabled:opacity-50"
+                className="text-xs text-gray-400 hover:text-gray-200 underline disabled:opacity-50"
               >
-                {repairing ? 'Testing...' : 'Save'}
+                Save without testing (Render internal DB)
               </button>
             </div>
           )}
