@@ -637,7 +637,7 @@ export async function updateRenderServiceSettings(serviceId: string, settings: {
 async function triggerManualDeploy(serviceId: string): Promise<boolean> {
   const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', {
     method: 'POST', headers: renderHeaders(),
-    body: JSON.stringify({ clearCache: 'do_not_clear' }),
+    body: JSON.stringify({ clearCache: 'clear' }),
   })
   if (!res.ok) {
     console.warn('[Deploy] Failed to trigger manual deploy for', serviceId, '- status:', res.status)
@@ -1148,7 +1148,7 @@ export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Rec
   const results: Record<string, any> = {}
   for (const [role, serviceId] of Object.entries(serviceIds)) {
     try {
-      const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', { method: 'POST', headers: renderHeaders(), body: JSON.stringify({}) })
+      const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', { method: 'POST', headers: renderHeaders(), body: JSON.stringify({ clearCache: 'clear' }) })
       if (res.ok) { const deploy = await res.json() as any; results[role] = { status: 'triggered', deployId: deploy.id } }
       else { results[role] = { status: 'failed' } }
     } catch (err: any) { results[role] = { status: 'error', error: err.message } }
