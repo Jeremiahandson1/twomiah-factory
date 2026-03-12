@@ -60,6 +60,7 @@ import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import OnboardingWizard from './pages/OnboardingWizard';
+import VisualizerTrialPage from './pages/VisualizerTrialPage';
 
 // Field Service Pages
 import DispatchBoard from './pages/fieldservice/DispatchBoard';
@@ -194,6 +195,7 @@ function App() {
                     <Route path="pricebook-rates" element={<FlatRatePricebook />} />
                     <Route path="tech" element={<TechView />} />
                     <Route path="help" element={<HelpPage />} />
+                    <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                   </Route>
 
                   {/* Customer Portal (PIN-based auth) */}

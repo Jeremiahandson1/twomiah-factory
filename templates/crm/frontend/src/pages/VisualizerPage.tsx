@@ -22,7 +22,7 @@ export default function VisualizerPage() {
           Visualizer Not Configured
         </h2>
         <p className="text-gray-500 dark:text-slate-400">
-          Your Home Visualizer add-on is enabled but hasn't been deployed yet.
+          Your Exterior Visualizer add-on is enabled but hasn't been deployed yet.
           Contact support to complete setup.
         </p>
       </div>
@@ -37,7 +37,7 @@ export default function VisualizerPage() {
         src={embedUrl}
         className="w-full h-full border-0"
         allow="camera"
-        title="Home Visualizer"
+        title="Exterior Visualizer"
       />
     </div>
   );

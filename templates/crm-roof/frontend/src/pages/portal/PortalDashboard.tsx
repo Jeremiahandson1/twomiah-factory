@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Briefcase, Receipt, ArrowRight, Phone, Mail, Loader2, PenTool } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Briefcase, Receipt, ArrowRight, Phone, Mail, Loader2, PenTool, Camera, Sparkles } from 'lucide-react';
+import { useFeature } from '../../data/features';
 import { portalHeaders } from './PortalLayout';
 
 const STATUS_DESCRIPTIONS: Record<string, string> = {
@@ -32,6 +33,8 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PortalDashboard() {
+  const navigate = useNavigate();
+  const hasVisualizer = useFeature('visualizer');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -158,6 +161,29 @@ export default function PortalDashboard() {
       >
         <PenTool className="w-4 h-4" /> Request Service
       </Link>
+
+      {/* Visualizer Promo — show if they don't have the feature yet */}
+      {!hasVisualizer && (
+        <div
+          onClick={() => navigate('/crm/visualizer-trial')}
+          className="bg-white rounded-xl border border-violet-200 border-dashed p-6 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all group relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
+          <div className="flex items-start justify-between mb-4">
+            <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center">
+              <Camera className="w-6 h-6 text-violet-600" />
+            </div>
+            <span className="inline-flex items-center gap-1 text-xs font-bold bg-violet-100 text-violet-700 px-2 py-1 rounded-full">
+              <Sparkles className="w-3 h-3" />
+              FREE TRIAL
+            </span>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-1">Exterior Visualizer</h3>
+          <p className="text-sm text-slate-500">
+            Show customers what their home will look like — AI-powered exterior renderings
+          </p>
+        </div>
+      )}
 
       {/* Company Contact */}
       {data.company && (

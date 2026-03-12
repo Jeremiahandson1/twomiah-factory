@@ -62,6 +62,7 @@ import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import AdsPage from './pages/ads/AdsPage';
 import VisualizerPage from './pages/VisualizerPage';
+import VisualizerTrialPage from './pages/VisualizerTrialPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // Detail Pages
@@ -177,6 +178,7 @@ function App() {
                     <Route path="support" element={<SupportPage />} />
                     <Route path="ads" element={<AdsPage />} />
                     <Route path="visualizer" element={<VisualizerPage />} />
+                    <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>
 

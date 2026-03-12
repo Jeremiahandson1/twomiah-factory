@@ -53,7 +53,6 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const hasCanvassing = useFeature('canvassing_tool')
   const hasStormLeads = useFeature('storm_lead_gen')
-
   const activeFieldItems = fieldNavItems.filter(item => {
     if (item.feature === 'canvassing_tool') return hasCanvassing
     if (item.feature === 'storm_lead_gen') return hasStormLeads

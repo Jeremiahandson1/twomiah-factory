@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import {
   Briefcase, Globe, Palette, Users, FileText,
   DollarSign, ArrowRight, ExternalLink, Settings,
-  Clock, LogOut
+  Clock, LogOut, Camera, Sparkles
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function CustomerPortal() {
-  const { user, company, logout, loading: authLoading } = useAuth();
+  const { user, company, logout, loading: authLoading, hasFeature } = useAuth();
   const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -197,6 +197,29 @@ export default function CustomerPortal() {
                 Edit pages, services, gallery, and content
               </p>
             </a>
+          )}
+
+          {/* Visualizer Promo — show if they don't have the feature yet */}
+          {!hasFeature('visualizer') && (
+            <div
+              onClick={() => navigate('/crm/visualizer-trial')}
+              className="bg-white rounded-xl border border-violet-200 border-dashed p-6 cursor-pointer hover:border-violet-300 hover:shadow-md transition-all group relative overflow-hidden"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-500" />
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center">
+                  <Camera className="w-6 h-6 text-violet-600" />
+                </div>
+                <span className="inline-flex items-center gap-1 text-xs font-bold bg-violet-100 text-violet-700 px-2 py-1 rounded-full">
+                  <Sparkles className="w-3 h-3" />
+                  FREE TRIAL
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 mb-1">Exterior Visualizer</h3>
+              <p className="text-sm text-slate-500">
+                Show customers what their home will look like — AI-powered exterior renderings
+              </p>
+            </div>
           )}
 
           {/* Settings */}

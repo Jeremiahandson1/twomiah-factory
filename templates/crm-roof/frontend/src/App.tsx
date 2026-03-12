@@ -23,6 +23,7 @@ import StormLeadsPage from './pages/roofing/StormLeadsPage'
 import LeadInboxPage from './pages/leads/LeadInboxPage'
 import LeadSourcesPage from './pages/leads/LeadSourcesPage'
 import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
+import VisualizerTrialPage from './pages/VisualizerTrialPage'
 import LoginPage from './pages/LoginPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
@@ -79,6 +80,7 @@ export default function App() {
                 <Route path="lead-sources" element={<LeadSourcesPage />} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                 <Route path="ai-receptionist" element={<AIReceptionistPage />} />
+                <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/crm" />} />
