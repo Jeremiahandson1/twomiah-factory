@@ -980,6 +980,10 @@ export async function deployCustomer(
         if (hasVisualizerFeature) {
           siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
+        if (results.apiUrl) {
+          siteEnvVars.push({ key: 'CRM_API_URL', value: results.apiUrl })
+          siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
+        }
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
           buildCommand: siteBunSetup + ' && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi',
