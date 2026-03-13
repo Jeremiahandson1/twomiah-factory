@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../config/featureRegistry'
-import { PRODUCTS, DEFAULT_SAAS_TIERS, DEFAULT_SELF_HOSTED, DEFAULT_SELF_HOSTED_ADDONS, DEFAULT_DEPLOY_SERVICES, DEFAULT_FEATURE_BUNDLES } from '../config/pricing'
+import { PRODUCTS, getProductDefaults } from '../config/pricing'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
@@ -548,10 +548,12 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
             if (subResult.subscriptionId) billingUpdate.stripe_subscription_id = subResult.subscriptionId
             billingUpdate.billing_type = 'subscription'
             billingUpdate.billing_status = 'active'
-            // Read pricing from DB (per-product), fallback to defaults
-            let planPrices: Record<string, number> = { starter: 49, pro: 149, business: 299, construction: 599, enterprise: 199 }
+            // Read pricing from DB (per-product), fallback to product-specific defaults
+            const template = tenant.products?.[0] || 'crm'
+            const prodDefaults = getProductDefaults(template)
+            let planPrices: Record<string, number> = {}
+            for (const t of prodDefaults.saas_tiers) planPrices[t.id] = t.monthlyPrice
             try {
-              const template = tenant.products?.[0] || 'crm'
               const { data: pricingRow } = await supabase.from('factory_pricing').select('saas_tiers').eq('product', template).single()
               if (pricingRow?.saas_tiers && Array.isArray(pricingRow.saas_tiers)) {
                 const dbPrices: Record<string, number> = {}
@@ -1207,14 +1209,7 @@ factory.get('/analytics', async (c) => {
 // Usage: /plans?product=crm-fieldservice (defaults to 'crm')
 factory.get('/plans', async (c) => {
   const product = (c.req.query('product') || 'crm').toLowerCase()
-  const defaults = {
-    product,
-    saas_tiers: DEFAULT_SAAS_TIERS,
-    self_hosted: DEFAULT_SELF_HOSTED,
-    self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
-    deploy_services: DEFAULT_DEPLOY_SERVICES,
-    feature_bundles: DEFAULT_FEATURE_BUNDLES,
-  }
+  const defaults = getProductDefaults(product)
   try {
     const { data } = await supabase.from('factory_pricing').select('*').eq('product', product).single()
     if (data) {
@@ -1230,15 +1225,15 @@ factory.get('/plans', async (c) => {
   } catch {}
   // Auto-seed this product on first request
   try {
-    await supabase.from('factory_pricing').upsert(defaults)
+    await supabase.from('factory_pricing').upsert({ product, ...defaults })
   } catch {}
   return c.json({
     product,
-    plans: DEFAULT_SAAS_TIERS,
-    selfHosted: DEFAULT_SELF_HOSTED,
-    selfHostedAddons: DEFAULT_SELF_HOSTED_ADDONS,
-    deployServices: DEFAULT_DEPLOY_SERVICES,
-    addons: DEFAULT_FEATURE_BUNDLES,
+    plans: defaults.saas_tiers,
+    selfHosted: defaults.self_hosted,
+    selfHostedAddons: defaults.self_hosted_addons,
+    deployServices: defaults.deploy_services,
+    addons: defaults.feature_bundles,
   })
 })
 
@@ -1246,18 +1241,11 @@ factory.get('/plans', async (c) => {
 // GET /pricing — returns all products' pricing
 factory.get('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
   const { data } = await supabase.from('factory_pricing').select('*').order('product')
-  const defaults = {
-    saas_tiers: DEFAULT_SAAS_TIERS,
-    self_hosted: DEFAULT_SELF_HOSTED,
-    self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
-    deploy_services: DEFAULT_DEPLOY_SERVICES,
-    feature_bundles: DEFAULT_FEATURE_BUNDLES,
-  }
-  // Auto-seed any missing products
+  // Auto-seed any missing products with their specific defaults
   const existingProducts = new Set((data || []).map((r: any) => r.product))
   const toSeed = PRODUCTS.filter(p => !existingProducts.has(p.id))
   if (toSeed.length > 0) {
-    const rows = toSeed.map(p => ({ product: p.id, ...defaults }))
+    const rows = toSeed.map(p => ({ product: p.id, ...getProductDefaults(p.id) }))
     await supabase.from('factory_pricing').upsert(rows)
   }
   // Return all products
