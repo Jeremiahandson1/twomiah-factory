@@ -60,7 +60,6 @@ import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import OnboardingWizard from './pages/OnboardingWizard';
-import VisualizerTrialPage from './pages/VisualizerTrialPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
 
 // Field Service Pages
@@ -196,7 +195,6 @@ function App() {
                     <Route path="pricebook-rates" element={<FlatRatePricebook />} />
                     <Route path="tech" element={<TechView />} />
                     <Route path="help" element={<HelpPage />} />
-                    <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                   </Route>
 

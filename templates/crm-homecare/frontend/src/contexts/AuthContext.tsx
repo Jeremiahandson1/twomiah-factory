@@ -67,6 +67,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAdmin = user?.role === 'admin';
   const isCaregiver = user?.role === 'caregiver';
 
+  const hasFeature = (featureId: string): boolean => {
+    // Check company.enabledFeatures (array) or settings.enabledFeatures
+    if (company?.enabledFeatures?.includes(featureId)) return true;
+    const settings = typeof company?.settings === 'string'
+      ? (() => { try { return JSON.parse(company.settings); } catch { return {}; } })()
+      : (company?.settings || {});
+    return settings.enabledFeatures?.includes(featureId) ?? false;
+  };
+
   // Expose token for components still using raw fetch() during migration
   const token = api.accessToken;
 
@@ -84,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       logout,
       checkAuth,
       updateCompany,
+      hasFeature,
     }}>
       {children}
     </AuthContext.Provider>

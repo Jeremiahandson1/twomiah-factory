@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Heart, Shield, Check, X, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User } from 'lucide-react'
 import { API_URL } from '../supabase'
 
-// ─── Care-specific pricing ─────────────────────────────────────────────────
-const PLANS = {
+// ─── Care-specific pricing (fallback if API fetch fails) ────────────────────
+const FALLBACK_PLANS = {
   essentials: {
     id: 'essentials',
     name: 'Essentials',
@@ -58,6 +58,59 @@ const PLANS = {
   },
 }
 
+type PlanData = {
+  id: string
+  name: string
+  price: number
+  priceAnnual: number
+  description: string
+  users: number
+  popular?: boolean
+  features: string[]
+}
+
+type AddonData = {
+  id: string
+  name: string
+  price: number
+  description: string
+}
+
+const FALLBACK_ADDONS: AddonData[] = [
+  { id: 'evv', name: 'EVV Integration', price: 29, description: 'GPS-verified clock-in/out for Medicaid compliance' },
+  { id: 'homecare_billing', name: 'Advanced Billing', price: 49, description: 'Insurance claims, Medicaid billing, batch invoicing' },
+  { id: 'caregiver_training', name: 'Training & Compliance', price: 39, description: 'Certification tracking, in-app training modules' },
+  { id: 'family_portal', name: 'Family Portal', price: 29, description: 'Real-time updates, care notes, and visit logs for families' },
+  { id: 'marketing_site', name: 'Marketing Website', price: 49, description: 'SEO-optimized agency website with lead capture' },
+]
+
+function mapApiPlansToLocal(apiPlans: any[]): Record<string, PlanData> {
+  const result: Record<string, PlanData> = {}
+  for (const p of apiPlans) {
+    const key = p.name.toLowerCase().replace(/\s+/g, '_')
+    result[key] = {
+      id: key,
+      name: p.name,
+      price: p.monthlyPrice,
+      priceAnnual: p.annualPrice,
+      description: p.description || `${p.name} plan`,
+      users: p.users?.included ?? p.users?.max ?? 5,
+      popular: p.highlight === true,
+      features: p.features || [],
+    }
+  }
+  return result
+}
+
+function mapApiAddonsToLocal(apiAddons: any[]): AddonData[] {
+  return apiAddons.map((a) => ({
+    id: a.id,
+    name: a.name,
+    price: a.monthlyPrice ?? a.price ?? 0,
+    description: a.description || '',
+  }))
+}
+
 const CARE_FEATURE_COMPARISON = [
   { category: 'Client Management', features: [
     { name: 'Client profiles & intake', essentials: true, professional: true, enterprise: true },
@@ -108,13 +161,7 @@ const CARE_FEATURE_COMPARISON = [
   ]},
 ]
 
-const ADDONS = [
-  { id: 'evv', name: 'EVV Integration', price: 29, description: 'GPS-verified clock-in/out for Medicaid compliance' },
-  { id: 'homecare_billing', name: 'Advanced Billing', price: 49, description: 'Insurance claims, Medicaid billing, batch invoicing' },
-  { id: 'caregiver_training', name: 'Training & Compliance', price: 39, description: 'Certification tracking, in-app training modules' },
-  { id: 'family_portal', name: 'Family Portal', price: 29, description: 'Real-time updates, care notes, and visit logs for families' },
-  { id: 'marketing_site', name: 'Marketing Website', price: 49, description: 'SEO-optimized agency website with lead capture' },
-]
+// ADDONS fallback is defined above as FALLBACK_ADDONS
 
 const CAREGIVER_COUNTS = [
   { value: '1-5', label: '1–5 caregivers' },
@@ -139,9 +186,51 @@ export default function CareSignupPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
+  const [PLANS, setPlans] = useState<Record<string, PlanData>>(FALLBACK_PLANS)
+  const [ADDONS, setAddons] = useState<AddonData[]>(FALLBACK_ADDONS)
+  const [pricingLoaded, setPricingLoaded] = useState(false)
+
   const [selectedPlan, setSelectedPlan] = useState('professional')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
   const [selectedAddons, setSelectedAddons] = useState<string[]>([])
+
+  // Fetch pricing from Factory API on mount
+  useEffect(() => {
+    let cancelled = false
+    async function fetchPricing() {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/factory/plans?product=crm-homecare`)
+        if (!res.ok) throw new Error('Failed to fetch pricing')
+        const data = await res.json()
+
+        if (cancelled) return
+
+        if (data.plans && data.plans.length > 0) {
+          const mapped = mapApiPlansToLocal(data.plans)
+          setPlans(mapped)
+
+          // If current selectedPlan key doesn't exist in fetched plans, pick first highlighted or first plan
+          const keys = Object.keys(mapped)
+          if (!mapped[selectedPlan]) {
+            const highlighted = keys.find(k => mapped[k].popular)
+            setSelectedPlan(highlighted || keys[0] || 'professional')
+          }
+        }
+
+        if (data.addons && data.addons.length > 0) {
+          setAddons(mapApiAddonsToLocal(data.addons))
+        }
+
+        setPricingLoaded(true)
+      } catch (err) {
+        // Silently fall back to hardcoded values
+        console.warn('Could not fetch pricing from API, using fallback values:', err)
+        setPricingLoaded(true)
+      }
+    }
+    fetchPricing()
+    return () => { cancelled = true }
+  }, [])
 
   const [formData, setFormData] = useState({
     companyName: '',
@@ -365,6 +454,8 @@ export default function CareSignupPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 md:p-8 max-w-4xl mx-auto">
           {step === 0 && (
             <PlanStep
+              plans={PLANS}
+              addons={ADDONS}
               selectedPlan={selectedPlan}
               setSelectedPlan={setSelectedPlan}
               billingCycle={billingCycle}
@@ -391,6 +482,7 @@ export default function CareSignupPage() {
               billingCycle={billingCycle}
               addonsTotal={addonsTotal}
               selectedAddons={selectedAddons}
+              addons={ADDONS}
               formData={formData}
               onSubmit={handleSubmit}
               loading={loading}
@@ -433,9 +525,12 @@ export default function CareSignupPage() {
 
 // ─── Step Components ────────────────────────────────────────────────────────
 
-function PlanStep({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle, selectedAddons, toggleAddon }: any) {
+function PlanStep({ plans, addons, selectedPlan, setSelectedPlan, billingCycle, setBillingCycle, selectedAddons, toggleAddon }: any) {
+  const PLANS = plans as Record<string, PlanData>
+  const ADDONS = addons as AddonData[]
   const [showComparison, setShowComparison] = useState(false)
-  const tierKeys = ['essentials', 'professional', 'enterprise'] as const
+  // Feature comparison table uses hardcoded keys that match CARE_FEATURE_COMPARISON data
+  const comparisonTierKeys = ['essentials', 'professional', 'enterprise']
 
   return (
     <div>
@@ -521,7 +616,7 @@ function PlanStep({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle
             <thead>
               <tr className="bg-gray-50">
                 <th className="text-left p-3 font-semibold text-gray-700 w-2/5">Feature</th>
-                {tierKeys.map((k) => (
+                {comparisonTierKeys.map((k) => (
                   <th key={k} className="text-center p-3 font-semibold text-gray-700 capitalize">{k}</th>
                 ))}
               </tr>
@@ -537,7 +632,7 @@ function PlanStep({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle
                   {group.features.map((feat, fi) => (
                     <tr key={fi} className={fi % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
                       <td className="px-3 py-2 text-gray-700">{feat.name}</td>
-                      {tierKeys.map((k) => {
+                      {comparisonTierKeys.map((k) => {
                         const v = (feat as any)[k]
                         return (
                           <td key={k} className="text-center px-3 py-2">
@@ -721,7 +816,8 @@ function AccountStep({ formData, updateForm, showPassword, setShowPassword, agre
   )
 }
 
-function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, formData, onSubmit, loading }: any) {
+function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, addons, formData, onSubmit, loading }: any) {
+  const ADDONS = addons as AddonData[]
   const total = price + addonsTotal
   return (
     <div>

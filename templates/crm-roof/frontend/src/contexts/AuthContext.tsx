@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 
 type User = { userId: string; email: string; role: string; companyId: string }
 type Company = { id: string; name: string; enabledFeatures: string[]; settings: any }
-type AuthState = { user: User | null; company: Company | null; token: string | null; login: (email: string, password: string) => Promise<void>; logout: () => void }
+type AuthState = { user: User | null; company: Company | null; token: string | null; login: (email: string, password: string) => Promise<void>; logout: () => void; hasFeature: (featureId: string) => boolean }
 
 const AuthContext = createContext<AuthState>(null as any)
 export const useAuth = () => useContext(AuthContext)
@@ -47,5 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCompany(null)
   }
 
-  return <AuthContext.Provider value={{ user, company, token, login, logout }}>{children}</AuthContext.Provider>
+  const hasFeature = (featureId: string): boolean => {
+    return company?.enabledFeatures?.includes(featureId) ?? false
+  }
+
+  return <AuthContext.Provider value={{ user, company, token, login, logout, hasFeature }}>{children}</AuthContext.Provider>
 }

@@ -10,12 +10,10 @@ import { useAuth } from '../contexts/AuthContext';
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function CustomerPortal() {
-  const { user, company, logout } = useAuth();
+  const { user, company, logout, hasFeature } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
-
-  const hasFeature = (id: string) => company?.enabledFeatures?.includes(id) ?? false;
 
   useEffect(() => {
     fetchStats();
