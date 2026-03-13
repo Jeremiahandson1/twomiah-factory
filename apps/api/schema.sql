@@ -318,3 +318,27 @@ create policy "Service role full access on tenant_feature_audit"
   on tenant_feature_audit for all
   using (true)
   with check (true);
+
+
+-- ─── Factory Pricing Config ───────────────────────────────────────────────────
+-- Single-row table holding all pricing configuration as JSONB.
+-- Editable from Factory admin — the /plans API reads from here.
+
+create table if not exists factory_pricing (
+  id              integer primary key default 1 check (id = 1),  -- singleton row
+  updated_at      timestamptz not null default now(),
+  updated_by      text,
+
+  -- All pricing data stored as structured JSONB
+  saas_tiers      jsonb not null default '[]',
+  self_hosted     jsonb not null default '[]',
+  self_hosted_addons jsonb not null default '[]',
+  deploy_services jsonb not null default '[]',
+  feature_bundles jsonb not null default '[]'
+);
+
+alter table factory_pricing enable row level security;
+create policy "Service role full access on factory_pricing"
+  on factory_pricing for all
+  using (true)
+  with check (true);

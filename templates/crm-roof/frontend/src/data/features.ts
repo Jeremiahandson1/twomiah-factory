@@ -1,3 +1,5 @@
+import { useAuth } from '../contexts/AuthContext'
+
 export const FEATURES = {
   measurement_reports: 'measurement_reports',
   insurance_workflow: 'insurance_workflow',
@@ -9,7 +11,6 @@ export const FEATURES = {
 } as const
 
 export function useFeature(featureId: string): boolean {
-  // This would check company.enabledFeatures from AuthContext
-  // For now, return true - feature gating integrated in components
-  return true
+  const { company } = useAuth()
+  return company?.enabledFeatures?.includes(featureId) ?? true
 }

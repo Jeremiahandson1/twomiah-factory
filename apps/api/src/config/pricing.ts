@@ -1,0 +1,52 @@
+/**
+ * Factory Pricing Configuration
+ *
+ * Default pricing used to seed the factory_pricing table.
+ * Once seeded, all pricing is managed from the Factory admin UI.
+ * The /plans API reads from the database, not these defaults.
+ */
+
+export const DEFAULT_SAAS_TIERS = [
+  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
+  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Consumer Financing', 'Advanced Reporting'] },
+  { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Project Management', 'Change Orders', 'RFIs & Submittals', 'Daily Logs', 'Punch Lists & Inspections', 'Bid Management', 'Gantt Charts', 'Selections Portal', 'Takeoffs', 'Lien Waivers', 'Draw Schedules (AIA)'] },
+  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
+]
+
+export const DEFAULT_SELF_HOSTED = [
+  { id: 'starter', name: 'Starter License', price: 997 },
+  { id: 'pro', name: 'Pro License', price: 2497 },
+  { id: 'business', name: 'Business License', price: 4997 },
+  { id: 'construction', name: 'Construction License', price: 9997 },
+  { id: 'full', name: 'Full Platform License', price: 14997 },
+]
+
+export const DEFAULT_SELF_HOSTED_ADDONS = [
+  { id: 'installation', name: 'Installation Service', price: 500, type: 'one_time' },
+  { id: 'updates_yearly', name: 'Update Subscription', price: 999, type: 'yearly' },
+  { id: 'support_monthly', name: 'Support Contract', price: 199, type: 'monthly' },
+  { id: 'white_label', name: 'White-Label Setup', price: 500, type: 'one_time' },
+  { id: 'custom_dev', name: 'Custom Development', price: 150, type: 'per_hour' },
+]
+
+export const DEFAULT_DEPLOY_SERVICES = [
+  { id: 'basic', name: 'Basic', price: 299, description: 'CRM + website setup, login credentials, live URL' },
+  { id: 'full', name: 'Full Setup', price: 499, description: 'Basic + data import, integrations, 30-min walkthrough' },
+  { id: 'white-glove', name: 'White Glove', price: 699, description: 'Full concierge: website content, data migration, team training, 30-day support' },
+]
+
+export const DEFAULT_FEATURE_BUNDLES = [
+  { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
+  { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
+  { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
+  { id: 'fleet', name: 'Fleet Management', price: 39, description: 'Vehicles, maintenance, fuel' },
+  { id: 'equipment', name: 'Equipment Tracking', price: 29, description: 'Customer equipment & maintenance' },
+  { id: 'marketing', name: 'Marketing Suite', price: 59, description: 'Reviews, campaigns, call tracking' },
+  { id: 'construction_pm', name: 'Construction PM', price: 149, description: 'Projects, change orders, RFIs, and more' },
+  { id: 'compliance', name: 'Compliance & Draws', price: 79, description: 'Lien waivers, draw schedules, AIA forms' },
+  { id: 'selections_takeoffs', name: 'Selections & Takeoffs', price: 49, description: 'Client selections, material takeoffs' },
+  { id: 'service_contracts', name: 'Service Contracts', price: 39, description: 'Agreements, warranties' },
+  { id: 'forms', name: 'Custom Forms', price: 29, description: 'Build custom checklists and forms' },
+  { id: 'integrations', name: 'Integrations', price: 49, description: 'QuickBooks, financing' },
+]

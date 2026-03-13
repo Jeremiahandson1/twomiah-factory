@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../config/featureRegistry'
+import { DEFAULT_SAAS_TIERS, DEFAULT_SELF_HOSTED, DEFAULT_SELF_HOSTED_ADDONS, DEFAULT_DEPLOY_SERVICES, DEFAULT_FEATURE_BUNDLES } from '../config/pricing'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
@@ -547,7 +548,16 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
             if (subResult.subscriptionId) billingUpdate.stripe_subscription_id = subResult.subscriptionId
             billingUpdate.billing_type = 'subscription'
             billingUpdate.billing_status = 'active'
-            const planPrices: Record<string, number> = { starter: 49, pro: 149, business: 299, construction: 599, enterprise: 199 }
+            // Read pricing from DB (factory_pricing singleton row), fallback to defaults
+            let planPrices: Record<string, number> = { starter: 49, pro: 149, business: 299, construction: 599, enterprise: 199 }
+            try {
+              const { data: pricingRow } = await supabase.from('factory_pricing').select('saas_tiers').eq('id', 1).single()
+              if (pricingRow?.saas_tiers && Array.isArray(pricingRow.saas_tiers)) {
+                const dbPrices: Record<string, number> = {}
+                for (const tier of pricingRow.saas_tiers) dbPrices[tier.id] = tier.monthlyPrice
+                if (Object.keys(dbPrices).length > 0) planPrices = dbPrices
+              }
+            } catch {}
             billingUpdate.monthly_amount = tenant.monthly_amount || planPrices[tenant.plan || 'starter'] || 149
             const { error: billErr } = await supabase.from('tenants').update(billingUpdate).eq('id', tenant.id)
             if (billErr) console.error('[Deploy] Billing update failed:', billErr.message)
@@ -1192,49 +1202,73 @@ factory.get('/analytics', async (c) => {
 
 
 // ─── Plans (public) ─────────────────────────────────────────────────────────
-factory.get('/plans', (c) => {
+// Reads pricing from factory_pricing table. Falls back to defaults if not seeded.
+factory.get('/plans', async (c) => {
+  try {
+    const { data } = await supabase.from('factory_pricing').select('*').eq('id', 1).single()
+    if (data) {
+      return c.json({
+        plans: data.saas_tiers,
+        selfHosted: data.self_hosted,
+        selfHostedAddons: data.self_hosted_addons,
+        deployServices: data.deploy_services,
+        addons: data.feature_bundles,
+      })
+    }
+  } catch {}
+  // Fallback to defaults (auto-seed on first request)
+  try {
+    await supabase.from('factory_pricing').upsert({
+      id: 1,
+      saas_tiers: DEFAULT_SAAS_TIERS,
+      self_hosted: DEFAULT_SELF_HOSTED,
+      self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
+      deploy_services: DEFAULT_DEPLOY_SERVICES,
+      feature_bundles: DEFAULT_FEATURE_BUNDLES,
+    })
+  } catch {}
   return c.json({
-    plans: [
-      { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
-      { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
-      { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Consumer Financing', 'Advanced Reporting'] },
-      { id: 'construction', name: 'Construction', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Project Management', 'Change Orders', 'RFIs & Submittals', 'Daily Logs', 'Punch Lists & Inspections', 'Bid Management', 'Gantt Charts', 'Selections Portal', 'Takeoffs', 'Lien Waivers', 'Draw Schedules (AIA)'] },
-      { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
-    ],
-    selfHosted: [
-      { id: 'starter', name: 'Starter License', price: 997 },
-      { id: 'pro', name: 'Pro License', price: 2497 },
-      { id: 'business', name: 'Business License', price: 4997 },
-      { id: 'construction', name: 'Construction License', price: 9997 },
-      { id: 'full', name: 'Full Platform License', price: 14997 },
-    ],
-    selfHostedAddons: [
-      { id: 'installation', name: 'Installation Service', price: 500, type: 'one_time' },
-      { id: 'updates_yearly', name: 'Update Subscription', price: 999, type: 'yearly' },
-      { id: 'support_monthly', name: 'Support Contract', price: 199, type: 'monthly' },
-      { id: 'white_label', name: 'White-Label Setup', price: 500, type: 'one_time' },
-      { id: 'custom_dev', name: 'Custom Development', price: 150, type: 'per_hour' },
-    ],
-    deployServices: [
-      { id: 'basic', name: 'Basic', price: 299, description: 'CRM + website setup, login credentials, live URL' },
-      { id: 'full', name: 'Full Setup', price: 499, description: 'Basic + data import, integrations, 30-min walkthrough' },
-      { id: 'white-glove', name: 'White Glove', price: 699, description: 'Full concierge: website content, data migration, team training, 30-day support' },
-    ],
-    addons: [
-      { id: 'sms', name: 'SMS Communication', price: 39 },
-      { id: 'gps_field', name: 'GPS & Field', price: 49 },
-      { id: 'inventory', name: 'Inventory Management', price: 49 },
-      { id: 'fleet', name: 'Fleet Management', price: 39 },
-      { id: 'equipment', name: 'Equipment Tracking', price: 29 },
-      { id: 'marketing', name: 'Marketing Suite', price: 59 },
-      { id: 'construction_pm', name: 'Construction PM', price: 149 },
-      { id: 'compliance', name: 'Compliance & Draws', price: 79 },
-      { id: 'selections_takeoffs', name: 'Selections & Takeoffs', price: 49 },
-      { id: 'service_contracts', name: 'Service Contracts', price: 39 },
-      { id: 'forms', name: 'Custom Forms', price: 29 },
-      { id: 'integrations', name: 'Integrations', price: 49 },
-    ],
+    plans: DEFAULT_SAAS_TIERS,
+    selfHosted: DEFAULT_SELF_HOSTED,
+    selfHostedAddons: DEFAULT_SELF_HOSTED_ADDONS,
+    deployServices: DEFAULT_DEPLOY_SERVICES,
+    addons: DEFAULT_FEATURE_BUNDLES,
   })
+})
+
+// ─── Pricing Admin (authenticated) ──────────────────────────────────────────
+factory.get('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
+  const { data } = await supabase.from('factory_pricing').select('*').eq('id', 1).single()
+  if (!data) {
+    // Seed defaults
+    const defaults = {
+      id: 1,
+      saas_tiers: DEFAULT_SAAS_TIERS,
+      self_hosted: DEFAULT_SELF_HOSTED,
+      self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
+      deploy_services: DEFAULT_DEPLOY_SERVICES,
+      feature_bundles: DEFAULT_FEATURE_BUNDLES,
+    }
+    await supabase.from('factory_pricing').upsert(defaults)
+    return c.json(defaults)
+  }
+  return c.json(data)
+})
+
+factory.put('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
+  const body = await c.req.json()
+  const { error } = await supabase.from('factory_pricing').upsert({
+    id: 1,
+    updated_at: new Date().toISOString(),
+    updated_by: (c as any).get?.('userEmail') || 'admin',
+    saas_tiers: body.saas_tiers,
+    self_hosted: body.self_hosted,
+    self_hosted_addons: body.self_hosted_addons,
+    deploy_services: body.deploy_services,
+    feature_bundles: body.feature_bundles,
+  })
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json({ success: true })
 })
 
 

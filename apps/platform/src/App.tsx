@@ -11,6 +11,7 @@ import FactoryPage from './pages/FactoryPage'
 import SupportPage from './pages/SupportPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
+import PricingAdminPage from './pages/PricingAdminPage'
 import AppLayout from './components/AppLayout'
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="factory" element={<FactoryPage />} />
           <Route path="support" element={<SupportPage />} />
           <Route path="analytics" element={<AnalyticsPage />} />
+          <Route path="pricing" element={<PricingAdminPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
