@@ -32,8 +32,17 @@ export default function IntegrationsPage() {
       const response = await fetch(`${API_URL}/api/integrations/status`, {
         headers: getAuthHeaders(),
       });
-      const data = await response.json();
-      setIntegrations(data);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && typeof data === 'object') {
+          setIntegrations(prev => ({
+            quickbooks: { ...prev.quickbooks, ...data.quickbooks },
+            stripe: { ...prev.stripe, ...data.stripe },
+            sms: { ...prev.sms, ...data.sms },
+            email: { ...prev.email, ...data.email },
+          }));
+        }
+      }
     } catch (err) {
       setError('Failed to load integrations');
     } finally {
