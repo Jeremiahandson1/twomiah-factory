@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, API_URL } from '../supabase'
-import { User, Users, Plug, Save, Trash2, Plus, Shield, Eye, Pencil, Crown, Check, X, RefreshCw, Key, Download, Monitor, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
+import { User, Users, Plug, Save, Trash2, Plus, Shield, Eye, Pencil, Crown, Check, X, RefreshCw, Key, Download, Monitor, BookOpen, ChevronDown, ChevronUp, Unplug, ExternalLink, Cloud } from 'lucide-react'
 import { useUser } from '../contexts/UserContext'
 
 type Tab = 'profile' | 'team' | 'integrations'
@@ -433,6 +433,102 @@ function QbDesktopCard({ configured }: { configured: boolean }) {
 }
 
 
+// ─── QB Online Card ─────────────────────────────────────────────────────────
+function QbOnlineCard({ configured }: { configured: boolean }) {
+  const [qboStatus, setQboStatus] = useState<{ connected: boolean; companyName?: string; connectedAt?: string } | null>(null)
+  const [connecting, setConnecting] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    apiFetch('/integrations/qbo/status')
+      .then(setQboStatus)
+      .catch(() => setQboStatus({ connected: false }))
+  }, [])
+
+  const handleConnect = async () => {
+    setConnecting(true)
+    setError('')
+    try {
+      const { authUrl } = await apiFetch('/integrations/qbo/connect')
+      window.location.href = authUrl
+    } catch (err: any) {
+      setError(err.message)
+      setConnecting(false)
+    }
+  }
+
+  const handleDisconnect = async () => {
+    if (!confirm('Disconnect QuickBooks Online? You can reconnect at any time.')) return
+    setDisconnecting(true)
+    setError('')
+    try {
+      await apiFetch('/integrations/qbo/disconnect', { method: 'POST' })
+      setQboStatus({ connected: false })
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  const isConnected = qboStatus?.connected
+
+  return (
+    <div className="bg-[#181c2e] rounded-xl border border-gray-800 p-6 col-span-full">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl font-bold ${isConnected ? 'bg-green-500/10 text-green-400' : configured ? 'bg-blue-500/10 text-blue-400' : 'bg-gray-800 text-gray-600'}`}>
+            <Cloud size={24} />
+          </div>
+          <div>
+            <p className="text-white font-semibold text-lg">QuickBooks Online</p>
+            {isConnected ? (
+              <>
+                <p className="text-green-400 text-sm mt-0.5">
+                  Connected{qboStatus?.companyName ? ` — ${qboStatus.companyName}` : ''}
+                </p>
+                {qboStatus?.connectedAt && (
+                  <p className="text-xs text-gray-500 mt-0.5">Connected {new Date(qboStatus.connectedAt).toLocaleDateString()}</p>
+                )}
+              </>
+            ) : (
+              <p className={`text-sm mt-0.5 ${configured ? 'text-yellow-400' : 'text-gray-500'}`}>
+                {configured ? 'Credentials configured — click Connect to authorize' : 'Set QBO_CLIENT_ID and QBO_CLIENT_SECRET to enable'}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {isConnected ? (
+            <button
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-400 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            >
+              <Unplug size={14} />
+              {disconnecting ? 'Disconnecting...' : 'Disconnect'}
+            </button>
+          ) : configured ? (
+            <button
+              onClick={handleConnect}
+              disabled={connecting}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            >
+              <ExternalLink size={14} />
+              {connecting ? 'Redirecting...' : 'Connect QuickBooks Online'}
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {error && (
+        <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">{error}</div>
+      )}
+    </div>
+  )
+}
+
+
 // ─── Integrations Tab ────────────────────────────────────────────────────────
 function IntegrationsTab() {
   const [integrations, setIntegrations] = useState<Record<string, Integration>>({})
@@ -450,7 +546,8 @@ function IntegrationsTab() {
   if (loading) return <div className="text-gray-400 p-8">Checking integrations...</div>
 
   const qbDesktop = integrations.qb_desktop
-  const otherIntegrations = Object.entries(integrations).filter(([key]) => key !== 'qb_desktop')
+  const qbOnline = integrations.qb_online
+  const otherIntegrations = Object.entries(integrations).filter(([key]) => key !== 'qb_desktop' && key !== 'qb_online')
 
   return (
     <div className="space-y-6">
@@ -476,6 +573,9 @@ function IntegrationsTab() {
           </div>
         ))}
 
+        {/* QB Online gets its own expanded card */}
+        {qbOnline && <QbOnlineCard configured={qbOnline.configured} />}
+
         {/* QB Desktop gets its own expanded card */}
         {qbDesktop && <QbDesktopCard configured={qbDesktop.configured} />}
       </div>
@@ -490,9 +590,29 @@ function IntegrationsTab() {
 // ─── Settings Page ───────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('profile')
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const { hasRole } = useUser()
 
   const isOwnerOrAdmin = hasRole('owner', 'admin')
+
+  // Check URL params for QBO callback result
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const qbo = params.get('qbo')
+    if (qbo === 'connected') {
+      setTab('integrations')
+      setToast({ type: 'success', text: 'QuickBooks Online connected successfully!' })
+      // Clean up the URL
+      window.history.replaceState({}, '', window.location.pathname)
+      setTimeout(() => setToast(null), 5000)
+    } else if (qbo === 'error') {
+      setTab('integrations')
+      const message = params.get('message') || 'Failed to connect QuickBooks Online'
+      setToast({ type: 'error', text: message })
+      window.history.replaceState({}, '', window.location.pathname)
+      setTimeout(() => setToast(null), 8000)
+    }
+  }, [])
 
   const tabs: { id: Tab; label: string; icon: typeof User; show: boolean }[] = [
     { id: 'profile', label: 'Profile', icon: User, show: true },
@@ -503,6 +623,14 @@ export default function SettingsPage() {
   return (
     <div className="p-8 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold mb-8">Settings</h1>
+
+      {/* Toast */}
+      {toast && (
+        <div className={`mb-6 rounded-lg p-4 text-sm font-medium flex items-center justify-between ${toast.type === 'success' ? 'bg-green-500/10 border border-green-500/30 text-green-400' : 'bg-red-500/10 border border-red-500/30 text-red-400'}`}>
+          <span>{toast.text}</span>
+          <button onClick={() => setToast(null)} className="ml-4 opacity-60 hover:opacity-100"><X size={16} /></button>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="flex gap-1 mb-8 bg-[#181c2e] rounded-xl p-1 w-fit border border-gray-800">

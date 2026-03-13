@@ -344,6 +344,22 @@ create policy "Service role full access on tenant_audit_log"
   with check (true);
 
 
+-- ─── Factory Integrations ─────────────────────────────────────────────────────
+-- Stores OAuth tokens and config for third-party integrations (e.g. QBO).
+
+create table if not exists factory_integrations (
+  id          text primary key,                          -- e.g. 'qbo'
+  updated_at  timestamptz not null default now(),
+  config      jsonb not null default '{}'                -- stores tokens, realm_id, etc.
+);
+
+alter table factory_integrations enable row level security;
+create policy "Service role full access on factory_integrations"
+  on factory_integrations for all
+  using (true)
+  with check (true);
+
+
 -- ─── Factory Pricing Config ───────────────────────────────────────────────────
 -- Per-product pricing configuration as JSONB.
 -- Each CRM product (crm, crm-fieldservice, crm-roof, crm-homecare) gets its own row.

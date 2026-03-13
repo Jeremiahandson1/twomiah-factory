@@ -10,11 +10,21 @@ import path from 'path'
 import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../config/featureRegistry'
 import { PRODUCTS, getProductDefaults } from '../config/pricing'
+import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getCompanyInfo } from '../services/quickbooksOnline'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
+
+// ─── QBO OAuth state tokens (in-memory, 10min expiry) ────────────────────────
+const qboOAuthStates = new Map<string, number>()  // state -> expiry timestamp
+function cleanExpiredStates() {
+  const now = Date.now()
+  for (const [key, expiry] of qboOAuthStates) {
+    if (now > expiry) qboOAuthStates.delete(key)
+  }
+}
 
 // ─── Tenant Audit Helper ─────────────────────────────────────────────────────
 // Logs a row into tenant_audit_log whenever a tenant is modified.
@@ -69,7 +79,7 @@ async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } |
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/health', '/plans']
   const isPublicFeatures = c.req.path.endsWith('/features') && !c.req.path.includes('/customers/')
-  if (pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb'))) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb')) || c.req.path.includes('/integrations/qbo/callback')) return next()
   return authenticate(c, next)
 })
 
@@ -2566,6 +2576,164 @@ factory.get('/settings/integrations', async (c) => {
     }
     return c.json(integrations)
   } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── QBO OAuth: Initiate Connection ──────────────────────────────────────────
+factory.get('/integrations/qbo/connect', requireRole('owner', 'admin'), async (c) => {
+  try {
+    if (!process.env.QBO_CLIENT_ID || !process.env.QBO_CLIENT_SECRET) {
+      return c.json({ error: 'QuickBooks Online is not configured — set QBO_CLIENT_ID and QBO_CLIENT_SECRET' }, 400)
+    }
+    cleanExpiredStates()
+    const state = crypto.randomUUID()
+    qboOAuthStates.set(state, Date.now() + 10 * 60 * 1000) // 10 min expiry
+    const authUrl = getAuthorizationUrl(state)
+    return c.json({ authUrl })
+  } catch (err: any) {
+    console.error('[QBO] Error generating auth URL:', err.message)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ─── QBO OAuth: Callback (public — Intuit redirects here) ────────────────────
+factory.get('/integrations/qbo/callback', async (c) => {
+  const platformUrl = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
+  try {
+    const state = c.req.query('state')
+    const code = c.req.query('code')
+    const realmId = c.req.query('realmId')
+    const error = c.req.query('error')
+
+    if (error) {
+      console.error('[QBO] OAuth error from Intuit:', error)
+      return c.redirect(`${platformUrl}/settings?qbo=error&message=${encodeURIComponent(error)}`)
+    }
+
+    if (!state || !code || !realmId) {
+      return c.redirect(`${platformUrl}/settings?qbo=error&message=${encodeURIComponent('Missing required OAuth parameters')}`)
+    }
+
+    // Validate state
+    cleanExpiredStates()
+    const expiry = qboOAuthStates.get(state)
+    if (!expiry || Date.now() > expiry) {
+      qboOAuthStates.delete(state)
+      return c.redirect(`${platformUrl}/settings?qbo=error&message=${encodeURIComponent('OAuth state expired or invalid — please try again')}`)
+    }
+    qboOAuthStates.delete(state)
+
+    // Exchange code for tokens
+    const tokens = await exchangeCodeForTokens(code, realmId)
+
+    // Verify connection by fetching company info
+    const companyInfo = await getCompanyInfo(tokens.access_token, realmId)
+
+    // Store tokens in factory_integrations
+    const config = {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      realm_id: realmId,
+      expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+      company_name: companyInfo.companyName,
+      connected_at: new Date().toISOString(),
+    }
+
+    await supabase.from('factory_integrations').upsert({
+      id: 'qbo',
+      updated_at: new Date().toISOString(),
+      config,
+    })
+
+    console.log(`[QBO] Connected to "${companyInfo.companyName}" (realm ${realmId})`)
+    return c.redirect(`${platformUrl}/settings?qbo=connected`)
+  } catch (err: any) {
+    console.error('[QBO] Callback error:', err.message)
+    return c.redirect(`${platformUrl}/settings?qbo=error&message=${encodeURIComponent(err.message)}`)
+  }
+})
+
+// ─── QBO OAuth: Connection Status ────────────────────────────────────────────
+factory.get('/integrations/qbo/status', async (c) => {
+  try {
+    const { data, error } = await supabase
+      .from('factory_integrations')
+      .select('config, updated_at')
+      .eq('id', 'qbo')
+      .maybeSingle()
+
+    if (error) {
+      // Table may not exist yet
+      return c.json({ connected: false })
+    }
+
+    if (!data || !data.config?.access_token) {
+      return c.json({ connected: false })
+    }
+
+    return c.json({
+      connected: true,
+      companyName: data.config.company_name || null,
+      realmId: data.config.realm_id || null,
+      connectedAt: data.config.connected_at || null,
+      lastSync: data.updated_at || null,
+    })
+  } catch (err: any) {
+    console.error('[QBO] Status check error:', err.message)
+    return c.json({ connected: false })
+  }
+})
+
+// ─── QBO OAuth: Disconnect ───────────────────────────────────────────────────
+factory.post('/integrations/qbo/disconnect', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const { error } = await supabase
+      .from('factory_integrations')
+      .delete()
+      .eq('id', 'qbo')
+
+    if (error) throw error
+    console.log('[QBO] Disconnected')
+    return c.json({ ok: true })
+  } catch (err: any) {
+    console.error('[QBO] Disconnect error:', err.message)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ─── QBO OAuth: Refresh Token ────────────────────────────────────────────────
+factory.post('/integrations/qbo/refresh', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const { data, error } = await supabase
+      .from('factory_integrations')
+      .select('config')
+      .eq('id', 'qbo')
+      .maybeSingle()
+
+    if (error || !data?.config?.refresh_token) {
+      return c.json({ error: 'No QBO connection found — connect first' }, 400)
+    }
+
+    const tokens = await refreshAccessToken(data.config.refresh_token)
+
+    const updatedConfig = {
+      ...data.config,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+    }
+
+    await supabase.from('factory_integrations').update({
+      config: updatedConfig,
+      updated_at: new Date().toISOString(),
+    }).eq('id', 'qbo')
+
+    console.log('[QBO] Token refreshed successfully')
+    return c.json({ ok: true, expiresAt: updatedConfig.expires_at })
+  } catch (err: any) {
+    console.error('[QBO] Token refresh error:', err.message)
     return c.json({ error: err.message }, 500)
   }
 })
