@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, API_URL } from '../supabase'
+import { API_URL } from '../supabase'
 import type { Session } from '@supabase/supabase-js'
 
 export type UserRole = 'owner' | 'admin' | 'editor' | 'viewer'

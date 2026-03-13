@@ -188,7 +188,7 @@ export default function CareSignupPage() {
 
   const [PLANS, setPlans] = useState<Record<string, PlanData>>(FALLBACK_PLANS)
   const [ADDONS, setAddons] = useState<AddonData[]>(FALLBACK_ADDONS)
-  const [pricingLoaded, setPricingLoaded] = useState(false)
+  const [, setPricingLoaded] = useState(false)
 
   const [selectedPlan, setSelectedPlan] = useState('professional')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly')
