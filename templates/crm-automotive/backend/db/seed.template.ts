@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
-import bcrypt from 'bcryptjs'
+
 import { company, user, supportKnowledgeBase } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
@@ -38,7 +38,7 @@ async function main() {
   }
 
   // Always upsert admin user with correct password
-  const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
+  const passwordHash = await Bun.password.hash('{{DEFAULT_PASSWORD}}', 'bcrypt')
   const [existingUser] = await db.select().from(user).where(eq(user.email, '{{ADMIN_EMAIL}}')).limit(1)
   if (existingUser) {
     await db.update(user).set({ passwordHash, role: 'owner', isActive: true }).where(eq(user.id, existingUser.id))

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import bcrypt from 'bcryptjs'
+
 import jwt from 'jsonwebtoken'
 import { eq } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
@@ -33,7 +33,7 @@ app.post('/login', async (c) => {
     return c.json({ error: 'Account is inactive' }, 401)
   }
 
-  const valid = await bcrypt.compare(password, user.passwordHash)
+  const valid = await Bun.password.verify(password, user.passwordHash)
   if (!valid) {
     await logAuthEvent({ email, userId: user.id, success: false, ipAddress: ip, userAgent: ua, failReason: 'invalid_password' })
     return c.json({ error: 'Invalid credentials' }, 401)
@@ -115,9 +115,9 @@ app.put('/change-password', authenticate, async (c) => {
   const { currentPassword, newPassword } = await c.req.json()
   const [user] = await db.select().from(users).where(eq(users.id, currentUser.userId)).limit(1)
   if (!user) return c.json({ error: 'Invalid credentials' }, 401)
-  const valid = await bcrypt.compare(currentPassword, user.passwordHash)
+  const valid = await Bun.password.verify(currentPassword, user.passwordHash)
   if (!valid) return c.json({ error: 'Current password is incorrect' }, 400)
-  const passwordHash = await bcrypt.hash(newPassword, 12)
+  const passwordHash = await Bun.password.hash(newPassword, 'bcrypt')
   await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, currentUser.userId))
   return c.json({ message: 'Password changed successfully' })
 })

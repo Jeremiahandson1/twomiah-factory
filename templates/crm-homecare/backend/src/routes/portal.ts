@@ -7,7 +7,7 @@
 
 import { Hono } from 'hono'
 import crypto from 'crypto'
-import bcrypt from 'bcryptjs'
+
 import jwt from 'jsonwebtoken'
 import { eq, and, desc, sql, count } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
@@ -302,7 +302,7 @@ app.post('/login', async (c) => {
     return c.json({ error: 'Invalid email or password' }, 401)
   }
 
-  const valid = await bcrypt.compare(password, foundClient.portalPasswordHash)
+  const valid = await Bun.password.verify(password, foundClient.portalPasswordHash)
   if (!valid) {
     return c.json({ error: 'Invalid email or password' }, 401)
   }
@@ -366,7 +366,7 @@ app.post('/set-password', async (c) => {
     return c.json({ error: 'Invalid or expired invite link' }, 400)
   }
 
-  const portalPasswordHash = await bcrypt.hash(password, 10)
+  const portalPasswordHash = await Bun.password.hash(password, 'bcrypt')
 
   await db
     .update(clients)

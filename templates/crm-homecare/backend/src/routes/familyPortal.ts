@@ -107,8 +107,7 @@ app.post('/admin/members/:id/reset-password', async (c) => {
 
   // Generate a random temporary password hash
   const tempPassword = createId()
-  const bcrypt = await import('bcryptjs')
-  const hash = await bcrypt.hash(tempPassword, 10)
+  const hash = await Bun.password.hash(tempPassword, 'bcrypt')
 
   const [row] = await db
     .update(clients)

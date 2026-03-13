@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import crypto from 'crypto'
-import bcrypt from 'bcryptjs'
+
 import { db } from '../../db/index.ts'
 import { company, user, contact, job, quote, invoice, project } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
@@ -101,7 +101,7 @@ app.post('/customers', async (c) => {
 
   // Generate admin password if not provided
   const adminPassword = data.adminPassword || crypto.randomBytes(12).toString('base64').slice(0, 12)
-  const hashedPassword = await bcrypt.hash(adminPassword, 10)
+  const hashedPassword = await Bun.password.hash(adminPassword, 'bcrypt')
 
   // Create company with admin user in transaction
   const result = await db.transaction(async (tx) => {

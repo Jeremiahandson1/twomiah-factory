@@ -1,6 +1,5 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
-import bcrypt from 'bcryptjs'
 import { company, user, contact, job, crew, measurementReport, material, invoice, insuranceClaim, supplement, adjusterContact, claimActivity, canvassingSession, canvassingStop, canvassingScript, stormEvent, stormLead, smsMessage } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
@@ -45,7 +44,7 @@ async function main() {
   if (existingUser) {
     console.log('Admin user already exists - skipping password reset')
   } else {
-    const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
+    const passwordHash = await Bun.password.hash('{{DEFAULT_PASSWORD}}', 'bcrypt')
     await db.insert(user).values({
       email: '{{ADMIN_EMAIL}}',
       passwordHash,

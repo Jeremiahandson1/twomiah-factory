@@ -1,6 +1,6 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq, count } from 'drizzle-orm'
-import bcrypt from 'bcryptjs'
+
 import {
   agencies, users, notificationPreferences, noshowAlertConfig,
   serviceCodes, referralSources, serviceLocations, formTemplates,
@@ -37,7 +37,7 @@ async function main() {
     admin = existingAdmin
     console.log('Admin user already exists - skipping password reset')
   } else {
-    const passwordHash = await bcrypt.hash('{{DEFAULT_PASSWORD}}', 12)
+    const passwordHash = await Bun.password.hash('{{DEFAULT_PASSWORD}}', 'bcrypt')
     admin = (await db.insert(users).values({
       email: '{{ADMIN_EMAIL}}',
       passwordHash,

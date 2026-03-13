@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
-import bcrypt from 'bcryptjs'
+
 import { db } from '../../db/index.ts'
 import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
@@ -62,7 +62,7 @@ app.post('/users', requireAdmin, async (c) => {
   const [existing] = await db.select().from(user).where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId))).limit(1)
   if (existing) return c.json({ error: 'Email already exists' }, 409)
 
-  const passwordHash = await bcrypt.hash(data.password, 12)
+  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
   const { password, ...rest } = data
   const [newUser] = await db.insert(user).values({
     ...rest,

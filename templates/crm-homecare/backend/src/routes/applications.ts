@@ -4,7 +4,6 @@ import { applications, users, caregiverProfiles } from '../../db/schema.ts'
 import { eq, desc } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
-import bcrypt from 'bcryptjs'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -112,7 +111,7 @@ app.post('/:id/hire', requireAdmin, async (c) => {
   if (!email) return c.json({ error: 'Email is required to create a user account' }, 400)
 
   const password = body.password || `Welcome${createId().slice(0, 8)}!`
-  const passwordHash = await bcrypt.hash(password, 10)
+  const passwordHash = await Bun.password.hash(password, 'bcrypt')
 
   // Create the user
   const [newUser] = await db.insert(users).values({

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import bcrypt from 'bcryptjs'
+
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import crypto from 'crypto'
@@ -109,7 +109,7 @@ app.post('/signup', async (c) => {
   const slug = `${baseSlug}-${uuidv4().substring(0, 6)}`
 
   // Hash password
-  const passwordHash = await bcrypt.hash(data.password, 12)
+  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
 
   // Get features for the selected plan
   const enabledFeatures = PLAN_FEATURES[data.plan] || PLAN_FEATURES.starter
@@ -219,7 +219,7 @@ app.post('/register', async (c) => {
   if (existing) return c.json({ error: 'Email already registered' }, 409)
 
   const slug = data.companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + uuidv4().substring(0, 6)
-  const passwordHash = await bcrypt.hash(data.password, 12)
+  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
 
   const result = await db.transaction(async (tx) => {
     const [newCompany] = await tx.insert(company).values({
@@ -264,7 +264,7 @@ app.post('/login', async (c) => {
   if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
   if (!foundUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
 
-  const valid = await bcrypt.compare(data.password, foundUser.passwordHash)
+  const valid = await Bun.password.verify(data.password, foundUser.passwordHash)
   if (!valid) return c.json({ error: 'Invalid email or password' }, 401)
 
   // Fetch company separately
@@ -356,10 +356,10 @@ app.put('/password', authenticate, async (c) => {
 
   const [foundUser] = await db.select().from(user).where(eq(user.id, currentUser.userId)).limit(1)
   if (!foundUser) return c.json({ error: 'User not found' }, 404)
-  const valid = await bcrypt.compare(data.currentPassword, foundUser.passwordHash)
+  const valid = await Bun.password.verify(data.currentPassword, foundUser.passwordHash)
   if (!valid) return c.json({ error: 'Current password is incorrect' }, 400)
 
-  const passwordHash = await bcrypt.hash(data.newPassword, 12)
+  const passwordHash = await Bun.password.hash(data.newPassword, 'bcrypt')
   await db.update(user).set({ passwordHash, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
 
   return c.json({ message: 'Password changed successfully' })
@@ -401,7 +401,7 @@ app.post('/reset-password', async (c) => {
   const [foundUser] = await db.select().from(user).where(and(eq(user.resetToken, data.token), gt(user.resetTokenExp, new Date()))).limit(1)
   if (!foundUser) return c.json({ error: 'Invalid or expired reset token' }, 400)
 
-  const passwordHash = await bcrypt.hash(data.password, 12)
+  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
   await db.update(user).set({ passwordHash, resetToken: null, resetTokenExp: null, updatedAt: new Date() }).where(eq(user.id, foundUser.id))
 
   return c.json({ message: 'Password reset successfully' })

@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { HTTPException } from 'hono/http-exception'
-import bcrypt from 'bcryptjs'
+
 import { db } from '../../db/index.ts'
 import {
   users,
@@ -188,7 +188,7 @@ app.get('/:id', async (c) => {
 // POST /api/caregivers
 app.post('/', requireAdmin, async (c) => {
   const { password = 'Welcome1!', profile, ...data } = await c.req.json()
-  const passwordHash = await bcrypt.hash(password, 12)
+  const passwordHash = await Bun.password.hash(password, 'bcrypt')
 
   const [caregiver] = await db
     .insert(users)
@@ -280,7 +280,7 @@ app.put('/:id', requireAdmin, async (c) => {
   }
 
   if (password) {
-    const passwordHash = await bcrypt.hash(password, 12)
+    const passwordHash = await Bun.password.hash(password, 'bcrypt')
     updates.push(db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, id)))
   }
 
@@ -385,7 +385,7 @@ app.put('/:id/reset-password', requireAdmin, async (c) => {
   const id = c.req.param('id')
   const { password } = await c.req.json()
   if (!password || password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400)
-  const passwordHash = await bcrypt.hash(password, 12)
+  const passwordHash = await Bun.password.hash(password, 'bcrypt')
   await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, id))
   return c.json({ success: true })
 })
