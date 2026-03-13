@@ -498,13 +498,15 @@ async function createRenderWebService(config: {
     startCommand: config.startCommand || 'bun start',
   }
   if (config.preDeployCommand) envSpecificDetails.preDeployCommand = config.preDeployCommand
+  const rootDir = config.rootDir || ''
   const body: any = {
     type: 'web_service', name: config.name,
     ownerId: process.env.RENDER_OWNER_ID,
     repo: 'https://github.com/' + config.repoFullName,
-    autoDeploy: 'yes', branch: 'main', rootDir: config.rootDir || '',
+    autoDeploy: 'yes', branch: 'main', rootDir,
     serviceDetails: {
       envSpecificDetails,
+      rootDir,
       plan: config.plan || 'starter', region: config.region || 'ohio', runtime: 'node', numInstances: 1,
     },
     envVars: (config.envVars || []).map(ev => ({ key: ev.key, value: ev.value })),
@@ -525,14 +527,16 @@ async function createRenderStaticSite(config: {
   buildCommand?: string; publishPath?: string; envVars?: Array<{ key: string; value: string }>
   projectId?: string | null
 }): Promise<any> {
+  const rootDir = config.rootDir || ''
   const body: any = {
     type: 'static_site', name: config.name,
     ownerId: process.env.RENDER_OWNER_ID,
     repo: 'https://github.com/' + config.repoFullName,
-    autoDeploy: 'yes', branch: 'main', rootDir: config.rootDir || '',
+    autoDeploy: 'yes', branch: 'main', rootDir,
     serviceDetails: {
       buildCommand: config.buildCommand || 'bun run build',
       publishPath: config.publishPath || 'dist',
+      rootDir,
       routes: [{ type: 'rewrite', source: '/*', destination: '/index.html' }],
     },
     envVars: (config.envVars || []).map(ev => ({ key: ev.key, value: ev.value })),
@@ -858,6 +862,10 @@ export async function deployCustomer(
         })
         console.log('[Deploy] Backend creation response:', JSON.stringify(backend, null, 2))
         const backendSvc = backend.service || backend
+        // Ensure rootDir is set correctly (Render API sometimes ignores top-level rootDir on create)
+        if (backendSvc.id) {
+          await updateRenderServiceSettings(backendSvc.id, { rootDir: crmRootDir + '/backend' })
+        }
         results.steps.push({ step: 'render_backend', status: 'ok', serviceId: backendSvc.id })
         results.services.backend = backendSvc
         if (backendSvc.id) {

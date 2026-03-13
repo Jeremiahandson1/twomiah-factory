@@ -736,7 +736,7 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
 function generateDeployScript(workDir: string, config: GenerateConfig, products: string[]) {
   let script = '#!/bin/bash\nset -e\n\n'
   if (products.includes('website')) script += 'cd website && bun install && cd ..\n'
-  const crmScriptDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'field_service' ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : 'crm'
+  const crmScriptDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'roofing' ? 'crm-roof' : FIELD_SERVICE_INDUSTRIES.has(config.company?.industry || '') ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : 'crm'
   if (products.includes('crm')) script += 'cd ' + crmScriptDir + '/backend && bun install && bunx drizzle-kit migrate && bun db/seed.ts && cd ../..\ncd ' + crmScriptDir + '/frontend && bun install && bun run build && cd ../..\n'
   script += '\necho "✅ Done!"\n'
   const scriptPath = path.join(workDir, 'deploy.sh')
