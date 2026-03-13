@@ -1055,9 +1055,9 @@ export async function deployCustomer(
       }
     }
 
-    // Bundled Vision — integrated into contractor website template.
-    // Register tenant with shared Vision backend and set VISION_URL on site + CRM.
-    if (products.includes('website') && (products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer'))) {
+    // Bundled Vision — register with shared Vision backend and set VISION_URL on site + CRM.
+    const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')
+    if (hasVisualizerFeature) {
       try {
         await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
         createdResources.push({ type: 'vision_tenant', id: slug })
