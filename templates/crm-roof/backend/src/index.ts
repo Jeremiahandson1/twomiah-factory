@@ -35,6 +35,7 @@ import quickbooksRoutes from './routes/quickbooks.ts'
 import leadsRoutes from './routes/leads.ts'
 import calltrackingRoutes from './routes/calltracking.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
+import adsRoutes from './routes/ads.ts'
 
 const app = new Hono()
 
@@ -95,6 +96,7 @@ app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
+app.route('/api/ads', adsRoutes)
 app.route('/api/estimator', estimatorRoutes) // public — no auth
 
 app.post('/api/internal/sync-features', async (c) => {

@@ -54,6 +54,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
+  { to: '/crm/ads', icon: Megaphone, label: 'Ads', features: ['paid_ads'] },
   // Field Service
   { to: '/crm/tech', icon: Wrench, label: 'Tech View', section: 'Field Service', features: ['tech_mobile_view'] },
   { to: '/crm/dispatch', icon: Radio, label: 'Dispatch Board', section: 'Field Service', features: ['dispatch_board'] },

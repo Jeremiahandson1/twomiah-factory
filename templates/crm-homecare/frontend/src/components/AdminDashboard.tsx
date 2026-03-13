@@ -46,6 +46,7 @@ import NoShowAlerts from './admin/NoShowAlerts';
 import FormBuilder from './admin/FormBuilder';
 import RevenueForecast from './admin/RevenueForecast';
 import AIReceptionist from './admin/AIReceptionist';
+import AdsPage from '../pages/ads/AdsPage';
 
 const NAV_SECTIONS = [
   {
@@ -117,6 +118,7 @@ const NAV_SECTIONS = [
       { id: 'integrations', label: 'Integrations Hub', icon: '🔌' },
       { id: 'notifications', label: 'Notifications', icon: '📬' },
       { id: 'ai-receptionist', label: 'AI Receptionist', icon: '🤖' },
+      { id: 'ads', label: 'Ads', icon: '📣' },
     ]
   },
 ];
@@ -280,6 +282,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'form-builder': return <FormBuilder />;
       case 'revenue-forecast': return <RevenueForecast />;
       case 'ai-receptionist': return <AIReceptionist />;
+      case 'ads': return <AdsPage />;
       default: return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
     }
   };

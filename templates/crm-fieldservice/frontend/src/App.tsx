@@ -48,6 +48,7 @@ import PricebookPage from './pages/pricebook/PricebookPage';
 import AgreementsPage from './pages/agreements/AgreementsPage';
 import WarrantiesPage from './pages/warranties/WarrantiesPage';
 import CallTrackingPage from './pages/calltracking/CallTrackingPage';
+import AdsPage from './pages/ads/AdsPage';
 import { AIReceptionistPage } from './components/features/AIReceptionistPage';
 import { RecurringList as RecurringListPage } from './pages/recurring';
 import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
@@ -194,6 +195,7 @@ function App() {
                     <Route path="parts" element={<PartsInventory />} />
                     <Route path="pricebook-rates" element={<FlatRatePricebook />} />
                     <Route path="tech" element={<TechView />} />
+                    <Route path="ads" element={<AdsPage />} />
                     <Route path="help" element={<HelpPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                   </Route>

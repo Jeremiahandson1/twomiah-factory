@@ -16,6 +16,7 @@ import { ConfirmModal } from './components/ConfirmModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
+import AdsPage from './pages/ads/AdsPage';
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -47,6 +48,7 @@ const App = () => {
         {/* Lead Inbox */}
         <Route path="leads" element={<LeadInboxPage />} />
         <Route path="lead-sources" element={<LeadSourcesPage />} />
+        <Route path="ads" element={<AdsPage />} />
 
         {/* Customer Portal — unified hub after login */}
         <Route path="/" element={<AuthProvider><ProtectedRoute><CustomerPortal /></ProtectedRoute></AuthProvider>} />

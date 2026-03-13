@@ -20,6 +20,7 @@ import {
   Zap,
   Inbox,
   Bot,
+  Megaphone,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -40,6 +41,7 @@ const baseNavItems = [
 const fieldNavItems = [
   { label: 'Canvassing', icon: MapPin, to: '/crm/canvassing', feature: 'canvassing_tool' },
   { label: 'Storm Leads', icon: Zap, to: '/crm/storm-leads', feature: 'storm_lead_gen' },
+  { label: 'Ads', icon: Megaphone, to: '/crm/ads', feature: 'paid_ads' },
 ]
 
 const bottomNavItems = [
@@ -53,9 +55,11 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const hasCanvassing = useFeature('canvassing_tool')
   const hasStormLeads = useFeature('storm_lead_gen')
+  const hasPaidAds = useFeature('paid_ads')
   const activeFieldItems = fieldNavItems.filter(item => {
     if (item.feature === 'canvassing_tool') return hasCanvassing
     if (item.feature === 'storm_lead_gen') return hasStormLeads
+    if (item.feature === 'paid_ads') return hasPaidAds
     return true
   })
 

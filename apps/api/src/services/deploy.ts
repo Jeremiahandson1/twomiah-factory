@@ -852,7 +852,7 @@ export async function deployCustomer(
 
         // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
-        const backendBuild = bunSetup + ' && cd ../frontend && bun install && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install'
+        const backendBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
         const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',
@@ -922,7 +922,7 @@ export async function deployCustomer(
         const pricingApiName = slug + '-pricing-api'
         await findAndDeleteRenderService(pricingApiName)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
-        const pricingBuild = bunSetup + ' && cd ../frontend && bun install && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install'
+        const pricingBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
         const pricingStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
         const pricingEnvVars = [
           { key: 'NODE_ENV', value: 'production' },
@@ -967,7 +967,7 @@ export async function deployCustomer(
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
-          buildCommand: siteBunSetup + ' && bun install && if [ -f admin/package.json ]; then cd admin && bun install && bun run build:quick && cd ..; fi',
+          buildCommand: siteBunSetup + ' && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi',
           startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts',
           envVars: [
             { key: 'NODE_ENV', value: 'production' },
