@@ -14,11 +14,12 @@ type Props = {
   onBack: () => void
 }
 
-const CRM_PRESETS = [
-  { id: 'service-starter', name: 'Service Starter', icon: '🔧', description: 'HVAC, plumbing, electrical, cleaning', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','drag_drop_calendar','recurring_jobs','online_booking','service_dispatch','pricebook','time_tracking','online_payments','expense_tracking','two_way_texting','google_reviews','lead_inbox'] },
-  { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, roofing, general contracting', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox'] },
-  { id: 'contractor-suite', name: 'Contractor Suite', icon: '🏢', description: 'Full commercial construction', features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','rfis','change_orders','punch_lists','daily_logs','inspections','bid_management','takeoff_tools','selections','time_tracking','gps_tracking','photo_capture','fleet','online_payments','expense_tracking','job_costing','quickbooks','documents','reports','client_portal','call_tracking','lead_inbox'] },
-  { id: 'everything', name: 'Enterprise', icon: '🚀', description: 'Every feature enabled', features: 'all' as const },
+const CRM_PRESETS: { id: string; name: string; icon: string; description: string; features: string[] | 'all'; templates?: string[] }[] = [
+  { id: 'service-starter', name: 'Service Starter', icon: '🔧', description: 'HVAC, plumbing, electrical, cleaning', templates: ['crm', 'crm-fieldservice'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','drag_drop_calendar','recurring_jobs','online_booking','service_dispatch','pricebook','time_tracking','online_payments','expense_tracking','two_way_texting','google_reviews','lead_inbox'] },
+  { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, general contracting', templates: ['crm'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox'] },
+  { id: 'roofing-pro', name: 'Roofing Pro', icon: '🏠', description: 'Roofing contractors & storm restoration', templates: ['crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox','measurement_reports','insurance_workflow','pipeline_board','crews','materials','canvassing_tool','storm_lead_gen','instant_estimator'] },
+  { id: 'contractor-suite', name: 'Contractor Suite', icon: '🏢', description: 'Full commercial construction', templates: ['crm', 'crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','rfis','change_orders','punch_lists','daily_logs','inspections','bid_management','takeoff_tools','selections','time_tracking','gps_tracking','photo_capture','fleet','online_payments','expense_tracking','job_costing','quickbooks','documents','reports','client_portal','call_tracking','lead_inbox'] },
+  { id: 'everything', name: 'Enterprise', icon: '🚀', description: 'Every feature enabled', features: 'all' },
 ]
 
 const WEBSITE_PRESETS = [
@@ -97,6 +98,15 @@ const CRM_REGISTRY = [
     { id: 'email_marketing', name: 'Email Marketing', description: 'Drip campaigns and newsletters', core: false },
     { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', core: false },
   ]},
+  { category: 'Roofing', features: [
+    { id: 'measurement_reports', name: 'Measurement Reports', description: 'Aerial roof measurement integration', core: false },
+    { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim and supplement tracking', core: false },
+    { id: 'pipeline_board', name: 'Pipeline Board', description: 'Kanban sales pipeline for roof leads', core: false },
+    { id: 'crews', name: 'Crews', description: 'Crew scheduling and management', core: false },
+    { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', core: false },
+    { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing with GPS', core: false },
+    { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Weather-based lead generation', core: false },
+  ]},
   { category: 'Advanced', features: [
     { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', core: false },
     { id: 'documents', name: 'Documents', description: 'Document management and storage', core: false },
@@ -104,6 +114,10 @@ const CRM_REGISTRY = [
     { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', core: false },
     { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', core: false },
     { id: 'map_view', name: 'Map View', description: 'Map-based job visualization', core: false },
+  ]},
+  { category: 'Add-on Products', features: [
+    { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior rendering tool', core: false },
+    { id: 'instant_estimator', name: 'Instant Estimator', description: 'Roof measurement + instant pricing', core: false },
   ]},
 ]
 
@@ -237,16 +251,19 @@ function HomeCareIncluded() {
 // Map industry → which CRM_REGISTRY categories to show
 const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', 'electrical'])
 const AUTOMOTIVE_INDUSTRIES = new Set(['automotive'])
+const ROOFING_INDUSTRIES = new Set(['roofing'])
 
 const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
-  'crm': new Set(['Core', 'Construction', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced']),
-  'crm-fieldservice': new Set(['Core', 'Service Trade', 'Field Service', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm': new Set(['Core', 'Construction', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
+  'crm-fieldservice': new Set(['Core', 'Service Trade', 'Field Service', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
+  'crm-roof': new Set(['Core', 'Construction', 'Roofing', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-automotive': new Set(['Core', 'Automotive', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
 function getTemplateFromIndustry(industry?: string): string {
   if (!industry) return 'crm'
   if (FIELD_SERVICE_INDUSTRIES.has(industry)) return 'crm-fieldservice'
+  if (ROOFING_INDUSTRIES.has(industry)) return 'crm-roof'
   if (AUTOMOTIVE_INDUSTRIES.has(industry)) return 'crm-automotive'
   return 'crm'
 }
@@ -302,7 +319,7 @@ function CRMFeatures({ selected, onChange, industry, plan }: { selected: string[
 
       {!hasPlan && (
         <div className="grid grid-cols-4 gap-2 mb-4">
-          {CRM_PRESETS.map(p => (
+          {CRM_PRESETS.filter(p => !p.templates || p.templates.includes(template)).map(p => (
             <button key={p.id} onClick={() => applyPreset(p)}
               className="text-left p-3 border border-gray-700 hover:border-gray-600 rounded-xl bg-gray-800/50 transition-all">
               <div className="text-xl mb-1">{p.icon}</div>
