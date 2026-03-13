@@ -321,11 +321,12 @@ create policy "Service role full access on tenant_feature_audit"
 
 
 -- ─── Factory Pricing Config ───────────────────────────────────────────────────
--- Single-row table holding all pricing configuration as JSONB.
+-- Per-product pricing configuration as JSONB.
+-- Each CRM product (crm, crm-fieldservice, crm-roof, crm-homecare) gets its own row.
 -- Editable from Factory admin — the /plans API reads from here.
 
 create table if not exists factory_pricing (
-  id              integer primary key default 1 check (id = 1),  -- singleton row
+  product         text primary key,                              -- e.g. 'crm', 'crm-fieldservice', 'crm-roof', 'crm-homecare'
   updated_at      timestamptz not null default now(),
   updated_by      text,
 

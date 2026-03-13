@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../config/featureRegistry'
-import { DEFAULT_SAAS_TIERS, DEFAULT_SELF_HOSTED, DEFAULT_SELF_HOSTED_ADDONS, DEFAULT_DEPLOY_SERVICES, DEFAULT_FEATURE_BUNDLES } from '../config/pricing'
+import { PRODUCTS, DEFAULT_SAAS_TIERS, DEFAULT_SELF_HOSTED, DEFAULT_SELF_HOSTED_ADDONS, DEFAULT_DEPLOY_SERVICES, DEFAULT_FEATURE_BUNDLES } from '../config/pricing'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
@@ -548,10 +548,11 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
             if (subResult.subscriptionId) billingUpdate.stripe_subscription_id = subResult.subscriptionId
             billingUpdate.billing_type = 'subscription'
             billingUpdate.billing_status = 'active'
-            // Read pricing from DB (factory_pricing singleton row), fallback to defaults
+            // Read pricing from DB (per-product), fallback to defaults
             let planPrices: Record<string, number> = { starter: 49, pro: 149, business: 299, construction: 599, enterprise: 199 }
             try {
-              const { data: pricingRow } = await supabase.from('factory_pricing').select('saas_tiers').eq('id', 1).single()
+              const template = tenant.products?.[0] || 'crm'
+              const { data: pricingRow } = await supabase.from('factory_pricing').select('saas_tiers').eq('product', template).single()
               if (pricingRow?.saas_tiers && Array.isArray(pricingRow.saas_tiers)) {
                 const dbPrices: Record<string, number> = {}
                 for (const tier of pricingRow.saas_tiers) dbPrices[tier.id] = tier.monthlyPrice
@@ -1202,12 +1203,23 @@ factory.get('/analytics', async (c) => {
 
 
 // ─── Plans (public) ─────────────────────────────────────────────────────────
-// Reads pricing from factory_pricing table. Falls back to defaults if not seeded.
+// Reads pricing from factory_pricing table per product. Falls back to defaults.
+// Usage: /plans?product=crm-fieldservice (defaults to 'crm')
 factory.get('/plans', async (c) => {
+  const product = (c.req.query('product') || 'crm').toLowerCase()
+  const defaults = {
+    product,
+    saas_tiers: DEFAULT_SAAS_TIERS,
+    self_hosted: DEFAULT_SELF_HOSTED,
+    self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
+    deploy_services: DEFAULT_DEPLOY_SERVICES,
+    feature_bundles: DEFAULT_FEATURE_BUNDLES,
+  }
   try {
-    const { data } = await supabase.from('factory_pricing').select('*').eq('id', 1).single()
+    const { data } = await supabase.from('factory_pricing').select('*').eq('product', product).single()
     if (data) {
       return c.json({
+        product,
         plans: data.saas_tiers,
         selfHosted: data.self_hosted,
         selfHostedAddons: data.self_hosted_addons,
@@ -1216,18 +1228,12 @@ factory.get('/plans', async (c) => {
       })
     }
   } catch {}
-  // Fallback to defaults (auto-seed on first request)
+  // Auto-seed this product on first request
   try {
-    await supabase.from('factory_pricing').upsert({
-      id: 1,
-      saas_tiers: DEFAULT_SAAS_TIERS,
-      self_hosted: DEFAULT_SELF_HOSTED,
-      self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
-      deploy_services: DEFAULT_DEPLOY_SERVICES,
-      feature_bundles: DEFAULT_FEATURE_BUNDLES,
-    })
+    await supabase.from('factory_pricing').upsert(defaults)
   } catch {}
   return c.json({
+    product,
     plans: DEFAULT_SAAS_TIERS,
     selfHosted: DEFAULT_SELF_HOSTED,
     selfHostedAddons: DEFAULT_SELF_HOSTED_ADDONS,
@@ -1237,28 +1243,37 @@ factory.get('/plans', async (c) => {
 })
 
 // ─── Pricing Admin (authenticated) ──────────────────────────────────────────
+// GET /pricing — returns all products' pricing
 factory.get('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
-  const { data } = await supabase.from('factory_pricing').select('*').eq('id', 1).single()
-  if (!data) {
-    // Seed defaults
-    const defaults = {
-      id: 1,
-      saas_tiers: DEFAULT_SAAS_TIERS,
-      self_hosted: DEFAULT_SELF_HOSTED,
-      self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
-      deploy_services: DEFAULT_DEPLOY_SERVICES,
-      feature_bundles: DEFAULT_FEATURE_BUNDLES,
-    }
-    await supabase.from('factory_pricing').upsert(defaults)
-    return c.json(defaults)
+  const { data } = await supabase.from('factory_pricing').select('*').order('product')
+  const defaults = {
+    saas_tiers: DEFAULT_SAAS_TIERS,
+    self_hosted: DEFAULT_SELF_HOSTED,
+    self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
+    deploy_services: DEFAULT_DEPLOY_SERVICES,
+    feature_bundles: DEFAULT_FEATURE_BUNDLES,
   }
-  return c.json(data)
+  // Auto-seed any missing products
+  const existingProducts = new Set((data || []).map((r: any) => r.product))
+  const toSeed = PRODUCTS.filter(p => !existingProducts.has(p.id))
+  if (toSeed.length > 0) {
+    const rows = toSeed.map(p => ({ product: p.id, ...defaults }))
+    await supabase.from('factory_pricing').upsert(rows)
+  }
+  // Return all products
+  if (toSeed.length > 0 || !data?.length) {
+    const { data: all } = await supabase.from('factory_pricing').select('*').order('product')
+    return c.json({ products: PRODUCTS, pricing: all || [] })
+  }
+  return c.json({ products: PRODUCTS, pricing: data })
 })
 
+// PUT /pricing — saves pricing for a specific product
 factory.put('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
   const body = await c.req.json()
+  if (!body.product) return c.json({ error: 'product is required' }, 400)
   const { error } = await supabase.from('factory_pricing').upsert({
-    id: 1,
+    product: body.product,
     updated_at: new Date().toISOString(),
     updated_by: (c as any).get?.('userEmail') || 'admin',
     saas_tiers: body.saas_tiers,

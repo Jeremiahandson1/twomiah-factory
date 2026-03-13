@@ -18,6 +18,15 @@ type SelfHosted = { id: string; name: string; price: number }
 type SelfHostedAddon = { id: string; name: string; price: number; type: string }
 type DeployService = { id: string; name: string; price: number; description: string }
 type FeatureBundle = { id: string; name: string; price: number; description: string }
+type Product = { id: string; name: string }
+type ProductPricing = {
+  product: string
+  saas_tiers: SaasTier[]
+  self_hosted: SelfHosted[]
+  self_hosted_addons: SelfHostedAddon[]
+  deploy_services: DeployService[]
+  feature_bundles: FeatureBundle[]
+}
 
 export default function PricingAdminPage() {
   const [loading, setLoading] = useState(true)
@@ -26,6 +35,11 @@ export default function PricingAdminPage() {
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'tiers' | 'selfHosted' | 'addons' | 'deploy' | 'bundles'>('tiers')
 
+  const [products, setProducts] = useState<Product[]>([])
+  const [selectedProduct, setSelectedProduct] = useState('')
+  const [allPricing, setAllPricing] = useState<ProductPricing[]>([])
+
+  // Current product's data
   const [tiers, setTiers] = useState<SaasTier[]>([])
   const [selfHosted, setSelfHosted] = useState<SelfHosted[]>([])
   const [selfHostedAddons, setSelfHostedAddons] = useState<SelfHostedAddon[]>([])
@@ -34,14 +48,26 @@ export default function PricingAdminPage() {
 
   useEffect(() => { loadPricing() }, [])
 
+  // When product selection changes, load that product's data
+  useEffect(() => {
+    if (!selectedProduct || !allPricing.length) return
+    const p = allPricing.find(r => r.product === selectedProduct)
+    if (p) {
+      setTiers(p.saas_tiers || [])
+      setSelfHosted(p.self_hosted || [])
+      setSelfHostedAddons(p.self_hosted_addons || [])
+      setDeployServices(p.deploy_services || [])
+      setFeatureBundles(p.feature_bundles || [])
+    }
+  }, [selectedProduct, allPricing])
+
   async function loadPricing() {
     try {
       const data = await apiFetch('/pricing')
-      setTiers(data.saas_tiers || [])
-      setSelfHosted(data.self_hosted || [])
-      setSelfHostedAddons(data.self_hosted_addons || [])
-      setDeployServices(data.deploy_services || [])
-      setFeatureBundles(data.feature_bundles || [])
+      setProducts(data.products || [])
+      setAllPricing(data.pricing || [])
+      const first = data.products?.[0]?.id || 'crm'
+      setSelectedProduct(first)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -57,6 +83,7 @@ export default function PricingAdminPage() {
       await apiFetch('/pricing', {
         method: 'PUT',
         body: JSON.stringify({
+          product: selectedProduct,
           saas_tiers: tiers,
           self_hosted: selfHosted,
           self_hosted_addons: selfHostedAddons,
@@ -64,6 +91,12 @@ export default function PricingAdminPage() {
           feature_bundles: featureBundles,
         }),
       })
+      // Update local cache
+      setAllPricing(prev => prev.map(p =>
+        p.product === selectedProduct
+          ? { ...p, saas_tiers: tiers, self_hosted: selfHosted, self_hosted_addons: selfHostedAddons, deploy_services: deployServices, feature_bundles: featureBundles }
+          : p
+      ))
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err: any) {
@@ -106,6 +139,8 @@ export default function PricingAdminPage() {
     )
   }
 
+  const currentProductName = products.find(p => p.id === selectedProduct)?.name || selectedProduct
+
   const tabs = [
     { id: 'tiers' as const, label: 'SaaS Tiers', icon: DollarSign, count: tiers.length },
     { id: 'bundles' as const, label: 'Feature Add-Ons', icon: Layers, count: featureBundles.length },
@@ -115,12 +150,12 @@ export default function PricingAdminPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Pricing Configuration</h1>
-          <p className="text-sm text-gray-400 mt-1">Manage all pricing tiers, add-ons, and services</p>
+          <p className="text-sm text-gray-400 mt-1">Manage pricing per product — tiers, add-ons, and services</p>
         </div>
         <button
           onClick={handleSave}
@@ -128,14 +163,31 @@ export default function PricingAdminPage() {
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? 'Saving...' : 'Save All Changes'}
+          {saving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
 
-      {saved && <div className="bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm">Pricing saved successfully</div>}
+      {saved && <div className="bg-green-500/20 border border-green-500/30 text-green-400 px-4 py-2 rounded-lg text-sm">Pricing saved for {currentProductName}</div>}
       {error && <div className="bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
-      {/* Tabs */}
+      {/* Product Selector */}
+      <div className="flex gap-2">
+        {products.map(p => (
+          <button
+            key={p.id}
+            onClick={() => setSelectedProduct(p.id)}
+            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
+              selectedProduct === p.id
+                ? 'bg-blue-600 border-blue-500 text-white'
+                : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-600'
+            }`}
+          >
+            {p.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Category Tabs */}
       <div className="flex gap-1 bg-gray-800 p-1 rounded-lg">
         {tabs.map(t => (
           <button
@@ -157,6 +209,10 @@ export default function PricingAdminPage() {
         <div className="space-y-4">
           {tiers.map((tier, idx) => (
             <div key={idx} className="bg-gray-800 border border-gray-700 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-semibold text-white">{tier.name || 'New Tier'}</span>
+                <button onClick={() => setTiers(prev => prev.filter((_, i) => i !== idx))} className="text-red-400 hover:text-red-300 p-1"><Trash2 className="w-4 h-4" /></button>
+              </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                 <div>
                   <label className="text-xs text-gray-400 mb-1 block">Plan ID</label>
@@ -213,10 +269,11 @@ export default function PricingAdminPage() {
               </div>
             </div>
           ))}
+          <button onClick={() => setTiers(prev => [...prev, { id: '', name: '', monthlyPrice: 0, annualPrice: 0, users: { included: 1, max: 5 }, features: [] }])} className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"><Plus className="w-4 h-4" /> Add Tier</button>
         </div>
       )}
 
-      {/* Feature Bundles (à la carte add-ons) */}
+      {/* Feature Bundles / Add-Ons */}
       {tab === 'bundles' && (
         <div className="space-y-3">
           {featureBundles.map((b, idx) => (

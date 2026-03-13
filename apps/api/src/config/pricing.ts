@@ -1,10 +1,19 @@
 /**
  * Factory Pricing Configuration
  *
- * Default pricing used to seed the factory_pricing table.
+ * Default pricing used to seed the factory_pricing table (per-product).
  * Once seeded, all pricing is managed from the Factory admin UI.
  * The /plans API reads from the database, not these defaults.
  */
+
+export const PRODUCTS = [
+  { id: 'crm', name: 'General Contractor CRM' },
+  { id: 'crm-fieldservice', name: 'Field Service CRM' },
+  { id: 'crm-roof', name: 'Roofing CRM' },
+  { id: 'crm-homecare', name: 'Home Care CRM' },
+] as const
+
+export type ProductId = typeof PRODUCTS[number]['id']
 
 export const DEFAULT_SAAS_TIERS = [
   { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
@@ -37,6 +46,9 @@ export const DEFAULT_DEPLOY_SERVICES = [
 ]
 
 export const DEFAULT_FEATURE_BUNDLES = [
+  { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
+  { id: 'exterior_visualizer', name: 'Exterior Visualizer', price: 59, description: 'AI-powered exterior design visualization for customers' },
+  { id: 'instant_estimator', name: 'Instant Roof Estimator', price: 79, description: 'Google Solar-powered instant roof estimates with lead capture' },
   { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
   { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
   { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
