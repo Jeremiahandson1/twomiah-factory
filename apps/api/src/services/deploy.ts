@@ -980,11 +980,13 @@ export async function deployCustomer(
           plan, region,
         })
         console.log('[Deploy] Website creation response:', JSON.stringify(site, null, 2))
-        results.steps.push({ step: 'render_site', status: 'ok', serviceId: site.service?.id })
-        results.services.site = site.service
-        if (site.service?.id) {
-          createdResources.push({ type: 'service', id: site.service.id, name: slug + '-site' })
-          deployedResourceIds.push(site.service.id)
+        const siteSvc = site.service || site
+        results.steps.push({ step: 'render_site', status: 'ok', serviceId: siteSvc.id })
+        results.services.site = siteSvc
+        if (siteSvc.id) {
+          createdResources.push({ type: 'service', id: siteSvc.id, name: slug + '-site' })
+          deployedResourceIds.push(siteSvc.id)
+          await updateRenderServiceSettings(siteSvc.id, { rootDir: 'website' })
         }
         const siteUrl = getServiceUrl(site)
         console.log('[Deploy] Resolved website URL:', siteUrl)
