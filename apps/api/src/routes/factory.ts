@@ -1240,17 +1240,23 @@ factory.get('/plans', async (c) => {
 // ─── Pricing Admin (authenticated) ──────────────────────────────────────────
 // GET /pricing — returns all products' pricing
 factory.get('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
-  const { data } = await supabase.from('factory_pricing').select('*').order('product')
+  const { data, error: selectErr } = await supabase.from('factory_pricing').select('*').order('product')
+  if (selectErr) {
+    console.error('[Pricing] Failed to read factory_pricing:', selectErr.message)
+    return c.json({ error: 'Failed to load pricing: ' + selectErr.message }, 500)
+  }
   // Auto-seed any missing products with their specific defaults
   const existingProducts = new Set((data || []).map((r: any) => r.product))
   const toSeed = PRODUCTS.filter(p => !existingProducts.has(p.id))
   if (toSeed.length > 0) {
     const rows = toSeed.map(p => ({ product: p.id, ...getProductDefaults(p.id) }))
-    await supabase.from('factory_pricing').upsert(rows)
+    const { error: seedErr } = await supabase.from('factory_pricing').upsert(rows)
+    if (seedErr) console.error('[Pricing] Failed to seed defaults:', seedErr.message)
   }
   // Return all products
   if (toSeed.length > 0 || !data?.length) {
-    const { data: all } = await supabase.from('factory_pricing').select('*').order('product')
+    const { data: all, error: reloadErr } = await supabase.from('factory_pricing').select('*').order('product')
+    if (reloadErr) console.error('[Pricing] Reload failed:', reloadErr.message)
     return c.json({ products: PRODUCTS, pricing: all || [] })
   }
   return c.json({ products: PRODUCTS, pricing: data })
