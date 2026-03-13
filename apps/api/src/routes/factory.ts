@@ -16,6 +16,45 @@ const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'prod
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 
+// ─── Tenant Audit Helper ─────────────────────────────────────────────────────
+// Logs a row into tenant_audit_log whenever a tenant is modified.
+async function logTenantAudit(
+  tenantId: string,
+  action: string,
+  changes: Record<string, { old: any; new: any }>,
+  changedBy?: string,
+  note?: string
+) {
+  if (Object.keys(changes).length === 0) return
+  try {
+    await supabase.from('tenant_audit_log').insert({
+      tenant_id: tenantId,
+      action,
+      changes,
+      changed_by: changedBy || 'system',
+      note: note || null,
+    })
+  } catch (err: any) {
+    console.error('[Audit] Failed to write tenant audit log:', err.message)
+  }
+}
+
+// Build a changes diff object from old and new values
+function diffTenantChanges(
+  oldValues: Record<string, any>,
+  newValues: Record<string, any>
+): Record<string, { old: any; new: any }> {
+  const changes: Record<string, { old: any; new: any }> = {}
+  for (const key of Object.keys(newValues)) {
+    const oldVal = oldValues[key] ?? null
+    const newVal = newValues[key] ?? null
+    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      changes[key] = { old: oldVal, new: newVal }
+    }
+  }
+  return changes
+}
+
 async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } | { data?: undefined; error: Response }> {
   try {
     const body = await c.req.json()
@@ -513,6 +552,13 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
         console.error('[Deploy] CRITICAL tenant update failed:', criticalErr.message, JSON.stringify(criticalUpdate))
       } else {
         console.log('[Deploy] Critical tenant fields saved (status, urls, database_url) for', tenant.slug)
+        // Audit log for deploy — mask sensitive fields
+        const auditChanges: Record<string, { old: any; new: any }> = {}
+        if (criticalUpdate.status) auditChanges.status = { old: tenant.status, new: criticalUpdate.status }
+        if (criticalUpdate.render_frontend_url) auditChanges.render_frontend_url = { old: tenant.render_frontend_url || null, new: criticalUpdate.render_frontend_url }
+        if (criticalUpdate.render_backend_url) auditChanges.render_backend_url = { old: tenant.render_backend_url || null, new: criticalUpdate.render_backend_url }
+        if (criticalUpdate.database_url) auditChanges.database_url = { old: tenant.database_url ? '***masked***' : null, new: '***masked***' }
+        await logTenantAudit(tenant.id, 'deploy', auditChanges, 'system', `Deploy completed for ${tenant.slug}`)
       }
 
       // Sync features from config to tenant record so Feature Management shows correct state
@@ -998,9 +1044,25 @@ factory.post('/stripe/webhook', async (c) => {
     const result = await factoryStripe.handleFactoryWebhook(event)
 
     if (result.handled && result.factoryCustomerId && result.updates) {
+      // Fetch old values for audit diff
+      const { data: preTenant } = await supabase.from('tenants').select('*').eq('id', result.factoryCustomerId).single()
       await supabase.from('tenants').update(result.updates).eq('id', result.factoryCustomerId)
+      if (preTenant) {
+        const changes = diffTenantChanges(preTenant, result.updates)
+        if (Object.keys(changes).length > 0) {
+          await logTenantAudit(result.factoryCustomerId, 'billing_change', changes, 'stripe-webhook', `Event: ${event.type}`)
+        }
+      }
     } else if (result.handled && result.lookupField && result.lookupValue && result.updates) {
+      // Lookup tenant id for audit
+      const { data: lookedUp } = await supabase.from('tenants').select('*').eq(result.lookupField, result.lookupValue).single()
       await supabase.from('tenants').update(result.updates).eq(result.lookupField, result.lookupValue)
+      if (lookedUp) {
+        const changes = diffTenantChanges(lookedUp, result.updates)
+        if (Object.keys(changes).length > 0) {
+          await logTenantAudit(lookedUp.id, 'billing_change', changes, 'stripe-webhook', `Event: ${event.type}`)
+        }
+      }
     }
 
     // Auto-deploy on checkout.session.completed (subscription or one_time payment)
@@ -1093,12 +1155,28 @@ factory.get('/billing/summary', async (c) => {
 // ─── Analytics ──────────────────────────────────────────────────────────────
 factory.get('/analytics', async (c) => {
   try {
+    const from = c.req.query('from')
+    const to = c.req.query('to')
+
     // Parallel queries instead of sequential (fixes slow response times)
-    const [tenantsRes, jobsRes, ticketsRes] = await Promise.all([
-      supabase.from('tenants').select('id, created_at, plan, monthly_amount, features, products, status'),
-      supabase.from('factory_jobs').select('status'),
-      supabase.from('support_tickets').select('status, resolved_at, created_at, rating'),
-    ])
+    let tenantsQ = supabase.from('tenants').select('id, created_at, plan, monthly_amount, features, products, status')
+    let jobsQ = supabase.from('factory_jobs').select('status, created_at')
+    let ticketsQ = supabase.from('support_tickets').select('status, resolved_at, created_at, rating')
+
+    if (from) {
+      tenantsQ = tenantsQ.gte('created_at', from)
+      jobsQ = jobsQ.gte('created_at', from)
+      ticketsQ = ticketsQ.gte('created_at', from)
+    }
+    if (to) {
+      // Use end of day for the 'to' date so records on that day are included
+      const toEnd = to.length === 10 ? to + 'T23:59:59.999Z' : to
+      tenantsQ = tenantsQ.lte('created_at', toEnd)
+      jobsQ = jobsQ.lte('created_at', toEnd)
+      ticketsQ = ticketsQ.lte('created_at', toEnd)
+    }
+
+    const [tenantsRes, jobsRes, ticketsRes] = await Promise.all([tenantsQ, jobsQ, ticketsQ])
 
     const all = tenantsRes.data || []
 
@@ -1880,6 +1958,84 @@ factory.post('/preview', requireRole('owner', 'admin', 'editor'), async (c) => {
 })
 
 
+// ─── Update Tenant (general fields with audit) ──────────────────────────────
+factory.patch('/customers/:id', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+
+    // Only allow known editable fields
+    const ALLOWED_FIELDS = [
+      'status', 'billing_type', 'billing_status', 'plan',
+      'monthly_amount', 'one_time_amount', 'paid_at', 'next_billing_date',
+      'render_frontend_url', 'render_backend_url', 'website_url',
+      'notes', 'name', 'email', 'admin_email', 'phone',
+      'address', 'city', 'state', 'zip', 'domain',
+      'primary_color', 'secondary_color', 'industry',
+    ]
+
+    const updates: Record<string, any> = {}
+    for (const key of ALLOWED_FIELDS) {
+      if (key in parsed.data) updates[key] = parsed.data[key]
+    }
+    if (Object.keys(updates).length === 0) return c.json({ error: 'No valid fields to update' }, 400)
+
+    // Fetch current tenant for diff
+    const { data: tenant, error: fetchErr } = await supabase.from('tenants').select('*').eq('id', id).single()
+    if (fetchErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+    // Apply update
+    const { error: updateErr } = await supabase.from('tenants').update(updates).eq('id', id)
+    if (updateErr) throw updateErr
+
+    // Compute diff and log audit
+    const changes = diffTenantChanges(tenant, updates)
+    if (Object.keys(changes).length > 0) {
+      const user = c.get('user')
+      const adminEmail = user?.email || 'unknown'
+
+      // Classify the action
+      let action = 'update'
+      if (changes.status) action = 'status_change'
+      else if (changes.billing_type || changes.billing_status || changes.plan || changes.monthly_amount || changes.one_time_amount) action = 'billing_change'
+
+      await logTenantAudit(id, action, changes, adminEmail, parsed.data.audit_note)
+    }
+
+    return c.json({ success: true, updated: Object.keys(updates) })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Tenant Audit Log (read) ─────────────────────────────────────────────────
+factory.get('/customers/:id/audit-log', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
+
+    const limit = Math.min(Number(c.req.query('limit') || 50), 200)
+    const offset = Number(c.req.query('offset') || 0)
+
+    const { data, error } = await supabase
+      .from('tenant_audit_log')
+      .select('*')
+      .eq('tenant_id', id)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1)
+
+    if (error) throw error
+    return c.json({ auditLog: data || [], limit, offset })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
 // ─── Customer Domain ────────────────────────────────────────────────────────
 factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) => {
   try {
@@ -1891,9 +2047,19 @@ factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) =
     if (!domain) return c.json({ error: 'domain is required' }, 400)
     if (!DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format. Expected format: example.com' }, 400)
 
+    // Get current domain for audit diff
+    const { data: curTenant } = await supabase.from('tenants').select('domain').eq('id', tenantId).single()
+    const oldDomain = curTenant?.domain || null
+
     // Save domain to tenant record
     const { error } = await supabase.from('tenants').update({ domain }).eq('id', tenantId)
     if (error) throw error
+
+    // Audit log
+    if (oldDomain !== domain) {
+      const user = c.get('user')
+      await logTenantAudit(tenantId, 'update', { domain: { old: oldDomain, new: domain } }, user?.email)
+    }
 
     // If Render services exist, add custom domain to each
     const renderErrors: string[] = []
@@ -2309,8 +2475,17 @@ factory.patch('/customers/:id/database-url', requireRole('owner', 'admin'), asyn
       }
     }
 
+    // Get old value for audit
+    const { data: curTenant } = await supabase.from('tenants').select('database_url').eq('id', id).single()
+
     const { error } = await supabase.from('tenants').update({ database_url }).eq('id', id)
     if (error) throw error
+
+    // Audit log (mask connection strings for security)
+    const user = c.get('user')
+    await logTenantAudit(id, 'update', {
+      database_url: { old: curTenant?.database_url ? '***masked***' : null, new: '***masked***' },
+    }, user?.email, skip_test ? 'Connection test skipped' : 'Connection verified')
 
     return c.json({ success: true, message: skip_test ? 'database_url saved (untested)' : 'database_url saved and verified' })
   } catch (err: any) {

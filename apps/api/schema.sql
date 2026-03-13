@@ -320,6 +320,30 @@ create policy "Service role full access on tenant_feature_audit"
   with check (true);
 
 
+-- ─── Tenant Audit Log ───────────────────────────────────────────────────────
+-- General audit trail for tenant modifications (status, billing, URLs, etc.)
+
+create table if not exists tenant_audit_log (
+  id          uuid primary key default uuid_generate_v4(),
+  created_at  timestamptz not null default now(),
+  tenant_id   uuid not null references tenants(id) on delete cascade,
+  action      text not null,        -- 'update', 'status_change', 'billing_change', 'deploy', etc
+  changes     jsonb not null,        -- { field: { old: x, new: y } }
+  changed_by  text,                  -- admin email or 'system'
+  note        text
+);
+
+create index if not exists idx_tenant_audit_log_tenant on tenant_audit_log(tenant_id);
+create index if not exists idx_tenant_audit_log_created on tenant_audit_log(created_at);
+create index if not exists idx_tenant_audit_log_action on tenant_audit_log(action);
+
+alter table tenant_audit_log enable row level security;
+create policy "Service role full access on tenant_audit_log"
+  on tenant_audit_log for all
+  using (true)
+  with check (true);
+
+
 -- ─── Factory Pricing Config ───────────────────────────────────────────────────
 -- Per-product pricing configuration as JSONB.
 -- Each CRM product (crm, crm-fieldservice, crm-roof, crm-homecare) gets its own row.

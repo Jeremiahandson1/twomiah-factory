@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, API_URL } from '../supabase'
 import { User, Users, Plug, Save, Trash2, Plus, Shield, Eye, Pencil, Crown, Check, X, RefreshCw, Key, Download, Monitor, BookOpen, ChevronDown, ChevronUp } from 'lucide-react'
+import { useUser } from '../contexts/UserContext'
 
 type Tab = 'profile' | 'team' | 'integrations'
 
@@ -489,13 +490,9 @@ function IntegrationsTab() {
 // ─── Settings Page ───────────────────────────────────────────────────────────
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('profile')
-  const [userRole, setUserRole] = useState<string>('viewer')
+  const { hasRole } = useUser()
 
-  useEffect(() => {
-    apiFetch('/settings/profile').then(data => setUserRole(data.role || 'viewer')).catch(() => {})
-  }, [])
-
-  const isOwnerOrAdmin = userRole === 'owner' || userRole === 'admin'
+  const isOwnerOrAdmin = hasRole('owner', 'admin')
 
   const tabs: { id: Tab; label: string; icon: typeof User; show: boolean }[] = [
     { id: 'profile', label: 'Profile', icon: User, show: true },

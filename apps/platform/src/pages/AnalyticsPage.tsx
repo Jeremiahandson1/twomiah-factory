@@ -73,22 +73,45 @@ function StatCard({ label, value, icon: Icon, color, sub }: {
   )
 }
 
+function defaultDateRange() {
+  const to = new Date()
+  const from = new Date()
+  from.setDate(from.getDate() - 30)
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  }
+}
+
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [dateRange, setDateRange] = useState(defaultDateRange)
+  const [fromInput, setFromInput] = useState(dateRange.from)
+  const [toInput, setToInput] = useState(dateRange.to)
 
-  useEffect(() => {
+  const fetchAnalytics = (from: string, to: string) => {
+    setLoading(true)
+    setError('')
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) { setLoading(false); return }
-      fetch(API + '/api/v1/factory/analytics', {
+      const params = new URLSearchParams()
+      if (from) params.set('from', from)
+      if (to) params.set('to', to)
+      const qs = params.toString()
+      fetch(API + '/api/v1/factory/analytics' + (qs ? '?' + qs : ''), {
         headers: { Authorization: 'Bearer ' + session.access_token },
       })
         .then(r => r.ok ? r.json() : Promise.reject(new Error('Failed to load analytics')))
         .then(d => { setData(d); setLoading(false) })
         .catch(e => { setError(e.message); setLoading(false) })
     }).catch(() => { setError('Auth failed'); setLoading(false) })
-  }, [])
+  }
+
+  useEffect(() => {
+    fetchAnalytics(dateRange.from, dateRange.to)
+  }, [dateRange])
 
   if (loading) {
     return (
@@ -127,7 +150,31 @@ export default function AnalyticsPage() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold text-white mb-2">Analytics</h1>
-      <p className="text-gray-400 text-sm mb-8">Platform metrics and reporting</p>
+      <p className="text-gray-400 text-sm mb-4">Platform metrics and reporting</p>
+
+      {/* Date range filter */}
+      <div className="flex items-center gap-3 mb-8">
+        <label className="text-sm text-gray-400">From</label>
+        <input
+          type="date"
+          value={fromInput}
+          onChange={e => setFromInput(e.target.value)}
+          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+        />
+        <label className="text-sm text-gray-400">To</label>
+        <input
+          type="date"
+          value={toInput}
+          onChange={e => setToInput(e.target.value)}
+          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-blue-500"
+        />
+        <button
+          onClick={() => setDateRange({ from: fromInput, to: toInput })}
+          className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-1.5 rounded-lg transition-colors"
+        >
+          Apply
+        </button>
+      </div>
 
       {/* Top stat cards */}
       <div className="grid grid-cols-4 gap-4 mb-8">

@@ -1073,13 +1073,17 @@ export async function deployCustomer(
     if (factoryCustomer.config?.features?.paid_ads) {
       try {
         const adsTenantUrl = await registerAdsTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
-        results.adsUrl = adsTenantUrl
-        results.steps.push({ step: 'ads_tenant', status: 'ok', url: adsTenantUrl })
-        // Set ADS_URL on the CRM backend so it can link to the ads dashboard
-        if (results.services.backend?.id) {
-          await updateRenderEnvVars(results.services.backend.id, [
-            { key: 'ADS_URL', value: adsTenantUrl },
-          ])
+        if (adsTenantUrl) {
+          results.adsUrl = adsTenantUrl
+          results.steps.push({ step: 'ads_tenant', status: 'ok', url: adsTenantUrl })
+          // Set ADS_URL on the CRM backend so it can link to the ads dashboard
+          if (results.services.backend?.id) {
+            await updateRenderEnvVars(results.services.backend.id, [
+              { key: 'ADS_URL', value: adsTenantUrl },
+            ])
+          }
+        } else {
+          results.steps.push({ step: 'ads_tenant', status: 'skipped', error: 'ADS_WEBHOOK_SECRET not configured' })
         }
       } catch (err: any) {
         // Non-critical — tenant can be registered manually later
@@ -1365,7 +1369,11 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
 
 async function registerAdsTenant(slug: string, companyName: string, company?: any): Promise<string> {
   const adsUrl = process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com'
-  const webhookSecret = process.env.ADS_WEBHOOK_SECRET || 'twomiah_factory_secret_2026'
+  const webhookSecret = process.env.ADS_WEBHOOK_SECRET
+  if (!webhookSecret) {
+    console.warn('[Deploy] ADS_WEBHOOK_SECRET env var is not set — skipping ads tenant registration for:', slug)
+    return ''
+  }
 
   const body = {
     slug,

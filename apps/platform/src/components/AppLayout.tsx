@@ -1,22 +1,24 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { LayoutDashboard, Users, Factory, LogOut, Zap, LifeBuoy, BarChart3, Settings, DollarSign } from 'lucide-react'
 import { supabase } from '../supabase'
+import { useUser, type UserRole } from '../contexts/UserContext'
 
 export default function AppLayout() {
   const navigate = useNavigate()
+  const { hasRole } = useUser()
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
     navigate('/login')
   }
 
-  const navItems = [
+  const navItems: { to: string; icon: typeof LayoutDashboard; label: string; end?: boolean; roles?: UserRole[] }[] = [
     { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
     { to: '/tenants', icon: Users, label: 'Customers' },
-    { to: '/factory', icon: Factory, label: 'Factory' },
+    { to: '/factory', icon: Factory, label: 'Factory', roles: ['owner', 'admin', 'editor'] },
     { to: '/support', icon: LifeBuoy, label: 'Support' },
     { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-    { to: '/pricing', icon: DollarSign, label: 'Pricing' },
+    { to: '/pricing', icon: DollarSign, label: 'Pricing', roles: ['owner', 'admin'] },
     { to: '/settings', icon: Settings, label: 'Settings' },
   ]
 
@@ -30,7 +32,9 @@ export default function AppLayout() {
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1">
-          {navItems.map(({ to, icon: Icon, label, end }) => (
+          {navItems
+            .filter(({ roles }) => !roles || hasRole(...roles))
+            .map(({ to, icon: Icon, label, end }) => (
             <NavLink
               key={to}
               to={to}
