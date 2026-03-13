@@ -960,23 +960,31 @@ export async function deployCustomer(
       }
     }
 
+    // Pre-compute visualizer flag so we can include VISION_URL in initial env vars
+    const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')
+    const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
+
     // Step 7: Website service
     if (products.includes('website')) {
       try {
         await findAndDeleteRenderService(slug + '-site')
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
-        const site = await createRenderWebService({
-          name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
-          buildCommand: siteBunSetup + ' && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi',
-          startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts',
-          envVars: [
+        const siteEnvVars: Array<{ key: string; value: string }> = [
             { key: 'NODE_ENV', value: 'production' },
             { key: 'PORT', value: '10000' },
             { key: 'JWT_SECRET', value: jwtSecret },
             { key: 'SITE_NAME', value: factoryCustomer.name || slug },
             { key: 'TENANT_SLUG', value: slug },
             ...r2EnvVars,
-          ],
+        ]
+        if (hasVisualizerFeature) {
+          siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
+        }
+        const site = await createRenderWebService({
+          name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
+          buildCommand: siteBunSetup + ' && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi',
+          startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts',
+          envVars: siteEnvVars,
           plan, region,
         })
         console.log('[Deploy] Website creation response:', JSON.stringify(site, null, 2))
@@ -1057,19 +1065,15 @@ export async function deployCustomer(
       }
     }
 
-    // Bundled Vision — register with shared Vision backend and set VISION_URL on site + CRM.
-    const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')
+    // Bundled Vision — register with shared Vision backend and set VISION_URL on CRM backend.
+    // VISION_URL is already included in the website service's initial env vars above.
     if (hasVisualizerFeature) {
       try {
         await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
         createdResources.push({ type: 'vision_tenant', id: slug })
         results.steps.push({ step: 'visualizer_tenant', status: 'ok' })
 
-        const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
         results.visionUrl = sharedVisionUrl
-        if (results.services.site?.id) {
-          await updateRenderEnvVars(results.services.site.id, [{ key: 'VISION_URL', value: sharedVisionUrl }])
-        }
         if (results.services.backend?.id) {
           await updateRenderEnvVars(results.services.backend.id, [{ key: 'VISION_URL', value: sharedVisionUrl }])
         }
