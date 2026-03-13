@@ -24,10 +24,10 @@ export const DEFAULT_SAAS_TIERS = [
 ]
 
 export const DEFAULT_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 997 },
-  { id: 'pro', name: 'Pro License', price: 2497 },
-  { id: 'business', name: 'Business License', price: 4997 },
-  { id: 'construction', name: 'Construction License', price: 9997 },
+  { id: 'starter', name: 'Starter License', price: 1764 },
+  { id: 'pro', name: 'Pro License', price: 5364 },
+  { id: 'business', name: 'Business License', price: 10764 },
+  { id: 'construction', name: 'Construction License', price: 21564 },
   { id: 'full', name: 'Full Platform License', price: 14997 },
 ]
 
@@ -75,23 +75,23 @@ const CRM_TIERS = [
 ]
 
 const FIELDSERVICE_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Mobile App'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Dispatch Board', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Service Agreements', 'Recurring Jobs', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
+  { id: 'solo', name: 'Solo', monthlyPrice: 59, annualPrice: 50, users: { included: 1, max: 1 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Website + CMS', 'Mobile App'] },
+  { id: 'small-shop', name: 'Small Shop', monthlyPrice: 149, annualPrice: 127, users: { included: 5, max: 5 }, highlight: true, features: ['Everything in Solo', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Dispatch Board', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync'] },
+  { id: 'growing', name: 'Growing Op', monthlyPrice: 279, annualPrice: 237, users: { included: 10, max: 25, additionalPrice: 29 }, features: ['Everything in Small Shop', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Service Agreements', 'Recurring Jobs', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
 ]
 
 const ROOF_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Measurement Reports', 'Documents', 'Customer Portal', 'Mobile App'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Insurance Workflow', 'Storm Lead Gen', 'Canvassing Tool', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Instant Roof Estimator', 'Exterior Visualizer', 'Inventory Management', 'Fleet Management', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
+  { id: 'solo', name: 'Solo', monthlyPrice: 49, annualPrice: 42, users: { included: 1, max: 1 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', '$9 Measurement Reports', 'Documents', 'Customer Portal', 'Mobile App'] },
+  { id: 'starter', name: 'Starter', monthlyPrice: 129, annualPrice: 110, users: { included: 5, max: 5 }, highlight: true, features: ['Everything in Solo', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Insurance Workflow', 'Storm Lead Gen', 'Canvassing Tool', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
+  { id: 'pro', name: 'Pro', monthlyPrice: 299, annualPrice: 254, users: { included: 10, max: 25, additionalPrice: 29 }, features: ['Everything in Starter', 'Instant Roof Estimator', 'Exterior Visualizer', 'Inventory Management', 'Fleet Management', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
+  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 85, annualPrice: 72, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
 ]
 
 const HOMECARE_TIERS = [
-  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 5 }, features: ['Contacts / CRM', 'Client Profiles', 'Care Plans', 'Scheduling', 'Visit Tracking', 'Documents', 'Family Portal', 'Mobile App'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 10, max: 25, additionalPrice: 19 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Caregiver Matching', 'EVV (Electronic Visit Verification)', 'Medication Tracking', 'QuickBooks Sync', 'Reporting'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 25, max: 50, additionalPrice: 19 }, features: ['Everything in Pro', 'Multi-Location', 'Payroll Integration', 'Insurance Billing', 'Compliance Dashboard', 'Email Campaigns', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
+  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Contacts / CRM', 'Client Profiles', 'Care Plans', 'Scheduling', 'Visit Tracking', 'Documents', 'Family Portal', 'Mobile App'] },
+  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 19 }, highlight: true, features: ['Everything in Starter', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Caregiver Matching', 'EVV (Electronic Visit Verification)', 'Medication Tracking', 'QuickBooks Sync', 'Reporting'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 19 }, features: ['Everything in Pro', 'Multi-Location', 'Payroll Integration', 'Insurance Billing', 'Compliance Dashboard', 'Email Campaigns', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
+  { id: 'agency', name: 'Agency', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 19 }, features: ['Everything in Business', 'Advanced Compliance', 'Multi-State Operations', 'Custom Workflows', 'Dedicated Support', 'API Access'] },
   { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
 ]
 
@@ -150,10 +150,10 @@ const HOMECARE_BUNDLES = [
 
 // Self-hosted licenses per product
 const CRM_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 997 },
-  { id: 'pro', name: 'Pro License', price: 2497 },
-  { id: 'business', name: 'Business License', price: 4997 },
-  { id: 'construction', name: 'Construction License', price: 9997 },
+  { id: 'starter', name: 'Starter License', price: 1764 },
+  { id: 'pro', name: 'Pro License', price: 5364 },
+  { id: 'business', name: 'Business License', price: 10764 },
+  { id: 'construction', name: 'Construction License', price: 21564 },
   { id: 'full', name: 'Full Platform License', price: 14997 },
 ]
 
@@ -170,9 +170,11 @@ const ROOF_SELF_HOSTED = [
 ]
 
 const HOMECARE_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 997 },
-  { id: 'pro', name: 'Pro License', price: 2497 },
-  { id: 'business', name: 'Business License', price: 4997 },
+  { id: 'starter', name: 'Starter License', price: 1764 },
+  { id: 'pro', name: 'Pro License', price: 5364 },
+  { id: 'business', name: 'Business License', price: 10764 },
+  { id: 'agency', name: 'Agency License', price: 21564 },
+  { id: 'full', name: 'Full Platform License', price: 14997 },
 ]
 
 // Full per-product defaults map
