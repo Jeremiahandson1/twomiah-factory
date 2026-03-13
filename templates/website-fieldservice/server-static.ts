@@ -85,12 +85,38 @@ app.use('/api/admin/leads', rateLimit(contactLimitMap, 5, 15 * 60 * 1000))
 // STATIC FILES
 // ===========================================
 
+// MIME type map for Bun runtime (serveStatic sometimes serves as text/plain)
+const MIME_TYPES: Record<string, string> = {
+  '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+  '.xml': 'application/xml', '.txt': 'text/plain', '.html': 'text/html',
+}
+
+// Serve static files directly from build/ and public/ with correct MIME types
+function serveStaticDir(dir: string) {
+  return async (c: any, next: any) => {
+    const reqPath = new URL(c.req.url).pathname
+    const filePath = path.join(dir, reqPath)
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase()
+        const mime = MIME_TYPES[ext] || 'application/octet-stream'
+        const body = fs.readFileSync(filePath)
+        return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': 'public, max-age=86400' })
+      }
+    } catch {}
+    return next()
+  }
+}
+
 // Serve uploaded files
 app.use('/uploads/*', serveStatic({ root: path.relative(process.cwd(), path.dirname(uploadsDir)), rewriteRequestPath: (p) => p.replace('/uploads', '/' + path.basename(uploadsDir)) }))
 
 // Website static assets
-app.use('/*', serveStatic({ root: path.relative(process.cwd(), path.join(__dirname, 'build')) }))
-app.use('/*', serveStatic({ root: path.relative(process.cwd(), path.join(__dirname, 'public')) }))
+app.use('/*', serveStaticDir(path.join(__dirname, 'build')))
+app.use('/*', serveStaticDir(path.join(__dirname, 'public')))
 
 // CMS admin panel (React SPA)
 const adminDist = path.join(__dirname, 'admin', 'dist')
