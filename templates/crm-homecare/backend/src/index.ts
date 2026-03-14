@@ -240,14 +240,32 @@ app.onError(errorHandler)
 // ── API 404 handler: catch unmatched /api/* before SPA fallback returns HTML ──
 app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
 
+// MIME type map for Bun runtime (serveStatic sometimes serves as text/plain)
+const MIME_TYPES: Record<string, string> = {
+  '.css': 'text/css', '.js': 'application/javascript', '.json': 'application/json',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+  '.html': 'text/html',
+}
+
 // ─── Serve frontend SPA from backend (no separate static site needed) ────────
 const hasFrontendBuild = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'))
 if (hasFrontendBuild) {
-  const relRoot = path.relative(process.cwd(), FRONTEND_DIST)
-  app.use('/assets/*', serveStatic({ root: relRoot }))
-  app.use('/favicon.ico', serveStatic({ root: relRoot }))
-  app.use('/favicon.png', serveStatic({ root: relRoot }))
-  app.use('/logo.*', serveStatic({ root: relRoot }))
+  // Serve static frontend assets with correct MIME types
+  app.use('*', async (c, next) => {
+    if (c.req.path.startsWith('/api/')) return next()
+    const filePath = path.join(FRONTEND_DIST, c.req.path)
+    try {
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        const ext = path.extname(filePath).toLowerCase()
+        const mime = MIME_TYPES[ext] || 'application/octet-stream'
+        const body = fs.readFileSync(filePath)
+        return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': 'public, max-age=86400' })
+      }
+    } catch {}
+    return next()
+  })
 
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
   app.get('*', (c) => c.html(indexHtml))
