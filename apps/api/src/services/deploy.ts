@@ -386,19 +386,29 @@ function getR2EnvVars(bucketName: string): Array<{ key: string; value: string }>
 
 async function findAndDeleteRenderService(name: string): Promise<void> {
   try {
-    // List services owned by us and find by name
-    const res = await fetchWithTimeout(RENDER_API + '/services?type=web_service,static_site&limit=50', { headers: renderHeaders() })
-    if (!res.ok) return
-    const list = await res.json() as any[]
-    for (const item of list) {
-      const svc = item.service || item
-      if (svc.name === name) {
-        console.log('[Deploy] Deleting existing Render service:', name, svc.id)
-        await fetchWithTimeout(RENDER_API + '/services/' + svc.id, { method: 'DELETE', headers: renderHeaders() })
-        // Wait for deletion to propagate so the name is freed
-        await sleep(5000)
-        return
+    // Paginate through all services to find by name
+    let cursor = ''
+    for (let page = 0; page < 10; page++) {
+      const url = RENDER_API + '/services?type=web_service,static_site&limit=100' + (cursor ? '&cursor=' + cursor : '')
+      const res = await fetchWithTimeout(url, { headers: renderHeaders() })
+      if (!res.ok) return
+      const list = await res.json() as any[]
+      if (!list.length) return
+      for (const item of list) {
+        const svc = item.service || item
+        if (svc.name === name) {
+          console.log('[Deploy] Deleting existing Render service:', name, svc.id)
+          await fetchWithTimeout(RENDER_API + '/services/' + svc.id, { method: 'DELETE', headers: renderHeaders() })
+          // Wait for deletion to propagate so the name is freed
+          await sleep(5000)
+          return
+        }
       }
+      // Use last item's cursor for next page
+      const lastItem = list[list.length - 1]
+      const lastSvc = lastItem.service || lastItem
+      cursor = lastSvc.cursor || lastSvc.id || ''
+      if (list.length < 100) return // last page
     }
   } catch (e: any) {
     console.warn('[Deploy] Could not clean up existing service:', name, e.message)
