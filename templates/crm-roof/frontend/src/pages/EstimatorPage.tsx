@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { Settings, Copy, CheckCircle, ExternalLink, Save, ToggleLeft, ToggleRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Copy, CheckCircle, Save, ToggleLeft, ToggleRight } from 'lucide-react';
+import api from '../services/api';
 
 export default function EstimatorPage() {
-  const { token, company, hasFeature } = useAuth();
+  const { company, hasFeature } = useAuth();
   const toast = useToast();
-  const navigate = useNavigate();
   const [settings, setSettings] = useState({
     estimatorEnabled: false,
     pricePerSquareLow: '350.00',
@@ -19,24 +18,14 @@ export default function EstimatorPage() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/settings/company', { headers });
-        if (!res.ok) {
-          const res2 = await fetch('/api/company', { headers });
-          if (res2.ok) {
-            const data = await res2.json();
-            applyData(data);
-          }
-        } else {
-          applyData(await res.json());
-        }
+        const data = await api.company.get();
+        applyData(data);
       } catch {} finally { setLoading(false); }
     })();
-  }, [token]);
+  }, []);
 
   const applyData = (data: any) => {
     setSettings({
@@ -51,19 +40,10 @@ export default function EstimatorPage() {
   const save = async () => {
     setSaving(true);
     try {
-      let res = await fetch('/api/settings/estimator', {
+      await api.request('/api/company/estimator', {
         method: 'PUT',
-        headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(settings),
       });
-      if (!res.ok) {
-        res = await fetch('/api/company/estimator', {
-          method: 'PUT',
-          headers: { ...headers, 'Content-Type': 'application/json' },
-          body: JSON.stringify(settings),
-        });
-      }
-      if (!res.ok) throw new Error();
       toast.success('Estimator settings saved');
     } catch {
       toast.error('Failed to save settings');
