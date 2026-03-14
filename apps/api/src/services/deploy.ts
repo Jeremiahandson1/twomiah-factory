@@ -831,6 +831,10 @@ export async function deployCustomer(
     if (googleMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: googleMapsKey })
     if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
 
+    // Pre-compute visualizer flag so we can include VISION_URL in initial env vars for both CRM and website
+    const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')
+    const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
+
     // Step 5 & 6: CRM backend + frontend
     if (products.includes('crm')) {
       try {
@@ -973,10 +977,6 @@ export async function deployCustomer(
         results.errors.push('Pricing: ' + err.message)
       }
     }
-
-    // Pre-compute visualizer flag so we can include VISION_URL in initial env vars
-    const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')
-    const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
 
     // Step 7: Website service
     if (products.includes('website')) {
