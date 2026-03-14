@@ -835,6 +835,9 @@ export async function deployCustomer(
           ...integrationEnvVars,
           ...r2EnvVars,
         ]
+        if (hasVisualizerFeature) {
+          backendEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
+        }
         if (dbConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbConnectionString })
         if (supabaseProject) {
           backendEnvVars.push({ key: 'SUPABASE_URL', value: supabaseProject.supabaseUrl })
