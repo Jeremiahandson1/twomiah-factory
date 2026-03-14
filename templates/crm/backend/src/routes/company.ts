@@ -101,4 +101,20 @@ app.delete('/users/:id', requireAdmin, async (c) => {
   return c.json(null, 204)
 })
 
+// Update estimator settings
+app.put('/estimator', requireAdmin, async (c) => {
+  const currentUser = c.get('user') as any
+  const schema = z.object({
+    estimatorEnabled: z.boolean(),
+    pricePerSquareLow: z.string(),
+    pricePerSquareHigh: z.string(),
+    estimatorHeadline: z.string(),
+    estimatorDisclaimer: z.string(),
+  })
+  const data = schema.parse(await c.req.json())
+  await db.update(company).set({ ...data, updatedAt: new Date() })
+    .where(eq(company.id, currentUser.companyId))
+  return c.json({ message: 'Saved' })
+})
+
 export default app

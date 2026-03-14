@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
-import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft } from 'lucide-react';
+import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, Calculator } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 export default function SettingsPage() {
@@ -73,6 +73,9 @@ export default function SettingsPage() {
             </button>
             <button onClick={() => navigate('/crm/settings/migration')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <ArrowRightLeft className="w-5 h-5" />Migrate Data
+            </button>
+            <button onClick={() => navigate('/crm/settings/estimator')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <Calculator className="w-5 h-5" />Instant Estimator
             </button>
           </div>
         </div>

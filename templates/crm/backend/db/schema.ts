@@ -22,6 +22,13 @@ export const company = pgTable('company', {
   settings: json('settings').default({}).notNull(),
   integrations: json('integrations').default({}).notNull(),
 
+  // Instant Estimator
+  estimatorEnabled: boolean('estimator_enabled').default(false).notNull(),
+  pricePerSquareLow: decimal('price_per_square_low', { precision: 10, scale: 2 }).default('350.00').notNull(),
+  pricePerSquareHigh: decimal('price_per_square_high', { precision: 10, scale: 2 }).default('550.00').notNull(),
+  estimatorHeadline: text('estimator_headline').default('Get Your Free Instant Estimate').notNull(),
+  estimatorDisclaimer: text('estimator_disclaimer').default('This is an automated estimate based on satellite data. Final pricing may vary after on-site inspection.').notNull(),
+
   // Stripe
   stripeCustomerId: text('stripe_customer_id').unique(),
   subscriptionTier: text('subscription_tier'),

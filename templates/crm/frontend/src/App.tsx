@@ -65,6 +65,7 @@ import VisualizerPage from './pages/VisualizerPage';
 import VisualizerTrialPage from './pages/VisualizerTrialPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
 import EstimatorTrialPage from './pages/EstimatorTrialPage';
+import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // Detail Pages
@@ -159,6 +160,7 @@ function App() {
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
+                    <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                     <Route path="fleet" element={<FleetPage />} />
                     <Route path="inventory" element={<InventoryPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
