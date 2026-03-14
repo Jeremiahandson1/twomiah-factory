@@ -817,7 +817,8 @@ export async function deployCustomer(
       if (integrations.stripe.publishableKey) integrationEnvVars.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: integrations.stripe.publishableKey })
       if (integrations.stripe.webhookSecret) integrationEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: integrations.stripe.webhookSecret })
     }
-    if (integrations?.googleMaps?.apiKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: integrations.googleMaps.apiKey })
+    const googleMapsKey = integrations?.googleMaps?.apiKey || process.env.TWOMIAH_GOOGLE_MAPS_KEY || ''
+    if (googleMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: googleMapsKey })
     if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
 
     // Step 5 & 6: CRM backend + frontend
