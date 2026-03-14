@@ -479,6 +479,7 @@
           <nav class="utility-nav">
             <a href="/gallery">Projects</a>
             <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><a href="/visualize">Visualize</a><% } %>
+            <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><a href="/estimate">Free Estimate</a><% } %>
             <a href="/blog">Blog</a>
             <a href="/#about">About</a>
             <a href="/#contact">Contact</a>
@@ -550,6 +551,7 @@
         <% }); %>
         <li class="mobile-section-label">More</li>
         <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
+        <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><li><a href="/estimate">Instant Roof Estimate</a></li><% } %>
         <li><a href="/gallery">Projects</a></li>
         <li><a href="/blog">Blog</a></li>
         <li><a href="/#about">About</a></li>
@@ -656,6 +658,7 @@
             <h4>Company</h4>
             <ul>
               <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
+              <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><li><a href="/estimate">Instant Roof Estimate</a></li><% } %>
               <li><a href="/gallery">Projects</a></li>
               <li><a href="/blog">Blog</a></li>
               <li><a href="/#about">About Us</a></li>

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, UserCheck, Calendar, Clock, Receipt,
   DollarSign, BarChart2, Shield, MessageSquare, FileText, Activity,
   Bell, Settings, LogOut, ClipboardList, ChevronLeft, ChevronRight,
-  AlertTriangle, FileCheck, Truck, Inbox, ExternalLink, Megaphone
+  AlertTriangle, FileCheck, Truck, Inbox, ExternalLink, Megaphone, Calculator
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -28,6 +28,7 @@ const navItems = [
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/ads', icon: Megaphone, label: 'Ads', features: ['paid_ads'] },
+  { to: '/crm/estimator', icon: Calculator, label: 'Roof Estimator', features: ['instant_estimator'] },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 

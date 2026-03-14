@@ -1,0 +1,176 @@
+<% const crmApiUrl = typeof CRM_API_URL !== 'undefined' ? CRM_API_URL : '' %>
+<% const tenantSlug = typeof TENANT_SLUG !== 'undefined' ? TENANT_SLUG : '' %>
+
+<section class="estimator-page">
+  <div class="estimator-header">
+    <div class="container">
+      <h1>Instant Roof Estimate</h1>
+      <p>Enter your address below and get a satellite-based roof cost estimate in seconds — no appointment needed.</p>
+    </div>
+  </div>
+
+  <div class="estimator-widget-wrapper">
+    <div class="container">
+      <div id="twomiah-estimator" data-slug="<%= tenantSlug %>"></div>
+    </div>
+  </div>
+
+  <div class="estimator-how-it-works">
+    <div class="container">
+      <h2>How It Works</h2>
+      <div class="estimator-steps">
+        <div class="estimator-step">
+          <div class="estimator-step-num">1</div>
+          <h3>Enter Your Address</h3>
+          <p>Type in your home address and we'll locate your roof using satellite imagery.</p>
+        </div>
+        <div class="estimator-step">
+          <div class="estimator-step-num">2</div>
+          <h3>Get Your Estimate</h3>
+          <p>Our system measures your roof and calculates a price range based on current material costs.</p>
+        </div>
+        <div class="estimator-step">
+          <div class="estimator-step-num">3</div>
+          <h3>Schedule an Inspection</h3>
+          <p>Like the estimate? We'll come out for a free on-site inspection and detailed quote.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="estimator-cta-section">
+    <div class="container">
+      <div class="estimator-cta">
+        <h2>Prefer to talk to someone?</h2>
+        <p>Call us for a free consultation and we'll walk you through everything.</p>
+        <div class="estimator-cta-buttons">
+          <a href="/contact" class="btn btn-primary">Request Free Inspection</a>
+          <a href="tel:<%= (typeof settings !== 'undefined' && settings.phone) ? settings.phone.replace(/[^0-9+]/g, '') : '' %>" class="btn btn-outline">
+            Call <%= (typeof settings !== 'undefined' && settings.phone) ? settings.phone : '' %>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<% if (crmApiUrl) { %>
+<script src="<%= crmApiUrl %>/estimator.js"></script>
+<% } %>
+
+<style>
+  .estimator-page {
+    min-height: calc(100vh - 140px);
+  }
+  .estimator-header {
+    text-align: center;
+    padding: 2.5rem 1rem 1.5rem;
+    background: var(--off-white, #f8f9fa);
+  }
+  .estimator-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--heading-color, #1a1a1a);
+    margin: 0 0 0.5rem;
+  }
+  .estimator-header p {
+    color: var(--text-muted, #6b7280);
+    font-size: 1.05rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .estimator-widget-wrapper {
+    padding: 2.5rem 1rem;
+    background: #fff;
+  }
+  .estimator-how-it-works {
+    padding: 3rem 1rem;
+    background: var(--off-white, #f8f9fa);
+  }
+  .estimator-how-it-works h2 {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 2rem;
+    color: var(--heading-color, #1a1a1a);
+  }
+  .estimator-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .estimator-step {
+    text-align: center;
+  }
+  .estimator-step-num {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--primary-color, #2563eb);
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+  }
+  .estimator-step h3 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+    color: var(--heading-color, #1a1a1a);
+  }
+  .estimator-step p {
+    color: var(--text-muted, #6b7280);
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .estimator-cta-section {
+    padding: 3rem 1rem;
+    background: #fff;
+  }
+  .estimator-cta {
+    text-align: center;
+  }
+  .estimator-cta h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+  }
+  .estimator-cta p {
+    color: var(--text-muted, #6b7280);
+    margin: 0 0 1.25rem;
+  }
+  .estimator-cta-buttons {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .estimator-cta-buttons .btn-outline {
+    border: 2px solid var(--primary-color, #2563eb);
+    color: var(--primary-color, #2563eb);
+    background: transparent;
+    padding: 0.6rem 1.5rem;
+    border-radius: 6px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+  }
+  .estimator-cta-buttons .btn-outline:hover {
+    background: var(--primary-color, #2563eb);
+    color: #fff;
+  }
+  @media (max-width: 768px) {
+    .estimator-steps {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .estimator-header h1 {
+      font-size: 1.5rem;
+    }
+  }
+</style>

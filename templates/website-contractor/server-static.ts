@@ -139,7 +139,7 @@ function loadJSON(filename: string) {
 }
 
 const hasVisualizer = fs.existsSync(path.join(__dirname, 'views', 'visualize.ejs')) || fs.existsSync(path.join(__dirname, 'views', 'visualize.html')) || !!(process.env.VISION_URL)
-const hasEstimator = !!(process.env.CRM_API_URL)
+const hasEstimator = process.env.HAS_ESTIMATOR === 'true'
 
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}

@@ -7,7 +7,7 @@ import {
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
-  Radio, FileSignature, Box, BookMarked, Inbox, ExternalLink, Bot
+  Radio, FileSignature, Box, BookMarked, Inbox, ExternalLink, Bot, Calculator
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -61,6 +61,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/maintenance', icon: FileSignature, label: 'Maintenance Contracts', section: 'Field Service', features: ['maintenance_contracts'] },
   { to: '/crm/parts', icon: Box, label: 'Parts Inventory', section: 'Field Service', features: ['parts_inventory'] },
   { to: '/crm/pricebook-rates', icon: BookMarked, label: 'Flat Rate Pricebook', section: 'Field Service', features: ['flat_rate_pricebook'] },
+  { to: '/crm/estimator', icon: Calculator, label: 'Roof Estimator', features: ['instant_estimator'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 ];
 

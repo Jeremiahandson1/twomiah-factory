@@ -27,6 +27,7 @@ import AdsPage from './pages/ads/AdsPage'
 import VisualizerTrialPage from './pages/VisualizerTrialPage'
 import PricebookTrialPage from './pages/PricebookTrialPage'
 import EstimatorTrialPage from './pages/EstimatorTrialPage'
+import EstimatorPage from './pages/EstimatorPage'
 import CustomerPortal from './pages/CustomerPortal'
 import LoginPage from './pages/LoginPage'
 // Portal
@@ -87,6 +88,7 @@ export default function App() {
                 <Route path="leads" element={<LeadInboxPage />} />
                 <Route path="lead-sources" element={<LeadSourcesPage />} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
+                <Route path="estimator" element={<EstimatorPage />} />
                 <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                 <Route path="ads" element={<AdsPage />} />
                 <Route path="visualizer-trial" element={<VisualizerTrialPage />} />

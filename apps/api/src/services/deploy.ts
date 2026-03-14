@@ -984,6 +984,10 @@ export async function deployCustomer(
         if (hasVisualizerFeature) {
           siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
+        const hasEstimatorFeature = (factoryCustomer.config?.features?.crm || []).includes('instant_estimator') || (factoryCustomer.config?.features?.website || []).includes('instant_estimator')
+        if (hasEstimatorFeature) {
+          siteEnvVars.push({ key: 'HAS_ESTIMATOR', value: 'true' })
+        }
         if (results.apiUrl) {
           siteEnvVars.push({ key: 'CRM_API_URL', value: results.apiUrl })
           siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })

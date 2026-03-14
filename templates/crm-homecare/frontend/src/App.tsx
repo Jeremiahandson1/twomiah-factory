@@ -17,6 +17,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import AdsPage from './pages/ads/AdsPage';
+import EstimatorPage from './pages/EstimatorPage';
 
 // ── Protected Route wrapper ──────────────────────────────────────────────────
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -49,6 +50,7 @@ const App = () => {
         <Route path="leads" element={<LeadInboxPage />} />
         <Route path="lead-sources" element={<LeadSourcesPage />} />
         <Route path="ads" element={<AdsPage />} />
+        <Route path="estimator" element={<EstimatorPage />} />
 
         {/* Customer Portal — unified hub after login */}
         <Route path="/" element={<AuthProvider><ProtectedRoute><CustomerPortal /></ProtectedRoute></AuthProvider>} />

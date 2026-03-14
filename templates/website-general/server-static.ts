@@ -139,12 +139,13 @@ function loadJSON(filename: string) {
 }
 
 const hasVisualizer = fs.existsSync(path.join(__dirname, 'views', 'visualize.html')) || !!(process.env.VISION_URL)
+const hasEstimator = process.env.HAS_ESTIMATOR === 'true'
 
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { settings, menuItems, BASE_URL, hasVisualizer, ...locals }
+  const shared = { settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {
@@ -286,6 +287,26 @@ if (fs.existsSync(visualizePage)) {
     })
   }
 }
+
+// ===========================================
+// ESTIMATOR
+// ===========================================
+
+const CRM_API_URL = process.env.CRM_API_URL || ''
+const TENANT_SLUG = process.env.TENANT_SLUG || '{{COMPANY_SLUG}}'
+
+app.get('/estimate', (c) => {
+  if (!CRM_API_URL) return c.redirect('/contact', 302)
+  const services = loadJSON('services.json') || []
+  return renderPage(c, 'estimator', {
+    CRM_API_URL,
+    TENANT_SLUG,
+    services,
+    title: 'Instant Roof Estimate | {{COMPANY_NAME}}',
+    description: 'Get a free satellite-based roof cost estimate in seconds. No appointment needed.',
+    canonicalUrl: BASE_URL + '/estimate',
+  })
+})
 
 // ===========================================
 // ERROR HANDLING

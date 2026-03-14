@@ -21,6 +21,7 @@ import {
   Inbox,
   Bot,
   Megaphone,
+  Calculator,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -36,6 +37,7 @@ const baseNavItems = [
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
   { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads' },
   { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
+  { label: 'Roof Estimator', icon: Calculator, to: '/crm/estimator' },
 ]
 
 const fieldNavItems = [
