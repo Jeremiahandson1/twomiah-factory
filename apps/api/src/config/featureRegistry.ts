@@ -12,13 +12,13 @@ export type FeatureDef = {
 
 export const FEATURE_REGISTRY: FeatureDef[] = [
   // Core
-  { id: 'contacts', name: 'Contacts', description: 'Client, lead, vendor management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'contacts', name: 'Contacts', description: 'Client, lead, vendor management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary'] },
   { id: 'jobs', name: 'Jobs', description: 'Job tracking and management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-automotive', 'crm-roof'] },
   { id: 'quotes', name: 'Quotes', description: 'Professional estimates and quotes', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-automotive', 'crm-roof'] },
   { id: 'invoices', name: 'Invoices', description: 'Invoice generation and tracking', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
   { id: 'scheduling', name: 'Scheduling', description: 'Calendar and job scheduling', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
-  { id: 'team', name: 'Team', description: 'Team member management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare'] },
-  { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  { id: 'team', name: 'Team', description: 'Team member management', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-dispensary'] },
+  { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', category: 'Core', core: true, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof', 'crm-dispensary'] },
 
   // Construction
   { id: 'projects', name: 'Projects', description: 'Multi-phase project management', category: 'Construction', core: false, templates: ['crm'] },
@@ -68,7 +68,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
 
   // Communication
-  { id: 'two_way_texting', name: 'Two-Way Texting', description: 'SMS communication with clients', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof'] },
+  { id: 'two_way_texting', name: 'Two-Way Texting', description: 'SMS communication with clients', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-roof', 'crm-dispensary'] },
   { id: 'call_tracking', name: 'Call Tracking', description: 'Inbound call tracking and recording', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
   { id: 'client_portal', name: 'Client Portal', description: 'Customer-facing project portal', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-roof'] },
   { id: 'lead_inbox', name: 'Lead Inbox', description: 'Unified lead feed from Angi, Thumbtack, HomeAdvisor, Google LSA', category: 'Communication', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
@@ -95,6 +95,32 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'materials', name: 'Materials', description: 'Material ordering and tracking', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'canvassing_tool', name: 'Canvassing Tool', description: 'Door-to-door canvassing management', category: 'Roofing', core: false, templates: ['crm-roof'] },
   { id: 'storm_lead_gen', name: 'Storm Lead Gen', description: 'Storm damage lead generation', category: 'Roofing', core: false, templates: ['crm-roof'] },
+
+  // Dispensary — POS & Sales
+  { id: 'pos', name: 'Point of Sale', description: 'POS terminal for walk-in and pickup orders', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
+  { id: 'products', name: 'Product Catalog', description: 'Product management with strain data, THC/CBD, pricing', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
+  { id: 'orders', name: 'Orders', description: 'Order management and history', category: 'POS & Sales', core: true, templates: ['crm-dispensary'] },
+  { id: 'cash_management', name: 'Cash Management', description: 'Cash drawer sessions and end-of-day reconciliation', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — Inventory & Compliance
+  { id: 'dispensary_inventory', name: 'Inventory Tracking', description: 'Stock levels, adjustments, low-stock alerts', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+  { id: 'purchase_limits', name: 'Purchase Limits', description: 'Michigan 2.5oz per transaction enforcement', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+  { id: 'audit_log', name: 'Audit Log', description: 'Immutable audit trail for all sensitive actions', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+  { id: 'id_verification', name: 'ID Verification', description: 'Customer ID verification tracking at pickup/delivery', category: 'Inventory & Compliance', core: true, templates: ['crm-dispensary'] },
+
+  // Dispensary — Loyalty & Marketing
+  { id: 'loyalty_rewards', name: 'Loyalty Program', description: 'Points, tiers, rewards, and referral tracking', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+  { id: 'sms_marketing', name: 'SMS Marketing', description: 'Text message campaigns and opt-in management', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+  { id: 'email_campaigns', name: 'Email Campaigns', description: 'Email marketing and deal notifications', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — Delivery & Online
+  { id: 'delivery', name: 'Delivery', description: 'Delivery zones, driver management, and tracking', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+  { id: 'order_ahead', name: 'Order Ahead', description: 'Online ordering for pickup and delivery', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+  { id: 'public_menu', name: 'Public Menu', description: 'Public-facing product menu with strain info', category: 'Delivery & Online', core: true, templates: ['crm-dispensary'] },
+
+  // Dispensary — Analytics & Merch
+  { id: 'dispensary_analytics', name: 'Analytics', description: 'Sales reports, product performance, peak hours', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'merch_store', name: 'Merch Store', description: 'Non-cannabis merchandise with Stripe checkout', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
 
   // Add-on Products
   { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },

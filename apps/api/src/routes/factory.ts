@@ -2273,16 +2273,19 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
       : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? 'crm-fieldservice'
       : ind === 'automotive' ? 'crm-automotive'
       : ind === 'roofing' ? 'crm-roof'
+      : ind === 'dispensary' ? 'crm-dispensary'
       : 'crm'
 
     const availableFeatures = getFeaturesForTemplate(template)
 
-    // If tenant is active but has no features stored, default to all available features enabled
-    // (deployed tenants get all features baked in during generation)
+    // If tenant is active but has no features stored, or stored features are mostly from a
+    // different template (e.g. industry was corrected), re-populate with all available features
     let enabledFeatures: string[] = tenant.features || []
-    if (enabledFeatures.length === 0 && tenant.status === 'active') {
+    const availableIds = new Set(availableFeatures.map(f => f.id))
+    const matchCount = enabledFeatures.filter(f => availableIds.has(f)).length
+    const mismatch = enabledFeatures.length > 0 && matchCount < availableIds.size / 2
+    if ((enabledFeatures.length === 0 || mismatch) && tenant.status === 'active') {
       enabledFeatures = availableFeatures.map(f => f.id)
-      // Backfill the tenant record so this only happens once
       await supabase.from('tenants').update({ features: enabledFeatures }).eq('id', id)
     }
 
