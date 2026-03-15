@@ -496,7 +496,7 @@ function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
       secondaryColor: tenant.secondary_color || '#1e3a5f',
     },
     features: {
-      crm: job.features || tenant.features || [],
+      crm: tenant.features || job.features || [],
     },
   } as GenerateConfig
 }
@@ -577,6 +577,27 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
         const { error: featErr } = await supabase.from('tenants').update({ features: deployedFeatures }).eq('id', tenant.id)
         if (featErr) console.warn('[Deploy] Features sync failed (non-blocking):', featErr.message)
         else console.log('[Deploy] Synced', deployedFeatures.length, 'features to tenant record for', tenant.slug)
+      }
+
+      // Sync features to the running CRM via HTTP API
+      const syncKey = result.factorySyncKey || tenant.factory_sync_key
+      const backendUrl = result.apiUrl || tenant.render_backend_url
+      if (syncKey && backendUrl && deployedFeatures.length > 0) {
+        try {
+          const syncUrl = backendUrl.replace(/\/$/, '') + '/api/internal/sync-features'
+          const syncRes = await fetch(syncUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Factory-Key': syncKey },
+            body: JSON.stringify({ features: deployedFeatures }),
+          })
+          if (syncRes.ok) {
+            console.log('[Deploy] Synced features to running CRM for', tenant.slug)
+          } else {
+            console.warn('[Deploy] CRM feature sync HTTP failed:', syncRes.status)
+          }
+        } catch (syncErr: any) {
+          console.warn('[Deploy] CRM feature sync failed (CRM may still be starting):', syncErr.message)
+        }
       }
 
       // Optional fields — save separately so a missing column doesn't block critical data
