@@ -24,7 +24,6 @@ async function main() {
       secondaryColor: '{{SECONDARY_COLOR}}',
       website: '{{SITE_URL}}',
       enabledFeatures: {{ENABLED_FEATURES_JSON}},
-      estimatorEnabled: ({{ENABLED_FEATURES_JSON}} as string[]).includes('instant_estimator'),
       settings: {
         products: {{PRODUCTS_JSON}},
         siteUrl: '{{SITE_URL}}',
@@ -34,6 +33,13 @@ async function main() {
       },
     }).returning()
     console.log('Created company:', comp.name)
+
+    // Auto-enable estimator if feature was selected
+    const features = (comp.enabledFeatures as string[]) || []
+    if (features.includes('instant_estimator')) {
+      await db.update(company).set({ estimatorEnabled: true }).where(eq(company.id, comp.id))
+      console.log('Estimator auto-enabled')
+    }
   } else {
     console.log('Company already exists:', comp.name)
   }
