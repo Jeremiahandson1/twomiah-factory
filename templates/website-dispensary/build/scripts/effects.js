@@ -490,21 +490,28 @@
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    var mx = 0, my = 0, jx = 0, jy = 0;
+    var mx = -100, my = -100, jx = -100, jy = -100;
     var particles = [];
     var MAX_PARTICLES = 80;
+    var firstMove = true;
 
     document.addEventListener('mousemove', function (e) {
       mx = e.clientX;
       my = e.clientY;
+      // Snap joint to cursor instantly on first move (no lerp fly-in)
+      if (firstMove) {
+        jx = mx;
+        jy = my;
+        firstMove = false;
+      }
     });
 
     // Smoke particle class
     function spawnSmoke(x, y) {
       if (particles.length >= MAX_PARTICLES) return;
-      // Offset to match cherry position after joint rotation
-      var tipX = x - 18;
-      var tipY = y - 8;
+      // Offset to match cherry position after joint rotation (55deg)
+      var tipX = x - 12;
+      var tipY = y - 22;
       for (var i = 0; i < 2; i++) {
         particles.push({
           x: tipX + (Math.random() - 0.5) * 4,
