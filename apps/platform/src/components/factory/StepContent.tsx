@@ -17,6 +17,17 @@ const HOME_CARE_SERVICES = [
   { id: 'light-housekeeping', name: 'Light Housekeeping', desc: 'Laundry, dishes, tidying up' },
 ]
 
+const DISPENSARY_SERVICES = [
+  { id: 'flower', name: 'Flower', desc: 'Premium cannabis buds and pre-ground' },
+  { id: 'pre-rolls', name: 'Pre-Rolls', desc: 'Ready-to-smoke joints and blunts' },
+  { id: 'edibles', name: 'Edibles', desc: 'Gummies, chocolates, beverages, baked goods' },
+  { id: 'concentrates', name: 'Concentrates', desc: 'Wax, shatter, live resin, rosin, diamonds' },
+  { id: 'vapes', name: 'Vapes', desc: 'Cartridges, disposables, and batteries' },
+  { id: 'topicals', name: 'Topicals', desc: 'Creams, balms, lotions, patches' },
+  { id: 'accessories', name: 'Accessories', desc: 'Pipes, papers, grinders, storage' },
+  { id: 'merch', name: 'Merch', desc: 'Branded apparel, hats, stickers' },
+]
+
 const CONTRACTOR_SERVICES = [
   { id: 'roofing', name: 'Roofing', desc: 'Replacement, repair, and inspection' },
   { id: 'siding', name: 'Siding', desc: 'Vinyl, fiber cement, wood siding' },
@@ -33,7 +44,7 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
   const [error, setError] = useState('')
   const [customServiceName, setCustomServiceName] = useState('')
   const industry = config.company?.industry || ''
-  const serviceOptions = industry === 'home_care' ? HOME_CARE_SERVICES : CONTRACTOR_SERVICES
+  const serviceOptions = industry === 'home_care' ? HOME_CARE_SERVICES : industry === 'dispensary' ? DISPENSARY_SERVICES : CONTRACTOR_SERVICES
   const content = config.content
   const selectedServices = content.services?.length > 0 ? content.services : serviceOptions.slice(0, 6).map(s => s.id)
 
@@ -41,7 +52,7 @@ export default function StepContent({ config, setConfig, onNext, onBack }: Props
   useEffect(() => {
     if (!content.services || content.services.length === 0) {
       setConfig(prev => {
-        const opts = (prev.company?.industry === 'home_care' ? HOME_CARE_SERVICES : CONTRACTOR_SERVICES)
+        const opts = (prev.company?.industry === 'home_care' ? HOME_CARE_SERVICES : prev.company?.industry === 'dispensary' ? DISPENSARY_SERVICES : CONTRACTOR_SERVICES)
         return { ...prev, content: { ...prev.content, services: opts.slice(0, 6).map(s => s.id) } }
       })
     }

@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "id": "menu",
+      "label": "Menu",
+      "href": "/menu",
+      "visible": true
+    },
+    {
+      "id": "order",
+      "label": "Order Online",
+      "href": "/order",
+      "visible": true
+    },
+    {
+      "id": "loyalty",
+      "label": "Loyalty",
+      "href": "/loyalty",
+      "visible": true
+    },
+    {
+      "id": "blog",
+      "label": "Blog",
+      "href": "/blog",
+      "visible": false
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "href": "/contact",
+      "visible": true
+    }
+  ]
+}

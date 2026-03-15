@@ -132,6 +132,21 @@ const WEBSITE_REGISTRY = [
   ]},
 ]
 
+const DISPENSARY_MODULES = [
+  { icon: '🌿', label: 'Product Menu', desc: 'Flower, edibles, concentrates, vapes, topicals' },
+  { icon: '🛒', label: 'Point of Sale', desc: 'Full POS with cart, customer lookup, payments' },
+  { icon: '📦', label: 'Inventory', desc: 'Stock tracking, low-stock alerts, adjustments' },
+  { icon: '⭐', label: 'Loyalty Program', desc: 'Points, tiers, rewards, referrals' },
+  { icon: '🚗', label: 'Delivery', desc: 'Zone management, driver tracking, compliance' },
+  { icon: '👕', label: 'Merch Store', desc: 'Non-cannabis items with Stripe checkout' },
+  { icon: '📊', label: 'Analytics', desc: 'Sales, product mix, peak hours, customer metrics' },
+  { icon: '💰', label: 'Cash Management', desc: 'Drawer sessions, end-of-day reconciliation' },
+  { icon: '📋', label: 'Audit Trail', desc: 'Immutable log of all sensitive actions' },
+  { icon: '⚖️', label: 'Compliance', desc: '2.5oz purchase limits, ID verification' },
+  { icon: '👥', label: 'Team & Roles', desc: 'Owner, manager, budtender, driver RBAC' },
+  { icon: '🌐', label: 'Online Ordering', desc: 'Public menu, age gate, pickup & delivery' },
+]
+
 const HOMECARE_MODULES = [
   { icon: '👤', label: 'Client Management', desc: 'Profiles, onboarding, emergency contacts' },
   { icon: '🧑‍⚕️', label: 'Caregiver Management', desc: 'Certifications, pay rates, availability' },
@@ -151,6 +166,7 @@ export default function StepFeatures({ config, setConfig, plan, onNext, onBack }
   const hasWebsite = config.products.includes('website')
   const hasCRM = config.products.includes('crm')
   const isHomeCare = config.company?.industry === 'home_care'
+  const isDispensary = config.company?.industry === 'dispensary'
   const [tab, setTab] = useState(hasCRM ? 'crm' : 'website')
 
   if (!hasWebsite && !hasCRM) {
@@ -197,7 +213,9 @@ export default function StepFeatures({ config, setConfig, plan, onNext, onBack }
       </div>
 
       {tab === 'crm' && hasCRM && (
-        isHomeCare ? (
+        isDispensary ? (
+          <DispensaryIncluded />
+        ) : isHomeCare ? (
           <HomeCareIncluded />
         ) : (
           <CRMFeatures
@@ -219,6 +237,31 @@ export default function StepFeatures({ config, setConfig, plan, onNext, onBack }
       )}
 
       <NavButtons onBack={onBack} onNext={onNext} />
+    </div>
+  )
+}
+
+function DispensaryIncluded() {
+  return (
+    <div className="mb-4">
+      <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-5 mb-6">
+        <h3 className="text-green-400 font-bold text-lg mb-1">Twomiah Leaf — Everything Included</h3>
+        <p className="text-green-300 text-sm">The Cannabis Dispensary CRM is a complete, fixed platform. Every module is included — nothing to configure. Fill in company details and deploy.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {DISPENSARY_MODULES.map(m => (
+          <div key={m.label} className="flex items-start gap-3 bg-gray-800 border border-gray-700 rounded-lg p-3">
+            <span className="text-xl flex-shrink-0">{m.icon}</span>
+            <div>
+              <div className="text-white text-sm font-semibold flex items-center gap-1">
+                <svg width="12" height="12" viewBox="0 0 12 12" className="text-green-500 flex-shrink-0"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" /></svg>
+                {m.label}
+              </div>
+              <div className="text-gray-400 text-xs mt-0.5">{m.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -253,11 +296,14 @@ const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', '
 const AUTOMOTIVE_INDUSTRIES = new Set(['automotive'])
 const ROOFING_INDUSTRIES = new Set(['roofing'])
 
+const DISPENSARY_INDUSTRIES = new Set(['dispensary'])
+
 const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm': new Set(['Core', 'Construction', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-fieldservice': new Set(['Core', 'Service Trade', 'Field Service', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-roof': new Set(['Core', 'Construction', 'Roofing', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-automotive': new Set(['Core', 'Automotive', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-dispensary': new Set(['Core', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
 function getTemplateFromIndustry(industry?: string): string {
@@ -265,6 +311,7 @@ function getTemplateFromIndustry(industry?: string): string {
   if (FIELD_SERVICE_INDUSTRIES.has(industry)) return 'crm-fieldservice'
   if (ROOFING_INDUSTRIES.has(industry)) return 'crm-roof'
   if (AUTOMOTIVE_INDUSTRIES.has(industry)) return 'crm-automotive'
+  if (DISPENSARY_INDUSTRIES.has(industry)) return 'crm-dispensary'
   return 'crm'
 }
 

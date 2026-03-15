@@ -113,6 +113,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       let websiteTemplate = 'website-general'
       if (industry === 'home_care') websiteTemplate = 'website-homecare'
       else if (industry === 'field_service') websiteTemplate = 'website-fieldservice'
+      else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
       else if (industry && industry !== 'other') websiteTemplate = 'website-contractor'
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)
@@ -157,7 +158,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
     if (products.includes('crm')) {
       const crmIndustry = config.company?.industry || ''
-      const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : crmIndustry === 'roofing' ? 'crm-roof' : 'crm'
+      const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : crmIndustry === 'roofing' ? 'crm-roof' : crmIndustry === 'dispensary' ? 'crm-dispensary' : 'crm'
       const crmOutputDir = crmTemplate
       copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), tokens)
       processCRM(path.join(workDir, crmOutputDir), config, tokens)
@@ -231,6 +232,7 @@ const INDUSTRY_LABELS: Record<string, string> = {
   home_care: 'Home Care',
   field_service: 'Field Service',
   automotive: 'Automotive Dealership',
+  dispensary: 'Cannabis Dispensary',
 }
 
 function buildTokenMap(config: GenerateConfig, slug: string): Record<string, string> {
@@ -270,8 +272,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
     '{{SITE_URL}}': 'https://' + (c.domain || slug + '.com'),
     '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
-    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof.onrender.com' : 'https://' + slug + '-crm.onrender.com',
-    '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
+    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf.onrender.com' : 'https://' + slug + '-crm.onrender.com',
+    '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
     '{{INDUSTRY}}': industryLabel,
     '{{META_DESCRIPTION}}': industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'
@@ -279,23 +281,31 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       ? 'Professional HVAC and plumbing services in ' + (c.city || 'your area') + '. 24/7 emergency service, installations, repairs, and maintenance contracts.'
       : industry === 'automotive'
       ? (c.name || 'Your dealership') + ' in ' + (c.city || 'your area') + '. Browse inventory, schedule service, and get pre-approved online.'
+      : industry === 'dispensary'
+      ? (c.name || 'Your dispensary') + ' in ' + (c.city || 'your area') + '. Browse our menu, order online for pickup or delivery, and earn loyalty rewards.'
       : 'Professional services in ' + (c.city || 'your area') + '.',
-    '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'VA APPROVED PROVIDER' : industry === 'field_service' ? 'Your Trusted HVAC & Plumbing Professionals' : industry === 'automotive' ? 'Your Trusted Dealership' : 'Trusted ' + industryLabel),
-    '{{HERO_BADGE}}': config.content?.heroTagline || (industry === 'home_care' ? 'Compassionate In-Home Care' : 'Licensed & Insured'),
-    '{{HERO_TITLE}}': industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : (c.name || 'Your Company') + ' — Quality You Can Trust',
+    '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'VA APPROVED PROVIDER' : industry === 'field_service' ? 'Your Trusted HVAC & Plumbing Professionals' : industry === 'automotive' ? 'Your Trusted Dealership' : industry === 'dispensary' ? 'Premium Cannabis Products' : 'Trusted ' + industryLabel),
+    '{{HERO_BADGE}}': config.content?.heroTagline || (industry === 'home_care' ? 'Compassionate In-Home Care' : industry === 'dispensary' ? 'Licensed Dispensary' : 'Licensed & Insured'),
+    '{{HERO_TITLE}}': industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : industry === 'dispensary' ? (c.name || 'Your Dispensary') + ' — Premium Cannabis' : (c.name || 'Your Company') + ' — Quality You Can Trust',
     '{{HERO_DESCRIPTION}}': industry === 'home_care'
       ? 'Helping families in ' + (c.city || 'your area') + ' with personalized, professional in-home care.'
+      : industry === 'dispensary'
+      ? 'Premium flower, edibles, concentrates, and more in ' + (c.city || 'your area') + '. Order online for pickup or delivery.'
       : 'Serving ' + (c.serviceRegion || c.city || 'the area') + ' with quality workmanship.',
-    '{{TRUST_BADGE_1}}': industry === 'home_care' ? 'Licensed & Insured' : 'Licensed & Insured',
-    '{{TRUST_BADGE_2}}': industry === 'home_care' ? 'Background Checked Caregivers' : 'Free Estimates',
+    '{{TRUST_BADGE_1}}': industry === 'home_care' ? 'Licensed & Insured' : industry === 'dispensary' ? 'State Licensed' : 'Licensed & Insured',
+    '{{TRUST_BADGE_2}}': industry === 'home_care' ? 'Background Checked Caregivers' : industry === 'dispensary' ? 'Lab Tested Products' : 'Free Estimates',
     '{{RENDER_DOMAIN}}': slug + '-site.onrender.com',
     '{{ABOUT_TEXT}}': config.content?.aboutText || (industry === 'home_care'
       ? (c.name || 'We') + ' provide compassionate in-home care services throughout ' + (c.city || 'the area') + '.'
       : industry === 'field_service'
       ? (c.name || 'We') + ' provides reliable HVAC and plumbing services throughout ' + (c.serviceRegion || c.city || 'the area') + '. From emergency repairs to planned maintenance, we keep your home comfortable year-round.'
+      : industry === 'dispensary'
+      ? (c.name || 'We') + ' is a licensed cannabis dispensary serving ' + (c.city || 'the area') + '. We carry premium flower, edibles, concentrates, vapes, and accessories from top Michigan brands.'
       : (c.name || 'We') + ' deliver quality workmanship to homeowners throughout ' + (c.serviceRegion || c.city || 'the area') + '.'),
     '{{CTA_TEXT}}': config.content?.ctaText || (industry === 'home_care'
       ? 'Ready to discuss care options for your loved one?'
+      : industry === 'dispensary'
+      ? 'Browse our menu and order online for pickup or delivery.'
       : 'Ready to start your project? Get a free estimate today.'),
     '{{OWNER_NAME}}': c.ownerName || 'Admin',
     '{{OWNER_FIRST_NAME}}': firstName,
@@ -303,10 +313,10 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ADMIN_EMAIL}}': c.adminEmail || c.email || 'admin@' + slug + '.com',
     '{{DEFAULT_PASSWORD}}': defaultPassword,
     '{{HASHED_DEFAULT_PASSWORD}}': bcrypt.hashSync(defaultPassword, 10),
-    '{{PRIMARY_COLOR}}': b.primaryColor || (industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : '#f97316'),
-    '{{SECONDARY_COLOR}}': b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : '#1e3a5f'),
+    '{{PRIMARY_COLOR}}': b.primaryColor || (industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
+    '{{SECONDARY_COLOR}}': b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f'),
     '{{ACCENT_COLOR}}': '#f59e0b',
-    '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : '#f8f9fa',
+    '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : industry === 'dispensary' ? '#f0fdf4' : '#f8f9fa',
     '{{PRODUCTS_JSON}}': JSON.stringify(config.products || ['crm']),
     '{{CMS_URL}}': (config.products || []).includes('cms') ? 'https://' + slug + '-site.onrender.com/admin' : '',
     '{{JWT_SECRET}}': crypto.randomBytes(32).toString('hex'),
@@ -717,7 +727,7 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
   let readme = '# ' + name + ' — Software Package\n\nGenerated by Twomiah Factory on ' + new Date().toISOString().split('T')[0] + '\n\n'
   readme += '## Admin Credentials\n\n- **Email:** `' + tokens['{{ADMIN_EMAIL}}'] + '`\n- **Password:** `' + tokens['{{DEFAULT_PASSWORD}}'] + '`\n- ⚠️ Change the default password after first login!\n\n'
   if (products.includes('crm')) {
-    const crmDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'field_service' ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : 'crm'
+    const crmDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'field_service' ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
     readme += '## CRM (`/' + crmDir + '`)\n\n```bash\ncd ' + crmDir + '/backend && bun install\nbunx drizzle-kit migrate && bun db/seed.ts\nbun start\n```\n\n'
   }
   if (products.includes('pricing')) {
@@ -736,7 +746,7 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
 function generateDeployScript(workDir: string, config: GenerateConfig, products: string[]) {
   let script = '#!/bin/bash\nset -e\n\n'
   if (products.includes('website')) script += 'cd website && bun install && cd ..\n'
-  const crmScriptDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'roofing' ? 'crm-roof' : FIELD_SERVICE_INDUSTRIES.has(config.company?.industry || '') ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : 'crm'
+  const crmScriptDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'roofing' ? 'crm-roof' : FIELD_SERVICE_INDUSTRIES.has(config.company?.industry || '') ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
   if (products.includes('crm')) script += 'cd ' + crmScriptDir + '/backend && bun install && bunx drizzle-kit migrate && bun db/seed.ts && cd ../..\ncd ' + crmScriptDir + '/frontend && bun install && bun run build && cd ../..\n'
   script += '\necho "✅ Done!"\n'
   const scriptPath = path.join(workDir, 'deploy.sh')

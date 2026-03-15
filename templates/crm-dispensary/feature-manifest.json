@@ -1,0 +1,20 @@
+{
+  "core": {
+    "backend": {
+      "routes": [
+        "auth.ts", "company.ts", "contacts.ts", "team.ts", "dashboard.ts",
+        "search.ts", "sms.ts", "push.ts", "documents.ts", "photos.ts",
+        "support.ts", "export.ts", "import.ts", "leads.ts", "marketing.ts",
+        "stripe.ts", "products.ts", "orders.ts", "loyalty.ts", "delivery.ts",
+        "menu.ts", "analytics.ts", "cash.ts", "audit.ts"
+      ],
+      "services": [
+        "email.ts", "logger.ts", "socket.ts", "fileUpload.ts", "pdf.ts",
+        "sms.ts", "push.ts", "marketing.ts", "stripe.ts", "export.ts",
+        "import.ts", "search.ts", "geocoding.ts", "photos.ts", "audit.ts",
+        "compliance.ts", "loyalty.ts", "receipts.ts"
+      ]
+    }
+  },
+  "features": {}
+}

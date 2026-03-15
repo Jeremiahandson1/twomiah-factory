@@ -1,0 +1,338 @@
+<%
+  const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+%>
+
+<div class="loyalty-page">
+  <!-- Loyalty Hero -->
+  <section class="loyalty-hero">
+    <div class="loyalty-hero-bg"></div>
+    <div class="loyalty-hero-content">
+      <div class="container">
+        <h1>Loyalty Rewards</h1>
+        <p>Earn points on every purchase. Redeem for discounts, free products, and exclusive perks.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section class="loyalty-how">
+    <div class="container">
+      <h2 class="scroll-reveal">How It Works</h2>
+      <div class="how-grid stagger-grid">
+        <div class="how-step glass-card hover-glow scroll-reveal">
+          <div class="step-number">1</div>
+          <div class="step-icon">&#128221;</div>
+          <h3>Sign Up</h3>
+          <p>Create a free account in store or online. It takes less than a minute and you start earning points immediately.</p>
+        </div>
+        <div class="how-step glass-card hover-glow scroll-reveal">
+          <div class="step-number">2</div>
+          <div class="step-icon">&#11088;</div>
+          <h3>Earn Points</h3>
+          <p>Earn 1 point for every $1 spent. Bonus point events, birthday multipliers, and referral bonuses throughout the year.</p>
+        </div>
+        <div class="how-step glass-card hover-glow scroll-reveal">
+          <div class="step-number">3</div>
+          <div class="step-icon">&#127873;</div>
+          <h3>Redeem Rewards</h3>
+          <p>Use your points for discounts off your purchase, free products, exclusive merch, and members-only deals.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tier Benefits -->
+  <section class="loyalty-tiers aurora-bg">
+    <div class="container">
+      <h2 class="scroll-reveal">Membership Tiers</h2>
+      <p class="tiers-subtitle">Level up for even bigger rewards. Your tier resets annually based on your spend.</p>
+
+      <div class="tiers-grid stagger-grid">
+        <div class="tier-card tier-bronze glass-card card-lift scroll-reveal">
+          <div class="tier-badge">&#129353;</div>
+          <h3>Bronze</h3>
+          <p class="tier-threshold">0 - 499 pts</p>
+          <ul class="tier-perks">
+            <li>1x points on all purchases</li>
+            <li>Birthday reward (10% off)</li>
+            <li>Access to loyalty-only deals</li>
+            <li>Early access to new drops</li>
+          </ul>
+        </div>
+        <div class="tier-card tier-silver glass-card card-lift scroll-reveal">
+          <div class="tier-badge">&#129352;</div>
+          <h3>Silver</h3>
+          <p class="tier-threshold">500 - 999 pts</p>
+          <ul class="tier-perks">
+            <li>1.25x points on all purchases</li>
+            <li>Birthday reward (15% off)</li>
+            <li>Monthly bonus points drop</li>
+            <li>Free pre-roll on tier-up</li>
+            <li>All Bronze perks</li>
+          </ul>
+        </div>
+        <div class="tier-card tier-gold featured glass-card card-lift scroll-reveal">
+          <div class="tier-label">Most Popular</div>
+          <div class="tier-badge">&#127942;</div>
+          <h3>Gold</h3>
+          <p class="tier-threshold">1,000 - 2,499 pts</p>
+          <ul class="tier-perks">
+            <li>1.5x points on all purchases</li>
+            <li>Birthday reward (20% off)</li>
+            <li>Exclusive gold-only products</li>
+            <li>Priority pickup line</li>
+            <li>Quarterly free product</li>
+            <li>All Silver perks</li>
+          </ul>
+        </div>
+        <div class="tier-card tier-platinum glass-card card-lift scroll-reveal">
+          <div class="tier-badge">&#128142;</div>
+          <h3>Platinum</h3>
+          <p class="tier-threshold">2,500+ pts</p>
+          <ul class="tier-perks">
+            <li>2x points on all purchases</li>
+            <li>Birthday reward (25% off)</li>
+            <li>VIP event invitations</li>
+            <li>Free delivery (always)</li>
+            <li>Monthly free product</li>
+            <li>Concierge service</li>
+            <li>All Gold perks</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Check Your Points -->
+  <section class="loyalty-check">
+    <div class="container">
+      <div class="check-card glass-card scroll-reveal">
+        <h2>Check Your Points</h2>
+        <p>Enter your phone number to see your current balance and tier status.</p>
+        <form id="loyaltyCheckForm" class="check-form">
+          <div class="check-input-group">
+            <input
+              type="tel"
+              id="loyaltyPhone"
+              name="phone"
+              placeholder="(555) 123-4567"
+              required
+              pattern="[0-9()\-\s+]{7,15}"
+              autocomplete="tel"
+            >
+            <button type="submit" class="btn btn-primary">Check Points</button>
+          </div>
+        </form>
+        <div id="loyaltyResult" class="loyalty-result" style="display:none"></div>
+        <div id="loyaltyError" class="loyalty-error" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sign Up CTA -->
+  <section class="loyalty-cta aurora-bg">
+    <div class="container">
+      <div class="loyalty-cta-content">
+        <h2>Start Earning Today</h2>
+        <p>Sign up is free and takes less than a minute. Ask a budtender on your next visit or create an account online.</p>
+        <div class="loyalty-cta-buttons">
+          <a href="/order" class="btn btn-primary btn-lg magnetic-btn"><span class="btn-text">Order &amp; Earn Points</span></a>
+          <a href="/contact" class="btn btn-outline-light btn-lg magnetic-btn"><span class="btn-text">Visit Us In Store</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  .loyalty-page { --green-primary: #2d6a4f; --green-accent: #52b788; --green-dark: #1a3a2a; --green-light: #40916c; }
+
+  /* Hero */
+  .loyalty-hero { position: relative; padding: 100px 0 60px; text-align: center; overflow: hidden; }
+  .loyalty-hero-bg { position: absolute; inset: 0; background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-primary) 100%); }
+  .loyalty-hero-content { position: relative; z-index: 1; }
+  .loyalty-hero h1 { color: #fff; font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; margin-bottom: 12px; }
+  .loyalty-hero p { color: rgba(255,255,255,0.75); font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
+
+  /* How It Works */
+  .loyalty-how { padding: 80px 0; background: #fff; }
+  .loyalty-how h2 { text-align: center; font-size: 2rem; color: var(--green-dark); margin-bottom: 48px; }
+  .how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; max-width: 960px; margin: 0 auto; }
+  .how-step { text-align: center; position: relative; }
+  .step-number {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    width: 28px; height: 28px; border-radius: 50%; background: var(--green-accent);
+    color: var(--green-dark); font-size: 0.8rem; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; z-index: 2;
+  }
+  .step-icon { font-size: 3rem; margin: 24px 0 16px; }
+  .how-step h3 { font-size: 1.2rem; font-weight: 700; color: var(--green-dark); margin-bottom: 8px; }
+  .how-step p { font-size: 0.9rem; color: #666; line-height: 1.6; }
+
+  /* Tiers */
+  .loyalty-tiers { padding: 80px 0; background: #f8f8f8; }
+  .loyalty-tiers h2 { text-align: center; font-size: 2rem; color: var(--green-dark); margin-bottom: 8px; }
+  .tiers-subtitle { text-align: center; color: #666; margin-bottom: 48px; }
+  .tiers-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; max-width: 1100px; margin: 0 auto; }
+  .tier-card {
+    background: #fff; border-radius: 12px; padding: 32px 24px; text-align: center;
+    border: 1px solid #e5e5e5; position: relative; transition: transform 0.2s;
+  }
+  .tier-card:hover { transform: translateY(-4px); }
+  .tier-card.featured { border: 2px solid var(--green-accent); box-shadow: 0 8px 30px rgba(45,106,79,0.12); }
+  .tier-label {
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--green-accent); color: var(--green-dark); padding: 4px 16px;
+    border-radius: 100px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em; white-space: nowrap;
+  }
+  .tier-badge { font-size: 2.5rem; margin-bottom: 8px; }
+  .tier-card h3 { font-size: 1.3rem; font-weight: 800; color: var(--green-dark); margin-bottom: 4px; }
+  .tier-threshold { font-size: 0.85rem; color: #888; font-weight: 600; margin-bottom: 20px; }
+  .tier-perks { list-style: none; padding: 0; text-align: left; }
+  .tier-perks li {
+    padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; color: #555;
+    padding-left: 20px; position: relative;
+  }
+  .tier-perks li::before {
+    content: '\2713'; position: absolute; left: 0; color: var(--green-accent); font-weight: 700;
+  }
+  .tier-perks li:last-child { border-bottom: none; }
+
+  /* Check Points */
+  .loyalty-check { padding: 80px 0; background: #fff; }
+  .check-card {
+    max-width: 560px; margin: 0 auto; text-align: center;
+    background: #f8f8f8; border-radius: 16px; padding: 48px 32px;
+    border: 1px solid #e5e5e5;
+  }
+  .check-card h2 { font-size: 1.5rem; color: var(--green-dark); margin-bottom: 8px; }
+  .check-card > p { color: #666; margin-bottom: 24px; font-size: 0.95rem; }
+  .check-input-group { display: flex; gap: 12px; }
+  .check-input-group input {
+    flex: 1; padding: 14px 18px; border: 1px solid #ddd; border-radius: 8px;
+    font-family: 'Montserrat', sans-serif; font-size: 1rem;
+  }
+  .check-input-group input:focus { outline: none; border-color: var(--green-primary); box-shadow: 0 0 0 3px rgba(45,106,79,0.1); }
+  .check-input-group .btn { white-space: nowrap; }
+
+  .loyalty-result {
+    margin-top: 24px; padding: 20px; border-radius: 12px; background: #ecfdf5;
+    border: 1px solid #a7f3d0; text-align: left;
+  }
+  .loyalty-result .points-value { font-size: 2rem; font-weight: 800; color: var(--green-primary); }
+  .loyalty-result .tier-name { font-size: 0.9rem; color: #666; font-weight: 600; }
+
+  .loyalty-error {
+    margin-top: 24px; padding: 16px; border-radius: 8px; background: #fef2f2;
+    border: 1px solid #fecaca; color: #991b1b; font-size: 0.9rem;
+  }
+
+  /* CTA */
+  .loyalty-cta { background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-primary) 100%); padding: 80px 0; text-align: center; }
+  .loyalty-cta h2 { color: #fff; font-size: 2rem; margin-bottom: 12px; }
+  .loyalty-cta p { color: rgba(255,255,255,0.75); max-width: 600px; margin: 0 auto 32px; font-size: 1.05rem; }
+  .loyalty-cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+  @media (max-width: 900px) {
+    .tiers-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .how-grid { grid-template-columns: 1fr; gap: 32px; }
+    .tiers-grid { grid-template-columns: 1fr; max-width: 400px; }
+    .check-input-group { flex-direction: column; }
+    .check-card { padding: 32px 20px; }
+  }
+</style>
+
+<script>
+(function() {
+  const form = document.getElementById('loyaltyCheckForm');
+  const resultDiv = document.getElementById('loyaltyResult');
+  const errorDiv = document.getElementById('loyaltyError');
+
+  if (!form) return;
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const phone = document.getElementById('loyaltyPhone').value.replace(/\D/g, '');
+    if (phone.length < 7) {
+      errorDiv.textContent = 'Please enter a valid phone number.';
+      errorDiv.style.display = 'block';
+      resultDiv.style.display = 'none';
+      return;
+    }
+
+    const btn = form.querySelector('button[type="submit"]');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Checking...';
+    resultDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+
+    try {
+      const res = await fetch('/api/loyalty/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone })
+      });
+
+      if (res.status === 429) {
+        errorDiv.textContent = 'Too many requests. Please try again in a few minutes.';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      const data = await res.json();
+
+      if (data.success && data.member) {
+        var pts = data.member.points || 0;
+        var nextAt = data.member.nextRewardAt || 500;
+        var pct = Math.min(100, (pts / nextAt) * 100);
+        var r = 45, circ = 2 * Math.PI * r;
+        resultDiv.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
+            <div style="position:relative;width:100px;height:100px;">
+              <svg class="progress-ring" width="100" height="100" data-percent="${pct}">
+                <circle class="progress-ring__circle-bg" cx="50" cy="50" r="${r}"/>
+                <circle class="progress-ring__circle" cx="50" cy="50" r="${r}"
+                  style="stroke-dasharray:${circ};stroke-dashoffset:${circ}"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:0.85rem;color:#2d6a4f;">
+                ${Math.round(pct)}%
+              </div>
+            </div>
+            <div style="flex:1;">
+              <div class="tier-name">${data.member.tier || 'Bronze'} Member</div>
+              <div class="points-value">${pts.toLocaleString()} pts</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.85rem;color:#555;">Next reward at</div>
+              <div style="font-weight:700;color:#2d6a4f;">${nextAt} pts</div>
+            </div>
+          </div>
+        `;
+        // Animate the ring
+        setTimeout(function() {
+          var ring = resultDiv.querySelector('.progress-ring');
+          if (ring && typeof initProgressRings === 'undefined') {
+            var c = ring.querySelector('.progress-ring__circle');
+            var offset = circ - (pct / 100) * circ;
+            c.style.strokeDashoffset = offset;
+          }
+        }, 50);
+        resultDiv.style.display = 'block';
+      } else {
+        errorDiv.textContent = data.message || 'No account found with that phone number. Ask a budtender to sign you up!';
+        errorDiv.style.display = 'block';
+      }
+    } catch (err) {
+      errorDiv.textContent = 'Unable to check points right now. Please try again later.';
+      errorDiv.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  });
+})();
+</script>

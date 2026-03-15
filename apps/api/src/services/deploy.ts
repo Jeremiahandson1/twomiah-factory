@@ -697,6 +697,7 @@ export async function deployCustomer(
   const isFieldService = ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind)
   const isAutomotive = ind === 'automotive'
   const isRoofing = ind === 'roofing'
+  const isDispensary = ind === 'dispensary'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')
@@ -740,7 +741,7 @@ export async function deployCustomer(
     let dbConnectionString: string | null = null
     let supabaseProject: SupabaseProjectResult | null = null
     if (products.includes('crm')) {
-      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : slug
+      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isDispensary ? slug + '-leaf' : slug
 
       if (isSupabaseManagementConfigured()) {
         // ── Dedicated Supabase project per customer ──
@@ -800,7 +801,7 @@ export async function deployCustomer(
       results.steps.push({ step: 'r2_bucket', status: 'skipped', reason: 'no products require file storage' })
     } else {
       try {
-        const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : slug
+        const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isDispensary ? slug + '-leaf' : slug
         r2BucketName = await createR2Bucket(bucketSlug)
         createdResources.push({ type: 'r2_bucket', id: r2BucketName })
         r2EnvVars = getR2EnvVars(r2BucketName)
@@ -860,9 +861,9 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isDispensary ? slug + '-leaf-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isDispensary ? slug + '-leaf' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isDispensary ? 'crm-dispensary' : 'crm'
 
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)
@@ -1291,6 +1292,7 @@ export async function provisionR2ForExistingTenant(
     : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? tenant.slug + '-wrench'
     : ind === 'automotive' ? tenant.slug + '-drive'
     : ind === 'roofing' ? tenant.slug + '-roof'
+    : ind === 'dispensary' ? tenant.slug + '-leaf'
     : tenant.slug
 
   let bucketName: string

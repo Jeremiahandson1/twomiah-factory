@@ -1,0 +1,34 @@
+[
+  {
+    "id": "about-us",
+    "name": "About Us",
+    "description": "Standard about page template",
+    "content": "<h2>Our Story</h2>\n<p>Founded in [YEAR], [COMPANY NAME] has been serving the [AREA] community with quality craftsmanship and exceptional customer service.</p>\n\n<h2>Our Mission</h2>\n<p>We are committed to delivering the highest quality workmanship while maintaining honest, transparent communication with every customer.</p>\n\n<h2>Why Choose Us?</h2>\n<p><strong>Experienced Team</strong> - Our skilled craftsmen bring years of expertise to every project</p>\n<p><strong>Quality Materials</strong> - We use only the best materials from trusted manufacturers</p>\n<p><strong>Customer Focused</strong> - Your satisfaction is our top priority</p>\n<p><strong>Licensed &amp; Insured</strong> - Full protection for your peace of mind</p>",
+    "heroDescription": "Learn about our company and commitment to quality.",
+    "tagline": "Quality You Can Trust"
+  },
+  {
+    "id": "faq",
+    "name": "FAQ",
+    "description": "Frequently asked questions template",
+    "content": "<h2>Frequently Asked Questions</h2>\n\n<h3>How long does a typical project take?</h3>\n<p>Project timelines vary depending on scope. A roof replacement typically takes 1-3 days, while a full exterior remodel may take 1-2 weeks. We'll provide a detailed timeline during your estimate.</p>\n\n<h3>Do you offer financing?</h3>\n<p>Yes! We offer flexible financing options to help make your project affordable. Contact us to learn about current financing programs.</p>\n\n<h3>Are you licensed and insured?</h3>\n<p>Absolutely. We are fully licensed and carry comprehensive insurance coverage for your protection.</p>\n\n<h3>Do you handle insurance claims?</h3>\n<p>Yes, we work directly with insurance companies on storm damage claims to make the process as smooth as possible for you.</p>\n\n<h3>What warranties do you offer?</h3>\n<p>We stand behind our work with comprehensive warranties. Specific warranty terms vary by product and service - we'll explain all warranty coverage during your consultation.</p>",
+    "heroDescription": "Get answers to common questions about our services.",
+    "tagline": "Your Questions Answered"
+  },
+  {
+    "id": "testimonials-page",
+    "name": "Testimonials Page",
+    "description": "Customer reviews and testimonials",
+    "content": "<h2>What Our Customers Say</h2>\n<p>Don't just take our word for it - hear from homeowners throughout the {{SERVICE_REGION}} who have trusted us with their projects.</p>",
+    "heroDescription": "Read reviews from satisfied customers throughout the {{SERVICE_REGION}}.",
+    "tagline": "Customer Reviews"
+  },
+  {
+    "id": "financing",
+    "name": "Financing Options",
+    "description": "Financing information page",
+    "content": "<h2>Flexible Financing Options</h2>\n<p>We believe everyone deserves a beautiful, well-protected home. That's why we offer a variety of financing options to fit your budget.</p>\n\n<h3>Why Finance Your Project?</h3>\n<p>Low monthly payments, quick approval process, competitive interest rates, and no prepayment penalties.</p>\n\n<h3>Get Started Today</h3>\n<p>Contact us to learn about current financing programs and get pre-approved for your project.</p>",
+    "heroDescription": "Affordable payment options for your home improvement project.",
+    "tagline": "Make It Affordable"
+  }
+]

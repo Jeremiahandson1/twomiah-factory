@@ -1,0 +1,365 @@
+<%
+  const allProducts = (typeof products !== 'undefined' && Array.isArray(products)) ? products : []
+
+  // Category definitions
+  const categoryDefs = [
+    { id: 'flower', label: 'Flower', icon: '&#127807;' },
+    { id: 'edibles', label: 'Edibles', icon: '&#127852;' },
+    { id: 'concentrates', label: 'Concentrates', icon: '&#128167;' },
+    { id: 'vapes', label: 'Vapes', icon: '&#128168;' },
+    { id: 'pre-rolls', label: 'Pre-Rolls', icon: '&#128684;' },
+    { id: 'topicals', label: 'Topicals', icon: '&#129524;' },
+    { id: 'accessories', label: 'Accessories', icon: '&#128736;' },
+  ]
+
+  // Group products by category
+  function groupByCategory(items) {
+    const groups = {}
+    categoryDefs.forEach(cat => { groups[cat.id] = [] })
+    items.forEach(item => {
+      const cat = (item.category || 'flower').toLowerCase().replace(/\s+/g, '-')
+      if (!groups[cat]) groups[cat] = []
+      groups[cat].push(item)
+    })
+    return groups
+  }
+
+  const grouped = groupByCategory(allProducts)
+
+  function getImageUrl(p) {
+    if (!p) return ''
+    if (p.startsWith('http')) return p
+    if (p.startsWith('/')) return p
+    return '/uploads/' + p
+  }
+%>
+
+<div class="menu-page">
+  <!-- Menu Hero -->
+  <section class="menu-hero">
+    <div class="menu-hero-bg"></div>
+    <div class="menu-hero-content">
+      <div class="container">
+        <h1>Our Menu</h1>
+        <p>Browse our curated selection of premium cannabis products. Updated daily with the latest drops.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Filter Tabs -->
+  <section class="menu-filters">
+    <div class="container">
+      <div class="filter-row">
+        <div class="strain-filters">
+          <button class="strain-btn active" data-strain="all">All</button>
+          <button class="strain-btn" data-strain="indica">Indica</button>
+          <button class="strain-btn" data-strain="sativa">Sativa</button>
+          <button class="strain-btn" data-strain="hybrid">Hybrid</button>
+          <button class="strain-btn" data-strain="cbd">CBD</button>
+        </div>
+        <div class="menu-order-ctas">
+          <a href="/order" class="btn btn-primary btn-sm">Order for Pickup</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Menu Categories -->
+  <section class="menu-content">
+    <div class="container">
+      <% if (allProducts.length === 0) { %>
+        <div class="menu-empty">
+          <div class="menu-empty-icon">&#127807;</div>
+          <h2>Menu Coming Soon</h2>
+          <p>We're stocking our shelves with the finest products. Check back soon or visit us in store to see our full selection.</p>
+          <a href="/contact" class="btn btn-primary">Contact Us</a>
+        </div>
+      <% } else { %>
+        <!-- Category navigation (sticky) -->
+        <nav class="category-nav" id="categoryNav">
+          <% categoryDefs.forEach(cat => { %>
+            <% if (grouped[cat.id] && grouped[cat.id].length > 0) { %>
+              <a href="#cat-<%= cat.id %>" class="cat-link" data-cat="<%= cat.id %>">
+                <span class="cat-icon"><%- cat.icon %></span>
+                <span><%= cat.label %></span>
+              </a>
+            <% } %>
+          <% }) %>
+        </nav>
+
+        <!-- Product sections by category -->
+        <% categoryDefs.forEach(cat => { %>
+          <% const catProducts = grouped[cat.id] || [] %>
+          <% if (catProducts.length > 0) { %>
+            <div class="menu-category" id="cat-<%= cat.id %>">
+              <div class="category-header">
+                <span class="category-icon"><%- cat.icon %></span>
+                <h2><%= cat.label %></h2>
+                <span class="category-count"><%= catProducts.length %> product<%= catProducts.length !== 1 ? 's' : '' %></span>
+              </div>
+
+              <div class="product-grid stagger-grid">
+                <% catProducts.forEach(product => {
+                  const qvData = JSON.stringify({
+                    name: product.name,
+                    category: cat.label,
+                    price: product.price,
+                    strainType: product.strainType,
+                    thcPercent: product.thc,
+                    cbdPercent: product.cbd,
+                    description: product.description || '',
+                    imageUrl: product.image ? getImageUrl(product.image) : '',
+                    effects: product.effects || [],
+                    terpenes: product.terpenes || []
+                  }).replace(/"/g, '&quot;');
+                %>
+                  <div class="product-card tilt-card strain-shadow scroll-reveal" data-strain="<%= (product.strainType || '').toLowerCase() %>">
+                    <div class="tilt-shine"></div>
+                    <div class="tilt-inner">
+                      <div class="product-image" style="cursor:pointer" data-quick-view="<%= qvData %>">
+                        <% if (product.image) { %>
+                          <img src="<%= getImageUrl(product.image) %>" alt="<%= product.name %>" loading="lazy" width="300" height="300">
+                        <% } else { %>
+                          <div class="product-image-placeholder">
+                            <span><%- cat.icon %></span>
+                          </div>
+                        <% } %>
+                        <% if (product.strainType) { %>
+                          <span class="strain-badge strain-<%= product.strainType.toLowerCase() %>"><%= product.strainType %></span>
+                        <% } %>
+                        <% if (product.isNew) { %>
+                          <span class="new-badge">New</span>
+                        <% } %>
+                        <div class="quick-view-hint" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:4px 12px;border-radius:20px;font-size:0.7rem;font-weight:600;opacity:0;transition:opacity 0.2s;">Quick View</div>
+                      </div>
+                      <div class="product-info">
+                        <h3 class="product-name"><%= product.name %></h3>
+                        <% if (product.brand) { %>
+                          <p class="product-brand"><%= product.brand %></p>
+                        <% } %>
+                        <div class="product-details">
+                          <% if (product.thc) { %>
+                            <span class="detail-badge thc">THC <%= product.thc %>%</span>
+                          <% } %>
+                          <% if (product.cbd) { %>
+                            <span class="detail-badge cbd">CBD <%= product.cbd %>%</span>
+                          <% } %>
+                          <% if (product.weight) { %>
+                            <span class="detail-badge weight"><%= product.weight %></span>
+                          <% } %>
+                        </div>
+                        <div class="product-footer">
+                          <span class="product-price">
+                            <% if (product.price) { %>
+                              $<%= typeof product.price === 'number' ? product.price.toFixed(2) : product.price %>
+                            <% } else { %>
+                              See in store
+                            <% } %>
+                          </span>
+                          <a href="/order" class="btn btn-sm btn-outline magnetic-btn"><span class="btn-text">Order</span></a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% }) %>
+              </div>
+            </div>
+          <% } %>
+        <% }) %>
+      <% } %>
+    </div>
+  </section>
+
+  <!-- Order CTA Banner -->
+  <section class="menu-cta">
+    <div class="container">
+      <div class="menu-cta-content">
+        <div>
+          <h2>Ready to Order?</h2>
+          <p>Place your order online for fast pickup or delivery. First-time customers get 15% off.</p>
+        </div>
+        <div class="menu-cta-buttons">
+          <a href="/order" class="btn btn-primary btn-lg">Order Now</a>
+          <a href="/loyalty" class="btn btn-outline-light btn-lg">Join Loyalty Program</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+  .menu-page { --green-primary: #2d6a4f; --green-accent: #52b788; --green-dark: #1a3a2a; --green-light: #40916c; }
+
+  /* Hero */
+  .menu-hero { position: relative; padding: 100px 0 60px; text-align: center; overflow: hidden; }
+  .menu-hero-bg { position: absolute; inset: 0; background: linear-gradient(135deg, var(--green-dark) 0%, var(--green-primary) 100%); }
+  .menu-hero-content { position: relative; z-index: 1; }
+  .menu-hero h1 { color: #fff; font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; margin-bottom: 12px; }
+  .menu-hero p { color: rgba(255,255,255,0.75); font-size: 1.1rem; max-width: 600px; margin: 0 auto; }
+
+  /* Filters */
+  .menu-filters { background: #fff; border-bottom: 1px solid #e5e5e5; padding: 16px 0; position: sticky; top: 0; z-index: 50; }
+  .filter-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .strain-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+  .strain-btn {
+    padding: 8px 20px; border: 1px solid #ddd; border-radius: 100px; background: #fff;
+    font-family: 'Montserrat', sans-serif; font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; color: #555;
+  }
+  .strain-btn:hover { border-color: var(--green-primary); color: var(--green-primary); }
+  .strain-btn.active { background: var(--green-primary); color: #fff; border-color: var(--green-primary); }
+
+  /* Category Nav */
+  .category-nav {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 32px; padding: 16px 0;
+    border-bottom: 1px solid #eee;
+  }
+  .cat-link {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+    border-radius: 8px; text-decoration: none; color: #555; font-size: 0.9rem;
+    font-weight: 600; background: #f5f5f5; transition: all 0.15s;
+  }
+  .cat-link:hover, .cat-link.active { background: var(--green-primary); color: #fff; }
+  .cat-icon { font-size: 1.1rem; }
+
+  /* Category sections */
+  .menu-category { margin-bottom: 48px; scroll-margin-top: 80px; }
+  .category-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--green-accent); }
+  .category-icon { font-size: 1.5rem; }
+  .category-header h2 { font-size: 1.5rem; font-weight: 700; color: var(--green-dark); margin: 0; }
+  .category-count { margin-left: auto; font-size: 0.85rem; color: #888; font-weight: 500; }
+
+  /* Product grid */
+  .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; }
+
+  /* Product cards */
+  .product-card {
+    background: #fff; border-radius: 12px; overflow: hidden;
+    border: 1px solid #eee; transition: all 0.2s;
+  }
+  .product-card:hover { box-shadow: 0 8px 30px rgba(0,0,0,0.08); }
+  .product-card:hover .quick-view-hint { opacity: 1 !important; }
+  .product-card[data-strain].hidden { display: none; }
+
+  .product-image { position: relative; aspect-ratio: 1; background: #f8f8f8; overflow: hidden; }
+  .product-image img { width: 100%; height: 100%; object-fit: cover; }
+  .product-image-placeholder {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    font-size: 3rem; color: #ccc; background: linear-gradient(135deg, #f0f0f0, #e8e8e8);
+  }
+
+  .strain-badge {
+    position: absolute; top: 10px; left: 10px; padding: 4px 10px;
+    border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .strain-indica { background: #6c63ff; color: #fff; }
+  .strain-sativa { background: #ff6b35; color: #fff; }
+  .strain-hybrid { background: var(--green-accent); color: var(--green-dark); }
+  .strain-cbd { background: #3a86ff; color: #fff; }
+
+  .new-badge {
+    position: absolute; top: 10px; right: 10px; padding: 4px 10px;
+    border-radius: 4px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    background: #fbbf24; color: #78350f;
+  }
+
+  .product-info { padding: 16px; }
+  .product-name { font-size: 1rem; font-weight: 700; color: #222; margin-bottom: 4px; line-height: 1.3; }
+  .product-brand { font-size: 0.8rem; color: #888; margin-bottom: 10px; font-weight: 500; }
+
+  .product-details { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .detail-badge {
+    display: inline-block; padding: 3px 8px; border-radius: 4px;
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.02em;
+  }
+  .detail-badge.thc { background: #ecfdf5; color: var(--green-primary); }
+  .detail-badge.cbd { background: #eff6ff; color: #1d4ed8; }
+  .detail-badge.weight { background: #f5f5f5; color: #555; }
+
+  .product-footer { display: flex; align-items: center; justify-content: space-between; }
+  .product-price { font-size: 1.15rem; font-weight: 800; color: var(--green-dark); }
+  .product-footer .btn-sm { padding: 6px 16px; font-size: 0.8rem; }
+
+  /* Empty state */
+  .menu-empty { text-align: center; padding: 80px 20px; }
+  .menu-empty-icon { font-size: 4rem; margin-bottom: 16px; }
+  .menu-empty h2 { font-size: 1.75rem; color: var(--green-dark); margin-bottom: 12px; }
+  .menu-empty p { color: #666; max-width: 500px; margin: 0 auto 24px; line-height: 1.6; }
+
+  /* Menu CTA */
+  .menu-cta { background: var(--green-dark); padding: 60px 0; position: relative; overflow: hidden; }
+  .menu-cta-content { display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+  .menu-cta h2 { color: #fff; font-size: 1.75rem; margin-bottom: 8px; }
+  .menu-cta p { color: rgba(255,255,255,0.7); max-width: 500px; }
+  .menu-cta-buttons { display: flex; gap: 12px; flex-wrap: wrap; }
+
+  .menu-content { padding: 40px 0 60px; background: #fafafa; }
+
+  /* Dark mode overrides */
+  [data-theme="dark"] .menu-hero-bg { background: linear-gradient(135deg, #0a0f0d, #111a15); }
+  [data-theme="dark"] .menu-filters { background: #111a15; border-bottom-color: rgba(255,255,255,0.06); }
+  [data-theme="dark"] .strain-btn { background: #18241c; border-color: rgba(255,255,255,0.1); color: #8ba396; }
+  [data-theme="dark"] .strain-btn.active { background: #16a34a; color: #fff; border-color: #16a34a; }
+  [data-theme="dark"] .cat-link { background: #18241c; color: #8ba396; }
+  [data-theme="dark"] .cat-link:hover, [data-theme="dark"] .cat-link.active { background: #16a34a; color: #fff; }
+  [data-theme="dark"] .menu-content { background: #0a0f0d; }
+  [data-theme="dark"] .product-card { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.06); }
+  [data-theme="dark"] .product-name { color: #e4efe8; }
+  [data-theme="dark"] .product-price { color: #22c55e; }
+  [data-theme="dark"] .category-header { border-bottom-color: rgba(34,197,94,0.3); }
+  [data-theme="dark"] .category-header h2 { color: #e4efe8; }
+  [data-theme="dark"] .menu-cta { background: #111a15; }
+
+  @media (max-width: 640px) {
+    .product-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .product-info { padding: 12px; }
+    .product-name { font-size: 0.9rem; }
+    .menu-cta-content { flex-direction: column; text-align: center; }
+    .filter-row { justify-content: center; }
+    .menu-order-ctas { display: none; }
+  }
+</style>
+
+<script>
+(function() {
+  // Strain filter tabs
+  const strainBtns = document.querySelectorAll('.strain-btn');
+  const productCards = document.querySelectorAll('.product-card[data-strain]');
+
+  strainBtns.forEach(btn => {
+    btn.addEventListener('click', function() {
+      strainBtns.forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      const strain = this.dataset.strain;
+
+      productCards.forEach(card => {
+        if (strain === 'all' || card.dataset.strain === strain) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+    });
+  });
+
+  // Category nav active state on scroll
+  const catLinks = document.querySelectorAll('.cat-link');
+  const catSections = document.querySelectorAll('.menu-category');
+
+  if (catSections.length > 0 && typeof IntersectionObserver !== 'undefined') {
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.id.replace('cat-', '');
+          catLinks.forEach(link => {
+            link.classList.toggle('active', link.dataset.cat === id);
+          });
+        }
+      });
+    }, { rootMargin: '-100px 0px -60% 0px' });
+
+    catSections.forEach(section => observer.observe(section));
+  }
+})();
+</script>

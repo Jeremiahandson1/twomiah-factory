@@ -1,0 +1,266 @@
+/* ═══════════════════════════════════════════════════════════════
+   NEXT-LEVEL GPU EFFECTS — CSS
+   Custom cursor, @property gradients, kinetic type,
+   fluid canvas, liquid distortion.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── CSS @property — REAL GRADIENT ANIMATION ──
+   Browsers interpolate registered custom properties,
+   enabling smooth gradient color morphing.             */
+
+@property --hero-grad-1 {
+  syntax: '<color>';
+  initial-value: #0a2f1f;
+  inherits: false;
+}
+@property --hero-grad-2 {
+  syntax: '<color>';
+  initial-value: #1a6b3c;
+  inherits: false;
+}
+@property --hero-grad-3 {
+  syntax: '<color>';
+  initial-value: #2d1854;
+  inherits: false;
+}
+@property --hero-grad-angle {
+  syntax: '<angle>';
+  initial-value: 135deg;
+  inherits: false;
+}
+
+.hero-gradient-morph {
+  background: linear-gradient(var(--hero-grad-angle), var(--hero-grad-1), var(--hero-grad-2), var(--hero-grad-3));
+  animation: gradient-morph 12s ease-in-out infinite alternate;
+}
+
+@keyframes gradient-morph {
+  0% {
+    --hero-grad-1: #0a2f1f;
+    --hero-grad-2: #1a6b3c;
+    --hero-grad-3: #2d1854;
+    --hero-grad-angle: 135deg;
+  }
+  25% {
+    --hero-grad-1: #0d3d2b;
+    --hero-grad-2: #059669;
+    --hero-grad-3: #4c1d95;
+    --hero-grad-angle: 160deg;
+  }
+  50% {
+    --hero-grad-1: #14532d;
+    --hero-grad-2: #22c55e;
+    --hero-grad-3: #1e1b4b;
+    --hero-grad-angle: 180deg;
+  }
+  75% {
+    --hero-grad-1: #064e3b;
+    --hero-grad-2: #10b981;
+    --hero-grad-3: #581c87;
+    --hero-grad-angle: 150deg;
+  }
+  100% {
+    --hero-grad-1: #0a2f1f;
+    --hero-grad-2: #16a34a;
+    --hero-grad-3: #3b0764;
+    --hero-grad-angle: 135deg;
+  }
+}
+
+/* Fallback for browsers without @property support (Firefox) */
+@supports not (background: linear-gradient(var(--hero-grad-angle, 135deg), red, blue)) {
+  .hero-gradient-morph {
+    background: linear-gradient(135deg, #0a2f1f, #1a6b3c, #2d1854);
+    background-size: 400% 400%;
+    animation: gradient-fallback 12s ease-in-out infinite;
+  }
+  @keyframes gradient-fallback {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+}
+
+/* ── WEBGL FLUID SIMULATION CANVAS ── */
+.fluid-canvas-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+.fluid-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.7;
+  mix-blend-mode: screen;
+}
+[data-theme="dark"] .fluid-canvas {
+  opacity: 0.85;
+}
+
+/* ── GLSL SHADER BACKGROUND CONTAINER ── */
+.shader-bg {
+  position: relative;
+  overflow: hidden;
+}
+.shader-bg > *:not(canvas) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── BLEND-MODE CUSTOM CURSOR ── */
+@media (pointer: fine) {
+  .custom-cursor {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid rgba(34, 197, 94, 0.6);
+    position: fixed;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 99998;
+    mix-blend-mode: difference;
+    transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease;
+    will-change: transform;
+  }
+  .custom-cursor.cursor-hover {
+    width: 60px;
+    height: 60px;
+    border-color: rgba(34, 197, 94, 1);
+    margin-left: -10px;
+    margin-top: -10px;
+  }
+
+  .cursor-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    position: fixed;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 99999;
+    mix-blend-mode: difference;
+    transition: transform 0.05s linear, width 0.2s ease, height 0.2s ease;
+    will-change: transform;
+  }
+  .cursor-dot.cursor-hover {
+    width: 4px;
+    height: 4px;
+    margin-left: 2px;
+    margin-top: 2px;
+  }
+
+  /* Hide default cursor when custom cursor is active */
+  html:has(.custom-cursor) {
+    cursor: none;
+  }
+  html:has(.custom-cursor) a,
+  html:has(.custom-cursor) button,
+  html:has(.custom-cursor) [data-quick-view],
+  html:has(.custom-cursor) input,
+  html:has(.custom-cursor) textarea {
+    cursor: none;
+  }
+}
+
+/* ── KINETIC TYPOGRAPHY ── */
+.kinetic-char {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(100%) rotateX(-80deg);
+  transition: none;
+}
+.kinetic-active .kinetic-char {
+  animation: kinetic-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes kinetic-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(100%) rotateX(-80deg) scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-10%) rotateX(10deg) scale(1.02);
+  }
+  70% {
+    transform: translateY(3%) rotateX(-3deg) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotateX(0deg) scale(1);
+  }
+}
+
+/* ── LIQUID DISTORTION HOVER ── */
+.product-image img {
+  transition: filter 0.5s ease, transform 0.5s ease;
+}
+.product-card:hover .product-image img {
+  transform: scale(1.03);
+}
+
+/* ── ENHANCED HERO WITH ALL EFFECTS ── */
+.hero-enhanced {
+  background: #0a0f0d;
+}
+.hero-enhanced .hero-overlay {
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(22, 163, 74, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 60%, rgba(88, 28, 135, 0.1) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(10, 15, 13, 0.3) 0%, rgba(10, 15, 13, 0.6) 50%, rgba(10, 15, 13, 0.8) 100%);
+}
+
+/* ── SECTION GLOW BORDERS ── */
+.glow-border {
+  position: relative;
+}
+.glow-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(34, 197, 94, 0.5), rgba(139, 92, 246, 0.3), transparent);
+}
+
+/* ── ANIMATED NOISE GRAIN OVERLAY ── */
+.grain-overlay::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99990;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  animation: grain-shift 0.5s steps(4) infinite;
+}
+@keyframes grain-shift {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-2%, 2%); }
+  50% { transform: translate(1%, -1%); }
+  75% { transform: translate(-1%, 3%); }
+  100% { transform: translate(2%, -2%); }
+}
+
+/* ── RESPECT REDUCED MOTION ── */
+@media (prefers-reduced-motion: reduce) {
+  .custom-cursor,
+  .cursor-dot,
+  .fluid-canvas,
+  .grain-overlay::after {
+    display: none !important;
+  }
+  .kinetic-char {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+  }
+  .hero-gradient-morph {
+    animation: none !important;
+  }
+}

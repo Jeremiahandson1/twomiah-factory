@@ -1,0 +1,34 @@
+{
+  "name": "{{COMPANY_SLUG}}-site",
+  "version": "1.0.0",
+  "description": "Backend API for {{COMPANY_NAME}} with CMS",
+  "main": "server-static.ts",
+  "scripts": {
+    "start": "bun server-static.ts",
+    "dev": "NODE_ENV=development bun --watch server-static.ts",
+    "db:init": "bun scripts/initDb.ts",
+    "db:seed": "bun scripts/seedDb.ts",
+    "db:generate": "bunx drizzle-kit generate",
+    "db:migrate": "bunx drizzle-kit migrate",
+    "db:push": "bunx drizzle-kit push"
+  },
+  "dependencies": {
+    "hono": "^4.4.0",
+    "@hono/node-server": "^1.11.0",
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "^0.33.0",
+    "ejs": "^3.1.9",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
+    "sharp": "^0.33.2",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@sendgrid/mail": "^8.1.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.24.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/ejs": "^3.1.5",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/pg": "^8.11.6"
+  }
+}

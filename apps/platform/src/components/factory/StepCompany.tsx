@@ -30,6 +30,7 @@ export const INDUSTRY_OPTIONS = [
   { value: 'field_service', label: 'Field Service (HVAC/Plumbing)' },
   { value: 'home_care', label: 'Home Care / Senior Care' },
   { value: 'automotive', label: 'Automotive Dealership (Twomiah Drive)' },
+  { value: 'dispensary', label: 'Cannabis Dispensary (Twomiah Leaf)' },
   { value: 'other', label: 'Other (blank slate)' },
 ]
 
