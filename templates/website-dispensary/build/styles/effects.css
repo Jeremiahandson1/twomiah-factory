@@ -138,16 +138,9 @@
     z-index: 99998;
   }
 
-  /* Hide default cursor when joint cursor is active */
-  html:has(.cursor-joint) {
-    cursor: none;
-  }
-  html:has(.cursor-joint) a,
-  html:has(.cursor-joint) button,
-  html:has(.cursor-joint) [data-quick-view],
-  html:has(.cursor-joint) input,
-  html:has(.cursor-joint) textarea {
-    cursor: none;
+  /* Hide default cursor globally — joint cursor replaces it */
+  html, html * {
+    cursor: none !important;
   }
 }
 

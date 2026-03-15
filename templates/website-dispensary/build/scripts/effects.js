@@ -467,13 +467,13 @@
     // Joint element
     var joint = document.createElement('div');
     joint.className = 'cursor-joint';
-    // SVG joint rotated so the lit cherry points DOWN = cursor hotspot
-    joint.innerHTML = '<svg width="32" height="40" viewBox="0 0 32 40" fill="none" style="transform:rotate(55deg)">'
+    // SVG joint — cherry on the LEFT end (filter tip on right), rotated so cherry points down
+    joint.innerHTML = '<svg width="32" height="40" viewBox="0 0 32 40" fill="none" style="transform:rotate(-55deg)">'
       + '<rect x="4" y="14" width="24" height="5" rx="2.5" fill="#e8d5b7"/>'
-      + '<rect x="4" y="14" width="6" height="5" rx="2" fill="#f5f0e6"/>'
-      + '<circle cx="28" cy="16.5" r="3.5" fill="#ff6b00" opacity="0.9"/>'
-      + '<circle cx="28" cy="16.5" r="2.2" fill="#ffaa00" opacity="0.7"/>'
-      + '<circle cx="28" cy="16.5" r="1" fill="#fff4cc" opacity="0.8"/>'
+      + '<rect x="22" y="14" width="6" height="5" rx="2" fill="#f5f0e6"/>'
+      + '<circle cx="4" cy="16.5" r="3.5" fill="#ff6b00" opacity="0.9"/>'
+      + '<circle cx="4" cy="16.5" r="2.2" fill="#ffaa00" opacity="0.7"/>'
+      + '<circle cx="4" cy="16.5" r="1" fill="#fff4cc" opacity="0.8"/>'
       + '</svg>';
     document.body.appendChild(joint);
 
@@ -527,9 +527,9 @@
     function animate() {
       ctx.clearRect(0, 0, smokeCanvas.width, smokeCanvas.height);
 
-      // Lerp joint position for smooth follow
-      jx += (mx - jx) * 0.15;
-      jy += (my - jy) * 0.15;
+      // Lerp joint position — fast follow, slight smoothing
+      jx += (mx - jx) * 0.5;
+      jy += (my - jy) * 0.5;
       // Offset so the lit cherry tip (bottom of rotated joint) sits at cursor position
       joint.style.transform = 'translate(' + (jx - 16) + 'px,' + (jy - 30) + 'px)';
 
