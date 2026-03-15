@@ -286,6 +286,11 @@
       "backend": { "routes": ["warranties.ts"], "services": ["warranties.ts"] },
       "frontend": { "pages": ["warranties/WarrantiesPage.tsx"] },
       "sidebar": null
+    },
+    "instant_estimator": {
+      "backend": { "routes": ["estimator.ts"], "services": ["googleSolar.ts"] },
+      "frontend": { "pages": ["EstimatorPage.tsx"] },
+      "sidebar": { "id": "estimator", "label": "Roof Estimator", "icon": "Calculator", "path": "/estimator" }
     }
   },
 

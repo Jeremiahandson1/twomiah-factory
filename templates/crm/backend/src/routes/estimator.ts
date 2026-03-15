@@ -77,6 +77,7 @@ app.post('/estimate/:slug', async (c) => {
           state: data.state,
           zip: data.zip,
           leadSource: 'instant_estimator',
+          propertyType: 'residential',
         })
       } catch {
         // Duplicate or other insert error — not critical

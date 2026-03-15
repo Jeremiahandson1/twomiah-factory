@@ -164,7 +164,7 @@ export function processRoofData(data: BuildingInsightsResponse): ProcessedRoofDa
 }
 
 /**
- * Full pipeline: geocode -> Solar API -> process
+ * Full pipeline: geocode → Solar API → process
  */
 export async function getFullRoofReport(address: string, city: string, state: string, zip: string) {
   const geo = await geocodeAddress(address, city, state, zip)
