@@ -7,7 +7,7 @@ import {
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
-  Inbox, ExternalLink, Camera, Bot, Calculator
+  Inbox, ExternalLink, Camera, Bot, Calculator, FileBarChart
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -57,6 +57,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/visualizer', icon: Camera, label: 'Visualizer', features: ['visualizer'] },
   { to: '/crm/estimator', icon: Calculator, label: 'Roof Estimator', features: ['instant_estimator'] },
+  { to: '/crm/roof-reports', icon: FileBarChart, label: 'Roof Reports', features: ['instant_estimator'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 ];
