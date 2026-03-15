@@ -868,6 +868,9 @@ export async function deployCustomer(
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)
         await findAndDeleteRenderService(crmFrontName) // clean up legacy static sites
+        // Also clean up the generic service name in case a previous deploy used the default
+        if (crmApiName !== slug + '-api') await findAndDeleteRenderService(slug + '-api')
+        if (crmFrontName !== slug + '-crm') await findAndDeleteRenderService(slug + '-crm')
 
         // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
