@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2, 
-  Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare
+import {
+  ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
+  Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare, FileBarChart
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { SkeletonDetail } from '../common/Skeleton';
 import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
@@ -15,14 +16,18 @@ export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { hasFeature } = useAuth();
   const [contact, setContact] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [roofReports, setRoofReports] = useState([]);
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   useEffect(() => {
     loadContact();
+    if (hasFeature('instant_estimator')) loadRoofReports();
   }, [id]);
 
   const loadContact = async () => {
@@ -36,6 +41,30 @@ export default function ContactDetailPage() {
       toast.error('Failed to load contact');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRoofReports = async () => {
+    try {
+      const data = await api.request(`/api/roof-reports?contactId=${id}`);
+      setRoofReports(data?.data || []);
+    } catch {}
+  };
+
+  const purchaseRoofReport = async () => {
+    setGeneratingReport(true);
+    try {
+      const result = await api.request(`/api/roof-reports/purchase-for-contact/${id}`, { method: 'POST' });
+      if (result.free) {
+        toast.success('Roof report generated');
+        loadRoofReports();
+      } else if (result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed — does this contact have an address?');
+    } finally {
+      setGeneratingReport(false);
     }
   };
 
@@ -326,8 +355,50 @@ export default function ContactDetailPage() {
                 <Receipt className="w-4 h-4 text-gray-500" />
                 Create Invoice
               </Link>
+              {hasFeature('instant_estimator') && contact.address && (
+                <button
+                  onClick={purchaseRoofReport}
+                  disabled={generatingReport}
+                  className="w-full px-4 py-2 text-left bg-green-50 hover:bg-green-100 rounded-lg flex items-center gap-2 text-green-700 disabled:opacity-50"
+                >
+                  <FileBarChart className="w-4 h-4" />
+                  {generatingReport ? 'Processing...' : 'Roof Report — $9.99'}
+                </button>
+              )}
             </div>
           </div>
+
+          {/* Roof Reports */}
+          {hasFeature('instant_estimator') && roofReports.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Roof Reports</h2>
+                <span className="text-sm text-gray-500">{roofReports.length}</span>
+              </div>
+              <div className="divide-y">
+                {roofReports.map((report: any) => (
+                  <Link
+                    key={report.id}
+                    to={`/roof-reports/${report.id}`}
+                    className="p-4 flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileBarChart className="w-5 h-5 text-blue-500" />
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm">{report.totalSquares} squares</p>
+                        <p className="text-xs text-gray-500">{new Date(report.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 text-xs rounded-full ${
+                      report.imageryQuality === 'HIGH' ? 'bg-green-100 text-green-700' :
+                      report.imageryQuality === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>{report.imageryQuality}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

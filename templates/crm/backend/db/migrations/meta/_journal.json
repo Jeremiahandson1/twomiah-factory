@@ -43,6 +43,13 @@
       "when": 1772785271398,
       "tag": "0005_add_estimator_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772785271399,
+      "tag": "0006_add_roof_reports",
+      "breakpoints": true
     }
   ]
 }

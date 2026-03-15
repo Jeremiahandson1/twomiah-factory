@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
-import { Save, ToggleLeft, ToggleRight, ExternalLink } from 'lucide-react';
+import { Save, ToggleLeft, ToggleRight, ExternalLink, FileBarChart } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 
 export default function EstimatorPage() {
@@ -73,6 +74,9 @@ export default function EstimatorPage() {
           <p className="text-sm text-gray-500 mt-1">Configure the instant estimator on your website. Homeowners enter their address and get a satellite-based price range.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Link to="/roof-reports" className="flex items-center gap-1.5 px-4 py-2.5 border text-sm font-medium rounded-lg hover:bg-gray-50">
+            <FileBarChart className="w-4 h-4" /> Roof Reports
+          </Link>
           {siteUrl && (
             <a href={siteUrl + '/estimate'} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-4 py-2.5 border text-sm font-medium rounded-lg hover:bg-gray-50">
               <ExternalLink className="w-4 h-4" /> View on Website

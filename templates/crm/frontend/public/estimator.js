@@ -69,6 +69,51 @@
     })
     .catch(function () { wrapper.innerHTML = ''; });
 
+  function initPlacesAutocomplete(addrInput, cityInput, stateInput, zipInput) {
+    if (!window.google || !window.google.maps || !window.google.maps.places) return;
+    var ac = new google.maps.places.Autocomplete(addrInput, {
+      types: ['address'],
+      componentRestrictions: { country: 'us' },
+      fields: ['address_components'],
+    });
+    ac.addListener('place_changed', function () {
+      var place = ac.getPlace();
+      if (!place || !place.address_components) return;
+      var streetNumber = '', route = '', city = '', state = '', zip = '';
+      place.address_components.forEach(function (comp) {
+        var t = comp.types;
+        if (t.indexOf('street_number') !== -1) streetNumber = comp.long_name;
+        else if (t.indexOf('route') !== -1) route = comp.long_name;
+        else if (t.indexOf('locality') !== -1) city = comp.long_name;
+        else if (t.indexOf('sublocality_level_1') !== -1 && !city) city = comp.long_name;
+        else if (t.indexOf('administrative_area_level_1') !== -1) state = comp.short_name;
+        else if (t.indexOf('postal_code') !== -1) zip = comp.long_name;
+      });
+      addrInput.value = [streetNumber, route].filter(Boolean).join(' ');
+      cityInput.value = city;
+      stateInput.value = state;
+      zipInput.value = zip;
+    });
+  }
+
+  function loadGooglePlaces(config, callback) {
+    if (window.google && window.google.maps && window.google.maps.places) { callback(); return; }
+    var key = config.googleMapsApiKey;
+    if (!key) return; // No key available — skip autocomplete
+    if (document.querySelector('script[src*="maps.googleapis.com/maps/api"]')) {
+      // Already loading — poll for readiness
+      var poll = setInterval(function () {
+        if (window.google && window.google.maps && window.google.maps.places) { clearInterval(poll); callback(); }
+      }, 200);
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + key + '&libraries=places';
+    s.async = true;
+    s.onload = callback;
+    document.head.appendChild(s);
+  }
+
   function render(config) {
     const color = config.primaryColor || '#7c3aed';
     style.textContent = style.textContent.replace(/var\(--tw-color, #7c3aed\)/g, color);
@@ -76,7 +121,7 @@
     wrapper.innerHTML = '<div class="tw-est-card">' +
       '<div class="tw-est-title">' + esc(config.estimatorHeadline || 'Get Your Free Instant Estimate') + '</div>' +
       '<div class="tw-est-sub">Enter your address for an instant satellite-based estimate</div>' +
-      '<div class="tw-est-field"><label class="tw-est-label">Street Address</label><input class="tw-est-input" id="tw-addr" placeholder="1234 Main St"></div>' +
+      '<div class="tw-est-field"><label class="tw-est-label">Street Address</label><input class="tw-est-input" id="tw-addr" placeholder="Start typing an address..."></div>' +
       '<div class="tw-est-row">' +
         '<div class="tw-est-field"><label class="tw-est-label">City</label><input class="tw-est-input" id="tw-city"></div>' +
         '<div class="tw-est-field"><label class="tw-est-label">State</label><input class="tw-est-input" id="tw-state" maxlength="2"></div>' +
@@ -91,6 +136,17 @@
       '<div id="tw-result"></div>' +
       '<div class="tw-est-powered">Powered by Twomiah</div>' +
     '</div>';
+
+    // Initialize Google Places Autocomplete on the address field
+    loadGooglePlaces(config, function () {
+      var addrEl = shadow.getElementById('tw-addr');
+      var cityEl = shadow.getElementById('tw-city');
+      var stateEl = shadow.getElementById('tw-state');
+      var zipEl = shadow.getElementById('tw-zip');
+      if (addrEl && cityEl && stateEl && zipEl) {
+        initPlacesAutocomplete(addrEl, cityEl, stateEl, zipEl);
+      }
+    });
 
     var btn = shadow.getElementById('tw-submit');
     btn.addEventListener('click', function () {

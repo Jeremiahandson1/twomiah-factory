@@ -67,6 +67,8 @@ import PricebookTrialPage from './pages/PricebookTrialPage';
 import EstimatorTrialPage from './pages/EstimatorTrialPage';
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage';
 import EstimatorPage from './pages/EstimatorPage';
+import RoofReportsPage from './pages/roofReports/RoofReportsPage';
+import RoofReportDetail from './pages/roofReports/RoofReportDetail';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // Detail Pages
@@ -186,6 +188,8 @@ function App() {
                     <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                     <Route path="estimator" element={<EstimatorPage />} />
+                    <Route path="roof-reports" element={<RoofReportsPage />} />
+                    <Route path="roof-reports/:id" element={<RoofReportDetail />} />
                     <Route path="estimator-trial" element={<EstimatorTrialPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>

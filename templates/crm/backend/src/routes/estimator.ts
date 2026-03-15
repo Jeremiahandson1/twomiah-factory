@@ -27,7 +27,10 @@ app.get('/config/:slug', async (c) => {
   if (!comp) return c.json({ error: 'Company not found' }, 404)
   if (!comp.estimatorEnabled) return c.json({ error: 'Estimator not enabled' }, 403)
 
-  return c.json(comp)
+  // Include Google Maps API key so the widget can load Places Autocomplete
+  const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_SOLAR_API_KEY || ''
+
+  return c.json({ ...comp, googleMapsApiKey })
 })
 
 // Public: get instant estimate

@@ -84,6 +84,7 @@ import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import estimatorRoutes from './routes/estimator.ts'
+import roofReportsRoutes from './routes/roofReports.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -192,6 +193,7 @@ app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 app.route('/api/estimator', estimatorRoutes)
+app.route('/api/roof-reports', roofReportsRoutes)
 
 // Factory sync endpoint — allows Twomiah Factory to push feature updates via HTTP
 // Secured by a shared secret (FACTORY_SYNC_KEY env var)

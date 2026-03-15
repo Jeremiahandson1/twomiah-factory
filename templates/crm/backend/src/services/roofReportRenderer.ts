@@ -1,0 +1,521 @@
+// Roof Report Renderer — generates HTML reports from computed roof data
+// Uses Google Maps Static API for satellite imagery
+// PDF output is handled via browser print-to-PDF (no PDFKit dependency)
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type EdgeType = 'ridge' | 'valley' | 'hip' | 'rake' | 'eave'
+
+export interface RoofEdge {
+  type: EdgeType
+  lengthFt: number
+  startLat: number
+  startLng: number
+  endLat: number
+  endLng: number
+  segmentIndex?: number
+}
+
+export interface RoofSegmentDetail {
+  name: string
+  area: number          // sqft
+  pitch: string         // e.g. "6/12"
+  pitchDegrees: number
+  azimuthDegrees: number
+  center?: { lat: number; lng: number }
+  polygon?: Array<{ lat: number; lng: number }>
+}
+
+export interface RoofMeasurements {
+  totalAreaSqft: number
+  totalSquares: number
+  ridgeLF: number
+  valleyLF: number
+  hipLF: number
+  rakeLF: number
+  eaveLF: number
+  totalPerimeterLF: number
+  wasteFactor: number        // e.g. 15 for 15%
+  squaresWithWaste: number
+  iceWaterShieldSqft: number
+}
+
+export interface RoofReportData {
+  center: { lat: number; lng: number }
+  segments: RoofSegmentDetail[]
+  edges: RoofEdge[]
+  measurements: RoofMeasurements
+  imageryQuality: 'HIGH' | 'MEDIUM' | 'LOW'
+  imageryDate?: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const EDGE_COLORS: Record<EdgeType, string> = {
+  ridge: '#E53E3E',
+  valley: '#3182CE',
+  hip: '#38A169',
+  rake: '#DD6B20',
+  eave: '#805AD5',
+}
+
+const EDGE_WIDTHS: Record<EdgeType, number> = {
+  ridge: 3,
+  valley: 3,
+  hip: 2,
+  rake: 2,
+  eave: 2,
+}
+
+const EDGE_LABELS: Record<EdgeType, string> = {
+  ridge: 'Ridge',
+  valley: 'Valley',
+  hip: 'Hip',
+  rake: 'Rake',
+  eave: 'Eave',
+}
+
+const SEGMENT_FILL_COLORS = [
+  'rgba(59,130,246,0.15)',
+  'rgba(16,185,129,0.15)',
+  'rgba(245,158,11,0.15)',
+  'rgba(239,68,68,0.15)',
+  'rgba(139,92,246,0.15)',
+  'rgba(236,72,153,0.15)',
+  'rgba(20,184,166,0.15)',
+  'rgba(249,115,22,0.15)',
+]
+
+const MAP_WIDTH = 800
+const MAP_HEIGHT = 600
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getApiKey(): string {
+  const key = process.env.GOOGLE_SOLAR_API_KEY || process.env.GOOGLE_MAPS_API_KEY || ''
+  if (!key) throw new Error('Missing GOOGLE_SOLAR_API_KEY or GOOGLE_MAPS_API_KEY environment variable')
+  return key
+}
+
+/**
+ * Format a number with thousands separators (server-safe, no locale dependency).
+ */
+function fmt(n: number, decimals = 0): string {
+  const fixed = n.toFixed(decimals)
+  const parts = fixed.split('.')
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return parts.join('.')
+}
+
+// ---------------------------------------------------------------------------
+// Zoom calculation — fit all segments in the viewport
+// ---------------------------------------------------------------------------
+
+function latRad(lat: number): number {
+  const sin = Math.sin(lat * Math.PI / 180)
+  const radX2 = Math.log((1 + sin) / (1 - sin)) / 2
+  return Math.max(Math.min(radX2, Math.PI), -Math.PI) / 2
+}
+
+function zoomLevel(mapPx: number, worldPx: number, fraction: number): number {
+  if (fraction <= 0) return 21
+  return Math.log(mapPx / worldPx / fraction) / Math.LN2
+}
+
+function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: number, imgHeight: number): number {
+  let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
+  for (const seg of segments) {
+    if (!seg.polygon) continue
+    for (const p of seg.polygon) {
+      minLat = Math.min(minLat, p.lat)
+      maxLat = Math.max(maxLat, p.lat)
+      minLng = Math.min(minLng, p.lng)
+      maxLng = Math.max(maxLng, p.lng)
+    }
+  }
+  if (minLat === Infinity) return 20 // fallback
+
+  // Add 20% padding
+  const latPad = (maxLat - minLat) * 0.2
+  const lngPad = (maxLng - minLng) * 0.2
+  minLat -= latPad; maxLat += latPad
+  minLng -= lngPad; maxLng += lngPad
+
+  // Calculate required zoom to fit the bounds
+  const WORLD_SIZE = 256
+  const latFraction = (latRad(maxLat) - latRad(minLat)) / Math.PI
+  const lngFraction = (maxLng - minLng) / 360
+
+  const latZoom = zoomLevel(imgHeight, WORLD_SIZE, latFraction)
+  const lngZoom = zoomLevel(imgWidth, WORLD_SIZE, lngFraction)
+
+  return Math.min(Math.floor(Math.min(latZoom, lngZoom)), 21)
+}
+
+// ---------------------------------------------------------------------------
+// Geo / pixel helpers
+// ---------------------------------------------------------------------------
+
+function latLngToPixel(
+  lat: number, lng: number,
+  centerLat: number, centerLng: number,
+  zoom: number, imgWidth: number, imgHeight: number,
+): { x: number; y: number } {
+  const scale = Math.pow(2, zoom) * 256
+  const worldX = (lng + 180) / 360 * scale
+  const worldY = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * scale
+  const centerWorldX = (centerLng + 180) / 360 * scale
+  const centerWorldY = (1 - Math.log(Math.tan(centerLat * Math.PI / 180) + 1 / Math.cos(centerLat * Math.PI / 180)) / Math.PI) / 2 * scale
+  return {
+    x: imgWidth / 2 + (worldX - centerWorldX),
+    y: imgHeight / 2 + (worldY - centerWorldY),
+  }
+}
+
+/**
+ * Fetch satellite image from Google Maps Static API and return as base64 data URL.
+ */
+async function fetchSatelliteImageBase64(lat: number, lng: number, zoom: number): Promise<string> {
+  const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&maptype=satellite&key=${getApiKey()}`
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch satellite image: ${res.status} ${res.statusText}`)
+  }
+  const arrayBuf = await res.arrayBuffer()
+  const base64 = Buffer.from(arrayBuf).toString('base64')
+  const contentType = res.headers.get('content-type') || 'image/png'
+  return `data:${contentType};base64,${base64}`
+}
+
+function midpoint(x1: number, y1: number, x2: number, y2: number) {
+  return { x: (x1 + x2) / 2, y: (y1 + y2) / 2 }
+}
+
+function polygonCentroid(points: Array<{ x: number; y: number }>): { x: number; y: number } {
+  if (points.length === 0) return { x: 0, y: 0 }
+  const cx = points.reduce((s, p) => s + p.x, 0) / points.length
+  const cy = points.reduce((s, p) => s + p.y, 0) / points.length
+  return { x: cx, y: cy }
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// ---------------------------------------------------------------------------
+// SVG overlay builder (shared by both HTML and PDF-print paths)
+// ---------------------------------------------------------------------------
+
+function buildSvgOverlay(
+  segments: RoofSegmentDetail[],
+  edges: RoofEdge[],
+  centerLat: number,
+  centerLng: number,
+  zoom: number,
+): string {
+  const svgParts: string[] = []
+
+  // Draw segment polygons
+  segments.forEach((seg, i) => {
+    if (!seg.polygon || seg.polygon.length < 3) return
+    const fill = SEGMENT_FILL_COLORS[i % SEGMENT_FILL_COLORS.length]
+    const points = seg.polygon.map(p => {
+      const px = latLngToPixel(p.lat, p.lng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
+      return `${px.x},${px.y}`
+    }).join(' ')
+    svgParts.push(`<polygon points="${points}" fill="${fill}" stroke="none" />`)
+  })
+
+  // Draw edges with color coding
+  edges.forEach(edge => {
+    const start = latLngToPixel(edge.startLat, edge.startLng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
+    const end = latLngToPixel(edge.endLat, edge.endLng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
+    const color = EDGE_COLORS[edge.type] || '#FFFFFF'
+    const width = EDGE_WIDTHS[edge.type] || 2
+    svgParts.push(
+      `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" />`
+    )
+    // Measurement label
+    const mid = midpoint(start.x, start.y, end.x, end.y)
+    svgParts.push(
+      `<text x="${mid.x}" y="${mid.y}" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="bold" fill="#FFFFFF" style="text-shadow: 0 0 3px #000, 0 0 6px #000;">${fmt(edge.lengthFt)}'</text>`
+    )
+  })
+
+  // Pitch labels per segment
+  segments.forEach(seg => {
+    if (!seg.polygon || seg.polygon.length < 3) return
+    const pixelPoints = seg.polygon.map(p =>
+      latLngToPixel(p.lat, p.lng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
+    )
+    const c = seg.center
+      ? latLngToPixel(seg.center.lat, seg.center.lng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
+      : polygonCentroid(pixelPoints)
+    svgParts.push(
+      `<text x="${c.x}" y="${c.y}" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="bold" fill="#FFD700" style="text-shadow: 0 0 4px #000, 0 0 8px #000;">${seg.pitch}</text>`
+    )
+  })
+
+  return svgParts.join('\n      ')
+}
+
+// ---------------------------------------------------------------------------
+// Shared HTML body (used by both report and print-PDF paths)
+// ---------------------------------------------------------------------------
+
+function buildReportBody(
+  report: RoofReportData,
+  company: any,
+  address: string,
+  satelliteDataUrl: string,
+  svgContent: string,
+): string {
+  const { segments, measurements } = report
+  const companyName = company?.name || company?.companyName || 'Roofing Company'
+  const companyPhone = company?.phone || ''
+  const companyEmail = company?.email || ''
+  const companyLogo = company?.logoUrl || company?.logo || ''
+
+  // Build legend HTML
+  const legendItems = (['ridge', 'valley', 'hip', 'rake', 'eave'] as EdgeType[]).map(type =>
+    `<span style="display:inline-flex;align-items:center;margin-right:18px;">
+      <span style="display:inline-block;width:24px;height:4px;background:${EDGE_COLORS[type]};border-radius:2px;margin-right:6px;"></span>
+      ${EDGE_LABELS[type]}
+    </span>`
+  ).join('')
+
+  return `
+    <!-- Company Header -->
+    <div class="header">
+      <div class="header-left">
+        ${companyLogo ? `<img class="header-logo" src="${companyLogo}" alt="${companyName}" />` : ''}
+        <h1>${escapeHtml(companyName)}</h1>
+      </div>
+      <div class="header-contact">
+        ${companyPhone ? `<div>${escapeHtml(companyPhone)}</div>` : ''}
+        ${companyEmail ? `<div>${escapeHtml(companyEmail)}</div>` : ''}
+      </div>
+    </div>
+
+    <!-- Property Address -->
+    <div class="address-bar">${escapeHtml(address)}</div>
+
+    <!-- Satellite Image with SVG Overlay -->
+    <div class="map-container">
+      <img src="${satelliteDataUrl}" alt="Satellite view of ${escapeHtml(address)}" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" />
+      <svg viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}" preserveAspectRatio="xMidYMid meet">
+        ${svgContent}
+      </svg>
+    </div>
+
+    <!-- Color Legend -->
+    <div class="legend">${legendItems}</div>
+
+    <!-- Summary Table -->
+    <div class="section-title">Measurement Summary</div>
+    <table class="summary-table">
+      <thead>
+        <tr><th>Measurement</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Total Roof Area</td><td>${fmt(measurements.totalAreaSqft)} sqft</td></tr>
+        <tr><td>Total Squares</td><td>${fmt(measurements.totalSquares, 2)}</td></tr>
+        <tr><td>Ridge</td><td>${fmt(measurements.ridgeLF)} LF</td></tr>
+        ${measurements.valleyLF > 0
+          ? `<tr class="highlight"><td>Valley (ice &amp; water shield needed)</td><td>${fmt(measurements.valleyLF)} LF</td></tr>`
+          : `<tr><td>Valley</td><td>${fmt(measurements.valleyLF)} LF</td></tr>`}
+        <tr><td>Hip</td><td>${fmt(measurements.hipLF)} LF</td></tr>
+        <tr><td>Rake</td><td>${fmt(measurements.rakeLF)} LF</td></tr>
+        <tr><td>Eave</td><td>${fmt(measurements.eaveLF)} LF</td></tr>
+        <tr><td>Total Perimeter</td><td>${fmt(measurements.totalPerimeterLF)} LF</td></tr>
+        <tr><td>Waste Factor</td><td>${measurements.wasteFactor}%</td></tr>
+        <tr><td>Squares with Waste</td><td>${fmt(measurements.squaresWithWaste, 2)}</td></tr>
+        <tr><td>Ice &amp; Water Shield</td><td>${fmt(measurements.iceWaterShieldSqft)} sqft</td></tr>
+        <tr><td>Imagery Quality</td><td>${report.imageryQuality}</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Segment Detail Table -->
+    <div class="section-title">Segment Details</div>
+    <table class="detail-table">
+      <thead>
+        <tr><th>Segment</th><th>Area (sqft)</th><th>Pitch</th><th>Azimuth</th></tr>
+      </thead>
+      <tbody>
+        ${segments.map(seg => `
+        <tr>
+          <td>${escapeHtml(seg.name)}</td>
+          <td>${fmt(seg.area)}</td>
+          <td>${escapeHtml(seg.pitch)}</td>
+          <td>${seg.azimuthDegrees}&deg;</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+      <strong>Disclaimer:</strong> This roof measurement report is generated using satellite imagery and
+      automated analysis from the Google Solar API. Measurements are approximate and should be verified
+      by an on-site inspection before being used for material ordering, bidding, or construction purposes.
+      Actual roof conditions, including hidden damage, structural issues, and complex architectural details,
+      may not be fully captured by aerial imagery. The generating company assumes no liability for
+      inaccuracies in this report.
+      ${report.imageryDate ? `<br /><br />Satellite imagery date: ${report.imageryDate}` : ''}
+    </div>`
+}
+
+// ---------------------------------------------------------------------------
+// Shared CSS
+// ---------------------------------------------------------------------------
+
+const BASE_CSS = `
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1a202c; background: #f7fafc; line-height: 1.5; }
+    .container { max-width: 860px; margin: 0 auto; padding: 32px 24px; }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 24px; }
+    .header-left { display: flex; align-items: center; gap: 16px; }
+    .header-logo { max-height: 60px; max-width: 200px; object-fit: contain; }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .header-contact { text-align: right; font-size: 13px; color: #4a5568; }
+    .address-bar { background: #2d3748; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 16px; font-weight: 600; margin-bottom: 24px; }
+    .map-container { position: relative; width: ${MAP_WIDTH}px; max-width: 100%; margin: 0 auto 16px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .map-container img { display: block; width: 100%; height: auto; }
+    .map-container svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .legend { display: flex; flex-wrap: wrap; align-items: center; font-size: 13px; color: #4a5568; margin-bottom: 24px; padding: 8px 12px; background: #edf2f7; border-radius: 6px; }
+    .summary-table, .detail-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    .summary-table th, .detail-table th { text-align: left; background: #2d3748; color: #fff; padding: 10px 14px; font-size: 13px; font-weight: 600; }
+    .summary-table td, .detail-table td { padding: 9px 14px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    .summary-table tr:nth-child(even), .detail-table tr:nth-child(even) { background: #f7fafc; }
+    .highlight { background: #fff5f5 !important; }
+    .highlight td { color: #c53030; font-weight: 600; }
+    .section-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; color: #2d3748; }
+    .disclaimer { margin-top: 32px; padding: 16px; background: #fffbeb; border: 1px solid #f6e05e; border-radius: 6px; font-size: 12px; color: #744210; line-height: 1.6; }
+`
+
+// ---------------------------------------------------------------------------
+// HTML Report (screen view)
+// ---------------------------------------------------------------------------
+
+export async function generateReportHTML(
+  report: RoofReportData,
+  company: any,
+  address: string,
+): Promise<string> {
+  const { center, segments, edges } = report
+
+  // Compute optimal zoom to fit all segments
+  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
+
+  // Fetch satellite image as base64
+  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+
+  // Build SVG overlay
+  const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
+
+  // Build page body
+  const body = buildReportBody(report, company, address, satelliteDataUrl, svgContent)
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roof Measurement Report — ${escapeHtml(address)}</title>
+  <style>
+    ${BASE_CSS}
+    @media print { body { background: #fff; } .container { padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    ${body}
+  </div>
+</body>
+</html>`
+}
+
+// ---------------------------------------------------------------------------
+// PDF Report (print-optimized HTML — use browser print-to-PDF)
+// ---------------------------------------------------------------------------
+
+export async function generateReportPDF(
+  report: RoofReportData,
+  company: any,
+  address: string,
+): Promise<string> {
+  const { center, segments, edges } = report
+
+  // Compute optimal zoom to fit all segments
+  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
+
+  // Fetch satellite image as base64
+  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+
+  // Build SVG overlay
+  const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
+
+  // Build page body
+  const body = buildReportBody(report, company, address, satelliteDataUrl, svgContent)
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roof Measurement Report — ${escapeHtml(address)}</title>
+  <style>
+    ${BASE_CSS}
+
+    /* Print-optimized styles */
+    @page {
+      size: letter;
+      margin: 0.5in;
+    }
+
+    .print-btn {
+      display: block;
+      margin: 0 auto 24px;
+      padding: 12px 32px;
+      background: #2d3748;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .print-btn:hover {
+      background: #4a5568;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .container { padding: 0; max-width: 100%; }
+      .print-btn { display: none !important; }
+      .map-container { box-shadow: none; break-inside: avoid; }
+      .summary-table, .detail-table { break-inside: avoid; }
+      .disclaimer { break-inside: avoid; }
+      .address-bar { border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button class="print-btn" onclick="window.print()">Download PDF</button>
+    ${body}
+  </div>
+  <script>window.onload = () => window.print()</script>
+</body>
+</html>`
+}

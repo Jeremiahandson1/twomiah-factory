@@ -10,8 +10,9 @@
 
 import Stripe from 'stripe'
 import { db } from '../../db/index.ts'
-import { contact, invoice, payment, company } from '../../db/schema.ts'
+import { contact, invoice, payment, company, roofReport } from '../../db/schema.ts'
 import { eq, sql } from 'drizzle-orm'
+import { generateAndSaveReport } from '../routes/roofReports.ts'
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any })
@@ -300,8 +301,61 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent) {
  * Handle checkout session complete
  */
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+  const meta = session.metadata || {}
+
+  // Roof report purchase
+  if (meta.type === 'roof_report') {
+    return handleRoofReportCheckout(session)
+  }
+
   console.log('Checkout completed:', session.id)
   return { handled: true }
+}
+
+/**
+ * Handle roof report checkout — reliable fallback for the success-redirect confirm-purchase flow
+ */
+async function handleRoofReportCheckout(session: Stripe.Checkout.Session) {
+  if (session.payment_status !== 'paid') {
+    console.log('Roof report checkout not paid yet:', session.id)
+    return { handled: true, roofReport: false, reason: 'not_paid' }
+  }
+
+  const meta = session.metadata || {}
+  const paymentIntentId = session.payment_intent as string
+
+  if (!paymentIntentId) {
+    console.error('Roof report checkout missing payment_intent:', session.id)
+    return { handled: true, roofReport: false, reason: 'no_payment_intent' }
+  }
+
+  // Idempotency check — don't generate twice
+  const [existing] = await db.select({ id: roofReport.id }).from(roofReport)
+    .where(eq(roofReport.stripePaymentIntentId, paymentIntentId))
+    .limit(1)
+
+  if (existing) {
+    console.log('Roof report already generated for payment:', paymentIntentId)
+    return { handled: true, roofReport: true, reportId: existing.id, alreadyGenerated: true }
+  }
+
+  try {
+    const report = await generateAndSaveReport(
+      meta.companyId,
+      meta.address || '',
+      meta.city || '',
+      meta.state || '',
+      meta.zip || '',
+      meta.contactId || undefined,
+      paymentIntentId,
+    )
+
+    console.log('Roof report generated via webhook:', report.id)
+    return { handled: true, roofReport: true, reportId: report.id }
+  } catch (err: any) {
+    console.error('Roof report generation failed in webhook:', err.message)
+    return { handled: true, roofReport: false, error: err.message }
+  }
 }
 
 // ============================================
