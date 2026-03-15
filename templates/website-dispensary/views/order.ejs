@@ -1,0 +1,1344 @@
+<%
+  // Products come as the raw menu API response: { company, menu: [{key, label, products}], totalProducts }
+  const menuData = (typeof products !== 'undefined' && products && products.menu) ? products.menu : [];
+  const allProducts = [];
+  const categoryMap = {};
+  menuData.forEach(cat => {
+    if (cat.products && cat.products.length) {
+      cat.products.forEach(p => {
+        p._categoryKey = cat.key;
+        allProducts.push(p);
+      });
+      categoryMap[cat.key] = cat.label;
+    }
+  });
+  const crmApiUrl = (typeof CRM_API_URL !== 'undefined') ? CRM_API_URL : '';
+%>
+
+<div class="order-page">
+
+<!-- Hero -->
+<section class="order-hero">
+  <div class="order-hero-bg"></div>
+  <div class="order-hero-content">
+    <div class="container">
+      <h1>Order Online</h1>
+      <p>Browse our menu, add to cart, and place your order for pickup or delivery.</p>
+      <div class="order-type-tabs" id="heroOrderType">
+        <button class="order-type-tab active" data-type="pickup">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Pickup
+        </button>
+        <button class="order-type-tab" data-type="delivery">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          Delivery
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Main Layout: Products + Cart -->
+<section class="order-body">
+  <div class="container">
+    <div class="order-layout">
+
+      <!-- Product Browser -->
+      <div class="product-browser">
+
+        <!-- Category Tabs -->
+        <div class="category-tabs" id="categoryTabs">
+          <button class="cat-tab active" data-cat="all">All</button>
+        </div>
+
+        <!-- Strain Filter Pills -->
+        <div class="strain-pills" id="strainPills">
+          <button class="strain-pill active" data-strain="all">All</button>
+          <button class="strain-pill" data-strain="indica">Indica</button>
+          <button class="strain-pill" data-strain="sativa">Sativa</button>
+          <button class="strain-pill" data-strain="hybrid">Hybrid</button>
+          <button class="strain-pill" data-strain="cbd">CBD</button>
+        </div>
+
+        <!-- Search -->
+        <div class="search-bar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="searchInput" placeholder="Search products..." autocomplete="off">
+        </div>
+
+        <!-- Product Grid -->
+        <div class="order-product-grid" id="productGrid">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Empty state -->
+        <div class="empty-products" id="emptyProducts" style="display:none;">
+          <div class="empty-icon">&#128270;</div>
+          <h3>No products found</h3>
+          <p>Try a different search term or category.</p>
+        </div>
+      </div>
+
+      <!-- Cart Sidebar -->
+      <div class="cart-sidebar" id="cartSidebar">
+        <div class="cart-header">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+            Your Cart
+          </h2>
+          <span class="cart-count" id="cartCount">0</span>
+        </div>
+
+        <div class="cart-items" id="cartItems">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Empty cart -->
+        <div class="cart-empty" id="cartEmpty">
+          <div class="cart-empty-icon">&#128722;</div>
+          <p>Your cart is empty</p>
+          <span>Browse our menu and add items to get started.</span>
+        </div>
+
+        <!-- Weight Tracker -->
+        <div class="weight-tracker" id="weightTracker" style="display:none;">
+          <div class="weight-label">
+            <span>Cannabis Weight</span>
+            <span class="weight-value" id="weightValue">0.00 / 2.50 oz</span>
+          </div>
+          <div class="weight-bar">
+            <div class="weight-fill" id="weightFill"></div>
+          </div>
+        </div>
+
+        <!-- Cart Totals -->
+        <div class="cart-totals" id="cartTotals" style="display:none;">
+          <div class="total-row">
+            <span>Subtotal</span>
+            <span id="subtotalDisplay">$0.00</span>
+          </div>
+          <div class="total-row tax-row">
+            <span>Est. Tax</span>
+            <span id="taxDisplay">$0.00</span>
+          </div>
+          <div class="total-row total-final">
+            <span>Est. Total</span>
+            <span id="totalDisplay">$0.00</span>
+          </div>
+          <button class="checkout-btn" id="checkoutBtn" disabled>Checkout</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Mobile Cart Toggle -->
+<button class="mobile-cart-toggle" id="mobileCartToggle" style="display:none;">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+  <span class="mobile-cart-badge" id="mobileCartBadge">0</span>
+</button>
+
+<!-- Mobile Cart Overlay -->
+<div class="mobile-cart-overlay" id="mobileCartOverlay"></div>
+
+<!-- Checkout Modal -->
+<div class="checkout-modal-overlay" id="checkoutOverlay">
+  <div class="checkout-modal">
+    <div class="checkout-modal-header">
+      <h2>Complete Your Order</h2>
+      <button class="checkout-close" id="checkoutClose">&times;</button>
+    </div>
+    <div class="checkout-modal-body" id="checkoutBody">
+
+      <!-- Order Type -->
+      <div class="checkout-section">
+        <h3>Order Type</h3>
+        <div class="checkout-order-type" id="checkoutOrderType">
+          <button class="co-type-btn active" data-type="pickup">Pickup</button>
+          <button class="co-type-btn" data-type="delivery">Delivery</button>
+        </div>
+      </div>
+
+      <!-- Pickup Fields -->
+      <div class="checkout-section" id="pickupFields">
+        <h3>Pickup Time</h3>
+        <select id="pickupTime" class="checkout-input">
+          <option value="asap">ASAP</option>
+          <option value="30min">In 30 minutes</option>
+          <option value="1hr">In 1 hour</option>
+          <option value="2hr">In 2 hours</option>
+          <option value="later">Later today</option>
+        </select>
+      </div>
+
+      <!-- Delivery Fields -->
+      <div class="checkout-section" id="deliveryFields" style="display:none;">
+        <h3>Delivery Address</h3>
+        <input type="text" id="deliveryAddress" class="checkout-input" placeholder="Street address" required>
+        <div class="checkout-row">
+          <input type="text" id="deliveryCity" class="checkout-input" placeholder="City">
+          <input type="text" id="deliveryState" class="checkout-input" placeholder="State" value="MI" style="max-width:80px;">
+          <input type="text" id="deliveryZip" class="checkout-input" placeholder="ZIP" style="max-width:100px;">
+        </div>
+        <textarea id="deliveryNotes" class="checkout-input" placeholder="Delivery notes (gate code, landmarks, etc.)" rows="2"></textarea>
+      </div>
+
+      <!-- Customer Info -->
+      <div class="checkout-section">
+        <h3>Your Information</h3>
+        <input type="text" id="custName" class="checkout-input" placeholder="Full name *" required>
+        <input type="tel" id="custPhone" class="checkout-input" placeholder="Phone number *" required>
+        <input type="email" id="custEmail" class="checkout-input" placeholder="Email (optional)">
+      </div>
+
+      <!-- Order Notes -->
+      <div class="checkout-section">
+        <h3>Order Notes</h3>
+        <textarea id="orderNotes" class="checkout-input" placeholder="Any special requests..." rows="2"></textarea>
+      </div>
+
+      <!-- Order Summary -->
+      <div class="checkout-section">
+        <h3>Order Summary</h3>
+        <div class="checkout-items" id="checkoutItems"></div>
+        <div class="checkout-totals">
+          <div class="co-total-row"><span>Subtotal</span><span id="coSubtotal">$0.00</span></div>
+          <div class="co-total-row"><span>Excise Tax (15%)</span><span id="coExcise">$0.00</span></div>
+          <div class="co-total-row"><span>Sales Tax (8.75%)</span><span id="coSales">$0.00</span></div>
+          <div class="co-total-row co-final"><span>Total</span><span id="coTotal">$0.00</span></div>
+        </div>
+      </div>
+
+      <!-- Error -->
+      <div class="checkout-error" id="checkoutError" style="display:none;"></div>
+
+      <!-- Submit -->
+      <button class="place-order-btn" id="placeOrderBtn">Place Order</button>
+      <p class="checkout-disclaimer">By placing your order you confirm you are 21+ and agree to our terms. Valid ID required at pickup/delivery.</p>
+    </div>
+
+    <!-- Success State -->
+    <div class="checkout-success" id="checkoutSuccess" style="display:none;">
+      <div class="success-icon">&#9989;</div>
+      <h2>Order Placed!</h2>
+      <p class="success-order-num">Order #<span id="successOrderNum">---</span></p>
+      <p>We've received your order. You'll get a confirmation shortly.</p>
+      <div class="success-details" id="successDetails"></div>
+      <button class="checkout-btn" onclick="location.reload()">Continue Shopping</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<style>
+  /* ═══════════════════════════════════════════════════
+     ORDER PAGE — DARK DISPENSARY THEME
+     ═══════════════════════════════════════════════════ */
+  :root {
+    --op-bg: #0a1a10;
+    --op-surface: #0f2318;
+    --op-surface2: #132d1c;
+    --op-border: #1a3d24;
+    --op-text: #e0ede4;
+    --op-text-dim: #8ba396;
+    --op-accent: #16a34a;
+    --op-accent-hover: #15803d;
+    --op-gold: #c7ab66;
+    --op-red: #ef4444;
+    --op-indica: #818cf8;
+    --op-sativa: #fb923c;
+    --op-hybrid: #34d399;
+    --op-cbd: #60a5fa;
+  }
+
+  .order-page {
+    background: var(--op-bg);
+    color: var(--op-text);
+    font-family: 'Montserrat', sans-serif;
+    min-height: 100vh;
+  }
+  .order-page *, .order-page *::before, .order-page *::after { box-sizing: border-box; }
+
+  /* ── HERO ─────────────────────────────────────── */
+  .order-hero { position: relative; padding: 90px 0 50px; text-align: center; overflow: hidden; }
+  .order-hero-bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(160deg, #071510 0%, #0d2818 40%, #0a1a10 100%);
+  }
+  .order-hero-bg::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, rgba(22,163,74,0.12) 0%, transparent 70%);
+  }
+  .order-hero-content { position: relative; z-index: 1; }
+  .order-hero h1 {
+    font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; margin-bottom: 10px;
+    background: linear-gradient(135deg, #e0ede4, #c7ab66);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .order-hero p { color: var(--op-text-dim); font-size: 1.05rem; margin-bottom: 24px; }
+
+  .order-type-tabs {
+    display: inline-flex; background: var(--op-surface); border-radius: 12px;
+    padding: 4px; gap: 4px; border: 1px solid var(--op-border);
+  }
+  .order-type-tab {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 28px; border-radius: 10px; border: none;
+    background: transparent; color: var(--op-text-dim);
+    font-family: 'Montserrat', sans-serif; font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .order-type-tab:hover { color: var(--op-text); }
+  .order-type-tab.active {
+    background: var(--op-accent); color: #fff;
+    box-shadow: 0 4px 12px rgba(22,163,74,0.3);
+  }
+
+  /* ── LAYOUT ───────────────────────────────────── */
+  .order-body { padding: 32px 0 80px; }
+  .order-layout { display: grid; grid-template-columns: 1fr 380px; gap: 32px; align-items: start; }
+
+  /* ── PRODUCT BROWSER ──────────────────────────── */
+  .product-browser { min-width: 0; }
+
+  .category-tabs {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;
+    padding-bottom: 16px; border-bottom: 1px solid var(--op-border);
+  }
+  .cat-tab {
+    padding: 8px 18px; border-radius: 8px; border: 1px solid var(--op-border);
+    background: var(--op-surface); color: var(--op-text-dim);
+    font-family: 'Montserrat', sans-serif; font-size: 0.82rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .cat-tab:hover { border-color: var(--op-accent); color: var(--op-text); }
+  .cat-tab.active { background: var(--op-accent); color: #fff; border-color: var(--op-accent); }
+
+  .strain-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .strain-pill {
+    padding: 6px 14px; border-radius: 100px; border: 1px solid var(--op-border);
+    background: transparent; color: var(--op-text-dim);
+    font-family: 'Montserrat', sans-serif; font-size: 0.78rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .strain-pill:hover { border-color: var(--op-accent); color: var(--op-text); }
+  .strain-pill.active { background: var(--op-accent); color: #fff; border-color: var(--op-accent); }
+  .strain-pill[data-strain="indica"].active { background: var(--op-indica); border-color: var(--op-indica); }
+  .strain-pill[data-strain="sativa"].active { background: var(--op-sativa); border-color: var(--op-sativa); color: #1a1a1a; }
+  .strain-pill[data-strain="hybrid"].active { background: var(--op-hybrid); border-color: var(--op-hybrid); color: #1a1a1a; }
+  .strain-pill[data-strain="cbd"].active { background: var(--op-cbd); border-color: var(--op-cbd); color: #1a1a1a; }
+
+  .search-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--op-surface); border: 1px solid var(--op-border);
+    border-radius: 10px; padding: 10px 16px; margin-bottom: 24px;
+  }
+  .search-bar svg { color: var(--op-text-dim); flex-shrink: 0; }
+  .search-bar input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--op-text); font-family: 'Montserrat', sans-serif;
+    font-size: 0.9rem;
+  }
+  .search-bar input::placeholder { color: var(--op-text-dim); }
+
+  /* Product Grid */
+  .order-product-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
+  }
+
+  .op-card {
+    background: var(--op-surface); border: 1px solid var(--op-border);
+    border-radius: 12px; overflow: hidden; transition: all 0.2s;
+  }
+  .op-card:hover { border-color: var(--op-accent); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .op-card.out-of-stock { opacity: 0.5; pointer-events: none; }
+
+  .op-card-image {
+    aspect-ratio: 1; background: var(--op-surface2); position: relative;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .op-card-image img { width: 100%; height: 100%; object-fit: cover; }
+  .op-card-emoji { font-size: 3rem; }
+  .op-card-strain {
+    position: absolute; top: 8px; left: 8px; padding: 3px 8px;
+    border-radius: 4px; font-size: 0.65rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .op-strain-indica { background: var(--op-indica); color: #fff; }
+  .op-strain-sativa { background: var(--op-sativa); color: #1a1a1a; }
+  .op-strain-hybrid { background: var(--op-hybrid); color: #1a1a1a; }
+  .op-strain-cbd { background: var(--op-cbd); color: #1a1a1a; }
+  .op-card-oos {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem; color: var(--op-red);
+  }
+
+  .op-card-body { padding: 14px; }
+  .op-card-name { font-size: 0.9rem; font-weight: 700; margin-bottom: 4px; line-height: 1.3; color: var(--op-text); }
+  .op-card-brand { font-size: 0.75rem; color: var(--op-text-dim); margin-bottom: 8px; }
+  .op-card-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .op-meta-badge {
+    padding: 2px 7px; border-radius: 4px; font-size: 0.68rem; font-weight: 600;
+    background: rgba(22,163,74,0.12); color: var(--op-accent);
+  }
+  .op-meta-badge.cbd-badge { background: rgba(96,165,250,0.12); color: var(--op-cbd); }
+  .op-meta-badge.weight-badge { background: rgba(255,255,255,0.06); color: var(--op-text-dim); }
+
+  .op-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .op-card-price { font-size: 1.1rem; font-weight: 800; color: var(--op-gold); }
+
+  .add-to-cart-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 7px 14px; border-radius: 8px; border: none;
+    background: var(--op-accent); color: #fff;
+    font-family: 'Montserrat', sans-serif; font-size: 0.78rem; font-weight: 700;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .add-to-cart-btn:hover { background: var(--op-accent-hover); }
+
+  /* Qty selector on card */
+  .op-qty-wrap {
+    display: inline-flex; align-items: center; gap: 0;
+    background: var(--op-surface2); border: 1px solid var(--op-accent);
+    border-radius: 8px; overflow: hidden;
+  }
+  .op-qty-btn {
+    width: 28px; height: 28px; border: none; background: none;
+    color: var(--op-accent); font-size: 1rem; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.1s;
+  }
+  .op-qty-btn:hover { background: rgba(22,163,74,0.15); }
+  .op-qty-val {
+    width: 26px; text-align: center; font-size: 0.8rem; font-weight: 700;
+    color: var(--op-text); background: none; border: none;
+    font-family: 'Montserrat', sans-serif;
+  }
+
+  /* Empty products */
+  .empty-products { text-align: center; padding: 60px 20px; }
+  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty-products h3 { color: var(--op-text); margin-bottom: 8px; }
+  .empty-products p { color: var(--op-text-dim); }
+
+  /* ── CART SIDEBAR ─────────────────────────────── */
+  .cart-sidebar {
+    position: sticky; top: 100px;
+    background: var(--op-surface); border: 1px solid var(--op-border);
+    border-radius: 16px; overflow: hidden;
+    display: flex; flex-direction: column; max-height: calc(100vh - 120px);
+  }
+  .cart-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--op-border);
+  }
+  .cart-header h2 {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 1rem; font-weight: 700; margin: 0; color: var(--op-text);
+  }
+  .cart-count {
+    background: var(--op-accent); color: #fff; width: 24px; height: 24px;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700;
+  }
+
+  .cart-items { flex: 1; overflow-y: auto; padding: 12px 16px; }
+
+  .cart-item {
+    display: flex; gap: 12px; padding: 12px 0;
+    border-bottom: 1px solid var(--op-border);
+  }
+  .cart-item:last-child { border-bottom: none; }
+  .cart-item-img {
+    width: 50px; height: 50px; border-radius: 8px;
+    background: var(--op-surface2); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; overflow: hidden;
+  }
+  .cart-item-img img { width: 100%; height: 100%; object-fit: cover; }
+  .cart-item-info { flex: 1; min-width: 0; }
+  .cart-item-name { font-size: 0.82rem; font-weight: 600; margin-bottom: 4px; color: var(--op-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cart-item-price { font-size: 0.78rem; color: var(--op-gold); font-weight: 600; }
+  .cart-item-controls { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .ci-qty-btn {
+    width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--op-border);
+    background: var(--op-surface2); color: var(--op-text);
+    font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.1s;
+  }
+  .ci-qty-btn:hover { border-color: var(--op-accent); color: var(--op-accent); }
+  .ci-qty-val { font-size: 0.8rem; font-weight: 700; width: 20px; text-align: center; }
+  .ci-remove {
+    margin-left: auto; background: none; border: none;
+    color: var(--op-text-dim); font-size: 0.75rem; cursor: pointer;
+    padding: 2px 6px; border-radius: 4px; transition: all 0.1s;
+  }
+  .ci-remove:hover { color: var(--op-red); background: rgba(239,68,68,0.1); }
+  .ci-item-total { font-size: 0.78rem; color: var(--op-text-dim); margin-left: auto; font-weight: 600; }
+
+  .cart-empty { text-align: center; padding: 40px 20px; }
+  .cart-empty-icon { font-size: 2.5rem; margin-bottom: 10px; opacity: 0.5; }
+  .cart-empty p { color: var(--op-text-dim); font-weight: 600; margin-bottom: 4px; }
+  .cart-empty span { font-size: 0.8rem; color: var(--op-text-dim); opacity: 0.7; }
+
+  /* Weight Tracker */
+  .weight-tracker { padding: 12px 20px; border-top: 1px solid var(--op-border); }
+  .weight-label { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 6px; }
+  .weight-label span:first-child { color: var(--op-text-dim); font-weight: 500; }
+  .weight-value { font-weight: 700; color: var(--op-text); }
+  .weight-bar { height: 6px; background: var(--op-surface2); border-radius: 3px; overflow: hidden; }
+  .weight-fill { height: 100%; background: var(--op-accent); border-radius: 3px; transition: width 0.3s, background 0.3s; width: 0%; }
+  .weight-fill.over-limit { background: var(--op-red); }
+
+  /* Cart Totals */
+  .cart-totals { padding: 16px 20px; border-top: 1px solid var(--op-border); }
+  .total-row { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 6px; color: var(--op-text-dim); }
+  .total-row.tax-row { font-size: 0.8rem; }
+  .total-final { font-size: 1rem; font-weight: 800; color: var(--op-text); margin-bottom: 16px; padding-top: 8px; border-top: 1px solid var(--op-border); }
+  .checkout-btn {
+    width: 100%; padding: 14px; border-radius: 10px; border: none;
+    background: var(--op-accent); color: #fff;
+    font-family: 'Montserrat', sans-serif; font-size: 0.95rem; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .checkout-btn:hover:not(:disabled) { background: var(--op-accent-hover); box-shadow: 0 4px 16px rgba(22,163,74,0.3); }
+  .checkout-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── MOBILE CART ───────────────────────────────── */
+  .mobile-cart-toggle {
+    position: fixed; bottom: 24px; right: 24px; z-index: 90;
+    width: 60px; height: 60px; border-radius: 50%;
+    background: var(--op-accent); color: #fff; border: none;
+    box-shadow: 0 4px 20px rgba(22,163,74,0.4);
+    cursor: pointer; display: none; /* shown via JS on mobile */
+    align-items: center; justify-content: center;
+  }
+  .mobile-cart-badge {
+    position: absolute; top: -4px; right: -4px;
+    background: var(--op-red); color: #fff; width: 22px; height: 22px;
+    border-radius: 50%; font-size: 0.7rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mobile-cart-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 98;
+  }
+  .mobile-cart-overlay.active { display: block; }
+
+  /* ── CHECKOUT MODAL ───────────────────────────── */
+  .checkout-modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 200;
+    align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .checkout-modal-overlay.active { display: flex; }
+  .checkout-modal {
+    background: var(--op-surface); border: 1px solid var(--op-border);
+    border-radius: 16px; width: 100%; max-width: 560px;
+    max-height: 90vh; overflow-y: auto; position: relative;
+  }
+  .checkout-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px; border-bottom: 1px solid var(--op-border);
+    position: sticky; top: 0; background: var(--op-surface); z-index: 1;
+  }
+  .checkout-modal-header h2 { font-size: 1.15rem; font-weight: 700; margin: 0; color: var(--op-text); }
+  .checkout-close {
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid var(--op-border);
+    background: var(--op-surface2); color: var(--op-text); font-size: 1.3rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .checkout-close:hover { border-color: var(--op-red); color: var(--op-red); }
+  .checkout-modal-body { padding: 24px; }
+  .checkout-section { margin-bottom: 24px; }
+  .checkout-section h3 { font-size: 0.9rem; font-weight: 700; color: var(--op-gold); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .checkout-input {
+    width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--op-border);
+    background: var(--op-surface2); color: var(--op-text);
+    font-family: 'Montserrat', sans-serif; font-size: 0.88rem;
+    margin-bottom: 10px; outline: none; transition: border-color 0.15s;
+  }
+  .checkout-input:focus { border-color: var(--op-accent); }
+  .checkout-input::placeholder { color: var(--op-text-dim); }
+  select.checkout-input { cursor: pointer; }
+  textarea.checkout-input { resize: vertical; }
+  .checkout-row { display: flex; gap: 10px; }
+  .checkout-row .checkout-input { flex: 1; }
+
+  .checkout-order-type { display: flex; gap: 8px; }
+  .co-type-btn {
+    flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--op-border);
+    background: var(--op-surface2); color: var(--op-text-dim);
+    font-family: 'Montserrat', sans-serif; font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .co-type-btn:hover { border-color: var(--op-accent); }
+  .co-type-btn.active { background: var(--op-accent); color: #fff; border-color: var(--op-accent); }
+
+  .checkout-items { margin-bottom: 16px; }
+  .co-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 0.85rem;
+  }
+  .co-item-name { flex: 1; color: var(--op-text); }
+  .co-item-qty { color: var(--op-text-dim); margin: 0 12px; font-size: 0.8rem; }
+  .co-item-price { color: var(--op-gold); font-weight: 600; white-space: nowrap; }
+
+  .checkout-totals { border-top: 1px solid var(--op-border); padding-top: 12px; }
+  .co-total-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--op-text-dim); margin-bottom: 6px; }
+  .co-final { font-size: 1.05rem; font-weight: 800; color: var(--op-text); padding-top: 8px; border-top: 1px solid var(--op-border); margin-top: 6px; }
+
+  .checkout-error {
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+    color: var(--op-red); padding: 12px 16px; border-radius: 8px;
+    font-size: 0.85rem; margin-bottom: 16px;
+  }
+
+  .place-order-btn {
+    width: 100%; padding: 16px; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, var(--op-accent), #15803d);
+    color: #fff; font-family: 'Montserrat', sans-serif;
+    font-size: 1rem; font-weight: 700; cursor: pointer;
+    transition: all 0.2s; position: relative;
+  }
+  .place-order-btn:hover { box-shadow: 0 6px 20px rgba(22,163,74,0.4); transform: translateY(-1px); }
+  .place-order-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .place-order-btn.loading { pointer-events: none; }
+  .place-order-btn.loading::after {
+    content: ''; position: absolute; inset: 0; background: rgba(22,163,74,0.8);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  }
+
+  .checkout-disclaimer { font-size: 0.72rem; color: var(--op-text-dim); text-align: center; margin-top: 12px; line-height: 1.4; }
+
+  /* Checkout Success */
+  .checkout-success { text-align: center; padding: 48px 32px; }
+  .success-icon { font-size: 3.5rem; margin-bottom: 16px; }
+  .checkout-success h2 { font-size: 1.5rem; color: var(--op-text); margin-bottom: 8px; }
+  .success-order-num { font-size: 1.1rem; color: var(--op-gold); font-weight: 700; margin-bottom: 12px; }
+  .checkout-success p { color: var(--op-text-dim); margin-bottom: 16px; }
+  .success-details { text-align: left; background: var(--op-surface2); border-radius: 10px; padding: 16px; margin-bottom: 24px; font-size: 0.85rem; color: var(--op-text-dim); line-height: 1.6; }
+
+  /* ── RESPONSIVE ───────────────────────────────── */
+  @media (max-width: 900px) {
+    .order-layout { grid-template-columns: 1fr; }
+    .cart-sidebar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      z-index: 99; border-radius: 16px 16px 0 0;
+      max-height: 70vh; transform: translateY(100%);
+      transition: transform 0.3s ease;
+    }
+    .cart-sidebar.mobile-open { transform: translateY(0); }
+    .mobile-cart-toggle { display: flex !important; }
+    .order-product-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .order-hero { padding: 70px 0 36px; }
+    .order-hero h1 { font-size: 1.8rem; }
+  }
+
+  @media (max-width: 480px) {
+    .order-product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .op-card-body { padding: 10px; }
+    .op-card-name { font-size: 0.82rem; }
+    .op-card-price { font-size: 0.95rem; }
+    .add-to-cart-btn { padding: 6px 10px; font-size: 0.72rem; }
+    .order-type-tab { padding: 10px 18px; font-size: 0.82rem; }
+    .category-tabs { gap: 4px; }
+    .cat-tab { padding: 6px 12px; font-size: 0.75rem; }
+  }
+
+  /* Scrollbar styling for cart */
+  .cart-items::-webkit-scrollbar { width: 4px; }
+  .cart-items::-webkit-scrollbar-track { background: transparent; }
+  .cart-items::-webkit-scrollbar-thumb { background: var(--op-border); border-radius: 2px; }
+
+  /* Override base template styles for this page */
+  .order-page .menu-filters,
+  .order-page .menu-hero { display: none; }
+
+  /* Dark mode overrides — page is already dark, suppress base theme dark toggles */
+  [data-theme="dark"] .order-page { background: var(--op-bg); color: var(--op-text); }
+</style>
+
+<script>
+(function() {
+  'use strict';
+
+  // ══════════════════════════════════════════════
+  // DATA
+  // ══════════════════════════════════════════════
+
+  const CATEGORIES = [
+    { id: 'flower', label: 'Flower', icon: '\u{1F33F}' },
+    { id: 'edible', label: 'Edibles', icon: '\u{1F36A}' },
+    { id: 'concentrate', label: 'Concentrates', icon: '\u{1F4A7}' },
+    { id: 'vape', label: 'Vapes', icon: '\u{1F4A8}' },
+    { id: 'pre_roll', label: 'Pre-Rolls', icon: '\u{1F6AC}' },
+    { id: 'topical', label: 'Topicals', icon: '\u{1F9F4}' },
+    { id: 'accessory', label: 'Accessories', icon: '\u{1F527}' },
+  ];
+
+  const CANNABIS_CATEGORIES = ['flower', 'pre_roll', 'edible', 'concentrate', 'vape', 'tincture'];
+  const WEIGHT_LIMIT_OZ = 2.5;
+  const EXCISE_RATE = 0.15;
+  const SALES_TAX_RATE = 0.0875;
+
+  // Products from server
+  const RAW_PRODUCTS = <%- JSON.stringify(products || {}) %>;
+  const CRM_API_URL = '<%= crmApiUrl %>';
+
+  // Flatten menu into products array
+  let ALL_PRODUCTS = [];
+  if (RAW_PRODUCTS && RAW_PRODUCTS.menu) {
+    RAW_PRODUCTS.menu.forEach(function(cat) {
+      if (cat.products) {
+        cat.products.forEach(function(p) {
+          p._categoryKey = cat.key || '';
+          ALL_PRODUCTS.push(p);
+        });
+      }
+    });
+  }
+
+  function getCategoryIcon(catKey) {
+    var c = CATEGORIES.find(function(x) { return x.id === catKey; });
+    return c ? c.icon : '\u{1F33F}';
+  }
+  function getCategoryLabel(catKey) {
+    var c = CATEGORIES.find(function(x) { return x.id === catKey; });
+    return c ? c.label : catKey;
+  }
+  function isCannabis(catKey) {
+    return CANNABIS_CATEGORIES.indexOf(catKey) !== -1;
+  }
+
+  // ══════════════════════════════════════════════
+  // CART STATE
+  // ══════════════════════════════════════════════
+
+  var cart = loadCart();
+  var orderType = 'pickup';
+
+  function loadCart() {
+    try {
+      var saved = localStorage.getItem('mb_cart');
+      if (saved) return JSON.parse(saved);
+    } catch(e) {}
+    return [];
+  }
+  function saveCart() {
+    try { localStorage.setItem('mb_cart', JSON.stringify(cart)); } catch(e) {}
+  }
+
+  function getProductWeight(product) {
+    if (!product || !product.weight) return 0;
+    var w = parseFloat(product.weight);
+    if (isNaN(w)) return 0;
+    var unit = (product.weightUnit || 'g').toLowerCase();
+    if (unit === 'oz') return w;
+    if (unit === 'g' || unit === 'gram' || unit === 'grams') return w / 28.3495;
+    if (unit === 'mg') return w / 28349.5;
+    if (unit === 'lb' || unit === 'lbs') return w * 16;
+    return w / 28.3495; // default assume grams
+  }
+
+  function getTotalCannabisWeight() {
+    var total = 0;
+    cart.forEach(function(item) {
+      if (isCannabis(item.product._categoryKey)) {
+        total += getProductWeight(item.product) * item.quantity;
+      }
+    });
+    return total;
+  }
+
+  function canAddProduct(product, addQty) {
+    if (!isCannabis(product._categoryKey)) return true;
+    var currentWeight = getTotalCannabisWeight();
+    var addWeight = getProductWeight(product) * (addQty || 1);
+    return (currentWeight + addWeight) <= WEIGHT_LIMIT_OZ;
+  }
+
+  function addToCart(productId) {
+    var product = ALL_PRODUCTS.find(function(p) { return p.id === productId; });
+    if (!product) return;
+    if (!canAddProduct(product, 1)) {
+      showWeightWarning();
+      return;
+    }
+    var existing = cart.find(function(item) { return item.product.id === productId; });
+    if (existing) {
+      existing.quantity++;
+    } else {
+      cart.push({ product: product, quantity: 1 });
+    }
+    saveCart();
+    renderAll();
+  }
+
+  function removeFromCart(productId) {
+    cart = cart.filter(function(item) { return item.product.id !== productId; });
+    saveCart();
+    renderAll();
+  }
+
+  function updateQuantity(productId, delta) {
+    var item = cart.find(function(i) { return i.product.id === productId; });
+    if (!item) return;
+    var newQty = item.quantity + delta;
+    if (newQty <= 0) {
+      removeFromCart(productId);
+      return;
+    }
+    if (delta > 0 && !canAddProduct(item.product, 1)) {
+      showWeightWarning();
+      return;
+    }
+    item.quantity = newQty;
+    saveCart();
+    renderAll();
+  }
+
+  function showWeightWarning() {
+    var tracker = document.getElementById('weightTracker');
+    if (tracker) {
+      tracker.style.background = 'rgba(239,68,68,0.1)';
+      setTimeout(function() { tracker.style.background = ''; }, 1500);
+    }
+    alert('Cannabis weight limit reached (2.50 oz maximum per transaction).');
+  }
+
+  function getCartItemCount() {
+    var count = 0;
+    cart.forEach(function(item) { count += item.quantity; });
+    return count;
+  }
+
+  function calcTaxes() {
+    var subtotal = 0;
+    var cannabisSubtotal = 0;
+    cart.forEach(function(item) {
+      var lineTotal = (item.product.price || 0) * item.quantity;
+      subtotal += lineTotal;
+      if (isCannabis(item.product._categoryKey)) {
+        cannabisSubtotal += lineTotal;
+      }
+    });
+    var excise = cannabisSubtotal * EXCISE_RATE;
+    var salesTax = subtotal * SALES_TAX_RATE;
+    return {
+      subtotal: subtotal,
+      excise: excise,
+      salesTax: salesTax,
+      total: subtotal + excise + salesTax
+    };
+  }
+
+  function fmt(n) { return '$' + n.toFixed(2); }
+
+  // ══════════════════════════════════════════════
+  // FILTERS
+  // ══════════════════════════════════════════════
+
+  var activeCat = 'all';
+  var activeStrain = 'all';
+  var searchQuery = '';
+
+  function getFilteredProducts() {
+    return ALL_PRODUCTS.filter(function(p) {
+      if (activeCat !== 'all' && p._categoryKey !== activeCat) return false;
+      if (activeStrain !== 'all') {
+        var st = (p.strainType || '').toLowerCase();
+        if (st !== activeStrain) return false;
+      }
+      if (searchQuery) {
+        var q = searchQuery.toLowerCase();
+        var haystack = ((p.name || '') + ' ' + (p.brand || '') + ' ' + (p.strain || '') + ' ' + (p.description || '')).toLowerCase();
+        if (haystack.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  // RENDERING
+  // ══════════════════════════════════════════════
+
+  function renderCategoryTabs() {
+    var el = document.getElementById('categoryTabs');
+    if (!el) return;
+    // Find which categories have products
+    var catCounts = {};
+    ALL_PRODUCTS.forEach(function(p) {
+      catCounts[p._categoryKey] = (catCounts[p._categoryKey] || 0) + 1;
+    });
+    var html = '<button class="cat-tab' + (activeCat === 'all' ? ' active' : '') + '" data-cat="all">All</button>';
+    CATEGORIES.forEach(function(cat) {
+      if (catCounts[cat.id]) {
+        html += '<button class="cat-tab' + (activeCat === cat.id ? ' active' : '') + '" data-cat="' + cat.id + '">' + cat.icon + ' ' + cat.label + '</button>';
+      }
+    });
+    // Also add any categories from API not in our list
+    Object.keys(catCounts).forEach(function(key) {
+      if (!CATEGORIES.find(function(c) { return c.id === key; })) {
+        html += '<button class="cat-tab' + (activeCat === key ? ' active' : '') + '" data-cat="' + key + '">' + key + '</button>';
+      }
+    });
+    el.innerHTML = html;
+
+    el.querySelectorAll('.cat-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        activeCat = this.dataset.cat;
+        renderAll();
+      });
+    });
+  }
+
+  function renderProducts() {
+    var grid = document.getElementById('productGrid');
+    var empty = document.getElementById('emptyProducts');
+    if (!grid) return;
+
+    var filtered = getFilteredProducts();
+    if (filtered.length === 0) {
+      grid.innerHTML = '';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    var html = '';
+    filtered.forEach(function(p) {
+      var inCart = cart.find(function(i) { return i.product.id === p.id; });
+      var qty = inCart ? inCart.quantity : 0;
+      var oos = p.inStock === false;
+      var catIcon = getCategoryIcon(p._categoryKey);
+      var strainClass = p.strainType ? 'op-strain-' + p.strainType.toLowerCase() : '';
+
+      html += '<div class="op-card' + (oos ? ' out-of-stock' : '') + '">';
+      html += '<div class="op-card-image">';
+      if (p.imageUrl) {
+        html += '<img src="' + escHtml(p.imageUrl) + '" alt="' + escHtml(p.name) + '" loading="lazy">';
+      } else {
+        html += '<span class="op-card-emoji">' + catIcon + '</span>';
+      }
+      if (p.strainType) {
+        html += '<span class="op-card-strain ' + strainClass + '">' + escHtml(p.strainType) + '</span>';
+      }
+      if (oos) {
+        html += '<div class="op-card-oos">Out of Stock</div>';
+      }
+      html += '</div>';
+
+      html += '<div class="op-card-body">';
+      html += '<div class="op-card-name">' + escHtml(p.name) + '</div>';
+      if (p.brand) {
+        html += '<div class="op-card-brand">' + escHtml(p.brand) + '</div>';
+      }
+      html += '<div class="op-card-meta">';
+      if (p.thcPercent) html += '<span class="op-meta-badge">THC ' + p.thcPercent + '%</span>';
+      if (p.cbdPercent) html += '<span class="op-meta-badge cbd-badge">CBD ' + p.cbdPercent + '%</span>';
+      if (p.weight) html += '<span class="op-meta-badge weight-badge">' + escHtml(p.weight + (p.weightUnit ? p.weightUnit : '')) + '</span>';
+      html += '</div>';
+
+      html += '<div class="op-card-footer">';
+      html += '<span class="op-card-price">' + (p.price ? fmt(p.price) : 'N/A') + '</span>';
+      if (!oos) {
+        if (qty > 0) {
+          html += '<div class="op-qty-wrap">';
+          html += '<button class="op-qty-btn" onclick="window._orderPage.updateQty(\'' + p.id + '\', -1)">&minus;</button>';
+          html += '<span class="op-qty-val">' + qty + '</span>';
+          html += '<button class="op-qty-btn" onclick="window._orderPage.updateQty(\'' + p.id + '\', 1)">+</button>';
+          html += '</div>';
+        } else {
+          html += '<button class="add-to-cart-btn" onclick="window._orderPage.addToCart(\'' + p.id + '\')">+ Add</button>';
+        }
+      }
+      html += '</div>';
+      html += '</div></div>';
+    });
+
+    grid.innerHTML = html;
+  }
+
+  function renderCart() {
+    var itemsEl = document.getElementById('cartItems');
+    var emptyEl = document.getElementById('cartEmpty');
+    var totalsEl = document.getElementById('cartTotals');
+    var weightEl = document.getElementById('weightTracker');
+    var countEl = document.getElementById('cartCount');
+    var mobileBadge = document.getElementById('mobileCartBadge');
+    var checkoutBtnEl = document.getElementById('checkoutBtn');
+
+    var count = getCartItemCount();
+    if (countEl) countEl.textContent = count;
+    if (mobileBadge) mobileBadge.textContent = count;
+
+    if (cart.length === 0) {
+      if (itemsEl) itemsEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'block';
+      if (totalsEl) totalsEl.style.display = 'none';
+      if (weightEl) weightEl.style.display = 'none';
+      if (checkoutBtnEl) checkoutBtnEl.disabled = true;
+      return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (totalsEl) totalsEl.style.display = 'block';
+    if (checkoutBtnEl) checkoutBtnEl.disabled = false;
+
+    // Weight tracker
+    var totalWeight = getTotalCannabisWeight();
+    if (totalWeight > 0 && weightEl) {
+      weightEl.style.display = 'block';
+      var wv = document.getElementById('weightValue');
+      var wf = document.getElementById('weightFill');
+      if (wv) wv.textContent = totalWeight.toFixed(2) + ' / ' + WEIGHT_LIMIT_OZ.toFixed(2) + ' oz';
+      if (wf) {
+        var pct = Math.min((totalWeight / WEIGHT_LIMIT_OZ) * 100, 100);
+        wf.style.width = pct + '%';
+        if (pct >= 95) { wf.classList.add('over-limit'); } else { wf.classList.remove('over-limit'); }
+      }
+    } else if (weightEl) {
+      weightEl.style.display = 'none';
+    }
+
+    // Cart items
+    if (itemsEl) {
+      var html = '';
+      cart.forEach(function(item) {
+        var p = item.product;
+        var catIcon = getCategoryIcon(p._categoryKey);
+        var lineTotal = (p.price || 0) * item.quantity;
+
+        html += '<div class="cart-item">';
+        html += '<div class="cart-item-img">';
+        if (p.imageUrl) {
+          html += '<img src="' + escHtml(p.imageUrl) + '" alt="">';
+        } else {
+          html += catIcon;
+        }
+        html += '</div>';
+        html += '<div class="cart-item-info">';
+        html += '<div class="cart-item-name">' + escHtml(p.name) + '</div>';
+        html += '<div class="cart-item-price">' + fmt(p.price || 0) + '</div>';
+        html += '<div class="cart-item-controls">';
+        html += '<button class="ci-qty-btn" onclick="window._orderPage.updateQty(\'' + p.id + '\', -1)">&minus;</button>';
+        html += '<span class="ci-qty-val">' + item.quantity + '</span>';
+        html += '<button class="ci-qty-btn" onclick="window._orderPage.updateQty(\'' + p.id + '\', 1)">+</button>';
+        html += '<span class="ci-item-total">' + fmt(lineTotal) + '</span>';
+        html += '<button class="ci-remove" onclick="window._orderPage.removeFromCart(\'' + p.id + '\')">&times; Remove</button>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      itemsEl.innerHTML = html;
+    }
+
+    // Totals
+    var taxes = calcTaxes();
+    var estTax = taxes.excise + taxes.salesTax;
+    var sd = document.getElementById('subtotalDisplay');
+    var td = document.getElementById('taxDisplay');
+    var tld = document.getElementById('totalDisplay');
+    if (sd) sd.textContent = fmt(taxes.subtotal);
+    if (td) td.textContent = fmt(estTax);
+    if (tld) tld.textContent = fmt(taxes.total);
+  }
+
+  function renderAll() {
+    renderCategoryTabs();
+    renderProducts();
+    renderCart();
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(s));
+    return div.innerHTML;
+  }
+
+  // ══════════════════════════════════════════════
+  // CHECKOUT
+  // ══════════════════════════════════════════════
+
+  function openCheckout() {
+    var overlay = document.getElementById('checkoutOverlay');
+    if (!overlay) return;
+
+    // Sync order type from hero
+    var coBtns = document.querySelectorAll('#checkoutOrderType .co-type-btn');
+    coBtns.forEach(function(b) { b.classList.toggle('active', b.dataset.type === orderType); });
+    toggleDeliveryFields();
+
+    // Render items
+    var coItems = document.getElementById('checkoutItems');
+    if (coItems) {
+      var html = '';
+      cart.forEach(function(item) {
+        html += '<div class="co-item">';
+        html += '<span class="co-item-name">' + escHtml(item.product.name) + '</span>';
+        html += '<span class="co-item-qty">x' + item.quantity + '</span>';
+        html += '<span class="co-item-price">' + fmt((item.product.price || 0) * item.quantity) + '</span>';
+        html += '</div>';
+      });
+      coItems.innerHTML = html;
+    }
+
+    // Render totals
+    var taxes = calcTaxes();
+    var cs = document.getElementById('coSubtotal');
+    var ce = document.getElementById('coExcise');
+    var csl = document.getElementById('coSales');
+    var ct = document.getElementById('coTotal');
+    if (cs) cs.textContent = fmt(taxes.subtotal);
+    if (ce) ce.textContent = fmt(taxes.excise);
+    if (csl) csl.textContent = fmt(taxes.salesTax);
+    if (ct) ct.textContent = fmt(taxes.total);
+
+    // Reset states
+    document.getElementById('checkoutError').style.display = 'none';
+    document.getElementById('checkoutBody').style.display = 'block';
+    document.getElementById('checkoutSuccess').style.display = 'none';
+    document.getElementById('placeOrderBtn').disabled = false;
+    document.getElementById('placeOrderBtn').classList.remove('loading');
+    document.getElementById('placeOrderBtn').textContent = 'Place Order';
+
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCheckout() {
+    var overlay = document.getElementById('checkoutOverlay');
+    if (overlay) overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function toggleDeliveryFields() {
+    var pickup = document.getElementById('pickupFields');
+    var delivery = document.getElementById('deliveryFields');
+    if (pickup) pickup.style.display = orderType === 'pickup' ? 'block' : 'none';
+    if (delivery) delivery.style.display = orderType === 'delivery' ? 'block' : 'none';
+  }
+
+  function placeOrder() {
+    var errEl = document.getElementById('checkoutError');
+    var btn = document.getElementById('placeOrderBtn');
+
+    // Validate
+    var name = document.getElementById('custName').value.trim();
+    var phone = document.getElementById('custPhone').value.trim();
+    if (!name || !phone) {
+      errEl.textContent = 'Please fill in your name and phone number.';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (orderType === 'delivery') {
+      var addr = document.getElementById('deliveryAddress').value.trim();
+      if (!addr) {
+        errEl.textContent = 'Please enter a delivery address.';
+        errEl.style.display = 'block';
+        return;
+      }
+    }
+    if (cart.length === 0) {
+      errEl.textContent = 'Your cart is empty.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    errEl.style.display = 'none';
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.textContent = 'Placing Order...';
+
+    var taxes = calcTaxes();
+    var orderData = {
+      orderType: orderType,
+      items: cart.map(function(item) {
+        return {
+          productId: item.product.id,
+          name: item.product.name,
+          price: item.product.price,
+          quantity: item.quantity,
+          category: item.product._categoryKey,
+        };
+      }),
+      customer: {
+        name: name,
+        phone: phone,
+        email: document.getElementById('custEmail').value.trim() || undefined,
+      },
+      subtotal: taxes.subtotal,
+      exciseTax: taxes.excise,
+      salesTax: taxes.salesTax,
+      total: taxes.total,
+      notes: document.getElementById('orderNotes').value.trim() || undefined,
+    };
+
+    if (orderType === 'pickup') {
+      orderData.pickupTime = document.getElementById('pickupTime').value;
+    } else {
+      orderData.delivery = {
+        address: document.getElementById('deliveryAddress').value.trim(),
+        city: document.getElementById('deliveryCity').value.trim(),
+        state: document.getElementById('deliveryState').value.trim(),
+        zip: document.getElementById('deliveryZip').value.trim(),
+        notes: document.getElementById('deliveryNotes').value.trim() || undefined,
+      };
+    }
+
+    fetch('/api/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderData),
+    })
+    .then(function(res) {
+      if (!res.ok) return res.json().then(function(data) { throw new Error(data.error || data.message || 'Order failed'); });
+      return res.json();
+    })
+    .then(function(data) {
+      // Success
+      var orderNum = data.orderNumber || data.id || ('MB-' + Date.now().toString(36).toUpperCase());
+      document.getElementById('successOrderNum').textContent = orderNum;
+
+      var detailsHtml = '<strong>Order Type:</strong> ' + (orderType === 'pickup' ? 'Pickup' : 'Delivery') + '<br>';
+      detailsHtml += '<strong>Name:</strong> ' + escHtml(name) + '<br>';
+      detailsHtml += '<strong>Phone:</strong> ' + escHtml(phone) + '<br>';
+      detailsHtml += '<strong>Total:</strong> ' + fmt(taxes.total);
+      document.getElementById('successDetails').innerHTML = detailsHtml;
+
+      document.getElementById('checkoutBody').style.display = 'none';
+      document.getElementById('checkoutSuccess').style.display = 'block';
+
+      // Clear cart
+      cart = [];
+      saveCart();
+      renderAll();
+    })
+    .catch(function(err) {
+      errEl.textContent = err.message || 'Something went wrong. Please try again.';
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.classList.remove('loading');
+      btn.textContent = 'Place Order';
+    });
+  }
+
+  // ══════════════════════════════════════════════
+  // EVENT BINDINGS
+  // ══════════════════════════════════════════════
+
+  document.addEventListener('DOMContentLoaded', function() {
+
+    // Hero order type tabs
+    document.querySelectorAll('#heroOrderType .order-type-tab').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('#heroOrderType .order-type-tab').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        orderType = this.dataset.type;
+      });
+    });
+
+    // Strain pills
+    document.querySelectorAll('#strainPills .strain-pill').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('#strainPills .strain-pill').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        activeStrain = this.dataset.strain;
+        renderProducts();
+      });
+    });
+
+    // Search
+    var searchInput = document.getElementById('searchInput');
+    var searchTimeout;
+    if (searchInput) {
+      searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+          searchQuery = searchInput.value.trim();
+          renderProducts();
+        }, 200);
+      });
+    }
+
+    // Checkout button
+    var checkoutBtn = document.getElementById('checkoutBtn');
+    if (checkoutBtn) checkoutBtn.addEventListener('click', openCheckout);
+
+    // Close checkout
+    var checkoutClose = document.getElementById('checkoutClose');
+    if (checkoutClose) checkoutClose.addEventListener('click', closeCheckout);
+    var checkoutOverlay = document.getElementById('checkoutOverlay');
+    if (checkoutOverlay) {
+      checkoutOverlay.addEventListener('click', function(e) {
+        if (e.target === checkoutOverlay) closeCheckout();
+      });
+    }
+
+    // Checkout order type toggle
+    document.querySelectorAll('#checkoutOrderType .co-type-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('#checkoutOrderType .co-type-btn').forEach(function(b) { b.classList.remove('active'); });
+        this.classList.add('active');
+        orderType = this.dataset.type;
+        toggleDeliveryFields();
+        // Also sync hero tabs
+        document.querySelectorAll('#heroOrderType .order-type-tab').forEach(function(b) { b.classList.toggle('active', b.dataset.type === orderType); });
+      });
+    });
+
+    // Place order
+    var placeOrderBtn = document.getElementById('placeOrderBtn');
+    if (placeOrderBtn) placeOrderBtn.addEventListener('click', placeOrder);
+
+    // Mobile cart toggle
+    var mobileToggle = document.getElementById('mobileCartToggle');
+    var cartSidebar = document.getElementById('cartSidebar');
+    var mobileOverlay = document.getElementById('mobileCartOverlay');
+    if (mobileToggle && cartSidebar) {
+      mobileToggle.addEventListener('click', function() {
+        cartSidebar.classList.toggle('mobile-open');
+        mobileOverlay.classList.toggle('active');
+      });
+    }
+    if (mobileOverlay) {
+      mobileOverlay.addEventListener('click', function() {
+        cartSidebar.classList.remove('mobile-open');
+        mobileOverlay.classList.remove('active');
+      });
+    }
+
+    // Escape key closes modals
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeCheckout();
+        if (cartSidebar) cartSidebar.classList.remove('mobile-open');
+        if (mobileOverlay) mobileOverlay.classList.remove('active');
+      }
+    });
+
+    // Initial render
+    renderAll();
+  });
+
+  // ══════════════════════════════════════════════
+  // PUBLIC API (for onclick handlers)
+  // ══════════════════════════════════════════════
+
+  window._orderPage = {
+    addToCart: addToCart,
+    removeFromCart: removeFromCart,
+    updateQty: updateQuantity,
+  };
+
+})();
+</script>

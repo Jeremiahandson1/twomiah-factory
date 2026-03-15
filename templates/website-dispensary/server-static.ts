@@ -271,8 +271,33 @@ app.get('/menu', async (c) => {
   })
 })
 
-app.get('/order', (c) => {
-  return c.redirect('/menu', 302)
+app.get('/order', async (c) => {
+  const products = await fetchMenu()
+  return renderPage(c, 'order', {
+    products,
+    title: 'Order Online | {{COMPANY_NAME}}',
+    description: 'Order cannabis online for pickup or delivery. Browse our full menu and place your order.',
+    canonicalUrl: BASE_URL + '/order',
+  })
+})
+
+// Public order submission proxy (rate limited)
+app.use('/api/order', rateLimit(contactLimitMap, 10, 15 * 60 * 1000))
+app.post('/api/order', async (c) => {
+  if (!CRM_API_URL) return c.json({ success: false, message: 'Ordering not available' }, 503)
+  try {
+    const body = await c.req.json()
+    const res = await fetch(`${CRM_API_URL}/api/public/menu/order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-company-slug': TENANT_SLUG },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    return c.json(data, res.status as any)
+  } catch (err) {
+    console.error('Order submission error:', err)
+    return c.json({ success: false, message: 'Unable to submit order right now' }, 500)
+  }
 })
 
 app.get('/loyalty', (c) => {
