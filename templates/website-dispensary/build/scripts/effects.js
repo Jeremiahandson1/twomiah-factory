@@ -466,29 +466,70 @@
   function initCustomCursor() {
     if (isCoarsePointer || isMobile || prefersReduced) return;
 
-    // --- Render joint SVG to PNG and set as native CSS cursor ---
-    var svgStr = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
-      + '<g transform="rotate(55,16,16)">'
-      + '<rect x="2" y="13.5" width="24" height="5" rx="2.5" fill="#e8d5b7"/>'
-      + '<rect x="20" y="13.5" width="6" height="5" rx="2" fill="#f5f0e6"/>'
-      + '<circle cx="2" cy="16" r="3.5" fill="#ff6b00" opacity="0.9"/>'
-      + '<circle cx="2" cy="16" r="2.2" fill="#ffaa00" opacity="0.7"/>'
-      + '<circle cx="2" cy="16" r="1" fill="#fff4cc" opacity="0.8"/>'
-      + '</g></svg>';
+    // --- Draw joint directly on canvas → PNG → native CSS cursor ---
+    // No SVG/Image loading — pure canvas 2D, synchronous, no CORS issues
+    var cc = document.createElement('canvas');
+    cc.width = 32; cc.height = 32;
+    var cctx = cc.getContext('2d');
 
-    var cursorImg = new Image();
-    cursorImg.onload = function () {
-      var c = document.createElement('canvas');
-      c.width = 32; c.height = 32;
-      c.getContext('2d').drawImage(cursorImg, 0, 0);
-      var pngUrl = c.toDataURL('image/png');
+    cctx.save();
+    cctx.translate(16, 16);
+    cctx.rotate(55 * Math.PI / 180);
+    cctx.translate(-16, -16);
 
-      // Replace the cursor:none placeholder with the real joint PNG cursor
-      var style = document.createElement('style');
-      style.textContent = '@media(pointer:fine){*,*::before,*::after{cursor:url("' + pngUrl + '") 8 5,auto!important}}';
-      document.head.appendChild(style);
-    };
-    cursorImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+    // Joint body (rounded rect)
+    cctx.fillStyle = '#e8d5b7';
+    cctx.beginPath();
+    cctx.moveTo(4.5, 13.5);
+    cctx.lineTo(23.5, 13.5);
+    cctx.quadraticCurveTo(26, 13.5, 26, 16);
+    cctx.quadraticCurveTo(26, 18.5, 23.5, 18.5);
+    cctx.lineTo(4.5, 18.5);
+    cctx.quadraticCurveTo(2, 18.5, 2, 16);
+    cctx.quadraticCurveTo(2, 13.5, 4.5, 13.5);
+    cctx.closePath();
+    cctx.fill();
+
+    // Filter tip
+    cctx.fillStyle = '#f5f0e6';
+    cctx.beginPath();
+    cctx.moveTo(22, 13.5);
+    cctx.lineTo(24, 13.5);
+    cctx.quadraticCurveTo(26, 13.5, 26, 16);
+    cctx.quadraticCurveTo(26, 18.5, 24, 18.5);
+    cctx.lineTo(22, 18.5);
+    cctx.quadraticCurveTo(20, 18.5, 20, 16);
+    cctx.quadraticCurveTo(20, 13.5, 22, 13.5);
+    cctx.closePath();
+    cctx.fill();
+
+    // Cherry glow (outer)
+    cctx.globalAlpha = 0.9;
+    cctx.fillStyle = '#ff6b00';
+    cctx.beginPath();
+    cctx.arc(2, 16, 3.5, 0, Math.PI * 2);
+    cctx.fill();
+
+    // Cherry glow (mid)
+    cctx.globalAlpha = 0.7;
+    cctx.fillStyle = '#ffaa00';
+    cctx.beginPath();
+    cctx.arc(2, 16, 2.2, 0, Math.PI * 2);
+    cctx.fill();
+
+    // Cherry core
+    cctx.globalAlpha = 0.8;
+    cctx.fillStyle = '#fff4cc';
+    cctx.beginPath();
+    cctx.arc(2, 16, 1, 0, Math.PI * 2);
+    cctx.fill();
+
+    cctx.restore();
+
+    var pngUrl = cc.toDataURL('image/png');
+    var cursorStyle = document.createElement('style');
+    cursorStyle.textContent = '@media(pointer:fine){*,*::before,*::after{cursor:url("' + pngUrl + '") 8 5,auto!important}}';
+    document.head.appendChild(cursorStyle);
 
     // --- Smoke particle canvas (visual effects layer) ---
     var smokeCanvas = document.createElement('canvas');
