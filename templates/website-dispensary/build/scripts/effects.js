@@ -457,15 +457,40 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 3. SMOKE TRAIL EFFECT
-  //    The joint cursor is a native CSS cursor (set in <head> style).
-  //    This JS only handles the smoke particle canvas overlay.
+  // 3. JOINT CURSOR + SMOKE TRAIL
+  //    Renders the joint SVG → canvas → PNG data URL, then applies
+  //    it as a native CSS cursor. PNG cursors work in all browsers.
+  //    JS also handles the smoke particle canvas overlay.
   //    Hotspot = cherry tip, so e.clientX/Y IS the smoke origin.
   // ═══════════════════════════════════════════════════════════════
   function initCustomCursor() {
     if (isCoarsePointer || isMobile || prefersReduced) return;
 
-    // Smoke particle canvas (visual effects layer only)
+    // --- Render joint SVG to PNG and set as native CSS cursor ---
+    var svgStr = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">'
+      + '<g transform="rotate(55,16,16)">'
+      + '<rect x="2" y="13.5" width="24" height="5" rx="2.5" fill="#e8d5b7"/>'
+      + '<rect x="20" y="13.5" width="6" height="5" rx="2" fill="#f5f0e6"/>'
+      + '<circle cx="2" cy="16" r="3.5" fill="#ff6b00" opacity="0.9"/>'
+      + '<circle cx="2" cy="16" r="2.2" fill="#ffaa00" opacity="0.7"/>'
+      + '<circle cx="2" cy="16" r="1" fill="#fff4cc" opacity="0.8"/>'
+      + '</g></svg>';
+
+    var cursorImg = new Image();
+    cursorImg.onload = function () {
+      var c = document.createElement('canvas');
+      c.width = 32; c.height = 32;
+      c.getContext('2d').drawImage(cursorImg, 0, 0);
+      var pngUrl = c.toDataURL('image/png');
+
+      // Replace the cursor:none placeholder with the real joint PNG cursor
+      var style = document.createElement('style');
+      style.textContent = '@media(pointer:fine){*,*::before,*::after{cursor:url("' + pngUrl + '") 8 5,auto!important}}';
+      document.head.appendChild(style);
+    };
+    cursorImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+
+    // --- Smoke particle canvas (visual effects layer) ---
     var smokeCanvas = document.createElement('canvas');
     smokeCanvas.className = 'smoke-canvas';
     document.body.appendChild(smokeCanvas);
