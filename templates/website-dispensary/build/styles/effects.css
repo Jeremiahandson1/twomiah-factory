@@ -109,60 +109,44 @@
   z-index: 1;
 }
 
-/* ── BLEND-MODE CUSTOM CURSOR ── */
+/* ── JOINT CURSOR WITH SMOKE TRAIL ── */
 @media (pointer: fine) {
-  .custom-cursor {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid rgba(34, 197, 94, 0.6);
-    position: fixed;
-    top: 0;
-    left: 0;
-    pointer-events: none;
-    z-index: 99998;
-    mix-blend-mode: difference;
-    transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease;
-    will-change: transform;
-  }
-  .custom-cursor.cursor-hover {
-    width: 60px;
-    height: 60px;
-    border-color: rgba(34, 197, 94, 1);
-    margin-left: -10px;
-    margin-top: -10px;
-  }
-
-  .cursor-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #22c55e;
+  .cursor-joint {
     position: fixed;
     top: 0;
     left: 0;
     pointer-events: none;
     z-index: 99999;
-    mix-blend-mode: difference;
-    transition: transform 0.05s linear, width 0.2s ease, height 0.2s ease;
+    font-size: 28px;
+    line-height: 1;
     will-change: transform;
+    filter: drop-shadow(0 0 6px rgba(255, 140, 0, 0.5));
+    transition: filter 0.3s ease;
   }
-  .cursor-dot.cursor-hover {
-    width: 4px;
-    height: 4px;
-    margin-left: 2px;
-    margin-top: 2px;
+  .cursor-joint.cursor-hover {
+    filter: drop-shadow(0 0 12px rgba(255, 140, 0, 0.8));
+    font-size: 34px;
   }
 
-  /* Hide default cursor when custom cursor is active */
-  html:has(.custom-cursor) {
+  .smoke-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 99998;
+  }
+
+  /* Hide default cursor when joint cursor is active */
+  html:has(.cursor-joint) {
     cursor: none;
   }
-  html:has(.custom-cursor) a,
-  html:has(.custom-cursor) button,
-  html:has(.custom-cursor) [data-quick-view],
-  html:has(.custom-cursor) input,
-  html:has(.custom-cursor) textarea {
+  html:has(.cursor-joint) a,
+  html:has(.cursor-joint) button,
+  html:has(.cursor-joint) [data-quick-view],
+  html:has(.cursor-joint) input,
+  html:has(.cursor-joint) textarea {
     cursor: none;
   }
 }

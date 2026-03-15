@@ -457,51 +457,132 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 3. BLEND-MODE CUSTOM CURSOR
-  //    mix-blend-mode: difference circle that inverts content.
+  // 3. JOINT CURSOR WITH SMOKE TRAIL
+  //    Replaces default cursor with a joint emoji. Smoke particles
+  //    rise from the tip and drift upward with turbulence.
   // ═══════════════════════════════════════════════════════════════
   function initCustomCursor() {
     if (isCoarsePointer || isMobile || prefersReduced) return;
 
-    var cursor = document.createElement('div');
-    cursor.className = 'custom-cursor';
-    document.body.appendChild(cursor);
+    // Joint element
+    var joint = document.createElement('div');
+    joint.className = 'cursor-joint';
+    joint.textContent = '\uD83E\uDEB4'; // 🪴 — we'll use a custom SVG joint instead
+    // Draw a simple joint shape via inline SVG
+    joint.innerHTML = '<svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="transform:rotate(-35deg)">'
+      + '<rect x="4" y="14" width="22" height="5" rx="2.5" fill="#e8d5b7"/>'
+      + '<rect x="4" y="14" width="6" height="5" rx="2" fill="#f5f0e6"/>'
+      + '<circle cx="26" cy="16.5" r="3" fill="#ff6b00" opacity="0.9"/>'
+      + '<circle cx="26" cy="16.5" r="2" fill="#ffaa00" opacity="0.7"/>'
+      + '<circle cx="26" cy="16.5" r="1" fill="#fff4cc" opacity="0.8"/>'
+      + '</svg>';
+    document.body.appendChild(joint);
 
-    var dot = document.createElement('div');
-    dot.className = 'cursor-dot';
-    document.body.appendChild(dot);
+    // Smoke canvas
+    var smokeCanvas = document.createElement('canvas');
+    smokeCanvas.className = 'smoke-canvas';
+    document.body.appendChild(smokeCanvas);
+    var ctx = smokeCanvas.getContext('2d');
 
-    var cx = 0, cy = 0, tx = 0, ty = 0;
+    function resizeCanvas() {
+      smokeCanvas.width = window.innerWidth;
+      smokeCanvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    var mx = 0, my = 0, jx = 0, jy = 0;
+    var particles = [];
+    var MAX_PARTICLES = 80;
 
     document.addEventListener('mousemove', function (e) {
-      tx = e.clientX;
-      ty = e.clientY;
-      dot.style.transform = 'translate(' + (tx - 4) + 'px,' + (ty - 4) + 'px)';
+      mx = e.clientX;
+      my = e.clientY;
     });
 
-    // Smooth lerp for the big circle
-    function lerp() {
-      cx += (tx - cx) * 0.12;
-      cy += (ty - cy) * 0.12;
-      cursor.style.transform = 'translate(' + (cx - 20) + 'px,' + (cy - 20) + 'px)';
-      requestAnimationFrame(lerp);
+    // Smoke particle class
+    function spawnSmoke(x, y) {
+      if (particles.length >= MAX_PARTICLES) return;
+      // Tip of the joint (offset from cursor to the lit end)
+      var tipX = x + 10;
+      var tipY = y - 6;
+      for (var i = 0; i < 2; i++) {
+        particles.push({
+          x: tipX + (Math.random() - 0.5) * 4,
+          y: tipY + (Math.random() - 0.5) * 4,
+          vx: (Math.random() - 0.5) * 0.8,
+          vy: -(Math.random() * 1.5 + 0.5),
+          size: Math.random() * 12 + 6,
+          alpha: Math.random() * 0.4 + 0.2,
+          life: 1,
+          decay: Math.random() * 0.008 + 0.005,
+          turbFreq: Math.random() * 0.05 + 0.02,
+          turbAmp: Math.random() * 1.5 + 0.5,
+          age: 0
+        });
+      }
     }
-    lerp();
+
+    var frameCount = 0;
+
+    function animate() {
+      ctx.clearRect(0, 0, smokeCanvas.width, smokeCanvas.height);
+
+      // Lerp joint position for smooth follow
+      jx += (mx - jx) * 0.15;
+      jy += (my - jy) * 0.15;
+      joint.style.transform = 'translate(' + (jx - 6) + 'px,' + (jy - 16) + 'px)';
+
+      // Spawn smoke every other frame
+      if (frameCount % 2 === 0) {
+        spawnSmoke(jx, jy);
+      }
+
+      // Update and draw particles
+      for (var i = particles.length - 1; i >= 0; i--) {
+        var p = particles[i];
+        p.age++;
+        p.life -= p.decay;
+
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        // Turbulence — sine wave wobble
+        p.vx += Math.sin(p.age * p.turbFreq) * p.turbAmp * 0.1;
+        p.vy -= 0.02; // Slight upward acceleration
+
+        p.x += p.vx;
+        p.y += p.vy;
+        p.size += 0.3; // Expand as it rises
+
+        // Draw smoke puff
+        var alpha = p.alpha * p.life;
+        var gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+        gradient.addColorStop(0, 'rgba(200, 200, 200, ' + alpha + ')');
+        gradient.addColorStop(0.4, 'rgba(180, 180, 180, ' + (alpha * 0.6) + ')');
+        gradient.addColorStop(1, 'rgba(160, 160, 160, 0)');
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
+
+      frameCount++;
+      requestAnimationFrame(animate);
+    }
+    animate();
 
     // Scale up on interactive elements
     document.addEventListener('mouseover', function (e) {
       var el = e.target.closest('a, button, [data-quick-view], .tilt-card, input, textarea');
-      if (el) {
-        cursor.classList.add('cursor-hover');
-        dot.classList.add('cursor-hover');
-      }
+      if (el) joint.classList.add('cursor-hover');
     });
     document.addEventListener('mouseout', function (e) {
       var el = e.target.closest('a, button, [data-quick-view], .tilt-card, input, textarea');
-      if (el) {
-        cursor.classList.remove('cursor-hover');
-        dot.classList.remove('cursor-hover');
-      }
+      if (el) joint.classList.remove('cursor-hover');
     });
   }
 
