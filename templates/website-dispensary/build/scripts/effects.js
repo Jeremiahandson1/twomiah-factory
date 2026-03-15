@@ -502,9 +502,9 @@
     // Smoke particle class
     function spawnSmoke(x, y) {
       if (particles.length >= MAX_PARTICLES) return;
-      // Smoke rises from the lit cherry tip (at cursor position)
-      var tipX = x;
-      var tipY = y;
+      // Offset to match cherry position after joint rotation
+      var tipX = x - 18;
+      var tipY = y - 8;
       for (var i = 0; i < 2; i++) {
         particles.push({
           x: tipX + (Math.random() - 0.5) * 4,
