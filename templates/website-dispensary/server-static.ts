@@ -272,8 +272,7 @@ app.get('/menu', async (c) => {
 })
 
 app.get('/order', (c) => {
-  if (!CRM_API_URL) return c.redirect('/menu', 302)
-  return c.redirect(`${CRM_API_URL}/portal`, 302)
+  return c.redirect('/menu', 302)
 })
 
 app.get('/loyalty', (c) => {
