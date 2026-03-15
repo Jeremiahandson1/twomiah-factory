@@ -45,6 +45,7 @@ import deliveryRoutes from './routes/delivery.ts'
 import menuRoutes from './routes/menu.ts'
 import analyticsRoutes from './routes/analytics.ts'
 import cashRoutes from './routes/cash.ts'
+import integrationsRoutes from './routes/integrations.ts'
 
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
@@ -61,7 +62,7 @@ app.use('*', secureHeaders({
 app.use('*', cors({
   origin: '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID', 'X-Integration-Key'],
 }))
 
 function createRateLimiter(windowMs: number, max: number) {
@@ -117,6 +118,7 @@ app.route('/api/delivery', deliveryRoutes)
 app.route('/api/public/menu', menuRoutes)
 app.route('/api/analytics', analyticsRoutes)
 app.route('/api/cash', cashRoutes)
+app.route('/api/integrations', integrationsRoutes)
 
 // Factory sync endpoint — allows Twomiah Factory to push feature updates via HTTP
 // Secured by a shared secret (FACTORY_SYNC_KEY env var)

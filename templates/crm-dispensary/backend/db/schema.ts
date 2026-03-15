@@ -31,6 +31,9 @@ export const company = pgTable('company', {
   merchEnabled: boolean('merch_enabled').default(false),
   purchaseLimitOz: text('purchase_limit_oz').default('2.5'),
 
+  // POS Integration
+  integrationKey: text('integration_key'),
+
   // Stripe
   stripeCustomerId: text('stripe_customer_id').unique(),
   subscriptionTier: text('subscription_tier'),
