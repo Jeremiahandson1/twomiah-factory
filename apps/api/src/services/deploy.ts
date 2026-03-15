@@ -454,11 +454,24 @@ async function addResourcesToEnvironment(environmentId: string, resourceIds: str
 }
 
 async function findExistingDatabase(name: string): Promise<any> {
-  const res = await fetchWithTimeout(RENDER_API + '/postgres?limit=20', { headers: renderHeaders() })
+  const res = await fetchWithTimeout(RENDER_API + '/postgres?limit=100', { headers: renderHeaders() })
   if (!res.ok) return null
   const list = await res.json() as any[]
   const match = list.find((item: any) => (item.postgres || item).name === name)
   return match ? (match.postgres || match) : null
+}
+
+async function findAndDeleteRenderDatabase(name: string): Promise<void> {
+  try {
+    const existing = await findExistingDatabase(name)
+    if (existing && existing.id) {
+      console.log('[Deploy] Deleting existing Render database:', name, existing.id)
+      await fetchWithTimeout(RENDER_API + '/postgres/' + existing.id, { method: 'DELETE', headers: renderHeaders() })
+      await sleep(5000)
+    }
+  } catch (e: any) {
+    console.warn('[Deploy] Could not clean up existing database:', name, e.message)
+  }
 }
 
 async function createRenderDatabase(slug: string, region = 'ohio', dbPlan = 'basic_256mb', projectId?: string | null): Promise<any> {
@@ -763,7 +776,10 @@ export async function deployCustomer(
       } else {
         // ── Fallback: Render Postgres ──
         try {
-          console.log('[Deploy] Creating Render DB (Supabase Management API not configured):', dbSlug + '-db')
+          // Delete existing databases so deploys start fresh (avoid stale data from failed deploys)
+          await findAndDeleteRenderDatabase(dbSlug + '-db')
+          if (dbSlug !== slug) await findAndDeleteRenderDatabase(slug + '-db') // clean up generic name
+          console.log('[Deploy] Creating Render DB:', dbSlug + '-db')
           const db = await createRenderDatabase(dbSlug, region, dbPlan)
           createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
           results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
