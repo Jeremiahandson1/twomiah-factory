@@ -109,25 +109,8 @@
   z-index: 1;
 }
 
-/* ── JOINT CURSOR WITH SMOKE TRAIL ── */
+/* ── SMOKE TRAIL CANVAS (cursor is native CSS, set in <head>) ── */
 @media (pointer: fine) {
-  .cursor-joint {
-    position: fixed;
-    top: 0;
-    left: 0;
-    pointer-events: none;
-    z-index: 99999;
-    font-size: 28px;
-    line-height: 1;
-    will-change: transform;
-    filter: drop-shadow(0 0 6px rgba(255, 140, 0, 0.5));
-    transition: filter 0.3s ease;
-  }
-  .cursor-joint.cursor-hover {
-    filter: drop-shadow(0 0 12px rgba(255, 140, 0, 0.8));
-    font-size: 34px;
-  }
-
   .smoke-canvas {
     position: fixed;
     top: 0;
@@ -136,11 +119,6 @@
     height: 100%;
     pointer-events: none;
     z-index: 99998;
-  }
-
-  /* Hide default cursor globally — joint cursor replaces it */
-  html, html * {
-    cursor: none !important;
   }
 }
 

@@ -457,27 +457,15 @@
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // 3. JOINT CURSOR WITH SMOKE TRAIL
-  //    Replaces default cursor with a joint emoji. Smoke particles
-  //    rise from the tip and drift upward with turbulence.
+  // 3. SMOKE TRAIL EFFECT
+  //    The joint cursor is a native CSS cursor (set in <head> style).
+  //    This JS only handles the smoke particle canvas overlay.
+  //    Hotspot = cherry tip, so e.clientX/Y IS the smoke origin.
   // ═══════════════════════════════════════════════════════════════
   function initCustomCursor() {
     if (isCoarsePointer || isMobile || prefersReduced) return;
 
-    // Joint element
-    var joint = document.createElement('div');
-    joint.className = 'cursor-joint';
-    // SVG joint — cherry on left end, filter tip on right, angled up-right
-    joint.innerHTML = '<svg width="32" height="40" viewBox="0 0 32 40" fill="none" style="transform:rotate(55deg)">'
-      + '<rect x="4" y="14" width="24" height="5" rx="2.5" fill="#e8d5b7"/>'
-      + '<rect x="22" y="14" width="6" height="5" rx="2" fill="#f5f0e6"/>'
-      + '<circle cx="4" cy="16.5" r="3.5" fill="#ff6b00" opacity="0.9"/>'
-      + '<circle cx="4" cy="16.5" r="2.2" fill="#ffaa00" opacity="0.7"/>'
-      + '<circle cx="4" cy="16.5" r="1" fill="#fff4cc" opacity="0.8"/>'
-      + '</svg>';
-    document.body.appendChild(joint);
-
-    // Smoke canvas
+    // Smoke particle canvas (visual effects layer only)
     var smokeCanvas = document.createElement('canvas');
     smokeCanvas.className = 'smoke-canvas';
     document.body.appendChild(smokeCanvas);
@@ -490,32 +478,22 @@
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    var mx = -100, my = -100, jx = -100, jy = -100;
+    var mx = -100, my = -100;
     var particles = [];
     var MAX_PARTICLES = 80;
-    var firstMove = true;
 
     document.addEventListener('mousemove', function (e) {
       mx = e.clientX;
       my = e.clientY;
-      // Snap joint to cursor instantly on first move (no lerp fly-in)
-      if (firstMove) {
-        jx = mx;
-        jy = my;
-        firstMove = false;
-      }
     });
 
-    // Smoke particle class
     function spawnSmoke(x, y) {
       if (particles.length >= MAX_PARTICLES) return;
-      // Offset to match cherry position after joint rotation (55deg)
-      var tipX = x - 12;
-      var tipY = y - 22;
+      // Cursor hotspot IS the cherry — smoke spawns right at the cursor position
       for (var i = 0; i < 2; i++) {
         particles.push({
-          x: tipX + (Math.random() - 0.5) * 4,
-          y: tipY + (Math.random() - 0.5) * 4,
+          x: x + (Math.random() - 0.5) * 4,
+          y: y + (Math.random() - 0.5) * 4,
           vx: (Math.random() - 0.5) * 0.8,
           vy: -(Math.random() * 1.5 + 0.5),
           size: Math.random() * 12 + 6,
@@ -534,15 +512,9 @@
     function animate() {
       ctx.clearRect(0, 0, smokeCanvas.width, smokeCanvas.height);
 
-      // Lerp joint position — fast follow, slight smoothing
-      jx += (mx - jx) * 0.5;
-      jy += (my - jy) * 0.5;
-      // Offset so the lit cherry tip (bottom of rotated joint) sits at cursor position
-      joint.style.transform = 'translate(' + (jx - 16) + 'px,' + (jy - 30) + 'px)';
-
-      // Spawn smoke every other frame
-      if (frameCount % 2 === 0) {
-        spawnSmoke(jx, jy);
+      // Spawn smoke every other frame at cursor position
+      if (frameCount % 2 === 0 && mx > 0) {
+        spawnSmoke(mx, my);
       }
 
       // Update and draw particles
@@ -558,11 +530,11 @@
 
         // Turbulence — sine wave wobble
         p.vx += Math.sin(p.age * p.turbFreq) * p.turbAmp * 0.1;
-        p.vy -= 0.02; // Slight upward acceleration
+        p.vy -= 0.02;
 
         p.x += p.vx;
         p.y += p.vy;
-        p.size += 0.3; // Expand as it rises
+        p.size += 0.3;
 
         // Draw smoke puff
         var alpha = p.alpha * p.life;
@@ -581,16 +553,6 @@
       requestAnimationFrame(animate);
     }
     animate();
-
-    // Scale up on interactive elements
-    document.addEventListener('mouseover', function (e) {
-      var el = e.target.closest('a, button, [data-quick-view], .tilt-card, input, textarea');
-      if (el) joint.classList.add('cursor-hover');
-    });
-    document.addEventListener('mouseout', function (e) {
-      var el = e.target.closest('a, button, [data-quick-view], .tilt-card, input, textarea');
-      if (el) joint.classList.remove('cursor-hover');
-    });
   }
 
   // ═══════════════════════════════════════════════════════════════
