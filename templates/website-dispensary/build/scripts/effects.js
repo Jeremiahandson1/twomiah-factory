@@ -467,8 +467,8 @@
     // Joint element
     var joint = document.createElement('div');
     joint.className = 'cursor-joint';
-    // SVG joint — cherry on the LEFT end (filter tip on right), rotated so cherry points down
-    joint.innerHTML = '<svg width="32" height="40" viewBox="0 0 32 40" fill="none" style="transform:rotate(-55deg)">'
+    // SVG joint — cherry on left end, filter tip on right, angled up-right
+    joint.innerHTML = '<svg width="32" height="40" viewBox="0 0 32 40" fill="none" style="transform:rotate(55deg)">'
       + '<rect x="4" y="14" width="24" height="5" rx="2.5" fill="#e8d5b7"/>'
       + '<rect x="22" y="14" width="6" height="5" rx="2" fill="#f5f0e6"/>'
       + '<circle cx="4" cy="16.5" r="3.5" fill="#ff6b00" opacity="0.9"/>'
