@@ -24,6 +24,7 @@ async function main() {
       secondaryColor: '{{SECONDARY_COLOR}}',
       website: '{{SITE_URL}}',
       enabledFeatures: {{ENABLED_FEATURES_JSON}},
+      estimatorEnabled: ({{ENABLED_FEATURES_JSON}} as string[]).includes('instant_estimator'),
       settings: {
         products: {{PRODUCTS_JSON}},
         siteUrl: '{{SITE_URL}}',
