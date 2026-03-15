@@ -467,14 +467,13 @@
     // Joint element
     var joint = document.createElement('div');
     joint.className = 'cursor-joint';
-    joint.textContent = '\uD83E\uDEB4'; // 🪴 — we'll use a custom SVG joint instead
-    // Draw a simple joint shape via inline SVG
-    joint.innerHTML = '<svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="transform:rotate(-35deg)">'
-      + '<rect x="4" y="14" width="22" height="5" rx="2.5" fill="#e8d5b7"/>'
+    // SVG joint rotated so the lit cherry points DOWN = cursor hotspot
+    joint.innerHTML = '<svg width="32" height="40" viewBox="0 0 32 40" fill="none" style="transform:rotate(55deg)">'
+      + '<rect x="4" y="14" width="24" height="5" rx="2.5" fill="#e8d5b7"/>'
       + '<rect x="4" y="14" width="6" height="5" rx="2" fill="#f5f0e6"/>'
-      + '<circle cx="26" cy="16.5" r="3" fill="#ff6b00" opacity="0.9"/>'
-      + '<circle cx="26" cy="16.5" r="2" fill="#ffaa00" opacity="0.7"/>'
-      + '<circle cx="26" cy="16.5" r="1" fill="#fff4cc" opacity="0.8"/>'
+      + '<circle cx="28" cy="16.5" r="3.5" fill="#ff6b00" opacity="0.9"/>'
+      + '<circle cx="28" cy="16.5" r="2.2" fill="#ffaa00" opacity="0.7"/>'
+      + '<circle cx="28" cy="16.5" r="1" fill="#fff4cc" opacity="0.8"/>'
       + '</svg>';
     document.body.appendChild(joint);
 
@@ -503,9 +502,9 @@
     // Smoke particle class
     function spawnSmoke(x, y) {
       if (particles.length >= MAX_PARTICLES) return;
-      // Tip of the joint (offset from cursor to the lit end)
-      var tipX = x + 10;
-      var tipY = y - 6;
+      // Smoke rises from the lit cherry tip (at cursor position)
+      var tipX = x;
+      var tipY = y;
       for (var i = 0; i < 2; i++) {
         particles.push({
           x: tipX + (Math.random() - 0.5) * 4,
@@ -531,7 +530,8 @@
       // Lerp joint position for smooth follow
       jx += (mx - jx) * 0.15;
       jy += (my - jy) * 0.15;
-      joint.style.transform = 'translate(' + (jx - 6) + 'px,' + (jy - 16) + 'px)';
+      // Offset so the lit cherry tip (bottom of rotated joint) sits at cursor position
+      joint.style.transform = 'translate(' + (jx - 16) + 'px,' + (jy - 30) + 'px)';
 
       // Spawn smoke every other frame
       if (frameCount % 2 === 0) {
