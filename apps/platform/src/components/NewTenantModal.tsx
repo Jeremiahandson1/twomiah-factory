@@ -80,8 +80,11 @@ export default function NewTenantModal({ onClose, onCreated }: Props) {
                 <option value="roofing">Roofing</option>
                 <option value="hvac">HVAC</option>
                 <option value="plumbing">Plumbing</option>
+                <option value="electrical">Electrical</option>
                 <option value="remodeling">Remodeling</option>
+                <option value="field_service">Field Service (HVAC/Plumbing)</option>
                 <option value="home_care">Home Care</option>
+                <option value="dispensary">Cannabis Dispensary</option>
                 <option value="other">Other</option>
               </select>
             </div>
