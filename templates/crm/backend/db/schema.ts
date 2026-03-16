@@ -2580,6 +2580,8 @@ export const roofReport = pgTable('roof_report', {
   segmentCount: integer('segment_count').notNull(),
   imageryQuality: text('imagery_quality').notNull(),
   imageryDate: text('imagery_date'),
+  aerialImagePath: text('aerial_image_path'),
+  roofMaskPath: text('roof_mask_path'),
 
   segments: json('segments').notNull(),
   edges: json('edges').notNull(),

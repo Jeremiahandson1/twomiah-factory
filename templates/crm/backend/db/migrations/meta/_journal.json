@@ -50,6 +50,13 @@
       "when": 1772785271399,
       "tag": "0006_add_roof_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772785271400,
+      "tag": "0007_add_roof_report_imagery",
+      "breakpoints": true
     }
   ]
 }

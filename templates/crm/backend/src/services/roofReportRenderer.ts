@@ -1,5 +1,5 @@
-// Roof Report Renderer — generates HTML reports from computed roof data
-// Uses Google Maps Static API for satellite imagery
+// Roof Report Renderer — generates professional HTML reports from computed roof data
+// Uses Solar API aerial imagery (stored at generation time) with SVG measurement overlay
 // PDF output is handled via browser print-to-PDF (no PDFKit dependency)
 
 // ---------------------------------------------------------------------------
@@ -49,6 +49,7 @@ export interface RoofReportData {
   measurements: RoofMeasurements
   imageryQuality: 'HIGH' | 'MEDIUM' | 'LOW'
   imageryDate?: string | null
+  aerialImageBase64?: string | null  // base64 data URL from stored Solar API imagery
 }
 
 // ---------------------------------------------------------------------------
@@ -66,7 +67,7 @@ const EDGE_COLORS: Record<EdgeType, string> = {
 const EDGE_WIDTHS: Record<EdgeType, number> = {
   ridge: 3,
   valley: 3,
-  hip: 2,
+  hip: 2.5,
   rake: 2,
   eave: 2,
 }
@@ -80,14 +81,14 @@ const EDGE_LABELS: Record<EdgeType, string> = {
 }
 
 const SEGMENT_FILL_COLORS = [
-  'rgba(59,130,246,0.15)',
-  'rgba(16,185,129,0.15)',
-  'rgba(245,158,11,0.15)',
-  'rgba(239,68,68,0.15)',
-  'rgba(139,92,246,0.15)',
-  'rgba(236,72,153,0.15)',
-  'rgba(20,184,166,0.15)',
-  'rgba(249,115,22,0.15)',
+  'rgba(59,130,246,0.18)',
+  'rgba(16,185,129,0.18)',
+  'rgba(245,158,11,0.18)',
+  'rgba(239,68,68,0.18)',
+  'rgba(139,92,246,0.18)',
+  'rgba(236,72,153,0.18)',
+  'rgba(20,184,166,0.18)',
+  'rgba(249,115,22,0.18)',
 ]
 
 const MAP_WIDTH = 800
@@ -180,6 +181,7 @@ function latLngToPixel(
 
 /**
  * Fetch satellite image from Google Maps Static API and return as base64 data URL.
+ * Used as FALLBACK when stored Solar API aerial imagery is not available.
  */
 async function fetchSatelliteImageBase64(lat: number, lng: number, zoom: number): Promise<string> {
   try {
@@ -220,6 +222,39 @@ function escapeHtml(str: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Imagery date helpers
+// ---------------------------------------------------------------------------
+
+function parseImageryMonth(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null
+  const parts = dateStr.split('-')
+  if (parts.length >= 2) return parseInt(parts[1], 10)
+  return null
+}
+
+function imagerySeasonLabel(dateStr: string | null | undefined): { label: string; color: string; warning: string } {
+  const month = parseImageryMonth(dateStr)
+  if (!month) return { label: 'Unknown', color: '#718096', warning: '' }
+  if (month >= 6 && month <= 8) return {
+    label: 'Summer',
+    color: '#C53030',
+    warning: 'Summer imagery — deciduous trees may obscure portions of the roof structure. On-site verification recommended for shaded areas.',
+  }
+  if (month >= 3 && month <= 5) return {
+    label: 'Spring',
+    color: '#D69E2E',
+    warning: 'Spring imagery — early foliage may partially obscure roof edges near trees.',
+  }
+  if (month >= 9 && month <= 11) return {
+    label: 'Fall',
+    color: '#DD6B20',
+    warning: '',
+  }
+  // Dec, Jan, Feb
+  return { label: 'Winter', color: '#2B6CB0', warning: '' }
+}
+
+// ---------------------------------------------------------------------------
 // SVG overlay builder (shared by both HTML and PDF-print paths)
 // ---------------------------------------------------------------------------
 
@@ -232,7 +267,7 @@ function buildSvgOverlay(
 ): string {
   const svgParts: string[] = []
 
-  // Draw segment polygons
+  // Draw segment polygons with subtle fill
   segments.forEach((seg, i) => {
     if (!seg.polygon || seg.polygon.length < 3) return
     const fill = SEGMENT_FILL_COLORS[i % SEGMENT_FILL_COLORS.length]
@@ -240,22 +275,26 @@ function buildSvgOverlay(
       const px = latLngToPixel(p.lat, p.lng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
       return `${px.x},${px.y}`
     }).join(' ')
-    svgParts.push(`<polygon points="${points}" fill="${fill}" stroke="none" />`)
+    svgParts.push(`<polygon points="${points}" fill="${fill}" stroke="rgba(255,255,255,0.4)" stroke-width="1" />`)
   })
 
-  // Draw edges with color coding
+  // Draw edges with color coding and glow effect for visibility
   edges.forEach(edge => {
     const start = latLngToPixel(edge.startLat, edge.startLng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
     const end = latLngToPixel(edge.endLat, edge.endLng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
     const color = EDGE_COLORS[edge.type] || '#FFFFFF'
     const width = EDGE_WIDTHS[edge.type] || 2
+    // Dark outline for contrast
+    svgParts.push(
+      `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="rgba(0,0,0,0.5)" stroke-width="${width + 2}" stroke-linecap="round" />`
+    )
     svgParts.push(
       `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" />`
     )
-    // Measurement label
+    // Measurement label with improved readability
     const mid = midpoint(start.x, start.y, end.x, end.y)
     svgParts.push(
-      `<text x="${mid.x}" y="${mid.y}" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="bold" fill="#FFFFFF" style="text-shadow: 0 0 3px #000, 0 0 6px #000;">${fmt(edge.lengthFt)}'</text>`
+      `<text x="${mid.x}" y="${mid.y}" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="bold" fill="#FFFFFF" style="text-shadow: 0 0 3px #000, 0 0 6px #000, 0 1px 2px #000;">${fmt(edge.lengthFt)}'</text>`
     )
   })
 
@@ -269,7 +308,7 @@ function buildSvgOverlay(
       ? latLngToPixel(seg.center.lat, seg.center.lng, centerLat, centerLng, zoom, MAP_WIDTH, MAP_HEIGHT)
       : polygonCentroid(pixelPoints)
     svgParts.push(
-      `<text x="${c.x}" y="${c.y}" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="bold" fill="#FFD700" style="text-shadow: 0 0 4px #000, 0 0 8px #000;">${seg.pitch}</text>`
+      `<text x="${c.x}" y="${c.y}" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="bold" fill="#FFD700" style="text-shadow: 0 0 4px #000, 0 0 8px #000, 0 1px 3px #000;">${seg.pitch}</text>`
     )
   })
 
@@ -292,6 +331,7 @@ function buildReportBody(
   const companyPhone = company?.phone || ''
   const companyEmail = company?.email || ''
   const companyLogo = company?.logoUrl || company?.logo || ''
+  const season = imagerySeasonLabel(report.imageryDate)
 
   // Build legend HTML
   const legendItems = (['ridge', 'valley', 'hip', 'rake', 'eave'] as EdgeType[]).map(type =>
@@ -301,27 +341,50 @@ function buildReportBody(
     </span>`
   ).join('')
 
+  // Imagery source badge
+  const imagerySource = report.aerialImageBase64
+    ? 'Google Solar API — High-Resolution Aerial'
+    : 'Google Maps Satellite'
+
   return `
     <!-- Company Header -->
     <div class="header">
       <div class="header-left">
         ${companyLogo ? `<img class="header-logo" src="${companyLogo}" alt="${companyName}" />` : ''}
-        <h1>${escapeHtml(companyName)}</h1>
+        <div>
+          <h1>${escapeHtml(companyName)}</h1>
+          <div style="font-size:12px;color:#718096;font-weight:500;margin-top:2px;">Professional Roof Measurement Report</div>
+        </div>
       </div>
       <div class="header-contact">
         ${companyPhone ? `<div>${escapeHtml(companyPhone)}</div>` : ''}
         ${companyEmail ? `<div>${escapeHtml(companyEmail)}</div>` : ''}
+        <div style="color:#a0aec0;font-size:11px;margin-top:4px;">Generated ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
       </div>
     </div>
 
     <!-- Property Address -->
-    <div class="address-bar">${escapeHtml(address)}</div>
+    <div class="address-bar">
+      <div>${escapeHtml(address)}</div>
+    </div>
+
+    <!-- Imagery Metadata Bar -->
+    <div class="imagery-meta">
+      <span>
+        <strong>Source:</strong> ${imagerySource}
+        ${report.imageryDate ? ` &middot; <strong>Captured:</strong> ${report.imageryDate}` : ''}
+        ${season.label !== 'Unknown' ? ` <span class="season-badge" style="background:${season.color};">${season.label}</span>` : ''}
+      </span>
+      <span class="quality-badge quality-${report.imageryQuality.toLowerCase()}">${report.imageryQuality} Quality</span>
+    </div>
+
+    ${season.warning ? `<div class="season-warning">${season.warning}</div>` : ''}
 
     <!-- Satellite Image with SVG Overlay -->
     <div class="map-container">
       ${satelliteDataUrl
-        ? `<img src="${satelliteDataUrl}" alt="Satellite view of ${escapeHtml(address)}" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" />`
-        : `<div style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px;background:#2d3748;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:14px;">Satellite imagery unavailable — enable Maps Static API</div>`}
+        ? `<img src="${satelliteDataUrl}" alt="Aerial view of ${escapeHtml(address)}" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" />`
+        : `<div style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px;background:#2d3748;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:14px;">Aerial imagery unavailable</div>`}
       <svg viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}" preserveAspectRatio="xMidYMid meet">
         ${svgContent}
       </svg>
@@ -329,6 +392,26 @@ function buildReportBody(
 
     <!-- Color Legend -->
     <div class="legend">${legendItems}</div>
+
+    <!-- Key Metrics Cards -->
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-value">${fmt(measurements.totalSquares, 2)}</div>
+        <div class="metric-label">Total Squares</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value">${fmt(measurements.squaresWithWaste, 2)}</div>
+        <div class="metric-label">Squares + ${measurements.wasteFactor}% Waste</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value">${fmt(measurements.totalAreaSqft)}</div>
+        <div class="metric-label">Total Area (sqft)</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-value">${segments.length}</div>
+        <div class="metric-label">Roof Segments</div>
+      </div>
+    </div>
 
     <!-- Summary Table -->
     <div class="section-title">Measurement Summary</div>
@@ -348,9 +431,10 @@ function buildReportBody(
         <tr><td>Eave</td><td>${fmt(measurements.eaveLF)} LF</td></tr>
         <tr><td>Total Perimeter</td><td>${fmt(measurements.totalPerimeterLF)} LF</td></tr>
         <tr><td>Waste Factor</td><td>${measurements.wasteFactor}%</td></tr>
-        <tr><td>Squares with Waste</td><td>${fmt(measurements.squaresWithWaste, 2)}</td></tr>
-        <tr><td>Ice &amp; Water Shield</td><td>${fmt(measurements.iceWaterShieldSqft)} sqft</td></tr>
-        <tr><td>Imagery Quality</td><td>${report.imageryQuality}</td></tr>
+        <tr class="total-row"><td>Squares with Waste</td><td>${fmt(measurements.squaresWithWaste, 2)}</td></tr>
+        ${measurements.iceWaterShieldSqft > 0
+          ? `<tr class="highlight"><td>Ice &amp; Water Shield</td><td>${fmt(measurements.iceWaterShieldSqft)} sqft</td></tr>`
+          : ''}
       </tbody>
     </table>
 
@@ -358,57 +442,89 @@ function buildReportBody(
     <div class="section-title">Segment Details</div>
     <table class="detail-table">
       <thead>
-        <tr><th>Segment</th><th>Area (sqft)</th><th>Pitch</th><th>Azimuth</th></tr>
+        <tr><th>#</th><th>Area (sqft)</th><th>Pitch</th><th>Azimuth</th><th>Facing</th></tr>
       </thead>
       <tbody>
-        ${segments.map(seg => `
+        ${segments.map((seg, i) => `
         <tr>
-          <td>${escapeHtml(seg.name)}</td>
+          <td><span class="seg-dot" style="background:${SEGMENT_FILL_COLORS[i % SEGMENT_FILL_COLORS.length].replace('0.18', '0.8')}"></span>${escapeHtml(seg.name)}</td>
           <td>${fmt(seg.area)}</td>
           <td>${escapeHtml(seg.pitch)}</td>
           <td>${seg.azimuthDegrees}&deg;</td>
+          <td>${azimuthToCardinal(seg.azimuthDegrees)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
 
     <!-- Disclaimer -->
     <div class="disclaimer">
-      <strong>Disclaimer:</strong> This roof measurement report is generated using satellite imagery and
+      <strong>Disclaimer:</strong> This roof measurement report is generated using aerial imagery and
       automated analysis from the Google Solar API. Measurements are approximate and should be verified
       by an on-site inspection before being used for material ordering, bidding, or construction purposes.
       Actual roof conditions, including hidden damage, structural issues, and complex architectural details,
       may not be fully captured by aerial imagery. The generating company assumes no liability for
       inaccuracies in this report.
-      ${report.imageryDate ? `<br /><br />Satellite imagery date: ${report.imageryDate}` : ''}
+    </div>
+
+    <div class="footer">
+      Powered by Twomiah Factory &middot; Satellite analysis by Google Solar API
     </div>`
 }
 
+function azimuthToCardinal(deg: number): string {
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+  const idx = Math.round(((deg % 360) + 360) % 360 / 22.5) % 16
+  return dirs[idx]
+}
+
 // ---------------------------------------------------------------------------
-// Shared CSS
+// CSS
 // ---------------------------------------------------------------------------
 
 const BASE_CSS = `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1a202c; background: #f7fafc; line-height: 1.5; }
     .container { max-width: 860px; margin: 0 auto; padding: 32px 24px; }
-    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 24px; }
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 20px; }
     .header-left { display: flex; align-items: center; gap: 16px; }
     .header-logo { max-height: 60px; max-width: 200px; object-fit: contain; }
-    .header h1 { font-size: 22px; font-weight: 700; }
+    .header h1 { font-size: 22px; font-weight: 700; line-height: 1.2; }
     .header-contact { text-align: right; font-size: 13px; color: #4a5568; }
-    .address-bar { background: #2d3748; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 16px; font-weight: 600; margin-bottom: 24px; }
-    .map-container { position: relative; width: ${MAP_WIDTH}px; max-width: 100%; margin: 0 auto 16px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .address-bar { background: linear-gradient(135deg, #2d3748, #1a202c); color: #fff; padding: 14px 20px; border-radius: 8px; font-size: 17px; font-weight: 600; margin-bottom: 12px; letter-spacing: 0.2px; }
+
+    .imagery-meta { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: #718096; padding: 8px 14px; background: #edf2f7; border-radius: 6px; margin-bottom: 8px; }
+    .season-badge { display: inline-block; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 6px; vertical-align: middle; text-transform: uppercase; letter-spacing: 0.5px; }
+    .quality-badge { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
+    .quality-high { background: #C6F6D5; color: #22543D; }
+    .quality-medium { background: #FEFCBF; color: #744210; }
+    .quality-low { background: #FED7D7; color: #742A2D; }
+
+    .season-warning { background: #FFFBEB; border: 1px solid #F6E05E; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #744210; margin-bottom: 12px; line-height: 1.5; }
+
+    .map-container { position: relative; width: ${MAP_WIDTH}px; max-width: 100%; margin: 0 auto 12px; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 2px solid #e2e8f0; }
     .map-container img { display: block; width: 100%; height: auto; }
     .map-container svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-    .legend { display: flex; flex-wrap: wrap; align-items: center; font-size: 13px; color: #4a5568; margin-bottom: 24px; padding: 8px 12px; background: #edf2f7; border-radius: 6px; }
+    .legend { display: flex; flex-wrap: wrap; align-items: center; font-size: 13px; color: #4a5568; margin-bottom: 20px; padding: 8px 14px; background: #edf2f7; border-radius: 6px; }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .metric-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+    .metric-value { font-size: 24px; font-weight: 800; color: #2d3748; line-height: 1.2; }
+    .metric-label { font-size: 12px; color: #718096; margin-top: 4px; font-weight: 500; }
+
     .summary-table, .detail-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    .summary-table th, .detail-table th { text-align: left; background: #2d3748; color: #fff; padding: 10px 14px; font-size: 13px; font-weight: 600; }
+    .summary-table th, .detail-table th { text-align: left; background: #2d3748; color: #fff; padding: 10px 14px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .summary-table td, .detail-table td { padding: 9px 14px; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
     .summary-table tr:nth-child(even), .detail-table tr:nth-child(even) { background: #f7fafc; }
-    .highlight { background: #fff5f5 !important; }
-    .highlight td { color: #c53030; font-weight: 600; }
+    .highlight { background: #FFF5F5 !important; }
+    .highlight td { color: #C53030; font-weight: 600; }
+    .total-row { background: #EBF8FF !important; }
+    .total-row td { font-weight: 700; color: #2B6CB0; }
     .section-title { font-size: 17px; font-weight: 700; margin-bottom: 10px; color: #2d3748; }
-    .disclaimer { margin-top: 32px; padding: 16px; background: #fffbeb; border: 1px solid #f6e05e; border-radius: 6px; font-size: 12px; color: #744210; line-height: 1.6; }
+
+    .seg-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+
+    .disclaimer { margin-top: 32px; padding: 16px; background: #fffbeb; border: 1px solid #f6e05e; border-radius: 6px; font-size: 11px; color: #744210; line-height: 1.6; }
+    .footer { text-align: center; margin-top: 16px; font-size: 11px; color: #a0aec0; padding: 8px 0; }
 `
 
 // ---------------------------------------------------------------------------
@@ -425,8 +541,11 @@ export async function generateReportHTML(
   // Compute optimal zoom to fit all segments
   const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
 
-  // Fetch satellite image as base64
-  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+  // Use stored Solar API aerial image, fall back to Maps Static API
+  let satelliteDataUrl = report.aerialImageBase64 || ''
+  if (!satelliteDataUrl) {
+    satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+  }
 
   // Build SVG overlay
   const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
@@ -467,8 +586,11 @@ export async function generateReportPDF(
   // Compute optimal zoom to fit all segments
   const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
 
-  // Fetch satellite image as base64
-  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+  // Use stored Solar API aerial image, fall back to Maps Static API
+  let satelliteDataUrl = report.aerialImageBase64 || ''
+  if (!satelliteDataUrl) {
+    satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+  }
 
   // Build SVG overlay
   const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
@@ -512,9 +634,11 @@ export async function generateReportPDF(
       .container { padding: 0; max-width: 100%; }
       .print-btn { display: none !important; }
       .map-container { box-shadow: none; break-inside: avoid; }
+      .metrics-grid { break-inside: avoid; }
       .summary-table, .detail-table { break-inside: avoid; }
       .disclaimer { break-inside: avoid; }
       .address-bar { border-radius: 0; }
+      .season-warning { break-inside: avoid; }
     }
   </style>
 </head>

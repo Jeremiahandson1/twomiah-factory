@@ -15,6 +15,7 @@ interface RoofReport {
   totalSquares: number
   segmentCount: number
   imageryQuality: 'HIGH' | 'MEDIUM' | 'LOW'
+  imageryDate?: string | null
   status: string
   contactId?: string
   createdAt: string
@@ -24,6 +25,15 @@ interface Contact {
   id: string
   firstName: string
   lastName: string
+}
+
+function isSummerMonth(dateStr: string): boolean {
+  const parts = dateStr.split('-')
+  if (parts.length >= 2) {
+    const month = parseInt(parts[1], 10)
+    return month >= 6 && month <= 8
+  }
+  return false
 }
 
 export default function RoofReportsPage() {
@@ -366,11 +376,23 @@ export default function RoofReportsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{report.totalSquares ?? '-'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{report.segmentCount ?? '-'}</td>
-                  <td className="px-4 py-3">{report.imageryQuality ? qualityBadge(report.imageryQuality) : '-'}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {new Date(report.createdAt).toLocaleDateString()}
+                    <div className="flex items-center gap-1.5">
+                      {report.imageryQuality ? qualityBadge(report.imageryQuality) : '-'}
+                      {report.imageryDate && isSummerMonth(report.imageryDate) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-orange-100 text-orange-700" title="Summer imagery — trees may obscure roof">Summer</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(report.createdAt).toLocaleDateString()}
+                      </div>
+                      {report.imageryDate && (
+                        <span className="text-[11px] text-gray-400">Imagery: {report.imageryDate}</span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3">

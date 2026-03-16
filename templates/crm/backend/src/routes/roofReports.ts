@@ -5,9 +5,12 @@ import { roofReport, contact, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { generateRoofReport } from '../services/roofReport.ts'
 import { generateReportHTML, generateReportPDF } from '../services/roofReportRenderer.ts'
-import { geocodeAddress, getBuildingInsights } from '../services/googleSolar.ts'
+import { geocodeAddress, getBuildingInsights, getDataLayers, downloadGeoTiff, formatSolarDate, isSummerImagery } from '../services/googleSolar.ts'
 import logger from '../services/logger.ts'
 import Stripe from 'stripe'
+import sharp from 'sharp'
+import fs from 'fs'
+import path from 'path'
 
 const REPORT_PRICE_CENTS = 999 // $9.99
 
@@ -44,6 +47,7 @@ app.get('/', authenticate, async (c) => {
     totalAreaSqft: roofReport.totalAreaSqft,
     segmentCount: roofReport.segmentCount,
     imageryQuality: roofReport.imageryQuality,
+    imageryDate: roofReport.imageryDate,
     status: roofReport.status,
     contactId: roofReport.contactId,
     createdAt: roofReport.createdAt,
@@ -77,6 +81,80 @@ app.get('/:id', authenticate, async (c) => {
 // ============================================
 // SHARED GENERATION LOGIC
 // ============================================
+
+// Ensure uploads directory for aerial imagery exists
+const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads', 'roof-imagery')
+try { fs.mkdirSync(UPLOADS_DIR, { recursive: true }) } catch {}
+
+/**
+ * Download Solar API aerial GeoTIFF and convert to PNG via sharp.
+ * Returns the saved file path, or null on failure.
+ */
+async function downloadAndConvertToPng(geoTiffUrl: string, outputPath: string): Promise<string | null> {
+  try {
+    const tiffBuffer = await downloadGeoTiff(geoTiffUrl)
+    await sharp(tiffBuffer).png({ quality: 90 }).toFile(outputPath)
+    return outputPath
+  } catch (err: any) {
+    logger.warn('Failed to download/convert GeoTIFF', { error: err.message })
+    return null
+  }
+}
+
+/**
+ * Create a composite image: aerial RGB with roof mask overlay.
+ * Uses raw pixel manipulation for reliable compositing — no complex sharp pipelines.
+ */
+async function compositeAerialWithMask(
+  rgbPath: string,
+  maskTiffBuffer: Buffer,
+  outputPath: string,
+): Promise<string | null> {
+  try {
+    const rgbMeta = await sharp(rgbPath).metadata()
+    const w = rgbMeta.width || 800
+    const h = rgbMeta.height || 600
+
+    // Get RGB pixels as raw RGBA
+    const rgbRaw = await sharp(rgbPath)
+      .ensureAlpha()
+      .raw()
+      .toBuffer()
+
+    // Get mask pixels, resized to match RGB, as single-channel grayscale
+    const maskRaw = await sharp(maskTiffBuffer)
+      .resize(w, h, { fit: 'fill' })
+      .grayscale()
+      .raw()
+      .toBuffer()
+
+    // Composite: tint rooftop pixels (mask > 128) with a subtle highlight
+    const result = Buffer.from(rgbRaw)
+    for (let i = 0; i < w * h; i++) {
+      const maskVal = maskRaw[i] || 0
+      if (maskVal > 128) {
+        // Lighten + blue-tint rooftop pixels for visibility
+        const ri = i * 4
+        result[ri + 0] = Math.min(255, Math.round(result[ri + 0] * 0.85 + 40))  // R: slight boost
+        result[ri + 1] = Math.min(255, Math.round(result[ri + 1] * 0.85 + 55))  // G: moderate boost
+        result[ri + 2] = Math.min(255, Math.round(result[ri + 2] * 0.85 + 70))  // B: strong boost
+      }
+    }
+
+    await sharp(result, { raw: { width: w, height: h, channels: 4 } })
+      .png({ quality: 90 })
+      .toFile(outputPath)
+
+    return outputPath
+  } catch (err: any) {
+    logger.warn('Failed to composite aerial with mask', { error: err.message })
+    // Fall back to plain aerial image
+    try {
+      fs.copyFileSync(rgbPath, outputPath)
+      return outputPath
+    } catch { return null }
+  }
+}
 
 export async function generateAndSaveReport(
   companyId: string,
@@ -127,6 +205,63 @@ export async function generateAndSaveReport(
 
   const quality = buildingInsights.imageryQuality || 'MEDIUM'
 
+  // ---------------------------------------------------------------------------
+  // Fetch high-resolution aerial imagery + roof mask from Solar API dataLayers
+  // ---------------------------------------------------------------------------
+  let aerialImagePath: string | null = null
+  let roofMaskPath: string | null = null
+  let imageryDate: string | null = null
+
+  try {
+    const dataLayers = await getDataLayers(geo.lat, geo.lng)
+    imageryDate = formatSolarDate(dataLayers.imageryDate)
+
+    if (isSummerImagery(dataLayers.imageryDate)) {
+      logger.info('Roof report imagery is from summer months — tree obstruction possible', {
+        address, imageryDate, month: dataLayers.imageryDate.month,
+      })
+    }
+
+    // Generate a unique prefix for this report's files
+    const filePrefix = `${companyId.slice(0, 8)}-${Date.now()}`
+
+    // Download aerial RGB GeoTIFF → convert to PNG
+    const rgbPngPath = path.join(UPLOADS_DIR, `${filePrefix}-aerial.png`)
+    aerialImagePath = await downloadAndConvertToPng(dataLayers.rgbUrl, rgbPngPath)
+
+    // Download roof mask GeoTIFF
+    if (aerialImagePath && dataLayers.maskUrl) {
+      try {
+        const maskTiffBuffer = await downloadGeoTiff(dataLayers.maskUrl)
+        const maskPngPath = path.join(UPLOADS_DIR, `${filePrefix}-mask.png`)
+        await sharp(maskTiffBuffer).png().toFile(maskPngPath)
+        roofMaskPath = maskPngPath
+
+        // Create composite: aerial + roof mask highlight
+        const compositePath = path.join(UPLOADS_DIR, `${filePrefix}-composite.png`)
+        const compositeResult = await compositeAerialWithMask(rgbPngPath, maskTiffBuffer, compositePath)
+        if (compositeResult) {
+          aerialImagePath = compositeResult // use composite as the primary image
+        }
+      } catch (maskErr: any) {
+        logger.warn('Roof mask download/processing failed (non-blocking)', { error: maskErr.message })
+      }
+    }
+
+    logger.info('Solar API aerial imagery downloaded', {
+      address, imageryDate, quality: dataLayers.imageryQuality,
+      hasAerial: !!aerialImagePath, hasMask: !!roofMaskPath,
+    })
+  } catch (dataLayerErr: any) {
+    logger.warn('DataLayers API failed — falling back to Maps Static imagery', {
+      error: dataLayerErr.message, address,
+    })
+    // imageryDate fallback from buildingInsights
+    if (buildingInsights.imageryDate) {
+      imageryDate = formatSolarDate(buildingInsights.imageryDate)
+    }
+  }
+
   const [report] = await db.insert(roofReport).values({
     companyId,
     address,
@@ -140,6 +275,9 @@ export async function generateAndSaveReport(
     totalAreaSqft: result.totalAreaSqft,
     segmentCount: result.segments.length,
     imageryQuality: quality,
+    imageryDate,
+    aerialImagePath,
+    roofMaskPath,
     segments: segmentsForDb,
     edges,
     measurements,
@@ -322,6 +460,25 @@ app.post('/purchase-for-contact/:contactId', authenticate, async (c) => {
 })
 
 // ============================================
+// SERVE AERIAL IMAGERY (public — used by HTML report)
+// ============================================
+
+app.get('/:id/aerial.png', async (c) => {
+  const id = c.req.param('id')
+  const [report] = await db.select({ aerialImagePath: roofReport.aerialImagePath })
+    .from(roofReport).where(eq(roofReport.id, id)).limit(1)
+
+  if (!report?.aerialImagePath || !fs.existsSync(report.aerialImagePath)) {
+    return c.json({ error: 'Aerial image not available' }, 404)
+  }
+
+  const imgBuffer = fs.readFileSync(report.aerialImagePath)
+  return new Response(imgBuffer, {
+    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
+  })
+})
+
+// ============================================
 // PUBLIC HTML VIEW (no auth — shareable link)
 // ============================================
 
@@ -339,12 +496,23 @@ app.get('/:id/html', async (c) => {
       .where(eq(company.id, report.companyId))
       .limit(1)
 
+    // Read stored aerial image as base64 if available
+    let aerialBase64 = ''
+    if (report.aerialImagePath && fs.existsSync(report.aerialImagePath)) {
+      try {
+        const imgBuf = fs.readFileSync(report.aerialImagePath)
+        aerialBase64 = `data:image/png;base64,${imgBuf.toString('base64')}`
+      } catch {}
+    }
+
     const reportData = {
       center: { lat: Number(report.lat), lng: Number(report.lng) },
       segments: (report.segments || []) as any[],
       edges: (report.edges || []) as any[],
       measurements: (report.measurements || {}) as any,
       imageryQuality: (report.imageryQuality || 'MEDIUM') as 'HIGH' | 'MEDIUM' | 'LOW',
+      imageryDate: report.imageryDate || null,
+      aerialImageBase64: aerialBase64 || null,
     }
 
     const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
@@ -376,12 +544,22 @@ app.get('/:id/pdf', authenticate, async (c) => {
       .where(eq(company.id, report.companyId))
       .limit(1)
 
+    let aerialBase64 = ''
+    if (report.aerialImagePath && fs.existsSync(report.aerialImagePath)) {
+      try {
+        const imgBuf = fs.readFileSync(report.aerialImagePath)
+        aerialBase64 = `data:image/png;base64,${imgBuf.toString('base64')}`
+      } catch {}
+    }
+
     const reportData = {
       center: { lat: Number(report.lat), lng: Number(report.lng) },
       segments: (report.segments || []) as any[],
       edges: (report.edges || []) as any[],
       measurements: (report.measurements || {}) as any,
       imageryQuality: (report.imageryQuality || 'MEDIUM') as 'HIGH' | 'MEDIUM' | 'LOW',
+      imageryDate: report.imageryDate || null,
+      aerialImageBase64: aerialBase64 || null,
     }
 
     const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
