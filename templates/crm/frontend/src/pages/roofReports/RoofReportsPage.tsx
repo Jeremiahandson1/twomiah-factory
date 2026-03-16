@@ -39,7 +39,7 @@ export default function RoofReportsPage() {
   const [purchasing, setPurchasing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
-  const [form, setForm] = useState({ address: '', city: '', state: '', zip: '', contactId: '' })
+  const [form, setForm] = useState({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: 12 })
 
   useEffect(() => {
     loadReports()
@@ -119,6 +119,7 @@ export default function RoofReportsPage() {
           city: form.city,
           state: form.state,
           zip: form.zip,
+          eaveOverhangInches: form.eaveOverhangInches,
           ...(form.contactId && { contactId: form.contactId }),
         }),
       })
@@ -127,7 +128,7 @@ export default function RoofReportsPage() {
         // No Stripe configured — report generated for free
         toast.success('Roof report generated!')
         setShowForm(false)
-        setForm({ address: '', city: '', state: '', zip: '', contactId: '' })
+        setForm({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: 12 })
         loadReports()
       } else if (result.checkoutUrl) {
         // Redirect to Stripe Checkout
@@ -269,6 +270,20 @@ export default function RoofReportsPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Eave Overhang Offset</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={0}
+                  max={36}
+                  value={form.eaveOverhangInches}
+                  onChange={(e) => setForm({ ...form, eaveOverhangInches: Number(e.target.value) || 0 })}
+                  className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <span className="text-sm text-gray-500">inches (expands roof segments outward to account for eave overhang)</span>
+              </div>
             </div>
             <div className="flex items-center justify-between pt-2 border-t">
               <p className="text-xs text-gray-400">

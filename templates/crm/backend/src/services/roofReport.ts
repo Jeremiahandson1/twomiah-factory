@@ -462,7 +462,67 @@ function computeIceWaterShield(
  * @param insights - Raw BuildingInsightsResponse from the Google Solar API
  * @returns RoofReportData with segments, classified edges, and measurements
  */
-export function generateRoofReport(insights: BuildingInsightsResponse): RoofReportData {
+/**
+ * Expand a polygon outward from its centroid by a given distance in feet.
+ * Each vertex is pushed away from the centroid along the line from centroid → vertex.
+ */
+function expandPolygon(polygon: Polygon, expandFt: number, centerLat: number): Polygon {
+  if (polygon.vertices.length < 3 || expandFt <= 0) return polygon
+
+  // Compute centroid
+  const cx = polygon.vertices.reduce((s, v) => s + v.lat, 0) / polygon.vertices.length
+  const cy = polygon.vertices.reduce((s, v) => s + v.lng, 0) / polygon.vertices.length
+
+  // Degrees per foot at this latitude
+  const latDegPerFt = 1 / (EARTH_RADIUS_FT * (Math.PI / 180))
+  const lngDegPerFt = latDegPerFt / Math.cos(toRadians(centerLat))
+
+  const vertices = polygon.vertices.map(v => {
+    const dLat = v.lat - cx
+    const dLng = v.lng - cy
+
+    // Distance from centroid in feet (approximate)
+    const distFt = Math.sqrt((dLat / latDegPerFt) ** 2 + (dLng / lngDegPerFt) ** 2)
+    if (distFt < 0.01) return v // skip degenerate
+
+    // Expand by moving vertex further from centroid
+    const scale = (distFt + expandFt) / distFt
+    return {
+      lat: cx + dLat * scale,
+      lng: cy + dLng * scale,
+    }
+  })
+
+  return { vertices }
+}
+
+/**
+ * Compute polygon area in square feet using the Shoelace formula on lat/lng.
+ */
+function polygonAreaSqft(polygon: Polygon, centerLat: number): number {
+  const verts = polygon.vertices
+  if (verts.length < 3) return 0
+
+  const latFtPerDeg = EARTH_RADIUS_FT * (Math.PI / 180)
+  const lngFtPerDeg = latFtPerDeg * Math.cos(toRadians(centerLat))
+
+  // Convert to feet-based coordinates
+  const pts = verts.map(v => ({
+    x: v.lng * lngFtPerDeg,
+    y: v.lat * latFtPerDeg,
+  }))
+
+  // Shoelace formula
+  let area = 0
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length
+    area += pts[i].x * pts[j].y
+    area -= pts[j].x * pts[i].y
+  }
+  return Math.abs(area) / 2
+}
+
+export function generateRoofReport(insights: BuildingInsightsResponse, eaveOverhangInches = 12): RoofReportData {
   const rawSegments = insights.solarPotential?.roofSegmentStats
   if (!rawSegments || rawSegments.length === 0) {
     return emptyReport(insights)
@@ -493,6 +553,30 @@ export function generateRoofReport(insights: BuildingInsightsResponse): RoofRepo
       polygon,
     }
   })
+
+  // -------------------------------------------------------------------------
+  // 1b. Expand polygons outward by eave overhang and recalculate areas
+  // -------------------------------------------------------------------------
+  const buildingCenter: LatLng = {
+    lat: insights.center.latitude,
+    lng: insights.center.longitude,
+  }
+  const overhangFt = eaveOverhangInches / 12
+
+  if (overhangFt > 0) {
+    for (const seg of segments) {
+      const originalPoly = seg.polygon
+      const expandedPoly = expandPolygon(originalPoly, overhangFt, buildingCenter.lat)
+      const expandedArea = Math.round(polygonAreaSqft(expandedPoly, buildingCenter.lat))
+
+      // Use expanded area if reasonable (within 30% of original — prevents bad expansions on tiny segments)
+      if (expandedArea > 0 && expandedArea < seg.area * 1.3) {
+        seg.area = expandedArea
+      }
+
+      seg.polygon = expandedPoly
+    }
+  }
 
   // -------------------------------------------------------------------------
   // 2. Find shared edges between all segment pairs

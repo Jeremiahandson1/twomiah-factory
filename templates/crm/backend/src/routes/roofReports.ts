@@ -86,10 +86,11 @@ export async function generateAndSaveReport(
   zip: string,
   contactId?: string,
   stripePaymentIntentId?: string,
+  eaveOverhangInches = 12,
 ) {
   const geo = await geocodeAddress(address, city, state, zip)
   const buildingInsights = await getBuildingInsights(geo.lat, geo.lng)
-  const result = generateRoofReport(buildingInsights)
+  const result = generateRoofReport(buildingInsights, eaveOverhangInches)
 
   const edges = result.edges.map((edge: any) => ({
     type: edge.type,
@@ -158,7 +159,8 @@ export async function generateAndSaveReport(
 
 app.post('/purchase', authenticate, async (c) => {
   const user = c.get('user') as any
-  const { address, city, state, zip, contactId } = await c.req.json()
+  const { address, city, state, zip, contactId, eaveOverhangInches } = await c.req.json()
+  const overhang = typeof eaveOverhangInches === 'number' ? Math.max(0, Math.min(36, eaveOverhangInches)) : 12
 
   if (!address || !city || !state || !zip) {
     return c.json({ error: 'Address, city, state, and zip are required' }, 400)
@@ -168,7 +170,7 @@ app.post('/purchase', authenticate, async (c) => {
   if (!stripe) {
     // No Stripe configured — generate for free (dev mode / self-hosted)
     try {
-      const report = await generateAndSaveReport(user.companyId, address, city, state, zip, contactId)
+      const report = await generateAndSaveReport(user.companyId, address, city, state, zip, contactId, undefined, overhang)
       return c.json({ report, free: true }, 201)
     } catch (err: any) {
       logger.error('Roof report generation failed', err)
@@ -199,6 +201,7 @@ app.post('/purchase', authenticate, async (c) => {
       state,
       zip,
       contactId: contactId || '',
+      eaveOverhangInches: String(overhang),
     },
     success_url: `${frontendUrl}/roof-reports?purchased=true&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${frontendUrl}/roof-reports?cancelled=true`,
@@ -248,6 +251,7 @@ app.post('/confirm-purchase', authenticate, async (c) => {
       meta.zip || '',
       meta.contactId || undefined,
       session.payment_intent as string,
+      meta.eaveOverhangInches ? Number(meta.eaveOverhangInches) : 12,
     )
     return c.json({ report }, 201)
   } catch (err: any) {
