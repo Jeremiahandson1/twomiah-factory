@@ -225,6 +225,20 @@ function clipPolygonByHalfPlane(poly: Pt[], A: number, B: number, C: number): Pt
 }
 
 /**
+ * Scale a polygon around its centroid by a given factor.
+ * factor < 1 shrinks, factor > 1 grows.
+ */
+function scalePolygonAroundCentroid(poly: Pt[], factor: number): Pt[] {
+  if (poly.length < 3) return poly
+  const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length
+  const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length
+  return poly.map(p => ({
+    x: cx + (p.x - cx) * factor,
+    y: cy + (p.y - cy) * factor,
+  }))
+}
+
+/**
  * Expand a convex polygon outward from its centroid by a distance in meters.
  * Simple radial expansion — accurate for convex shapes with small offsets.
  */
@@ -386,7 +400,10 @@ export function generateRoofReport(
   })
 
   // -----------------------------------------------------------------------
-  // 2. Compute building footprint (convex hull of all bounding box corners)
+  // 2. Compute building footprint
+  //    Solar API bounding boxes are axis-aligned and much larger than the
+  //    actual building. We take the convex hull of all bbox corners, then
+  //    scale it to match the known ground area from wholeRoofStats.
   // -----------------------------------------------------------------------
   const allCorners: Pt[] = []
   for (const seg of rawSegments) {
@@ -412,6 +429,19 @@ export function generateRoofReport(
 
   // Ensure CCW winding
   if (polygonAreaSigned(footprint) < 0) footprint.reverse()
+
+  // Scale hull to match the actual building ground area.
+  // The convex hull of axis-aligned bounding boxes is typically 2-4x too large.
+  const knownGroundArea = insights.solarPotential?.wholeRoofStats?.groundAreaMeters2
+    || insights.solarPotential?.buildingStats?.groundAreaMeters2
+    || 0
+  if (knownGroundArea > 0) {
+    const hullArea = Math.abs(polygonAreaSigned(footprint))
+    if (hullArea > knownGroundArea * 1.1) {
+      const scale = Math.sqrt(knownGroundArea / hullArea)
+      footprint = scalePolygonAroundCentroid(footprint, scale)
+    }
+  }
 
   // Expand footprint by eave overhang
   if (overhangMeters > 0) {
