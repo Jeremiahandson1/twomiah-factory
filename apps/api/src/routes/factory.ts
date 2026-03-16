@@ -506,6 +506,12 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     // Use stored config if available, otherwise reconstruct from tenant + job
     const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
 
+    // Always override features with the latest from the tenant record —
+    // job.config may have stale features from a previous generation
+    if (tenant.features?.length) {
+      config.features = { ...config.features, crm: tenant.features }
+    }
+
     console.log('[Deploy] Regenerating fresh zip for', tenant.slug)
     const genResult = await generate(config)
     const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
