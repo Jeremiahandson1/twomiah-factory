@@ -3,7 +3,8 @@ import { authenticate } from '../middleware/auth.ts'
 import { db } from '../../db/index.ts'
 import { roofReport, contact, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
-import { generateRoofReport } from '../services/roofReport.ts'
+import { generateRoofReport, generateRoofReportFromDSM } from '../services/roofReport.ts'
+import { processDsm } from '../services/dsmProcessor.ts'
 import { generateReportHTML, generateReportPDF } from '../services/roofReportRenderer.ts'
 import { geocodeAddress, getBuildingInsights, getDataLayers, downloadGeoTiff, formatSolarDate, isSummerImagery } from '../services/googleSolar.ts'
 import logger from '../services/logger.ts'
@@ -168,8 +169,114 @@ export async function generateAndSaveReport(
 ) {
   const geo = await geocodeAddress(address, city, state, zip)
   const buildingInsights = await getBuildingInsights(geo.lat, geo.lng)
-  const result = generateRoofReport(buildingInsights, eaveOverhangInches)
+  const quality = buildingInsights.imageryQuality || 'MEDIUM'
 
+  // ---------------------------------------------------------------------------
+  // Fetch high-resolution aerial imagery, roof mask, and DSM from dataLayers
+  // ---------------------------------------------------------------------------
+  let aerialImagePath: string | null = null
+  let roofMaskPath: string | null = null
+  let imageryDate: string | null = null
+  let dsmBuffer: Buffer | null = null
+  let maskBuffer: Buffer | null = null
+
+  try {
+    const dataLayers = await getDataLayers(geo.lat, geo.lng)
+    imageryDate = formatSolarDate(dataLayers.imageryDate)
+
+    if (isSummerImagery(dataLayers.imageryDate)) {
+      logger.info('Roof report imagery is from summer months — tree obstruction possible', {
+        address, imageryDate, month: dataLayers.imageryDate.month,
+      })
+    }
+
+    const filePrefix = `${companyId.slice(0, 8)}-${Date.now()}`
+
+    // Download aerial RGB GeoTIFF → convert to PNG
+    const rgbPngPath = path.join(UPLOADS_DIR, `${filePrefix}-aerial.png`)
+    aerialImagePath = await downloadAndConvertToPng(dataLayers.rgbUrl, rgbPngPath)
+
+    // Download DSM GeoTIFF (elevation data for plane fitting)
+    if (dataLayers.dsmUrl) {
+      try {
+        dsmBuffer = await downloadGeoTiff(dataLayers.dsmUrl)
+        logger.info('DSM GeoTIFF downloaded', { address, bytes: dsmBuffer.length })
+      } catch (dsmErr: any) {
+        logger.warn('DSM download failed (non-blocking)', { error: dsmErr.message })
+      }
+    }
+
+    // Download roof mask GeoTIFF (for footprint + composite image)
+    if (dataLayers.maskUrl) {
+      try {
+        maskBuffer = await downloadGeoTiff(dataLayers.maskUrl)
+
+        const maskPngPath = path.join(UPLOADS_DIR, `${filePrefix}-mask.png`)
+        await sharp(maskBuffer).png().toFile(maskPngPath)
+        roofMaskPath = maskPngPath
+
+        // Create composite: aerial + roof mask highlight
+        if (aerialImagePath) {
+          const compositePath = path.join(UPLOADS_DIR, `${filePrefix}-composite.png`)
+          const compositeResult = await compositeAerialWithMask(rgbPngPath, maskBuffer, compositePath)
+          if (compositeResult) {
+            aerialImagePath = compositeResult
+          }
+        }
+      } catch (maskErr: any) {
+        logger.warn('Roof mask download/processing failed (non-blocking)', { error: maskErr.message })
+      }
+    }
+
+    logger.info('Solar API data layers downloaded', {
+      address, imageryDate, quality: dataLayers.imageryQuality,
+      hasAerial: !!aerialImagePath, hasMask: !!maskBuffer, hasDsm: !!dsmBuffer,
+    })
+  } catch (dataLayerErr: any) {
+    logger.warn('DataLayers API failed — falling back to metadata-based geometry', {
+      error: dataLayerErr.message, address,
+    })
+    if (buildingInsights.imageryDate) {
+      imageryDate = formatSolarDate(buildingInsights.imageryDate)
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Generate roof geometry — DSM-based (primary) or metadata-based (fallback)
+  // ---------------------------------------------------------------------------
+  let result
+  let geometrySource = 'metadata'
+
+  if (dsmBuffer && maskBuffer) {
+    try {
+      const dsmResult = await processDsm(dsmBuffer, maskBuffer, geo.lat, geo.lng)
+      result = generateRoofReportFromDSM(dsmResult, geo.lat, geo.lng, eaveOverhangInches)
+      geometrySource = 'dsm'
+      logger.info('Roof geometry computed from DSM elevation data', {
+        address,
+        planes: dsmResult.planes.length,
+        footprintVertices: dsmResult.footprint.length,
+        segments: result.segments.length,
+      })
+    } catch (dsmErr: any) {
+      logger.warn('DSM processing failed — falling back to metadata geometry', {
+        error: dsmErr.message, address,
+      })
+      result = generateRoofReport(buildingInsights, eaveOverhangInches)
+    }
+  } else {
+    result = generateRoofReport(buildingInsights, eaveOverhangInches)
+  }
+
+  logger.info('Roof report generated', {
+    address, geometrySource,
+    segments: result.segments.length,
+    totalSquares: result.totalSquares,
+  })
+
+  // ---------------------------------------------------------------------------
+  // Serialize for DB
+  // ---------------------------------------------------------------------------
   const edges = result.edges.map((edge: any) => ({
     type: edge.type,
     lengthFt: edge.lengthFt,
@@ -202,65 +309,6 @@ export async function generateAndSaveReport(
     azimuthDegrees: s.azimuthDegrees,
     polygon: s.polygon.vertices,
   }))
-
-  const quality = buildingInsights.imageryQuality || 'MEDIUM'
-
-  // ---------------------------------------------------------------------------
-  // Fetch high-resolution aerial imagery + roof mask from Solar API dataLayers
-  // ---------------------------------------------------------------------------
-  let aerialImagePath: string | null = null
-  let roofMaskPath: string | null = null
-  let imageryDate: string | null = null
-
-  try {
-    const dataLayers = await getDataLayers(geo.lat, geo.lng)
-    imageryDate = formatSolarDate(dataLayers.imageryDate)
-
-    if (isSummerImagery(dataLayers.imageryDate)) {
-      logger.info('Roof report imagery is from summer months — tree obstruction possible', {
-        address, imageryDate, month: dataLayers.imageryDate.month,
-      })
-    }
-
-    // Generate a unique prefix for this report's files
-    const filePrefix = `${companyId.slice(0, 8)}-${Date.now()}`
-
-    // Download aerial RGB GeoTIFF → convert to PNG
-    const rgbPngPath = path.join(UPLOADS_DIR, `${filePrefix}-aerial.png`)
-    aerialImagePath = await downloadAndConvertToPng(dataLayers.rgbUrl, rgbPngPath)
-
-    // Download roof mask GeoTIFF
-    if (aerialImagePath && dataLayers.maskUrl) {
-      try {
-        const maskTiffBuffer = await downloadGeoTiff(dataLayers.maskUrl)
-        const maskPngPath = path.join(UPLOADS_DIR, `${filePrefix}-mask.png`)
-        await sharp(maskTiffBuffer).png().toFile(maskPngPath)
-        roofMaskPath = maskPngPath
-
-        // Create composite: aerial + roof mask highlight
-        const compositePath = path.join(UPLOADS_DIR, `${filePrefix}-composite.png`)
-        const compositeResult = await compositeAerialWithMask(rgbPngPath, maskTiffBuffer, compositePath)
-        if (compositeResult) {
-          aerialImagePath = compositeResult // use composite as the primary image
-        }
-      } catch (maskErr: any) {
-        logger.warn('Roof mask download/processing failed (non-blocking)', { error: maskErr.message })
-      }
-    }
-
-    logger.info('Solar API aerial imagery downloaded', {
-      address, imageryDate, quality: dataLayers.imageryQuality,
-      hasAerial: !!aerialImagePath, hasMask: !!roofMaskPath,
-    })
-  } catch (dataLayerErr: any) {
-    logger.warn('DataLayers API failed — falling back to Maps Static imagery', {
-      error: dataLayerErr.message, address,
-    })
-    // imageryDate fallback from buildingInsights
-    if (buildingInsights.imageryDate) {
-      imageryDate = formatSolarDate(buildingInsights.imageryDate)
-    }
-  }
 
   const [report] = await db.insert(roofReport).values({
     companyId,

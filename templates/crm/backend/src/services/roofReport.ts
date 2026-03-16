@@ -9,6 +9,7 @@
 // lines become ridges, hips, and valleys. Footprint edges become eaves/rakes.
 
 import type { BuildingInsightsResponse } from './googleSolar'
+import type { DsmResult } from './dsmProcessor'
 
 // ---------------------------------------------------------------------------
 // Exported types
@@ -564,6 +565,194 @@ export function generateRoofReport(
 
   // -----------------------------------------------------------------------
   // 6. Compute measurements
+  // -----------------------------------------------------------------------
+  const totalAreaSqft = segments.reduce((sum, s) => sum + s.area, 0)
+  const totalSquares = Math.round((totalAreaSqft / 100) * 100) / 100
+
+  const sumLF = (type: ClassifiedEdge['type']) =>
+    Math.round(
+      edges.filter(e => e.type === type).reduce((s, e) => s + e.lengthFt, 0) * 10,
+    ) / 10
+
+  const totalRidgeLF = sumLF('ridge')
+  const totalValleyLF = sumLF('valley')
+  const totalHipLF = sumLF('hip')
+  const totalRakeLF = sumLF('rake')
+  const totalEaveLF = sumLF('eave')
+  const totalPerimeterLF = Math.round((totalRakeLF + totalEaveLF) * 10) / 10
+
+  const maxPitch = segments.reduce((max, s) => Math.max(max, s.pitchDegrees), 0)
+  const numValleys = edges.filter(e => e.type === 'valley').length
+  const numHips = edges.filter(e => e.type === 'hip').length
+  const wasteFactorPct = computeWasteFactor(numValleys, numHips, maxPitch)
+  const iceWaterShieldSqft = computeIceWaterShield(edges, segments)
+  const suggestedSquaresWithWaste =
+    Math.round(totalSquares * (1 + wasteFactorPct / 100) * 100) / 100
+
+  return {
+    segments,
+    edges,
+    measurements: {
+      totalRidgeLF,
+      totalValleyLF,
+      totalHipLF,
+      totalRakeLF,
+      totalEaveLF,
+      totalPerimeterLF,
+      wasteFactorPct,
+      iceWaterShieldSqft,
+      suggestedSquaresWithWaste,
+    },
+    center: { lat: originLat, lng: originLng },
+    totalAreaSqft,
+    totalSquares,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DSM-based report generation (primary path — uses real elevation data)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a roof report from DSM-processed data (real 3D geometry).
+ * Uses the same "highest plane wins" polygon clipping as the metadata path,
+ * but with actual roof planes from RANSAC and real footprint from mask contour.
+ *
+ * Falls back to generateRoofReport() if DSM processing didn't yield usable data.
+ */
+export function generateRoofReportFromDSM(
+  dsm: DsmResult,
+  originLat: number,
+  originLng: number,
+  eaveOverhangInches = 12,
+): RoofReportData {
+  const overhangMeters = (eaveOverhangInches / 12) * 0.3048
+
+  // Use DSM footprint directly (already in local meters, CCW)
+  let footprint = [...dsm.footprint]
+
+  // Expand footprint by eave overhang
+  if (overhangMeters > 0) {
+    footprint = expandPolygonMeters(footprint, overhangMeters)
+  }
+
+  // Build RoofPlane objects from DSM-discovered planes
+  // (same interface as the metadata path — a, b, c0 in z = c0 + a*x + b*y)
+  const planes: RoofPlane[] = dsm.planes.map(p => ({
+    a: p.a,
+    b: p.b,
+    c0: p.c0,
+  }))
+
+  // -----------------------------------------------------------------------
+  // Partition footprint: each plane "owns" the region where it is highest
+  // -----------------------------------------------------------------------
+  const segmentPolygons: Pt[][] = []
+
+  for (let i = 0; i < planes.length; i++) {
+    let poly = [...footprint]
+
+    for (let j = 0; j < planes.length; j++) {
+      if (i === j) continue
+
+      const A = planes[i].a - planes[j].a
+      const B = planes[i].b - planes[j].b
+      const C = planes[j].c0 - planes[i].c0
+
+      if (Math.abs(A) < 1e-8 && Math.abs(B) < 1e-8) continue
+
+      poly = clipPolygonByHalfPlane(poly, A, B, C)
+      if (poly.length < 3) break
+    }
+
+    segmentPolygons.push(poly)
+  }
+
+  // -----------------------------------------------------------------------
+  // Build segments
+  // -----------------------------------------------------------------------
+  const segments: ReportSegment[] = dsm.planes.map((plane, i) => {
+    const localPoly = segmentPolygons[i]
+    const vertices = localPoly.map(p => localToLatLng(p, originLat, originLng))
+
+    // Compute slope area from polygon ground area and pitch
+    // slope_area = ground_area / cos(pitch) = ground_area * sqrt(1 + a² + b²)
+    const groundAreaSqm = Math.abs(polygonAreaSigned(localPoly))
+    const slopeMultiplier = Math.sqrt(1 + plane.a * plane.a + plane.b * plane.b)
+    const slopeAreaSqm = groundAreaSqm * slopeMultiplier
+    const areaSqft = Math.round(slopeAreaSqm * SQM_TO_SQFT)
+
+    return {
+      index: i,
+      name: `Segment ${i + 1}`,
+      area: areaSqft,
+      pitch: pitchToRiseRun(plane.pitchDeg),
+      pitchDegrees: Math.round(plane.pitchDeg * 10) / 10,
+      azimuthDegrees: Math.round(plane.azimuthDeg),
+      polygon: { vertices },
+    }
+  })
+
+  // -----------------------------------------------------------------------
+  // Classify edges (same logic as metadata path)
+  // -----------------------------------------------------------------------
+  const edges: ClassifiedEdge[] = []
+  const emittedSharedEdges = new Set<string>()
+
+  for (let i = 0; i < segmentPolygons.length; i++) {
+    const poly = segmentPolygons[i]
+    if (poly.length < 3) continue
+
+    for (let v = 0; v < poly.length; v++) {
+      const p1 = poly[v]
+      const p2 = poly[(v + 1) % poly.length]
+      const lengthM = dist2D(p1, p2)
+      if (lengthM < 0.15) continue
+
+      const edgeMid: Pt = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+      const lengthFt = Math.round(lengthM * M_TO_FT * 10) / 10
+      const start = localToLatLng(p1, originLat, originLng)
+      const end = localToLatLng(p2, originLat, originLng)
+
+      let sharedWith = -1
+      for (let j = 0; j < segmentPolygons.length; j++) {
+        if (j === i) continue
+        const otherPoly = segmentPolygons[j]
+        if (otherPoly.length < 3) continue
+
+        for (let w = 0; w < otherPoly.length; w++) {
+          const q1 = otherPoly[w]
+          const q2 = otherPoly[(w + 1) % otherPoly.length]
+          const qMid: Pt = { x: (q1.x + q2.x) / 2, y: (q1.y + q2.y) / 2 }
+          if (dist2D(edgeMid, qMid) < 0.5 && Math.abs(lengthM - dist2D(q1, q2)) < 0.5) {
+            sharedWith = j
+            break
+          }
+        }
+        if (sharedWith >= 0) break
+      }
+
+      if (sharedWith >= 0) {
+        const lo = Math.min(i, sharedWith)
+        const hi = Math.max(i, sharedWith)
+        const key = `${lo}-${hi}-${Math.round(edgeMid.x * 100)}-${Math.round(edgeMid.y * 100)}`
+        if (emittedSharedEdges.has(key)) continue
+        emittedSharedEdges.add(key)
+
+        const type = classifySharedEdge(
+          dsm.planes[i].azimuthDeg,
+          dsm.planes[sharedWith].azimuthDeg,
+        )
+        edges.push({ type, start, end, lengthFt, segmentA: lo, segmentB: hi })
+      } else {
+        const type = classifyPerimeterEdge(p1, p2, dsm.planes[i].azimuthDeg)
+        edges.push({ type, start, end, lengthFt, segmentA: i })
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Compute measurements
   // -----------------------------------------------------------------------
   const totalAreaSqft = segments.reduce((sum, s) => sum + s.area, 0)
   const totalSquares = Math.round((totalAreaSqft / 100) * 100) / 100
