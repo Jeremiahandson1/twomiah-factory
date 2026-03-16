@@ -156,7 +156,7 @@ export default function RoofReportsPage() {
 
   const handleDownloadPdf = async (id: string) => {
     // Opens the print-friendly HTML view in a new tab
-    window.open(`${window.location.origin}/api/roof-reports/${id}/pdf`, '_blank')
+    window.open(`${window.location.origin}/api/roof-reports/${id}/html`, '_blank')
   }
 
   const qualityBadge = (quality: string) => {
@@ -361,7 +361,7 @@ export default function RoofReportsPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       <button
-                        onClick={() => navigate(`/roof-reports/${report.id}`)}
+                        onClick={() => navigate(`/crm/roof-reports/${report.id}`)}
                         className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="View details"
                       >

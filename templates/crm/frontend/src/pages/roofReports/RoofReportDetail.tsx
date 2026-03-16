@@ -88,7 +88,7 @@ export default function RoofReportDetail() {
   if (!report) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <button onClick={() => navigate('/roof-reports')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
+        <button onClick={() => navigate('/crm/roof-reports')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6">
           <ArrowLeft className="w-4 h-4" /> Back to Roof Reports
         </button>
         <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
@@ -121,7 +121,7 @@ export default function RoofReportDetail() {
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       {/* Back Button */}
       <button
-        onClick={() => navigate('/roof-reports')}
+        onClick={() => navigate('/crm/roof-reports')}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
