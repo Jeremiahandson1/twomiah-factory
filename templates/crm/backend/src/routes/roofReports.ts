@@ -324,28 +324,33 @@ app.post('/purchase-for-contact/:contactId', authenticate, async (c) => {
 app.get('/:id/html', async (c) => {
   const id = c.req.param('id')
 
-  const [report] = await db.select().from(roofReport)
-    .where(eq(roofReport.id, id))
-    .limit(1)
+  try {
+    const [report] = await db.select().from(roofReport)
+      .where(eq(roofReport.id, id))
+      .limit(1)
 
-  if (!report) return c.json({ error: 'Report not found' }, 404)
+    if (!report) return c.json({ error: 'Report not found' }, 404)
 
-  const [companyRecord] = await db.select().from(company)
-    .where(eq(company.id, report.companyId))
-    .limit(1)
+    const [companyRecord] = await db.select().from(company)
+      .where(eq(company.id, report.companyId))
+      .limit(1)
 
-  const reportData = {
-    center: { lat: report.lat, lng: report.lng },
-    segments: report.segments as any[],
-    edges: report.edges as any[],
-    measurements: report.measurements as any,
-    imageryQuality: report.imageryQuality as 'HIGH' | 'MEDIUM' | 'LOW',
+    const reportData = {
+      center: { lat: Number(report.lat), lng: Number(report.lng) },
+      segments: (report.segments || []) as any[],
+      edges: (report.edges || []) as any[],
+      measurements: (report.measurements || {}) as any,
+      imageryQuality: (report.imageryQuality || 'MEDIUM') as 'HIGH' | 'MEDIUM' | 'LOW',
+    }
+
+    const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
+    const html = await generateReportHTML(reportData, companyRecord, fullAddress)
+
+    return c.html(html)
+  } catch (err: any) {
+    logger.error('Roof report HTML generation failed', { id, error: err.message, stack: err.stack })
+    return c.json({ error: 'Failed to generate report HTML', details: err.message }, 500)
   }
-
-  const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
-  const html = await generateReportHTML(reportData, companyRecord, fullAddress)
-
-  return c.html(html)
 })
 
 // ============================================
@@ -356,33 +361,38 @@ app.get('/:id/pdf', authenticate, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
-  const [report] = await db.select().from(roofReport)
-    .where(and(eq(roofReport.id, id), eq(roofReport.companyId, user.companyId)))
-    .limit(1)
+  try {
+    const [report] = await db.select().from(roofReport)
+      .where(and(eq(roofReport.id, id), eq(roofReport.companyId, user.companyId)))
+      .limit(1)
 
-  if (!report) return c.json({ error: 'Report not found' }, 404)
+    if (!report) return c.json({ error: 'Report not found' }, 404)
 
-  const [companyRecord] = await db.select().from(company)
-    .where(eq(company.id, report.companyId))
-    .limit(1)
+    const [companyRecord] = await db.select().from(company)
+      .where(eq(company.id, report.companyId))
+      .limit(1)
 
-  const reportData = {
-    center: { lat: report.lat, lng: report.lng },
-    segments: report.segments as any[],
-    edges: report.edges as any[],
-    measurements: report.measurements as any,
-    imageryQuality: report.imageryQuality as 'HIGH' | 'MEDIUM' | 'LOW',
+    const reportData = {
+      center: { lat: Number(report.lat), lng: Number(report.lng) },
+      segments: (report.segments || []) as any[],
+      edges: (report.edges || []) as any[],
+      measurements: (report.measurements || {}) as any,
+      imageryQuality: (report.imageryQuality || 'MEDIUM') as 'HIGH' | 'MEDIUM' | 'LOW',
+    }
+
+    const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
+    const html = await generateReportPDF(reportData, companyRecord, fullAddress)
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Disposition': `inline; filename="roof-report-${id}.html"`,
+      },
+    })
+  } catch (err: any) {
+    logger.error('Roof report PDF generation failed', { id, error: err.message })
+    return c.json({ error: 'Failed to generate report PDF', details: err.message }, 500)
   }
-
-  const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
-  const html = await generateReportPDF(reportData, companyRecord, fullAddress)
-
-  return new Response(html, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Content-Disposition': `inline; filename="roof-report-${id}.html"`,
-    },
-  })
 })
 
 // ============================================
