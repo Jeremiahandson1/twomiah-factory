@@ -890,7 +890,7 @@ export async function deployCustomer(
 
         // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
-        const backendBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
+        const backendBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" VITE_GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
         const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',
