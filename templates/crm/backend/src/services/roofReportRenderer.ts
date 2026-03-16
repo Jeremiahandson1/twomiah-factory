@@ -182,15 +182,21 @@ function latLngToPixel(
  * Fetch satellite image from Google Maps Static API and return as base64 data URL.
  */
 async function fetchSatelliteImageBase64(lat: number, lng: number, zoom: number): Promise<string> {
-  const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&maptype=satellite&key=${getApiKey()}`
-  const res = await fetch(url)
-  if (!res.ok) {
-    throw new Error(`Failed to fetch satellite image: ${res.status} ${res.statusText}`)
+  try {
+    const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&maptype=satellite&key=${getApiKey()}`
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.error(`[RoofReport] Satellite image fetch failed: ${res.status} ${res.statusText}`)
+      return ''
+    }
+    const arrayBuf = await res.arrayBuffer()
+    const base64 = Buffer.from(arrayBuf).toString('base64')
+    const contentType = res.headers.get('content-type') || 'image/png'
+    return `data:${contentType};base64,${base64}`
+  } catch (err: any) {
+    console.error('[RoofReport] Satellite image fetch error:', err.message)
+    return ''
   }
-  const arrayBuf = await res.arrayBuffer()
-  const base64 = Buffer.from(arrayBuf).toString('base64')
-  const contentType = res.headers.get('content-type') || 'image/png'
-  return `data:${contentType};base64,${base64}`
 }
 
 function midpoint(x1: number, y1: number, x2: number, y2: number) {
@@ -313,7 +319,9 @@ function buildReportBody(
 
     <!-- Satellite Image with SVG Overlay -->
     <div class="map-container">
-      <img src="${satelliteDataUrl}" alt="Satellite view of ${escapeHtml(address)}" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" />
+      ${satelliteDataUrl
+        ? `<img src="${satelliteDataUrl}" alt="Satellite view of ${escapeHtml(address)}" width="${MAP_WIDTH}" height="${MAP_HEIGHT}" />`
+        : `<div style="width:${MAP_WIDTH}px;height:${MAP_HEIGHT}px;background:#2d3748;display:flex;align-items:center;justify-content:center;color:#a0aec0;font-size:14px;">Satellite imagery unavailable — enable Maps Static API</div>`}
       <svg viewBox="0 0 ${MAP_WIDTH} ${MAP_HEIGHT}" preserveAspectRatio="xMidYMid meet">
         ${svgContent}
       </svg>
