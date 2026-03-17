@@ -541,11 +541,10 @@ export async function generateReportHTML(
   // Compute optimal zoom to fit all segments
   const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
 
-  // Use stored Solar API aerial image, fall back to Maps Static API
-  let satelliteDataUrl = report.aerialImageBase64 || ''
-  if (!satelliteDataUrl) {
-    satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
-  }
+  // Always use Google Static Maps at the computed zoom so the SVG overlay aligns.
+  // The stored Solar API aerial image covers a 150m tile which doesn't match
+  // the zoom level needed for the building-focused overlay.
+  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
 
   // Build SVG overlay
   const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
@@ -586,11 +585,8 @@ export async function generateReportPDF(
   // Compute optimal zoom to fit all segments
   const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
 
-  // Use stored Solar API aerial image, fall back to Maps Static API
-  let satelliteDataUrl = report.aerialImageBase64 || ''
-  if (!satelliteDataUrl) {
-    satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
-  }
+  // Always use Google Static Maps at the computed zoom for overlay alignment
+  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
 
   // Build SVG overlay
   const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
