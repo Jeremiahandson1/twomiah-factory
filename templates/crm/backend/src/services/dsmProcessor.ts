@@ -136,39 +136,124 @@ function extractFootprint(
   // Mask GeoTIFFs can be float (0.0/1.0) or uint8 (0/255)
   let threshold = 0.5
   if (maskData.length > 0) {
-    const maxVal = Math.max(maskData[0], maskData[Math.min(100, maskData.length - 1)])
-    if (maxVal > 1) threshold = maxVal / 2 // probably 0-255 range
+    let maxMaskVal = 0
+    for (let i = 0; i < Math.min(1000, maskData.length); i += 10) {
+      if (maskData[i] > maxMaskVal) maxMaskVal = maskData[i]
+    }
+    if (maxMaskVal > 1) threshold = maxMaskVal / 2
   }
 
-  // Downsample for performance — every 2nd pixel
+  // ---------------------------------------------------------------------------
+  // Connected-component labeling on mask to isolate individual buildings
+  // Uses union-find on downsampled grid for performance
+  // ---------------------------------------------------------------------------
   const step = 2
+  const cols = Math.ceil(width / step)
+  const rows = Math.ceil(height / step)
+  const labels = new Int32Array(rows * cols).fill(-1)
+  const parent: number[] = []
+
+  function find(x: number): number {
+    while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x] }
+    return x
+  }
+  function union(a: number, b: number) {
+    const ra = find(a), rb = find(b)
+    if (ra !== rb) parent[rb] = ra
+  }
+
+  let nextLabel = 0
+
+  // First pass: assign labels
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const pr = r * step, pc = c * step
+      if (pr >= height || pc >= width) continue
+      if (maskData[pr * width + pc] <= threshold) continue
+
+      const idx = r * cols + c
+      const above = r > 0 && labels[(r - 1) * cols + c] >= 0 ? (r - 1) * cols + c : -1
+      const left = c > 0 && labels[r * cols + (c - 1)] >= 0 ? r * cols + (c - 1) : -1
+
+      if (above >= 0 && left >= 0) {
+        labels[idx] = labels[above]
+        union(labels[above], labels[left])
+      } else if (above >= 0) {
+        labels[idx] = labels[above]
+      } else if (left >= 0) {
+        labels[idx] = labels[left]
+      } else {
+        labels[idx] = nextLabel
+        parent.push(nextLabel)
+        nextLabel++
+      }
+    }
+  }
+
+  // Second pass: flatten labels and collect clusters
+  const clusters = new Map<number, { pixels: Array<{ r: number; c: number }>; geoPoints: Pt[] }>()
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const idx = r * cols + c
+      if (labels[idx] < 0) continue
+      const root = find(labels[idx])
+      labels[idx] = root
+
+      if (!clusters.has(root)) clusters.set(root, { pixels: [], geoPoints: [] })
+      clusters.get(root)!.pixels.push({ r, c })
+    }
+  }
+
+  // Find the cluster closest to origin (0,0) in local meters = target building
+  let bestCluster: { pixels: Array<{ r: number; c: number }> } | null = null
+  let bestDist = Infinity
+
+  for (const cluster of clusters.values()) {
+    if (cluster.pixels.length < 5) continue // skip tiny noise clusters
+
+    // Compute centroid in local meters
+    let cx = 0, cy = 0
+    for (const { r, c } of cluster.pixels) {
+      const geo = pixelToGeo(c * step, r * step, maskTransform)
+      const local = geoToLocal(geo.lat, geo.lng, originLat, originLng)
+      cx += local.x
+      cy += local.y
+    }
+    cx /= cluster.pixels.length
+    cy /= cluster.pixels.length
+
+    const d = cx * cx + cy * cy // distance² to origin
+    if (d < bestDist) {
+      bestDist = d
+      bestCluster = cluster
+    }
+  }
+
+  if (!bestCluster || bestCluster.pixels.length < 3) return []
+
+  // ---------------------------------------------------------------------------
+  // Extract boundary pixels from the target building cluster only
+  // ---------------------------------------------------------------------------
+  const clusterSet = new Set<string>()
+  for (const { r, c } of bestCluster.pixels) {
+    clusterSet.add(`${r},${c}`)
+  }
+
   const boundary: Pt[] = []
-
-  for (let row = 0; row < height; row += step) {
-    for (let col = 0; col < width; col += step) {
-      const val = maskData[row * width + col]
-      if (val <= threshold) continue // not roof
-
-      // Check if boundary pixel (has at least one non-roof neighbor)
-      let isBoundary = false
-      const neighbors = [[-step, 0], [step, 0], [0, -step], [0, step]]
-      for (const [dr, dc] of neighbors) {
-        const nr = row + dr
-        const nc = col + dc
-        if (nr < 0 || nr >= height || nc < 0 || nc >= width) {
-          isBoundary = true
-          break
-        }
-        if (maskData[nr * width + nc] <= threshold) {
-          isBoundary = true
-          break
-        }
+  for (const { r, c } of bestCluster.pixels) {
+    // Check if boundary pixel (has at least one non-cluster neighbor)
+    let isBoundary = false
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      if (!clusterSet.has(`${r + dr},${c + dc}`)) {
+        isBoundary = true
+        break
       }
+    }
 
-      if (isBoundary) {
-        const geo = pixelToGeo(col, row, maskTransform)
-        boundary.push(geoToLocal(geo.lat, geo.lng, originLat, originLng))
-      }
+    if (isBoundary) {
+      const geo = pixelToGeo(c * step, r * step, maskTransform)
+      boundary.push(geoToLocal(geo.lat, geo.lng, originLat, originLng))
     }
   }
 
@@ -484,8 +569,8 @@ export async function processDsm(
     throw new Error('Could not extract building footprint from mask — insufficient boundary pixels')
   }
 
-  // 3. Build 3D point cloud from DSM within mask
-  const points = extractRoofPoints(dsm.data, dsm.transform, mask.data, mask.transform, originLat, originLng)
+  // 3. Build 3D point cloud from DSM within target building footprint only
+  const points = extractRoofPoints(dsm.data, dsm.transform, mask.data, mask.transform, originLat, originLng, footprint)
   if (points.length < 10) {
     throw new Error(`Insufficient roof elevation points (${points.length}) — DSM may not cover this building`)
   }
@@ -506,9 +591,9 @@ export async function processDsm(
 }
 
 /**
- * Extract 3D roof points from DSM where the mask indicates roof surface.
- * The DSM and mask may have different resolutions — we use mask pixels as
- * the reference and sample DSM at the corresponding geographic position.
+ * Extract 3D roof points from DSM within the target building's footprint.
+ * Only includes points that fall inside the footprint polygon to exclude
+ * neighboring buildings from the elevation data.
  */
 function extractRoofPoints(
   dsmData: any,
@@ -517,6 +602,7 @@ function extractRoofPoints(
   maskTransform: GeoTransform,
   originLat: number,
   originLng: number,
+  footprint: Pt[],
 ): Pt3[] {
   const { width: mW, height: mH } = maskTransform
   const { width: dW, height: dH } = dsmTransform
@@ -525,25 +611,38 @@ function extractRoofPoints(
   let maskThreshold = 0.5
   if (maskData.length > 0) {
     let maxMaskVal = 0
-    // Sample a few values to detect range
     for (let i = 0; i < Math.min(1000, maskData.length); i += 10) {
       if (maskData[i] > maxMaskVal) maxMaskVal = maskData[i]
     }
     if (maxMaskVal > 1) maskThreshold = maxMaskVal / 2
   }
 
-  const points: Pt3[] = []
+  // Precompute footprint bounding box for quick rejection
+  let fMinX = Infinity, fMaxX = -Infinity, fMinY = Infinity, fMaxY = -Infinity
+  for (const p of footprint) {
+    if (p.x < fMinX) fMinX = p.x
+    if (p.x > fMaxX) fMaxX = p.x
+    if (p.y < fMinY) fMinY = p.y
+    if (p.y > fMaxY) fMaxY = p.y
+  }
+  // Add small buffer (1m) for edge points
+  fMinX -= 1; fMaxX += 1; fMinY -= 1; fMaxY += 1
 
-  // Subsample mask at every 2nd pixel for performance
-  // At 0.25m/pixel, a 30m building = 120px → ~3600 points (plenty for RANSAC)
+  const points: Pt3[] = []
   const step = 2
 
   for (let row = 0; row < mH; row += step) {
     for (let col = 0; col < mW; col += step) {
       if (maskData[row * mW + col] <= maskThreshold) continue
 
-      // Convert mask pixel to geographic coords
       const geo = pixelToGeo(col, row, maskTransform)
+      const local = geoToLocal(geo.lat, geo.lng, originLat, originLng)
+
+      // Quick bounding box rejection
+      if (local.x < fMinX || local.x > fMaxX || local.y < fMinY || local.y > fMaxY) continue
+
+      // Point-in-polygon test against target building footprint
+      if (!pointInPolygon(local, footprint)) continue
 
       // Find corresponding DSM pixel
       const dsmCol = Math.round((geo.lng - dsmTransform.originX) / dsmTransform.pixelW)
@@ -554,10 +653,23 @@ function extractRoofPoints(
       const elevation = dsmData[dsmRow * dW + dsmCol]
       if (elevation === undefined || elevation === null || isNaN(elevation) || elevation <= 0) continue
 
-      const local = geoToLocal(geo.lat, geo.lng, originLat, originLng)
       points.push({ x: local.x, y: local.y, z: elevation })
     }
   }
 
   return points
+}
+
+/** Ray-casting point-in-polygon test */
+function pointInPolygon(p: Pt, polygon: Pt[]): boolean {
+  let inside = false
+  const n = polygon.length
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const yi = polygon[i].y, yj = polygon[j].y
+    const xi = polygon[i].x, xj = polygon[j].x
+    if ((yi > p.y) !== (yj > p.y) && p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
 }
