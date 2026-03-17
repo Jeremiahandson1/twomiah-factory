@@ -102,14 +102,18 @@ export default function AddressAutocomplete({
         if (cancelled || !inputRef.current) return
         if (autocompleteRef.current) return // already initialized
 
-        const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
-          types: ['address'],
-          componentRestrictions: { country: 'us' },
-          fields: ['address_components'],
-        })
+        try {
+          const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
+            types: ['address'],
+            componentRestrictions: { country: 'us' },
+            fields: ['address_components'],
+          })
 
-        autocompleteRef.current = ac
-        listenerRef.current = ac.addListener('place_changed', handleSelect)
+          autocompleteRef.current = ac
+          listenerRef.current = ac.addListener('place_changed', handleSelect)
+        } catch (err) {
+          console.warn('[AddressAutocomplete] Failed to initialize:', err)
+        }
       })
       .catch(() => {
         // API key missing or script load failure — input still works as a plain text field
