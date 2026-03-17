@@ -288,7 +288,7 @@
       "sidebar": null
     },
     "instant_estimator": {
-      "backend": { "routes": ["estimator.ts", "roofReports.ts"], "services": ["googleSolar.ts", "roofReport.ts", "roofReportRenderer.ts"] },
+      "backend": { "routes": ["estimator.ts", "roofReports.ts"], "services": ["googleSolar.ts", "roofReport.ts", "roofReportRenderer.ts", "dsmProcessor.ts"] },
       "frontend": { "pages": ["EstimatorPage.tsx", "roofReports/RoofReportsPage.tsx", "roofReports/RoofReportDetail.tsx"] },
       "sidebar": [
         { "id": "estimator", "label": "Roof Estimator", "icon": "Calculator", "path": "/estimator" },
