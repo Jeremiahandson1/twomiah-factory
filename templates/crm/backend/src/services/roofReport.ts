@@ -649,6 +649,17 @@ export function generateRoofReportFromDSM(
     footprint = expandPolygonMeters(footprint, overhangMeters)
   }
 
+  // Log footprint principal axis for ridge direction debugging
+  const fpBounds = {
+    minX: Math.min(...footprint.map(p => p.x)),
+    maxX: Math.max(...footprint.map(p => p.x)),
+    minY: Math.min(...footprint.map(p => p.y)),
+    maxY: Math.max(...footprint.map(p => p.y)),
+  }
+  const fpSpanX = fpBounds.maxX - fpBounds.minX
+  const fpSpanY = fpBounds.maxY - fpBounds.minY
+  console.log(`[RoofReport] Footprint spans: E-W=${fpSpanX.toFixed(1)}m N-S=${fpSpanY.toFixed(1)}m → long axis runs ${fpSpanX > fpSpanY ? 'E-W' : 'N-S'}`)
+
   // Build RoofPlane objects from DSM-discovered planes
   // (same interface as the metadata path — a, b, c0 in z = c0 + a*x + b*y)
   const planes: RoofPlane[] = dsm.planes.map(p => ({
@@ -679,6 +690,16 @@ export function generateRoofReportFromDSM(
     }
 
     segmentPolygons.push(poly)
+  }
+
+  // Log clipping results for ridge direction debugging
+  for (let i = 0; i < segmentPolygons.length; i++) {
+    const poly = segmentPolygons[i]
+    if (poly.length < 3) continue
+    const area = Math.abs(polygonAreaSigned(poly))
+    const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length
+    const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length
+    console.log(`[RoofReport] Segment ${i}: ${poly.length} vertices, area=${area.toFixed(1)}m², center=(${cx.toFixed(1)},${cy.toFixed(1)}) azimuth=${dsm.planes[i].azimuthDeg.toFixed(0)}°`)
   }
 
   // -----------------------------------------------------------------------

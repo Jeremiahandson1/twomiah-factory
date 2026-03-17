@@ -526,6 +526,12 @@ function ransacMultiPlane(
   // Sort by ground area descending (largest planes first)
   planes.sort((a, b) => b.groundAreaSqm - a.groundAreaSqm)
 
+  // Diagnostic: log plane details for debugging ridge direction issues
+  for (let i = 0; i < planes.length; i++) {
+    const p = planes[i]
+    console.log(`[DSM] Plane ${i}: a=${p.a.toFixed(4)} b=${p.b.toFixed(4)} c0=${p.c0.toFixed(2)} pitch=${p.pitchDeg.toFixed(1)}° azimuth=${p.azimuthDeg.toFixed(1)}° inliers=${p.inlierCount} area=${p.groundAreaSqm.toFixed(1)}m²`)
+  }
+
   return planes
 }
 
