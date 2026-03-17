@@ -6,6 +6,7 @@ import { eq, and, desc } from 'drizzle-orm'
 import { generateRoofReport, generateRoofReportFromDSM } from '../services/roofReport.ts'
 import { generateReportHTML, generateReportPDF } from '../services/roofReportRenderer.ts'
 import { geocodeAddress, getBuildingInsights, getDataLayers, downloadGeoTiff, formatSolarDate, isSummerImagery } from '../services/googleSolar.ts'
+import { processDsm } from '../services/dsmProcessor.ts'
 import logger from '../services/logger.ts'
 import Stripe from 'stripe'
 import sharp from 'sharp'
@@ -248,8 +249,6 @@ export async function generateAndSaveReport(
 
   if (dsmBuffer && maskBuffer) {
     try {
-      // Dynamic import — dsmProcessor.ts + geotiff may not exist on older deployments
-      const { processDsm } = await import('../services/dsmProcessor.ts')
       const dsmResult = await processDsm(dsmBuffer, maskBuffer, geo.lat, geo.lng)
       result = generateRoofReportFromDSM(dsmResult, geo.lat, geo.lng, eaveOverhangInches)
       geometrySource = 'dsm'
