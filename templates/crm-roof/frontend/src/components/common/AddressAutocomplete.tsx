@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 
 interface AddressAutocompleteProps {
   onSelect: (parsed: { address: string; city: string; state: string; zip: string }) => void
@@ -28,14 +28,13 @@ function loadGooglePlaces(): Promise<void> {
   window._googleMapsLoading = new Promise<void>((resolve, reject) => {
     const existing = document.querySelector('script[src*="maps.googleapis.com/maps/api"]')
     if (existing) {
-      // Script tag exists but hasn't loaded yet — wait for it
       existing.addEventListener('load', () => resolve())
       existing.addEventListener('error', () => reject(new Error('Google Maps script failed to load')))
       return
     }
 
     const script = document.createElement('script')
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&loading=async`
     script.async = true
     script.defer = true
     script.onload = () => resolve()
@@ -46,8 +45,7 @@ function loadGooglePlaces(): Promise<void> {
   return window._googleMapsLoading
 }
 
-function parsePlace(place: any): { address: string; city: string; state: string; zip: string } {
-  const components = place.address_components || []
+function parseAddressComponents(components: any[]): { address: string; city: string; state: string; zip: string } {
   let streetNumber = ''
   let route = ''
   let city = ''
@@ -57,17 +55,17 @@ function parsePlace(place: any): { address: string; city: string; state: string;
   for (const comp of components) {
     const types: string[] = comp.types || []
     if (types.includes('street_number')) {
-      streetNumber = comp.long_name
+      streetNumber = comp.longText || comp.long_name || ''
     } else if (types.includes('route')) {
-      route = comp.long_name
+      route = comp.longText || comp.long_name || ''
     } else if (types.includes('locality')) {
-      city = comp.long_name
+      city = comp.longText || comp.long_name || ''
     } else if (types.includes('sublocality_level_1') && !city) {
-      city = comp.long_name
+      city = comp.longText || comp.long_name || ''
     } else if (types.includes('administrative_area_level_1')) {
-      state = comp.short_name
+      state = comp.shortText || comp.short_name || ''
     } else if (types.includes('postal_code')) {
-      zip = comp.long_name
+      zip = comp.longText || comp.long_name || ''
     }
   }
 
@@ -82,63 +80,93 @@ export default function AddressAutocomplete({
   value,
   onChange,
 }: AddressAutocompleteProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const elementRef = useRef<any>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const autocompleteRef = useRef<any>(null)
-  const listenerRef = useRef<any>(null)
+  const [usesFallback, setUsesFallback] = useState(false)
 
-  const handleSelect = useCallback(() => {
-    if (!autocompleteRef.current) return
-    const place = autocompleteRef.current.getPlace()
-    if (!place?.address_components) return
-    const parsed = parsePlace(place)
-    onSelect(parsed)
-  }, [onSelect])
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
   useEffect(() => {
     let cancelled = false
 
     loadGooglePlaces()
-      .then(() => {
-        if (cancelled || !inputRef.current) return
-        if (autocompleteRef.current) return // already initialized
+      .then(async () => {
+        if (cancelled || !containerRef.current) return
 
         try {
-          const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
-            types: ['address'],
-            componentRestrictions: { country: 'us' },
-            fields: ['address_components'],
-          })
+          // Import the places library (required for new API)
+          await window.google.maps.importLibrary('places')
 
-          autocompleteRef.current = ac
-          listenerRef.current = ac.addListener('place_changed', handleSelect)
+          // Try new PlaceAutocompleteElement first
+          if (window.google.maps.places.PlaceAutocompleteElement) {
+            const el = new window.google.maps.places.PlaceAutocompleteElement({
+              componentRestrictions: { country: 'us' },
+              types: ['address'],
+            })
+
+            // Style the inner input to match our design
+            el.style.width = '100%'
+            containerRef.current.appendChild(el)
+            elementRef.current = el
+
+            el.addEventListener('gmp-select', async (e: any) => {
+              try {
+                const place = e.placePrediction.toPlace()
+                await place.fetchFields({ fields: ['addressComponents'] })
+                const components = place.addressComponents || []
+                const parsed = parseAddressComponents(components)
+                onSelectRef.current(parsed)
+                onChangeRef.current?.(parsed.address)
+              } catch (err) {
+                console.warn('[AddressAutocomplete] Failed to fetch place details:', err)
+              }
+            })
+          } else if (window.google.maps.places.Autocomplete) {
+            // Fallback to legacy Autocomplete
+            setUsesFallback(true)
+          } else {
+            setUsesFallback(true)
+          }
         } catch (err) {
           console.warn('[AddressAutocomplete] Failed to initialize:', err)
+          setUsesFallback(true)
         }
       })
       .catch(() => {
-        // API key missing or script load failure — input still works as a plain text field
+        setUsesFallback(true)
       })
 
     return () => {
       cancelled = true
-      if (listenerRef.current) {
-        window.google?.maps?.event?.removeListener(listenerRef.current)
-        listenerRef.current = null
+      if (elementRef.current && containerRef.current?.contains(elementRef.current)) {
+        containerRef.current.removeChild(elementRef.current)
+        elementRef.current = null
       }
     }
-  }, [handleSelect])
+  }, [])
 
   const inputClasses = className ??
     'w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
 
+  // If new API is available, show the Google widget container
+  // If not, fall back to a plain input
   return (
-    <input
-      ref={inputRef}
-      type="text"
-      value={value ?? ''}
-      onChange={(e) => onChange?.(e.target.value)}
-      placeholder={placeholder}
-      className={inputClasses}
-    />
+    <div>
+      <div ref={containerRef} className={usesFallback ? 'hidden' : ''} />
+      {usesFallback && (
+        <input
+          ref={inputRef}
+          type="text"
+          value={value ?? ''}
+          onChange={(e) => onChange?.(e.target.value)}
+          placeholder={placeholder}
+          className={inputClasses}
+        />
+      )}
+    </div>
   )
 }
