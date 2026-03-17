@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, integer, decimal, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { pgTable, text, boolean, integer, decimal, real, timestamp, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
 import { createId } from '@paralleldrive/cuid2'
 
 // ==================== MULTI-TENANT ====================
@@ -704,3 +704,42 @@ export const aiReceptionistSettings = pgTable('ai_receptionist_settings', {
   forwardingNumber: text('forwarding_number'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// ==================== ROOF REPORTS ====================
+
+export const roofReport = pgTable('roof_report', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+
+  address: text('address').notNull(),
+  city: text('city').notNull(),
+  state: text('state').notNull(),
+  zip: text('zip').notNull(),
+  lat: real('lat').notNull(),
+  lng: real('lng').notNull(),
+  formattedAddress: text('formatted_address'),
+
+  totalAreaSqft: real('total_area_sqft').notNull(),
+  totalSquares: real('total_squares').notNull(),
+  segmentCount: integer('segment_count').notNull(),
+  imageryQuality: text('imagery_quality').notNull(),
+  imageryDate: text('imagery_date'),
+  aerialImagePath: text('aerial_image_path'),
+  roofMaskPath: text('roof_mask_path'),
+
+  segments: json('segments').notNull(),
+  edges: json('edges').notNull(),
+  measurements: json('measurements').notNull(),
+  rawSolarData: json('raw_solar_data'),
+
+  status: text('status').default('paid').notNull(),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  amountCharged: decimal('amount_charged', { precision: 10, scale: 2 }).default('9.99'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_report_company_id_idx').on(t.companyId),
+  index('roof_report_contact_id_idx').on(t.contactId),
+])

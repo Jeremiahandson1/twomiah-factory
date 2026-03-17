@@ -172,3 +172,83 @@ export async function getFullRoofReport(address: string, city: string, state: st
   const roofData = processRoofData(insights)
   return { geo, insights, roofData }
 }
+
+// ---------------------------------------------------------------------------
+// Data Layers API — high-resolution aerial imagery + roof mask
+// ---------------------------------------------------------------------------
+
+const DATA_LAYERS_URL = 'https://solar.googleapis.com/v1/dataLayers:get'
+const GEOTIFF_URL = 'https://solar.googleapis.com/v1/geoTiff:get'
+
+export interface DataLayersResponse {
+  imageryDate: { year: number; month: number; day: number }
+  imageryProcessedDate?: { year: number; month: number; day: number }
+  dsmUrl: string
+  rgbUrl: string
+  maskUrl: string
+  annualFluxUrl?: string
+  monthlyFluxUrl?: string
+  hourlyShadeUrls?: string[]
+  imageryQuality: string
+}
+
+/**
+ * Fetch data layers (aerial RGB + roof mask) from Google Solar API.
+ * Uses IMAGERY_LAYERS view — returns DSM, RGB, and mask only (smallest payload).
+ */
+export async function getDataLayers(lat: number, lng: number, radiusMeters = 75): Promise<DataLayersResponse> {
+  const params = new URLSearchParams({
+    'location.latitude': String(lat),
+    'location.longitude': String(lng),
+    radiusMeters: String(radiusMeters),
+    view: 'IMAGERY_LAYERS',
+    requiredQuality: 'LOW', // accept any quality, surface it to user
+    pixelSizeMeters: '0.25',
+    key: getApiKey(),
+  })
+  const res = await fetch(`${DATA_LAYERS_URL}?${params}`)
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '')
+    throw new Error(`DataLayers API error ${res.status}: ${errBody}`)
+  }
+  return res.json()
+}
+
+/**
+ * Download a GeoTIFF from a Solar API data layer URL.
+ * Returns raw binary buffer. URLs expire after ~1 hour.
+ */
+export async function downloadGeoTiff(url: string): Promise<Buffer> {
+  // Append API key if not already present
+  const separator = url.includes('?') ? '&' : '?'
+  const fullUrl = url.includes('key=') ? url : `${url}${separator}key=${getApiKey()}`
+  const res = await fetch(fullUrl)
+  if (!res.ok) {
+    throw new Error(`GeoTIFF download failed: ${res.status} ${res.statusText}`)
+  }
+  const arrayBuf = await res.arrayBuffer()
+  return Buffer.from(arrayBuf)
+}
+
+/**
+ * Format a Solar API date object to YYYY-MM-DD string.
+ */
+export function formatSolarDate(d: { year: number; month: number; day: number }): string {
+  return `${d.year}-${String(d.month).padStart(2, '0')}-${String(d.day).padStart(2, '0')}`
+}
+
+/**
+ * Check if an imagery date falls in summer months (Jun-Aug) when deciduous
+ * trees are most likely to obscure roof structures.
+ */
+export function isSummerImagery(d: { year: number; month: number; day: number }): boolean {
+  return d.month >= 6 && d.month <= 8
+}
+
+/**
+ * Check if an imagery date falls in winter months (Dec-Feb) — best for
+ * roof visibility with deciduous trees bare.
+ */
+export function isWinterImagery(d: { year: number; month: number; day: number }): boolean {
+  return d.month === 12 || d.month <= 2
+}
