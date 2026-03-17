@@ -9,7 +9,20 @@
 // lines become ridges, hips, and valleys. Footprint edges become eaves/rakes.
 
 import type { BuildingInsightsResponse } from './googleSolar'
-import type { DsmResult } from './dsmProcessor'
+// DsmResult type inlined to avoid hard dependency on dsmProcessor module
+interface DsmPlane {
+  a: number
+  b: number
+  c0: number
+  pitchDeg: number
+  azimuthDeg: number
+  inlierCount: number
+  groundAreaSqm: number
+}
+interface DsmResult {
+  footprint: Array<{ x: number; y: number }>
+  planes: DsmPlane[]
+}
 
 // ---------------------------------------------------------------------------
 // Exported types
