@@ -30,10 +30,11 @@ interface Pt3 {
 interface GeoTransform {
   width: number
   height: number
-  originX: number   // top-left X (longitude for WGS84)
-  originY: number   // top-left Y (latitude for WGS84)
-  pixelW: number    // pixel width in degrees (positive, east)
-  pixelH: number    // pixel height in degrees (positive, stored as negative in GeoTIFF)
+  originX: number   // top-left X (longitude for WGS84, or easting for projected)
+  originY: number   // top-left Y (latitude for WGS84, or northing for projected)
+  pixelW: number    // pixel width (degrees or meters)
+  pixelH: number    // pixel height (degrees or meters)
+  isProjected: boolean  // true if coordinates are in meters (projected CRS)
 }
 
 /** A discovered roof plane: z = c0 + a*x + b*y in local meters */
@@ -82,15 +83,21 @@ async function parseGeoTiff(buffer: Buffer): Promise<{
 
   // getBoundingBox returns [minX, minY, maxX, maxY]
   // For WGS84: [minLng, minLat, maxLng, maxLat]
+  // For projected CRS (UTM etc): [minEasting, minNorthing, maxEasting, maxNorthing]
   const bbox = image.getBoundingBox()
+
+  // Detect if projected CRS: if bbox values are > 360, it's meters not degrees
+  const isProjected = Math.abs(bbox[0]) > 360 || Math.abs(bbox[1]) > 360 ||
+                      Math.abs(bbox[2]) > 360 || Math.abs(bbox[3]) > 360
 
   const transform: GeoTransform = {
     width,
     height,
-    originX: bbox[0],                       // min longitude (left edge)
-    originY: bbox[3],                       // max latitude (top edge)
+    originX: bbox[0],
+    originY: bbox[3],
     pixelW: (bbox[2] - bbox[0]) / width,
     pixelH: (bbox[3] - bbox[1]) / height,
+    isProjected,
   }
 
   return { transform, data }
@@ -109,6 +116,34 @@ function geoToLocal(lat: number, lng: number, oLat: number, oLng: number): Pt {
   return {
     x: (lng - oLng) * METERS_PER_DEG * Math.cos(oLat * Math.PI / 180),
     y: (lat - oLat) * METERS_PER_DEG,
+  }
+}
+
+/**
+ * Convert pixel coordinates to local meters, handling both geographic (degrees)
+ * and projected (meters) coordinate systems.
+ */
+function pixelToLocal(
+  col: number, row: number,
+  t: GeoTransform,
+  originLat: number, originLng: number,
+): Pt {
+  if (t.isProjected) {
+    // Coordinates are already in meters — compute origin in projected space
+    // The origin (building center) in projected coords is approximately at the tile center
+    // We use the tile center as the projected origin reference
+    const projX = t.originX + col * t.pixelW
+    const projY = t.originY - row * t.pixelH
+    // Projected origin: center of the tile (since Solar API centers on the building)
+    const projOriginX = t.originX + (t.width / 2) * t.pixelW
+    const projOriginY = t.originY - (t.height / 2) * t.pixelH
+    return {
+      x: projX - projOriginX,
+      y: projY - projOriginY,
+    }
+  } else {
+    const geo = pixelToGeo(col, row, t)
+    return geoToLocal(geo.lat, geo.lng, originLat, originLng)
   }
 }
 
@@ -215,8 +250,7 @@ function extractFootprint(
     // Compute centroid in local meters
     let cx = 0, cy = 0
     for (const { r, c } of cluster.pixels) {
-      const geo = pixelToGeo(c * step, r * step, maskTransform)
-      const local = geoToLocal(geo.lat, geo.lng, originLat, originLng)
+      const local = pixelToLocal(c * step, r * step, maskTransform, originLat, originLng)
       cx += local.x
       cy += local.y
     }
@@ -252,8 +286,7 @@ function extractFootprint(
     }
 
     if (isBoundary) {
-      const geo = pixelToGeo(c * step, r * step, maskTransform)
-      boundary.push(geoToLocal(geo.lat, geo.lng, originLat, originLng))
+      boundary.push(pixelToLocal(c * step, r * step, maskTransform, originLat, originLng))
     }
   }
 
@@ -563,11 +596,36 @@ export async function processDsm(
   const dsm = await parseGeoTiff(dsmBuffer)
   const mask = await parseGeoTiff(maskBuffer)
 
+  console.log('[DSM] Mask GeoTIFF:', {
+    width: mask.transform.width, height: mask.transform.height,
+    bbox: [mask.transform.originX, mask.transform.originY],
+    pixelW: mask.transform.pixelW, pixelH: mask.transform.pixelH,
+    isProjected: mask.transform.isProjected,
+  })
+  console.log('[DSM] DSM GeoTIFF:', {
+    width: dsm.transform.width, height: dsm.transform.height,
+    bbox: [dsm.transform.originX, dsm.transform.originY],
+    pixelW: dsm.transform.pixelW, pixelH: dsm.transform.pixelH,
+    isProjected: dsm.transform.isProjected,
+  })
+
   // 2. Extract building footprint from mask
   const footprint = extractFootprint(mask.data, mask.transform, originLat, originLng)
   if (footprint.length < 3) {
     throw new Error('Could not extract building footprint from mask — insufficient boundary pixels')
   }
+
+  const footprintAreaSqm = Math.abs(polygonAreaSigned(footprint))
+  const fpMinX = Math.min(...footprint.map(p => p.x))
+  const fpMaxX = Math.max(...footprint.map(p => p.x))
+  const fpMinY = Math.min(...footprint.map(p => p.y))
+  const fpMaxY = Math.max(...footprint.map(p => p.y))
+  console.log('[DSM] Footprint:', {
+    vertices: footprint.length,
+    areaSqm: footprintAreaSqm.toFixed(1),
+    boundsX: [fpMinX.toFixed(2), fpMaxX.toFixed(2)],
+    boundsY: [fpMinY.toFixed(2), fpMaxY.toFixed(2)],
+  })
 
   // 3. Build 3D point cloud from DSM within target building footprint only
   const points = extractRoofPoints(dsm.data, dsm.transform, mask.data, mask.transform, originLat, originLng, footprint)
@@ -635,8 +693,7 @@ function extractRoofPoints(
     for (let col = 0; col < mW; col += step) {
       if (maskData[row * mW + col] <= maskThreshold) continue
 
-      const geo = pixelToGeo(col, row, maskTransform)
-      const local = geoToLocal(geo.lat, geo.lng, originLat, originLng)
+      const local = pixelToLocal(col, row, maskTransform, originLat, originLng)
 
       // Quick bounding box rejection
       if (local.x < fMinX || local.x > fMaxX || local.y < fMinY || local.y > fMaxY) continue
@@ -644,9 +701,10 @@ function extractRoofPoints(
       // Point-in-polygon test against target building footprint
       if (!pointInPolygon(local, footprint)) continue
 
-      // Find corresponding DSM pixel
-      const dsmCol = Math.round((geo.lng - dsmTransform.originX) / dsmTransform.pixelW)
-      const dsmRow = Math.round((dsmTransform.originY - geo.lat) / dsmTransform.pixelH)
+      // Find corresponding DSM pixel using raw pixel coordinate mapping
+      const maskGeo = pixelToGeo(col, row, maskTransform)
+      const dsmCol = Math.round((maskGeo.lng - dsmTransform.originX) / dsmTransform.pixelW)
+      const dsmRow = Math.round((dsmTransform.originY - maskGeo.lat) / dsmTransform.pixelH)
 
       if (dsmCol < 0 || dsmCol >= dW || dsmRow < 0 || dsmRow >= dH) continue
 
