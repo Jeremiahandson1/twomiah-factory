@@ -24,6 +24,8 @@ import LeadInboxPage from './pages/leads/LeadInboxPage'
 import LeadSourcesPage from './pages/leads/LeadSourcesPage'
 import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
 import AdsPage from './pages/ads/AdsPage'
+import RoofReportsPage from './pages/roofReports/RoofReportsPage'
+import RoofReportDetail from './pages/roofReports/RoofReportDetail'
 import VisualizerTrialPage from './pages/VisualizerTrialPage'
 import PricebookTrialPage from './pages/PricebookTrialPage'
 import EstimatorTrialPage from './pages/EstimatorTrialPage'
@@ -91,6 +93,8 @@ export default function App() {
                 <Route path="estimator" element={<EstimatorPage />} />
                 <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                 <Route path="ads" element={<AdsPage />} />
+                <Route path="roof-reports" element={<RoofReportsPage />} />
+                <Route path="roof-reports/:id" element={<RoofReportDetail />} />
                 <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                 <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />

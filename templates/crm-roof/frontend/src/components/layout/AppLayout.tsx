@@ -22,6 +22,7 @@ import {
   Bot,
   Megaphone,
   Calculator,
+  FileBarChart,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -38,6 +39,7 @@ const baseNavItems = [
   { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads' },
   { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
   { label: 'Roof Estimator', icon: Calculator, to: '/crm/estimator' },
+  { label: 'Roof Reports', icon: FileBarChart, to: '/crm/roof-reports' },
 ]
 
 const fieldNavItems = [
