@@ -8,6 +8,15 @@ import ImagePicker from './ImagePicker';
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 const ICONS = ['🏠', '🏗️', '🪟', '🧊', '🔨', '🏡', '🔧', '⚡', '🚿', '🌳', '🎨', '🛠️'];
 
+// Map text icon names (from website templates) to emoji equivalents
+const TEXT_ICON_MAP: Record<string, string> = {
+  home: '🏠', house: '🏠', layers: '🏗️', grid: '🪟', droplets: '🚿', droplet: '🚿',
+  wrench: '🔧', zap: '⚡', hammer: '🔨', tree: '🌳', paintbrush: '🎨', settings: '🛠️',
+  shield: '🛡️', sun: '☀️', wind: '💨', thermometer: '🌡️', flame: '🔥', truck: '🚛',
+  leaf: '🍃', star: '⭐', heart: '❤️', tool: '🔧', bolt: '⚡',
+};
+const resolveIcon = (icon: string) => TEXT_ICON_MAP[icon?.toLowerCase()] || icon || '🔧';
+
 const EMPTY_FORM = {
   id: '', title: '', description: '', image: '', icon: '🔧', featured: true, links: [],
   tagline: '', heroDescription: '', heroImage: '', fullDescription: '',
@@ -562,7 +571,7 @@ function AdminServicesManager() {
                   {service.image && <div style={{ height: '140px', background: `url(${getImageUrl(service.image)}) center/cover` }} />}
                   <div style={{ padding: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '24px' }}>{service.icon}</span>
+                      <span style={{ fontSize: '24px' }}>{resolveIcon(service.icon)}</span>
                       <div>
                         <h4 style={{ margin: 0 }}>{service.title}</h4>
                         <span style={{ color: 'var(--admin-text-secondary)', fontSize: '12px' }}>/services/{service.id}</span>

@@ -414,7 +414,7 @@ function AdminPages() {
           return (
             <div key={service.id} style={{ marginBottom: '24px' }}>
               <div className="page-list">
-                <Link to={`/edit/${service.id}`} className="page-item">
+                <Link to="/services" className="page-item">
                   <div className="page-item-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -440,7 +440,7 @@ function AdminPages() {
                     {service.subServices && service.subServices.map(sub => (
                       <div key={sub.id} className="page-item-wrapper">
                         <Link
-                          to={`/edit/${encodeURIComponent(`${service.id}/${sub.id}`)}`}
+                          to="/services"
                           className="page-item"
                         >
                           <div className="page-item-icon" style={{ background: 'var(--admin-surface-hover)' }}>
