@@ -239,6 +239,21 @@ function clipPolygonByHalfPlane(poly: Pt[], A: number, B: number, C: number): Pt
   return out
 }
 
+/**
+ * Check if two segment polygons are geometrically adjacent (have vertices
+ * close to each other).  Non-adjacent segments (e.g. N and S triangles on a
+ * hip roof) should NOT produce an internal edge even though their plane
+ * intersection line crosses the footprint.
+ */
+function areSegmentsAdjacent(polyA: Pt[], polyB: Pt[], threshold = 3): boolean {
+  for (const a of polyA) {
+    for (const b of polyB) {
+      if (dist2D(a, b) < threshold) return true
+    }
+  }
+  return false
+}
+
 /** Centroid of a polygon (average of vertices). */
 function polygonCentroid(poly: Pt[]): Pt {
   if (poly.length === 0) return { x: 0, y: 0 }
@@ -373,15 +388,39 @@ function planeZ(plane: RoofPlane, x: number, y: number): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Classify a shared edge between two segments based on azimuth difference.
- * - ~180° apart → ridge (slopes face opposite directions, peaks meet)
- * - ~90° apart → hip (slopes face perpendicular directions)
- * - ~0° apart → valley (slopes face same direction, troughs meet)
+ * Classify a shared edge between two segments using elevation analysis.
+ *
+ * For two planes z_i, z_j meeting at line A*x + B*y = C (where A = a_i - a_j,
+ * B = b_i - b_j), check whether both sides slope DOWN from the line (ridge/hip)
+ * or UP toward it (valley).  This correctly handles L-shaped extensions where
+ * the azimuth difference is ~90° but the edge is a valley, not a hip.
+ *
+ * Use azimuth difference only to distinguish ridge from hip among the "peak" cases.
  */
-function classifySharedEdge(azA: number, azB: number): 'ridge' | 'valley' | 'hip' {
+function classifySharedEdge(
+  azA: number, azB: number,
+  planeI?: { a: number; b: number },
+  planeJ?: { a: number; b: number },
+): 'ridge' | 'valley' | 'hip' {
+  // If plane coefficients are provided, use elevation-based classification
+  if (planeI && planeJ) {
+    const A = planeI.a - planeJ.a
+    const B = planeI.b - planeJ.b
+    // Derivative of z in the normal direction for each plane
+    const slopeI = planeI.a * A + planeI.b * B  // z_i change moving toward + side
+    const slopeJ = planeJ.a * A + planeJ.b * B  // z_j change moving toward + side
+    // Valley: plane i rises on its side, plane j rises on its side
+    // (slopeI > 0 means z_i increases toward the + side where i is dominant,
+    //  slopeJ < 0 means z_j increases toward the - side where j is dominant)
+    if (slopeI > 0 && slopeJ < 0) {
+      return 'valley'
+    }
+  }
+
+  // For peak edges, distinguish ridge from hip by azimuth
   const diff = azimuthDifference(azA, azB)
   if (diff > 150) return 'ridge'
-  if (diff < 30) return 'valley'
+  if (diff < 30) return 'valley'  // fallback for near-parallel planes
   return 'hip'
 }
 
@@ -763,6 +802,11 @@ export function generateRoofReportFromDSM(
       // Both segments must have valid polygons
       if (segmentPolygons[i].length < 3 || segmentPolygons[j].length < 3) continue
 
+      // Only create edges between geometrically adjacent segments.
+      // Non-adjacent segments (e.g. N and S on a hip roof) can produce
+      // spurious intersection lines that span the entire footprint.
+      if (!areSegmentsAdjacent(segmentPolygons[i], segmentPolygons[j])) continue
+
       const pi = dsm.planes[i], pj = dsm.planes[j]
       const A = pi.a - pj.a
       const B = pi.b - pj.b
@@ -777,14 +821,21 @@ export function generateRoofReportFromDSM(
       const linePoints = clipLineToPolygon(A, B, C, footprint)
       if (!linePoints) continue
 
-      // Verify the line actually runs between the two segments by checking
-      // that points on each side belong to the respective segments.
-      // Use segment polygon centroids as a quick check.
+      // Verify the intersection line midpoint is close to both segment polygons.
+      // This prevents edges that span the footprint but only touch distant segments.
+      const midPt: Pt = {
+        x: (linePoints.p1.x + linePoints.p2.x) / 2,
+        y: (linePoints.p1.y + linePoints.p2.y) / 2,
+      }
+      const distToI = Math.min(...segmentPolygons[i].map(p => dist2D(midPt, p)))
+      const distToJ = Math.min(...segmentPolygons[j].map(p => dist2D(midPt, p)))
+      if (distToI > 5 || distToJ > 5) continue
+
+      // Centroids should be on opposite sides of the intersection line
       const ci = polygonCentroid(segmentPolygons[i])
       const cj = polygonCentroid(segmentPolygons[j])
       const sideI = A * ci.x + B * ci.y - C
       const sideJ = A * cj.x + B * cj.y - C
-      // The centroids should be on opposite sides (or at least one should be nonzero)
       if (sideI * sideJ > 0 && Math.abs(sideI) > 0.5 && Math.abs(sideJ) > 0.5) continue
 
       const lengthM = dist2D(linePoints.p1, linePoints.p2)
@@ -794,7 +845,7 @@ export function generateRoofReportFromDSM(
       const start = localToLatLng(linePoints.p1, originLat, originLng)
       const end = localToLatLng(linePoints.p2, originLat, originLng)
 
-      const type = classifySharedEdge(pi.azimuthDeg, pj.azimuthDeg)
+      const type = classifySharedEdge(pi.azimuthDeg, pj.azimuthDeg, pi, pj)
       edges.push({ type, start, end, lengthFt, segmentA: i, segmentB: j })
     }
   }

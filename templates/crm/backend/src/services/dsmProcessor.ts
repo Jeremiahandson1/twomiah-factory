@@ -531,7 +531,7 @@ function ransacMultiPlane(
   // - Pitch > 55° is unrealistic for a roof (steeper than 17/12)
   // - Very few inliers relative to the largest plane suggest noise/chimney/wall
   const maxReasonablePitch = 55
-  const minInlierRatio = 0.08 // plane must have >= 8% of largest plane's inliers
+  const minInlierRatio = 0.04 // plane must have >= 4% of largest plane's inliers
   const largestInliers = planes.length > 0 ? planes[0].inlierCount : 0
 
   const filtered = planes.filter(p => {
