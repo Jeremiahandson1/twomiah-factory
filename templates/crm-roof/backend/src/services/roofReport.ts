@@ -239,6 +239,62 @@ function clipPolygonByHalfPlane(poly: Pt[], A: number, B: number, C: number): Pt
   return out
 }
 
+/** Centroid of a polygon (average of vertices). */
+function polygonCentroid(poly: Pt[]): Pt {
+  if (poly.length === 0) return { x: 0, y: 0 }
+  return {
+    x: poly.reduce((s, p) => s + p.x, 0) / poly.length,
+    y: poly.reduce((s, p) => s + p.y, 0) / poly.length,
+  }
+}
+
+/**
+ * Clip the line A*x + B*y = C to a convex (or roughly convex) polygon.
+ * Returns the two intersection points where the line enters/exits the polygon,
+ * or null if the line doesn't cross the polygon.
+ */
+function clipLineToPolygon(
+  A: number, B: number, C: number, poly: Pt[],
+): { p1: Pt; p2: Pt } | null {
+  const intersections: Pt[] = []
+
+  for (let i = 0; i < poly.length; i++) {
+    const p1 = poly[i]
+    const p2 = poly[(i + 1) % poly.length]
+    const d1 = A * p1.x + B * p1.y - C
+    const d2 = A * p2.x + B * p2.y - C
+
+    // Edge crosses the line if d1 and d2 have different signs
+    if ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) {
+      const t = d1 / (d1 - d2)
+      intersections.push({
+        x: p1.x + t * (p2.x - p1.x),
+        y: p1.y + t * (p2.y - p1.y),
+      })
+    } else if (Math.abs(d1) < 1e-6) {
+      // p1 is on the line
+      intersections.push({ x: p1.x, y: p1.y })
+    }
+  }
+
+  if (intersections.length < 2) return null
+
+  // Find the two most distant intersection points (handles duplicates)
+  let maxDist = 0
+  let best: { p1: Pt; p2: Pt } | null = null
+  for (let i = 0; i < intersections.length; i++) {
+    for (let j = i + 1; j < intersections.length; j++) {
+      const d = dist2D(intersections[i], intersections[j])
+      if (d > maxDist) {
+        maxDist = d
+        best = { p1: intersections[i], p2: intersections[j] }
+      }
+    }
+  }
+
+  return best
+}
+
 /**
  * Scale a polygon around its centroid by a given factor.
  * factor < 1 shrinks, factor > 1 grows.
@@ -692,61 +748,81 @@ export function generateRoofReportFromDSM(
   })
 
   // -----------------------------------------------------------------------
-  // Classify edges (same logic as metadata path)
+  // Classify edges: analytical plane-plane intersections + footprint perimeter
+  //
+  // The segment polygons from elevation-based assignment don't share exact
+  // edge coordinates, so we compute internal edges (ridge/hip/valley) from
+  // plane-plane intersection lines clipped to the footprint, and perimeter
+  // edges (rake/eave) from the footprint boundary.
   // -----------------------------------------------------------------------
   const edges: ClassifiedEdge[] = []
-  const emittedSharedEdges = new Set<string>()
 
-  for (let i = 0; i < segmentPolygons.length; i++) {
-    const poly = segmentPolygons[i]
-    if (poly.length < 3) continue
+  // --- Internal edges: plane-plane intersection lines clipped to footprint ---
+  for (let i = 0; i < dsm.planes.length; i++) {
+    for (let j = i + 1; j < dsm.planes.length; j++) {
+      // Both segments must have valid polygons
+      if (segmentPolygons[i].length < 3 || segmentPolygons[j].length < 3) continue
 
-    for (let v = 0; v < poly.length; v++) {
-      const p1 = poly[v]
-      const p2 = poly[(v + 1) % poly.length]
-      const lengthM = dist2D(p1, p2)
-      if (lengthM < 0.15) continue
+      const pi = dsm.planes[i], pj = dsm.planes[j]
+      const A = pi.a - pj.a
+      const B = pi.b - pj.b
 
-      const edgeMid: Pt = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+      // Skip near-parallel planes
+      if (Math.abs(A) < 1e-6 && Math.abs(B) < 1e-6) continue
+
+      const C = pj.c0 - pi.c0
+
+      // Find the intersection line with the footprint by clipping.
+      // The line A*x + B*y = C; find where it enters/exits the footprint.
+      const linePoints = clipLineToPolygon(A, B, C, footprint)
+      if (!linePoints) continue
+
+      // Verify the line actually runs between the two segments by checking
+      // that points on each side belong to the respective segments.
+      // Use segment polygon centroids as a quick check.
+      const ci = polygonCentroid(segmentPolygons[i])
+      const cj = polygonCentroid(segmentPolygons[j])
+      const sideI = A * ci.x + B * ci.y - C
+      const sideJ = A * cj.x + B * cj.y - C
+      // The centroids should be on opposite sides (or at least one should be nonzero)
+      if (sideI * sideJ > 0 && Math.abs(sideI) > 0.5 && Math.abs(sideJ) > 0.5) continue
+
+      const lengthM = dist2D(linePoints.p1, linePoints.p2)
+      if (lengthM < 0.3) continue
+
       const lengthFt = Math.round(lengthM * M_TO_FT * 10) / 10
-      const start = localToLatLng(p1, originLat, originLng)
-      const end = localToLatLng(p2, originLat, originLng)
+      const start = localToLatLng(linePoints.p1, originLat, originLng)
+      const end = localToLatLng(linePoints.p2, originLat, originLng)
 
-      let sharedWith = -1
-      for (let j = 0; j < segmentPolygons.length; j++) {
-        if (j === i) continue
-        const otherPoly = segmentPolygons[j]
-        if (otherPoly.length < 3) continue
-
-        for (let w = 0; w < otherPoly.length; w++) {
-          const q1 = otherPoly[w]
-          const q2 = otherPoly[(w + 1) % otherPoly.length]
-          const qMid: Pt = { x: (q1.x + q2.x) / 2, y: (q1.y + q2.y) / 2 }
-          if (dist2D(edgeMid, qMid) < 0.5 && Math.abs(lengthM - dist2D(q1, q2)) < 0.5) {
-            sharedWith = j
-            break
-          }
-        }
-        if (sharedWith >= 0) break
-      }
-
-      if (sharedWith >= 0) {
-        const lo = Math.min(i, sharedWith)
-        const hi = Math.max(i, sharedWith)
-        const key = `${lo}-${hi}-${Math.round(edgeMid.x * 100)}-${Math.round(edgeMid.y * 100)}`
-        if (emittedSharedEdges.has(key)) continue
-        emittedSharedEdges.add(key)
-
-        const type = classifySharedEdge(
-          dsm.planes[i].azimuthDeg,
-          dsm.planes[sharedWith].azimuthDeg,
-        )
-        edges.push({ type, start, end, lengthFt, segmentA: lo, segmentB: hi })
-      } else {
-        const type = classifyPerimeterEdge(p1, p2, dsm.planes[i].azimuthDeg)
-        edges.push({ type, start, end, lengthFt, segmentA: i })
-      }
+      const type = classifySharedEdge(pi.azimuthDeg, pj.azimuthDeg)
+      edges.push({ type, start, end, lengthFt, segmentA: i, segmentB: j })
     }
+  }
+
+  // --- Perimeter edges: footprint boundary ---
+  for (let v = 0; v < footprint.length; v++) {
+    const p1 = footprint[v]
+    const p2 = footprint[(v + 1) % footprint.length]
+    const lengthM = dist2D(p1, p2)
+    if (lengthM < 0.15) continue
+
+    const lengthFt = Math.round(lengthM * M_TO_FT * 10) / 10
+    const start = localToLatLng(p1, originLat, originLng)
+    const end = localToLatLng(p2, originLat, originLng)
+
+    // Determine which segment this edge belongs to (nearest centroid)
+    const edgeMid: Pt = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+    let nearestSeg = 0
+    let nearestDist = Infinity
+    for (let s = 0; s < segmentPolygons.length; s++) {
+      if (segmentPolygons[s].length < 3) continue
+      const c = polygonCentroid(segmentPolygons[s])
+      const d = dist2D(edgeMid, c)
+      if (d < nearestDist) { nearestDist = d; nearestSeg = s }
+    }
+
+    const type = classifyPerimeterEdge(p1, p2, dsm.planes[nearestSeg].azimuthDeg)
+    edges.push({ type, start, end, lengthFt, segmentA: nearestSeg })
   }
 
   // -----------------------------------------------------------------------
