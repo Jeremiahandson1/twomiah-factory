@@ -526,13 +526,32 @@ function ransacMultiPlane(
   // Sort by ground area descending (largest planes first)
   planes.sort((a, b) => b.groundAreaSqm - a.groundAreaSqm)
 
-  // Diagnostic: log plane details for debugging ridge direction issues
-  for (let i = 0; i < planes.length; i++) {
-    const p = planes[i]
+  // Filter out artifact planes:
+  // - Pitch > 55° is unrealistic for a roof (steeper than 17/12)
+  // - Very few inliers relative to the largest plane suggest noise/chimney/wall
+  const maxReasonablePitch = 55
+  const minInlierRatio = 0.08 // plane must have >= 8% of largest plane's inliers
+  const largestInliers = planes.length > 0 ? planes[0].inlierCount : 0
+
+  const filtered = planes.filter(p => {
+    if (p.pitchDeg > maxReasonablePitch) {
+      console.log(`[DSM] Filtered out plane: pitch=${p.pitchDeg.toFixed(1)}° (>${maxReasonablePitch}°) azimuth=${p.azimuthDeg.toFixed(1)}° inliers=${p.inlierCount}`)
+      return false
+    }
+    if (largestInliers > 0 && p.inlierCount < largestInliers * minInlierRatio) {
+      console.log(`[DSM] Filtered out plane: inliers=${p.inlierCount} (<${Math.ceil(largestInliers * minInlierRatio)} min) pitch=${p.pitchDeg.toFixed(1)}°`)
+      return false
+    }
+    return true
+  })
+
+  // Diagnostic: log surviving planes
+  for (let i = 0; i < filtered.length; i++) {
+    const p = filtered[i]
     console.log(`[DSM] Plane ${i}: a=${p.a.toFixed(4)} b=${p.b.toFixed(4)} c0=${p.c0.toFixed(2)} pitch=${p.pitchDeg.toFixed(1)}° azimuth=${p.azimuthDeg.toFixed(1)}° inliers=${p.inlierCount} area=${p.groundAreaSqm.toFixed(1)}m²`)
   }
 
-  return planes
+  return filtered
 }
 
 /**
