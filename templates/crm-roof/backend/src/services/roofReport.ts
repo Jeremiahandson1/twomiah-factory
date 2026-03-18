@@ -22,6 +22,7 @@ interface DsmPlane {
 interface DsmResult {
   footprint: Array<{ x: number; y: number }>
   planes: DsmPlane[]
+  segmentPolygons: Array<Array<{ x: number; y: number }>>
 }
 
 // ---------------------------------------------------------------------------
@@ -649,58 +650,21 @@ export function generateRoofReportFromDSM(
     footprint = expandPolygonMeters(footprint, overhangMeters)
   }
 
-  // Log footprint principal axis for ridge direction debugging
-  const fpBounds = {
-    minX: Math.min(...footprint.map(p => p.x)),
-    maxX: Math.max(...footprint.map(p => p.x)),
-    minY: Math.min(...footprint.map(p => p.y)),
-    maxY: Math.max(...footprint.map(p => p.y)),
-  }
-  const fpSpanX = fpBounds.maxX - fpBounds.minX
-  const fpSpanY = fpBounds.maxY - fpBounds.minY
-  console.log(`[RoofReport] Footprint spans: E-W=${fpSpanX.toFixed(1)}m N-S=${fpSpanY.toFixed(1)}m → long axis runs ${fpSpanX > fpSpanY ? 'E-W' : 'N-S'}`)
-
-  // Build RoofPlane objects from DSM-discovered planes
-  // (same interface as the metadata path — a, b, c0 in z = c0 + a*x + b*y)
-  const planes: RoofPlane[] = dsm.planes.map(p => ({
-    a: p.a,
-    b: p.b,
-    c0: p.c0,
-  }))
-
   // -----------------------------------------------------------------------
-  // Partition footprint: each plane "owns" the region where it is highest
+  // Use pre-computed segment polygons from DSM processor.
+  // These are built by assigning each footprint point to the plane whose
+  // predicted z best matches the actual DSM elevation — this correctly
+  // handles hip roofs where "highest plane wins" fails.
+  // Expand each by eave overhang to match the expanded footprint.
   // -----------------------------------------------------------------------
-  const segmentPolygons: Pt[][] = []
-
-  for (let i = 0; i < planes.length; i++) {
-    let poly = [...footprint]
-
-    for (let j = 0; j < planes.length; j++) {
-      if (i === j) continue
-
-      const A = planes[i].a - planes[j].a
-      const B = planes[i].b - planes[j].b
-      const C = planes[j].c0 - planes[i].c0
-
-      if (Math.abs(A) < 1e-8 && Math.abs(B) < 1e-8) continue
-
-      poly = clipPolygonByHalfPlane(poly, A, B, C)
-      if (poly.length < 3) break
+  const segmentPolygons: Pt[][] = dsm.segmentPolygons.map(poly => {
+    if (poly.length < 3) return []
+    let expanded = poly.map(p => ({ x: p.x, y: p.y }))
+    if (overhangMeters > 0) {
+      expanded = expandPolygonMeters(expanded, overhangMeters)
     }
-
-    segmentPolygons.push(poly)
-  }
-
-  // Log clipping results for ridge direction debugging
-  for (let i = 0; i < segmentPolygons.length; i++) {
-    const poly = segmentPolygons[i]
-    if (poly.length < 3) continue
-    const area = Math.abs(polygonAreaSigned(poly))
-    const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length
-    const cy = poly.reduce((s, p) => s + p.y, 0) / poly.length
-    console.log(`[RoofReport] Segment ${i}: ${poly.length} vertices, area=${area.toFixed(1)}m², center=(${cx.toFixed(1)},${cy.toFixed(1)}) azimuth=${dsm.planes[i].azimuthDeg.toFixed(0)}°`)
-  }
+    return expanded
+  })
 
   // -----------------------------------------------------------------------
   // Build segments

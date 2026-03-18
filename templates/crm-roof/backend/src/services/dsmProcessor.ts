@@ -52,6 +52,7 @@ export interface DiscoveredPlane {
 export interface DsmResult {
   footprint: Pt[]           // building footprint polygon (CCW, local meters)
   planes: DiscoveredPlane[] // RANSAC-fitted roof planes
+  segmentPolygons: Pt[][]   // per-plane segment polygons (convex hull of best-fit region)
 }
 
 // ---------------------------------------------------------------------------
@@ -670,7 +671,118 @@ export async function processDsm(
     throw new Error('RANSAC could not fit any roof planes to the elevation data')
   }
 
-  return { footprint, planes }
+  // 5. Build segment polygons by assigning each footprint point to the
+  //    plane whose predicted z is closest to the actual DSM elevation.
+  //    This replaces "highest plane wins" which fails for hip roofs
+  //    (hip planes are the lowest at their own location, so they never win).
+  const segmentPolygons = buildSegmentPolygons(
+    planes, footprint,
+    dsm.data, dsm.transform,
+    mask.data, mask.transform,
+    originLat, originLng,
+  )
+
+  return { footprint, planes, segmentPolygons }
+}
+
+/**
+ * Build segment polygons by assigning each footprint point to the best-fitting
+ * RANSAC plane based on actual DSM elevation data.
+ *
+ * For each masked pixel inside the footprint, we compare the actual DSM elevation
+ * to each plane's predicted elevation and assign the pixel to the closest plane.
+ * Then we take the convex hull of each plane's assigned points.
+ *
+ * This correctly handles hip roofs where "highest plane wins" fails because
+ * opposite-facing planes extrapolate to unrealistic heights at the far end.
+ */
+function buildSegmentPolygons(
+  planes: DiscoveredPlane[],
+  footprint: Pt[],
+  dsmData: any,
+  dsmTransform: GeoTransform,
+  maskData: any,
+  maskTransform: GeoTransform,
+  originLat: number,
+  originLng: number,
+): Pt[][] {
+  const { width: mW, height: mH } = maskTransform
+  const { width: dW, height: dH } = dsmTransform
+
+  // Determine mask threshold
+  let maskThreshold = 0.5
+  if (maskData.length > 0) {
+    let maxMaskVal = 0
+    for (let i = 0; i < Math.min(1000, maskData.length); i += 10) {
+      if (maskData[i] > maxMaskVal) maxMaskVal = maskData[i]
+    }
+    if (maxMaskVal > 1) maskThreshold = maxMaskVal / 2
+  }
+
+  // Precompute footprint bounding box
+  let fMinX = Infinity, fMaxX = -Infinity, fMinY = Infinity, fMaxY = -Infinity
+  for (const p of footprint) {
+    if (p.x < fMinX) fMinX = p.x
+    if (p.x > fMaxX) fMaxX = p.x
+    if (p.y < fMinY) fMinY = p.y
+    if (p.y > fMaxY) fMaxY = p.y
+  }
+  fMinX -= 1; fMaxX += 1; fMinY -= 1; fMaxY += 1
+
+  // Collect points assigned to each plane
+  const planePoints: Pt[][] = planes.map(() => [])
+  const step = 2
+
+  for (let row = 0; row < mH; row += step) {
+    for (let col = 0; col < mW; col += step) {
+      if (maskData[row * mW + col] <= maskThreshold) continue
+
+      const local = pixelToLocal(col, row, maskTransform, originLat, originLng)
+
+      // Quick bounding box rejection
+      if (local.x < fMinX || local.x > fMaxX || local.y < fMinY || local.y > fMaxY) continue
+
+      // Point-in-polygon test
+      if (!pointInPolygon(local, footprint)) continue
+
+      // Find DSM elevation at this point
+      const maskGeo = pixelToGeo(col, row, maskTransform)
+      const dsmCol = Math.round((maskGeo.lng - dsmTransform.originX) / dsmTransform.pixelW)
+      const dsmRow = Math.round((dsmTransform.originY - maskGeo.lat) / dsmTransform.pixelH)
+      if (dsmCol < 0 || dsmCol >= dW || dsmRow < 0 || dsmRow >= dH) continue
+
+      const elevation = dsmData[dsmRow * dW + dsmCol]
+      if (!elevation || isNaN(elevation) || elevation <= 0) continue
+
+      // Assign to plane with smallest elevation residual
+      let bestPlane = 0
+      let bestResidual = Infinity
+      for (let p = 0; p < planes.length; p++) {
+        const predicted = planes[p].c0 + planes[p].a * local.x + planes[p].b * local.y
+        const residual = Math.abs(elevation - predicted)
+        if (residual < bestResidual) {
+          bestResidual = residual
+          bestPlane = p
+        }
+      }
+
+      planePoints[bestPlane].push(local)
+    }
+  }
+
+  // Build convex hull for each plane's assigned region
+  const result: Pt[][] = planePoints.map((pts, i) => {
+    if (pts.length < 3) return []
+    const hull = convexHull2D(pts)
+    if (hull.length < 3) return []
+    // Ensure CCW winding
+    if (polygonAreaSigned(hull) < 0) hull.reverse()
+    const area = Math.abs(polygonAreaSigned(hull))
+    console.log(`[DSM] Segment polygon ${i}: ${hull.length} vertices, ${pts.length} points, area=${area.toFixed(1)}m², azimuth=${planes[i].azimuthDeg.toFixed(0)}°`)
+    return hull
+  })
+
+  return result
 }
 
 /**
