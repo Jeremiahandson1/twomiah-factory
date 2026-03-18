@@ -35,9 +35,14 @@ export default function JobsPage() {
       const params = { page, limit: 25 };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
-      const [res, projRes, contRes] = await Promise.all([api.jobs.list(params), api.projects.list({ limit: 100 }), api.contacts.list({ limit: 100 })]);
+      const res = await api.jobs.list(params);
       setData(res.data);
       setPagination(res.pagination);
+      // Load projects/contacts separately so failures don't block jobs
+      const [projRes, contRes] = await Promise.all([
+        api.projects.list({ limit: 100 }).catch(() => ({ data: [] })),
+        api.contacts.list({ limit: 100 }).catch(() => ({ data: [] })),
+      ]);
       setProjects(projRes.data);
       setContacts(contRes.data);
     } catch (err) { toast.error('Failed to load jobs'); }
@@ -82,7 +87,7 @@ export default function JobsPage() {
     { key: 'title', label: 'Title', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500">{r.contact.name}</p>}</div> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'priority', label: 'Priority', render: (v) => <StatusBadge status={v} statusColors={{ low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' }} /> },
-    { key: 'scheduledDate', label: 'Scheduled', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'scheduledDate', label: 'Scheduled', render: (v) => v ? new Date(v.split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
     { key: 'assignedTo', label: 'Assigned To', render: (v) => v ? `${v.firstName} ${v.lastName}` : '-' },
   ];
 
@@ -110,8 +115,8 @@ export default function JobsPage() {
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Job' : 'New Job'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="md:col-span-2"><label className="block text-sm font-medium mb-1">Title *</label><input value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} className="w-full px-3 py-2 border rounded-lg" /></div>
-          <div><label className="block text-sm font-medium mb-1">Status</label><select value={form.status} onChange={(e) => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg">{statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
-          <div><label className="block text-sm font-medium mb-1">Priority</label><select value={form.priority} onChange={(e) => setForm({...form, priority: e.target.value})} className="w-full px-3 py-2 border rounded-lg">{priorities.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
+          <div><label className="block text-sm font-medium mb-1">Status</label><select value={form.status} onChange={(e) => setForm({...form, status: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600">{statuses.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}</select></div>
+          <div><label className="block text-sm font-medium mb-1">Priority</label><select value={form.priority} onChange={(e) => setForm({...form, priority: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900 dark:text-slate-100 dark:bg-slate-800 dark:border-slate-600">{priorities.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
           {projects.length > 0 && <div><label className="block text-sm font-medium mb-1">Project</label><select value={form.projectId} onChange={(e) => setForm({...form, projectId: e.target.value})} className="w-full px-3 py-2 border rounded-lg text-gray-900"><option value="">Select...</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>}
           <div><label className="block text-sm font-medium mb-1">Contact</label><select value={form.contactId} onChange={(e) => {
                 const selectedContact = contacts.find(c => c.id === e.target.value);

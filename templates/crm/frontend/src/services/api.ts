@@ -5,6 +5,7 @@ class ApiClient {
     this.baseUrl = API_URL;
     this.accessToken = localStorage.getItem('accessToken');
     this.refreshToken = localStorage.getItem('refreshToken');
+    this._refreshPromise = null;
   }
 
   setTokens(accessToken, refreshToken) {
@@ -32,9 +33,12 @@ class ApiClient {
     try {
       const response = await fetch(url, { ...options, headers });
 
-      // Handle 401 - try to refresh token
+      // Handle 401 - try to refresh token (serialize concurrent refreshes)
       if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
-        const refreshed = await this.refreshAccessToken();
+        if (!this._refreshPromise) {
+          this._refreshPromise = this.refreshAccessToken().finally(() => { this._refreshPromise = null; });
+        }
+        const refreshed = await this._refreshPromise;
         if (refreshed) {
           headers.Authorization = `Bearer ${this.accessToken}`;
           return fetch(url, { ...options, headers }).then(r => this.handleResponse(r));

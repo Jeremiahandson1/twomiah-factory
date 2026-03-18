@@ -23,7 +23,9 @@ export default function PunchListsPage() {
     setLoading(true);
     try {
       const [res, projRes] = await Promise.all([api.punchLists.list({ page, limit: 25 }), api.projects.list({ limit: 100 })]);
-      setData(res.data); setPagination(res.pagination); setProjects(projRes.data);
+      // Backend returns nested {punchListItem: {...}, project: {...}} — flatten it
+      const items = res.data.map(d => d.punchListItem ? { ...d.punchListItem, project: d.project } : d);
+      setData(items); setPagination(res.pagination); setProjects(projRes.data);
     } catch (err) { toast.error('Failed to load punch list'); }
     finally { setLoading(false); }
   }, [page]);

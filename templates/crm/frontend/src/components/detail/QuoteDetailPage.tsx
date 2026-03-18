@@ -35,7 +35,7 @@ export default function QuoteDetailPage() {
     try {
       await api.quotes.delete(id);
       toast.success('Quote deleted');
-      navigate('/quotes');
+      navigate('/crm/quotes');
     } catch (err) {
       toast.error(err.message);
     }
@@ -65,7 +65,7 @@ export default function QuoteDetailPage() {
     try {
       const invoice = await api.quotes.convertToInvoice(id);
       toast.success('Invoice created');
-      navigate(`/invoices/${invoice.id}`);
+      navigate(`/crm/invoices/${invoice.id}`);
     } catch (err) {
       toast.error(err.message);
     }
@@ -79,7 +79,7 @@ export default function QuoteDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/quotes')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/quotes')} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -104,7 +104,7 @@ export default function QuoteDetailPage() {
               <Copy className="w-4 h-4" /> Create Invoice
             </button>
           )}
-          <Link to={`/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
@@ -116,7 +116,7 @@ export default function QuoteDetailPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Line Items */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden">
             <div className="p-4 border-b"><h2 className="font-semibold">Line Items</h2></div>
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -147,14 +147,14 @@ export default function QuoteDetailPage() {
           </div>
 
           {quote.notes && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
               <h2 className="font-semibold mb-2">Notes</h2>
               <p className="text-gray-700 whitespace-pre-wrap">{quote.notes}</p>
             </div>
           )}
 
           {quote.terms && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
               <h2 className="font-semibold mb-2">Terms & Conditions</h2>
               <p className="text-gray-700 whitespace-pre-wrap text-sm">{quote.terms}</p>
             </div>
@@ -162,19 +162,19 @@ export default function QuoteDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3 text-sm">
               {quote.contact && (
                 <div>
                   <p className="text-gray-500">Client</p>
-                  <Link to={`/contacts/${quote.contact.id}`} className="text-orange-500 hover:underline">{quote.contact.name}</Link>
+                  <Link to={`/crm/contacts/${quote.contact.id}`} className="text-orange-500 hover:underline">{quote.contact.name}</Link>
                 </div>
               )}
               {quote.project && (
                 <div>
                   <p className="text-gray-500">Project</p>
-                  <Link to={`/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
+                  <Link to={`/crm/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
                 </div>
               )}
               {quote.expiryDate && (

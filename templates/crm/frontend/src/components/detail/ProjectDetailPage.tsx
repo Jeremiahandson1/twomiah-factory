@@ -44,7 +44,7 @@ export default function ProjectDetailPage() {
     try {
       await api.projects.delete(id);
       toast.success('Project deleted');
-      navigate('/projects');
+      navigate('/crm/projects');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -70,7 +70,7 @@ export default function ProjectDetailPage() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/crm/projects')}
             className="p-2 hover:bg-gray-100 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -84,7 +84,7 @@ export default function ProjectDetailPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
             {project.contact && (
-              <Link to={`/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500">
+              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500">
                 {project.contact.name}
               </Link>
             )}
@@ -92,7 +92,7 @@ export default function ProjectDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to={`/projects?edit=${id}`}
+            to={`/crm/projects?edit=${id}`}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
           >
             <Edit className="w-4 h-4" />
@@ -109,7 +109,7 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Progress bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-700">Progress</span>
           <span className="text-sm font-medium text-orange-600">{project.progress || 0}%</span>
@@ -127,7 +127,7 @@ export default function ProjectDetailPage() {
         {/* Main info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Project details */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Project Details</h2>
             <div className="grid md:grid-cols-2 gap-6">
               {(project.address || project.city) && (
@@ -192,10 +192,10 @@ export default function ProjectDetailPage() {
 
           {/* Jobs */}
           {project.jobs?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Jobs</h2>
-                <Link to={`/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
               </div>
@@ -203,7 +203,7 @@ export default function ProjectDetailPage() {
                 {project.jobs.slice(0, 5).map(job => (
                   <Link
                     key={job.id}
-                    to={`/jobs/${job.id}`}
+                    to={`/crm/jobs/${job.id}`}
                     className="p-4 flex items-center justify-between hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
@@ -222,10 +222,10 @@ export default function ProjectDetailPage() {
 
           {/* RFIs */}
           {project.rfis?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">RFIs</h2>
-                <Link to={`/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
               </div>
@@ -248,10 +248,10 @@ export default function ProjectDetailPage() {
 
           {/* Change Orders */}
           {project.changeOrders?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Change Orders</h2>
-                <Link to={`/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
               </div>
@@ -279,7 +279,7 @@ export default function ProjectDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Summary */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Summary</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -302,7 +302,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Financial summary */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Financials</h2>
             <div className="space-y-4">
               {project.budget && (
@@ -323,39 +323,39 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Quick actions */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
             <div className="space-y-2">
               <Link
-                to={`/jobs?projectId=${id}&new=true`}
+                to={`/crm/jobs?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <Briefcase className="w-4 h-4 text-gray-500" />
                 Add Job
               </Link>
               <Link
-                to={`/rfis?projectId=${id}&new=true`}
+                to={`/crm/rfis?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <FileQuestion className="w-4 h-4 text-gray-500" />
                 Create RFI
               </Link>
               <Link
-                to={`/change-orders?projectId=${id}&new=true`}
+                to={`/crm/change-orders?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <FileDiff className="w-4 h-4 text-gray-500" />
                 Create Change Order
               </Link>
               <Link
-                to={`/punch-lists?projectId=${id}&new=true`}
+                to={`/crm/punch-lists?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <ClipboardList className="w-4 h-4 text-gray-500" />
                 Add Punch List Item
               </Link>
               <Link
-                to={`/daily-logs?projectId=${id}&new=true`}
+                to={`/crm/daily-logs?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <FileText className="w-4 h-4 text-gray-500" />
@@ -365,7 +365,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Timeline */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Timeline</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm">

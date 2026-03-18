@@ -23,7 +23,9 @@ export default function DailyLogsPage() {
     setLoading(true);
     try {
       const [res, projRes] = await Promise.all([api.dailyLogs.list({ page, limit: 25 }), api.projects.list({ limit: 100 })]);
-      setData(res.data); setPagination(res.pagination); setProjects(projRes.data);
+      // Backend returns nested {dailyLog: {...}, project: {...}, user: {...}} — flatten it
+      const items = res.data.map(d => d.dailyLog ? { ...d.dailyLog, project: d.project, user: d.user } : d);
+      setData(items); setPagination(res.pagination); setProjects(projRes.data);
     } catch (err) { toast.error('Failed to load daily logs'); }
     finally { setLoading(false); }
   }, [page]);
@@ -48,7 +50,7 @@ export default function DailyLogsPage() {
   const openEdit = (item) => { setEditing(item); setForm({ date: item.date?.split('T')[0] || '', projectId: item.projectId, weather: item.weather || '', temperature: item.temperature?.toString() || '', crewSize: item.crewSize?.toString() || '', hoursWorked: item.hoursWorked?.toString() || '', workPerformed: item.workPerformed || '', materials: item.materials || '', delays: item.delays || '', safetyNotes: item.safetyNotes || '' }); setModalOpen(true); };
 
   const columns = [
-    { key: 'date', label: 'Date', render: (v) => new Date(v).toLocaleDateString() },
+    { key: 'date', label: 'Date', render: (v) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
     { key: 'project', label: 'Project', render: (v) => v?.name || '-' },
     { key: 'user', label: 'Created By', render: (v) => v ? `${v.firstName} ${v.lastName}` : '-' },
     { key: 'weather', label: 'Weather' },

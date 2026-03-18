@@ -38,19 +38,19 @@ export function Modal({
         onClick={onClose}
       />
       <div className="flex min-h-full items-center justify-center p-4">
-        <div 
+        <div
           className={clsx(
-            'relative w-full bg-slate-900 border border-slate-700 rounded-xl shadow-2xl',
+            'relative w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl',
             sizes[size]
           )}
         >
           {title && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700">
-              <h3 className="text-lg font-semibold text-white">{title}</h3>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
               {showClose && (
-                <button 
+                <button
                   onClick={onClose}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                  className="p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -76,7 +76,7 @@ export function ConfirmDialog({
 }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
-      <p className="text-slate-300 mb-6">{message}</p>
+      <p className="text-gray-600 dark:text-slate-300 mb-6">{message}</p>
       <div className="flex justify-end gap-3">
         <button onClick={onClose} className="btn btn-secondary">
           {cancelText}

@@ -36,7 +36,7 @@ export default function JobDetailPage() {
     try {
       await api.jobs.delete(id);
       toast.success('Job deleted');
-      navigate('/jobs');
+      navigate('/crm/jobs');
     } catch (err) {
       toast.error(err.message);
     }
@@ -72,12 +72,12 @@ export default function JobDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/jobs')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/jobs')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <p className="text-sm font-mono text-gray-500">{job.number}</p>
-            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{job.title}</h1>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
               <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${priorityColors[job.priority]}`}>{job.priority}</span>
@@ -95,7 +95,7 @@ export default function JobDetailPage() {
               <CheckCircle className="w-4 h-4" /> Complete
             </button>
           )}
-          <Link to={`/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2">
@@ -106,7 +106,7 @@ export default function JobDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold mb-4">Job Details</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {job.scheduledDate && (
@@ -114,7 +114,7 @@ export default function JobDetailPage() {
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Scheduled</p>
-                    <p>{new Date(job.scheduledDate).toLocaleDateString()} {job.scheduledTime}</p>
+                    <p>{new Date(job.scheduledDate.split('T')[0] + 'T00:00:00').toLocaleDateString()} {job.scheduledTime}</p>
                   </div>
                 </div>
               )}
@@ -156,17 +156,17 @@ export default function JobDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold mb-4">Related</h2>
             <div className="space-y-3">
               {job.project && (
-                <Link to={`/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <Link to={`/crm/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700">
                   <p className="text-sm text-gray-500">Project</p>
                   <p className="font-medium">{job.project.name}</p>
                 </Link>
               )}
               {job.contact && (
-                <Link to={`/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <Link to={`/crm/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700">
                   <p className="text-sm text-gray-500">Contact</p>
                   <p className="font-medium">{job.contact.name}</p>
                 </Link>

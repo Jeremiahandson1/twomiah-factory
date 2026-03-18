@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { job, project, contact, user, timeEntry, company } from '../../db/schema.ts'
-import { eq, and, gte, lt, count, asc, desc } from 'drizzle-orm'
+import { eq, and, gte, lt, count, asc, desc, or, ilike } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import reviews from '../services/reviews.ts'
@@ -30,6 +30,7 @@ const jobSchema = z.object({
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
+  const search = c.req.query('search')
   const projectId = c.req.query('projectId')
   const assignedToId = c.req.query('assignedToId')
   const page = +(c.req.query('page') || '1')
@@ -37,6 +38,7 @@ app.get('/', async (c) => {
 
   const conditions = [eq(job.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(job.status, status))
+  if (search) conditions.push(or(ilike(job.title, `%${search}%`), ilike(job.number, `%${search}%`))!)
   if (projectId) conditions.push(eq(job.projectId, projectId))
   if (assignedToId) conditions.push(eq(job.assignedToId, assignedToId))
 

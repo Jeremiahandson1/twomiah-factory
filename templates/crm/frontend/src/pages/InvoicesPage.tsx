@@ -32,9 +32,11 @@ export default function InvoicesPage() {
     try {
       const params = { page, limit: 25 };
       if (statusFilter) params.status = statusFilter;
-      const [res, contRes] = await Promise.all([api.invoices.list(params), api.contacts.list({ limit: 100 })]);
+      const res = await api.invoices.list(params);
       setData(res.data);
       setPagination(res.pagination);
+      // Load contacts separately so failure doesn't block invoice list
+      const contRes = await api.contacts.list({ limit: 100 }).catch(() => ({ data: [] }));
       setContacts(contRes.data);
     } catch (err) { toast.error('Failed to load invoices'); }
     finally { setLoading(false); }
@@ -58,7 +60,7 @@ export default function InvoicesPage() {
   const handleDelete = async () => { try { await api.invoices.delete(toDelete.id); toast.success('Invoice deleted'); setDeleteOpen(false); load(); } catch (err) { toast.error(err.message); } };
   const handleSend = async (inv) => { try { await api.invoices.send(inv.id); toast.success('Invoice sent'); load(); } catch (err) { toast.error(err.message); } };
   
-  const openPayment = (inv) => { setPaymentInvoice(inv); setPayment({ amount: String(Number(inv.balance)), method: 'card', reference: '', notes: '' }); setPaymentOpen(true); };
+  const openPayment = (inv) => { setPaymentInvoice(inv); setPayment({ amount: String(Number(inv.total) - Number(inv.amountPaid || 0)), method: 'card', reference: '', notes: '' }); setPaymentOpen(true); };
   const handlePayment = async () => {
     if (!payment.amount || Number(payment.amount) <= 0) { toast.error('Enter a valid amount'); return; }
     try { await api.invoices.recordPayment(paymentInvoice.id, { ...payment, amount: Number(payment.amount) }); toast.success('Payment recorded'); setPaymentOpen(false); load(); }
@@ -77,8 +79,8 @@ export default function InvoicesPage() {
     { key: 'contact', label: 'Client', render: (v) => v?.name || '-' },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', render: (v) => `$${Number(v).toLocaleString()}` },
-    { key: 'balance', label: 'Balance', render: (v) => Number(v) > 0 ? <span className="text-orange-600 font-medium">${Number(v).toLocaleString()}</span> : <span className="text-green-600">Paid</span> },
-    { key: 'dueDate', label: 'Due', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'amountPaid', label: 'Balance', render: (v, r) => { const bal = Number(r.total) - Number(v || 0); return bal > 0 ? <span className="text-orange-600 font-medium">${bal.toLocaleString()}</span> : <span className="text-green-600">Paid</span>; } },
+    { key: 'dueDate', label: 'Due', render: (v) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();

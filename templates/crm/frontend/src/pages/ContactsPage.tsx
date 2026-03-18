@@ -48,22 +48,27 @@ export default function ContactsPage() {
   const [contactToDelete, setContactToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadContacts = useCallback(async () => {
+  const loadContacts = useCallback(async (retry = true) => {
     setLoading(true);
     try {
       const params = { page, limit: 25 };
       if (search) params.search = search;
       if (typeFilter) params.type = typeFilter;
-      
+
       const [contactsData, statsData] = await Promise.all([
         api.contacts.list(params),
-        api.contacts.stats(),
+        api.contacts.stats().catch(() => null),
       ]);
-      
+
       setContacts(contactsData.data);
       setPagination(contactsData.pagination);
-      setStats(statsData);
+      if (statsData) setStats(statsData);
     } catch (err) {
+      // Retry once on first load failure (cold-start race condition)
+      if (retry) {
+        setTimeout(() => loadContacts(false), 500);
+        return;
+      }
       toast.error('Failed to load contacts');
     } finally {
       setLoading(false);

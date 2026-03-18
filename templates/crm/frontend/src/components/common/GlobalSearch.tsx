@@ -71,7 +71,7 @@ export default function GlobalSearch() {
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
-        const response = await api.get(`/search?q=${encodeURIComponent(query)}`);
+        const response = await api.get('/api/search', { q: query });
         setResults(response.results || []);
         setSelectedIndex(0);
       } catch (error) {
@@ -87,7 +87,7 @@ export default function GlobalSearch() {
 
   const loadRecentItems = async () => {
     try {
-      const items = await api.get('/search/recent');
+      const items = await api.get('/api/search/recent');
       setRecentItems(items || []);
     } catch (error) {
       console.error('Failed to load recent items:', error);

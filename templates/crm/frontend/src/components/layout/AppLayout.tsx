@@ -3,7 +3,7 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt,
   Calendar, Clock, DollarSign, FileQuestion, ClipboardList, CheckSquare,
-  BookOpen, ClipboardCheck, Target, Settings, LogOut, Bell, Search,
+  BookOpen, ClipboardCheck, Target, Settings, LogOut, Bell,
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
@@ -14,6 +14,7 @@ import { useSocket } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
+import GlobalSearch from '../common/GlobalSearch';
 
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
@@ -227,15 +228,7 @@ export default function AppLayout() {
 
             {/* Search (desktop) */}
             <div className="hidden md:block flex-1 max-w-md ml-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" aria-hidden="true" />
-                <input
-                  type="search"
-                  placeholder="Search..."
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100"
-                  aria-label="Search"
-                />
-              </div>
+              <GlobalSearch />
             </div>
 
             {/* Right side */}
