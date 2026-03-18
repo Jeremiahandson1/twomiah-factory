@@ -388,36 +388,28 @@ function planeZ(plane: RoofPlane, x: number, y: number): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Classify a shared edge between two segments using elevation analysis.
+ * Classify a shared edge between two segments.
  *
- * For two planes z_i, z_j meeting at line A*x + B*y = C (where A = a_i - a_j,
- * B = b_i - b_j), check whether both sides slope DOWN from the line (ridge/hip)
- * or UP toward it (valley).  This correctly handles L-shaped extensions where
- * the azimuth difference is ~90° but the edge is a valley, not a hip.
+ * Uses sideI (= z_i(centroid_i) - z_j(centroid_i)) to determine whether
+ * the intersection line is a peak or trough:
+ *   - sideI < 0 → peak: the "other" plane extrapolates above the own plane
+ *     at its centroid, meaning the intersection line is at a local maximum.
+ *     Use azimuth diff to distinguish ridge (>150°) from hip.
+ *   - sideI > 0 → valley: own plane is higher at its centroid, meaning the
+ *     intersection line is at a local minimum (trough).
  *
- * Use azimuth difference only to distinguish ridge from hip among the "peak" cases.
+ * This correctly handles L-shaped extensions where azimuth diff is ~90°
+ * but the edge is a valley, not a hip.
  */
 function classifySharedEdge(
-  azA: number, azB: number,
-  planeI?: { a: number; b: number },
-  planeJ?: { a: number; b: number },
+  azA: number, azB: number, sideI?: number,
 ): 'ridge' | 'valley' | 'hip' {
-  // If plane coefficients are provided, use elevation-based classification
-  if (planeI && planeJ) {
-    const A = planeI.a - planeJ.a
-    const B = planeI.b - planeJ.b
-    // Derivative of z in the normal direction for each plane
-    const slopeI = planeI.a * A + planeI.b * B  // z_i change moving toward + side
-    const slopeJ = planeJ.a * A + planeJ.b * B  // z_j change moving toward + side
-    // Valley: plane i rises on its side, plane j rises on its side
-    // (slopeI > 0 means z_i increases toward the + side where i is dominant,
-    //  slopeJ < 0 means z_j increases toward the - side where j is dominant)
-    if (slopeI > 0 && slopeJ < 0) {
-      return 'valley'
-    }
+  // If sideI is provided, use it for peak/trough detection
+  if (sideI !== undefined && sideI > 0) {
+    return 'valley'
   }
 
-  // For peak edges, distinguish ridge from hip by azimuth
+  // Peak edge (sideI <= 0): distinguish ridge from hip by azimuth
   const diff = azimuthDifference(azA, azB)
   if (diff > 150) return 'ridge'
   if (diff < 30) return 'valley'  // fallback for near-parallel planes
@@ -845,7 +837,7 @@ export function generateRoofReportFromDSM(
       const start = localToLatLng(linePoints.p1, originLat, originLng)
       const end = localToLatLng(linePoints.p2, originLat, originLng)
 
-      const type = classifySharedEdge(pi.azimuthDeg, pj.azimuthDeg, pi, pj)
+      const type = classifySharedEdge(pi.azimuthDeg, pj.azimuthDeg, sideI)
       edges.push({ type, start, end, lengthFt, segmentA: i, segmentB: j })
     }
   }
