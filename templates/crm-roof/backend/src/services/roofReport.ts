@@ -239,6 +239,21 @@ function clipPolygonByHalfPlane(poly: Pt[], A: number, B: number, C: number): Pt
   return out
 }
 
+/**
+ * Check if two segment polygons are geometrically adjacent (have vertices
+ * close to each other).  Non-adjacent segments (e.g. N and S triangles on a
+ * hip roof) should NOT produce an internal edge even though their plane
+ * intersection line crosses the footprint.
+ */
+function areSegmentsAdjacent(polyA: Pt[], polyB: Pt[], threshold = 3): boolean {
+  for (const a of polyA) {
+    for (const b of polyB) {
+      if (dist2D(a, b) < threshold) return true
+    }
+  }
+  return false
+}
+
 /** Centroid of a polygon (average of vertices). */
 function polygonCentroid(poly: Pt[]): Pt {
   if (poly.length === 0) return { x: 0, y: 0 }
@@ -763,6 +778,11 @@ export function generateRoofReportFromDSM(
       // Both segments must have valid polygons
       if (segmentPolygons[i].length < 3 || segmentPolygons[j].length < 3) continue
 
+      // Only create edges between geometrically adjacent segments.
+      // Non-adjacent segments (e.g. N and S on a hip roof) can produce
+      // spurious intersection lines that span the entire footprint.
+      if (!areSegmentsAdjacent(segmentPolygons[i], segmentPolygons[j])) continue
+
       const pi = dsm.planes[i], pj = dsm.planes[j]
       const A = pi.a - pj.a
       const B = pi.b - pj.b
@@ -777,14 +797,21 @@ export function generateRoofReportFromDSM(
       const linePoints = clipLineToPolygon(A, B, C, footprint)
       if (!linePoints) continue
 
-      // Verify the line actually runs between the two segments by checking
-      // that points on each side belong to the respective segments.
-      // Use segment polygon centroids as a quick check.
+      // Verify the intersection line midpoint is close to both segment polygons.
+      // This prevents edges that span the footprint but only touch distant segments.
+      const midPt: Pt = {
+        x: (linePoints.p1.x + linePoints.p2.x) / 2,
+        y: (linePoints.p1.y + linePoints.p2.y) / 2,
+      }
+      const distToI = Math.min(...segmentPolygons[i].map(p => dist2D(midPt, p)))
+      const distToJ = Math.min(...segmentPolygons[j].map(p => dist2D(midPt, p)))
+      if (distToI > 5 || distToJ > 5) continue
+
+      // Centroids should be on opposite sides of the intersection line
       const ci = polygonCentroid(segmentPolygons[i])
       const cj = polygonCentroid(segmentPolygons[j])
       const sideI = A * ci.x + B * ci.y - C
       const sideJ = A * cj.x + B * cj.y - C
-      // The centroids should be on opposite sides (or at least one should be nonzero)
       if (sideI * sideJ > 0 && Math.abs(sideI) > 0.5 && Math.abs(sideJ) > 0.5) continue
 
       const lengthM = dist2D(linePoints.p1, linePoints.p2)
