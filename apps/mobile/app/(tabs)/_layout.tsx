@@ -1,16 +1,31 @@
 /**
- * Bottom tab navigator — the main app chrome after login.
+ * Dynamic bottom tab navigator — shows different tabs per vertical.
+ * All tab screen files exist at build time; inactive ones are hidden via href: null.
  */
 
 import React from 'react'
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { View, StyleSheet } from 'react-native'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useSocket } from '../../src/socket/SocketContext'
-import { View, Text, StyleSheet } from 'react-native'
+import { useVertical } from '../../src/vertical/VerticalContext'
+
+/** All possible tab screen names (must match filenames in this directory) */
+const ALL_TABS = [
+  'dashboard', 'jobs', 'contacts', 'quotes', 'notifications',
+  'service-calls', 'schedule',
+  'shifts', 'time-clock', 'messages', 'more-homecare',
+  'pipeline', 'canvass',
+  'orders', 'products', 'customers', 'loyalty', 'more-dispensary',
+]
 
 export default function TabLayout() {
   const t = useTheme()
+  const { tabs } = useVertical()
+
+  const activeNames = new Set(tabs.map(tab => tab.name))
+  const tabMap = new Map(tabs.map(tab => [tab.name, tab]))
 
   return (
     <Tabs
@@ -30,53 +45,47 @@ export default function TabLayout() {
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="jobs"
-        options={{
-          title: 'Jobs',
-          tabBarIcon: ({ color, size }) => <Ionicons name="hammer" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="contacts"
-        options={{
-          title: 'Contacts',
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="quotes"
-        options={{
-          title: 'Quotes',
-          tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          title: 'Alerts',
-          tabBarIcon: ({ color, size }) => <NotificationIcon color={color} size={size} />,
-        }}
-      />
+      {ALL_TABS.map(name => {
+        const def = tabMap.get(name)
+        const isActive = activeNames.has(name)
+
+        if (!isActive) {
+          return (
+            <Tabs.Screen
+              key={name}
+              name={name}
+              options={{ href: null }}
+            />
+          )
+        }
+
+        return (
+          <Tabs.Screen
+            key={name}
+            name={name}
+            options={{
+              title: def!.title,
+              tabBarIcon: ({ color, size, focused }) => {
+                const iconName = focused ? def!.activeIcon : def!.icon
+                if (name === 'notifications') {
+                  return <NotificationIcon iconName={iconName} color={color} size={size} />
+                }
+                return <Ionicons name={iconName as any} size={size} color={color} />
+              },
+            }}
+          />
+        )
+      })}
     </Tabs>
   )
 }
 
-function NotificationIcon({ color, size }: { color: string; size: number }) {
+function NotificationIcon({ iconName, color, size }: { iconName: string; color: string; size: number }) {
   const { connected } = useSocket()
   return (
     <View>
-      <Ionicons name="notifications" size={size} color={color} />
-      {connected && (
-        <View style={styles.connectedDot} />
-      )}
+      <Ionicons name={iconName as any} size={size} color={color} />
+      {connected && <View style={styles.connectedDot} />}
     </View>
   )
 }

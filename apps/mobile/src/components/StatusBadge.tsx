@@ -26,6 +26,30 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   open: { bg: '#dbeafe', text: '#1d4ed8' },
   closed: { bg: '#f1f5f9', text: '#475569' },
   new: { bg: '#dcfce7', text: '#166534' },
+  // Dispensary orders
+  pending: { bg: '#fef3c7', text: '#92400e' },
+  confirmed: { bg: '#dbeafe', text: '#1d4ed8' },
+  preparing: { bg: '#e0e7ff', text: '#3730a3' },
+  ready: { bg: '#dcfce7', text: '#166534' },
+  out_for_delivery: { bg: '#fce7f3', text: '#9d174d' },
+  cancelled: { bg: '#fee2e2', text: '#991b1b' },
+  refunded: { bg: '#fee2e2', text: '#991b1b' },
+  // Dispensary loyalty tiers
+  bronze: { bg: '#fef3c7', text: '#92400e' },
+  silver: { bg: '#f1f5f9', text: '#475569' },
+  gold: { bg: '#fef3c7', text: '#b45309' },
+  platinum: { bg: '#e0e7ff', text: '#3730a3' },
+  // Homecare
+  clocked_in: { bg: '#dcfce7', text: '#166534' },
+  clocked_out: { bg: '#f1f5f9', text: '#475569' },
+  missed: { bg: '#fee2e2', text: '#991b1b' },
+  // Roofing pipeline
+  new_lead: { bg: '#dbeafe', text: '#1d4ed8' },
+  contacted: { bg: '#fef3c7', text: '#92400e' },
+  inspection_scheduled: { bg: '#e0e7ff', text: '#3730a3' },
+  quote_sent: { bg: '#fce7f3', text: '#9d174d' },
+  won: { bg: '#dcfce7', text: '#166534' },
+  lost: { bg: '#fee2e2', text: '#991b1b' },
 }
 
 export function StatusBadge({ status, label }: { status: string; label?: string }) {

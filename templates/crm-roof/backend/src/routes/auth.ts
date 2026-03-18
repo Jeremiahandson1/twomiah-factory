@@ -203,6 +203,7 @@ app.post('/login', async (c) => {
       enabledFeatures: foundCompany.enabledFeatures,
       settings: foundCompany.settings,
       limits,
+      vertical: 'roofing',
     },
     ...tokens,
   })
@@ -259,6 +260,7 @@ app.get('/me', authenticate, async (c) => {
       enabledFeatures: foundCompany.enabledFeatures,
       settings: foundCompany.settings,
       limits,
+      vertical: 'roofing',
     },
   })
 })

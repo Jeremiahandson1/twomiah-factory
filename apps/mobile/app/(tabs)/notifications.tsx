@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useSocket, useRealTimeEvent, EVENTS } from '../../src/socket/SocketContext'
 import { get } from '../../src/api/client'
+import { SkeletonList } from '../../src/components/SkeletonLoader'
 
 interface Notification {
   id: string
@@ -118,7 +119,7 @@ export default function NotificationsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={t.primary} style={{ marginTop: 40 }} />
+        <SkeletonList count={5} />
       ) : (
         <FlatList
           data={notifications}

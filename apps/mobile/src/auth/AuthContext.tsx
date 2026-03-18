@@ -17,6 +17,8 @@ interface Company {
   logo?: string
   primaryColor?: string
   enabledFeatures: string[]
+  vertical?: 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'dispensary'
+  settings?: Record<string, any>
 }
 
 interface AuthState {

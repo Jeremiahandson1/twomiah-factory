@@ -3,7 +3,7 @@ import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
 import { eq } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { users, caregiverProfiles } from '../../db/schema.ts'
+import { users, caregiverProfiles, agencies } from '../../db/schema.ts'
 import { authenticate, logAuthEvent } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -44,10 +44,14 @@ app.post('/login', async (c) => {
   await db.update(users).set({ lastLogin: new Date(), refreshToken, updatedAt: new Date() }).where(eq(users.id, user.id))
   await logAuthEvent({ email, userId: user.id, success: true, ipAddress: ip, userAgent: ua })
 
+  // Fetch agency for company info
+  const [agency] = await db.select().from(agencies).limit(1)
+
   return c.json({
     accessToken,
     refreshToken,
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
+    company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' },
   })
 })
 
@@ -106,7 +110,10 @@ app.get('/me', authenticate, async (c) => {
     medicaidProviderId: caregiverProfiles.medicaidProviderId,
   }).from(caregiverProfiles).where(eq(caregiverProfiles.caregiverId, currentUser.userId)).limit(1)
 
-  return c.json({ ...user, profile: profile || null })
+  // Fetch agency for company info
+  const [agency] = await db.select().from(agencies).limit(1)
+
+  return c.json({ ...user, profile: profile || null, company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' } })
 })
 
 // PUT /api/auth/change-password
