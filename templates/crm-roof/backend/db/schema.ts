@@ -747,3 +747,64 @@ export const roofReport = pgTable('roof_report', {
   index('roof_report_company_id_idx').on(t.companyId),
   index('roof_report_contact_id_idx').on(t.contactId),
 ])
+
+// ==================== PRICEBOOK (add-on for any CRM vertical) ====================
+
+export const pricebookCategory = pgTable('pricebook_category', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  parentId: text('parent_id'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('pricebook_category_company_id_idx').on(t.companyId),
+])
+
+export const pricebookItem = pgTable('pricebook_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  type: text('type').default('service').notNull(),
+  code: text('code'),
+  price: decimal('price', { precision: 12, scale: 2 }).notNull(),
+  cost: decimal('cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  unit: text('unit').default('each').notNull(),
+  taxable: boolean('taxable').default(true).notNull(),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').references(() => pricebookCategory.id),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('pricebook_item_company_id_idx').on(t.companyId),
+  index('pricebook_item_category_id_idx').on(t.categoryId),
+])
+
+export const pricebookGoodBetterBest = pgTable('pricebook_good_better_best', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  pricebookItemId: text('pricebook_item_id').notNull().references(() => pricebookItem.id, { onDelete: 'cascade' }),
+  tier: text('tier').notNull(),
+  name: text('name'),
+  description: text('description'),
+  price: decimal('price', { precision: 12, scale: 2 }).notNull(),
+  features: json('features'),
+}, (t) => [
+  index('pricebook_good_better_best_pricebook_item_id_idx').on(t.pricebookItemId),
+])
+
+export const pricebookMaterial = pgTable('pricebook_material', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  pricebookItemId: text('pricebook_item_id').notNull().references(() => pricebookItem.id, { onDelete: 'cascade' }),
+  quantity: decimal('quantity', { precision: 10, scale: 4 }).default('1').notNull(),
+  priceOverride: decimal('price_override', { precision: 12, scale: 2 }),
+}, (t) => [
+  index('pricebook_material_pricebook_item_id_idx').on(t.pricebookItemId),
+])
