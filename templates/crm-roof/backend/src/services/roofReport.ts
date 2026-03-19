@@ -1067,74 +1067,70 @@ export function generateRoofReportFromDSM(
   })
 
   // -----------------------------------------------------------------------
-  // Classify edges: analytical plane-plane intersections + footprint perimeter
+  // Classify edges from segment polygon boundaries.
   //
-  // The segment polygons from elevation-based assignment don't share exact
-  // edge coordinates, so we compute internal edges (ridge/hip/valley) from
-  // plane-plane intersection lines clipped to the footprint, and perimeter
-  // edges (rake/eave) from the footprint boundary.
+  // Instead of computing all pairwise plane intersections (which generates
+  // spurious lines), we find edges where segment polygons ACTUALLY share a
+  // boundary.  For each pair of adjacent segments, we find the contact zone
+  // (closest points between the two polygons) and draw a single edge there.
+  //
+  // Perimeter edges come from the footprint boundary, classified as eave
+  // (hip roof) or rake/eave (gable roof).
   // -----------------------------------------------------------------------
   const edges: ClassifiedEdge[] = []
 
-  // --- Internal edges: plane-plane intersection lines clipped to footprint ---
-  for (let i = 0; i < dsm.planes.length; i++) {
-    for (let j = i + 1; j < dsm.planes.length; j++) {
-      // Both segments must have valid polygons
+  // --- Internal edges: find where segment polygons share boundaries ---
+  for (let i = 0; i < segmentPolygons.length; i++) {
+    for (let j = i + 1; j < segmentPolygons.length; j++) {
       if (segmentPolygons[i].length < 3 || segmentPolygons[j].length < 3) continue
-
-      // Only create edges between geometrically adjacent segments.
-      // Non-adjacent segments (e.g. N and S on a hip roof) can produce
-      // spurious intersection lines that span the entire footprint.
       if (!areSegmentsAdjacent(segmentPolygons[i], segmentPolygons[j])) continue
 
-      const pi = dsm.planes[i], pj = dsm.planes[j]
-      const A = pi.a - pj.a
-      const B = pi.b - pj.b
+      // Find the boundary between these two segment polygons.
+      // Collect vertices from each polygon that are close to the other polygon.
+      const boundaryPts: Pt[] = []
 
-      // Skip near-parallel planes
-      if (Math.abs(A) < 1e-6 && Math.abs(B) < 1e-6) continue
-
-      const C = pj.c0 - pi.c0
-
-      // Find the intersection line with the footprint by clipping.
-      // The line A*x + B*y = C; find where it enters/exits the footprint.
-      const linePoints = clipLineToPolygon(A, B, C, footprint)
-      if (!linePoints) continue
-
-      // Verify the intersection line midpoint is close to both segment polygons.
-      // This prevents edges that span the footprint but only touch distant segments.
-      const midPt: Pt = {
-        x: (linePoints.p1.x + linePoints.p2.x) / 2,
-        y: (linePoints.p1.y + linePoints.p2.y) / 2,
+      for (const p of segmentPolygons[i]) {
+        const minDist = Math.min(...segmentPolygons[j].map(q => dist2D(p, q)))
+        if (minDist < 3.5) boundaryPts.push(p)
       }
-      const distToI = Math.min(...segmentPolygons[i].map(p => dist2D(midPt, p)))
-      const distToJ = Math.min(...segmentPolygons[j].map(p => dist2D(midPt, p)))
-      if (distToI > 5 || distToJ > 5) continue
+      for (const p of segmentPolygons[j]) {
+        const minDist = Math.min(...segmentPolygons[i].map(q => dist2D(p, q)))
+        if (minDist < 3.5) boundaryPts.push(p)
+      }
 
-      // Centroids should be on opposite sides of the intersection line
-      const ci = polygonCentroid(segmentPolygons[i])
-      const cj = polygonCentroid(segmentPolygons[j])
-      const sideI = A * ci.x + B * ci.y - C
-      const sideJ = A * cj.x + B * cj.y - C
-      if (sideI * sideJ > 0 && Math.abs(sideI) > 0.5 && Math.abs(sideJ) > 0.5) continue
+      if (boundaryPts.length < 2) continue
 
-      const lengthM = dist2D(linePoints.p1, linePoints.p2)
-      if (lengthM < 0.3) continue
+      // Find the two most distant boundary points — these define the edge
+      let maxDist = 0
+      let edgeP1 = boundaryPts[0], edgeP2 = boundaryPts[1]
+      for (let a = 0; a < boundaryPts.length; a++) {
+        for (let b = a + 1; b < boundaryPts.length; b++) {
+          const d = dist2D(boundaryPts[a], boundaryPts[b])
+          if (d > maxDist) {
+            maxDist = d
+            edgeP1 = boundaryPts[a]
+            edgeP2 = boundaryPts[b]
+          }
+        }
+      }
+
+      const lengthM = dist2D(edgeP1, edgeP2)
+      if (lengthM < 0.5) continue
 
       const lengthFt = Math.round(lengthM * M_TO_FT * 10) / 10
-      const start = localToLatLng(linePoints.p1, originLat, originLng)
-      const end = localToLatLng(linePoints.p2, originLat, originLng)
+      const start = localToLatLng(edgeP1, originLat, originLng)
+      const end = localToLatLng(edgeP2, originLat, originLng)
 
+      // Classify using azimuth difference + elevation (sideI)
+      const pi = dsm.planes[i], pj = dsm.planes[j]
+      const A = pi.a - pj.a, B = pi.b - pj.b, C = pj.c0 - pi.c0
+      const ci = polygonCentroid(segmentPolygons[i])
+      const sideI = A * ci.x + B * ci.y - C
       const type = classifySharedEdge(pi.azimuthDeg, pj.azimuthDeg, sideI)
+
       edges.push({ type, start, end, lengthFt, segmentA: i, segmentB: j })
     }
   }
-
-  // --- Trim internal edges at mutual crossings ---
-  // Each plane-plane intersection line is clipped to the full footprint, but
-  // edges should stop where they meet other edges (e.g. ridge stops at hip
-  // junctions).  Find all crossing points and trim accordingly.
-  trimEdgesAtCrossings(edges, originLat, originLng, segmentPolygons)
 
   // --- Footprint-based valley detection ---
   // Use the ORIGINAL footprint (before overhang expansion) so concave vertices
