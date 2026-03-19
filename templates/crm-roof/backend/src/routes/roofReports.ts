@@ -7,7 +7,15 @@ import { generateRoofReport, generateRoofReportFromDSM } from '../services/roofR
 import { generateReportHTML, generateReportPDF, computeOptimalZoom, fetchSatelliteImageBase64, MAP_WIDTH, MAP_HEIGHT } from '../services/roofReportRenderer.ts'
 import { geocodeAddress, getBuildingInsights, getDataLayers, downloadGeoTiff, formatSolarDate, isSummerImagery } from '../services/googleSolar.ts'
 import { processDsm } from '../services/dsmProcessor.ts'
-import { fetchOsmBuildings, osmPolygonToLocal } from '../services/osmFootprint.ts'
+
+// OSM footprint fetching — optional, non-fatal if missing
+let fetchOsmBuildings: any = async () => []
+let osmPolygonToLocal: any = () => []
+try {
+  const osm = await import('../services/osmFootprint.ts')
+  fetchOsmBuildings = osm.fetchOsmBuildings
+  osmPolygonToLocal = osm.osmPolygonToLocal
+} catch { /* module not deployed yet */ }
 import logger from '../services/logger.ts'
 import Stripe from 'stripe'
 import sharp from 'sharp'
