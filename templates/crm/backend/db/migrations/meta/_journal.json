@@ -57,6 +57,13 @@
       "when": 1772785271400,
       "tag": "0007_add_roof_report_imagery",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772785271401,
+      "tag": "0008_add_roof_report_editing",
+      "breakpoints": true
     }
   ]
 }

@@ -22,6 +22,20 @@
       "when": 1772785271396,
       "tag": "0003_add_roof_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772785271397,
+      "tag": "0004_add_roof_report_editing",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772785271398,
+      "tag": "0005_add_pricebook",
+      "breakpoints": true
     }
   ]
 }
