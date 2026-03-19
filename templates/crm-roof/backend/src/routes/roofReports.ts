@@ -7,6 +7,7 @@ import { generateRoofReport, generateRoofReportFromDSM } from '../services/roofR
 import { generateReportHTML, generateReportPDF, computeOptimalZoom, fetchSatelliteImageBase64, MAP_WIDTH, MAP_HEIGHT } from '../services/roofReportRenderer.ts'
 import { geocodeAddress, getBuildingInsights, getDataLayers, downloadGeoTiff, formatSolarDate, isSummerImagery } from '../services/googleSolar.ts'
 import { processDsm } from '../services/dsmProcessor.ts'
+import { fetchOsmBuildings, osmPolygonToLocal } from '../services/osmFootprint.ts'
 import logger from '../services/logger.ts'
 import Stripe from 'stripe'
 import sharp from 'sharp'
@@ -249,7 +250,14 @@ async function generateReportPreview(
 
   if (dsmBuffer && maskBuffer) {
     try {
-      const dsmResult = await processDsm(dsmBuffer, maskBuffer, geo.lat, geo.lng)
+      // Fetch OSM building footprints for extension detection
+      let osmLocal: Array<{ polygon: Array<{ x: number; y: number }> }> = []
+      try {
+        const osmBuildings = await fetchOsmBuildings(geo.lat, geo.lng)
+        osmLocal = osmBuildings.map(b => ({ polygon: osmPolygonToLocal(b.polygon, geo.lat, geo.lng) }))
+      } catch (e) { /* non-blocking */ }
+
+      const dsmResult = await processDsm(dsmBuffer, maskBuffer, geo.lat, geo.lng, osmLocal)
       result = generateRoofReportFromDSM(dsmResult, geo.lat, geo.lng, eaveOverhangInches)
       geometrySource = 'dsm'
       logger.info('Roof geometry computed from DSM elevation data', {

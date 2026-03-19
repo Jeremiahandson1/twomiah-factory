@@ -563,6 +563,99 @@ function ransacMultiPlane(
   return filtered
 }
 
+// ---------------------------------------------------------------------------
+// Constrained RANSAC at concave footprint vertices
+// ---------------------------------------------------------------------------
+
+/**
+ * After global RANSAC, search for missed planes near concave footprint vertices.
+ *
+ * Extensions create concave corners in the footprint.  The extension's roof
+ * face is often small and at a similar angle to the adjacent main face, so
+ * global RANSAC absorbs its points into the main plane.
+ *
+ * Strategy:
+ * 1. Find concave vertices in the footprint
+ * 2. For each, define a search region (circle around the vertex)
+ * 3. Collect points in that region with HIGH residuals to existing planes
+ *    (these are the extension's points that don't fit the main face well)
+ * 4. Run a local RANSAC on those points with a tighter threshold
+ * 5. If a valid plane is found, add it to the planes list
+ */
+function constrainedRansacAtConcavities(
+  planes: DiscoveredPlane[],
+  allPoints: Pt3[],
+  footprint: Pt[],
+): void {
+  if (footprint.length < 5) return
+
+  // Ensure CCW winding
+  const signedArea = polygonAreaSigned(footprint)
+  const poly = signedArea >= 0 ? footprint : [...footprint].reverse()
+
+  for (let i = 0; i < poly.length; i++) {
+    const prev = poly[(i - 1 + poly.length) % poly.length]
+    const curr = poly[i]
+    const next = poly[(i + 1) % poly.length]
+
+    const cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x)
+    if (cross >= -0.1) continue // not concave enough
+
+    console.log(`[DSM] Concave vertex ${i} at (${curr.x.toFixed(2)}, ${curr.y.toFixed(2)}), cross=${cross.toFixed(3)}`)
+
+    // Define search region: 4m radius around the concave vertex
+    const searchRadius = 4.0
+    const regionPoints: Pt3[] = []
+
+    for (const pt of allPoints) {
+      const dx = pt.x - curr.x, dy = pt.y - curr.y
+      if (dx * dx + dy * dy > searchRadius * searchRadius) continue
+
+      // Check residual to ALL existing planes — keep points that don't
+      // fit well (residual > 0.10m), indicating they belong to a different plane
+      let minResidual = Infinity
+      for (const plane of planes) {
+        const predicted = plane.c0 + plane.a * pt.x + plane.b * pt.y
+        const residual = Math.abs(pt.z - predicted)
+        if (residual < minResidual) minResidual = residual
+      }
+
+      if (minResidual > 0.10) {
+        regionPoints.push(pt)
+      }
+    }
+
+    console.log(`[DSM] Concave vertex ${i}: ${regionPoints.length} high-residual points in search region`)
+    if (regionPoints.length < 8) continue
+
+    // Run local RANSAC with tighter threshold on these residual points
+    const localPlanes = ransacMultiPlane(regionPoints, {
+      maxPlanes: 1,
+      iterations: 300,
+      distanceThreshold: 0.12,
+      minInlierFraction: 0.3, // need at least 30% of the local points
+    })
+
+    if (localPlanes.length > 0) {
+      const p = localPlanes[0]
+      // Verify the plane is reasonable (not too steep, not duplicate)
+      if (p.pitchDeg > 55) continue
+      const isDuplicate = planes.some(existing => {
+        const aDiff = Math.abs(existing.a - p.a)
+        const bDiff = Math.abs(existing.b - p.b)
+        return aDiff < 0.05 && bDiff < 0.05
+      })
+      if (isDuplicate) {
+        console.log(`[DSM] Concave vertex ${i}: found plane but it's a duplicate of existing`)
+        continue
+      }
+
+      console.log(`[DSM] Concave vertex ${i}: NEW PLANE found! pitch=${p.pitchDeg.toFixed(1)}° azimuth=${p.azimuthDeg.toFixed(1)}° inliers=${p.inlierCount}`)
+      planes.push(p)
+    }
+  }
+}
+
 /**
  * Estimate ground area of a set of 3D points using convex hull.
  */
@@ -625,6 +718,7 @@ export async function processDsm(
   maskBuffer: Buffer,
   originLat: number,
   originLng: number,
+  osmBuildings?: Array<{ polygon: Array<{ x: number; y: number }> }>,
 ): Promise<DsmResult> {
   // 1. Parse GeoTIFFs
   const dsm = await parseGeoTiff(dsmBuffer)
@@ -678,6 +772,13 @@ export async function processDsm(
   if (planes.length === 0) {
     throw new Error('RANSAC could not fit any roof planes to the elevation data')
   }
+
+  // 4b. Constrained RANSAC: search for missed extension planes near concave
+  //     footprint vertices.  The global pass misses small planes that have a
+  //     similar angle to the adjacent main face.  By isolating points in the
+  //     concave region and looking only at residuals from existing planes,
+  //     we can detect the extension's separate surface.
+  constrainedRansacAtConcavities(planes, points, footprint)
 
   // 5. Build segment polygons by assigning each footprint point to the
   //    plane whose predicted z is closest to the actual DSM elevation.
