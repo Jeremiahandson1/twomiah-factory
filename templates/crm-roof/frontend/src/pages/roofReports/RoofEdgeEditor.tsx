@@ -69,24 +69,26 @@ type Mode = 'select' | 'add' | 'delete'
 function latLngToPixel(
   lat: number, lng: number,
   centerLat: number, centerLng: number, zoom: number,
+  imgW = 800, imgH = 600,
 ): { x: number; y: number } {
   const scale = Math.pow(2, zoom) * 256
   const worldX = (lng + 180) / 360 * scale
   const worldY = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * scale
   const centerWorldX = (centerLng + 180) / 360 * scale
   const centerWorldY = (1 - Math.log(Math.tan(centerLat * Math.PI / 180) + 1 / Math.cos(centerLat * Math.PI / 180)) / Math.PI) / 2 * scale
-  return { x: IMG_W / 2 + (worldX - centerWorldX), y: IMG_H / 2 + (worldY - centerWorldY) }
+  return { x: imgW / 2 + (worldX - centerWorldX), y: imgH / 2 + (worldY - centerWorldY) }
 }
 
 function pixelToLatLng(
   px: number, py: number,
   centerLat: number, centerLng: number, zoom: number,
+  imgW = 800, imgH = 600,
 ): { lat: number; lng: number } {
   const scale = Math.pow(2, zoom) * 256
   const centerWorldX = (centerLng + 180) / 360 * scale
   const centerWorldY = (1 - Math.log(Math.tan(centerLat * Math.PI / 180) + 1 / Math.cos(centerLat * Math.PI / 180)) / Math.PI) / 2 * scale
-  const worldX = centerWorldX + (px - IMG_W / 2)
-  const worldY = centerWorldY + (py - IMG_H / 2)
+  const worldX = centerWorldX + (px - imgW / 2)
+  const worldY = centerWorldY + (py - imgH / 2)
   const lng = worldX / scale * 360 - 180
   const n = Math.PI - 2 * Math.PI * worldY / scale
   const lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)))
@@ -118,8 +120,8 @@ export default function RoofEdgeEditor({
   // Convert API edges to pixel-space edges
   const apiToPixelEdges = useCallback((apiEdges: any[]): Edge[] => {
     return apiEdges.map((e, i) => {
-      const p1 = latLngToPixel(e.startLat || e.start?.lat, e.startLng || e.start?.lng, centerLat, centerLng, zoom)
-      const p2 = latLngToPixel(e.endLat || e.end?.lat, e.endLng || e.end?.lng, centerLat, centerLng, zoom)
+      const p1 = latLngToPixel(e.startLat || e.start?.lat, e.startLng || e.start?.lng, centerLat, centerLng, zoom, IMG_W, IMG_H)
+      const p2 = latLngToPixel(e.endLat || e.end?.lat, e.endLng || e.end?.lng, centerLat, centerLng, zoom, IMG_W, IMG_H)
       return {
         id: makeEdgeId(),
         type: e.type as EdgeType,
@@ -149,7 +151,7 @@ export default function RoofEdgeEditor({
   const segPolygons = useMemo(() => {
     return segments.map(seg => {
       if (!seg.polygon || seg.polygon.length < 3) return []
-      return seg.polygon.map(p => latLngToPixel(p.lat, p.lng, centerLat, centerLng, zoom))
+      return seg.polygon.map(p => latLngToPixel(p.lat, p.lng, centerLat, centerLng, zoom, IMG_W, IMG_H))
     })
   }, [segments, centerLat, centerLng, zoom])
 
@@ -255,8 +257,8 @@ export default function RoofEdgeEditor({
         setAddStart(pt)
       } else {
         // Create new edge
-        const ll1 = pixelToLatLng(addStart.x, addStart.y, centerLat, centerLng, zoom)
-        const ll2 = pixelToLatLng(pt.x, pt.y, centerLat, centerLng, zoom)
+        const ll1 = pixelToLatLng(addStart.x, addStart.y, centerLat, centerLng, zoom, IMG_W, IMG_H)
+        const ll2 = pixelToLatLng(pt.x, pt.y, centerLat, centerLng, zoom, IMG_W, IMG_H)
         const pxLen = pixelDistance(addStart.x, addStart.y, pt.x, pt.y)
         const lengthFt = Math.round(pixelsToFeet(pxLen, centerLat, zoom) * 10) / 10
         const newEdge: Edge = {
@@ -290,7 +292,7 @@ export default function RoofEdgeEditor({
       }
     }
 
-    const ll = pixelToLatLng(snapX, snapY, centerLat, centerLng, zoom)
+    const ll = pixelToLatLng(snapX, snapY, centerLat, centerLng, zoom, IMG_W, IMG_H)
     setEdges(prev => prev.map(edge => {
       if (edge.id !== dragState.edgeId) return edge
       const updated = { ...edge }
