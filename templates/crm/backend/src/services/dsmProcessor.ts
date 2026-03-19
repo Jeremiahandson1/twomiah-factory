@@ -444,9 +444,9 @@ function ransacMultiPlane(
 ): DiscoveredPlane[] {
   const {
     maxPlanes = 10,
-    iterations = 500,
-    distanceThreshold = 0.2,
-    minInlierFraction = 0.03,
+    iterations = 1000,
+    distanceThreshold = 0.12,
+    minInlierFraction = 0.02,
   } = options
 
   const minInliers = Math.max(15, Math.floor(points.length * minInlierFraction))
