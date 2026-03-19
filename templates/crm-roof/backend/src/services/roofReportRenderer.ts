@@ -91,8 +91,8 @@ const SEGMENT_FILL_COLORS = [
   'rgba(249,115,22,0.18)',
 ]
 
-const MAP_WIDTH = 800
-const MAP_HEIGHT = 600
+export const MAP_WIDTH = 800
+export const MAP_HEIGHT = 600
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -129,7 +129,7 @@ function zoomLevel(mapPx: number, worldPx: number, fraction: number): number {
   return Math.log(mapPx / worldPx / fraction) / Math.LN2
 }
 
-function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: number, imgHeight: number): number {
+export function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: number, imgHeight: number): number {
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
   for (const seg of segments) {
     if (!seg.polygon) continue
@@ -183,7 +183,7 @@ function latLngToPixel(
  * Fetch satellite image from Google Maps Static API and return as base64 data URL.
  * Used as FALLBACK when stored Solar API aerial imagery is not available.
  */
-async function fetchSatelliteImageBase64(lat: number, lng: number, zoom: number): Promise<string> {
+export async function fetchSatelliteImageBase64(lat: number, lng: number, zoom: number): Promise<string> {
   try {
     const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&maptype=satellite&key=${getApiKey()}`
     const res = await fetch(url)

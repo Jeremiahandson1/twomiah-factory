@@ -32,6 +32,8 @@ interface Props {
   centerLng: number
   zoom: number
   aerialImageUrl: string
+  mapWidth?: number
+  mapHeight?: number
   onSave: (edges: any[], measurements: any) => Promise<void>
   onRevert?: () => Promise<void>
   userEdited?: boolean
@@ -40,9 +42,6 @@ interface Props {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const IMG_W = 640
-const IMG_H = 640
 
 const EDGE_COLORS: Record<EdgeType, string> = {
   ridge: '#E53E3E',
@@ -112,8 +111,10 @@ function makeEdgeId(): string { return `e-${nextEdgeId++}-${Date.now()}` }
 
 export default function RoofEdgeEditor({
   reportId, edges: initialEdges, segments, centerLat, centerLng, zoom,
-  aerialImageUrl, onSave, onRevert, userEdited,
+  aerialImageUrl, mapWidth = 800, mapHeight = 600, onSave, onRevert, userEdited,
 }: Props) {
+  const IMG_W = mapWidth
+  const IMG_H = mapHeight
   // Convert API edges to pixel-space edges
   const apiToPixelEdges = useCallback((apiEdges: any[]): Edge[] => {
     return apiEdges.map((e, i) => {
@@ -411,7 +412,7 @@ export default function RoofEdgeEditor({
         </div>
 
         {/* SVG Canvas */}
-        <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow-lg border" style={{ aspectRatio: '1/1' }}>
+        <div className="relative bg-gray-900 rounded-lg overflow-hidden shadow-lg border" style={{ aspectRatio: `${IMG_W}/${IMG_H}` }}>
           <svg
             ref={svgRef}
             viewBox={`0 0 ${IMG_W} ${IMG_H}`}

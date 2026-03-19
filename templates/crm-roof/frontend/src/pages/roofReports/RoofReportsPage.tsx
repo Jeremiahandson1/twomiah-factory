@@ -221,10 +221,8 @@ export default function RoofReportsPage() {
 
   // --- Preview/Editor view ---
   if (preview) {
-    const aerialFilename = preview.aerialImagePath?.split('/').pop() || ''
-    const aerialUrl = `/api/roof-reports/preview-aerial/${aerialFilename}`
-    // Compute zoom level for the editor (same as renderer uses)
-    const zoom = 20 // Default high zoom for roof imagery
+    const aerialUrl = preview.satelliteImageBase64 || `/api/roof-reports/preview-aerial/${(preview.aerialImagePath?.split('/').pop() || '')}`
+    const zoom = preview.zoom || 20
 
     return (
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
@@ -260,6 +258,8 @@ export default function RoofReportsPage() {
           centerLng={preview.geo.lng}
           zoom={zoom}
           aerialImageUrl={aerialUrl}
+          mapWidth={preview.mapWidth || 800}
+          mapHeight={preview.mapHeight || 600}
           onSave={handleFinalize}
         />
       </div>

@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { roofReport, contact, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { generateRoofReport, generateRoofReportFromDSM } from '../services/roofReport.ts'
-import { generateReportHTML, generateReportPDF } from '../services/roofReportRenderer.ts'
+import { generateReportHTML, generateReportPDF, computeOptimalZoom, fetchSatelliteImageBase64, MAP_WIDTH, MAP_HEIGHT } from '../services/roofReportRenderer.ts'
 import { geocodeAddress, getBuildingInsights, getDataLayers, downloadGeoTiff, formatSolarDate, isSummerImagery } from '../services/googleSolar.ts'
 import { processDsm } from '../services/dsmProcessor.ts'
 import logger from '../services/logger.ts'
@@ -287,7 +287,11 @@ async function generateReportPreview(
     polygon: s.polygon.vertices,
   }))
 
-  return { geo, quality, imageryDate, aerialImagePath, roofMaskPath, edges, segments, measurements, totalAreaSqft: result.totalAreaSqft, totalSquares: result.totalSquares, rawSolarData: buildingInsights, geometrySource }
+  // Compute zoom and fetch satellite image for the editor overlay
+  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
+  const satelliteImageBase64 = await fetchSatelliteImageBase64(geo.lat, geo.lng, zoom)
+
+  return { geo, quality, imageryDate, aerialImagePath, roofMaskPath, edges, segments, measurements, totalAreaSqft: result.totalAreaSqft, totalSquares: result.totalSquares, rawSolarData: buildingInsights, geometrySource, zoom, satelliteImageBase64, mapWidth: MAP_WIDTH, mapHeight: MAP_HEIGHT }
 }
 
 // ---------------------------------------------------------------------------
