@@ -255,6 +255,126 @@ function areSegmentsAdjacent(polyA: Pt[], polyB: Pt[], threshold = 3): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Trim internal edges at mutual crossings
+// ---------------------------------------------------------------------------
+
+/**
+ * Trim overlapping internal edges so they meet at junction points instead
+ * of spanning the full footprint.
+ *
+ * On a hip roof, the ridge (W-E intersection) spans the full N-S extent
+ * of the footprint, but should stop at the two hip junctions.  Each hip
+ * similarly extends past the ridge.
+ *
+ * Algorithm:
+ * 1. Convert all edges to local coordinates
+ * 2. For each pair of edges, find where they cross
+ * 3. For each edge, collect all crossing points along it
+ * 4. Trim the edge to the segment between its two outermost crossings
+ *    (or between a crossing and the nearest footprint intersection)
+ *
+ * In practice, for a standard hip roof this trims the ridge from
+ * full-footprint-span down to just the section between the two hip junctions.
+ */
+function trimEdgesAtCrossings(
+  edges: ClassifiedEdge[],
+  originLat: number,
+  originLng: number,
+): void {
+  if (edges.length < 2) return
+
+  // Convert to local coords for intersection math
+  const locals = edges.map(e => ({
+    p1: latLngToLocal(e.start.lat, e.start.lng, originLat, originLng),
+    p2: latLngToLocal(e.end.lat, e.end.lng, originLat, originLng),
+  }))
+
+  // For each edge, collect t-parameters where other edges cross it
+  const crossings: number[][] = edges.map(() => [])
+
+  for (let i = 0; i < edges.length; i++) {
+    for (let j = i + 1; j < edges.length; j++) {
+      const hit = segmentSegmentIntersect(
+        locals[i].p1, locals[i].p2,
+        locals[j].p1, locals[j].p2,
+      )
+      if (hit) {
+        crossings[i].push(hit.tA)
+        crossings[j].push(hit.tB)
+      }
+    }
+  }
+
+  // Trim each edge that has crossings
+  for (let i = 0; i < edges.length; i++) {
+    const pts = crossings[i]
+    if (pts.length === 0) continue
+
+    // Sort crossing t-values
+    pts.sort((a, b) => a - b)
+
+    // For ridge/hip edges, the real edge runs between the crossing points
+    // (e.g. ridge between two hip junctions).  For edges with only one
+    // crossing, trim from that crossing to the nearer original endpoint.
+    const e = edges[i]
+    const lp = locals[i]
+
+    let tMin: number, tMax: number
+    if (pts.length >= 2) {
+      // Edge between outermost crossings
+      tMin = pts[0]
+      tMax = pts[pts.length - 1]
+    } else {
+      // Single crossing — keep from crossing to the nearest original end
+      const t = pts[0]
+      // Keep the longer segment
+      tMin = t <= 0.5 ? t : 0
+      tMax = t <= 0.5 ? 1 : t
+    }
+
+    // Clamp to [0, 1]
+    tMin = Math.max(0, tMin)
+    tMax = Math.min(1, tMax)
+    if (tMax - tMin < 0.05) continue // too short after trimming
+
+    // Update edge endpoints
+    const newP1: Pt = {
+      x: lp.p1.x + tMin * (lp.p2.x - lp.p1.x),
+      y: lp.p1.y + tMin * (lp.p2.y - lp.p1.y),
+    }
+    const newP2: Pt = {
+      x: lp.p1.x + tMax * (lp.p2.x - lp.p1.x),
+      y: lp.p1.y + tMax * (lp.p2.y - lp.p1.y),
+    }
+
+    e.start = localToLatLng(newP1, originLat, originLng)
+    e.end = localToLatLng(newP2, originLat, originLng)
+    e.lengthFt = Math.round(dist2D(newP1, newP2) * M_TO_FT * 10) / 10
+  }
+}
+
+/** Find where two line segments cross. Returns t-parameters on each segment, or null. */
+function segmentSegmentIntersect(
+  a1: Pt, a2: Pt, b1: Pt, b2: Pt,
+): { tA: number; tB: number; point: Pt } | null {
+  const dx1 = a2.x - a1.x, dy1 = a2.y - a1.y
+  const dx2 = b2.x - b1.x, dy2 = b2.y - b1.y
+  const denom = dx1 * dy2 - dy1 * dx2
+  if (Math.abs(denom) < 1e-10) return null // parallel
+
+  const tA = ((b1.x - a1.x) * dy2 - (b1.y - a1.y) * dx2) / denom
+  const tB = ((b1.x - a1.x) * dy1 - (b1.y - a1.y) * dx1) / denom
+
+  // Must be within both segments (with small margin)
+  if (tA < 0.01 || tA > 0.99 || tB < 0.01 || tB > 0.99) return null
+
+  return {
+    tA, tB,
+    point: { x: a1.x + tA * dx1, y: a1.y + tA * dy1 },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Footprint-based valley detection
 // ---------------------------------------------------------------------------
 
@@ -551,15 +671,18 @@ function classifySharedEdge(
  * Classify a perimeter (non-shared) edge as eave or rake.
  * Eaves run perpendicular to the slope direction (across the bottom/top).
  * Rakes run parallel to the slope direction (up the sides).
+ *
+ * @param isHipRoof - if true, all perimeter edges are eave (hip roofs have
+ *   no rakes — the gable end is replaced by hip faces)
  */
-function classifyPerimeterEdge(start: Pt, end: Pt, azimuthDeg: number): 'rake' | 'eave' {
+function classifyPerimeterEdge(start: Pt, end: Pt, azimuthDeg: number, isHipRoof = false): 'rake' | 'eave' {
+  if (isHipRoof) return 'eave'
   const edgeDx = end.x - start.x
   const edgeDy = end.y - start.y
-  // Edge bearing: 0° = North, 90° = East (same convention as azimuth)
   const edgeBearing = normalizeAngle(toDegrees(Math.atan2(edgeDx, edgeDy)))
   const diff = azimuthDifference(edgeBearing, azimuthDeg)
   // Parallel to slope direction → rake; perpendicular → eave
-  return (diff < 30 || diff > 150) ? 'rake' : 'eave'
+  return (diff < 25 || diff > 155) ? 'rake' : 'eave'
 }
 
 // ---------------------------------------------------------------------------
@@ -973,19 +1096,31 @@ export function generateRoofReportFromDSM(
     }
   }
 
+  // --- Trim internal edges at mutual crossings ---
+  // Each plane-plane intersection line is clipped to the full footprint, but
+  // edges should stop where they meet other edges (e.g. ridge stops at hip
+  // junctions).  Find all crossing points and trim accordingly.
+  trimEdgesAtCrossings(edges, originLat, originLng)
+
   // --- Footprint-based valley detection ---
-  // Convert existing internal edges to local coords for intersection testing
+  // Use the ORIGINAL footprint (before overhang expansion) so concave vertices
+  // from extensions aren't smoothed away by the expansion.
   const internalEdgesLocal = edges.map(e => ({
     type: e.type,
     p1: latLngToLocal(e.start.lat, e.start.lng, originLat, originLng),
     p2: latLngToLocal(e.end.lat, e.end.lng, originLat, originLng),
   }))
+  const originalFootprint = [...dsm.footprint]
   const footprintValleys = detectFootprintValleys(
-    footprint, internalEdgesLocal, segmentPolygons, dsm.planes, originLat, originLng,
+    originalFootprint, internalEdgesLocal, segmentPolygons, dsm.planes, originLat, originLng,
   )
   edges.push(...footprintValleys)
 
   // --- Perimeter edges: footprint boundary ---
+  // Detect hip roof: 4+ segments with azimuths covering N, S, E, W quadrants
+  const azQuadrants = new Set(dsm.planes.map(p => Math.floor(((p.azimuthDeg + 45) % 360) / 90)))
+  const isHipRoof = dsm.planes.length >= 4 && azQuadrants.size >= 4
+
   for (let v = 0; v < footprint.length; v++) {
     const p1 = footprint[v]
     const p2 = footprint[(v + 1) % footprint.length]
@@ -1007,7 +1142,7 @@ export function generateRoofReportFromDSM(
       if (d < nearestDist) { nearestDist = d; nearestSeg = s }
     }
 
-    const type = classifyPerimeterEdge(p1, p2, dsm.planes[nearestSeg].azimuthDeg)
+    const type = classifyPerimeterEdge(p1, p2, dsm.planes[nearestSeg].azimuthDeg, isHipRoof)
     edges.push({ type, start, end, lengthFt, segmentA: nearestSeg })
   }
 
