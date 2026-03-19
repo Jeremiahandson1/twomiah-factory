@@ -280,6 +280,7 @@ function trimEdgesAtCrossings(
   edges: ClassifiedEdge[],
   originLat: number,
   originLng: number,
+  segmentPolygons: Pt[][] = [],
 ): void {
   if (edges.length < 2) return
 
@@ -305,39 +306,69 @@ function trimEdgesAtCrossings(
     }
   }
 
-  // Trim each edge that has crossings
+  // Trim each edge that has crossings.
+  // - Ridge with 2 crossings: trim to span between crossings only
+  // - Hip with 1 crossing: keep from crossing to footprint boundary (DON'T trim)
   for (let i = 0; i < edges.length; i++) {
     const pts = crossings[i]
-    if (pts.length === 0) continue
+    if (pts.length < 2) continue // Only trim edges with 2+ crossings (ridges)
 
-    // Sort crossing t-values
     pts.sort((a, b) => a - b)
 
-    // For ridge/hip edges, the real edge runs between the crossing points
-    // (e.g. ridge between two hip junctions).  For edges with only one
-    // crossing, trim from that crossing to the nearer original endpoint.
     const e = edges[i]
     const lp = locals[i]
+    const tMin = Math.max(0, pts[0])
+    const tMax = Math.min(1, pts[pts.length - 1])
+    if (tMax - tMin < 0.05) continue
 
-    let tMin: number, tMax: number
-    if (pts.length >= 2) {
-      // Edge between outermost crossings
-      tMin = pts[0]
-      tMax = pts[pts.length - 1]
-    } else {
-      // Single crossing — keep from crossing to the nearest original end
-      const t = pts[0]
-      // Keep the longer segment
-      tMin = t <= 0.5 ? t : 0
-      tMax = t <= 0.5 ? 1 : t
+    const newP1: Pt = {
+      x: lp.p1.x + tMin * (lp.p2.x - lp.p1.x),
+      y: lp.p1.y + tMin * (lp.p2.y - lp.p1.y),
+    }
+    const newP2: Pt = {
+      x: lp.p1.x + tMax * (lp.p2.x - lp.p1.x),
+      y: lp.p1.y + tMax * (lp.p2.y - lp.p1.y),
     }
 
-    // Clamp to [0, 1]
-    tMin = Math.max(0, tMin)
-    tMax = Math.min(1, tMax)
-    if (tMax - tMin < 0.05) continue // too short after trimming
+    e.start = localToLatLng(newP1, originLat, originLng)
+    e.end = localToLatLng(newP2, originLat, originLng)
+    e.lengthFt = Math.round(dist2D(newP1, newP2) * M_TO_FT * 10) / 10
+  }
 
-    // Update edge endpoints
+  // For hips with 1 crossing (meets the ridge), trim the spurious end
+  // that extends past the ridge onto the wrong side.
+  for (let i = 0; i < edges.length; i++) {
+    if (crossings[i].length !== 1) continue
+    const e = edges[i]
+    if (e.type !== 'hip') continue
+
+    const t = crossings[i][0]
+    const lp = locals[i]
+
+    // Two candidate segments: [0, t] and [t, 1]
+    // The real hip is the one whose midpoint is in the region of both
+    // bordering segments. Use segment polygon centroids as proxy.
+    const segA = e.segmentA ?? 0
+    const segB = e.segmentB ?? 0
+    const cA = polygonCentroid(segmentPolygons[segA])
+    const cB = polygonCentroid(segmentPolygons[segB])
+
+    const midLow: Pt = { x: lp.p1.x + (t / 2) * (lp.p2.x - lp.p1.x), y: lp.p1.y + (t / 2) * (lp.p2.y - lp.p1.y) }
+    const midHigh: Pt = { x: lp.p1.x + ((t + 1) / 2) * (lp.p2.x - lp.p1.x), y: lp.p1.y + ((t + 1) / 2) * (lp.p2.y - lp.p1.y) }
+
+    // Score: sum of distances to both segment centroids (lower = better)
+    const scoreLow = dist2D(midLow, cA) + dist2D(midLow, cB)
+    const scoreHigh = dist2D(midHigh, cA) + dist2D(midHigh, cB)
+
+    let tMin: number, tMax: number
+    if (scoreLow < scoreHigh) {
+      tMin = 0; tMax = t
+    } else {
+      tMin = t; tMax = 1
+    }
+
+    if (tMax - tMin < 0.05) continue
+
     const newP1: Pt = {
       x: lp.p1.x + tMin * (lp.p2.x - lp.p1.x),
       y: lp.p1.y + tMin * (lp.p2.y - lp.p1.y),
@@ -396,13 +427,15 @@ function detectFootprintValleys(
   originLat: number,
   originLng: number,
 ): ClassifiedEdge[] {
-  if (footprint.length < 5) return [] // need at least 5 vertices for a concavity
+  console.log(`[Roof] Valley detection: footprint has ${footprint.length} vertices`)
+  if (footprint.length < 5) return []
 
   const valleys: ClassifiedEdge[] = []
 
   // Ensure CCW winding (positive signed area)
   const signedArea = polygonAreaSigned(footprint)
   const poly = signedArea >= 0 ? footprint : [...footprint].reverse()
+  console.log(`[Roof] Valley detection: signed area=${signedArea.toFixed(2)}, winding=${signedArea >= 0 ? 'CCW' : 'CW→reversed'}`)
 
   for (let i = 0; i < poly.length; i++) {
     const prev = poly[(i - 1 + poly.length) % poly.length]
@@ -411,7 +444,8 @@ function detectFootprintValleys(
 
     // Cross product: positive = CCW (convex), negative = CW (concave)
     const cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x)
-    if (cross >= -0.01) continue // not concave (small threshold for numerical noise)
+    console.log(`[Roof] Vertex ${i}: cross=${cross.toFixed(4)} (${cross < -0.01 ? 'CONCAVE' : 'convex'}) at (${curr.x.toFixed(2)}, ${curr.y.toFixed(2)})`)
+    if (cross >= -0.01) continue // not concave
 
     // Compute inward bisector direction
     const d1x = prev.x - curr.x, d1y = prev.y - curr.y
@@ -1100,7 +1134,7 @@ export function generateRoofReportFromDSM(
   // Each plane-plane intersection line is clipped to the full footprint, but
   // edges should stop where they meet other edges (e.g. ridge stops at hip
   // junctions).  Find all crossing points and trim accordingly.
-  trimEdgesAtCrossings(edges, originLat, originLng)
+  trimEdgesAtCrossings(edges, originLat, originLng, segmentPolygons)
 
   // --- Footprint-based valley detection ---
   // Use the ORIGINAL footprint (before overhang expansion) so concave vertices
