@@ -449,12 +449,16 @@ function ransacMultiPlane(
     minInlierFraction = 0.02,
   } = options
 
-  const minInliers = Math.max(15, Math.floor(points.length * minInlierFraction))
+  const minInliers = Math.max(10, Math.floor(points.length * minInlierFraction))
   const planes: DiscoveredPlane[] = []
   let remaining = [...points]
+  console.log(`[DSM] RANSAC: ${points.length} total points, minInliers=${minInliers}, threshold=${distanceThreshold}m`)
 
   for (let planeNum = 0; planeNum < maxPlanes; planeNum++) {
-    if (remaining.length < minInliers) break
+    if (remaining.length < minInliers) {
+      console.log(`[DSM] RANSAC: stopping — only ${remaining.length} points remain (need ${minInliers})`)
+      break
+    }
 
     let bestPlane: { a: number; b: number; c0: number } | null = null
     let bestInlierCount = 0
@@ -488,7 +492,11 @@ function ransacMultiPlane(
       }
     }
 
-    if (!bestPlane || bestInlierCount < minInliers) break
+    if (!bestPlane || bestInlierCount < minInliers) {
+      console.log(`[DSM] RANSAC pass ${planeNum}: no plane found (best=${bestInlierCount} inliers, need ${minInliers}, remaining=${remaining.length})`)
+      break
+    }
+    console.log(`[DSM] RANSAC pass ${planeNum}: found plane with ${bestInlierCount} inliers from ${remaining.length} remaining`)
 
     // Refine with least-squares on all inliers
     const inlierPts = remaining.filter((_, i) => bestInlierMask[i])
