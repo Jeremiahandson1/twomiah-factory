@@ -733,6 +733,10 @@ export const roofReport = pgTable('roof_report', {
   measurements: json('measurements').notNull(),
   rawSolarData: json('raw_solar_data'),
 
+  userEdited: boolean('user_edited').default(false).notNull(),
+  originalEdges: json('original_edges'),
+  originalMeasurements: json('original_measurements'),
+
   status: text('status').default('paid').notNull(),
   stripePaymentIntentId: text('stripe_payment_intent_id'),
   amountCharged: decimal('amount_charged', { precision: 10, scale: 2 }).default('9.99'),

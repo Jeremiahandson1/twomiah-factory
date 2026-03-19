@@ -254,6 +254,137 @@ function areSegmentsAdjacent(polyA: Pt[], polyB: Pt[], threshold = 3): boolean {
   return false
 }
 
+// ---------------------------------------------------------------------------
+// Footprint-based valley detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect valleys from concave vertices in the footprint polygon.
+ *
+ * On a hip roof with an L/T-shaped footprint, valleys form at concave corners
+ * where two wings of the building meet.  The valley line runs inward from the
+ * concave vertex along the angle bisector until it hits the opposite footprint
+ * edge or an existing internal edge (ridge/hip).
+ *
+ * This is deterministic and doesn't depend on RANSAC plane separation.
+ */
+function detectFootprintValleys(
+  footprint: Pt[],
+  existingEdges: { type: string; p1: Pt; p2: Pt }[],
+  segmentPolygons: Pt[][],
+  planes: { azimuthDeg: number }[],
+  originLat: number,
+  originLng: number,
+): ClassifiedEdge[] {
+  if (footprint.length < 5) return [] // need at least 5 vertices for a concavity
+
+  const valleys: ClassifiedEdge[] = []
+
+  // Ensure CCW winding (positive signed area)
+  const signedArea = polygonAreaSigned(footprint)
+  const poly = signedArea >= 0 ? footprint : [...footprint].reverse()
+
+  for (let i = 0; i < poly.length; i++) {
+    const prev = poly[(i - 1 + poly.length) % poly.length]
+    const curr = poly[i]
+    const next = poly[(i + 1) % poly.length]
+
+    // Cross product: positive = CCW (convex), negative = CW (concave)
+    const cross = (curr.x - prev.x) * (next.y - curr.y) - (curr.y - prev.y) * (next.x - curr.x)
+    if (cross >= -0.01) continue // not concave (small threshold for numerical noise)
+
+    // Compute inward bisector direction
+    const d1x = prev.x - curr.x, d1y = prev.y - curr.y
+    const d2x = next.x - curr.x, d2y = next.y - curr.y
+    const len1 = Math.sqrt(d1x * d1x + d1y * d1y) || 1
+    const len2 = Math.sqrt(d2x * d2x + d2y * d2y) || 1
+    const bisX = d1x / len1 + d2x / len2
+    const bisY = d1y / len1 + d2y / len2
+    const bisLen = Math.sqrt(bisX * bisX + bisY * bisY)
+    if (bisLen < 1e-6) continue
+    const dirX = bisX / bisLen
+    const dirY = bisY / bisLen
+
+    // Ray-cast from concave vertex in bisector direction.
+    // Find the nearest intersection with a footprint edge (excluding the two
+    // edges adjacent to this vertex) or an existing internal edge.
+    let bestT = Infinity
+    let bestHit: Pt | null = null
+
+    // Intersect with footprint edges
+    for (let e = 0; e < poly.length; e++) {
+      // Skip edges adjacent to the concave vertex
+      if (e === i || e === (i - 1 + poly.length) % poly.length) continue
+      const ep1 = poly[e]
+      const ep2 = poly[(e + 1) % poly.length]
+      const hit = raySegmentIntersect(curr, dirX, dirY, ep1, ep2)
+      if (hit !== null && hit.t > 0.3 && hit.t < bestT) {
+        bestT = hit.t
+        bestHit = hit.point
+      }
+    }
+
+    // Intersect with existing internal edges (ridge/hip)
+    for (const edge of existingEdges) {
+      if (edge.type !== 'ridge' && edge.type !== 'hip') continue
+      const hit = raySegmentIntersect(curr, dirX, dirY, edge.p1, edge.p2)
+      if (hit !== null && hit.t > 0.3 && hit.t < bestT) {
+        bestT = hit.t
+        bestHit = hit.point
+      }
+    }
+
+    if (!bestHit || bestT < 0.5) continue // too short
+
+    const lengthM = dist2D(curr, bestHit)
+    if (lengthM < 0.5) continue
+
+    const lengthFt = Math.round(lengthM * M_TO_FT * 10) / 10
+    const start = localToLatLng(curr, originLat, originLng)
+    const end = localToLatLng(bestHit, originLat, originLng)
+
+    // Determine which segments border this valley
+    const mid: Pt = { x: (curr.x + bestHit.x) / 2, y: (curr.y + bestHit.y) / 2 }
+    const perpX = -dirY, perpY = dirX // perpendicular to valley line
+    const testA: Pt = { x: mid.x + perpX * 0.5, y: mid.y + perpY * 0.5 }
+    const testB: Pt = { x: mid.x - perpX * 0.5, y: mid.y - perpY * 0.5 }
+    const segA = nearestSegment(testA, segmentPolygons)
+    const segB = nearestSegment(testB, segmentPolygons)
+
+    valleys.push({ type: 'valley', start, end, lengthFt, segmentA: segA, segmentB: segB })
+    console.log(`[Roof] Footprint valley detected: ${lengthFt}' from concave vertex ${i}`)
+  }
+
+  return valleys
+}
+
+/** Find nearest segment polygon to a point (by centroid distance). */
+function nearestSegment(pt: Pt, segmentPolygons: Pt[][]): number {
+  let best = 0, bestDist = Infinity
+  for (let s = 0; s < segmentPolygons.length; s++) {
+    if (segmentPolygons[s].length < 3) continue
+    const c = polygonCentroid(segmentPolygons[s])
+    const d = dist2D(pt, c)
+    if (d < bestDist) { bestDist = d; best = s }
+  }
+  return best
+}
+
+/** Ray-segment intersection. Ray from origin in direction (dx,dy), segment p1→p2. */
+function raySegmentIntersect(
+  origin: Pt, dx: number, dy: number, p1: Pt, p2: Pt,
+): { t: number; point: Pt } | null {
+  const ex = p2.x - p1.x, ey = p2.y - p1.y
+  const denom = dx * ey - dy * ex
+  if (Math.abs(denom) < 1e-10) return null // parallel
+
+  const t = ((p1.x - origin.x) * ey - (p1.y - origin.y) * ex) / denom
+  const u = ((p1.x - origin.x) * dy - (p1.y - origin.y) * dx) / denom
+
+  if (t < 0 || u < 0 || u > 1) return null
+  return { t, point: { x: origin.x + dx * t, y: origin.y + dy * t } }
+}
+
 /** Centroid of a polygon (average of vertices). */
 function polygonCentroid(poly: Pt[]): Pt {
   if (poly.length === 0) return { x: 0, y: 0 }
@@ -841,6 +972,18 @@ export function generateRoofReportFromDSM(
       edges.push({ type, start, end, lengthFt, segmentA: i, segmentB: j })
     }
   }
+
+  // --- Footprint-based valley detection ---
+  // Convert existing internal edges to local coords for intersection testing
+  const internalEdgesLocal = edges.map(e => ({
+    type: e.type,
+    p1: latLngToLocal(e.start.lat, e.start.lng, originLat, originLng),
+    p2: latLngToLocal(e.end.lat, e.end.lng, originLat, originLng),
+  }))
+  const footprintValleys = detectFootprintValleys(
+    footprint, internalEdgesLocal, segmentPolygons, dsm.planes, originLat, originLng,
+  )
+  edges.push(...footprintValleys)
 
   // --- Perimeter edges: footprint boundary ---
   for (let v = 0; v < footprint.length; v++) {

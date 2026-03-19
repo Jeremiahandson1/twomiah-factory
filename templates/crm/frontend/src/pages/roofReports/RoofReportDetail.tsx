@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { ArrowLeft, Download, ExternalLink, MapPin } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink, MapPin, Edit, Eye } from 'lucide-react'
 import api from '../../services/api'
+import RoofEdgeEditor from './RoofEdgeEditor'
 
 interface RoofReport {
   id: string
@@ -11,9 +12,12 @@ interface RoofReport {
   city: string
   state: string
   zip: string
+  lat: number
+  lng: number
   totalAreaSqft: number
   totalSquares: number
   segments: any[]
+  edges: any[]
   measurements: {
     ridgeLF: number
     valleyLF: number
@@ -25,6 +29,7 @@ interface RoofReport {
     squaresWithWaste: number
     iceWaterShieldSqft: number
   }
+  userEdited?: boolean
   createdAt: string
 }
 
@@ -36,6 +41,7 @@ export default function RoofReportDetail() {
 
   const [report, setReport] = useState<RoofReport | null>(null)
   const [loading, setLoading] = useState(true)
+  const [editMode, setEditMode] = useState(false)
 
   useEffect(() => {
     loadReport()

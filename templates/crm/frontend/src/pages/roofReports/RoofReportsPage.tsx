@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FileBarChart, Plus, Trash2, Eye, Download, MapPin, Calendar, DollarSign, Loader2 } from 'lucide-react'
+import { FileBarChart, Plus, Trash2, Eye, Download, MapPin, Calendar, DollarSign, Loader2, ArrowLeft, Check } from 'lucide-react'
 import api from '../../services/api'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
+import RoofEdgeEditor from './RoofEdgeEditor'
 
 interface RoofReport {
   id: string
@@ -50,6 +51,8 @@ export default function RoofReportsPage() {
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [form, setForm] = useState({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: 12 })
+  const [preview, setPreview] = useState<any>(null)
+  const [finalizing, setFinalizing] = useState(false)
 
   useEffect(() => {
     loadReports()
@@ -134,11 +137,14 @@ export default function RoofReportsPage() {
         }),
       })
 
-      if (result.free) {
-        // No Stripe configured — report generated for free
+      if (result.free && result.preview) {
+        // No Stripe — show editor preview for review/adjustment
+        setPreview(result.preview)
+        setShowForm(false)
+      } else if (result.free && result.report) {
+        // Legacy fallback
         toast.success('Roof report generated!')
         setShowForm(false)
-        setForm({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: 12 })
         loadReports()
       } else if (result.checkoutUrl) {
         // Redirect to Stripe Checkout
@@ -190,6 +196,72 @@ export default function RoofReportsPage() {
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
         <p className="text-gray-600 font-medium">Generating your roof report...</p>
         <p className="text-sm text-gray-400">Analyzing satellite imagery and computing measurements</p>
+      </div>
+    )
+  }
+
+  // --- Finalize: save preview + user's edges to DB ---
+  const handleFinalize = async (edges: any[], measurements: any) => {
+    setFinalizing(true)
+    try {
+      await api.request('/api/roof-reports/finalize', {
+        method: 'POST',
+        body: JSON.stringify({ preview, edges, measurements }),
+      })
+      toast.success('Roof report created!')
+      setPreview(null)
+      setForm({ address: '', city: '', state: '', zip: '', contactId: '', eaveOverhangInches: 12 })
+      loadReports()
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to create report')
+    } finally {
+      setFinalizing(false)
+    }
+  }
+
+  // --- Preview/Editor view ---
+  if (preview) {
+    const aerialFilename = preview.aerialImagePath?.split('/').pop() || ''
+    const aerialUrl = `/api/roof-reports/preview-aerial/${aerialFilename}`
+    // Compute zoom level for the editor (same as renderer uses)
+    const zoom = 20 // Default high zoom for roof imagery
+
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+        <button
+          onClick={() => setPreview(null)}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Review Roof Measurements</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              {preview.address}, {preview.city}, {preview.state} {preview.zip} — Adjust lines as needed, then create report.
+            </p>
+          </div>
+          <button
+            onClick={() => handleFinalize(preview.edges, preview.measurements)}
+            disabled={finalizing}
+            className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {finalizing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            {finalizing ? 'Creating...' : 'Create Report'}
+          </button>
+        </div>
+
+        <RoofEdgeEditor
+          reportId="preview"
+          edges={preview.edges}
+          segments={preview.segments}
+          centerLat={preview.geo.lat}
+          centerLng={preview.geo.lng}
+          zoom={zoom}
+          aerialImageUrl={aerialUrl}
+          onSave={handleFinalize}
+        />
       </div>
     )
   }

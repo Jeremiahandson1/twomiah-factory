@@ -157,23 +157,37 @@ async function compositeAerialWithMask(
   }
 }
 
-export async function generateAndSaveReport(
+// ---------------------------------------------------------------------------
+// Step 1: Generate preview data (geometry + imagery) without saving to DB
+// ---------------------------------------------------------------------------
+
+interface PreviewData {
+  geo: { lat: number; lng: number }
+  quality: string
+  imageryDate: string | null
+  aerialImagePath: string | null
+  roofMaskPath: string | null
+  edges: any[]
+  segments: any[]
+  measurements: any
+  totalAreaSqft: number
+  totalSquares: number
+  rawSolarData: any
+  geometrySource: string
+}
+
+async function generateReportPreview(
   companyId: string,
   address: string,
   city: string,
   state: string,
   zip: string,
-  contactId?: string,
-  stripePaymentIntentId?: string,
   eaveOverhangInches = 12,
-) {
+): Promise<PreviewData> {
   const geo = await geocodeAddress(address, city, state, zip)
   const buildingInsights = await getBuildingInsights(geo.lat, geo.lng)
   const quality = buildingInsights.imageryQuality || 'MEDIUM'
 
-  // ---------------------------------------------------------------------------
-  // Fetch high-resolution aerial imagery, roof mask, and DSM from dataLayers
-  // ---------------------------------------------------------------------------
   let aerialImagePath: string | null = null
   let roofMaskPath: string | null = null
   let imageryDate: string | null = null
@@ -192,11 +206,9 @@ export async function generateAndSaveReport(
 
     const filePrefix = `${companyId.slice(0, 8)}-${Date.now()}`
 
-    // Download aerial RGB GeoTIFF → convert to PNG
     const rgbPngPath = path.join(UPLOADS_DIR, `${filePrefix}-aerial.png`)
     aerialImagePath = await downloadAndConvertToPng(dataLayers.rgbUrl, rgbPngPath)
 
-    // Download DSM GeoTIFF (elevation data for plane fitting)
     if (dataLayers.dsmUrl) {
       try {
         dsmBuffer = await downloadGeoTiff(dataLayers.dsmUrl)
@@ -206,22 +218,17 @@ export async function generateAndSaveReport(
       }
     }
 
-    // Download roof mask GeoTIFF (for footprint + composite image)
     if (dataLayers.maskUrl) {
       try {
         maskBuffer = await downloadGeoTiff(dataLayers.maskUrl)
-
         const maskPngPath = path.join(UPLOADS_DIR, `${filePrefix}-mask.png`)
         await sharp(maskBuffer).png().toFile(maskPngPath)
         roofMaskPath = maskPngPath
 
-        // Create composite: aerial + roof mask highlight
         if (aerialImagePath) {
           const compositePath = path.join(UPLOADS_DIR, `${filePrefix}-composite.png`)
           const compositeResult = await compositeAerialWithMask(rgbPngPath, maskBuffer, compositePath)
-          if (compositeResult) {
-            aerialImagePath = compositeResult
-          }
+          if (compositeResult) aerialImagePath = compositeResult
         }
       } catch (maskErr: any) {
         logger.warn('Roof mask download/processing failed (non-blocking)', { error: maskErr.message })
@@ -233,18 +240,11 @@ export async function generateAndSaveReport(
       hasAerial: !!aerialImagePath, hasMask: !!maskBuffer, hasDsm: !!dsmBuffer,
     })
   } catch (dataLayerErr: any) {
-    logger.warn('DataLayers API failed — falling back to metadata-based geometry', {
-      error: dataLayerErr.message, address,
-    })
-    if (buildingInsights.imageryDate) {
-      imageryDate = formatSolarDate(buildingInsights.imageryDate)
-    }
+    logger.warn('DataLayers API failed — falling back to metadata-based geometry', { error: dataLayerErr.message, address })
+    if (buildingInsights.imageryDate) imageryDate = formatSolarDate(buildingInsights.imageryDate)
   }
 
-  // ---------------------------------------------------------------------------
-  // Generate roof geometry — DSM-based (primary) or metadata-based (fallback)
-  // ---------------------------------------------------------------------------
-  let result
+  let result: any
   let geometrySource = 'metadata'
 
   if (dsmBuffer && maskBuffer) {
@@ -253,90 +253,78 @@ export async function generateAndSaveReport(
       result = generateRoofReportFromDSM(dsmResult, geo.lat, geo.lng, eaveOverhangInches)
       geometrySource = 'dsm'
       logger.info('Roof geometry computed from DSM elevation data', {
-        address,
-        planes: dsmResult.planes.length,
-        footprintVertices: dsmResult.footprint.length,
-        segments: result.segments.length,
+        address, planes: dsmResult.planes.length, footprintVertices: dsmResult.footprint.length, segments: result.segments.length,
       })
     } catch (dsmErr: any) {
-      logger.warn('DSM processing failed — falling back to metadata geometry', {
-        error: dsmErr.message, address,
-      })
+      logger.warn('DSM processing failed — falling back to metadata geometry', { error: dsmErr.message, address })
       result = generateRoofReport(buildingInsights, eaveOverhangInches)
     }
   } else {
     result = generateRoofReport(buildingInsights, eaveOverhangInches)
   }
 
-  logger.info('Roof report generated', {
-    address, geometrySource,
-    segments: result.segments.length,
-    totalSquares: result.totalSquares,
-  })
+  logger.info('Roof report preview generated', { address, geometrySource, segments: result.segments.length, totalSquares: result.totalSquares })
 
-  // ---------------------------------------------------------------------------
-  // Serialize for DB
-  // ---------------------------------------------------------------------------
   const edges = result.edges.map((edge: any) => ({
-    type: edge.type,
-    lengthFt: edge.lengthFt,
-    startLat: edge.start.lat,
-    startLng: edge.start.lng,
-    endLat: edge.end.lat,
-    endLng: edge.end.lng,
+    type: edge.type, lengthFt: edge.lengthFt,
+    startLat: edge.start.lat, startLng: edge.start.lng,
+    endLat: edge.end.lat, endLng: edge.end.lng,
     segmentIndex: edge.segmentA,
   }))
 
   const measurements = {
-    totalAreaSqft: result.totalAreaSqft,
-    totalSquares: result.totalSquares,
-    ridgeLF: result.measurements.totalRidgeLF,
-    valleyLF: result.measurements.totalValleyLF,
-    hipLF: result.measurements.totalHipLF,
-    rakeLF: result.measurements.totalRakeLF,
-    eaveLF: result.measurements.totalEaveLF,
-    totalPerimeterLF: result.measurements.totalPerimeterLF,
-    wasteFactor: result.measurements.wasteFactorPct,
-    squaresWithWaste: result.measurements.suggestedSquaresWithWaste,
+    totalAreaSqft: result.totalAreaSqft, totalSquares: result.totalSquares,
+    ridgeLF: result.measurements.totalRidgeLF, valleyLF: result.measurements.totalValleyLF,
+    hipLF: result.measurements.totalHipLF, rakeLF: result.measurements.totalRakeLF,
+    eaveLF: result.measurements.totalEaveLF, totalPerimeterLF: result.measurements.totalPerimeterLF,
+    wasteFactor: result.measurements.wasteFactorPct, squaresWithWaste: result.measurements.suggestedSquaresWithWaste,
     iceWaterShieldSqft: result.measurements.iceWaterShieldSqft,
   }
 
-  const segmentsForDb = result.segments.map(s => ({
-    name: s.name,
-    area: s.area,
-    pitch: s.pitch,
-    pitchDegrees: s.pitchDegrees,
-    azimuthDegrees: s.azimuthDegrees,
+  const segments = result.segments.map((s: any) => ({
+    name: s.name, area: s.area, pitch: s.pitch,
+    pitchDegrees: s.pitchDegrees, azimuthDegrees: s.azimuthDegrees,
     polygon: s.polygon.vertices,
   }))
 
+  return { geo, quality, imageryDate, aerialImagePath, roofMaskPath, edges, segments, measurements, totalAreaSqft: result.totalAreaSqft, totalSquares: result.totalSquares, rawSolarData: buildingInsights, geometrySource }
+}
+
+// ---------------------------------------------------------------------------
+// Step 2: Save finalized report to DB (after user review/edit)
+// ---------------------------------------------------------------------------
+
+async function saveReportToDb(
+  preview: PreviewData,
+  companyId: string,
+  address: string, city: string, state: string, zip: string,
+  edges: any[], measurements: any,
+  contactId?: string, stripePaymentIntentId?: string,
+) {
   const [report] = await db.insert(roofReport).values({
-    companyId,
-    address,
-    city,
-    state,
-    zip,
-    lat: geo.lat,
-    lng: geo.lng,
+    companyId, address, city, state, zip,
+    lat: preview.geo.lat, lng: preview.geo.lng,
     formattedAddress: `${address}, ${city}, ${state} ${zip}`,
-    totalSquares: result.totalSquares,
-    totalAreaSqft: result.totalAreaSqft,
-    segmentCount: result.segments.length,
-    imageryQuality: quality,
-    imageryDate,
-    aerialImagePath,
-    roofMaskPath,
-    segments: segmentsForDb,
-    edges,
-    measurements,
-    rawSolarData: buildingInsights,
-    status: 'paid',
-    amountCharged: '9.99',
+    totalSquares: preview.totalSquares, totalAreaSqft: preview.totalAreaSqft,
+    segmentCount: preview.segments.length,
+    imageryQuality: preview.quality, imageryDate: preview.imageryDate,
+    aerialImagePath: preview.aerialImagePath, roofMaskPath: preview.roofMaskPath,
+    segments: preview.segments, edges, measurements,
+    rawSolarData: preview.rawSolarData,
+    status: 'paid', amountCharged: '9.99',
     stripePaymentIntentId: stripePaymentIntentId || null,
     contactId: contactId || null,
   }).returning()
-
   return report
+}
+
+// Legacy wrapper for backwards compatibility (Stripe confirm flow)
+export async function generateAndSaveReport(
+  companyId: string, address: string, city: string, state: string, zip: string,
+  contactId?: string, stripePaymentIntentId?: string, eaveOverhangInches = 12,
+) {
+  const preview = await generateReportPreview(companyId, address, city, state, zip, eaveOverhangInches)
+  return saveReportToDb(preview, companyId, address, city, state, zip, preview.edges, preview.measurements, contactId, stripePaymentIntentId)
 }
 
 // ============================================
@@ -354,10 +342,10 @@ app.post('/purchase', authenticate, async (c) => {
 
   const stripe = getStripe()
   if (!stripe) {
-    // No Stripe configured — generate for free (dev mode / self-hosted)
+    // No Stripe configured — generate preview for free (dev mode / self-hosted)
     try {
-      const report = await generateAndSaveReport(user.companyId, address, city, state, zip, contactId, undefined, overhang)
-      return c.json({ report, free: true }, 201)
+      const preview = await generateReportPreview(user.companyId, address, city, state, zip, overhang)
+      return c.json({ preview: { ...preview, address, city, state, zip, contactId }, free: true }, 200)
     } catch (err: any) {
       logger.error('Roof report generation failed', err)
       return c.json({ error: 'Failed to generate roof report', details: err.message }, 500)
@@ -527,6 +515,22 @@ app.get('/:id/aerial.png', async (c) => {
 })
 
 // ============================================
+// SERVE PREVIEW AERIAL IMAGE (for editor before report is saved)
+// ============================================
+
+app.get('/preview-aerial/:filename', authenticate, async (c) => {
+  const filename = c.req.param('filename')
+  // Sanitize — only allow alphanumeric, dash, dot
+  if (!/^[a-zA-Z0-9._-]+$/.test(filename)) return c.json({ error: 'Invalid filename' }, 400)
+  const filePath = path.join(UPLOADS_DIR, filename)
+  if (!fs.existsSync(filePath)) return c.json({ error: 'Image not found' }, 404)
+  const imgBuffer = fs.readFileSync(filePath)
+  return new Response(imgBuffer, {
+    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'private, max-age=3600' },
+  })
+})
+
+// ============================================
 // PUBLIC HTML VIEW (no auth — shareable link)
 // ============================================
 
@@ -641,6 +645,98 @@ app.delete('/:id', authenticate, async (c) => {
 
   await db.delete(roofReport)
     .where(and(eq(roofReport.id, id), eq(roofReport.companyId, user.companyId)))
+
+  return c.json({ success: true })
+})
+
+// ============================================
+// FINALIZE REPORT — save preview + user edits to DB
+// ============================================
+
+app.post('/finalize', authenticate, async (c) => {
+  const user = c.get('user') as any
+  const { preview, edges, measurements } = await c.req.json()
+
+  if (!preview || !edges) return c.json({ error: 'Preview data and edges required' }, 400)
+
+  try {
+    const report = await saveReportToDb(
+      preview, user.companyId,
+      preview.address, preview.city, preview.state, preview.zip,
+      edges, measurements || preview.measurements,
+      preview.contactId, preview.stripePaymentIntentId,
+    )
+    return c.json({ report }, 201)
+  } catch (err: any) {
+    logger.error('Report finalization failed', err)
+    return c.json({ error: 'Failed to save report', details: err.message }, 500)
+  }
+})
+
+// ============================================
+// EDIT EDGES (manual corrections on existing report)
+// ============================================
+
+app.patch('/:id/edges', authenticate, async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [report] = await db.select().from(roofReport)
+    .where(and(eq(roofReport.id, id), eq(roofReport.companyId, user.companyId)))
+    .limit(1)
+
+  if (!report) return c.json({ error: 'Report not found' }, 404)
+
+  const body = await c.req.json()
+  const { edges, measurements } = body
+
+  if (!edges || !Array.isArray(edges)) {
+    return c.json({ error: 'edges array required' }, 400)
+  }
+
+  // On first edit, snapshot the original auto-generated data for revert
+  const updateData: Record<string, any> = {
+    edges,
+    measurements: measurements || report.measurements,
+    userEdited: true,
+    updatedAt: new Date(),
+  }
+
+  if (!report.userEdited) {
+    updateData.originalEdges = report.edges
+    updateData.originalMeasurements = report.measurements
+  }
+
+  await db.update(roofReport).set(updateData).where(eq(roofReport.id, id))
+
+  return c.json({ success: true })
+})
+
+// ============================================
+// REVERT TO ORIGINAL (undo all manual edits)
+// ============================================
+
+app.post('/:id/revert', authenticate, async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [report] = await db.select().from(roofReport)
+    .where(and(eq(roofReport.id, id), eq(roofReport.companyId, user.companyId)))
+    .limit(1)
+
+  if (!report) return c.json({ error: 'Report not found' }, 404)
+  if (!report.userEdited || !report.originalEdges) {
+    return c.json({ error: 'No manual edits to revert' }, 400)
+  }
+
+  await db.update(roofReport).set({
+    edges: report.originalEdges,
+    measurements: report.originalMeasurements || report.measurements,
+    userEdited: false,
+    originalEdges: null,
+    originalMeasurements: null,
+    updatedAt: new Date(),
+  }).where(eq(roofReport.id, id))
 
   return c.json({ success: true })
 })
