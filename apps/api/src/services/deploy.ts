@@ -776,9 +776,17 @@ export async function deployCustomer(
       } else {
         // ── Fallback: Render Postgres ──
         try {
-          // Delete existing databases so deploys start fresh (avoid stale data from failed deploys)
-          await findAndDeleteRenderDatabase(dbSlug + '-db')
-          if (dbSlug !== slug) await findAndDeleteRenderDatabase(slug + '-db') // clean up generic name
+          // Reuse existing database if it exists (preserves data across redeploys)
+          const existingDb = await findExistingDatabase(dbSlug + '-db')
+          if (existingDb) {
+            console.log('[Deploy] Reusing existing Render DB:', dbSlug + '-db', existingDb.id)
+            createdResources.push({ type: 'database', id: existingDb.id, name: dbSlug + '-db' })
+            results.steps.push({ step: 'render_db', status: 'ok', dbId: existingDb.id, reused: true })
+            results.services.database = existingDb
+            if (existingDb.id) deployedResourceIds.push(existingDb.id)
+            dbConnectionString = existingDb.connectionString || existingDb.internalConnectionString
+          }
+          if (!existingDb) {
           console.log('[Deploy] Creating Render DB:', dbSlug + '-db')
           const db = await createRenderDatabase(dbSlug, region, dbPlan)
           createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
@@ -796,6 +804,7 @@ export async function deployCustomer(
             } catch (_e) { /* not ready yet */ }
           }
           if (!dbReady) throw new Error('DB did not become ready in time')
+          } // end if (!existingDb)
         } catch (dbErr: any) {
           results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
           results.errors.push('Database creation failed: ' + dbErr.message)
