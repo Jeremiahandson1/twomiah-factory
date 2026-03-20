@@ -35,6 +35,7 @@ create table if not exists tenants (
   -- Branding
   primary_color   text default '#2563eb',
   secondary_color text default '#1e40af',
+  website_theme   text,
 
   -- Plan & Billing
   plan            text default 'starter',
@@ -70,6 +71,10 @@ create table if not exists tenants (
 
   -- Factory sync key (shared secret for HTTP-based feature sync)
   factory_sync_key text,
+
+  -- QuickBooks Desktop integration
+  qb_desktop_id   text,
+  qb_desktop_synced_invoices text[] default '{}',
 
   -- Notes
   notes           text

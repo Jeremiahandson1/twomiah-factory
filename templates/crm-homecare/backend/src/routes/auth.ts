@@ -51,7 +51,7 @@ app.post('/login', async (c) => {
     accessToken,
     refreshToken,
     user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, role: user.role },
-    company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' },
+    company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, phone: agency.phone, email: agency.email, address: agency.address, city: agency.city, state: agency.state, zip: agency.zip, website: agency.website, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' },
   })
 })
 
@@ -113,7 +113,7 @@ app.get('/me', authenticate, async (c) => {
   // Fetch agency for company info
   const [agency] = await db.select().from(agencies).limit(1)
 
-  return c.json({ ...user, profile: profile || null, company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' } })
+  return c.json({ ...user, profile: profile || null, company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, phone: agency.phone, email: agency.email, address: agency.address, city: agency.city, state: agency.state, zip: agency.zip, website: agency.website, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' } })
 })
 
 // PUT /api/auth/change-password

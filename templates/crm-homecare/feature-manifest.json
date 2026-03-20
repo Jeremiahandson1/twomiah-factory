@@ -67,13 +67,18 @@
         "schedulesEnhanced.ts",
         "shiftSwaps.ts",
         "trainingRecords.ts",
-        "failsafe.ts"
+        "failsafe.ts",
+        "pricing.ts",
+        "payments.ts"
       ],
       "services": [
         "logger.ts",
         "socket.ts",
         "email.ts",
-        "pdf.ts"
+        "pdf.ts",
+        "claimsEngine.ts",
+        "edi837Generator.ts",
+        "payerRouter.ts"
       ]
     },
     "frontend": {

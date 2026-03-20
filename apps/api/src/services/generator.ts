@@ -43,6 +43,7 @@ export interface GenerateConfig {
     serviceRegion?: string
     nearbyCities?: string[]
     description?: string
+    siteUrl?: string
     defaultPassword?: string
     heroTagline?: string
   }
@@ -270,7 +271,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{NEARBY_CITY_4}}': (c.nearbyCities || [])[3] || 'Nearby City 4',
     '{{DOMAIN}}': c.domain || slug + '.com',
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
-    '{{SITE_URL}}': 'https://' + (c.domain || slug + '.com'),
+    '{{SITE_URL}}': c.siteUrl || ('https://' + (c.domain || slug + '.com')),
     '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
     '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf.onrender.com' : 'https://' + slug + '-crm.onrender.com',
     '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
@@ -317,7 +318,12 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{SECONDARY_COLOR}}': b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f'),
     '{{ACCENT_COLOR}}': '#f59e0b',
     '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : industry === 'dispensary' ? '#f0fdf4' : '#f8f9fa',
-    '{{PRODUCTS_JSON}}': JSON.stringify(config.products || ['crm']),
+    '{{PRODUCTS_JSON}}': JSON.stringify((() => {
+      const prods = [...(config.products || ['crm'])]
+      // If tenant has an external site, include website product so the dashboard shows the card
+      if (c.siteUrl && !prods.includes('website')) prods.push('website')
+      return prods
+    })()),
     '{{CMS_URL}}': (config.products || []).includes('cms') ? 'https://' + slug + '-site.onrender.com/admin' : '',
     '{{JWT_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{JWT_REFRESH_SECRET}}': crypto.randomBytes(32).toString('hex'),

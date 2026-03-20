@@ -150,6 +150,106 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     `,
     text: `Hi ${data.contactName}, set up your ${data.companyName} portal account: ${data.setupUrl}`,
   }),
+
+  invoiceEmail: (data) => ({
+    subject: `Invoice #${data.invoiceNumber} from ${data.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}
+        table.inv { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        table.inv th, table.inv td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; font-size: 14px; }
+        table.inv th { background: #f9fafb; font-weight: 600; }
+      </style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Home Care Invoice</p></div>
+        <div class="content">
+          <p>Hi ${data.contactName},</p>
+          <p>Please find your invoice details below.</p>
+          <div class="highlight">
+            <p style="margin:0;"><strong>Invoice #${data.invoiceNumber}</strong></p>
+            <p style="margin:4px 0 0;">Total: <strong>$${data.total}</strong></p>
+            <p style="margin:4px 0 0;">Amount Due: <strong>$${data.amountDue}</strong></p>
+            <p style="margin:4px 0 0;">Due Date: ${data.dueDate}</p>
+          </div>
+          ${data.lineItems ? `
+          <table class="inv">
+            <thead><tr><th>Date</th><th>Service</th><th>Hours</th><th>Amount</th></tr></thead>
+            <tbody>${data.lineItems}</tbody>
+          </table>` : ''}
+          ${data.payUrl ? `<p style="text-align:center;"><a href="${data.payUrl}" class="button">Pay Now</a></p>` : ''}
+          <p><small>If you have questions about this invoice, please contact us.</small></p>
+        </div>
+        <div class="footer">
+          ${data.companyName} &mdash; HIPAA-compliant care services<br>
+          <small>This message may contain Protected Health Information (PHI). If you are not the intended recipient, please delete this email and notify the sender immediately.</small>
+        </div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.contactName}, Invoice #${data.invoiceNumber} for $${data.amountDue} is due ${data.dueDate}. ${data.payUrl ? `Pay online: ${data.payUrl}` : ''}`,
+  }),
+
+  familyPortalWelcome: (data) => ({
+    subject: `Welcome to ${data.companyName} Family Portal`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Family Care Portal</p></div>
+        <div class="content">
+          <h2>Welcome, ${data.familyName}!</h2>
+          <p>You've been given access to the family portal for <strong>${data.clientName}</strong>.</p>
+          <div class="highlight">
+            <p><strong>Your Login:</strong></p>
+            <p style="margin:4px 0;">Email: ${data.email}</p>
+            <p style="margin:4px 0;">Temporary Password: <code style="background:#e5e7eb;padding:2px 6px;border-radius:3px;">${data.tempPassword}</code></p>
+          </div>
+          <p style="text-align:center;"><a href="${data.portalUrl}" class="button">Log In to Portal</a></p>
+          <p><small>Please change your password after your first login. This link is confidential.</small></p>
+        </div>
+        <div class="footer">
+          ${data.companyName} &mdash; HIPAA-compliant care portal<br>
+          <small>This message may contain Protected Health Information (PHI). If you are not the intended recipient, please delete this email and notify the sender immediately.</small>
+        </div>
+      </div></body></html>
+    `,
+    text: `Welcome ${data.familyName}! Log in to the ${data.companyName} family portal for ${data.clientName}: ${data.portalUrl} | Email: ${data.email} | Temp password: ${data.tempPassword}`,
+  }),
+
+  familyPasswordReset: (data) => ({
+    subject: `Password Reset - ${data.companyName} Family Portal`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Family Care Portal</p></div>
+        <div class="content">
+          <h2>Password Reset</h2>
+          <p>Hi ${data.familyName},</p>
+          <p>We received a request to reset your family portal password. Click below to set a new password.</p>
+          <p style="text-align:center;"><a href="${data.resetUrl}" class="button">Reset Password</a></p>
+          <p><small>This link expires in 1 hour. If you did not request this, you can safely ignore it.</small></p>
+        </div>
+        <div class="footer">${data.companyName} &mdash; HIPAA-compliant care portal</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.familyName}, reset your ${data.companyName} family portal password: ${data.resetUrl}`,
+  }),
+
+  passwordReset: (data) => ({
+    subject: `Password Reset - ${data.companyName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Password Reset</p></div>
+        <div class="content">
+          <h2>Reset Your Password</h2>
+          <p>Hi ${data.userName},</p>
+          <p>We received a request to reset your password. Click below to set a new one.</p>
+          <p style="text-align:center;"><a href="${data.resetUrl}" class="button">Reset Password</a></p>
+          <p><small>This link expires in 1 hour. If you did not request this, you can safely ignore it.</small></p>
+        </div>
+        <div class="footer">${data.companyName}</div>
+      </div></body></html>
+    `,
+    text: `Hi ${data.userName}, reset your ${data.companyName} password: ${data.resetUrl}`,
+  }),
 }
 
 async function send(
@@ -189,8 +289,13 @@ async function send(
 const emailService = {
   send,
   PROVIDER,
+  isConfigured: PROVIDER !== 'console',
   sendPortalInvite: (to: string, data: Record<string, unknown>) => send(to, 'portalInvite', data),
   sendPortalSetupInvite: (to: string, data: Record<string, unknown>) => send(to, 'portalSetupInvite', data),
+  sendInvoiceEmail: (to: string, data: Record<string, unknown>) => send(to, 'invoiceEmail', data),
+  sendFamilyPortalWelcome: (to: string, data: Record<string, unknown>) => send(to, 'familyPortalWelcome', data),
+  sendFamilyPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'familyPasswordReset', data),
+  sendPasswordReset: (to: string, data: Record<string, unknown>) => send(to, 'passwordReset', data),
 }
 
 export default emailService

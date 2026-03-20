@@ -490,6 +490,7 @@ function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
       domain: tenant.domain || undefined,
       industry: tenant.industry || undefined,
       defaultPassword: tenant.admin_password || undefined,
+      siteUrl: tenant.website_url || undefined,
     },
     branding: job.branding || {
       primaryColor: tenant.primary_color || '#f97316',

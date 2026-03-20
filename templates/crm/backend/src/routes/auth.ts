@@ -248,7 +248,7 @@ app.post('/register', async (c) => {
 
   return c.json({
     user: { id: result.user.id, email: result.user.email, firstName: result.user.firstName, lastName: result.user.lastName, role: result.user.role },
-    company: { id: result.company.id, name: result.company.name, slug: result.company.slug, enabledFeatures: result.company.enabledFeatures },
+    company: { id: result.company.id, name: result.company.name, slug: result.company.slug, phone: result.company.phone, email: result.company.email, address: result.company.address, city: result.company.city, state: result.company.state, zip: result.company.zip, website: result.company.website, enabledFeatures: result.company.enabledFeatures, settings: result.company.settings },
     ...tokens,
   }, 201)
 })
@@ -313,7 +313,7 @@ app.post('/login', async (c) => {
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
     ...tokens,
   })
 })
@@ -360,7 +360,7 @@ app.get('/me', authenticate, async (c) => {
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
     permissions,
   })
 })
