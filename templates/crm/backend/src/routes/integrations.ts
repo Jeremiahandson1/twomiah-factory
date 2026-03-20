@@ -75,6 +75,10 @@ app.get('/status', authenticate, async (c) => {
     stripe: stripeStatus,
     sms: { enabled: settings.smsEnabled || false, usage: smsCount },
     email: { enabled: settings.emailEnabled !== false, usage: emailCount },
+    twilio: {
+      configured: !!(integrations.twilioAccountSid && integrations.twilioAuthToken),
+      phoneNumber: integrations.twilioPhoneNumber || null,
+    },
   })
 })
 
@@ -310,6 +314,39 @@ app.post('/email/toggle', authenticate, async (c) => {
   }).where(eq(company.id, user.companyId))
 
   return c.json({ success: true, enabled })
+})
+
+// ============================================
+// TWILIO CONFIGURATION
+// ============================================
+
+app.post('/twilio/configure', authenticate, async (c) => {
+  const user = c.get('user') as any
+  const { accountSid, authToken, phoneNumber } = await c.req.json()
+
+  if (!accountSid || !authToken || !phoneNumber) {
+    return c.json({ error: 'Account SID, Auth Token, and Phone Number are all required' }, 400)
+  }
+
+  // Validate format
+  if (!accountSid.startsWith('AC') || accountSid.length < 30) {
+    return c.json({ error: 'Invalid Account SID format — should start with AC' }, 400)
+  }
+
+  const [comp] = await db.select({ integrations: company.integrations }).from(company).where(eq(company.id, user.companyId)).limit(1)
+  if (!comp) return c.json({ error: 'Company not found' }, 404)
+
+  await db.update(company).set({
+    integrations: {
+      ...(comp.integrations as any || {}),
+      twilioAccountSid: accountSid,
+      twilioAuthToken: authToken,
+      twilioPhoneNumber: phoneNumber,
+    },
+    updatedAt: new Date(),
+  }).where(eq(company.id, user.companyId))
+
+  return c.json({ success: true, phoneNumber })
 })
 
 export default app
