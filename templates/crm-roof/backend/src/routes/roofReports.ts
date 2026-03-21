@@ -17,6 +17,24 @@ try {
   osmPolygonToLocal = osm.osmPolygonToLocal
 } catch { /* module not deployed yet */ }
 import logger from '../services/logger.ts'
+
+/** Notify the factory platform that a new report needs human review. */
+async function notifyFactoryNewReport(reportId: string, address: string, city: string, state: string, companyId: string) {
+  const factoryUrl = process.env.FACTORY_API_URL || process.env.FACTORY_SYNC_URL
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !factoryKey) return
+
+  try {
+    await fetch(`${factoryUrl}/api/v1/factory/roof-review/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': factoryKey },
+      body: JSON.stringify({ reportId, address: `${address}, ${city}, ${state}`, companyId, backendUrl: process.env.RENDER_EXTERNAL_URL || '' }),
+      signal: AbortSignal.timeout(5000),
+    })
+  } catch (err: any) {
+    logger.warn('Factory notification failed (non-blocking)', { error: err.message })
+  }
+}
 import Stripe from 'stripe'
 import sharp from 'sharp'
 import fs from 'fs'
@@ -363,19 +381,33 @@ app.post('/purchase', authenticate, async (c) => {
 
   const stripe = getStripe()
   if (!stripe || isManual) {
-    // Free mode: generate preview (manual = no edges, auto = with edges)
     try {
       const preview = await generateReportPreview(user.companyId, address, city, state, zip, overhang)
+
       if (isManual) {
-        // Manual mode: clear auto-detected edges, user draws from scratch
+        // Manual mode: return preview with blank edges, user draws from scratch
         preview.edges = []
         preview.measurements = {
           ...preview.measurements,
           ridgeLF: 0, valleyLF: 0, hipLF: 0, rakeLF: 0, eaveLF: 0,
           totalPerimeterLF: 0, wasteFactor: 0, iceWaterShieldSqft: 0,
         }
+        return c.json({ preview: { ...preview, address, city, state, zip, contactId, mode: 'manual' }, free: true }, 200)
       }
-      return c.json({ preview: { ...preview, address, city, state, zip, contactId, mode: isManual ? 'manual' : 'auto' }, free: true }, 200)
+
+      // Auto-Detect (Beta): save report immediately with pending_review status,
+      // notify factory for human review. Customer sees "Processing..."
+      const report = await saveReportToDb(
+        preview, user.companyId, address, city, state, zip,
+        preview.edges, preview.measurements, contactId, undefined,
+      )
+      // Update status to pending_review
+      await db.update(roofReport).set({ status: 'pending_review' }).where(eq(roofReport.id, report.id))
+
+      // Notify factory (non-blocking)
+      notifyFactoryNewReport(report.id, address, city, state, user.companyId).catch(() => {})
+
+      return c.json({ report: { ...report, status: 'pending_review' }, free: true, pendingReview: true }, 201)
     } catch (err: any) {
       logger.error('Roof report generation failed', err)
       return c.json({ error: 'Failed to generate roof report', details: err.message }, 500)

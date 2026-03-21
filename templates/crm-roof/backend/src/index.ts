@@ -8,8 +8,8 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
-import { eq } from 'drizzle-orm'
-import { company } from '../db/schema.ts'
+import { eq, desc } from 'drizzle-orm'
+import { company, roofReport } from '../db/schema.ts'
 import logger from './services/logger.ts'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -112,6 +112,66 @@ app.post('/api/internal/sync-features', async (c) => {
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
   return c.json({ success: true, features: updated.enabledFeatures })
+})
+
+// --- Factory-facing internal endpoints for roof report review ---
+
+function requireFactoryKey(c: any): boolean {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return false
+  return c.req.header('X-Factory-Key') === syncKey
+}
+
+// Get pending review reports
+app.get('/api/internal/roof-reports/pending', async (c) => {
+  if (!requireFactoryKey(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const reports = await db.select().from(roofReport).where(eq(roofReport.status, 'pending_review')).orderBy(desc(roofReport.createdAt))
+  return c.json(reports)
+})
+
+// Get a specific report (full data for editor)
+app.get('/api/internal/roof-reports/:id', async (c) => {
+  if (!requireFactoryKey(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const [report] = await db.select().from(roofReport).where(eq(roofReport.id, c.req.param('id'))).limit(1)
+  if (!report) return c.json({ error: 'Not found' }, 404)
+  return c.json(report)
+})
+
+// Approve a report (update edges + set status to completed)
+app.post('/api/internal/roof-reports/:id/approve', async (c) => {
+  if (!requireFactoryKey(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const id = c.req.param('id')
+  const { edges, measurements } = await c.req.json()
+
+  const [report] = await db.select().from(roofReport).where(eq(roofReport.id, id)).limit(1)
+  if (!report) return c.json({ error: 'Not found' }, 404)
+
+  // Save original auto-detected edges as training data
+  const updateData: Record<string, any> = {
+    status: 'completed',
+    edges: edges || report.edges,
+    measurements: measurements || report.measurements,
+    updatedAt: new Date(),
+  }
+  if (!report.userEdited) {
+    updateData.userEdited = true
+    updateData.originalEdges = report.edges
+    updateData.originalMeasurements = report.measurements
+  }
+
+  await db.update(roofReport).set(updateData).where(eq(roofReport.id, id))
+  return c.json({ success: true })
+})
+
+// Serve aerial image for factory editor
+app.get('/api/internal/roof-reports/:id/aerial', async (c) => {
+  if (!requireFactoryKey(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const [report] = await db.select().from(roofReport).where(eq(roofReport.id, c.req.param('id'))).limit(1)
+  if (!report?.aerialImagePath) return c.json({ error: 'No image' }, 404)
+  const fs = await import('fs')
+  if (!fs.existsSync(report.aerialImagePath)) return c.json({ error: 'Image file missing' }, 404)
+  const buf = fs.readFileSync(report.aerialImagePath)
+  return new Response(buf, { headers: { 'Content-Type': 'image/png' } })
 })
 
 // Error handler

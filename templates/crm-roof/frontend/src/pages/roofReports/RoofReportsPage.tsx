@@ -137,7 +137,13 @@ export default function RoofReportsPage() {
         }),
       })
 
-      if (result.free && result.preview) {
+      if (result.pendingReview) {
+        // Auto-detect: saved and sent for review, customer sees "Processing"
+        toast.success('Report submitted! You\'ll be notified when it\'s ready.')
+        setShowForm(false)
+        loadReports()
+      } else if (result.free && result.preview) {
+        // Manual: show editor
         setPreview(result.preview)
         setShowForm(false)
       } else if (result.checkoutUrl) {

@@ -388,3 +388,27 @@ create policy "Service role full access on factory_pricing"
   on factory_pricing for all
   using (true)
   with check (true);
+
+-- ─── Roof Report Review Queue ──────────────────────────────────────────────
+-- Tracks auto-detect roof reports pending human review.
+-- The factory platform shows these in a review queue; once approved,
+-- the corrected edges are pushed back to the tenant CRM.
+
+create table if not exists roof_review_queue (
+  id              uuid primary key default uuid_generate_v4(),
+  report_id       text not null unique,
+  company_id      uuid references tenants(id) on delete cascade,
+  address         text not null default '',
+  backend_url     text not null default '',
+  status          text not null default 'pending',  -- pending, approved, rejected
+  created_at      timestamptz not null default now(),
+  approved_at     timestamptz
+);
+
+create index if not exists roof_review_queue_status_idx on roof_review_queue(status);
+
+alter table roof_review_queue enable row level security;
+create policy "Service role full access on roof_review_queue"
+  on roof_review_queue for all
+  using (true)
+  with check (true);

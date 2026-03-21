@@ -13,6 +13,7 @@ import SupportPage from './pages/SupportPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
 import PricingAdminPage from './pages/PricingAdminPage'
+import RoofReviewPage from './pages/RoofReviewPage'
 import AppLayout from './components/AppLayout'
 import RequireRole from './components/RequireRole'
 
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="support" element={<SupportPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="pricing" element={<RequireRole allowed={['owner', 'admin']}><PricingAdminPage /></RequireRole>} />
+            <Route path="roof-review" element={<RequireRole allowed={['owner', 'admin']}><RoofReviewPage /></RequireRole>} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
