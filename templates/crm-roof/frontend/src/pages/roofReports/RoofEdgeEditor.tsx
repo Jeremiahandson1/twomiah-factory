@@ -35,7 +35,7 @@ interface Props {
   mapWidth?: number
   mapHeight?: number
   initialMode?: Mode
-  onSave: (edges: any[], measurements: any) => Promise<void>
+  onSave: (edges: any[], measurements: any, reportId?: string) => Promise<void>
   onRevert?: () => Promise<void>
   userEdited?: boolean
 }
@@ -331,14 +331,13 @@ export default function RoofEdgeEditor({
   const handleSave = useCallback(async () => {
     setSaving(true)
     try {
-      // Convert edges back to API format
       const apiEdges = edges.map(e => ({
         type: e.type, lengthFt: e.lengthFt,
         startLat: e.startLat, startLng: e.startLng,
         endLat: e.endLat, endLng: e.endLng,
         segmentA: e.segmentA, segmentB: e.segmentB,
       }))
-      await onSave(apiEdges, measurements)
+      await onSave(apiEdges, measurements, reportId)
       setDirty(false)
     } finally {
       setSaving(false)
