@@ -34,6 +34,7 @@ interface Props {
   aerialImageUrl: string
   mapWidth?: number
   mapHeight?: number
+  initialMode?: Mode
   onSave: (edges: any[], measurements: any) => Promise<void>
   onRevert?: () => Promise<void>
   userEdited?: boolean
@@ -113,7 +114,8 @@ function makeEdgeId(): string { return `e-${nextEdgeId++}-${Date.now()}` }
 
 export default function RoofEdgeEditor({
   reportId, edges: initialEdges, segments, centerLat, centerLng, zoom,
-  aerialImageUrl, mapWidth = 800, mapHeight = 600, onSave, onRevert, userEdited,
+  aerialImageUrl, mapWidth = 800, mapHeight = 600, initialMode = 'select',
+  onSave, onRevert, userEdited,
 }: Props) {
   const IMG_W = mapWidth
   const IMG_H = mapHeight
@@ -136,7 +138,7 @@ export default function RoofEdgeEditor({
 
   const [edges, setEdges] = useState<Edge[]>(() => apiToPixelEdges(initialEdges))
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [mode, setMode] = useState<Mode>('select')
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [addType, setAddType] = useState<EdgeType>('valley')
   const [addStart, setAddStart] = useState<{ x: number; y: number } | null>(null)
   const [dragState, setDragState] = useState<{ edgeId: string; endpoint: 'start' | 'end'; offsetX: number; offsetY: number } | null>(null)

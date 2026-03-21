@@ -117,8 +117,7 @@ export default function RoofReportsPage() {
     } catch {}
   }
 
-  const handlePurchase = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleGenerate = async (mode: 'manual' | 'auto') => {
     if (!form.address || !form.city || !form.state || !form.zip) {
       toast.error('Address, city, state, and zip are required')
       return
@@ -133,25 +132,19 @@ export default function RoofReportsPage() {
           state: form.state,
           zip: form.zip,
           eaveOverhangInches: form.eaveOverhangInches,
+          mode,
           ...(form.contactId && { contactId: form.contactId }),
         }),
       })
 
       if (result.free && result.preview) {
-        // No Stripe — show editor preview for review/adjustment
         setPreview(result.preview)
         setShowForm(false)
-      } else if (result.free && result.report) {
-        // Legacy fallback
-        toast.success('Roof report generated!')
-        setShowForm(false)
-        loadReports()
       } else if (result.checkoutUrl) {
-        // Redirect to Stripe Checkout
         window.location.href = result.checkoutUrl
       }
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to start purchase')
+      toast.error(err?.message || 'Failed to generate')
     } finally {
       setPurchasing(false)
     }
@@ -235,9 +228,21 @@ export default function RoofReportsPage() {
 
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Review Roof Measurements</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl font-bold text-gray-900">
+                {preview.mode === 'manual' ? 'Draw Roof Measurements' : 'Review Roof Measurements'}
+              </h1>
+              {preview.mode === 'manual' ? (
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded-full">FREE</span>
+              ) : (
+                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">BETA</span>
+              )}
+            </div>
             <p className="text-sm text-gray-500 mt-1">
-              {preview.address}, {preview.city}, {preview.state} {preview.zip} — Adjust lines as needed, then create report.
+              {preview.address}, {preview.city}, {preview.state} {preview.zip} —
+              {preview.mode === 'manual'
+                ? ' Draw ridge, valley, hip, and eave lines on the satellite image.'
+                : ' Adjust auto-detected lines as needed, then create report.'}
             </p>
           </div>
           <button
@@ -260,6 +265,7 @@ export default function RoofReportsPage() {
           aerialImageUrl={aerialUrl}
           mapWidth={preview.mapWidth || 800}
           mapHeight={preview.mapHeight || 600}
+          initialMode={preview.mode === 'manual' ? 'add' : 'select'}
           onSave={handleFinalize}
         />
       </div>
@@ -286,14 +292,10 @@ export default function RoofReportsPage() {
       {/* New Report Form */}
       {showForm && (
         <div className="bg-white rounded-xl shadow-sm border p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Generate New Roof Report</h2>
-            <span className="flex items-center gap-1 text-sm font-semibold text-green-700 bg-green-50 px-3 py-1 rounded-full">
-              <DollarSign className="w-3.5 h-3.5" />
-              $9.99 per report
-            </span>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Generate Roof Report</h2>
           </div>
-          <form onSubmit={handlePurchase} className="space-y-4">
+          <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Street Address *</label>
               <AddressAutocomplete
@@ -367,34 +369,45 @@ export default function RoofReportsPage() {
                 <span className="text-sm text-gray-500">inches (expands roof segments outward to account for eave overhang)</span>
               </div>
             </div>
-            <div className="flex items-center justify-between pt-2 border-t">
-              <p className="text-xs text-gray-400">
-                Includes satellite imagery overlay, ridge/valley/hip/rake/eave measurements, waste factor, ice & water shield analysis, and PDF export.
-              </p>
-              <div className="flex gap-3">
+            <div className="pt-4 border-t space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleGenerate('manual')}
+                  disabled={purchasing}
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                >
+                  <span className="text-sm font-semibold text-blue-700">Manual Measurement</span>
+                  <span className="text-xs text-blue-500">Draw lines on satellite image</span>
+                  <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Free</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGenerate('auto')}
+                  disabled={purchasing}
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-purple-200 bg-purple-50 rounded-xl hover:border-purple-400 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                >
+                  <span className="text-sm font-semibold text-purple-700">Auto-Detect Lines</span>
+                  <span className="text-xs text-purple-500">AI detects edges, you review</span>
+                  <span className="mt-1 px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full uppercase">Beta</span>
+                </button>
+              </div>
+              {purchasing && (
+                <div className="flex items-center justify-center gap-2 py-2 text-sm text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Fetching satellite imagery...
+                </div>
+              )}
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-400">
+                  Satellite imagery, pitch detection, ridge/valley/hip/eave measurements, waste factor, and PDF export.
+                </p>
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
                   className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={purchasing}
-                  className="flex items-center gap-2 px-5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-                >
-                  {purchasing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <DollarSign className="w-4 h-4" />
-                      Purchase Report — $9.99
-                    </>
-                  )}
                 </button>
               </div>
             </div>

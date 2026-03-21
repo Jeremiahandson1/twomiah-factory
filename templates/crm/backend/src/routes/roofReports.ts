@@ -353,19 +353,29 @@ export async function generateAndSaveReport(
 
 app.post('/purchase', authenticate, async (c) => {
   const user = c.get('user') as any
-  const { address, city, state, zip, contactId, eaveOverhangInches } = await c.req.json()
+  const { address, city, state, zip, contactId, eaveOverhangInches, mode } = await c.req.json()
   const overhang = typeof eaveOverhangInches === 'number' ? Math.max(0, Math.min(36, eaveOverhangInches)) : 12
+  const isManual = mode === 'manual' // free manual tool vs beta auto-detect
 
   if (!address || !city || !state || !zip) {
     return c.json({ error: 'Address, city, state, and zip are required' }, 400)
   }
 
   const stripe = getStripe()
-  if (!stripe) {
-    // No Stripe configured — generate preview for free (dev mode / self-hosted)
+  if (!stripe || isManual) {
+    // Free mode: generate preview (manual = no edges, auto = with edges)
     try {
       const preview = await generateReportPreview(user.companyId, address, city, state, zip, overhang)
-      return c.json({ preview: { ...preview, address, city, state, zip, contactId }, free: true }, 200)
+      if (isManual) {
+        // Manual mode: clear auto-detected edges, user draws from scratch
+        preview.edges = []
+        preview.measurements = {
+          ...preview.measurements,
+          ridgeLF: 0, valleyLF: 0, hipLF: 0, rakeLF: 0, eaveLF: 0,
+          totalPerimeterLF: 0, wasteFactor: 0, iceWaterShieldSqft: 0,
+        }
+      }
+      return c.json({ preview: { ...preview, address, city, state, zip, contactId, mode: isManual ? 'manual' : 'auto' }, free: true }, 200)
     } catch (err: any) {
       logger.error('Roof report generation failed', err)
       return c.json({ error: 'Failed to generate roof report', details: err.message }, 500)
