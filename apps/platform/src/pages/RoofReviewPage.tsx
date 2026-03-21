@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, API_URL as API } from '../supabase'
-import { MapPin, Clock, CheckCircle, Loader2, ExternalLink, ArrowLeft, Save } from 'lucide-react'
+import { MapPin, Clock, CheckCircle, Loader2, ArrowLeft } from 'lucide-react'
 import RoofEdgeEditor from './RoofEdgeEditor'
 
 interface QueueItem {
@@ -34,7 +34,7 @@ export default function RoofReviewPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [satelliteUrl, setSatelliteUrl] = useState('')
   const [loadingReport, setLoadingReport] = useState(false)
-  const [approving, setApproving] = useState(false)
+  const [_approving, setApproving] = useState(false)
 
   const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
@@ -70,7 +70,7 @@ export default function RoofReviewPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!res.ok) throw new Error('Failed to fetch report data')
-      const { report, backendUrl } = await res.json()
+      const { report } = await res.json()
       setReportData(report)
 
       // Fetch satellite image for the editor
@@ -144,7 +144,6 @@ export default function RoofReviewPage() {
 
         <div className="bg-white rounded-xl p-4">
           <RoofEdgeEditor
-            reportId={reportData.id}
             edges={reportData.edges}
             segments={reportData.segments || []}
             centerLat={reportData.lat}

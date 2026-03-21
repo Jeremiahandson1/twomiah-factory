@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
-import { MousePointer2, Plus, Trash2, Undo2, Redo2, Save, RotateCcw, Tag } from 'lucide-react'
+import { MousePointer2, Plus, Trash2, Undo2, Save, RotateCcw, Tag } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,7 +25,6 @@ interface Segment {
 }
 
 interface Props {
-  reportId: string
   edges: any[]
   segments: Segment[]
   centerLat: number
@@ -113,7 +112,7 @@ function makeEdgeId(): string { return `e-${nextEdgeId++}-${Date.now()}` }
 // ---------------------------------------------------------------------------
 
 export default function RoofEdgeEditor({
-  reportId, edges: initialEdges, segments, centerLat, centerLng, zoom,
+  edges: initialEdges, segments, centerLat, centerLng, zoom,
   aerialImageUrl, mapWidth = 800, mapHeight = 600, initialMode = 'select',
   onSave, onRevert, userEdited,
 }: Props) {
@@ -121,7 +120,7 @@ export default function RoofEdgeEditor({
   const IMG_H = mapHeight
   // Convert API edges to pixel-space edges
   const apiToPixelEdges = useCallback((apiEdges: any[]): Edge[] => {
-    return apiEdges.map((e, i) => {
+    return apiEdges.map((e) => {
       const p1 = latLngToPixel(e.startLat || e.start?.lat, e.startLng || e.start?.lng, centerLat, centerLng, zoom, IMG_W, IMG_H)
       const p2 = latLngToPixel(e.endLat || e.end?.lat, e.endLng || e.end?.lng, centerLat, centerLng, zoom, IMG_W, IMG_H)
       return {
@@ -176,10 +175,9 @@ export default function RoofEdgeEditor({
     setEdges(prev)
   }, [history, historyIdx])
 
-  const redo = useCallback(() => {
+  const _redo = useCallback(() => {
     if (historyIdx >= history.length - 1) return
-    const next = history[historyIdx + 1]
-    // This is actually wrong for redo — we'd need forward history. Simplified version:
+    // TODO: proper redo with forward history
   }, [history, historyIdx])
 
   // Compute measurements from current edges
