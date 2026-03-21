@@ -2799,7 +2799,7 @@ factory.post('/roof-review/notify', async (c) => {
 })
 
 // List pending reports
-factory.get('/roof-review/pending', authenticate, requireRole('admin'), async (c) => {
+factory.get('/roof-review/pending', authenticate, async (c) => {
   const { data } = await supabase
     .from('roof_review_queue')
     .select('*')
@@ -2824,7 +2824,7 @@ factory.get('/roof-review/pending', authenticate, requireRole('admin'), async (c
 })
 
 // Proxy: fetch report data from tenant CRM for editing
-factory.get('/roof-review/:reportId/data', authenticate, requireRole('admin'), async (c) => {
+factory.get('/roof-review/:reportId/data', authenticate, async (c) => {
   const reportId = c.req.param('reportId')
 
   const { data: queueItem } = await supabase
@@ -2850,7 +2850,7 @@ factory.get('/roof-review/:reportId/data', authenticate, requireRole('admin'), a
 })
 
 // Proxy: approve report on tenant CRM
-factory.post('/roof-review/:reportId/approve', authenticate, requireRole('admin'), async (c) => {
+factory.post('/roof-review/:reportId/approve', authenticate, async (c) => {
   const reportId = c.req.param('reportId')
   const { edges, measurements } = await c.req.json()
 
