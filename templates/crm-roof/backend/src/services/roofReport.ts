@@ -1067,68 +1067,87 @@ export function generateRoofReportFromDSM(
   })
 
   // -----------------------------------------------------------------------
-  // Classify edges from segment polygon boundaries.
+  // Internal edges via plane-plane intersections + graph-based trimming.
   //
-  // Instead of computing all pairwise plane intersections (which generates
-  // spurious lines), we find edges where segment polygons ACTUALLY share a
-  // boundary.  For each pair of adjacent segments, we find the contact zone
-  // (closest points between the two polygons) and draw a single edge there.
+  // 1. For each pair of adjacent planes, compute the intersection line
+  //    clipped to the footprint.
+  // 2. Find ALL pairwise crossings between these lines → junction nodes.
+  // 3. Split each line at its junction nodes into sub-segments.
+  // 4. Keep only sub-segments whose midpoint is near both segment polygons
+  //    (i.e. actually on the boundary between the two segments).
   //
-  // Perimeter edges come from the footprint boundary, classified as eave
-  // (hip roof) or rake/eave (gable roof).
+  // This correctly trims ridges at hip junctions, hips at the ridge, etc.
   // -----------------------------------------------------------------------
   const edges: ClassifiedEdge[] = []
 
-  // --- Internal edges: find where segment polygons share boundaries ---
-  for (let i = 0; i < segmentPolygons.length; i++) {
-    for (let j = i + 1; j < segmentPolygons.length; j++) {
+  // Step 1: generate raw intersection lines
+  interface RawLine { p1: Pt; p2: Pt; segA: number; segB: number; type: ClassifiedEdge['type'] }
+  const rawLines: RawLine[] = []
+
+  for (let i = 0; i < dsm.planes.length; i++) {
+    for (let j = i + 1; j < dsm.planes.length; j++) {
       if (segmentPolygons[i].length < 3 || segmentPolygons[j].length < 3) continue
       if (!areSegmentsAdjacent(segmentPolygons[i], segmentPolygons[j])) continue
 
-      // Find the boundary between these two segment polygons.
-      // Collect vertices from each polygon that are close to the other polygon.
-      const boundaryPts: Pt[] = []
-
-      for (const p of segmentPolygons[i]) {
-        const minDist = Math.min(...segmentPolygons[j].map(q => dist2D(p, q)))
-        if (minDist < 3.5) boundaryPts.push(p)
-      }
-      for (const p of segmentPolygons[j]) {
-        const minDist = Math.min(...segmentPolygons[i].map(q => dist2D(p, q)))
-        if (minDist < 3.5) boundaryPts.push(p)
-      }
-
-      if (boundaryPts.length < 2) continue
-
-      // Find the two most distant boundary points — these define the edge
-      let maxDist = 0
-      let edgeP1 = boundaryPts[0], edgeP2 = boundaryPts[1]
-      for (let a = 0; a < boundaryPts.length; a++) {
-        for (let b = a + 1; b < boundaryPts.length; b++) {
-          const d = dist2D(boundaryPts[a], boundaryPts[b])
-          if (d > maxDist) {
-            maxDist = d
-            edgeP1 = boundaryPts[a]
-            edgeP2 = boundaryPts[b]
-          }
-        }
-      }
-
-      const lengthM = dist2D(edgeP1, edgeP2)
-      if (lengthM < 0.5) continue
-
-      const lengthFt = Math.round(lengthM * M_TO_FT * 10) / 10
-      const start = localToLatLng(edgeP1, originLat, originLng)
-      const end = localToLatLng(edgeP2, originLat, originLng)
-
-      // Classify using azimuth difference + elevation (sideI)
       const pi = dsm.planes[i], pj = dsm.planes[j]
-      const A = pi.a - pj.a, B = pi.b - pj.b, C = pj.c0 - pi.c0
+      const A = pi.a - pj.a, B = pi.b - pj.b
+      if (Math.abs(A) < 1e-6 && Math.abs(B) < 1e-6) continue
+      const C = pj.c0 - pi.c0
+
+      const linePoints = clipLineToPolygon(A, B, C, footprint)
+      if (!linePoints) continue
+      if (dist2D(linePoints.p1, linePoints.p2) < 0.3) continue
+
       const ci = polygonCentroid(segmentPolygons[i])
       const sideI = A * ci.x + B * ci.y - C
       const type = classifySharedEdge(pi.azimuthDeg, pj.azimuthDeg, sideI)
 
-      edges.push({ type, start, end, lengthFt, segmentA: i, segmentB: j })
+      rawLines.push({ p1: linePoints.p1, p2: linePoints.p2, segA: i, segB: j, type })
+    }
+  }
+
+  // Step 2: find all pairwise junction nodes
+  interface Junction { x: number; y: number; tOnLine: number; lineIdx: number }
+  const junctions: Junction[][] = rawLines.map(() => [])
+
+  for (let a = 0; a < rawLines.length; a++) {
+    for (let b = a + 1; b < rawLines.length; b++) {
+      const hit = segmentSegmentIntersect(rawLines[a].p1, rawLines[a].p2, rawLines[b].p1, rawLines[b].p2)
+      if (hit) {
+        junctions[a].push({ x: hit.point.x, y: hit.point.y, tOnLine: hit.tA, lineIdx: b })
+        junctions[b].push({ x: hit.point.x, y: hit.point.y, tOnLine: hit.tB, lineIdx: a })
+      }
+    }
+  }
+
+  // Step 3: split each line at junction nodes into sub-segments, keep valid ones
+  for (let li = 0; li < rawLines.length; li++) {
+    const line = rawLines[li]
+    const jcts = junctions[li]
+
+    // Collect all t-values: 0 (start), 1 (end), plus junction points
+    const tValues = [0, 1, ...jcts.map(j => j.tOnLine)].sort((a, b) => a - b)
+
+    // Generate sub-segments between consecutive t-values
+    for (let k = 0; k < tValues.length - 1; k++) {
+      const t1 = tValues[k], t2 = tValues[k + 1]
+      if (t2 - t1 < 0.02) continue
+
+      const sp1: Pt = { x: line.p1.x + t1 * (line.p2.x - line.p1.x), y: line.p1.y + t1 * (line.p2.y - line.p1.y) }
+      const sp2: Pt = { x: line.p1.x + t2 * (line.p2.x - line.p1.x), y: line.p1.y + t2 * (line.p2.y - line.p1.y) }
+      const mid: Pt = { x: (sp1.x + sp2.x) / 2, y: (sp1.y + sp2.y) / 2 }
+      const lengthM = dist2D(sp1, sp2)
+      if (lengthM < 0.5) continue
+
+      // Check: is this sub-segment's midpoint near both segment polygons?
+      const distA = Math.min(...segmentPolygons[line.segA].map(p => dist2D(mid, p)))
+      const distB = Math.min(...segmentPolygons[line.segB].map(p => dist2D(mid, p)))
+      if (distA > 4 || distB > 4) continue // not near both segments → spurious
+
+      const lengthFt = Math.round(lengthM * M_TO_FT * 10) / 10
+      const start = localToLatLng(sp1, originLat, originLng)
+      const end = localToLatLng(sp2, originLat, originLng)
+      edges.push({ type: line.type, start, end, lengthFt, segmentA: line.segA, segmentB: line.segB })
     }
   }
 
