@@ -161,7 +161,7 @@ export async function transcribeRecording(recordingUrl: string): Promise<string 
     })
 
     if (!whisperResponse.ok) {
-      console.error('[AIReceptionist] Whisper API error:', whisperResponse.status, await whisperResponse.text())
+      console.error('[AIReceptionist] Whisper API error:', whisperResponse.status)
       return null
     }
 
@@ -196,11 +196,11 @@ export async function summarizeAndGenerateReply(
         messages: [
           {
             role: 'system',
-            content: `You are an AI assistant for ${companyName}, a ${industry} company. Analyze voicemail transcriptions and generate professional auto-replies.`,
+            content: `You are an AI assistant for a ${industry} company. Analyze voicemail transcriptions and generate professional auto-replies. Do not include any names, phone numbers, or personal identifiers in your response.`,
           },
           {
             role: 'user',
-            content: `Voicemail transcription from ${callerName || 'a customer'}:\n\n"${transcription}"\n\nProvide:\n1. A brief summary (1-2 sentences) of what the caller wants\n2. A professional SMS auto-reply (under 160 chars) acknowledging their call and letting them know someone will follow up\n\nRespond in JSON format: { "summary": "...", "suggestedReply": "..." }`,
+            content: `Voicemail transcription from a customer:\n\n"${transcription}"\n\nProvide:\n1. A brief summary (1-2 sentences) of what the caller wants\n2. A professional SMS auto-reply (under 160 chars) acknowledging their call and letting them know someone will follow up\n\nRespond in JSON format: { "summary": "...", "suggestedReply": "..." }`,
           },
         ],
         temperature: 0.3,
@@ -397,7 +397,7 @@ async function sendSMS(to: string, body: string) {
     })
 
     if (!response.ok) {
-      console.error('[AIReceptionist] SMS send failed:', response.status, await response.text())
+      console.error('[AIReceptionist] SMS send failed:', response.status)
     }
   } catch (err: any) {
     console.error('[AIReceptionist] SMS error:', err.message)
