@@ -784,27 +784,33 @@ export async function deployCustomer(
             results.steps.push({ step: 'render_db', status: 'ok', dbId: existingDb.id, reused: true })
             results.services.database = existingDb
             if (existingDb.id) deployedResourceIds.push(existingDb.id)
-            dbConnectionString = existingDb.connectionString || existingDb.internalConnectionString
+            // Fetch connection string from Render API (not on the list response)
+            const connInfo = await getDatabaseConnectionInfo(existingDb.id)
+            if (connInfo?.internalConnectionString) {
+              dbConnectionString = connInfo.internalConnectionString
+            } else {
+              console.warn('[Deploy] Could not get connection string for existing DB — will create new')
+            }
           }
-          if (!existingDb) {
-          console.log('[Deploy] Creating Render DB:', dbSlug + '-db')
-          const db = await createRenderDatabase(dbSlug, region, dbPlan)
-          createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
-          results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
-          results.services.database = db
-          if (db.id) deployedResourceIds.push(db.id)
+          if (!existingDb || !dbConnectionString) {
+            console.log('[Deploy] Creating Render DB:', dbSlug + '-db')
+            const db = await createRenderDatabase(dbSlug, region, dbPlan)
+            createdResources.push({ type: 'database', id: db.id, name: dbSlug + '-db' })
+            results.steps.push({ step: 'render_db', status: 'ok', dbId: db.id })
+            results.services.database = db
+            if (db.id) deployedResourceIds.push(db.id)
 
-          console.log('[Deploy] Waiting for DB to be ready...')
-          let dbReady = false
-          for (let attempt = 0; attempt < 20; attempt++) {
-            await sleep(15000)
-            try {
-              const connInfo = await getDatabaseConnectionInfo(db.id)
-              if (connInfo?.internalConnectionString) { dbConnectionString = connInfo.internalConnectionString; dbReady = true; break }
-            } catch (_e) { /* not ready yet */ }
+            console.log('[Deploy] Waiting for DB to be ready...')
+            let dbReady = false
+            for (let attempt = 0; attempt < 20; attempt++) {
+              await sleep(15000)
+              try {
+                const connInfo = await getDatabaseConnectionInfo(db.id)
+                if (connInfo?.internalConnectionString) { dbConnectionString = connInfo.internalConnectionString; dbReady = true; break }
+              } catch (_e) { /* not ready yet */ }
+            }
+            if (!dbReady) throw new Error('DB did not become ready in time')
           }
-          if (!dbReady) throw new Error('DB did not become ready in time')
-          } // end if (!existingDb)
         } catch (dbErr: any) {
           results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
           results.errors.push('Database creation failed: ' + dbErr.message)
