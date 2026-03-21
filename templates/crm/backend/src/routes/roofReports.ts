@@ -379,35 +379,36 @@ app.post('/purchase', authenticate, async (c) => {
     return c.json({ error: 'Address, city, state, and zip are required' }, 400)
   }
 
-  const stripe = getStripe()
-  if (!stripe || isManual) {
+  // Manual (Free): generate preview with blank edges, user draws from scratch
+  if (isManual) {
     try {
       const preview = await generateReportPreview(user.companyId, address, city, state, zip, overhang)
-
-      if (isManual) {
-        // Manual mode: return preview with blank edges, user draws from scratch
-        preview.edges = []
-        preview.measurements = {
-          ...preview.measurements,
-          ridgeLF: 0, valleyLF: 0, hipLF: 0, rakeLF: 0, eaveLF: 0,
-          totalPerimeterLF: 0, wasteFactor: 0, iceWaterShieldSqft: 0,
-        }
-        return c.json({ preview: { ...preview, address, city, state, zip, contactId, mode: 'manual' }, free: true }, 200)
+      preview.edges = []
+      preview.measurements = {
+        ...preview.measurements,
+        ridgeLF: 0, valleyLF: 0, hipLF: 0, rakeLF: 0, eaveLF: 0,
+        totalPerimeterLF: 0, wasteFactor: 0, iceWaterShieldSqft: 0,
       }
+      return c.json({ preview: { ...preview, address, city, state, zip, contactId, mode: 'manual' }, free: true }, 200)
+    } catch (err: any) {
+      logger.error('Roof report generation failed', err)
+      return c.json({ error: 'Failed to generate roof report', details: err.message }, 500)
+    }
+  }
 
-      // Auto-Detect (Beta): save report immediately with pending_review status,
-      // notify factory for human review. Customer sees "Processing..."
+  // Professional Report ($9.99): Stripe payment required, then auto-detect + human review
+  const stripe = getStripe()
+  if (!stripe) {
+    // No Stripe configured (dev mode): generate and save immediately
+    try {
+      const preview = await generateReportPreview(user.companyId, address, city, state, zip, overhang)
       const report = await saveReportToDb(
         preview, user.companyId, address, city, state, zip,
         preview.edges, preview.measurements, contactId, undefined,
       )
-      // Update status to pending_review
       await db.update(roofReport).set({ status: 'pending_review' }).where(eq(roofReport.id, report.id))
-
-      // Notify factory (non-blocking)
       notifyFactoryNewReport(report.id, address, city, state, user.companyId).catch(() => {})
-
-      return c.json({ report: { ...report, status: 'pending_review' }, free: true, pendingReview: true }, 201)
+      return c.json({ report: { ...report, status: 'pending_review' }, pendingReview: true }, 201)
     } catch (err: any) {
       logger.error('Roof report generation failed', err)
       return c.json({ error: 'Failed to generate roof report', details: err.message }, 500)
@@ -489,7 +490,10 @@ app.post('/confirm-purchase', authenticate, async (c) => {
       session.payment_intent as string,
       meta.eaveOverhangInches ? Number(meta.eaveOverhangInches) : 12,
     )
-    return c.json({ report }, 201)
+    // Set to pending_review for human verification before customer sees it
+    await db.update(roofReport).set({ status: 'pending_review' }).where(eq(roofReport.id, report.id))
+    notifyFactoryNewReport(report.id, meta.address || '', meta.city || '', meta.state || '', meta.companyId).catch(() => {})
+    return c.json({ report: { ...report, status: 'pending_review' }, pendingReview: true }, 201)
   } catch (err: any) {
     logger.error('Roof report generation after payment failed', err)
     return c.json({ error: 'Report generation failed after payment — contact support for a refund', details: err.message }, 500)

@@ -17,10 +17,12 @@ interface RoofReport {
   segmentCount: number
   imageryQuality: 'HIGH' | 'MEDIUM' | 'LOW'
   imageryDate?: string | null
-  status: string
+  status: string  // paid, pending_review, completed
   contactId?: string
   createdAt: string
 }
+
+// Hide detail view for pending_review reports (customer can't see until approved)
 
 interface Contact {
   id: string
@@ -82,9 +84,11 @@ export default function RoofReportsPage() {
         body: JSON.stringify({ sessionId }),
       })
       if (result.alreadyGenerated) {
-        toast.success('Report already generated')
+        toast.success('Report already submitted')
+      } else if (result.pendingReview) {
+        toast.success('Report submitted! You\'ll be notified when it\'s ready.')
       } else {
-        toast.success('Roof report generated successfully!')
+        toast.success('Roof report generated!')
       }
       loadReports()
     } catch (err: any) {
@@ -236,19 +240,14 @@ export default function RoofReportsPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-xl font-bold text-gray-900">
-                {preview.mode === 'manual' ? 'Draw Roof Measurements' : 'Review Roof Measurements'}
+                {preview.mode === 'manual' ? 'Draw Roof Measurements' : 'Professional Report'}
               </h1>
-              {preview.mode === 'manual' ? (
-                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded-full">FREE</span>
-              ) : (
-                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-bold rounded-full">BETA</span>
-              )}
             </div>
             <p className="text-sm text-gray-500 mt-1">
               {preview.address}, {preview.city}, {preview.state} {preview.zip} —
               {preview.mode === 'manual'
                 ? ' Draw ridge, valley, hip, and eave lines on the satellite image.'
-                : ' Adjust auto-detected lines as needed, then create report.'}
+                : ' Your report is being prepared and will be delivered shortly.'}
             </p>
           </div>
           <button
@@ -381,21 +380,21 @@ export default function RoofReportsPage() {
                   type="button"
                   onClick={() => handleGenerate('manual')}
                   disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50"
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-gray-200 bg-gray-50 rounded-xl hover:border-gray-400 hover:bg-gray-100 transition-colors disabled:opacity-50"
                 >
-                  <span className="text-sm font-semibold text-blue-700">Manual Measurement</span>
-                  <span className="text-xs text-blue-500">Draw lines on satellite image</span>
+                  <span className="text-sm font-semibold text-gray-700">DIY Measurement</span>
+                  <span className="text-xs text-gray-500">Draw lines on satellite image yourself</span>
                   <span className="mt-1 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Free</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleGenerate('auto')}
                   disabled={purchasing}
-                  className="flex flex-col items-center gap-1 p-4 border-2 border-purple-200 bg-purple-50 rounded-xl hover:border-purple-400 hover:bg-purple-100 transition-colors disabled:opacity-50"
+                  className="flex flex-col items-center gap-1 p-4 border-2 border-blue-200 bg-blue-50 rounded-xl hover:border-blue-400 hover:bg-blue-100 transition-colors disabled:opacity-50"
                 >
-                  <span className="text-sm font-semibold text-purple-700">Auto-Detect Lines</span>
-                  <span className="text-xs text-purple-500">AI detects edges, you review</span>
-                  <span className="mt-1 px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full uppercase">Beta</span>
+                  <span className="text-sm font-semibold text-blue-700">Professional Report</span>
+                  <span className="text-xs text-blue-500">Verified measurements, delivered fast</span>
+                  <span className="mt-1 px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase">$9.99</span>
                 </button>
               </div>
               {purchasing && (
@@ -465,7 +464,13 @@ export default function RoofReportsPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{report.totalSquares ?? '-'}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {report.status === 'pending_review' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                      </span>
+                    ) : report.totalSquares ?? '-'}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{report.segmentCount ?? '-'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
