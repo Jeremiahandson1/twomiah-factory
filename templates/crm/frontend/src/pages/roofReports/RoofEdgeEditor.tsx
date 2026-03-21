@@ -25,7 +25,7 @@ interface Segment {
 }
 
 interface Props {
-  reportId: string
+  reportId?: string
   edges: any[]
   segments: Segment[]
   centerLat: number
@@ -121,7 +121,7 @@ export default function RoofEdgeEditor({
   const IMG_H = mapHeight
   // Convert API edges to pixel-space edges
   const apiToPixelEdges = useCallback((apiEdges: any[]): Edge[] => {
-    return apiEdges.map((e, i) => {
+    return apiEdges.map((e) => {
       const p1 = latLngToPixel(e.startLat || e.start?.lat, e.startLng || e.start?.lng, centerLat, centerLng, zoom, IMG_W, IMG_H)
       const p2 = latLngToPixel(e.endLat || e.end?.lat, e.endLng || e.end?.lng, centerLat, centerLng, zoom, IMG_W, IMG_H)
       return {
@@ -143,7 +143,7 @@ export default function RoofEdgeEditor({
   const [addStart, setAddStart] = useState<{ x: number; y: number } | null>(null)
   const [dragState, setDragState] = useState<{ edgeId: string; endpoint: 'start' | 'end'; offsetX: number; offsetY: number } | null>(null)
   const [history, setHistory] = useState<Edge[][]>([])
-  const [historyIdx, setHistoryIdx] = useState(-1)
+  const [future, setFuture] = useState<Edge[][]>([])
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
 
@@ -157,30 +157,33 @@ export default function RoofEdgeEditor({
     })
   }, [segments, centerLat, centerLng, zoom])
 
-  // Push to undo history
-  const pushHistory = useCallback((newEdges: Edge[]) => {
-    setHistory(h => [...h.slice(0, historyIdx + 1), newEdges].slice(-50))
-    setHistoryIdx(i => Math.min(i + 1, 49))
+  // Push to undo history (clears future on new action)
+  const pushHistory = useCallback((currentEdges: Edge[]) => {
+    setHistory(h => [...h, currentEdges].slice(-50))
+    setFuture([]) // new action clears redo stack
     setDirty(true)
-  }, [historyIdx])
+  }, [])
 
   const updateEdges = useCallback((newEdges: Edge[]) => {
-    pushHistory(edges) // save current state
+    pushHistory(edges) // save current state before changing
     setEdges(newEdges)
   }, [edges, pushHistory])
 
   const undo = useCallback(() => {
-    if (historyIdx < 0) return
-    const prev = history[historyIdx]
-    setHistoryIdx(i => i - 1)
+    if (history.length === 0) return
+    const prev = history[history.length - 1]
+    setHistory(h => h.slice(0, -1))
+    setFuture(f => [...f, edges]) // push current to redo stack
     setEdges(prev)
-  }, [history, historyIdx])
+  }, [history, edges])
 
   const redo = useCallback(() => {
-    if (historyIdx >= history.length - 1) return
-    const next = history[historyIdx + 1]
-    // This is actually wrong for redo — we'd need forward history. Simplified version:
-  }, [history, historyIdx])
+    if (future.length === 0) return
+    const next = future[future.length - 1]
+    setFuture(f => f.slice(0, -1))
+    setHistory(h => [...h, edges]) // push current to undo stack
+    setEdges(next)
+  }, [future, edges])
 
   // Compute measurements from current edges
   const measurements = useMemo(() => {
@@ -347,7 +350,8 @@ export default function RoofEdgeEditor({
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo() }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') { e.preventDefault(); redo() }
+      else if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); undo() }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedId) { updateEdges(edges.filter(ed => ed.id !== selectedId)); setSelectedId(null) }
       }
@@ -396,8 +400,11 @@ export default function RoofEdgeEditor({
 
           <div className="flex-1" />
 
-          <button onClick={undo} disabled={historyIdx < 0} className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-30" title="Undo (Ctrl+Z)">
+          <button onClick={undo} disabled={history.length === 0} className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-30" title="Undo (Ctrl+Z)">
             <Undo2 className="w-4 h-4" />
+          </button>
+          <button onClick={redo} disabled={future.length === 0} className="p-1.5 hover:bg-gray-100 rounded disabled:opacity-30" title="Redo (Ctrl+Shift+Z)">
+            <Redo2 className="w-4 h-4" />
           </button>
 
           {onRevert && userEdited && (

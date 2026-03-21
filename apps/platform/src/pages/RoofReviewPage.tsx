@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, API_URL as API } from '../supabase'
-import { MapPin, Clock, CheckCircle, Loader2, ArrowLeft } from 'lucide-react'
+import { MapPin, Clock, CheckCircle, Loader2, ArrowLeft, ExternalLink } from 'lucide-react'
 import RoofEdgeEditor from './RoofEdgeEditor'
 
 interface QueueItem {
@@ -34,7 +34,7 @@ export default function RoofReviewPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [satelliteUrl, setSatelliteUrl] = useState('')
   const [loadingReport, setLoadingReport] = useState(false)
-  const [_approving, setApproving] = useState(false)
+  const [approving, setApproving] = useState(false)
 
   const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession()
@@ -137,13 +137,25 @@ export default function RoofReviewPage() {
               </p>
             </div>
           </div>
-          <span className="px-3 py-1 bg-orange-500/20 text-orange-400 text-sm font-medium rounded-full">
-            Pending Review
-          </span>
+          <div className="flex items-center gap-2">
+            {approving && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
+            <a
+              href={`${selectedItem.backend_url || `https://${selectedItem.tenant?.slug}-api.onrender.com`}/crm/roof-reports`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-3 py-1 text-xs text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" /> Open in CRM
+            </a>
+            <span className="px-3 py-1 bg-orange-500/20 text-orange-400 text-sm font-medium rounded-full">
+              Pending Review
+            </span>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl p-4">
           <RoofEdgeEditor
+            reportId={reportData.id}
             edges={reportData.edges}
             segments={reportData.segments || []}
             centerLat={reportData.lat}
