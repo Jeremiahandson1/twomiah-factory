@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase, API_URL as API } from '../supabase'
-import { MapPin, Clock, CheckCircle, Loader2, ArrowLeft, ExternalLink } from 'lucide-react'
+import { MapPin, Clock, CheckCircle, Loader2, ExternalLink } from 'lucide-react'
 
 interface QueueItem {
   id: string
@@ -16,7 +16,6 @@ interface QueueItem {
 export default function RoofReviewPage() {
   const [items, setItems] = useState<QueueItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [approving, setApproving] = useState(false)
   const [error, setError] = useState('')
 
