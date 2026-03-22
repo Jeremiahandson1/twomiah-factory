@@ -48,8 +48,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
       return true
     }
 
-    const errBody = await res.text()
-    console.error('[Email] SendGrid error (' + res.status + '):', errBody)
+    console.error('[Email] SendGrid error:', res.status)
     return false
   } catch (err: any) {
     console.error('[Email] Failed to send:', err.message)
@@ -75,7 +74,8 @@ function wrap(title: string, body: string): string {
     ${body}
   </td></tr>
   <tr><td style="background:#f8f8fa;padding:16px 32px;text-align:center;">
-    <p style="margin:0;color:#999;font-size:12px;">Twomiah Factory &mdash; Automated Notification</p>
+    <p style="margin:0;color:#999;font-size:12px;">Twomiah Software Ventures &middot; 2607 Beverly Hills Drive, Eau Claire, WI 54701</p>
+    <p style="margin:4px 0 0;color:#bbb;font-size:11px;"><a href="https://twomiah.com/terms" style="color:#bbb;">Terms</a> &middot; <a href="https://twomiah.com/privacy" style="color:#bbb;">Privacy</a> &middot; <a href="mailto:support@twomiah.com" style="color:#bbb;">Support</a></p>
   </td></tr>
 </table>
 </td></tr>

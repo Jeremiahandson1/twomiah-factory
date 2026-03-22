@@ -14,6 +14,32 @@ import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getComp
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
+// ─── Rate Limiting (in-memory, per IP) ──────────────────────────────────────
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+function rateLimit(windowMs: number, maxRequests: number) {
+  return async (c: any, next: any) => {
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('cf-connecting-ip') || 'unknown'
+    const now = Date.now()
+    const entry = rateLimitMap.get(ip)
+    if (!entry || now > entry.resetAt) {
+      rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs })
+      return next()
+    }
+    if (entry.count >= maxRequests) {
+      return c.json({ error: 'Too many requests. Please try again later.' }, 429)
+    }
+    entry.count++
+    return next()
+  }
+}
+// Clean up stale entries every 10 minutes
+setInterval(() => {
+  const now = Date.now()
+  for (const [ip, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(ip)
+  }
+}, 10 * 60 * 1000)
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 
@@ -1467,7 +1493,8 @@ factory.post('/public/inbound-email', async (c) => {
 
 
 // ─── Public Signup (no auth required — path contains /public/) ──────────────
-factory.post('/public/signup', async (c) => {
+// Rate limit: 5 signups per IP per hour
+factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
     if (parsed.error) return parsed.error
