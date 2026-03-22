@@ -25,7 +25,8 @@ import caregiversRoutes from './routes/caregivers.ts'
 import schedulingRoutes from './routes/scheduling.ts'
 import timeTrackingRoutes from './routes/timeTracking.ts'
 import billingRoutes from './routes/billing.ts'
-import payrollRoutes from './routes/payroll.ts'
+let payrollRoutes: any = null
+try { payrollRoutes = (await import('./routes/payroll.ts')).default } catch {}
 import complianceRoutes from './routes/compliance.ts'
 import communicationRoutes from './routes/communication.ts'
 import documentsRoutes from './routes/documents.ts'
@@ -35,10 +36,16 @@ import smsRoutes from './routes/sms.ts'
 import portalRoutes from './routes/portal.ts'
 import reportsRoutes from './routes/reports.ts'
 import formsRoutes from './routes/forms.ts'
-import evvRoutes from './routes/evv.ts'
-import ediRoutes from './routes/edi.ts'
-import claimsRoutes from './routes/claims.ts'
-import remittanceRoutes from './routes/remittance.ts'
+// Feature-gated routes: dynamically imported so the app doesn't crash if the
+// generator stripped the file because the feature wasn't selected.
+let evvRoutes: any = null
+try { evvRoutes = (await import('./routes/evv.ts')).default } catch {}
+let ediRoutes: any = null
+try { ediRoutes = (await import('./routes/edi.ts')).default } catch {}
+let claimsRoutes: any = null
+try { claimsRoutes = (await import('./routes/claims.ts')).default } catch {}
+let remittanceRoutes: any = null
+try { remittanceRoutes = (await import('./routes/remittance.ts')).default } catch {}
 import authorizationsRoutes from './routes/authorizations.ts'
 import serviceCodesRoutes from './routes/serviceCodes.ts'
 import payersRoutes from './routes/payers.ts'
@@ -49,7 +56,8 @@ import helpRoutes from './routes/help.ts'
 import optimizerRoutes from './routes/optimizer.ts'
 import scheduleOptimizerRoutes from './routes/scheduleOptimizer.ts'
 import paymentsRoutes from './routes/payments.ts'
-import leadsRoutes from './routes/leads.ts'
+let leadsRoutes: any = null
+try { leadsRoutes = (await import('./routes/leads.ts')).default } catch {}
 import adlRoutes from './routes/adl.ts'
 import applicationsRoutes from './routes/applications.ts'
 import alertsRoutes from './routes/alerts.ts'
@@ -62,13 +70,15 @@ import carePlansRoutes from './routes/carePlans.ts'
 import careTypesRoutes from './routes/careTypes.ts'
 import caregiverAvailabilityRoutes from './routes/caregiverAvailability.ts'
 import caregiverCareTypeRatesRoutes from './routes/caregiverCareTypeRates.ts'
+import caregiverRatesRoutes from './routes/caregiverRates.ts'
 import caregiverProfileRoutes from './routes/caregiverProfile.ts'
 import certificationsRoutes from './routes/certifications.ts'
 import communicationLogRoutes from './routes/communicationLog.ts'
 import expensesRoutes from './routes/expenses.ts'
 import familyPortalRoutes from './routes/familyPortal.ts'
 import forecastRoutes from './routes/forecast.ts'
-import gustoRoutes from './routes/gusto.ts'
+let gustoRoutes: any = null
+try { gustoRoutes = (await import('./routes/gusto.ts')).default } catch {}
 import incidentsRoutes from './routes/incidents.ts'
 import matchingRoutes from './routes/matching.ts'
 import medicationsRoutes from './routes/medications.ts'
@@ -83,10 +93,14 @@ import prospectsRoutes from './routes/prospects.ts'
 import ptoRoutes from './routes/pto.ts'
 import referralSourcesRoutes from './routes/referralSources.ts'
 import rosterOptimizerRoutes from './routes/rosterOptimizer.ts'
-import sandataRoutes from './routes/sandata.ts'
+let sandataRoutes: any = null
+try { sandataRoutes = (await import('./routes/sandata.ts')).default } catch {}
 import schedulesAllRoutes from './routes/schedulesAll.ts'
 import schedulesEnhancedRoutes from './routes/schedulesEnhanced.ts'
 import shiftSwapsRoutes from './routes/shiftSwaps.ts'
+import scheduleExceptionsRoutes from './routes/scheduleExceptions.ts'
+import payrollShiftReviewsRoutes from './routes/payrollShiftReviews.ts'
+import ivrRoutes from './routes/ivr.ts'
 import trainingRecordsRoutes from './routes/trainingRecords.ts'
 import failsafeRoutes from './routes/failsafe.ts'
 import calltrackingRoutes from './routes/calltracking.ts'
@@ -146,7 +160,7 @@ app.route('/api/caregivers', caregiversRoutes)
 app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/billing', billingRoutes)
-app.route('/api/payroll', payrollRoutes)
+if (payrollRoutes) app.route('/api/payroll', payrollRoutes)
 app.route('/api/compliance', complianceRoutes)
 app.route('/api/communication', communicationRoutes)
 app.route('/api/documents', documentsRoutes)
@@ -156,10 +170,10 @@ app.route('/api/sms', smsRoutes)
 app.route('/api/portal', portalRoutes)
 app.route('/api/reports', reportsRoutes)
 app.route('/api/forms', formsRoutes)
-app.route('/api/evv', evvRoutes)
-app.route('/api/edi', ediRoutes)
-app.route('/api/claims', claimsRoutes)
-app.route('/api/remittance', remittanceRoutes)
+if (evvRoutes) app.route('/api/evv', evvRoutes)
+if (ediRoutes) app.route('/api/edi', ediRoutes)
+if (claimsRoutes) app.route('/api/claims', claimsRoutes)
+if (remittanceRoutes) app.route('/api/remittance', remittanceRoutes)
 app.route('/api/authorizations', authorizationsRoutes)
 app.route('/api/service-codes', serviceCodesRoutes)
 app.route('/api/payers', payersRoutes)
@@ -170,7 +184,7 @@ app.route('/api/help', helpRoutes)
 app.route('/api/optimizer', optimizerRoutes)
 app.route('/api/optimizer', scheduleOptimizerRoutes)
 app.route('/api/payments', paymentsRoutes)
-app.route('/api/leads', leadsRoutes)
+if (leadsRoutes) app.route('/api/leads', leadsRoutes)
 app.route('/api/adl', adlRoutes)
 app.route('/api/applications', applicationsRoutes)
 app.route('/api/alerts', alertsRoutes)
@@ -183,13 +197,14 @@ app.route('/api/care-plans', carePlansRoutes)
 app.route('/api/care-types', careTypesRoutes)
 app.route('/api/caregiver-availability', caregiverAvailabilityRoutes)
 app.route('/api/caregiver-care-type-rates', caregiverCareTypeRatesRoutes)
+app.route('/api/caregiver-rates', caregiverRatesRoutes)
 app.route('/api/caregiver-profile', caregiverProfileRoutes)
 app.route('/api/certifications', certificationsRoutes)
 app.route('/api/communication-log', communicationLogRoutes)
 app.route('/api/expenses', expensesRoutes)
 app.route('/api/family-portal', familyPortalRoutes)
 app.route('/api/forecast', forecastRoutes)
-app.route('/api/gusto', gustoRoutes)
+if (gustoRoutes) app.route('/api/gusto', gustoRoutes)
 app.route('/api/incidents', incidentsRoutes)
 app.route('/api/matching', matchingRoutes)
 app.route('/api/medications', medicationsRoutes)
@@ -204,10 +219,13 @@ app.route('/api/prospects', prospectsRoutes)
 app.route('/api/pto', ptoRoutes)
 app.route('/api/referral-sources', referralSourcesRoutes)
 app.route('/api/roster-optimizer', rosterOptimizerRoutes)
-app.route('/api/sandata', sandataRoutes)
+if (sandataRoutes) app.route('/api/sandata', sandataRoutes)
 app.route('/api/schedules-all', schedulesAllRoutes)
 app.route('/api/schedules-enhanced', schedulesEnhancedRoutes)
 app.route('/api/shift-swaps', shiftSwapsRoutes)
+app.route('/api/schedule-exceptions', scheduleExceptionsRoutes)
+app.route('/api/payroll-shift-reviews', payrollShiftReviewsRoutes)
+app.route('/api/ivr', ivrRoutes)
 app.route('/api/training-records', trainingRecordsRoutes)
 app.route('/api/failsafe', failsafeRoutes)
 app.route('/api/calltracking', calltrackingRoutes)

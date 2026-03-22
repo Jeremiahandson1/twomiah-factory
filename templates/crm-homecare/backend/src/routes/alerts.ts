@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { alerts, users } from '../../db/schema.ts'
-import { eq, and, desc } from 'drizzle-orm'
+import { alerts, users, certificationAlerts, certificationRecords } from '../../db/schema.ts'
+import { eq, and, desc, gte, lte, sql } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -123,6 +123,113 @@ app.put('/:alertId/dismiss', async (c) => {
 
   if (!row) return c.json({ error: 'Alert not found' }, 404)
   return c.json(row)
+})
+
+// ==================== CERTIFICATION ALERTS ====================
+
+// GET /api/alerts/certifications — list certification expiration alerts
+app.get('/certifications', async (c) => {
+  const status = c.req.query('status')
+
+  const conditions: any[] = []
+  if (status) conditions.push(eq(certificationAlerts.status, status))
+
+  const rows = await db.select({
+    id: certificationAlerts.id,
+    caregiverId: certificationAlerts.caregiverId,
+    certificationRecordId: certificationAlerts.certificationRecordId,
+    certificationType: certificationAlerts.certificationType,
+    expiryDate: certificationAlerts.expiryDate,
+    alertType: certificationAlerts.alertType,
+    daysUntilExpiry: certificationAlerts.daysUntilExpiry,
+    status: certificationAlerts.status,
+    acknowledgedAt: certificationAlerts.acknowledgedAt,
+    createdAt: certificationAlerts.createdAt,
+    caregiverFirstName: users.firstName,
+    caregiverLastName: users.lastName,
+  })
+    .from(certificationAlerts)
+    .leftJoin(users, eq(certificationAlerts.caregiverId, users.id))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(certificationAlerts.expiryDate)
+    .limit(500)
+
+  return c.json(rows)
+})
+
+// PUT /api/alerts/certifications/:id/acknowledge
+app.put('/certifications/:id/acknowledge', async (c) => {
+  const id = c.req.param('id')
+  const user = c.get('user') as any
+
+  const [row] = await db.update(certificationAlerts)
+    .set({
+      status: 'acknowledged',
+      acknowledgedAt: new Date(),
+      acknowledgedById: user.userId,
+    })
+    .where(eq(certificationAlerts.id, id))
+    .returning()
+
+  if (!row) return c.json({ error: 'Certification alert not found' }, 404)
+  return c.json(row)
+})
+
+// POST /api/alerts/certifications/generate — scan for expiring certs, create alerts
+app.post('/certifications/generate', requireAdmin, async (c) => {
+  try {
+    const today = new Date()
+    const thirtyDaysOut = new Date(today)
+    thirtyDaysOut.setDate(thirtyDaysOut.getDate() + 30)
+    const todayStr = today.toISOString().split('T')[0]
+    const thirtyDaysStr = thirtyDaysOut.toISOString().split('T')[0]
+
+    // Find active certs expiring within 30 days
+    const expiringCerts = await db.select({
+      id: certificationRecords.id,
+      caregiverId: certificationRecords.caregiverId,
+      certificationType: certificationRecords.certificationType,
+      expiryDate: certificationRecords.expiryDate,
+    })
+      .from(certificationRecords)
+      .where(and(
+        eq(certificationRecords.status, 'active'),
+        lte(certificationRecords.expiryDate, thirtyDaysStr),
+        gte(certificationRecords.expiryDate, todayStr),
+      ))
+
+    // Get existing active alerts to avoid duplicates
+    const existingAlerts = await db.select({
+      certificationRecordId: certificationAlerts.certificationRecordId,
+    })
+      .from(certificationAlerts)
+      .where(eq(certificationAlerts.status, 'active'))
+
+    const existingCertIds = new Set(existingAlerts.map(a => a.certificationRecordId))
+
+    let created = 0
+    for (const cert of expiringCerts) {
+      if (existingCertIds.has(cert.id)) continue
+      if (!cert.expiryDate) continue
+
+      const expiryDate = new Date(cert.expiryDate)
+      const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+      await db.insert(certificationAlerts).values({
+        caregiverId: cert.caregiverId,
+        certificationRecordId: cert.id,
+        certificationType: cert.certificationType,
+        expiryDate: cert.expiryDate,
+        alertType: daysUntilExpiry <= 7 ? 'expiring_urgent' : 'expiring_soon',
+        daysUntilExpiry,
+      })
+      created++
+    }
+
+    return c.json({ scanned: expiringCerts.length, created, skippedDuplicates: expiringCerts.length - created })
+  } catch (error: any) {
+    return c.json({ error: error.message }, 500)
+  }
 })
 
 export default app

@@ -56,6 +56,18 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
   const [gpsLoading, setGpsLoading] = useState(false);
   const [selectedShift, setSelectedShift] = useState(null);
 
+  // IVR PIN state
+  const [ivrPin, setIvrPin] = useState(null);
+  const [ivrPinLoading, setIvrPinLoading] = useState(false);
+
+  // Pay rates state
+  const [caregiverRates, setCaregiverRates] = useState({ base: '', overtime: '', premium: '' });
+  const [ratesLoaded, setRatesLoaded] = useState(false);
+  const [ratesSaving, setRatesSaving] = useState(false);
+  const [rateHistory, setRateHistory] = useState(null);
+  const [showRateHistory, setShowRateHistory] = useState(false);
+  const [rateHistoryLoading, setRateHistoryLoading] = useState(false);
+
   const hdr = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
   const load = useCallback(async () => {
@@ -167,6 +179,104 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
     if (r.ok) toast(`New temp password: ${newPwd} — send to caregiver`, 'success');
     else toast('Password reset failed', 'error');
   };
+
+  // ── IVR PIN functions ───────────────────────────────────────────────────────
+  const loadIvrPin = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/caregivers/${caregiverId}`, { headers: hdr });
+      if (r.ok) {
+        const d = await r.json();
+        setIvrPin(d.ivrPin || d.ivr_pin || null);
+      }
+    } catch (e) { /* ignore */ }
+  }, [caregiverId]);
+
+  const generateIvrPin = async () => {
+    setIvrPinLoading(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/caregivers/${caregiverId}/generate-ivr-pin`, {
+        method: 'POST', headers: hdr
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setIvrPin(d.pin || d.ivrPin || d.ivr_pin || null);
+        toast('IVR PIN generated', 'success');
+      } else {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error || 'Failed to generate PIN', 'error');
+      }
+    } catch (e) { toast('Failed to generate PIN', 'error'); }
+    setIvrPinLoading(false);
+  };
+
+  const clearIvrPin = async () => {
+    if (!window.confirm('Clear this caregiver\'s IVR PIN? They will not be able to use phone clock-in until a new PIN is generated.')) return;
+    setIvrPinLoading(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/caregivers/${caregiverId}/ivr-pin`, {
+        method: 'DELETE', headers: hdr
+      });
+      if (r.ok) {
+        setIvrPin(null);
+        toast('IVR PIN cleared', 'success');
+      } else {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error || 'Failed to clear PIN', 'error');
+      }
+    } catch (e) { toast('Failed to clear PIN', 'error'); }
+    setIvrPinLoading(false);
+  };
+
+  // ── Pay rates functions ────────────────────────────────────────────────────
+  const loadCaregiverRates = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/caregiver-rates/${caregiverId}`, { headers: hdr });
+      if (r.ok) {
+        const d = await r.json();
+        setCaregiverRates({
+          base: d.base != null ? String(d.base) : '',
+          overtime: d.overtime != null ? String(d.overtime) : '',
+          premium: d.premium != null ? String(d.premium) : '',
+        });
+      }
+      setRatesLoaded(true);
+    } catch (e) { setRatesLoaded(true); }
+  }, [caregiverId]);
+
+  const saveCaregiverRates = async () => {
+    setRatesSaving(true);
+    try {
+      const body = {
+        base: caregiverRates.base ? parseFloat(caregiverRates.base) : null,
+        overtime: caregiverRates.overtime ? parseFloat(caregiverRates.overtime) : null,
+        premium: caregiverRates.premium ? parseFloat(caregiverRates.premium) : null,
+        effectiveDate: new Date().toISOString().split('T')[0],
+      };
+      const r = await fetch(`${API_BASE_URL}/api/caregiver-rates/${caregiverId}`, {
+        method: 'PUT', headers: hdr, body: JSON.stringify(body)
+      });
+      if (r.ok) {
+        toast('Pay rates saved', 'success');
+        setRateHistory(null); // reset history so it reloads if expanded
+      } else {
+        const d = await r.json().catch(() => ({}));
+        toast(d.error || 'Failed to save rates', 'error');
+      }
+    } catch (e) { toast('Failed to save rates', 'error'); }
+    setRatesSaving(false);
+  };
+
+  const loadRateHistory = async () => {
+    setRateHistoryLoading(true);
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/caregiver-rates/${caregiverId}/history`, { headers: hdr });
+      if (r.ok) setRateHistory(await r.json());
+      else setRateHistory([]);
+    } catch (e) { setRateHistory([]); }
+    setRateHistoryLoading(false);
+  };
+
+  useEffect(() => { loadIvrPin(); loadCaregiverRates(); }, [loadIvrPin, loadCaregiverRates]);
 
   if (loading) return <div style={{textAlign:'center',padding:'3rem',color:'#6B7280'}}>Loading caregiver...</div>;
   if (!data) return <div style={{textAlign:'center',padding:'3rem',color:'#EF4444'}}>Could not load caregiver data.</div>;
@@ -362,6 +472,120 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
         <p style={{ fontSize: '0.78rem', color: '#9CA3AF', marginTop: '0.5rem' }}>
           Member since {fmtDate(profile?.created_at)} · Hire date: {fmtDate(profile?.hire_date) || 'not set'}
         </p>
+      </div>
+
+      {/* IVR PIN Management */}
+      <div style={s.card}>
+        <div style={{ fontWeight: 800, fontSize: '0.95rem', marginBottom: '1rem' }}>📞 IVR PIN (Phone Clock-In)</div>
+        <div style={{ background: '#F0FDFB', border: '1px solid #A7F3D0', borderRadius: 10, padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.82rem', color: '#065F46' }}>
+          Caregivers use their 4-digit IVR PIN to clock in/out via phone call. This is required for telephony-based EVV compliance.
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ padding: '0.875rem 1.25rem', background: ivrPin ? '#EFF6FF' : '#F9FAFB', borderRadius: 10, border: `1px solid ${ivrPin ? '#BFDBFE' : '#E5E7EB'}`, minWidth: 160, textAlign: 'center' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Current PIN</div>
+            {ivrPin ? (
+              <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#1D4ED8', letterSpacing: '0.25em', fontFamily: 'monospace' }}>{ivrPin}</div>
+            ) : (
+              <div style={{ fontSize: '0.9rem', color: '#9CA3AF', fontWeight: 600 }}>Not set</div>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button style={s.btn('{{PRIMARY_COLOR}}')} onClick={generateIvrPin} disabled={ivrPinLoading}>
+              {ivrPinLoading ? '...' : ivrPin ? '🔄 Regenerate PIN' : '🔑 Generate PIN'}
+            </button>
+            {ivrPin && (
+              <button style={s.btn('#EF4444', true)} onClick={clearIvrPin} disabled={ivrPinLoading}>
+                🗑️ Clear PIN
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Caregiver Pay Rates (base / overtime / premium) */}
+      <div style={s.card}>
+        <div style={{ fontWeight: 800, fontSize: '0.95rem', marginBottom: '1rem' }}>💵 Pay Rates</div>
+        {!ratesLoaded ? (
+          <div style={{ color: '#9CA3AF', fontSize: '0.85rem' }}>Loading rates...</div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={s.label}>Base Rate ($/hr)</label>
+                <input
+                  type="number" step="0.01" min="0" placeholder="Not set"
+                  value={caregiverRates.base}
+                  onChange={e => setCaregiverRates(p => ({ ...p, base: e.target.value }))}
+                  style={s.input}
+                />
+              </div>
+              <div>
+                <label style={s.label}>Overtime Rate ($/hr)</label>
+                <input
+                  type="number" step="0.01" min="0" placeholder="Not set"
+                  value={caregiverRates.overtime}
+                  onChange={e => setCaregiverRates(p => ({ ...p, overtime: e.target.value }))}
+                  style={s.input}
+                />
+              </div>
+              <div>
+                <label style={s.label}>Premium Rate ($/hr)</label>
+                <input
+                  type="number" step="0.01" min="0" placeholder="Not set"
+                  value={caregiverRates.premium}
+                  onChange={e => setCaregiverRates(p => ({ ...p, premium: e.target.value }))}
+                  style={s.input}
+                />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <button style={s.btn()} onClick={saveCaregiverRates} disabled={ratesSaving}>
+                {ratesSaving ? 'Saving...' : '💾 Save Rates'}
+              </button>
+              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>
+                Current: Base {caregiverRates.base ? fmt$(caregiverRates.base) : 'N/A'} · OT {caregiverRates.overtime ? fmt$(caregiverRates.overtime) : 'N/A'} · Premium {caregiverRates.premium ? fmt$(caregiverRates.premium) : 'N/A'}
+              </span>
+            </div>
+            {/* Rate History expandable */}
+            <div style={{ borderTop: '1px solid #F3F4F6', paddingTop: '0.75rem' }}>
+              <button
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.82rem', color: '#6366F1', padding: 0 }}
+                onClick={() => { setShowRateHistory(p => !p); if (!rateHistory) loadRateHistory(); }}
+              >
+                {showRateHistory ? '▾ Hide Rate History' : '▸ Show Rate History'}
+              </button>
+              {showRateHistory && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  {rateHistoryLoading ? (
+                    <div style={{ color: '#9CA3AF', fontSize: '0.82rem' }}>Loading history...</div>
+                  ) : rateHistory && rateHistory.length > 0 ? (
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                      <thead>
+                        <tr style={{ background: '#F9FAFB' }}>
+                          {['Effective Date', 'Base', 'Overtime', 'Premium'].map(h => (
+                            <th key={h} style={{ padding: '0.4rem 0.75rem', textAlign: 'left', fontWeight: 700, borderBottom: '1px solid #E5E7EB' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rateHistory.map((r, i) => (
+                          <tr key={r.id || i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                            <td style={{ padding: '0.4rem 0.75rem', color: '#6B7280' }}>{fmtDate(r.effectiveDate || r.effective_date)}</td>
+                            <td style={{ padding: '0.4rem 0.75rem', fontWeight: 700, color: '{{PRIMARY_COLOR}}' }}>{r.base != null ? fmt$(r.base) : '—'}</td>
+                            <td style={{ padding: '0.4rem 0.75rem', fontWeight: 700, color: '#6366F1' }}>{r.overtime != null ? fmt$(r.overtime) : '—'}</td>
+                            <td style={{ padding: '0.4rem 0.75rem', fontWeight: 700, color: '#F59E0B' }}>{r.premium != null ? fmt$(r.premium) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={{ color: '#9CA3AF', fontSize: '0.82rem' }}>No rate history found.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Pay rate history */}

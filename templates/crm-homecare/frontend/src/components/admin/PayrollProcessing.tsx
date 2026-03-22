@@ -21,9 +21,25 @@ const PayrollProcessing = () => {
   const [showPTOModal, setShowPTOModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [caregivers, setCaregivers] = useState([]);
-  const [activeTab, setActiveTab] = useState('payroll');
+  const [activeTab, setActiveTab] = useState('shifts');
   const [discrepancies, setDiscrepancies] = useState(null);
   const [discrepancyLoading, setDiscrepancyLoading] = useState(false);
+
+  // Shift review state
+  const [shiftData, setShiftData] = useState({ shifts: [], stats: {} });
+  const [shiftLoading, setShiftLoading] = useState(false);
+  const [shiftFilter, setShiftFilter] = useState('all');
+  const [caregiverFilter, setCaregiverFilter] = useState('all');
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flagShift, setFlagShift] = useState(null);
+  const [flagReason, setFlagReason] = useState('');
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [resolveShift, setResolveShift] = useState(null);
+  const [resolveForm, setResolveForm] = useState({
+    status: 'manual_entry',
+    payableMinutes: '',
+    resolutionNotes: ''
+  });
   
   // Payroll settings
   const [settings, setSettings] = useState({
@@ -75,6 +91,109 @@ const PayrollProcessing = () => {
     } catch (error) {
       console.error('Failed to load caregivers:', error);
     }
+  };
+
+  // ==================== SHIFT REVIEW ====================
+
+  const generateShifts = async () => {
+    setShiftLoading(true);
+    setMessage('');
+    try {
+      const genResponse = await fetch(`${API_BASE_URL}/api/payroll-shift-reviews/generate-shifts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ startDate: payPeriod.startDate, endDate: payPeriod.endDate })
+      });
+      if (!genResponse.ok) throw new Error('Failed to generate shifts');
+      const genResult = await genResponse.json();
+      await loadShifts();
+      setMessage(`Generated ${genResult.generated} shifts (${genResult.matched} matched, ${genResult.missingPunch} missing punch)`);
+      setTimeout(() => setMessage(''), 5000);
+    } catch (error) {
+      setMessage('Error: ' + error.message);
+      console.error('Generate shifts error:', error);
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
+  const loadShifts = async () => {
+    try {
+      const params = new URLSearchParams({ startDate: payPeriod.startDate, endDate: payPeriod.endDate });
+      const r = await fetch(`${API_BASE_URL}/api/payroll-shift-reviews/shifts?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (r.ok) setShiftData(await r.json());
+    } catch (e) {
+      console.error('Load shifts error:', e);
+    }
+  };
+
+  const handleShiftAction = async (shiftId, status, extras = {}) => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/payroll-shift-reviews/shifts/${shiftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ status, ...extras })
+      });
+      if (!r.ok) throw new Error('Failed to update shift');
+      await loadShifts();
+    } catch (error) {
+      toast('Failed: ' + error.message, 'error');
+    }
+  };
+
+  const handleBulkApproveShifts = async (mode) => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/api/payroll-shift-reviews/shifts/approve-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ startDate: payPeriod.startDate, endDate: payPeriod.endDate, mode })
+      });
+      if (!r.ok) throw new Error('Failed to bulk approve');
+      const result = await r.json();
+      await loadShifts();
+      const msg = mode === 'all'
+        ? `Approved ${result.approvedCount || 0} shifts`
+        : `Approved ${result.approvedCount || 0} clocked shifts`;
+      setMessage(msg);
+      setTimeout(() => setMessage(''), 5000);
+    } catch (error) {
+      toast('Failed: ' + error.message, 'error');
+    }
+  };
+
+  const openFlagModal = (shift) => {
+    setFlagShift(shift);
+    setFlagReason('');
+    setShowFlagModal(true);
+  };
+
+  const handleFlagShift = async (e) => {
+    e.preventDefault();
+    await handleShiftAction(flagShift.id, 'flagged', { flagReason });
+    setShowFlagModal(false);
+    setFlagShift(null);
+  };
+
+  const openResolveModal = (shift) => {
+    setResolveShift(shift);
+    setResolveForm({
+      status: 'manual_entry',
+      payableMinutes: shift.scheduled_minutes || '',
+      resolutionNotes: ''
+    });
+    setShowResolveModal(true);
+  };
+
+  const handleResolveShift = async (e) => {
+    e.preventDefault();
+    await handleShiftAction(resolveShift.id, resolveForm.status, {
+      payableMinutes: resolveForm.status === 'excused' ? 0 : parseInt(resolveForm.payableMinutes) || 0,
+      resolutionNotes: resolveForm.resolutionNotes
+    });
+    setShowResolveModal(false);
+    setResolveShift(null);
   };
 
   const calculatePayroll = async () => {
@@ -266,6 +385,30 @@ const PayrollProcessing = () => {
     window.print();
   };
 
+  // Shift computed values
+  const shiftCaregivers = [...new Map(
+    shiftData.shifts.map(s => [s.caregiver_id, { id: s.caregiver_id, name: `${s.caregiver_first} ${s.caregiver_last}` }])
+  ).values()].sort((a, b) => a.name.localeCompare(b.name));
+
+  const filteredShifts = shiftData.shifts.filter(s => {
+    if (shiftFilter !== 'all' && s.status !== shiftFilter) return false;
+    if (caregiverFilter !== 'all' && s.caregiver_id !== caregiverFilter) return false;
+    return true;
+  });
+
+  const shiftStatusConfig = {
+    pending:       { bg: '#F3F4F6', color: '#374151', label: 'Pending' },
+    verified:      { bg: '#DBEAFE', color: '#1E40AF', label: 'Verified' },
+    approved:      { bg: '#D1FAE5', color: '#065F46', label: 'Approved' },
+    flagged:       { bg: '#FEE2E2', color: '#991B1B', label: 'Flagged' },
+    missing_punch: { bg: '#FFEDD5', color: '#9A3412', label: 'Missing Punch' },
+    excused:       { bg: '#FEF9C3', color: '#854D0E', label: 'Excused' },
+    manual_entry:  { bg: '#EDE9FE', color: '#6B21A8', label: 'Manual Entry' }
+  };
+
+  const formatTime = (time) => time ? time.substring(0, 5) : '--:--';
+  const formatMinutes = (min) => min != null ? `${(min / 60).toFixed(1)}h` : '--';
+
   const filteredPayroll = payrollData.filter(p => filter === 'all' || p.status === filter);
 
   const totals = {
@@ -318,7 +461,7 @@ const PayrollProcessing = () => {
 
       {/* Tab selector */}
       <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #E5E7EB', marginBottom: '1.25rem' }}>
-        {[['payroll','💰 Payroll'],['discrepancies','⚠️ Hour Discrepancies']].map(([id,label]) => (
+        {[['shifts','📋 Shift Reviews'],['payroll','💰 Payroll'],['discrepancies','⚠️ Hour Discrepancies']].map(([id,label]) => (
           <button key={id} onClick={() => { setActiveTab(id); if(id==='discrepancies') loadDiscrepancies(); }}
             style={{ padding:'0.55rem 1.25rem', border:'none', background:'none', cursor:'pointer',
               fontWeight: activeTab===id ? 800 : 500, fontSize:'0.875rem',
@@ -326,9 +469,193 @@ const PayrollProcessing = () => {
               borderBottom: `2px solid ${activeTab===id ? '{{PRIMARY_COLOR}}' : 'transparent'}`,
               marginBottom: -2 }}>
             {label}
+            {id === 'shifts' && (shiftData.stats.pending || 0) + (shiftData.stats.flagged || 0) + (shiftData.stats.missing_punch || 0) > 0 && (
+              <span style={{ marginLeft: 6, background: '#EF4444', color: '#fff', borderRadius: 10, padding: '1px 7px', fontSize: '0.7rem', fontWeight: 700 }}>
+                {(shiftData.stats.pending || 0) + (shiftData.stats.flagged || 0) + (shiftData.stats.missing_punch || 0)}
+              </span>
+            )}
           </button>
         ))}
       </div>
+
+      {/* ==================== SHIFT REVIEWS TAB ==================== */}
+      {activeTab === 'shifts' && (
+        <div>
+          {/* Date pickers & Generate button */}
+          <div className="card">
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Pay Period Start</label>
+                <input type="date" value={payPeriod.startDate} onChange={(e) => setPayPeriod({ ...payPeriod, startDate: e.target.value })} />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label>Pay Period End</label>
+                <input type="date" value={payPeriod.endDate} onChange={(e) => setPayPeriod({ ...payPeriod, endDate: e.target.value })} />
+              </div>
+              <button className="btn btn-primary" onClick={generateShifts} disabled={shiftLoading}>
+                {shiftLoading ? 'Generating...' : 'Generate Shifts'}
+              </button>
+            </div>
+          </div>
+
+          {/* Shift Stats */}
+          {shiftData.shifts.length > 0 && (
+            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              {[
+                { label: 'Total Shifts', val: shiftData.stats.total || 0, color: '#6366F1' },
+                { label: 'Pending', val: shiftData.stats.pending || 0, color: '#6B7280' },
+                { label: 'Verified', val: shiftData.stats.verified || 0, color: '#1E40AF' },
+                { label: 'Approved', val: shiftData.stats.approved || 0, color: '#10B981' },
+                { label: 'Flagged', val: shiftData.stats.flagged || 0, color: '#DC2626' },
+                { label: 'Missing Punch', val: shiftData.stats.missing_punch || 0, color: '#EA580C' },
+              ].map(s => (
+                <div key={s.label} style={{ flex: 1, minWidth: 120, padding: '0.75rem 1rem', background: '#F9FAFB', borderRadius: 12, borderLeft: `4px solid ${s.color}` }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: s.color }}>{s.val}</div>
+                  <div style={{ fontSize: '0.7rem', color: '#6B7280', marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Shift Filters & Bulk Actions */}
+          {shiftData.shifts.length > 0 && (
+            <div className="card" style={{ padding: '0.75rem 1rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                  {[
+                    ['all', 'All'],
+                    ['pending', 'Pending'],
+                    ['verified', 'Verified'],
+                    ['approved', 'Approved'],
+                    ['flagged', 'Flagged'],
+                    ['missing_punch', 'Missing Punch'],
+                    ['excused', 'Excused'],
+                    ['manual_entry', 'Manual'],
+                  ].map(([val, label]) => (
+                    <button key={val}
+                      className={`filter-tab ${shiftFilter === val ? 'active' : ''}`}
+                      onClick={() => setShiftFilter(val)}
+                      style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <select value={caregiverFilter} onChange={e => setCaregiverFilter(e.target.value)}
+                  style={{ padding: '0.35rem 0.5rem', borderRadius: 6, border: '1px solid #D1D5DB', fontSize: '0.82rem' }}>
+                  <option value="all">All Caregivers</option>
+                  {shiftCaregivers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <button className="btn btn-sm btn-success" onClick={() => handleBulkApproveShifts('clocked')}
+                  disabled={!shiftData.shifts.some(s => ['verified', 'pending'].includes(s.status) && s.time_entry_id)}>
+                  Approve Clocked
+                </button>
+                <button className="btn btn-sm btn-warning" onClick={() => handleBulkApproveShifts('all')}
+                  disabled={!shiftData.shifts.some(s => ['verified', 'pending', 'missing_punch'].includes(s.status))}>
+                  Approve All
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Shift Table */}
+          {shiftData.shifts.length === 0 ? (
+            <div className="card card-centered">
+              <p>No shift data. Select a pay period and click "Generate Shifts" to match schedules against clock-ins.</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ fontSize: '0.82rem' }}>
+                <thead>
+                  <tr>
+                    <th>Caregiver</th>
+                    <th>Client</th>
+                    <th>Date</th>
+                    <th>Sched Start</th>
+                    <th>Sched End</th>
+                    <th>Actual Start</th>
+                    <th>Actual End</th>
+                    <th>Sched Min</th>
+                    <th>Actual Min</th>
+                    <th>Payable</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredShifts.map(shift => {
+                    const sc = shiftStatusConfig[shift.status] || shiftStatusConfig.pending;
+                    return (
+                      <tr key={shift.id} style={{
+                        background: shift.status === 'missing_punch' ? '#FFF5F5'
+                          : shift.status === 'flagged' ? '#FFF5F5'
+                          : shift.status === 'approved' || shift.status === 'verified' ? '#F0FDF4'
+                          : undefined
+                      }}>
+                        <td style={{ fontWeight: 600 }}>{shift.caregiver_first} {shift.caregiver_last}</td>
+                        <td>{shift.client_first} {shift.client_last}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {new Date(String(shift.shift_date).split('T')[0] + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td>{shift.scheduled_start ? formatTime(shift.scheduled_start) : '--'}</td>
+                        <td>{shift.scheduled_end ? formatTime(shift.scheduled_end) : '--'}</td>
+                        <td>
+                          {shift.actual_start
+                            ? new Date(shift.actual_start).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            : <span style={{ color: '#EF4444' }}>--</span>}
+                        </td>
+                        <td>
+                          {shift.actual_end
+                            ? new Date(shift.actual_end).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                            : <span style={{ color: '#EF4444' }}>--</span>}
+                        </td>
+                        <td>{shift.scheduled_minutes != null ? formatMinutes(shift.scheduled_minutes) : '--'}</td>
+                        <td>{shift.actual_minutes != null ? formatMinutes(shift.actual_minutes) : '--'}</td>
+                        <td style={{ fontWeight: 700, color: '{{PRIMARY_COLOR}}' }}>
+                          {shift.payable_minutes != null ? formatMinutes(shift.payable_minutes) : '--'}
+                        </td>
+                        <td>
+                          <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: '0.73rem', fontWeight: 700, background: sc.bg, color: sc.color, whiteSpace: 'nowrap' }}>
+                            {sc.label}
+                          </span>
+                          {shift.flag_reason && (
+                            <div style={{ fontSize: '0.68rem', color: '#6B7280', marginTop: 2, maxWidth: 140 }} title={shift.flag_reason}>
+                              {shift.flag_reason.substring(0, 30)}{shift.flag_reason.length > 30 ? '...' : ''}
+                            </div>
+                          )}
+                          {shift.resolution_notes && (
+                            <div style={{ fontSize: '0.68rem', color: '#6B7280', marginTop: 2, maxWidth: 140 }} title={shift.resolution_notes}>
+                              {shift.resolution_notes.substring(0, 30)}{shift.resolution_notes.length > 30 ? '...' : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap' }}>
+                            {['pending', 'verified'].includes(shift.status) && (
+                              <button className="btn btn-sm btn-success" onClick={() => handleShiftAction(shift.id, 'approved')}>Approve</button>
+                            )}
+                            {['pending', 'verified'].includes(shift.status) && (
+                              <button className="btn btn-sm btn-secondary" onClick={() => openFlagModal(shift)} style={{ fontSize: '0.7rem' }}>Flag</button>
+                            )}
+                            {shift.status === 'flagged' && (
+                              <>
+                                <button className="btn btn-sm btn-success" onClick={() => handleShiftAction(shift.id, 'approved')}>Approve</button>
+                                <button className="btn btn-sm btn-warning" onClick={() => openResolveModal(shift)}>Resolve</button>
+                              </>
+                            )}
+                            {shift.status === 'missing_punch' && (
+                              <button className="btn btn-sm btn-warning" onClick={() => openResolveModal(shift)}>Resolve</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Discrepancies Tab */}
       {activeTab === 'discrepancies' && (
@@ -811,6 +1138,78 @@ const PayrollProcessing = () => {
               <button className="btn btn-primary" onClick={() => { setShowSettingsModal(false); calculatePayroll(); }}>Save & Recalculate</button>
               <button className="btn btn-secondary" onClick={() => setShowSettingsModal(false)}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FLAG SHIFT MODAL */}
+      {showFlagModal && flagShift && (
+        <div className="modal active">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>🚩 Flag Shift</h2>
+              <button className="close-btn" onClick={() => setShowFlagModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleFlagShift}>
+              <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#374151' }}>
+                <strong>{flagShift.caregiver_first} {flagShift.caregiver_last}</strong> — {flagShift.client_first} {flagShift.client_last}
+              </p>
+              <div className="form-group">
+                <label>Flag Reason *</label>
+                <textarea value={flagReason} onChange={(e) => setFlagReason(e.target.value)} rows="3" required
+                  placeholder="Describe the issue with this shift..." />
+              </div>
+              <div className="modal-actions">
+                <button type="submit" className="btn btn-primary">Flag Shift</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowFlagModal(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* RESOLVE SHIFT MODAL */}
+      {showResolveModal && resolveShift && (
+        <div className="modal active">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>🔧 Resolve Shift</h2>
+              <button className="close-btn" onClick={() => setShowResolveModal(false)}>×</button>
+            </div>
+            <form onSubmit={handleResolveShift}>
+              <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#374151' }}>
+                <strong>{resolveShift.caregiver_first} {resolveShift.caregiver_last}</strong> — {resolveShift.client_first} {resolveShift.client_last}
+                <br />
+                <span style={{ color: '#6B7280', fontSize: '0.8rem' }}>
+                  Scheduled: {resolveShift.scheduled_minutes != null ? formatMinutes(resolveShift.scheduled_minutes) : 'N/A'}
+                  {resolveShift.actual_minutes != null && ` | Actual: ${formatMinutes(resolveShift.actual_minutes)}`}
+                </span>
+              </p>
+              <div className="form-group">
+                <label>Resolution Status *</label>
+                <select value={resolveForm.status} onChange={(e) => setResolveForm({ ...resolveForm, status: e.target.value })}>
+                  <option value="manual_entry">Manual Entry</option>
+                  <option value="approved">Approved</option>
+                  <option value="excused">Excused (0 payable)</option>
+                </select>
+              </div>
+              {resolveForm.status !== 'excused' && (
+                <div className="form-group">
+                  <label>Payable Minutes *</label>
+                  <input type="number" min="0" value={resolveForm.payableMinutes}
+                    onChange={(e) => setResolveForm({ ...resolveForm, payableMinutes: e.target.value })} required />
+                </div>
+              )}
+              <div className="form-group">
+                <label>Resolution Notes</label>
+                <textarea value={resolveForm.resolutionNotes} onChange={(e) => setResolveForm({ ...resolveForm, resolutionNotes: e.target.value })}
+                  rows="3" placeholder="Explain the resolution..." />
+              </div>
+              <div className="modal-actions">
+                <button type="submit" className="btn btn-primary">Resolve</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setShowResolveModal(false)}>Cancel</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

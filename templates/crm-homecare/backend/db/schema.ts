@@ -56,6 +56,7 @@ export const users = pgTable('users', {
   refreshToken: text('refresh_token'),
   resetToken: text('reset_token'),
   resetTokenExp: timestamp('reset_token_exp'),
+  ivrPin: text('ivr_pin').unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -188,11 +189,17 @@ export const referralSources = pgTable('referral_sources', {
   isActivePayer: boolean('is_active_payer').default(false).notNull(),
   ediPayerId: text('edi_payer_id'),
   submissionMethod: text('submission_method').default('manual'),
+  feaOrganization: text('fea_organization'),
+  billingAddress: text('billing_address'),
+  billingContactName: text('billing_contact_name'),
+  billingContactEmail: text('billing_contact_email'),
+  billingContactPhone: text('billing_contact_phone'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('referral_sources_type_idx').on(t.type),
   index('referral_sources_is_active_idx').on(t.isActive),
+  index('referral_sources_active_type_idx').on(t.isActive, t.type),
 ])
 
 // ==================== CLIENTS ====================
@@ -227,6 +234,20 @@ export const clients = pgTable('clients', {
   mcoMemberId: text('mco_member_id'),
   primaryDiagnosisCode: text('primary_diagnosis_code'),
   secondaryDiagnosisCode: text('secondary_diagnosis_code'),
+  // Billing & authorization fields
+  careTypeId: text('care_type_id'),
+  isPrivatePay: boolean('is_private_pay').default(false).notNull(),
+  privatePayRate: decimal('private_pay_rate', { precision: 8, scale: 2 }),
+  privatePayRateType: text('private_pay_rate_type').default('hourly'),
+  weeklyAuthorizedUnits: decimal('weekly_authorized_units', { precision: 8, scale: 2 }),
+  serviceDaysPerWeek: integer('service_days_per_week'),
+  serviceAllowedDays: json('service_allowed_days'),
+  assistanceNeeds: text('assistance_needs'),
+  billingNotes: text('billing_notes'),
+  latitude: decimal('latitude', { precision: 10, scale: 8 }),
+  longitude: decimal('longitude', { precision: 11, scale: 8 }),
+  ivrCode: text('ivr_code').unique(),
+  medicaidId: text('medicaid_id'),
   // Portal access fields
   portalEnabled: boolean('portal_enabled').default(false).notNull(),
   portalToken: text('portal_token'),
@@ -239,6 +260,7 @@ export const clients = pgTable('clients', {
 }, (t) => [
   index('clients_is_active_idx').on(t.isActive),
   index('clients_referred_by_id_idx').on(t.referredById),
+  index('clients_active_service_idx').on(t.isActive, t.serviceType),
 ])
 
 // ==================== CLIENT EMERGENCY CONTACTS ====================
@@ -307,6 +329,7 @@ export const schedules = pgTable('schedules', {
   status: text('status').default('active'),
   notes: text('notes'),
   careTypeId: text('care_type_id'),
+  endDate: date('end_date'),
   // Split shift support
   isSplitShift: boolean('is_split_shift').default(false),
   splitShiftGroupId: text('split_shift_group_id'),
@@ -362,6 +385,8 @@ export const absences = pgTable('absences', {
   reportedById: text('reported_by_id').references(() => users.id),
   coverageNeeded: boolean('coverage_needed').default(true).notNull(),
   coverageAssignedTo: text('coverage_assigned_to').references(() => users.id),
+  notes: text('notes'),
+  status: text('status').default('reported').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('absences_caregiver_id_idx').on(t.caregiverId),
@@ -392,6 +417,8 @@ export const timeEntries = pgTable('time_entries', {
   index('time_entries_client_id_idx').on(t.clientId),
   index('time_entries_start_time_idx').on(t.startTime),
   index('time_entries_schedule_id_idx').on(t.scheduleId),
+  index('time_entries_caregiver_complete_idx').on(t.caregiverId, t.isComplete),
+  index('time_entries_period_idx').on(t.startTime, t.endTime),
 ])
 
 // ==================== GPS TRACKING ====================
@@ -409,6 +436,7 @@ export const gpsTracking = pgTable('gps_tracking', {
   index('gps_tracking_caregiver_id_idx').on(t.caregiverId),
   index('gps_tracking_time_entry_id_idx').on(t.timeEntryId),
   index('gps_tracking_timestamp_idx').on(t.timestamp),
+  index('gps_tracking_entry_timestamp_idx').on(t.timeEntryId, t.timestamp),
 ])
 
 // ==================== GEOFENCE SETTINGS ====================
@@ -461,6 +489,9 @@ export const authorizations = pgTable('authorizations', {
   lowUnitsAlertThreshold: decimal('low_units_alert_threshold', { precision: 10, scale: 2 }).default('20').notNull(),
   notes: text('notes'),
   importedFrom: text('imported_from').default('manual').notNull(),
+  renewalRequested: boolean('renewal_requested').default(false).notNull(),
+  renewalRequestedAt: timestamp('renewal_requested_at'),
+  renewalRequestedBy: text('renewal_requested_by').references(() => users.id),
   createdById: text('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -535,12 +566,18 @@ export const invoices = pgTable('invoices', {
   paymentDate: date('payment_date'),
   paymentMethod: text('payment_method'),
   stripePaymentIntentId: text('stripe_payment_intent_id'),
+  referralSourceId: text('referral_source_id').references(() => referralSources.id),
+  invoiceType: text('invoice_type'),
+  paidAt: timestamp('paid_at'),
+  amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }),
+  amountAdjusted: decimal('amount_adjusted', { precision: 12, scale: 2 }),
   notes: text('notes'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('invoices_client_id_idx').on(t.clientId),
   index('invoices_payment_status_idx').on(t.paymentStatus),
+  index('invoices_period_status_idx').on(t.billingPeriodStart, t.billingPeriodEnd, t.paymentStatus),
 ])
 
 // ==================== INVOICE LINE ITEMS ====================
@@ -550,6 +587,7 @@ export const invoiceLineItems = pgTable('invoice_line_items', {
   timeEntryId: text('time_entry_id').references(() => timeEntries.id),
   caregiverId: text('caregiver_id').notNull(),
   description: text('description').notNull(),
+  serviceDate: date('service_date'),
   hours: decimal('hours', { precision: 6, scale: 2 }).notNull(),
   rate: decimal('rate', { precision: 10, scale: 2 }).notNull(),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
@@ -567,6 +605,7 @@ export const ediBatches = pgTable('edi_batches', {
   claimCount: integer('claim_count').default(0).notNull(),
   totalBilled: decimal('total_billed', { precision: 10, scale: 2 }).default('0').notNull(),
   ediContent: text('edi_content'),
+  filePath: text('file_path'),
   submittedAt: timestamp('submitted_at'),
   responseCode: text('response_code'),
   responseMessage: text('response_message'),
@@ -596,6 +635,7 @@ export const claims = pgTable('claims', {
   denialReason: text('denial_reason'),
   status: text('status').default('pending').notNull(),
   submissionDate: date('submission_date'),
+  acceptedDate: date('accepted_date'),
   paidDate: date('paid_date'),
   submissionMethod: text('submission_method'),
   ediFilePath: text('edi_file_path'),
@@ -617,6 +657,7 @@ export const claims = pgTable('claims', {
   index('idx_claims_payer_status').on(t.payerId, t.status),
   index('idx_claims_caregiver').on(t.caregiverId),
   index('idx_claims_service_date').on(t.serviceDate),
+  index('idx_claims_denial').on(t.status, t.denialCode),
 ])
 
 // ==================== PAYMENTS ====================
@@ -775,6 +816,8 @@ export const backgroundChecks = pgTable('background_checks', {
   ssnEncrypted: text('ssn_encrypted'),
   driversLicenseEncrypted: text('drivers_license_encrypted'),
   driversLicenseState: text('drivers_license_state'),
+  referenceNumber: text('reference_number'),
+  findings: text('findings'),
   notes: text('notes'),
   createdById: text('created_by_id').references(() => users.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -981,6 +1024,7 @@ export const auditLogs = pgTable('audit_logs', {
   oldData: json('old_data'),
   newData: json('new_data'),
   ipAddress: text('ip_address'),
+  reasonCode: text('reason_code'),
   timestamp: timestamp('timestamp').defaultNow().notNull(),
 }, (t) => [
   index('audit_logs_user_id_idx').on(t.userId),
@@ -1274,6 +1318,9 @@ export const incidents = pgTable('incidents', {
   description: text('description').notNull(),
   involvedParties: text('involved_parties'),
   actionTaken: text('action_taken'),
+  witnesses: text('witnesses'),
+  injuriesOrDamage: text('injuries_or_damage'),
+  followUpRequired: boolean('follow_up_required').default(false).notNull(),
   investigationStatus: text('investigation_status').default('open').notNull(),
   resolvedAt: timestamp('resolved_at'),
   resolvedById: text('resolved_by_id').references(() => users.id),
@@ -1294,6 +1341,11 @@ export const medications = pgTable('medications', {
   route: text('route'),
   indication: text('indication'),
   prescribedBy: text('prescribed_by'),
+  pharmacy: text('pharmacy'),
+  rxNumber: text('rx_number'),
+  instructions: text('instructions'),
+  sideEffects: text('side_effects'),
+  isPrn: boolean('is_prn').default(false).notNull(),
   startDate: date('start_date'),
   endDate: date('end_date'),
   status: text('status').default('active').notNull(),
@@ -1723,6 +1775,95 @@ export const familyMessages = pgTable('family_messages', {
 ])
 
 // ==================== PAYROLL RECORDS ====================
+// ==================== SCHEDULE EXCEPTIONS ====================
+export const scheduleExceptions = pgTable('schedule_exceptions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scheduleId: text('schedule_id').notNull().references(() => schedules.id, { onDelete: 'cascade' }),
+  exceptionDate: date('exception_date').notNull(),
+  exceptionType: text('exception_type').notNull(), // 'cancelled' or 'modified'
+  // Override fields (only used when exceptionType = 'modified')
+  overrideStartTime: time('override_start_time'),
+  overrideEndTime: time('override_end_time'),
+  overrideCaregiverId: text('override_caregiver_id').references(() => users.id),
+  overrideClientId: text('override_client_id').references(() => clients.id),
+  overrideNotes: text('override_notes'),
+  createdBy: text('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('schedule_exceptions_schedule_date_idx').on(t.scheduleId, t.exceptionDate),
+  index('schedule_exceptions_schedule_id_idx').on(t.scheduleId),
+  index('schedule_exceptions_date_idx').on(t.exceptionDate),
+])
+
+// ==================== PAYROLL SHIFT REVIEWS ====================
+export const payrollShiftReviews = pgTable('payroll_shift_reviews', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  payPeriodStart: date('pay_period_start').notNull(),
+  payPeriodEnd: date('pay_period_end').notNull(),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  scheduleId: text('schedule_id').references(() => schedules.id, { onDelete: 'set null' }),
+  timeEntryId: text('time_entry_id').references(() => timeEntries.id, { onDelete: 'set null' }),
+  shiftDate: date('shift_date').notNull(),
+  // Scheduled shift info (from schedule)
+  scheduledStart: time('scheduled_start'),
+  scheduledEnd: time('scheduled_end'),
+  scheduledMinutes: integer('scheduled_minutes'),
+  // Actual clock-in/out info (from time_entry)
+  actualStart: timestamp('actual_start'),
+  actualEnd: timestamp('actual_end'),
+  actualMinutes: integer('actual_minutes'),
+  // What gets paid
+  payableMinutes: integer('payable_minutes'),
+  // Status: pending, verified, approved, flagged, missing_punch, excused, manual_entry
+  status: text('status').default('pending').notNull(),
+  flagReason: text('flag_reason'),
+  resolutionNotes: text('resolution_notes'),
+  reviewedBy: text('reviewed_by').references(() => users.id),
+  reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('payroll_shift_reviews_period_idx').on(t.payPeriodStart, t.payPeriodEnd),
+  index('payroll_shift_reviews_caregiver_idx').on(t.caregiverId),
+  index('payroll_shift_reviews_status_idx').on(t.status),
+])
+
+// ==================== CAREGIVER RATES (RATE HISTORY) ====================
+export const caregiverRates = pgTable('caregiver_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  rateType: text('rate_type').default('base').notNull(), // base, overtime, premium
+  hourlyRate: decimal('hourly_rate', { precision: 8, scale: 2 }).notNull(),
+  effectiveDate: date('effective_date').notNull(),
+  endDate: date('end_date'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('caregiver_rates_caregiver_idx').on(t.caregiverId),
+  index('caregiver_rates_effective_date_idx').on(t.effectiveDate),
+])
+
+// ==================== CERTIFICATION ALERTS ====================
+export const certificationAlerts = pgTable('certification_alerts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  certificationRecordId: text('certification_record_id').references(() => certificationRecords.id, { onDelete: 'cascade' }),
+  certificationType: text('certification_type').notNull(),
+  expiryDate: date('expiry_date').notNull(),
+  alertType: text('alert_type').default('expiring_soon').notNull(),
+  daysUntilExpiry: integer('days_until_expiry'),
+  status: text('status').default('active').notNull(),
+  acknowledgedAt: timestamp('acknowledged_at'),
+  acknowledgedById: text('acknowledged_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('certification_alerts_caregiver_idx').on(t.caregiverId),
+  index('certification_alerts_status_idx').on(t.status),
+])
+
 export const payrollRecords = pgTable('payroll_records', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   caregiverId: text('caregiver_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

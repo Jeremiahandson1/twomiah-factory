@@ -108,6 +108,13 @@ const SchedulingHub = () => {
   const [absenceForm, setAbsenceForm]         = useState({ caregiverId: '', date: '', type: 'call_out', reason: '' });
   const [pendingAbsenceShift, setPendingAbsenceShift] = useState(null);
 
+  // ── Schedule Exceptions state ──
+  const [exceptions, setExceptions]                       = useState<any[]>([]);
+  const [exceptionModal, setExceptionModal]               = useState<any>(null);
+  const [exceptionSaving, setExceptionSaving]             = useState(false);
+  const [exceptionForm, setExceptionForm]                 = useState({ startTime: '', endTime: '', caregiverId: '', notes: '' });
+  const [occurrenceActionMenu, setOccurrenceActionMenu]   = useState<any>(null);
+
   // ── Availability state ──
   const [availCaregiver, setAvailCaregiver]     = useState('');
   const [availData, setAvailData]               = useState(null);
@@ -171,7 +178,20 @@ const SchedulingHub = () => {
   };
 
   const loadWeekView = async () => {
-    try { const data = await api(`/api/scheduling/week-view?weekOf=${weekOf}`); setWeekData(data); }
+    try {
+      const data = await api(`/api/scheduling/week-view?weekOf=${weekOf}`);
+      setWeekData(data);
+      // Collect all schedule IDs from week data and fetch exceptions
+      const ids: string[] = [];
+      if (data?.caregivers) {
+        data.caregivers.forEach((cg: any) => {
+          Object.values(cg.days || {}).forEach((dayArr: any) => {
+            if (Array.isArray(dayArr)) dayArr.forEach((s: any) => { if (s.id && !ids.includes(s.id)) ids.push(s.id); });
+          });
+        });
+      }
+      if (ids.length > 0) loadExceptionsForSchedules(ids);
+    }
     catch (e) { console.error(e); }
   };
 
@@ -189,9 +209,13 @@ const SchedulingHub = () => {
         api('/api/prospects').catch(() => []),
         api(`/api/prospect-appointments?month=${calCurrentDate.getMonth() + 1}&year=${calCurrentDate.getFullYear()}`).catch(() => [])
       ]);
-      setCalSchedules(Array.isArray(schedData) ? schedData : []);
+      const schedArr = Array.isArray(schedData) ? schedData : [];
+      setCalSchedules(schedArr);
       setProspects(Array.isArray(prospData) ? prospData : []);
       setProspectAppts(Array.isArray(apptData) ? apptData : []);
+      // Fetch exceptions for all loaded schedules
+      const ids = schedArr.map((s: any) => s.id).filter(Boolean);
+      if (ids.length > 0) loadExceptionsForSchedules(ids);
     } catch (e) { console.error(e); }
   };
 
@@ -217,6 +241,92 @@ const SchedulingHub = () => {
     try { const data = await api('/api/absences'); setAbsences(Array.isArray(data) ? data : []); }
     catch (e) { console.error(e); }
     finally { setAbsencesLoading(false); }
+  };
+
+  // ═══════════════════════════════════════════════
+  // SCHEDULE EXCEPTIONS
+  // ═══════════════════════════════════════════════
+
+  const loadExceptionsForSchedules = async (scheduleIds: string[]) => {
+    if (!scheduleIds.length) return;
+    try {
+      const data = await api('/api/schedule-exceptions/by-schedules', {
+        method: 'POST', body: JSON.stringify({ scheduleIds })
+      });
+      setExceptions(Array.isArray(data) ? data : []);
+    } catch (e) { console.error('Failed to load exceptions:', e); }
+  };
+
+  const getExceptionForOccurrence = (scheduleId: string, dateStr: string) => {
+    return exceptions.find(exc =>
+      exc.schedule_id === scheduleId &&
+      (exc.exception_date || '').slice(0, 10) === dateStr
+    ) || null;
+  };
+
+  const handleCancelOccurrence = async (scheduleId: string, exceptionDate: string) => {
+    const _cok = await confirm('Cancel this single occurrence? The recurring pattern will continue.', { danger: true });
+    if (!_cok) return;
+    try {
+      await api('/api/schedule-exceptions', {
+        method: 'POST',
+        body: JSON.stringify({ scheduleId, exceptionDate, exceptionType: 'cancelled' })
+      });
+      showMsg('Occurrence cancelled');
+      setOccurrenceActionMenu(null);
+      // Refresh
+      if (scheduleView === 'week') loadWeekView();
+      if (scheduleView === 'month') loadCalendarData();
+    } catch (e) { showMsg('Error: ' + (e as any).message, 'error'); }
+  };
+
+  const openModifyOccurrenceModal = (schedule: any, dateStr: string) => {
+    const exc = getExceptionForOccurrence(schedule.id, dateStr);
+    setExceptionForm({
+      startTime: exc?.override_start_time || schedule.start_time || '09:00',
+      endTime: exc?.override_end_time || schedule.end_time || '13:00',
+      caregiverId: exc?.override_caregiver_id || schedule.caregiver_id || '',
+      notes: exc?.override_notes ?? schedule.notes ?? ''
+    });
+    setExceptionModal({ schedule, exceptionDate: dateStr, existingException: exc });
+    setOccurrenceActionMenu(null);
+  };
+
+  const handleSaveModifyException = async () => {
+    if (!exceptionModal) return;
+    if (exceptionForm.startTime >= exceptionForm.endTime) { showMsg('End time must be after start time', 'error'); return; }
+    setExceptionSaving(true);
+    try {
+      await api('/api/schedule-exceptions', {
+        method: 'POST',
+        body: JSON.stringify({
+          scheduleId: exceptionModal.schedule.id,
+          exceptionDate: exceptionModal.exceptionDate,
+          exceptionType: 'modified',
+          overrideStartTime: exceptionForm.startTime,
+          overrideEndTime: exceptionForm.endTime,
+          overrideCaregiverId: exceptionForm.caregiverId || null,
+          overrideNotes: exceptionForm.notes
+        })
+      });
+      showMsg('Occurrence modified');
+      setExceptionModal(null);
+      if (scheduleView === 'week') loadWeekView();
+      if (scheduleView === 'month') loadCalendarData();
+    } catch (e) { showMsg('Error: ' + (e as any).message, 'error'); }
+    finally { setExceptionSaving(false); }
+  };
+
+  const handleRestoreException = async (exceptionId: string) => {
+    const _cok = await confirm('Restore this occurrence to its original schedule?', { danger: false });
+    if (!_cok) return;
+    try {
+      await api(`/api/schedule-exceptions/${exceptionId}`, { method: 'DELETE' });
+      showMsg('Occurrence restored');
+      setOccurrenceActionMenu(null);
+      if (scheduleView === 'week') loadWeekView();
+      if (scheduleView === 'month') loadCalendarData();
+    } catch (e) { showMsg('Error: ' + (e as any).message, 'error'); }
   };
 
   // ═══════════════════════════════════════════════
@@ -446,19 +556,42 @@ const SchedulingHub = () => {
     const target  = new Date(calCurrentDate.getFullYear(), calCurrentDate.getMonth(), day);
     const dow     = target.getDay();
     const dateStr = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    let filtered  = calSchedules.filter(s => {
-      if (s.date) return s.date.split('T')[0] === dateStr;
+    const results: any[] = [];
+    calSchedules.forEach(s => {
+      if (s.date) {
+        if (s.date.split('T')[0] === dateStr) results.push({ ...s, _occurrenceDate: dateStr });
+        return;
+      }
       if (s.day_of_week !== null && s.day_of_week !== undefined) {
-        if (s.day_of_week !== dow) return false;
-        if (s.effective_date && target < new Date(s.effective_date + 'T00:00:00')) return false;
+        if (s.day_of_week !== dow) return;
+        if (s.effective_date && target < new Date(s.effective_date + 'T00:00:00')) return;
         if (s.frequency === 'biweekly' && s.anchor_date) {
           const diffWeeks = Math.floor((target - new Date(s.anchor_date + 'T00:00:00')) / (7*24*60*60*1000));
-          if (diffWeeks % 2 !== 0) return false;
+          if (diffWeeks % 2 !== 0) return;
         }
-        return true;
+        // Check exceptions
+        const exc = getExceptionForOccurrence(s.id, dateStr);
+        if (exc && exc.exception_type === 'cancelled') {
+          results.push({ ...s, _occurrenceDate: dateStr, _exception: exc, _cancelled: true });
+          return;
+        }
+        if (exc && exc.exception_type === 'modified') {
+          results.push({
+            ...s,
+            start_time: exc.override_start_time || s.start_time,
+            end_time: exc.override_end_time || s.end_time,
+            caregiver_id: exc.override_caregiver_id || s.caregiver_id,
+            notes: exc.override_notes != null ? exc.override_notes : s.notes,
+            _occurrenceDate: dateStr,
+            _exception: exc,
+            _modified: true
+          });
+          return;
+        }
+        results.push({ ...s, _occurrenceDate: dateStr });
       }
-      return false;
     });
+    let filtered = results;
     if (calFilterCaregiver) filtered = filtered.filter(s => s.caregiver_id === calFilterCaregiver);
     return filtered.sort((a, b) => (a.start_time || '').localeCompare(b.start_time || ''));
   };
@@ -741,14 +874,23 @@ const SchedulingHub = () => {
                             style={{ padding: '0.25rem', verticalAlign: 'top', background: isToday ? '#F0F9FF' : undefined, cursor: hasShifts ? 'default' : 'pointer' }}
                             onMouseEnter={e => { if (!hasShifts) e.currentTarget.style.background = '#F0FDF4'; }}
                             onMouseLeave={e => { e.currentTarget.style.background = isToday ? '#F0F9FF' : ''; }}>
-                            {hasShifts ? dayData[di].map(sched => (
-                              <div key={sched.id} onClick={(e) => { e.stopPropagation(); setReassignModal({ schedule: sched, currentCaregiver: caregiver }); }}
-                                style={{ fontSize: '0.7rem', padding: '0.25rem 0.4rem', marginBottom: '0.2rem', borderRadius: '4px', background: sched.isRecurring ? '#DBEAFE' : '#D1FAE5', borderLeft: `3px solid ${cgColor(caregiver.id)}`, cursor: 'pointer' }}
-                                title={`${getClientName(sched.client_id)} · ${formatTime(sched.start_time)}–${formatTime(sched.end_time)}`}>
-                                <div style={{ fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{getClientName(sched.client_id).split(' ')[0]}</div>
-                                <div style={{ color: '#6B7280' }}>{formatTime(sched.start_time)}</div>
+                            {hasShifts ? dayData[di].map(sched => {
+                              const weekExc = sched.isRecurring ? getExceptionForOccurrence(sched.id, dateStr) : null;
+                              const isCancelled = weekExc?.exception_type === 'cancelled';
+                              const isModified = weekExc?.exception_type === 'modified';
+                              return (
+                              <div key={sched.id}
+                                onClick={(e) => { e.stopPropagation(); if (!isCancelled) setReassignModal({ schedule: sched, currentCaregiver: caregiver }); }}
+                                onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (sched.isRecurring) setOccurrenceActionMenu({ schedule: sched, dateStr, caregiverId: caregiver.id, x: e.clientX, y: e.clientY, exception: weekExc }); }}
+                                style={{ fontSize: '0.7rem', padding: '0.25rem 0.4rem', marginBottom: '0.2rem', borderRadius: '4px', background: isCancelled ? '#FEE2E2' : isModified ? '#FEF3C7' : sched.isRecurring ? '#DBEAFE' : '#D1FAE5', borderLeft: `3px solid ${isCancelled ? '#DC2626' : isModified ? '#D97706' : cgColor(caregiver.id)}`, cursor: 'pointer', opacity: isCancelled ? 0.6 : 1, position: 'relative' }}
+                                title={`${getClientName(sched.client_id)} · ${formatTime(isModified ? (weekExc.override_start_time || sched.start_time) : sched.start_time)}–${formatTime(isModified ? (weekExc.override_end_time || sched.end_time) : sched.end_time)}${isCancelled ? ' (CANCELLED)' : isModified ? ' (MODIFIED)' : ''}`}>
+                                <div style={{ fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: isCancelled ? 'line-through' : 'none' }}>{getClientName(sched.client_id).split(' ')[0]}</div>
+                                <div style={{ color: isCancelled ? '#DC2626' : '#6B7280' }}>{formatTime(isModified ? (weekExc.override_start_time || sched.start_time) : sched.start_time)}</div>
+                                {isCancelled && <div style={{ ...bge('#FEE2E2', '#DC2626'), fontSize: '0.58rem', marginTop: '0.1rem' }}>Cancelled</div>}
+                                {isModified && <div style={{ ...bge('#FEF3C7', '#D97706'), fontSize: '0.58rem', marginTop: '0.1rem' }}>Modified</div>}
                               </div>
-                            )) : (
+                              );
+                            }) : (
                               <div style={{ height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#D1D5DB', fontSize: '0.7rem' }}>+ add</div>
                             )}
                           </td>
@@ -830,11 +972,14 @@ const SchedulingHub = () => {
                   <div key={day} onClick={() => { setCalDaySchedules(dayScheds); setCalSelectedDay(day); }}
                     style={{ background: isToday ? '#EFF6FF' : '#fff', minHeight: isMobile ? '50px' : '80px', padding: '0.25rem', cursor: 'pointer' }}>
                     <div style={{ fontSize: '0.78rem', fontWeight: isToday ? '700' : '400', color: isToday ? '#2563EB' : '#374151', marginBottom: '0.2rem' }}>{day}</div>
-                    {dayScheds.slice(0, isMobile ? 1 : 2).map((sc, idx) => (
-                      <div key={idx} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: cgColor(sc.caregiver_id) + '20', borderLeft: `2px solid ${cgColor(sc.caregiver_id)}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {isMobile ? formatTime(sc.start_time) : `${getCaregiverName(sc.caregiver_id).split(' ')[0]} ${formatTime(sc.start_time)}`}
+                    {dayScheds.filter(sc => !sc._cancelled).slice(0, isMobile ? 1 : 2).map((sc, idx) => (
+                      <div key={idx} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: sc._modified ? '#FEF3C7' : cgColor(sc.caregiver_id) + '20', borderLeft: `2px solid ${sc._modified ? '#D97706' : cgColor(sc.caregiver_id)}`, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {isMobile ? formatTime(sc.start_time) : `${getCaregiverName(sc.caregiver_id).split(' ')[0]} ${formatTime(sc.start_time)}`}{sc._modified ? ' *' : ''}
                       </div>
                     ))}
+                    {dayScheds.filter(sc => sc._cancelled).length > 0 && !isMobile && (
+                      <div style={{ fontSize: '0.58rem', color: '#DC2626', textAlign: 'center' }}>{dayScheds.filter(sc => sc._cancelled).length} cancelled</div>
+                    )}
                     {dayProspectAppts.map((pa, idx) => <div key={`pa${idx}`} style={{ fontSize: '0.62rem', padding: '0.1rem 0.2rem', marginBottom: '1px', borderRadius: '2px', background: '#FFF7ED', borderLeft: '2px solid #F97316', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#9A3412' }}>{isMobile ? '🟠' : `🟠 ${pa.prospect_first_name}`}</div>)}
                     {(dayScheds.length + dayProspectAppts.length) > (isMobile ? 1 : 3) && <div style={{ fontSize: '0.6rem', color: '#6B7280', textAlign: 'center' }}>+{(dayScheds.length + dayProspectAppts.length) - (isMobile ? 1 : 3)} more</div>}
                   </div>
@@ -1398,6 +1543,85 @@ const SchedulingHub = () => {
         </div>
       )}
 
+      {/* OCCURRENCE ACTION CONTEXT MENU (week view right-click) */}
+      {occurrenceActionMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setOccurrenceActionMenu(null)} />
+          <div style={{ position: 'fixed', left: occurrenceActionMenu.x, top: occurrenceActionMenu.y, zIndex: 2000, background: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '0.35rem 0', minWidth: '180px' }}>
+            <div style={{ padding: '0.4rem 0.75rem', fontSize: '0.72rem', color: '#6B7280', fontWeight: '600', borderBottom: '1px solid #E5E7EB' }}>
+              {getClientName(occurrenceActionMenu.schedule.client_id)} — {occurrenceActionMenu.dateStr}
+            </div>
+            {occurrenceActionMenu.exception ? (
+              <button onClick={() => handleRestoreException(occurrenceActionMenu.exception.id)}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.82rem', color: '#059669' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#F0FDF4'}
+                onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                ↩ Restore original
+              </button>
+            ) : (
+              <>
+                <button onClick={() => handleCancelOccurrence(occurrenceActionMenu.schedule.id, occurrenceActionMenu.dateStr)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.82rem', color: '#DC2626' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  ✕ Cancel this occurrence
+                </button>
+                <button onClick={() => openModifyOccurrenceModal(occurrenceActionMenu.schedule, occurrenceActionMenu.dateStr)}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem', border: 'none', background: 'none', cursor: 'pointer', fontSize: '0.82rem', color: '#D97706' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#FFFBEB'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  ✎ Modify this occurrence
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* MODIFY EXCEPTION MODAL */}
+      {exceptionModal && (
+        <div className='modal active' onClick={() => setExceptionModal(null)}>
+          <div className='modal-content' onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+            <div className='modal-header'>
+              <h2>Modify Occurrence</h2>
+              <button className='close-btn' onClick={() => setExceptionModal(null)}>×</button>
+            </div>
+            <div style={{ margin: '1rem 0', padding: '0.75rem', background: '#F3F4F6', borderRadius: '8px' }}>
+              <div style={{ fontWeight: '600' }}>{getClientName(exceptionModal.schedule.client_id)}</div>
+              <div style={{ fontSize: '0.85rem', color: '#6B7280' }}>
+                {new Date(exceptionModal.exceptionDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#6B7280', marginTop: '0.2rem' }}>
+                Original: {formatTime(exceptionModal.schedule.start_time)} – {formatTime(exceptionModal.schedule.end_time)}
+              </div>
+            </div>
+            <div className='form-group'>
+              <label>Start Time</label>
+              <input type='time' value={exceptionForm.startTime} onChange={(e) => setExceptionForm(p => ({ ...p, startTime: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd' }} />
+            </div>
+            <div className='form-group'>
+              <label>End Time</label>
+              <input type='time' value={exceptionForm.endTime} onChange={(e) => setExceptionForm(p => ({ ...p, endTime: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd' }} />
+            </div>
+            <div className='form-group'>
+              <label>Override Caregiver (optional)</label>
+              <select value={exceptionForm.caregiverId} onChange={(e) => setExceptionForm(p => ({ ...p, caregiverId: e.target.value }))} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd' }}>
+                <option value=''>Keep original caregiver</option>
+                {caregivers.map(cg => <option key={cg.id} value={cg.id}>{cg.first_name} {cg.last_name}</option>)}
+              </select>
+            </div>
+            <div className='form-group'>
+              <label>Notes</label>
+              <textarea value={exceptionForm.notes} onChange={(e) => setExceptionForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #ddd', resize: 'vertical' }} />
+            </div>
+            <div className='modal-actions'>
+              <button className='btn btn-primary' onClick={handleSaveModifyException} disabled={exceptionSaving}>{exceptionSaving ? 'Saving...' : 'Save Exception'}</button>
+              <button className='btn btn-secondary' onClick={() => setExceptionModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* POST OPEN SHIFT MODAL */}
       {showCreateShift && (
         <div className='modal active' onClick={() => { setShowCreateShift(false); setCreateShiftPreFill({}); }}>
@@ -1530,13 +1754,33 @@ const SchedulingHub = () => {
               ) : (
                 <>
                   {calDaySchedules.map((sc, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem', background: '#F9FAFB', borderRadius: '8px', borderLeft: `4px solid ${cgColor(sc.caregiver_id)}`, marginBottom: '0.5rem' }}>
-                      <div style={{ minWidth: '70px', textAlign: 'center' }}><div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{formatTime(sc.start_time)}</div><div style={{ fontSize: '0.78rem', color: '#6B7280' }}>{formatTime(sc.end_time)}</div></div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: '600' }}>{getClientName(sc.client_id)}</div>
-                        <div style={{ fontSize: '0.82rem', color: '#6B7280' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: cgColor(sc.caregiver_id), marginRight: '0.4rem' }} />{getCaregiverName(sc.caregiver_id)}</div>
-                        {sc.day_of_week !== null && <span style={bge(sc.frequency === 'biweekly' ? '#FFEDD5' : '#DBEAFE', sc.frequency === 'biweekly' ? '#C2410C' : '#1D4ED8')}>{sc.frequency === 'biweekly' ? 'Bi-Weekly' : 'Recurring'}</span>}
+                    <div key={idx} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem', background: sc._cancelled ? '#FEF2F2' : sc._modified ? '#FFFBEB' : '#F9FAFB', borderRadius: '8px', borderLeft: `4px solid ${sc._cancelled ? '#DC2626' : sc._modified ? '#D97706' : cgColor(sc.caregiver_id)}`, marginBottom: '0.5rem', opacity: sc._cancelled ? 0.7 : 1 }}>
+                      <div style={{ minWidth: '70px', textAlign: 'center' }}>
+                        <div style={{ fontWeight: '600', fontSize: '0.9rem', textDecoration: sc._cancelled ? 'line-through' : 'none' }}>{formatTime(sc.start_time)}</div>
+                        <div style={{ fontSize: '0.78rem', color: '#6B7280', textDecoration: sc._cancelled ? 'line-through' : 'none' }}>{formatTime(sc.end_time)}</div>
                       </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: '600', textDecoration: sc._cancelled ? 'line-through' : 'none' }}>{getClientName(sc.client_id)}</div>
+                        <div style={{ fontSize: '0.82rem', color: '#6B7280' }}><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: cgColor(sc.caregiver_id), marginRight: '0.4rem' }} />{getCaregiverName(sc.caregiver_id)}</div>
+                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                          {sc.day_of_week !== null && <span style={bge(sc.frequency === 'biweekly' ? '#FFEDD5' : '#DBEAFE', sc.frequency === 'biweekly' ? '#C2410C' : '#1D4ED8')}>{sc.frequency === 'biweekly' ? 'Bi-Weekly' : 'Recurring'}</span>}
+                          {sc._cancelled && <span style={bge('#FEE2E2', '#DC2626')}>Cancelled</span>}
+                          {sc._modified && <span style={bge('#FEF3C7', '#D97706')}>Modified</span>}
+                        </div>
+                      </div>
+                      {/* Exception action buttons for recurring schedules */}
+                      {sc.day_of_week !== null && sc._occurrenceDate && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', alignSelf: 'center' }}>
+                          {sc._cancelled || sc._modified ? (
+                            <button onClick={() => handleRestoreException(sc._exception?.id)} style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>Restore</button>
+                          ) : (
+                            <>
+                              <button onClick={() => handleCancelOccurrence(sc.id, sc._occurrenceDate)} style={{ background: '#DC2626', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>Cancel</button>
+                              <button onClick={() => openModifyOccurrenceModal(sc, sc._occurrenceDate)} style={{ background: '#D97706', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', fontSize: '0.72rem', cursor: 'pointer', fontWeight: '600', whiteSpace: 'nowrap' }}>Modify</button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                   {getProspectApptsForDay(calSelectedDay).map((pa, idx) => (

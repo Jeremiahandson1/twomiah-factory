@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { openShifts, openShiftNotifications, clients, users } from '../../db/schema.ts'
-import { eq, desc } from 'drizzle-orm'
-import { authenticate } from '../middleware/auth.ts'
+import { eq, and, desc } from 'drizzle-orm'
+import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
@@ -33,6 +33,7 @@ app.get('/', async (c) => {
     .leftJoin(clients, eq(openShifts.clientId, clients.id))
     .where(status ? eq(openShifts.status, status) : undefined)
     .orderBy(desc(openShifts.date))
+    .limit(500)
 
   const shifts = rows.map(({ clientFirstName, clientLastName, ...shift }) => ({
     ...shift,
@@ -97,7 +98,7 @@ app.get('/:id/claims', async (c) => {
 })
 
 // POST /api/open-shifts — create shift
-app.post('/', async (c) => {
+app.post('/', requireAdmin, async (c) => {
   const user = c.get('user')
   const body = await c.req.json()
 
@@ -123,6 +124,11 @@ app.post('/:id/claim', async (c) => {
   const shiftId = c.req.param('id')
   const user = c.get('user')
 
+  // Verify shift exists and is still open
+  const [shift] = await db.select({ status: openShifts.status }).from(openShifts).where(eq(openShifts.id, shiftId))
+  if (!shift) return c.json({ error: 'Shift not found' }, 404)
+  if (shift.status !== 'open') return c.json({ error: 'Shift is no longer available' }, 400)
+
   const [notification] = await db
     .insert(openShiftNotifications)
     .values({
@@ -135,13 +141,55 @@ app.post('/:id/claim', async (c) => {
   return c.json(notification, 201)
 })
 
-// POST /api/open-shifts/:id/broadcast — no-op stub
-app.post('/:id/broadcast', async (c) => {
-  return c.json({ success: true, notified: 0 })
+// POST /api/open-shifts/:id/broadcast — notify available caregivers about an open shift
+app.post('/:id/broadcast', requireAdmin, async (c) => {
+  const shiftId = c.req.param('id')
+
+  // Get the shift
+  const [shift] = await db.select().from(openShifts).where(eq(openShifts.id, shiftId))
+  if (!shift) return c.json({ error: 'Shift not found' }, 404)
+
+  // Find active caregivers
+  const caregivers = await db.select({
+    id: users.id,
+    firstName: users.firstName,
+    lastName: users.lastName,
+    phone: users.phone,
+  })
+    .from(users)
+    .where(and(eq(users.role, 'caregiver'), eq(users.isActive, true)))
+
+  // Filter out caregivers who already claimed/were notified
+  const existingNotifications = await db.select({ caregiverId: openShiftNotifications.caregiverId })
+    .from(openShiftNotifications)
+    .where(eq(openShiftNotifications.openShiftId, shiftId))
+  const alreadyNotifiedIds = new Set(existingNotifications.map(n => n.caregiverId))
+
+  const eligibleCaregivers = caregivers.filter(cg => !alreadyNotifiedIds.has(cg.id))
+
+  // Batch insert notification records for eligible caregivers
+  let notified = 0
+  if (eligibleCaregivers.length > 0) {
+    const values = eligibleCaregivers.map(cg => ({
+      openShiftId: shiftId,
+      caregiverId: cg.id,
+      notificationType: 'broadcast' as const,
+    }))
+    await db.insert(openShiftNotifications).values(values)
+    notified = eligibleCaregivers.length
+  }
+
+  // Update the shift's total notified count (additive)
+  const totalNotified = alreadyNotifiedIds.size + notified
+  await db.update(openShifts)
+    .set({ notifiedCaregiverCount: totalNotified, updatedAt: new Date() })
+    .where(eq(openShifts.id, shiftId))
+
+  return c.json({ success: true, notified, totalNotified })
 })
 
 // PUT /api/open-shifts/:id/approve — mark shift as filled
-app.put('/:id/approve', async (c) => {
+app.put('/:id/approve', requireAdmin, async (c) => {
   const id = c.req.param('id')
 
   const [updated] = await db
@@ -156,7 +204,7 @@ app.put('/:id/approve', async (c) => {
 })
 
 // PUT /api/open-shifts/:id/reject — reset shift
-app.put('/:id/reject', async (c) => {
+app.put('/:id/reject', requireAdmin, async (c) => {
   const id = c.req.param('id')
 
   const [updated] = await db

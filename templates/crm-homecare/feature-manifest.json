@@ -41,13 +41,13 @@
         "careTypes.ts",
         "caregiverAvailability.ts",
         "caregiverCareTypeRates.ts",
+        "caregiverRates.ts",
         "caregiverProfile.ts",
         "certifications.ts",
         "communicationLog.ts",
         "expenses.ts",
         "familyPortal.ts",
         "forecast.ts",
-        "gusto.ts",
         "incidents.ts",
         "matching.ts",
         "medications.ts",
@@ -62,14 +62,21 @@
         "pto.ts",
         "referralSources.ts",
         "rosterOptimizer.ts",
-        "sandata.ts",
         "schedulesAll.ts",
         "schedulesEnhanced.ts",
         "shiftSwaps.ts",
         "trainingRecords.ts",
         "failsafe.ts",
         "pricing.ts",
-        "payments.ts"
+        "payments.ts",
+        "scheduleExceptions.ts",
+        "payrollShiftReviews.ts",
+        "ivr.ts",
+        "calltracking.ts",
+        "aiReceptionist.ts",
+        "ads.ts",
+        "scheduleOptimizer.ts",
+        "webhooks.ts"
       ],
       "services": [
         "logger.ts",
@@ -116,7 +123,8 @@
           "evv.ts",
           "edi.ts",
           "claims.ts",
-          "remittance.ts"
+          "remittance.ts",
+          "sandata.ts"
         ],
         "services": [],
         "envVars": [
@@ -150,7 +158,8 @@
       "description": "Sync caregiver hours and pay rates to Gusto for payroll processing. Manual payroll export is always available; this feature adds automatic sync.",
       "backend": {
         "routes": [
-          "payroll.ts"
+          "payroll.ts",
+          "gusto.ts"
         ],
         "services": [],
         "envVars": [

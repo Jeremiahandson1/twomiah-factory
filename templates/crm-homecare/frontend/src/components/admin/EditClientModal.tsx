@@ -124,18 +124,13 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
           privatePayRateType: formData.privatePayRateType,
           billingNotes: formData.billingNotes || null,
           weeklyAuthorizedUnits: formData.weeklyAuthorizedUnits ? parseInt(formData.weeklyAuthorizedUnits) : null,
-          emergencyContactName: formData.emergencyContactName || null,
-          emergencyContactPhone: formData.emergencyContactPhone || null,
-          emergencyContactRelationship: formData.emergencyContactRelationship || null,
           medicalConditions: formData.medicalConditions || null,
           medications: formData.medications || null,
           allergies: formData.allergies || null,
-          medicalNotes: formData.medicalNotes || null,
-          mobilityAssistanceNeeds: formData.mobilityAssistanceNeeds || null,
+          assistanceNeeds: formData.mobilityAssistanceNeeds || null,
           insuranceProvider: formData.insuranceProvider || null,
           insuranceId: formData.insuranceId || null,
           insuranceGroup: formData.insuranceGroup || null,
-          carePreferences: formData.carePreferences || null,
           preferredCaregivers: formData.preferredCaregivers || null,
           doNotUseCaregivers: formData.doNotUseCaregivers || null,
           notes: formData.notes || null
@@ -145,6 +140,36 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to update client');
+      }
+
+      // Save emergency contact via separate API if fields are filled
+      if (formData.emergencyContactName) {
+        try {
+          // Fetch existing emergency contacts to check for primary
+          const ecRes = await fetch(`${API_BASE_URL}/api/clients/${client.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const clientData = await ecRes.json();
+          const primaryEc = clientData.emergencyContacts?.find((ec: any) => ec.isPrimary);
+
+          if (primaryEc) {
+            // Update not supported via API yet — delete + recreate
+            await fetch(`${API_BASE_URL}/api/clients/${client.id}/emergency-contacts/${primaryEc.id}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+          }
+          await fetch(`${API_BASE_URL}/api/clients/${client.id}/emergency-contacts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({
+              name: formData.emergencyContactName,
+              phone: formData.emergencyContactPhone || null,
+              relationship: formData.emergencyContactRelationship || null,
+              isPrimary: true,
+            })
+          });
+        } catch { /* emergency contact save is best-effort */ }
       }
 
       setMessage('Client updated successfully!');

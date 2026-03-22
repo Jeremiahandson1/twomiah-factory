@@ -133,6 +133,7 @@ app.get('/:id', async (c) => {
       certificationsExpiry: users.certificationsExpiry,
       emergencyContactName: users.emergencyContactName,
       emergencyContactPhone: users.emergencyContactPhone,
+      ivrPin: users.ivrPin,
     })
     .from(users)
     .where(eq(users.id, id))
@@ -421,6 +422,48 @@ app.patch('/:id/toggle-active', requireAdmin, async (c) => {
     .returning()
 
   return c.json({ isActive: updated.isActive })
+})
+
+// POST /api/caregivers/:id/generate-ivr-pin — generate a unique 4-digit PIN
+app.post('/:id/generate-ivr-pin', requireAdmin, async (c) => {
+  const id = c.req.param('id')
+
+  // Verify caregiver exists
+  const [cg] = await db.select({ id: users.id }).from(users).where(eq(users.id, id)).limit(1)
+  if (!cg) return c.json({ error: 'Caregiver not found' }, 404)
+
+  // Get all existing PINs to avoid collisions
+  const existingPins = await db.select({ ivrPin: users.ivrPin }).from(users)
+  const pinSet = new Set(existingPins.map(u => u.ivrPin).filter(Boolean))
+
+  // Generate unique 4-digit PIN
+  let pin: string
+  let attempts = 0
+  do {
+    pin = String(Math.floor(Math.random() * 9000 + 1000))
+    attempts++
+    if (attempts > 100) return c.json({ error: 'Unable to generate unique PIN' }, 500)
+  } while (pinSet.has(pin))
+
+  const [updated] = await db.update(users)
+    .set({ ivrPin: pin, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning()
+
+  return c.json({ ivrPin: updated.ivrPin })
+})
+
+// DELETE /api/caregivers/:id/ivr-pin — clear IVR PIN
+app.delete('/:id/ivr-pin', requireAdmin, async (c) => {
+  const id = c.req.param('id')
+
+  const [updated] = await db.update(users)
+    .set({ ivrPin: null, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning()
+
+  if (!updated) return c.json({ error: 'Caregiver not found' }, 404)
+  return c.json({ success: true })
 })
 
 export default app

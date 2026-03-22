@@ -4,7 +4,7 @@ import { eq, count } from 'drizzle-orm'
 import {
   agencies, users, notificationPreferences, noshowAlertConfig,
   serviceCodes, referralSources, serviceLocations, formTemplates,
-  helpArticles,
+  helpArticles, denialCodeLookup,
 } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
@@ -189,6 +189,30 @@ async function main() {
     ]
     await db.insert(helpArticles).values(articles.map(a => ({ ...a, tags: [] })))
     console.log(`${articles.length} help articles`)
+  }
+
+  // ── DENIAL CODES (standard Medicaid/Medicare) ─────────────────────
+  const [existingDenials] = await db.select({ value: count() }).from(denialCodeLookup)
+  if (existingDenials.value === 0) {
+    const denialCodes = [
+      { code: 'CO-4', description: 'The procedure code is inconsistent with the modifier used', category: 'contractual', remediation: 'Verify procedure code and modifier combination. Resubmit with correct modifier.' },
+      { code: 'CO-16', description: 'Claim/service lacks information needed for adjudication', category: 'information', remediation: 'Review claim for missing fields (diagnosis, auth number, member ID). Resubmit with complete information.' },
+      { code: 'CO-27', description: 'Expenses incurred after coverage terminated', category: 'eligibility', remediation: 'Verify member eligibility for date of service. If eligible, submit with proof of coverage.' },
+      { code: 'CO-29', description: 'The time limit for filing has expired', category: 'timely_filing', remediation: 'File within payer timely filing window (typically 90-365 days). If late, submit appeal with good cause documentation.' },
+      { code: 'CO-45', description: 'Charges exceed your contracted/legislated fee schedule', category: 'contractual', remediation: 'Adjust billed amount to contracted rate. This is typically a write-off.' },
+      { code: 'CO-96', description: 'Non-covered charge(s)', category: 'coverage', remediation: 'Verify service is covered under the member plan. May need prior authorization.' },
+      { code: 'CO-97', description: 'The benefit for this service is included in the payment for another service', category: 'bundling', remediation: 'Check if service was bundled with another claim. May need modifier 59 for distinct service.' },
+      { code: 'CO-109', description: 'Claim/service not covered by this payer/contractor', category: 'coverage', remediation: 'Verify correct payer. Submit to the correct insurance carrier.' },
+      { code: 'CO-197', description: 'Precertification/authorization/notification absent', category: 'authorization', remediation: 'Obtain prior authorization and resubmit with auth number.' },
+      { code: 'CO-252', description: 'An attachment/other documentation is required to process this claim', category: 'information', remediation: 'Submit required documentation (care plan, assessment, physician order).' },
+      { code: 'OA-23', description: 'The impact of prior payer(s) adjudication including payments', category: 'coordination', remediation: 'Submit with EOB from primary payer showing their adjudication.' },
+      { code: 'PR-1', description: 'Deductible amount', category: 'patient_responsibility', remediation: 'Bill patient for deductible amount. Not an error — expected patient responsibility.' },
+      { code: 'PR-2', description: 'Coinsurance amount', category: 'patient_responsibility', remediation: 'Bill patient for coinsurance. Not an error — expected patient responsibility.' },
+      { code: 'PR-3', description: 'Copay amount', category: 'patient_responsibility', remediation: 'Collect copay from patient. Not an error — expected patient responsibility.' },
+      { code: 'N362', description: 'Missing/incomplete/invalid service units', category: 'information', remediation: 'Verify units match the service duration and unit type (15-min increments for most home care).' },
+    ]
+    await db.insert(denialCodeLookup).values(denialCodes)
+    console.log(`${denialCodes.length} denial codes seeded`)
   }
 
   console.log('\nSeed complete!')
