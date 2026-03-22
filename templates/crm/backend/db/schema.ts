@@ -949,6 +949,10 @@ export const pricebookItem = pgTable('pricebook_item', {
   unit: text('unit').default('each').notNull(),
   taxable: boolean('taxable').default(true).notNull(),
   active: boolean('active').default(true).notNull(),
+  imageUrl: text('image_url'),
+  customerDescription: text('customer_description'),
+  laborHours: decimal('labor_hours', { precision: 8, scale: 2 }),
+  showToCustomer: boolean('show_to_customer').default(true).notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   categoryId: text('category_id').references(() => pricebookCategory.id),
