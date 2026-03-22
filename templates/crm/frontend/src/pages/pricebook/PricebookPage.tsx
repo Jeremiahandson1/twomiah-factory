@@ -533,9 +533,9 @@ function CategoriesModal({ categories, onSave, onClose }) {
 
 function GoodBetterBestModal({ item, onSave, onClose }) {
   const [options, setOptions] = useState([
-    { tier: 'good', name: 'Basic', description: '', price: '', features: [], recommended: false },
-    { tier: 'better', name: 'Standard', description: '', price: '', features: [], recommended: true },
-    { tier: 'best', name: 'Premium', description: '', price: '', features: [], recommended: false },
+    { tier: 'best', name: 'Sign Today', description: 'Best price — available today only', price: '', features: [], recommended: true },
+    { tier: 'better', name: 'Within 30 Days', description: 'Valid for 30 days from proposal date', price: '', features: [], recommended: false },
+    { tier: 'good', name: 'Valid 1 Year', description: 'Price valid for up to 12 months', price: '', features: [], recommended: false },
   ]);
   const [saving, setSaving] = useState(false);
 
@@ -579,7 +579,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-4xl w-full p-6 text-gray-900 dark:text-slate-100">
-          <h2 className="text-lg font-bold mb-2">Good-Better-Best Options</h2>
+          <h2 className="text-lg font-bold mb-2">Pricing Tiers</h2>
           <p className="text-gray-500 mb-4">for {item.name}</p>
 
           <div className="grid grid-cols-3 gap-4">

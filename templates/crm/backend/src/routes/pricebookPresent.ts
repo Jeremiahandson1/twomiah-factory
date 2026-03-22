@@ -42,16 +42,16 @@ app.get('/:itemId', async (c) => {
     WHERE pricebook_item_id = ${itemId}
     ORDER BY
       CASE tier
-        WHEN 'good' THEN 1
+        WHEN 'best' THEN 1
         WHEN 'better' THEN 2
-        WHEN 'best' THEN 3
+        WHEN 'good' THEN 3
         ELSE 4
       END
   `)
   const tiers = (gbbResult.rows ?? gbbResult) as any[]
 
-  // Determine recommended tier
-  const recommended = tiers.find(t => t.recommended) || tiers.find(t => t.tier === 'better') || tiers[1]
+  // Determine recommended tier — default to "best" (sign today, best price)
+  const recommended = tiers.find(t => t.recommended) || tiers.find(t => t.tier === 'best') || tiers[0]
 
   // Format price
   const fmt = (n: any) => {
@@ -67,17 +67,17 @@ app.get('/:itemId', async (c) => {
     try { return JSON.parse(f) } catch { return [] }
   }
 
-  // Tier card colors
+  // Urgency-based pricing: Best = sign today (lowest), Good = 1 year (highest)
   const tierColors: Record<string, { bg: string; border: string; badge: string; icon: string }> = {
-    good: { bg: '#f8fafc', border: '#e2e8f0', badge: '#64748b', icon: '⭐' },
-    better: { bg: '#eff6ff', border: '#3b82f6', badge: '#2563eb', icon: '⭐⭐' },
-    best: { bg: '#fefce8', border: '#eab308', badge: '#ca8a04', icon: '⭐⭐⭐' },
+    best: { bg: '#ecfdf5', border: '#10b981', badge: '#059669', icon: '🔥' },
+    better: { bg: '#eff6ff', border: '#3b82f6', badge: '#2563eb', icon: '📅' },
+    good: { bg: '#f8fafc', border: '#e2e8f0', badge: '#64748b', icon: '📋' },
   }
 
   const tierLabels: Record<string, string> = {
-    good: 'Good',
-    better: 'Better',
-    best: 'Best',
+    best: 'Sign Today',
+    better: 'Within 30 Days',
+    good: 'Valid 1 Year',
   }
 
   // Build tier cards HTML
