@@ -175,6 +175,7 @@ const CAREGIVER_COUNTS = [
 const STEPS = [
   { id: 'plan', title: 'Choose Plan', icon: Heart },
   { id: 'agency', title: 'Agency Info', icon: Building },
+  { id: 'design', title: 'Website Design', icon: Eye },
   { id: 'account', title: 'Your Account', icon: User },
   { id: 'review', title: 'Review & Start', icon: CreditCard },
 ]
@@ -250,6 +251,7 @@ export default function CareSignupPage() {
 
   const [showPassword, setShowPassword] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [websiteTheme, setWebsiteTheme] = useState('warm-community')
 
   const updateForm = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -262,6 +264,12 @@ export default function CareSignupPage() {
     )
   }
 
+  const HOMECARE_THEMES = [
+    { id: 'warm-community', name: 'Warm & Compassionate', description: 'Rose & sage, serif fonts — caring and family-focused', navBg: '#5c3d2e', heroBg: 'linear-gradient(135deg,#fdf8f4,#f7efe6)', heroText: '#3a2a1a', cardBg: '#fdf8f4', cardText: '#4a3a2a', btnRadius: '20px' },
+    { id: 'clean-professional', name: 'Clinical Trust', description: 'Teal & white — medical-grade professionalism', navBg: '#0d9488', heroBg: 'linear-gradient(135deg,#eff6ff,#dbeafe)', heroText: '#1a3a3a', cardBg: '#fff', cardText: '#333', btnRadius: '6px' },
+    { id: 'family-modern', name: 'Family Modern', description: 'Lavender & purple — community and family first', navBg: '#7c3aed', heroBg: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', heroText: '#3b1f7a', cardBg: '#f5f3ff', cardText: '#4c1d95', btnRadius: '16px' },
+  ]
+
   const validateStep = () => {
     switch (step) {
       case 0:
@@ -272,6 +280,8 @@ export default function CareSignupPage() {
         if (!formData.phone.trim()) { setError('Phone number is required'); return false }
         return true
       case 2:
+        return true // theme step — always valid
+      case 3:
         if (!formData.firstName.trim() || !formData.lastName.trim()) { setError('First and last name are required'); return false }
         if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) { setError('Valid email is required'); return false }
         if (formData.password.length < 8) { setError('Password must be at least 8 characters'); return false }
@@ -335,7 +345,7 @@ export default function CareSignupPage() {
           billing_type: 'subscription',
           products,
           features,
-          website_theme: 'clean-professional',
+          website_theme: websiteTheme,
           admin_password: formData.password,
           notes: `Caregiver count: ${formData.caregiverCount}. Add-ons: ${selectedAddons.join(', ') || 'none'}. Billing: ${billingCycle}.`,
         }),
@@ -466,6 +476,53 @@ export default function CareSignupPage() {
           )}
           {step === 1 && <AgencyInfoStep formData={formData} updateForm={updateForm} />}
           {step === 2 && (
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Website Design</h2>
+              <p className="text-gray-500 mb-6">Pick a look for your agency's website. You can customize colors and content after launch.</p>
+              <div className="grid grid-cols-3 gap-4">
+                {HOMECARE_THEMES.map(theme => (
+                  <div
+                    key={theme.id}
+                    onClick={() => setWebsiteTheme(theme.id)}
+                    className={`rounded-xl border-2 cursor-pointer transition-all overflow-hidden ${
+                      websiteTheme === theme.id ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      {/* Mini preview */}
+                      <div style={{ overflow: 'hidden', borderRadius: '6px 6px 0 0' }}>
+                        <div style={{ background: theme.navBg, color: '#fff', padding: '6px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '8px' }}>
+                          <span style={{ fontWeight: 700 }}>{formData.companyName || 'Your Agency'}</span>
+                          <span style={{ opacity: 0.6, fontSize: '6px' }}>Home &nbsp; Services &nbsp; About</span>
+                        </div>
+                        <div style={{ background: theme.heroBg, color: theme.heroText, padding: '24px 16px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '13px', fontWeight: 800, marginBottom: '4px' }}>{formData.companyName || 'Your Agency'}</div>
+                          <div style={{ fontSize: '7px', opacity: 0.7, marginBottom: '10px' }}>Compassionate care for your loved ones</div>
+                          <span style={{ background: '#0d9488', color: '#fff', fontSize: '7px', padding: '3px 14px', borderRadius: theme.btnRadius, fontWeight: 700 }}>Request Care</span>
+                        </div>
+                        <div style={{ background: theme.heroText === '#fff' ? '#f5f5f5' : '#fff', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px', padding: '6px 12px 8px' }}>
+                          {['Personal Care', 'Companionship', 'Respite'].map(s => (
+                            <div key={s} style={{ background: theme.cardBg, color: theme.cardText, borderRadius: '3px', padding: '8px 4px', textAlign: 'center' }}>
+                              <div style={{ fontSize: '10px', marginBottom: '2px' }}>💚</div>
+                              <div style={{ fontSize: '6px', fontWeight: 600, opacity: 0.8 }}>{s}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-gray-50">
+                      <div className="flex items-center gap-2">
+                        {websiteTheme === theme.id && <span className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0" />}
+                        <span className="text-sm font-semibold text-gray-900">{theme.name}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">{theme.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {step === 3 && (
             <AccountStep
               formData={formData}
               updateForm={updateForm}
@@ -475,7 +532,7 @@ export default function CareSignupPage() {
               setAgreedToTerms={setAgreedToTerms}
             />
           )}
-          {step === 3 && (
+          {step === 4 && (
             <ReviewStep
               plan={plan}
               price={price!}
@@ -490,7 +547,7 @@ export default function CareSignupPage() {
           )}
         </div>
 
-        {step < 3 && (
+        {step < 4 && (
           <div className="flex justify-between mt-6 max-w-4xl mx-auto">
             <button
               onClick={handleBack}
