@@ -39,9 +39,10 @@ export default function FactoryPage() {
   const [searchParams] = useSearchParams()
   const { product: urlProduct } = useParams<{ product?: string }>()
 
-  // Determine if we entered via /signup/:product (plan step first)
+  // Determine if we entered via /signup/:product (customer-facing signup)
   const signupProduct = (urlProduct || searchParams.get('product')) as ProductLine | null
-  const hasPlanStep = !!signupProduct && ['build', 'care', 'wrench'].includes(signupProduct)
+  const hasPlanStep = !!signupProduct && ['build', 'care', 'wrench', 'roof', 'leaf'].includes(signupProduct)
+  const isPublicSignup = hasPlanStep // public signup = light theme, friendly language
 
   const [plan, setPlan] = useState<PlanSelection>(() => {
     const p: PlanSelection = { ...DEFAULT_PLAN }
@@ -103,13 +104,22 @@ export default function FactoryPage() {
     setPlan(p => ({ ...DEFAULT_PLAN, product: p.product }))
   }
 
+  const PRODUCT_LABELS: Record<string, string> = {
+    build: 'Contractor', care: 'Home Care', wrench: 'Field Service', roof: 'Roofing', leaf: 'Dispensary',
+  }
+
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className={`p-8 max-w-5xl mx-auto ${isPublicSignup ? 'min-h-screen' : ''}`}
+      style={isPublicSignup ? { background: '#fff' } : undefined}>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Twomiah Factory</h1>
-        <p className="text-gray-400 text-sm mt-1">Generate a deployable software package for your customer</p>
+        <h1 className={`text-2xl font-bold ${isPublicSignup ? 'text-gray-900' : 'text-white'}`}>
+          {isPublicSignup ? `Get Started — ${PRODUCT_LABELS[signupProduct!] || 'Business'} Software` : 'Twomiah Factory'}
+        </h1>
+        <p className={`text-sm mt-1 ${isPublicSignup ? 'text-gray-500' : 'text-gray-400'}`}>
+          {isPublicSignup ? 'Set up your CRM, website, and tools in minutes.' : 'Generate a deployable software package for your customer'}
+        </p>
         {displayStep > 0 && (
-          <button onClick={reset} className="text-xs text-gray-600 hover:text-gray-400 underline mt-1 transition-colors">
+          <button onClick={reset} className={`text-xs underline mt-1 transition-colors ${isPublicSignup ? 'text-gray-400 hover:text-gray-600' : 'text-gray-600 hover:text-gray-400'}`}>
             Start over
           </button>
         )}
@@ -120,16 +130,65 @@ export default function FactoryPage() {
           const isActive = i === displayStep
           return (
             <div key={label} className="flex items-center">
-              <div className={'flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ' + (isActive ? 'border-orange-500 bg-orange-500/10' : isDone ? 'border-green-600 bg-green-600/10' : 'border-gray-800 bg-gray-900')}>
-                {isDone ? <CheckCircle size={15} className="text-green-500" /> : <Icon size={15} className={isActive ? 'text-orange-400' : 'text-gray-600'} />}
-                <span className={'text-xs font-medium ' + (isActive ? 'text-orange-400' : isDone ? 'text-green-400' : 'text-gray-600')}>{label}</span>
+              <div className={'flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all ' + (
+                isPublicSignup
+                  ? (isActive ? 'border-blue-500 bg-blue-50' : isDone ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white')
+                  : (isActive ? 'border-orange-500 bg-orange-500/10' : isDone ? 'border-green-600 bg-green-600/10' : 'border-gray-800 bg-gray-900')
+              )}>
+                {isDone ? <CheckCircle size={15} className={isPublicSignup ? 'text-green-600' : 'text-green-500'} /> : <Icon size={15} className={
+                  isPublicSignup
+                    ? (isActive ? 'text-blue-600' : 'text-gray-400')
+                    : (isActive ? 'text-orange-400' : 'text-gray-600')
+                } />}
+                <span className={'text-xs font-medium ' + (
+                  isPublicSignup
+                    ? (isActive ? 'text-blue-700' : isDone ? 'text-green-700' : 'text-gray-400')
+                    : (isActive ? 'text-orange-400' : isDone ? 'text-green-400' : 'text-gray-600')
+                )}>{label}</span>
               </div>
-              {i < STEPS.length - 1 && <div className={'h-px w-4 ' + (isDone ? 'bg-green-700' : 'bg-gray-800')} />}
+              {i < STEPS.length - 1 && <div className={'h-px w-4 ' + (
+                isPublicSignup
+                  ? (isDone ? 'bg-green-400' : 'bg-gray-200')
+                  : (isDone ? 'bg-green-700' : 'bg-gray-800')
+              )} />}
             </div>
           )
         })}
       </div>
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-8">
+      {isPublicSignup && (
+        <style>{`
+          .signup-light .text-white { color: #111827 !important; }
+          .signup-light .text-gray-400 { color: #6b7280 !important; }
+          .signup-light .text-gray-500 { color: #6b7280 !important; }
+          .signup-light .text-gray-600 { color: #4b5563 !important; }
+          .signup-light .text-gray-300 { color: #374151 !important; }
+          .signup-light .bg-gray-800 { background-color: #f9fafb !important; }
+          .signup-light .bg-gray-900 { background-color: #ffffff !important; }
+          .signup-light .bg-gray-800\\/50 { background-color: #f3f4f6 !important; }
+          .signup-light .border-gray-700 { border-color: #e5e7eb !important; }
+          .signup-light .border-gray-800 { border-color: #e5e7eb !important; }
+          .signup-light .hover\\:border-gray-600:hover { border-color: #9ca3af !important; }
+          .signup-light .hover\\:border-gray-500:hover { border-color: #6b7280 !important; }
+          .signup-light .border-orange-500 { border-color: #3b82f6 !important; }
+          .signup-light .ring-orange-500\\/20 { --tw-ring-color: rgb(59 130 246 / 0.2) !important; }
+          .signup-light .text-orange-400 { color: #3b82f6 !important; }
+          .signup-light .text-red-400 { color: #dc2626 !important; }
+          .signup-light .text-green-400 { color: #16a34a !important; }
+          .signup-light input[type="color"] { background: #fff !important; border-color: #d1d5db !important; }
+          .signup-light input:not([type="color"]):not([type="file"]):not([type="checkbox"]):not([type="radio"]) {
+            background: #fff !important; border-color: #d1d5db !important; color: #111827 !important;
+          }
+          .signup-light input:focus { border-color: #3b82f6 !important; }
+          .signup-light select { background: #fff !important; border-color: #d1d5db !important; color: #111827 !important; }
+          .signup-light textarea { background: #fff !important; border-color: #d1d5db !important; color: #111827 !important; }
+          .signup-light .font-mono { color: #374151 !important; }
+        `}</style>
+      )}
+      <div className={
+        isPublicSignup
+          ? 'signup-light bg-white border border-gray-200 rounded-xl p-8 shadow-sm'
+          : 'bg-gray-900 border border-gray-800 rounded-xl p-8'
+      }>
         {step === -1 && hasPlanStep && (
           <StepPlan product={signupProduct!} config={config} setConfig={setConfig} plan={plan} setPlan={setPlan} onNext={next} />
         )}
