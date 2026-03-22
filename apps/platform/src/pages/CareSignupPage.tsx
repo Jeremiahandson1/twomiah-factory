@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Heart, Shield, Check, X, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User } from 'lucide-react'
+import { Heart, Shield, Check, X, ArrowLeft, ArrowRight, Loader2, Eye, EyeOff, Clock, FileCheck, MapPin, CreditCard, Building, User, Palette } from 'lucide-react'
 import { API_URL } from '../supabase'
 
 // ─── Care-specific pricing (fallback if API fetch fails) ────────────────────
@@ -175,9 +175,19 @@ const CAREGIVER_COUNTS = [
 const STEPS = [
   { id: 'plan', title: 'Choose Plan', icon: Heart },
   { id: 'agency', title: 'Agency Info', icon: Building },
+  { id: 'branding', title: 'Branding', icon: Palette },
   { id: 'design', title: 'Website Design', icon: Eye },
   { id: 'account', title: 'Your Account', icon: User },
   { id: 'review', title: 'Review & Start', icon: CreditCard },
+]
+
+const COLOR_PRESETS = [
+  { name: 'Teal', primary: '#0d9488', secondary: '#134e4a' },
+  { name: 'Blue', primary: '#3b82f6', secondary: '#1e3a5f' },
+  { name: 'Purple', primary: '#7c3aed', secondary: '#3b1f7a' },
+  { name: 'Rose', primary: '#e11d48', secondary: '#4c0519' },
+  { name: 'Green', primary: '#16a34a', secondary: '#14532d' },
+  { name: 'Amber', primary: '#d97706', secondary: '#451a03' },
 ]
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -252,6 +262,13 @@ export default function CareSignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [websiteTheme, setWebsiteTheme] = useState('warm-community')
+  const [branding, setBranding] = useState({
+    logo: null as string | null, logoFilename: null as string | null,
+    favicon: null as string | null, faviconFilename: null as string | null,
+    heroPhoto: null as string | null, heroPhotoFilename: null as string | null,
+    primaryColor: '#0d9488', secondaryColor: '#134e4a',
+  })
+  const updateBranding = (patch: Partial<typeof branding>) => setBranding(prev => ({ ...prev, ...patch }))
 
   const updateForm = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -280,8 +297,10 @@ export default function CareSignupPage() {
         if (!formData.phone.trim()) { setError('Phone number is required'); return false }
         return true
       case 2:
-        return true // theme step — always valid
+        return true // branding step — always valid
       case 3:
+        return true // theme step — always valid
+      case 4:
         if (!formData.firstName.trim() || !formData.lastName.trim()) { setError('First and last name are required'); return false }
         if (!formData.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) { setError('Valid email is required'); return false }
         if (formData.password.length < 8) { setError('Password must be at least 8 characters'); return false }
@@ -346,6 +365,16 @@ export default function CareSignupPage() {
           products,
           features,
           website_theme: websiteTheme,
+          branding: {
+            primaryColor: branding.primaryColor,
+            secondaryColor: branding.secondaryColor,
+            logo: branding.logo,
+            logoFilename: branding.logoFilename,
+            favicon: branding.favicon,
+            faviconFilename: branding.faviconFilename,
+            heroPhoto: branding.heroPhoto,
+            heroPhotoFilename: branding.heroPhotoFilename,
+          },
           admin_password: formData.password,
           notes: `Caregiver count: ${formData.caregiverCount}. Add-ons: ${selectedAddons.join(', ') || 'none'}. Billing: ${billingCycle}.`,
         }),
@@ -476,6 +505,118 @@ export default function CareSignupPage() {
           )}
           {step === 1 && <AgencyInfoStep formData={formData} updateForm={updateForm} />}
           {step === 2 && (
+            <div className="max-w-3xl mx-auto">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Branding</h2>
+              <p className="text-gray-500 mb-6">Upload your logo and choose brand colors. These appear on your website and CRM.</p>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {/* Logo upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Company Logo</label>
+                  <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-5 text-center hover:border-teal-400 cursor-pointer min-h-24 flex items-center justify-center transition-colors">
+                    {branding.logo ? (
+                      <div>
+                        <img src={branding.logo} alt="logo" className="max-h-16 max-w-full object-contain mx-auto" />
+                        <div className="text-gray-400 text-xs mt-2">{branding.logoFilename}</div>
+                        <button onClick={e => { e.preventDefault(); updateBranding({ logo: null, logoFilename: null }) }} className="text-red-500 text-xs mt-1">Remove</button>
+                      </div>
+                    ) : (
+                      <div><div className="text-gray-400 text-sm">Click or drag to upload</div><div className="text-gray-300 text-xs mt-1">PNG, SVG, JPG — max 2MB</div></div>
+                    )}
+                    <input type="file" accept="image/*" onChange={e => {
+                      const f = e.target.files?.[0]; if (!f || f.size > 2 * 1024 * 1024) return
+                      const r = new FileReader(); r.onload = () => updateBranding({ logo: r.result as string, logoFilename: f.name }); r.readAsDataURL(f)
+                    }} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  </div>
+                </div>
+                {/* Favicon upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Favicon</label>
+                  <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-5 text-center hover:border-teal-400 cursor-pointer min-h-24 flex items-center justify-center transition-colors">
+                    {branding.favicon ? (
+                      <div>
+                        <img src={branding.favicon} alt="favicon" className="max-h-12 max-w-full object-contain mx-auto" />
+                        <div className="text-gray-400 text-xs mt-2">{branding.faviconFilename}</div>
+                        <button onClick={e => { e.preventDefault(); updateBranding({ favicon: null, faviconFilename: null }) }} className="text-red-500 text-xs mt-1">Remove</button>
+                      </div>
+                    ) : (
+                      <div><div className="text-gray-400 text-sm">Click or drag to upload</div><div className="text-gray-300 text-xs mt-1">ICO, PNG — max 500KB</div></div>
+                    )}
+                    <input type="file" accept="image/*,.ico" onChange={e => {
+                      const f = e.target.files?.[0]; if (!f || f.size > 512 * 1024) return
+                      const r = new FileReader(); r.onload = () => updateBranding({ favicon: r.result as string, faviconFilename: f.name }); r.readAsDataURL(f)
+                    }} className="absolute inset-0 opacity-0 cursor-pointer" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Hero photo */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Hero Photo <span className="text-gray-400">(optional)</span></label>
+                <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 hover:border-teal-400 cursor-pointer transition-colors">
+                  {branding.heroPhoto ? (
+                    <div className="flex items-center gap-4">
+                      <img src={branding.heroPhoto} alt="hero" className="h-16 w-24 object-cover rounded-lg" />
+                      <div>
+                        <div className="text-gray-700 text-sm">{branding.heroPhotoFilename}</div>
+                        <button onClick={e => { e.preventDefault(); updateBranding({ heroPhoto: null, heroPhotoFilename: null }) }} className="text-red-500 text-xs mt-1">Remove</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-2">
+                      <div className="text-gray-400 text-sm">Click or drag to upload hero photo</div>
+                      <div className="text-gray-300 text-xs mt-1">JPG, PNG, WebP — max 5MB — shown at the top of your homepage</div>
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" onChange={e => {
+                    const f = e.target.files?.[0]; if (!f || f.size > 5 * 1024 * 1024) return
+                    const r = new FileReader(); r.onload = () => updateBranding({ heroPhoto: r.result as string, heroPhotoFilename: f.name }); r.readAsDataURL(f)
+                  }} className="absolute inset-0 opacity-0 cursor-pointer" />
+                </div>
+              </div>
+
+              {/* Color presets */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-3">Brand Colors</label>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {COLOR_PRESETS.map(p => (
+                    <button key={p.name} onClick={() => updateBranding({ primaryColor: p.primary, secondaryColor: p.secondary })}
+                      className={'flex items-center gap-2 px-3 py-2 rounded-lg border-2 text-sm transition-all ' + (branding.primaryColor === p.primary ? 'border-teal-500 bg-teal-50' : 'border-gray-200 hover:border-gray-400')}>
+                      <div className="flex gap-1">
+                        <div className="w-4 h-4 rounded" style={{ background: p.primary }} />
+                        <div className="w-4 h-4 rounded" style={{ background: p.secondary }} />
+                      </div>
+                      <span className="text-gray-600 text-xs">{p.name}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  {(['primaryColor', 'secondaryColor'] as const).map(key => (
+                    <div key={key}>
+                      <label className="block text-xs text-gray-500 mb-1">{key === 'primaryColor' ? 'Primary' : 'Secondary'}</label>
+                      <div className="flex items-center gap-2">
+                        <input type="color" value={branding[key]} onChange={e => updateBranding({ [key]: e.target.value })}
+                          className="w-10 h-9 border border-gray-300 rounded-lg cursor-pointer p-1" />
+                        <input value={branding[key]} onChange={e => updateBranding({ [key]: e.target.value })}
+                          className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-teal-500" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Preview bar */}
+              <div className="p-4 bg-gray-50 rounded-xl">
+                <div className="flex gap-3 flex-wrap">
+                  <div className="px-4 py-2 rounded-lg text-white text-sm font-semibold" style={{ background: branding.primaryColor }}>Primary</div>
+                  <div className="px-4 py-2 rounded-lg text-white text-sm font-semibold" style={{ background: branding.secondaryColor }}>Secondary</div>
+                  <div className="px-4 py-2 rounded-lg text-sm font-semibold border-2" style={{ borderColor: branding.primaryColor, color: branding.primaryColor }}>Outline</div>
+                </div>
+                <div className="mt-3 h-1 rounded" style={{ background: `linear-gradient(90deg, ${branding.primaryColor}, ${branding.secondaryColor})` }} />
+              </div>
+            </div>
+          )}
+          {step === 3 && (
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Website Design</h2>
               <p className="text-gray-500 mb-6">Pick a look for your agency's website. You can customize colors and content after launch.</p>
@@ -522,7 +663,7 @@ export default function CareSignupPage() {
               </div>
             </div>
           )}
-          {step === 3 && (
+          {step === 4 && (
             <AccountStep
               formData={formData}
               updateForm={updateForm}
@@ -532,7 +673,7 @@ export default function CareSignupPage() {
               setAgreedToTerms={setAgreedToTerms}
             />
           )}
-          {step === 4 && (
+          {step === 5 && (
             <ReviewStep
               plan={plan}
               price={price!}
@@ -547,7 +688,7 @@ export default function CareSignupPage() {
           )}
         </div>
 
-        {step < 4 && (
+        {step < 5 && (
           <div className="flex justify-between mt-6 max-w-4xl mx-auto">
             <button
               onClick={handleBack}
