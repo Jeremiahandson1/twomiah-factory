@@ -10,6 +10,7 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import { pricebookItem, pricebookCategory, company } from '../../db/schema.ts'
 import { eq, and, sql } from 'drizzle-orm'
+import financing from '../services/financing.ts'
 
 const app = new Hono()
 
@@ -49,6 +50,10 @@ app.get('/:itemId', async (c) => {
       END
   `)
   const tiers = (gbbResult.rows ?? gbbResult) as any[]
+
+  // Fetch financing options for this company
+  const bestTierPrice = tiers.find(t => t.tier === 'best')?.price || item.price
+  const financingOptions = await financing.getFinancingOptionsForCompany(item.companyId, Number(bestTierPrice))
 
   // Determine recommended tier — default to "best" (sign today, best price)
   const recommended = tiers.find(t => t.recommended) || tiers.find(t => t.tier === 'best') || tiers[0]
@@ -385,6 +390,25 @@ app.get('/:itemId', async (c) => {
   <div class="tiers">
     ${tiers.length > 0 ? tierCardsHtml : singleItemHtml}
   </div>
+
+  ${financingOptions.length > 0 ? `
+  <div style="max-width:1200px;margin:0 auto;padding:0 48px 32px">
+    <div style="background:#f8fafc;border-radius:16px;padding:32px;text-align:center">
+      <h3 style="font-size:20px;font-weight:700;margin-bottom:4px;color:#111827">Financing Available</h3>
+      <p style="font-size:15px;color:#6b7280;margin-bottom:24px">Affordable monthly payments — check your rate with no impact to your credit score</p>
+      <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+        ${financingOptions.flatMap(fp => fp.options.slice(0, 2).map(opt => `
+          <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:20px 28px;min-width:180px">
+            <div style="font-size:28px;font-weight:800;color:#111827">${fmt(opt.monthlyPayment)}</div>
+            <div style="font-size:13px;color:#6b7280">/month</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:8px">${opt.label}</div>
+            <div style="font-size:11px;color:#9ca3af;margin-top:4px">via ${fp.displayName}</div>
+          </div>
+        `)).join('')}
+      </div>
+    </div>
+  </div>
+  ` : ''}
 
   <div class="continue-bar" id="continueBar">
     <div class="selected-info">Selected: <span id="selectedName">—</span> · <span id="selectedPrice">—</span></div>

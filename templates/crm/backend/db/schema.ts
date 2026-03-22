@@ -1008,12 +1008,15 @@ export const review = pgTable('review', {
 
 export const financingApplication = pgTable('financing_application', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').default('wisetack').notNull(), // wisetack, greensky, mosaic, synchrony, hearth, enhancify, service_finance
   status: text('status').default('pending').notNull(),
   amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
   term: integer('term'),
+  apr: decimal('apr', { precision: 5, scale: 2 }),
   externalId: text('external_id'),
   applicationUrl: text('application_url'),
   approvedAmount: decimal('approved_amount', { precision: 12, scale: 2 }),
+  providerData: json('provider_data'), // raw response from provider
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
