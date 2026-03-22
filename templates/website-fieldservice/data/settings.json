@@ -56,6 +56,7 @@
   "twoFactorEnabled": false,
   "adminPassword": "{{HASHED_DEFAULT_PASSWORD}}",
   "twoFactorSecret": "",
+  "theme": "bold-industrial",
   "primaryColor": "{{PRIMARY_COLOR}}",
   "secondaryColor": "{{SECONDARY_COLOR}}",
   "accentColor": "{{ACCENT_COLOR}}",

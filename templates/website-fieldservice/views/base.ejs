@@ -41,6 +41,9 @@
   <!-- Styles -->
   <link rel="stylesheet" href="/styles/main.css">
   <link rel="stylesheet" href="/styles/public-pages.css">
+  <% if (typeof settings !== 'undefined' && settings && settings.theme) { %>
+  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css">
+  <% } %>
   
   <!-- Structured Data -->
   <%

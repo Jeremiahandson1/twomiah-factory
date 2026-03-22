@@ -1,0 +1,776 @@
+/* ═══════════════════════════════════════════════════════
+   Theme: Bold Contrast
+   Template: General Service
+   Description: High-contrast modern. Pure black + white
+   with a single neon accent. Bebas Neue display headings,
+   huge type, striking visual impact. Attention-grabbing
+   and unapologetically bold.
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Work+Sans:wght@300;400;500;600;700;800&display=swap');
+
+/* ── Variable Overrides ── */
+:root {
+  --font-primary: 'Bebas Neue', Impact, 'Arial Black', sans-serif;
+  --font-secondary: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: 'Bebas Neue', Impact, sans-serif;
+  --font-body: 'Work Sans', sans-serif;
+  --border-radius: 0px;
+  --shadow-sm: none;
+  --shadow: none;
+  --shadow-lg: none;
+  --off-white: #ffffff;
+
+  /* Theme palette — neon coral accent */
+  --bc-black: #000000;
+  --bc-near-black: #0a0a0a;
+  --bc-dark: #111111;
+  --bc-white: #ffffff;
+  --bc-neon: #f43f5e;
+  --bc-neon-light: #fb7185;
+  --bc-neon-dark: #e11d48;
+  --bc-neon-glow: rgba(244, 63, 94, 0.15);
+  --bc-gray: #a1a1aa;
+  --bc-gray-dark: #52525b;
+  --bc-gray-light: #e4e4e7;
+  --bc-divider: #27272a;
+}
+
+/* ── Body ── */
+body {
+  font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bc-white);
+  background-image: none;
+  color: var(--bc-black);
+  letter-spacing: 0;
+  line-height: 1.65;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-weight: 400; /* Bebas Neue only has 400 */
+  letter-spacing: 0.04em;
+  color: var(--bc-black);
+  line-height: 1.0;
+  text-transform: uppercase;
+}
+
+p {
+  font-family: 'Work Sans', sans-serif;
+  color: var(--bc-gray-dark);
+  font-weight: 400;
+  line-height: 1.7;
+}
+
+/* ── Header / Navigation ── */
+.header,
+header {
+  background: var(--bc-white) !important;
+  box-shadow: none !important;
+}
+
+.header-top {
+  background: var(--bc-white) !important;
+  border-bottom: 3px solid var(--bc-black) !important;
+  padding: 16px 0 !important;
+}
+
+.header-top .logo-image {
+  height: 48px !important;
+}
+
+.nav-link,
+.header a,
+.utility-nav a {
+  font-family: 'Work Sans', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 0.8rem !important;
+  color: var(--bc-black) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  transition: color 0.15s ease;
+}
+
+.nav-link:hover,
+.header a:hover,
+.utility-nav a:hover {
+  color: var(--bc-neon) !important;
+}
+
+/* Services bar — pure black */
+.services-bar {
+  background: var(--bc-black) !important;
+}
+
+.services-nav ul > li > a {
+  color: var(--bc-white) !important;
+  font-family: 'Work Sans', sans-serif !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  padding: 16px 22px !important;
+  transition: all 0.15s ease;
+}
+
+.services-nav ul > li > a:hover {
+  background: var(--bc-neon) !important;
+  color: var(--bc-white) !important;
+}
+
+.services-nav .dropdown {
+  background: var(--bc-black) !important;
+  border: 2px solid var(--bc-neon) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
+  border-radius: 0 !important;
+}
+
+.services-nav .dropdown a {
+  font-family: 'Work Sans', sans-serif !important;
+  color: var(--bc-white) !important;
+  font-size: 0.82rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.02em;
+}
+
+.services-nav .dropdown a:hover {
+  background: var(--bc-neon) !important;
+  color: var(--bc-white) !important;
+}
+
+/* ── Hero Section ── */
+.hero,
+.hero-section {
+  padding: 160px 0 140px !important;
+  background: var(--bc-black) !important;
+  position: relative;
+}
+
+.hero::after,
+.hero-section::after,
+.hero-overlay {
+  background: var(--bc-black) !important;
+  opacity: 0.92 !important;
+}
+
+.hero h1,
+.hero-section h1 {
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-size: 6rem !important;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 0.95 !important;
+  color: var(--bc-white) !important;
+  text-transform: uppercase;
+  text-shadow: none !important;
+  max-width: 800px;
+}
+
+/* Neon accent line under hero heading */
+.hero h1::after,
+.hero-section h1::after {
+  content: '';
+  display: block;
+  width: 100px;
+  height: 4px;
+  background: var(--bc-neon);
+  margin-top: 28px;
+  box-shadow: 0 0 20px var(--bc-neon-glow);
+}
+
+.hero p,
+.hero-section p {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 1.1rem !important;
+  font-weight: 400;
+  color: var(--bc-gray) !important;
+  max-width: 500px;
+  line-height: 1.7;
+  margin-top: 24px;
+  text-shadow: none !important;
+}
+
+.hero *,
+.hero-section * {
+  text-shadow: none !important;
+}
+
+/* ── Buttons ── */
+.btn,
+.cta-btn,
+.btn-primary,
+.hero-cta,
+button[type="submit"] {
+  font-family: 'Work Sans', sans-serif;
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 0;
+  padding: 16px 36px;
+  background: var(--bc-neon) !important;
+  color: var(--bc-white) !important;
+  transition: all 0.15s ease;
+  box-shadow: none !important;
+  position: relative;
+}
+
+.btn:hover,
+.cta-btn:hover,
+.btn-primary:hover,
+.hero-cta:hover,
+button[type="submit"]:hover {
+  background: var(--bc-neon-dark) !important;
+  transform: none !important;
+  box-shadow: 0 0 24px var(--bc-neon-glow) !important;
+}
+
+/* Remove arrow pseudo-elements */
+.btn-primary::after,
+.cta-btn::after,
+.hero-cta::after {
+  content: none !important;
+}
+
+.btn-secondary,
+.btn-outline {
+  background: transparent !important;
+  border: 3px solid var(--bc-white) !important;
+  color: var(--bc-white) !important;
+  border-radius: 0;
+}
+
+.btn-secondary:hover,
+.btn-outline:hover {
+  background: var(--bc-white) !important;
+  color: var(--bc-black) !important;
+}
+
+/* ── Cards / Service Cards ── */
+.service-card,
+.card,
+.feature-card {
+  border-radius: 0;
+  background: var(--bc-white);
+  border: 3px solid var(--bc-black) !important;
+  box-shadow: none !important;
+  padding: 36px 28px;
+  text-align: left;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.service-card::before,
+.card::before,
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 4px;
+  background: var(--bc-neon);
+  transition: width 0.3s ease;
+}
+
+.service-card:hover,
+.card:hover,
+.feature-card:hover {
+  box-shadow: 8px 8px 0 var(--bc-black) !important;
+  transform: translate(-4px, -4px) !important;
+}
+
+.service-card:hover::before,
+.card:hover::before,
+.feature-card:hover::before {
+  width: 100%;
+}
+
+.service-card .icon,
+.card .icon,
+.feature-card .icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 20px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  color: var(--bc-neon);
+}
+
+.service-card h3,
+.card h3,
+.feature-card h3 {
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-size: 1.4rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: var(--bc-black);
+}
+
+.service-card p,
+.card p,
+.feature-card p {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.9rem;
+  color: var(--bc-gray-dark);
+  line-height: 1.65;
+}
+
+/* Service grid: 2-column high contrast */
+.services-grid,
+.service-grid,
+.features-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 32px !important;
+}
+
+@media (max-width: 768px) {
+  .services-grid,
+  .service-grid,
+  .features-grid {
+    grid-template-columns: 1fr !important;
+    gap: 24px !important;
+  }
+}
+
+/* ── Badge Styling ── */
+.trust-badge,
+.certification,
+.badge {
+  background: var(--bc-black);
+  border: none;
+  border-radius: 0;
+  padding: 10px 18px;
+  font-family: 'Work Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bc-white);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Sections ── */
+section {
+  padding: 80px 0;
+  background: var(--bc-white);
+}
+
+section:nth-child(even) {
+  background: #fafafa;
+}
+
+.section-title,
+section h2 {
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-size: 3.5rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 8px;
+  color: var(--bc-black);
+}
+
+.section-subtitle {
+  text-align: center;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--bc-gray-dark);
+  max-width: 500px;
+  margin: 0 auto 48px;
+  line-height: 1.65;
+}
+
+/* Neon accent line under section titles */
+.section-title::after,
+section h2::after {
+  content: '';
+  display: block;
+  width: 60px;
+  height: 4px;
+  background: var(--bc-neon);
+  margin: 16px auto 0;
+  box-shadow: 0 0 12px var(--bc-neon-glow);
+}
+
+/* ── Testimonials ── */
+.testimonial-card,
+.review-card {
+  border-radius: 0;
+  background: var(--bc-white);
+  border: 3px solid var(--bc-black);
+  box-shadow: none;
+  padding: 36px;
+  position: relative;
+}
+
+.testimonial-card::before,
+.review-card::before {
+  content: '\201C';
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-size: 5rem;
+  color: var(--bc-neon);
+  line-height: 1;
+  display: block;
+  margin-bottom: -16px;
+  opacity: 0.5;
+}
+
+.testimonial-card p,
+.review-card p {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 1rem;
+  color: var(--bc-gray-dark);
+  line-height: 1.7;
+  font-style: normal;
+}
+
+/* ── Footer — pure black ── */
+.footer,
+footer {
+  background: var(--bc-black) !important;
+  color: var(--bc-gray) !important;
+  border-top: 4px solid var(--bc-neon) !important;
+}
+
+.footer-main {
+  padding: 56px 0 !important;
+}
+
+.footer-grid {
+  display: grid !important;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr !important;
+  gap: 36px !important;
+}
+
+@media (max-width: 900px) {
+  .footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .footer-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.footer-col h4,
+.footer h3,
+.footer h4,
+footer h3,
+footer h4 {
+  font-family: 'Bebas Neue', Impact, sans-serif !important;
+  font-size: 1.2rem !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--bc-white) !important;
+  margin-bottom: 16px;
+}
+
+.footer-col ul {
+  list-style: none;
+  padding: 0;
+}
+
+.footer-col ul li {
+  margin-bottom: 8px;
+}
+
+.footer a,
+footer a {
+  font-family: 'Work Sans', sans-serif !important;
+  color: var(--bc-gray) !important;
+  font-size: 0.85rem !important;
+  font-weight: 400;
+  transition: color 0.15s ease;
+}
+
+.footer a:hover,
+footer a:hover {
+  color: var(--bc-neon) !important;
+}
+
+.footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.footer-logo span {
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bc-white);
+}
+
+.footer-logo .logo-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--bc-neon);
+}
+
+.about-col p {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.88rem;
+  color: var(--bc-gray) !important;
+  line-height: 1.65;
+}
+
+.social-links {
+  display: flex;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.social-links a {
+  width: 32px;
+  height: 32px;
+  color: var(--bc-gray-dark);
+  transition: color 0.15s ease;
+}
+
+.social-links a:hover {
+  color: var(--bc-neon) !important;
+}
+
+.footer-bottom {
+  border-top: 1px solid var(--bc-divider) !important;
+  padding: 20px 0 !important;
+  background: var(--bc-near-black);
+}
+
+.footer-bottom p {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.78rem !important;
+  color: var(--bc-gray-dark) !important;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hours {
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.85rem;
+  color: var(--bc-gray-dark);
+  margin-top: 12px;
+}
+
+.hours strong {
+  color: var(--bc-gray);
+}
+
+.contact-list li {
+  font-size: 0.85rem;
+  color: var(--bc-gray);
+}
+
+.contact-list svg {
+  color: var(--bc-neon);
+}
+
+/* ── Contact / Forms ── */
+.contact-form input,
+.contact-form textarea,
+.contact-form select,
+form input,
+form textarea,
+form select {
+  border-radius: 0;
+  border: 2px solid var(--bc-black);
+  padding: 14px 16px;
+  font-family: 'Work Sans', sans-serif;
+  font-size: 0.9rem;
+  background: var(--bc-white);
+  color: var(--bc-black);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus,
+form input:focus,
+form textarea:focus {
+  border-color: var(--bc-neon);
+  box-shadow: 0 0 0 3px var(--bc-neon-glow);
+  outline: none;
+}
+
+.contact-form input::placeholder,
+.contact-form textarea::placeholder,
+form input::placeholder,
+form textarea::placeholder {
+  color: var(--bc-gray);
+  font-weight: 300;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+}
+
+/* ── Trust / Brand Bar ── */
+.brands-section,
+.trust-section {
+  background: var(--bc-black);
+  padding: 40px 0;
+  border-top: 1px solid var(--bc-divider);
+  border-bottom: 1px solid var(--bc-divider);
+}
+
+.brands-section img {
+  filter: brightness(0) invert(1) opacity(0.35);
+  transition: all 0.15s ease;
+}
+
+.brands-section img:hover {
+  filter: brightness(0) invert(1) opacity(0.9);
+}
+
+/* ── CTA Section ── */
+.cta-section,
+.cta-banner {
+  border-radius: 0;
+  text-align: center;
+  margin: 0;
+  background: var(--bc-black) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-section::before,
+.cta-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--bc-neon);
+  box-shadow: 0 0 20px var(--bc-neon-glow);
+}
+
+.cta-section h2,
+.cta-banner h2 {
+  color: var(--bc-white) !important;
+  font-size: 3rem;
+}
+
+.cta-section p,
+.cta-banner p {
+  color: var(--bc-gray) !important;
+}
+
+/* ── Gallery ── */
+.gallery-item img {
+  border-radius: 0;
+  border: 3px solid var(--bc-black);
+  transition: all 0.2s ease;
+}
+
+.gallery-item img:hover {
+  box-shadow: 6px 6px 0 var(--bc-neon);
+  transform: translate(-3px, -3px);
+}
+
+/* ── Mobile overrides ── */
+.mobile-nav {
+  background: var(--bc-black) !important;
+}
+
+.mobile-nav ul > li > a {
+  color: var(--bc-white) !important;
+  font-family: 'Work Sans', sans-serif;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.95rem;
+  border-bottom-color: var(--bc-divider) !important;
+}
+
+.mobile-nav .mobile-section-label {
+  color: var(--bc-neon) !important;
+  font-family: 'Bebas Neue', Impact, sans-serif;
+  font-size: 1rem !important;
+  letter-spacing: 0.12em !important;
+}
+
+.mobile-nav .dropdown a {
+  color: var(--bc-gray) !important;
+  border-bottom-color: var(--bc-divider) !important;
+}
+
+.nav-toggle .bar {
+  background-color: var(--bc-black) !important;
+}
+
+.nav-toggle.active .bar {
+  background-color: var(--bc-white) !important;
+}
+
+/* Header phone + CTA in bold contrast style */
+.header-phone {
+  color: var(--bc-black) !important;
+  font-weight: 800 !important;
+}
+
+.header-phone:hover {
+  color: var(--bc-neon) !important;
+}
+
+.header-top-right .btn {
+  background: var(--bc-neon) !important;
+  color: var(--bc-white) !important;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .hero h1,
+  .hero-section h1 {
+    font-size: 3.5rem !important;
+  }
+
+  section {
+    padding: 64px 0;
+  }
+
+  .section-title,
+  section h2 {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero h1,
+  .hero-section h1 {
+    font-size: 2.5rem !important;
+  }
+
+  .hero,
+  .hero-section {
+    padding: 120px 0 100px !important;
+  }
+
+  .section-title,
+  section h2 {
+    font-size: 2rem;
+  }
+
+  .service-card:hover,
+  .card:hover,
+  .feature-card:hover {
+    box-shadow: 4px 4px 0 var(--bc-black) !important;
+    transform: translate(-2px, -2px) !important;
+  }
+}

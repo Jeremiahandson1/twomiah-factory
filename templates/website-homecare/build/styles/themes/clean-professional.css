@@ -1,268 +1,573 @@
 /* ═══════════════════════════════════════════════════════
    Theme: Clean Professional
    Template: Homecare
-   Description: Clinical yet warm, trust-focused design.
-   White/light gray backgrounds, teal/green accents,
-   prominent trust badges, clean typography.
+   Medical/clinical trust — white + light blue backgrounds,
+   deep teal accents, Poppins + IBM Plex Sans, crisp and
+   certification-focused.
    ═══════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700&family=Open+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
 
 /* ── Variable Overrides ── */
 :root {
-  --font-primary: 'Nunito Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-secondary: 'Open Sans', -apple-system, sans-serif;
-  --font-heading: 'Nunito Sans', sans-serif;
-  --font-body: 'Open Sans', sans-serif;
-  --border-radius: 10px;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
-  --shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 6px 24px rgba(0, 0, 0, 0.1);
-  --off-white: #f7fafa;
-  --trust-green: #10b981;
-  --trust-green-light: #d1fae5;
+  --font-primary: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-secondary: 'IBM Plex Sans', -apple-system, sans-serif;
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --border-radius: 8px;
+
+  /* Palette */
+  --cp-white: #ffffff;
+  --cp-ice: #eff6ff;
+  --cp-ice-dark: #dbeafe;
+  --cp-teal: #0d9488;
+  --cp-teal-light: #ccfbf1;
+  --cp-teal-dark: #0f766e;
+  --cp-teal-deeper: #115e59;
+  --cp-navy: #1e293b;
+  --cp-gray: #64748b;
+  --cp-gray-light: #f1f5f9;
+  --cp-border: #e2e8f0;
+
+  /* Override main vars */
+  --off-white: #eff6ff;
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
 /* ── Body ── */
 body {
-  font-family: 'Open Sans', -apple-system, sans-serif;
-  background: var(--white);
+  font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+  background: var(--cp-white);
   background-image: none;
+  color: var(--cp-navy);
   line-height: 1.7;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
 }
 
 /* ── Typography ── */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Nunito Sans', sans-serif;
+  font-family: 'Poppins', sans-serif;
   font-weight: 700;
+  color: var(--cp-navy);
+  letter-spacing: -0.02em;
 }
 
+p { font-family: 'IBM Plex Sans', sans-serif; }
+
+.gold { color: var(--cp-teal) !important; }
+
 /* ── Header / Navigation ── */
-.header,
-header {
-  background: var(--white) !important;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+.main-header {
+  background: var(--cp-white) !important;
+  box-shadow: 0 1px 0 var(--cp-border) !important;
+}
+
+.main-header.scrolled {
+  box-shadow: 0 1px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+.main-nav-wrapper {
   border-bottom: none;
 }
 
-.nav-link,
-.header a {
-  font-family: 'Nunito Sans', sans-serif;
-  font-weight: 600;
-  font-size: 0.9rem;
+.main-nav > ul > li > a {
+  font-family: 'Poppins', sans-serif !important;
+  font-weight: 500 !important;
+  color: var(--cp-navy) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 14px !important;
 }
 
-/* ── Hero Section ── */
-.hero,
-.hero-section {
-  padding: 90px 0 80px;
+.main-nav > ul > li:hover > a {
+  color: var(--cp-teal) !important;
 }
 
-.hero::after,
-.hero-section::after,
-.hero-overlay {
-  background: linear-gradient(
-    135deg,
-    rgba(0, 77, 64, 0.65) 0%,
-    rgba(0, 137, 123, 0.5) 100%
-  ) !important;
+.nav-phone-link {
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  color: var(--cp-teal-dark) !important;
+  font-weight: 600 !important;
 }
 
-.hero h1,
-.hero-section h1 {
-  font-size: 2.8rem;
-  font-weight: 700;
-  line-height: 1.15;
+.nav-phone-link:hover { color: var(--cp-teal) !important; }
+
+/* Nav CTA */
+.cta-item .btn {
+  background: var(--cp-teal) !important;
+  color: #fff !important;
+  border-color: var(--cp-teal) !important;
+  border-radius: 6px !important;
+  font-family: 'Poppins', sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
 }
 
-.hero p,
-.hero-section p {
-  font-size: 1.15rem;
-  font-weight: 400;
-  max-width: 580px;
-  opacity: 0.95;
+.cta-item .btn:hover {
+  background: var(--cp-teal-dark) !important;
+  border-color: var(--cp-teal-dark) !important;
+}
+
+/* Dropdown */
+.dropdown {
+  border-top: 2px solid var(--cp-teal) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+}
+
+.dropdown a {
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  font-size: 13.5px !important;
+}
+
+.dropdown a:hover {
+  background: var(--cp-ice) !important;
+  color: var(--cp-teal) !important;
+}
+
+/* Mobile nav */
+.mobile-nav {
+  background: var(--cp-navy) !important;
+}
+
+.nav-toggle .bar {
+  background: var(--cp-navy) !important;
+}
+
+.nav-toggle.active .bar {
+  background: var(--cp-teal) !important;
 }
 
 /* ── Buttons ── */
-.btn,
-.cta-btn,
-.btn-primary,
-.hero-cta,
-button[type="submit"] {
-  border-radius: 8px;
-  padding: 12px 30px;
-  font-family: 'Nunito Sans', sans-serif;
-  font-weight: 600;
-  font-size: 0.95rem;
+.btn {
+  border-radius: 6px !important;
+  font-family: 'Poppins', sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-weight: 600 !important;
+  padding: 12px 28px !important;
+}
+
+.btn-primary {
+  background: var(--cp-teal) !important;
+  color: #fff !important;
+  border-color: var(--cp-teal) !important;
+}
+
+.btn-primary:hover {
+  background: var(--cp-teal-dark) !important;
+  border-color: var(--cp-teal-dark) !important;
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.25) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-warm {
+  background: var(--cp-teal) !important;
+  color: #fff !important;
+  border-color: var(--cp-teal) !important;
+  border-radius: 6px !important;
+}
+
+.btn-warm:hover {
+  background: var(--cp-teal-dark) !important;
+  border-color: var(--cp-teal-dark) !important;
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.25) !important;
+}
+
+.btn-outline-teal {
+  border-color: var(--cp-teal) !important;
+  color: var(--cp-teal) !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+}
+
+.btn-outline-teal:hover {
+  background: var(--cp-teal) !important;
+  color: #fff !important;
+}
+
+.btn-secondary {
+  background: var(--cp-navy) !important;
+  color: #fff !important;
+  border-color: var(--cp-navy) !important;
+}
+
+/* ── Hero Split ── */
+.hero-split {
+  background: var(--cp-white) !important;
+  padding: 72px 0 64px !important;
+  border-bottom: 1px solid var(--cp-border);
+}
+
+.hero-badge-pill {
+  background: var(--cp-teal-light) !important;
+  color: var(--cp-teal-dark) !important;
+  border-radius: 6px !important;
+  font-family: 'Poppins', sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  padding: 6px 14px !important;
+}
+
+.hero-split-headline {
+  font-family: 'Poppins', sans-serif !important;
+  color: var(--cp-navy) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+  line-height: 1.15 !important;
+}
+
+.hero-split-headline em {
+  color: var(--cp-teal) !important;
+  font-style: normal !important;
+}
+
+.hero-split-sub {
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  color: var(--cp-gray) !important;
+  font-size: 1.05rem !important;
+  line-height: 1.75 !important;
+}
+
+.hero-split-photo {
+  border-radius: 12px !important;
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.1) !important;
   border: none;
-  transition: all 0.25s ease;
 }
 
-.btn:hover,
-.cta-btn:hover,
-.btn-primary:hover,
-.hero-cta:hover,
-button[type="submit"]:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+.hero-photo-placeholder {
+  background: linear-gradient(135deg, var(--cp-ice) 0%, var(--cp-teal-light) 100%) !important;
+  color: var(--cp-teal-dark) !important;
 }
 
-.btn-secondary,
-.btn-outline {
-  background: var(--white);
-  border: 2px solid var(--color-primary, var(--gold));
-  color: var(--color-primary, var(--gold));
-  border-radius: 8px;
+/* ── Trust Bar ── */
+.trust-bar {
+  background: var(--cp-navy) !important;
 }
 
-/* ── Cards / Service Cards ── */
-.service-card,
-.card,
-.feature-card {
-  border-radius: 12px;
-  background: var(--white);
-  box-shadow: var(--shadow);
-  border: none;
-  padding: 32px 28px;
-  transition: all 0.3s ease;
+.trust-bar-item {
+  font-family: 'Poppins', sans-serif !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  letter-spacing: 0.02em !important;
 }
 
-.service-card:hover,
-.card:hover,
-.feature-card:hover {
-  box-shadow: var(--shadow-lg);
-  transform: translateY(-3px);
+/* ── About Section ── */
+.about-section {
+  background: var(--cp-ice) !important;
 }
 
-.service-card h3,
-.card h3,
-.feature-card h3 {
-  font-weight: 700;
-  font-size: 1.15rem;
-  margin-bottom: 10px;
+.about-section h2,
+.intro-content h2 {
+  color: var(--cp-navy) !important;
+}
+
+.intro-content p {
+  color: var(--cp-gray) !important;
+}
+
+.intro-image .image-placeholder {
+  background: linear-gradient(135deg, var(--cp-teal) 0%, var(--cp-teal-deeper) 100%) !important;
+  border-radius: 12px !important;
+}
+
+/* ── Service Cards ── */
+.hc-services-section {
+  background: var(--cp-white) !important;
+}
+
+.hc-services-section h2 {
+  font-family: 'Poppins', sans-serif !important;
+  color: var(--cp-navy) !important;
+}
+
+.hc-service-card {
+  background: var(--cp-white) !important;
+  border: 1px solid var(--cp-border) !important;
+  border-top: 3px solid var(--cp-teal) !important;
+  border-radius: 8px !important;
+  padding: 28px 24px !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: all 0.2s ease !important;
+}
+
+.hc-service-card:hover {
+  box-shadow: 0 8px 24px rgba(13, 148, 136, 0.08) !important;
+  transform: translateY(-2px) !important;
+  border-top-color: var(--cp-teal-dark) !important;
+}
+
+.hc-service-icon {
+  background: var(--cp-teal-light) !important;
+  color: var(--cp-teal) !important;
+  border-radius: 8px !important;
+  width: 48px !important;
+  height: 48px !important;
+}
+
+.hc-service-card h3 {
+  font-family: 'Poppins', sans-serif !important;
+  color: var(--cp-navy) !important;
+  font-weight: 600 !important;
+}
+
+.hc-service-card p {
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  color: var(--cp-gray) !important;
+}
+
+/* ── Service Area ── */
+.service-area-section {
+  background: var(--cp-ice) !important;
+}
+
+.area-pill {
+  border-color: var(--cp-border) !important;
+  background: var(--cp-white) !important;
+  color: var(--cp-navy) !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  border-radius: 6px !important;
+}
+
+.area-pill-active {
+  background: var(--cp-teal) !important;
+  border-color: var(--cp-teal) !important;
+  color: #fff !important;
+}
+
+/* ── Testimonials ── */
+.testimonials-section {
+  background: var(--cp-white) !important;
+}
+
+.testimonial-card {
+  background: var(--cp-white) !important;
+  border-radius: 8px !important;
+  border: 1px solid var(--cp-border) !important;
+  box-shadow: none !important;
+}
+
+.testimonial-content blockquote {
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  font-style: normal !important;
+  color: var(--cp-navy) !important;
+}
+
+.testimonial-stars {
+  color: #f59e0b !important;
+}
+
+.testimonial-author img {
+  border-radius: 50% !important;
+  border: 2px solid var(--cp-teal-light) !important;
 }
 
 /* ── Trust Badges / Certifications ── */
 .trust-badge,
 .certification,
 .badge {
-  background: var(--trust-green-light);
-  color: #065f46;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  background: var(--cp-teal-light) !important;
+  color: var(--cp-teal-deeper) !important;
+  border-radius: 6px !important;
+  font-family: 'Poppins', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.8rem !important;
+  padding: 8px 16px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
 }
 
-/* ── Sections ── */
+/* ── CTA Banner ── */
+.hc-cta-banner {
+  background: linear-gradient(135deg, var(--cp-navy) 0%, var(--cp-teal-deeper) 100%) !important;
+}
+
+.hc-cta-banner h2 {
+  font-family: 'Poppins', sans-serif !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+}
+
+.hc-cta-banner p {
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+.hc-cta-btn-white {
+  border-radius: 6px !important;
+  font-family: 'Poppins', sans-serif !important;
+  font-weight: 600 !important;
+}
+
+.hc-cta-btn-outline {
+  border-radius: 6px !important;
+  font-family: 'Poppins', sans-serif !important;
+}
+
+/* ── Contact Section ── */
+.hc-contact-section {
+  background: var(--cp-ice) !important;
+}
+
+.hc-contact-info h2 {
+  font-family: 'Poppins', sans-serif !important;
+  color: var(--cp-navy) !important;
+}
+
+.hc-contact-icon {
+  background: var(--cp-teal-light) !important;
+  color: var(--cp-teal) !important;
+  border-radius: 8px !important;
+}
+
+.hc-contact-form-wrap {
+  border-radius: 12px !important;
+  background: var(--cp-white) !important;
+  box-shadow: var(--shadow) !important;
+  border: 1px solid var(--cp-border);
+}
+
+form input,
+form textarea,
+form select {
+  border-radius: 6px !important;
+  border: 1px solid var(--cp-border) !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+  padding: 11px 14px !important;
+}
+
+form input:focus,
+form textarea:focus {
+  border-color: var(--cp-teal) !important;
+  box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.08) !important;
+}
+
+/* ── Footer ── */
+.hc-footer {
+  background: var(--cp-white) !important;
+  color: var(--cp-gray) !important;
+  border-top: 1px solid var(--cp-border) !important;
+}
+
+.hc-footer-brand {
+  font-family: 'Poppins', sans-serif !important;
+  color: var(--cp-navy) !important;
+}
+
+.hc-footer-logo img {
+  opacity: 1 !important;
+}
+
+.hc-footer-nav a {
+  color: var(--cp-gray) !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+.hc-footer-nav a:hover {
+  color: var(--cp-teal) !important;
+}
+
+.hc-footer-highlight {
+  color: var(--cp-teal) !important;
+}
+
+.hc-footer-contact span {
+  color: var(--cp-gray) !important;
+}
+
+.hc-footer-contact a {
+  color: var(--cp-teal) !important;
+  font-family: 'IBM Plex Sans', sans-serif !important;
+}
+
+.hc-footer-bottom {
+  border-top: 1px solid var(--cp-border) !important;
+}
+
+.hc-footer-bottom p {
+  color: var(--cp-gray) !important;
+}
+
+.built-by a {
+  color: var(--cp-gray) !important;
+}
+
+.built-by a:hover {
+  color: var(--cp-teal) !important;
+}
+
+/* ── Generic Sections ── */
 section {
   padding: 80px 0;
 }
 
+section:nth-child(even) {
+  background: var(--cp-ice);
+}
+
 .section-title,
 section h2 {
-  font-size: 2.1rem;
-  font-weight: 700;
-  text-align: center;
-  margin-bottom: 12px;
+  font-family: 'Poppins', sans-serif;
+  color: var(--cp-navy);
 }
 
 .section-subtitle {
-  text-align: center;
-  font-size: 1.05rem;
-  color: var(--gray-600);
-  font-weight: 400;
-  max-width: 600px;
-  margin: 0 auto 40px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  color: var(--cp-gray);
 }
 
-/* ── Testimonials ── */
-.testimonial-card,
-.review-card {
-  border-radius: 12px;
-  background: var(--white);
-  box-shadow: var(--shadow-sm);
-  padding: 28px;
-  border: none;
+/* ── Generic Cards ── */
+.service-card,
+.card,
+.feature-card {
+  border-radius: 8px !important;
+  background: var(--cp-white) !important;
+  border: 1px solid var(--cp-border) !important;
+  border-top: 3px solid var(--cp-teal) !important;
+  padding: 28px 24px !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
-.testimonial-card .stars,
-.review-card .stars {
-  color: var(--warm, #f59e0b);
+.service-card:hover,
+.card:hover,
+.feature-card:hover {
+  box-shadow: var(--shadow) !important;
+  transform: translateY(-2px);
 }
 
-/* ── Footer ── */
-.footer,
-footer {
-  background: #1a2f2e !important;
-  color: #cccccc !important;
+.service-card h3,
+.card h3,
+.feature-card h3 {
+  font-family: 'Poppins', sans-serif !important;
+  color: var(--cp-navy) !important;
 }
 
-.footer h3,
-.footer h4,
-footer h3,
-footer h4 {
-  font-family: 'Nunito Sans', sans-serif;
-  color: var(--white) !important;
-  font-weight: 700;
+/* ── Images ── */
+.service-card img,
+.card img,
+.gallery-item img {
+  border-radius: 8px !important;
 }
 
-.footer a,
-footer a {
-  color: #aaaaaa !important;
+/* ── Hero Video ── */
+.hero-video .hero-overlay {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(13, 148, 136, 0.4) 100%) !important;
 }
 
-.footer a:hover,
-footer a:hover {
-  color: var(--color-primary, var(--gold)) !important;
+.hero-video-content h1 {
+  font-family: 'Poppins', sans-serif !important;
 }
 
-/* ── Contact / Forms ── */
-.contact-form input,
-.contact-form textarea,
-.contact-form select,
-form input,
-form textarea,
-form select {
-  border-radius: 8px;
-  border: 1px solid var(--gray-200);
-  padding: 12px 16px;
-  font-family: 'Open Sans', sans-serif;
-  transition: border-color 0.2s ease;
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .hero-split { padding: 56px 0 48px !important; }
+  .hc-footer-inner { flex-direction: column; align-items: flex-start; }
 }
 
-.contact-form input:focus,
-.contact-form textarea:focus,
-form input:focus,
-form textarea:focus {
-  border-color: var(--color-primary, var(--gold));
-  box-shadow: 0 0 0 3px rgba(0, 150, 136, 0.08);
-  outline: none;
-}
-
-/* ── CTA Section ── */
-.cta-section,
-.cta-banner {
-  border-radius: 12px;
-  text-align: center;
-}
-
-/* ── Services Grid ── */
-.services-grid {
-  gap: 24px;
-}
-
-/* ── Icon styling ── */
-.service-card .icon,
-.feature-card .icon,
-.card .icon {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 16px;
+@media (max-width: 600px) {
+  .hero-split { padding: 40px 0 32px !important; }
+  .hc-service-card { padding: 22px 18px !important; }
 }

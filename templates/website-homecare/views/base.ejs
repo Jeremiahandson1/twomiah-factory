@@ -49,6 +49,11 @@
   <link rel="stylesheet" href="/styles/main.css">
   <link rel="stylesheet" href="/styles/public-pages.css">
 
+  <!-- Theme Override -->
+  <% if (typeof settings !== 'undefined' && settings && settings.theme) { %>
+  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css">
+  <% } %>
+
   <!-- Runtime Brand Color Override (from settings) -->
   <%
     const _pc = (typeof settings !== 'undefined' && settings && settings.primaryColor)   || '';

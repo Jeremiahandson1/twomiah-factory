@@ -24,23 +24,37 @@ type ThemeOption = {
 
 const THEMES: Record<string, ThemeOption[]> = {
   contractor: [
-    { id: 'modern-minimal', name: 'Modern Minimal', description: 'Clean lines, whitespace, modern feel', navBg: '#1a1a1a', heroBg: 'linear-gradient(135deg,#f8f9fa,#e9ecef)', heroText: '#222', cardBg: '#fff', cardText: '#333', btnRadius: '20px', fontFamily: 'system-ui,sans-serif' },
-    { id: 'bold-industrial', name: 'Bold Industrial', description: 'Heavy, strong, construction aesthetic', navBg: '#111', heroBg: 'linear-gradient(135deg,#1a1a1a,#2d2d2d)', heroText: '#fff', cardBg: '#1e1e1e', cardText: '#eee', btnRadius: '0', fontFamily: "'Impact',sans-serif" },
-    { id: 'professional-corporate', name: 'Professional Corporate', description: 'Traditional, trustworthy look', navBg: '#0d1b2a', heroBg: 'linear-gradient(135deg,#0d1b2a,#1b3a5c)', heroText: '#fff', cardBg: '#fff', cardText: '#333', btnRadius: '4px', fontFamily: 'Georgia,serif' },
+    { id: 'bold-industrial', name: 'Bold Industrial', description: 'Heavy, dark, safety-stripe accents — built for roofers & construction', navBg: '#111', heroBg: 'linear-gradient(135deg,#1a1a1a,#2d2d2d)', heroText: '#fff', cardBg: '#1e1e1e', cardText: '#eee', btnRadius: '0', fontFamily: "'Oswald',sans-serif" },
+    { id: 'professional-corporate', name: 'Professional Corporate', description: 'Navy & slate, serif headings — established and trustworthy', navBg: '#1e3a5f', heroBg: 'linear-gradient(135deg,#1e3a5f,#2d5a8f)', heroText: '#fff', cardBg: '#fff', cardText: '#333', btnRadius: '6px', fontFamily: "'Playfair Display',serif" },
+    { id: 'modern-minimal', name: 'Modern Minimal', description: 'Clean whitespace, frosted glass, editorial feel', navBg: '#fafafa', heroBg: 'linear-gradient(135deg,#f5f5f3,#e9e9e7)', heroText: '#222', cardBg: '#fff', cardText: '#333', btnRadius: '16px', fontFamily: "'DM Sans',sans-serif" },
+  ],
+  fieldservice: [
+    { id: 'bold-industrial', name: 'Technical Modern', description: 'Dark slate, electric blue — HVAC & plumbing tech feel', navBg: '#0f1729', heroBg: 'linear-gradient(135deg,#0f1729,#1a2744)', heroText: '#fff', cardBg: '#141d33', cardText: '#e2e8f0', btnRadius: '4px', fontFamily: "'Rajdhani',sans-serif" },
+    { id: 'professional-corporate', name: 'Friendly Neighborhood', description: 'Green & amber, rounded — the local service company next door', navBg: '#166534', heroBg: 'linear-gradient(135deg,#166534,#15803d)', heroText: '#fff', cardBg: '#fff', cardText: '#333', btnRadius: '10px', fontFamily: "'Nunito',sans-serif" },
+    { id: 'modern-minimal', name: 'Corporate Fleet', description: 'Cool gray, clean lines — professional fleet operation', navBg: '#0f172a', heroBg: 'linear-gradient(135deg,#f1f5f9,#e2e8f0)', heroText: '#0f172a', cardBg: '#fff', cardText: '#334155', btnRadius: '4px', fontFamily: "'Inter',sans-serif" },
   ],
   homecare: [
-    { id: 'clean-professional', name: 'Clean Professional', description: 'Clinical yet warm, trust-focused', navBg: '#0d7377', heroBg: 'linear-gradient(135deg,#e8f5f5,#d0ebeb)', heroText: '#1a3a3a', cardBg: '#fff', cardText: '#333', btnRadius: '6px', fontFamily: 'system-ui,sans-serif' },
-    { id: 'warm-community', name: 'Warm & Community', description: 'Inviting, family-friendly feel', navBg: '#5c3d2e', heroBg: 'linear-gradient(135deg,#fdf6ee,#f5e6d0)', heroText: '#3a2a1a', cardBg: '#fefaf5', cardText: '#4a3a2a', btnRadius: '20px', fontFamily: 'Georgia,serif' },
+    { id: 'warm-community', name: 'Warm & Compassionate', description: 'Rose & sage, serif fonts — caring and family-focused', navBg: '#5c3d2e', heroBg: 'linear-gradient(135deg,#fdf8f4,#f7efe6)', heroText: '#3a2a1a', cardBg: '#fdf8f4', cardText: '#4a3a2a', btnRadius: '20px', fontFamily: "'Playfair Display',serif" },
+    { id: 'clean-professional', name: 'Clinical Trust', description: 'Teal & white, clean — medical-grade professionalism', navBg: '#0d9488', heroBg: 'linear-gradient(135deg,#eff6ff,#dbeafe)', heroText: '#1a3a3a', cardBg: '#fff', cardText: '#333', btnRadius: '6px', fontFamily: "'Poppins',sans-serif" },
+    { id: 'family-modern', name: 'Family Modern', description: 'Lavender & purple, playful — community and family first', navBg: '#7c3aed', heroBg: 'linear-gradient(135deg,#f5f3ff,#ede9fe)', heroText: '#3b1f7a', cardBg: '#f5f3ff', cardText: '#4c1d95', btnRadius: '16px', fontFamily: "'Quicksand',sans-serif" },
   ],
   general: [
-    { id: 'clean-minimal', name: 'Clean Minimal', description: 'Simple, works for any service business', navBg: '#1a1a1a', heroBg: 'linear-gradient(135deg,#f5f5f5,#eaeaea)', heroText: '#222', cardBg: '#fff', cardText: '#333', btnRadius: '6px', fontFamily: 'system-ui,sans-serif' },
-    { id: 'trade-professional', name: 'Trade Professional', description: 'Structured, professional trade look', navBg: '#1a2744', heroBg: 'linear-gradient(135deg,#1a2744,#2d4a6f)', heroText: '#fff', cardBg: '#fff', cardText: '#333', btnRadius: '4px', fontFamily: 'system-ui,sans-serif' },
+    { id: 'clean-minimal', name: 'Clean Minimal', description: 'Emerald accent, pure whitespace — works for any business', navBg: '#fff', heroBg: 'linear-gradient(135deg,#ffffff,#f0fdf4)', heroText: '#111', cardBg: '#fff', cardText: '#333', btnRadius: '8px', fontFamily: "'Space Grotesk',sans-serif" },
+    { id: 'trade-professional', name: 'Established & Traditional', description: 'Parchment & brown, serif — looks like 30 years in business', navBg: '#44403c', heroBg: 'linear-gradient(135deg,#faf6f1,#f0e9df)', heroText: '#44403c', cardBg: '#faf6f1', cardText: '#44403c', btnRadius: '4px', fontFamily: "'Merriweather',serif" },
+    { id: 'bold-contrast', name: 'Bold Contrast', description: 'Black & white, neon accent — striking and unforgettable', navBg: '#000', heroBg: 'linear-gradient(135deg,#000,#111)', heroText: '#fff', cardBg: '#fff', cardText: '#000', btnRadius: '0', fontFamily: "'Bebas Neue',sans-serif" },
+  ],
+  dispensary: [
+    { id: 'glassmorphism-dark', name: 'Glassmorphism Dark', description: 'Luxury dark, glass effects, purple glow — premium cannabis', navBg: '#0a0a0a', heroBg: 'linear-gradient(135deg,#0a0a0a,#1a0a2e)', heroText: '#fff', cardBg: 'rgba(255,255,255,0.05)', cardText: '#e2e8f0', btnRadius: '12px', fontFamily: "'Outfit',sans-serif" },
+    { id: 'botanical-organic', name: 'Botanical Organic', description: 'Cream & forest green, natural — wellness-focused dispensary', navBg: '#14532d', heroBg: 'linear-gradient(135deg,#fefce8,#f0fdf4)', heroText: '#14532d', cardBg: '#fefce8', cardText: '#14532d', btnRadius: '8px', fontFamily: "'Cormorant Garamond',serif" },
+    { id: 'streetwear-bold', name: 'Streetwear Bold', description: 'Black, neon green, urban edge — culture-forward brand', navBg: '#000', heroBg: 'linear-gradient(135deg,#000,#0d0d0d)', heroText: '#fff', cardBg: '#000', cardText: '#fff', btnRadius: '0', fontFamily: "'Bebas Neue',sans-serif" },
   ],
 }
 
 function getCategory(industry: string): string {
-  if (industry === 'home_care') return 'homecare'
-  if (industry && industry !== 'other') return 'contractor'
+  if (industry === 'home_care' || industry === 'homecare') return 'homecare'
+  if (industry === 'hvac' || industry === 'plumbing' || industry === 'electrical' || industry === 'field_service' || industry === 'fieldservice') return 'fieldservice'
+  if (industry === 'cannabis' || industry === 'dispensary') return 'dispensary'
+  if (industry === 'roofing' || industry === 'construction' || industry === 'contractor' || industry === 'siding' || industry === 'remodeling') return 'contractor'
   return 'general'
 }
 

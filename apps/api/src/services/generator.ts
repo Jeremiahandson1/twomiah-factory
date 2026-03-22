@@ -131,6 +131,8 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
             fs.appendFileSync(mainCssPath, '\n\n/* ═══ Theme: ' + theme + ' ═══ */\n' + themeCss)
           }
         }
+        // Write theme selection to settings.json so the conditional CSS loader works
+        updateSettingsField(path.join(workDir, 'website'), 'theme', theme)
       }
 
       stripWebsiteFeatures(path.join(workDir, 'website'), config.features?.website || [])
