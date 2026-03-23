@@ -11,6 +11,7 @@ export const PRODUCTS = [
   { id: 'crm-fieldservice', name: 'Field Service CRM' },
   { id: 'crm-roof', name: 'Roofing CRM' },
   { id: 'crm-homecare', name: 'Home Care CRM' },
+  { id: 'crm-dispensary', name: 'Dispensary CRM (Leaf)' },
 ] as const
 
 export type ProductId = typeof PRODUCTS[number]['id']
@@ -177,6 +178,23 @@ const HOMECARE_SELF_HOSTED = [
   { id: 'full', name: 'Full Platform License', price: 14997 },
 ]
 
+// Dispensary (Leaf) tiers
+const DISPENSARY_TIERS = [
+  { id: 'starter', name: 'Starter', monthlyPrice: 299, annualPrice: 239, users: { included: 5, max: 10, additionalPrice: 29 }, features: ['POS System', 'Inventory Management', 'Cash Sessions + Reconciliation', 'ID Scanning + Verification', 'Customer Check-In Queue', 'Purchase Limit Enforcement', 'Product Equivalency Calculator', 'Tip Management', 'EOD Reconciliation Reports', 'QR Code Scanning', 'Offline POS Mode', 'Team Management', 'Compliance Basics', 'Audit Trail'] },
+  { id: 'pro', name: 'Pro', monthlyPrice: 499, annualPrice: 399, users: { included: 15, max: 25, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Metrc / BioTrack / Leaf Data', 'Delivery + GPS Driver Tracking', 'Loyalty Program (4 Tiers + Referrals)', 'Label Printing + QR Codes', 'SMS + Email Marketing', 'Analytics Dashboard', 'Employee Scheduling + Payroll Export', 'Budtender Training LMS', 'Online Ordering + Website', 'SEO Product Pages', 'Marketplace Menu Sync', 'Batch/Lot Tracking', 'Grow Input Tracking', 'Approval Workflows', 'Purchase Orders'] },
+  { id: 'business', name: 'Business', monthlyPrice: 799, annualPrice: 639, users: { included: 30, max: 50, additionalPrice: 29 }, features: ['Everything in Pro', 'Multi-Location (Up to 10)', 'AI Budtender (Claude-Powered)', 'Self-Service Kiosk', 'RFID Inventory Scanning', 'BI Dashboard + Custom Reports', 'Predictive Inventory + Auto-Reorder', 'Gamified Loyalty (Challenges + Streaks)', 'Digital Signage', 'Curbside Pickup', 'Pay by Bank (Plaid ACH)', 'Apple/Google Wallet Passes', 'Fraud + Theft Detection', 'SOC 2 Security Controls', 'API Access'] },
+  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 1299, annualPrice: 1039, users: { included: 100, max: null }, features: ['Everything in Business', 'Cultivation / Grow Tracking', 'Manufacturing / Processing', 'Wholesale / Distribution', 'Lab Testing + CoA', 'Franchise Management', 'Open API + Marketplace', 'Dedicated Success Manager', 'Unlimited Locations', 'Consumer Mobile App', 'White-Label Option'] },
+]
+
+const DISPENSARY_BUNDLES: typeof DEFAULT_FEATURE_BUNDLES = []  // All-inclusive, no add-ons
+
+const DISPENSARY_SELF_HOSTED = [
+  { id: 'starter', name: 'Starter License', price: 10764 },
+  { id: 'pro', name: 'Pro License', price: 17964 },
+  { id: 'business', name: 'Business License', price: 28764 },
+  { id: 'enterprise', name: 'Enterprise License', price: 46764 },
+]
+
 // Full per-product defaults map
 export function getProductDefaults(product: string) {
   switch (product) {
@@ -211,6 +229,14 @@ export function getProductDefaults(product: string) {
         self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
         deploy_services: DEFAULT_DEPLOY_SERVICES,
         feature_bundles: HOMECARE_BUNDLES,
+      }
+    case 'crm-dispensary':
+      return {
+        saas_tiers: DISPENSARY_TIERS,
+        self_hosted: DISPENSARY_SELF_HOSTED,
+        self_hosted_addons: DEFAULT_SELF_HOSTED_ADDONS,
+        deploy_services: DEFAULT_DEPLOY_SERVICES,
+        feature_bundles: DISPENSARY_BUNDLES,
       }
     default:
       return {
