@@ -228,4 +228,83 @@ app.post('/:id/request-changes', async (c) => {
   return c.json({ success: true, status: 'changes_requested' })
 })
 
+// ─── Proxy to Twomiah Ads service ────────────────────────────────────────────
+// Routes that forward to the centralized ads API when ADS_URL is configured
+
+async function adsProxy(method: string, path: string, body?: any) {
+  const adsUrl = process.env.ADS_URL
+  if (!adsUrl) return null
+  try {
+    const res = await fetch(`${adsUrl}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(10000),
+    })
+    return await res.json()
+  } catch (err) {
+    console.error(`Ads proxy error [${method} ${path}]:`, err)
+    return null
+  }
+}
+
+// Auth mode
+app.get('/auth/mode', async (c) => {
+  const result = await adsProxy('GET', '/auth/mode')
+  return c.json(result || { mode: 'managed' })
+})
+
+app.put('/auth/mode', async (c) => {
+  const body = await c.req.json()
+  const result = await adsProxy('PUT', '/auth/mode', body)
+  return c.json(result || { success: false, error: 'Ads service not configured' })
+})
+
+// Auth status
+app.get('/auth/status', async (c) => {
+  const result = await adsProxy('GET', '/auth/status')
+  return c.json(result || { status: { google: false, meta: false, tiktok: false } })
+})
+
+// Connect URL
+app.get('/auth/connect-url/:platform', async (c) => {
+  const platform = c.req.param('platform')
+  const result = await adsProxy('GET', `/auth/connect-url/${platform}`)
+  return c.json(result || { error: 'Ads service not configured' })
+})
+
+// Disconnect
+app.delete('/auth/:platform', async (c) => {
+  const platform = c.req.param('platform')
+  const result = await adsProxy('DELETE', `/auth/${platform}`)
+  return c.json(result || { success: false })
+})
+
+// Photos from CRM (local, not proxied)
+app.get('/photos', async (c) => {
+  // Return photos from this CRM's photo storage
+  try {
+    const currentUser = c.get('user') as any
+    const { db } = await import('../../db/index.ts')
+    const { sql } = await import('drizzle-orm')
+    const result = await db.execute(sql`
+      SELECT id, url, thumbnail_url, caption, category, created_at
+      FROM documents
+      WHERE company_id = ${currentUser.companyId}
+        AND type IN ('photo', 'image')
+      ORDER BY created_at DESC
+      LIMIT 50
+    `)
+    return c.json({ photos: (result as any).rows || result })
+  } catch {
+    return c.json({ photos: [] })
+  }
+})
+
+// Templates (proxy to ads service)
+app.get('/templates', async (c) => {
+  const result = await adsProxy('GET', '/campaigns/templates')
+  return c.json(result || { templates: [] })
+})
+
 export default app
