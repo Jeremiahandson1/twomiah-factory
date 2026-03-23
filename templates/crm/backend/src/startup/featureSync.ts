@@ -1,46 +1,7 @@
 import { db } from '../../db/index.ts'
 import { company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
-
-// Feature sets by plan tier — must stay in sync with auth.ts PLAN_FEATURES
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-  ],
-  pro: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'gps_tracking', 'geofencing', 'auto_clock',
-    'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing',
-  ],
-  business: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'scheduled_sms', 'gps_tracking', 'geofencing',
-    'auto_clock', 'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing', 'inventory',
-    'inventory_locations', 'stock_levels', 'inventory_transfers', 'purchase_orders',
-    'equipment_tracking', 'equipment_maintenance', 'fleet_vehicles', 'fleet_maintenance',
-    'fleet_fuel', 'warranties', 'warranty_claims', 'email_templates', 'email_campaigns',
-    'call_tracking', 'automations', 'custom_forms', 'consumer_financing', 'advanced_reporting',
-  ],
-  construction: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'scheduled_sms', 'gps_tracking', 'geofencing',
-    'auto_clock', 'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing', 'inventory',
-    'inventory_locations', 'stock_levels', 'inventory_transfers', 'purchase_orders',
-    'equipment_tracking', 'equipment_maintenance', 'fleet_vehicles', 'fleet_maintenance',
-    'fleet_fuel', 'warranties', 'warranty_claims', 'email_templates', 'email_campaigns',
-    'call_tracking', 'automations', 'custom_forms', 'consumer_financing', 'advanced_reporting',
-    'projects', 'project_budgets', 'project_phases', 'change_orders', 'rfis', 'submittals',
-    'daily_logs', 'punch_lists', 'inspections', 'bids', 'gantt_charts', 'selections',
-    'selection_portal', 'takeoffs', 'lien_waivers', 'draw_schedules', 'draw_requests', 'aia_forms',
-  ],
-}
+import { PLAN_FEATURES } from '../shared/plans.ts'
 
 export async function syncFeatures() {
   try {

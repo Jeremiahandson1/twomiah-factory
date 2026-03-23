@@ -10,6 +10,7 @@ import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
+import { PLAN_FEATURES, PLAN_LIMITS } from '../shared/plans.ts'
 
 const app = new Hono()
 
@@ -17,56 +18,6 @@ const generateTokens = (userId: string, companyId: string, email: string, role: 
   const accessToken = jwt.sign({ userId, companyId, email, role }, process.env.JWT_SECRET!, { expiresIn: '15m' })
   const refreshToken = jwt.sign({ userId, companyId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' })
   return { accessToken, refreshToken }
-}
-
-// Feature sets for each plan tier
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-  ],
-  pro: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'gps_tracking', 'geofencing', 'auto_clock',
-    'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing',
-  ],
-  business: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'scheduled_sms', 'gps_tracking', 'geofencing',
-    'auto_clock', 'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing', 'inventory',
-    'inventory_locations', 'stock_levels', 'inventory_transfers', 'purchase_orders',
-    'equipment_tracking', 'equipment_maintenance', 'fleet_vehicles', 'fleet_maintenance',
-    'fleet_fuel', 'warranties', 'warranty_claims', 'email_templates', 'email_campaigns',
-    'call_tracking', 'automations', 'custom_forms', 'consumer_financing', 'advanced_reporting',
-  ],
-  construction: [
-    'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
-    'time_tracking', 'expenses', 'documents', 'customer_portal', 'dashboard', 'mobile_app',
-    'team_management', 'sms', 'sms_templates', 'scheduled_sms', 'gps_tracking', 'geofencing',
-    'auto_clock', 'route_optimization', 'online_booking', 'review_requests', 'service_agreements',
-    'pricebook', 'quickbooks_sync', 'recurring_jobs', 'job_costing', 'inventory',
-    'inventory_locations', 'stock_levels', 'inventory_transfers', 'purchase_orders',
-    'equipment_tracking', 'equipment_maintenance', 'fleet_vehicles', 'fleet_maintenance',
-    'fleet_fuel', 'warranties', 'warranty_claims', 'email_templates', 'email_campaigns',
-    'call_tracking', 'automations', 'custom_forms', 'consumer_financing', 'advanced_reporting',
-    'projects', 'project_budgets', 'project_phases', 'change_orders', 'rfis', 'submittals',
-    'daily_logs', 'punch_lists', 'inspections', 'bids', 'gantt_charts', 'selections',
-    'selection_portal', 'takeoffs', 'lien_waivers', 'draw_schedules', 'draw_requests', 'aia_forms',
-  ],
-  enterprise: ['all'],
-}
-
-// Plan limits
-const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | null; jobs: number | null; storage: number | null }> = {
-  starter: { users: 2, contacts: 500, jobs: 100, storage: 5 },
-  pro: { users: 5, contacts: 2500, jobs: 500, storage: 25 },
-  business: { users: 15, contacts: 10000, jobs: 2000, storage: 100 },
-  construction: { users: 20, contacts: 25000, jobs: 5000, storage: 250 },
-  enterprise: { users: null, contacts: null, jobs: null, storage: null },
 }
 
 // Self-serve signup (multi-step flow)
@@ -262,47 +213,20 @@ app.post('/login', async (c) => {
 
   const normalizedEmail = data.email
 
-  // --- DEBUG LOGGING (remove after confirming fix) ---
-  const ua = c.req.header('user-agent') || 'unknown'
-  const origin = c.req.header('origin') || 'none'
-  const ct = c.req.header('content-type') || 'none'
-  const isMobile = /mobile|android|iphone|ipad/i.test(ua)
-  logger.info('[LOGIN DEBUG]', {
-    rawEmail: data.email,
-    normalizedEmail,
-    passwordLength: data.password.length,
-    isMobile,
-    userAgent: ua.substring(0, 120),
-    origin,
-    contentType: ct,
-  })
-  // --- END DEBUG ---
-
   const [foundUser] = await db.select().from(user).where(eq(user.email, normalizedEmail)).limit(1)
 
   if (!foundUser) {
-    logger.warn('[LOGIN DEBUG] User not found', { normalizedEmail, rawEmail: data.email })
     return c.json({ error: 'Invalid email or password' }, 401)
   }
   if (!foundUser.isActive) {
-    logger.warn('[LOGIN DEBUG] Account disabled', { email: normalizedEmail })
     return c.json({ error: 'Account is disabled' }, 401)
   }
 
   const valid = await Bun.password.verify(data.password, foundUser.passwordHash)
 
   if (!valid) {
-    logger.warn('[LOGIN DEBUG] bcrypt.compare returned false', {
-      email: normalizedEmail,
-      hashPrefix: foundUser.passwordHash.substring(0, 7),
-      hashLength: foundUser.passwordHash.length,
-      passwordLength: data.password.length,
-      isMobile,
-    })
     return c.json({ error: 'Invalid email or password' }, 401)
   }
-
-  logger.info('[LOGIN DEBUG] Success', { email: normalizedEmail, isMobile })
 
   // Fetch company separately
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)

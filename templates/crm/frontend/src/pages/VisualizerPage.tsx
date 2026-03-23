@@ -1,14 +1,16 @@
+import { ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function VisualizerPage() {
   const { company, hasFeature } = useAuth();
 
   if (!hasFeature('visualizer')) {
-    // Redirect to Twomiah Vision marketing page
-    window.location.href = 'https://twomiah.com/vision';
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Redirecting...</p>
+      <div className="flex items-center justify-center h-64 flex-col gap-4">
+        <p className="text-gray-500">This feature is not included in your plan.</p>
+        <a href="https://twomiah.com/vision" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1">
+          Learn more <ExternalLink className="w-4 h-4" />
+        </a>
       </div>
     );
   }

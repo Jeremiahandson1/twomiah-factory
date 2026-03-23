@@ -9,7 +9,16 @@ const variants = {
   default: 'bg-slate-700 text-slate-300',
 };
 
-export function Badge({ children, variant = 'default', className, dot }) {
+type BadgeVariant = keyof typeof variants;
+
+interface BadgeProps {
+  children: React.ReactNode;
+  variant?: BadgeVariant;
+  className?: string;
+  dot?: boolean;
+}
+
+export function Badge({ children, variant = 'default', className, dot }: BadgeProps) {
   return (
     <span className={clsx('badge', variants[variant], className)}>
       {dot && (
@@ -28,7 +37,7 @@ export function Badge({ children, variant = 'default', className, dot }) {
 }
 
 // Status badge with predefined mappings
-const statusMap = {
+const statusMap: Record<string, { label: string; variant: BadgeVariant }> = {
   // Job/Project statuses
   draft: { label: 'Draft', variant: 'default' },
   pending: { label: 'Pending', variant: 'warning' },
@@ -37,22 +46,22 @@ const statusMap = {
   completed: { label: 'Completed', variant: 'success' },
   cancelled: { label: 'Cancelled', variant: 'danger' },
   on_hold: { label: 'On Hold', variant: 'warning' },
-  
+
   // Quote statuses
   approved: { label: 'Approved', variant: 'success' },
   rejected: { label: 'Rejected', variant: 'danger' },
   expired: { label: 'Expired', variant: 'default' },
-  
+
   // Invoice statuses
   paid: { label: 'Paid', variant: 'success' },
   overdue: { label: 'Overdue', variant: 'danger' },
   partial: { label: 'Partial', variant: 'warning' },
-  
+
   // RFI statuses
   open: { label: 'Open', variant: 'warning' },
   responded: { label: 'Responded', variant: 'info' },
   closed: { label: 'Closed', variant: 'success' },
-  
+
   // Contact types
   client: { label: 'Client', variant: 'info' },
   subcontractor: { label: 'Subcontractor', variant: 'warning' },
@@ -60,8 +69,13 @@ const statusMap = {
   lead: { label: 'Lead', variant: 'success' },
 };
 
-export function StatusBadge({ status, className }) {
-  const config = statusMap[status] || { label: status, variant: 'default' };
+interface StatusBadgeProps {
+  status: string;
+  className?: string;
+}
+
+export function StatusBadge({ status, className }: StatusBadgeProps) {
+  const config = statusMap[status] || { label: status, variant: 'default' as BadgeVariant };
   return (
     <Badge variant={config.variant} className={className} dot>
       {config.label}

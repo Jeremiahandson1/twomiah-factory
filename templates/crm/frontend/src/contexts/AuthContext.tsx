@@ -1,14 +1,15 @@
 import React from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import type { AuthContextValue, User, Company, AuthData } from '../types';
 
-const AuthContext = createContext<any>(null);
+const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState(null);
-  const [company, setCompany] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [company, setCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const checkAuth = useCallback(async () => {
     const token = localStorage.getItem('accessToken');
@@ -18,9 +19,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const data = await api.getMe();
-      setUser(data.user);
-      setCompany(data.company);
+      const data = await api.getMe() as Record<string, unknown>;
+      setUser(data.user as User);
+      setCompany(data.company as Company);
     } catch (err) {
       console.error('Auth check failed:', err);
       api.clearTokens();
@@ -33,7 +34,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
-  const login = async (email, password) => {
+  // Handle session expiry from API client without hard navigation
+  useEffect(() => {
+    const handleExpired = () => {
+      setUser(null);
+      setCompany(null);
+    };
+    window.addEventListener('auth:expired', handleExpired);
+    return () => window.removeEventListener('auth:expired', handleExpired);
+  }, []);
+
+  const login = async (email: string, password: string): Promise<AuthData> => {
     setError(null);
     try {
       const data = await api.login(email, password);
@@ -41,12 +52,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCompany(data.company);
       return data;
     } catch (err) {
-      setError(err.message || 'Login failed');
+      const message = err instanceof Error ? err.message : 'Login failed';
+      setError(message);
       throw err;
     }
   };
 
-  const register = async (formData) => {
+  const register = async (formData: Record<string, string>): Promise<AuthData> => {
     setError(null);
     try {
       const data = await api.register(formData);
@@ -54,7 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCompany(data.company);
       return data;
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      const message = err instanceof Error ? err.message : 'Registration failed';
+      setError(message);
       throw err;
     }
   };
@@ -68,15 +81,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateCompany = (updates) => {
-    setCompany(prev => ({ ...prev, ...updates }));
+  const updateCompany = (updates: Partial<Company>) => {
+    setCompany(prev => prev ? { ...prev, ...updates } : null);
   };
 
   const isAuthenticated = !!user;
   const isAdmin = user?.role === 'admin';
-  const isManager = ['admin', 'manager'].includes(user?.role);
+  const isManager = ['admin', 'manager'].includes(user?.role ?? '');
 
-  const hasFeature = (featureId) => {
+  const getToken = useCallback(() => localStorage.getItem('accessToken'), []);
+
+  const hasFeature = (featureId: string): boolean => {
     return company?.enabledFeatures?.includes(featureId) ?? false;
   };
 
@@ -95,13 +110,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       checkAuth,
       updateCompany,
       hasFeature,
+      getToken,
     }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
+export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within AuthProvider');

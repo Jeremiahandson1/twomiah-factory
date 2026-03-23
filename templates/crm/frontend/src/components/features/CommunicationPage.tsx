@@ -5,6 +5,10 @@ import { format } from 'date-fns';
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui';
 import { useCRMDataStore } from '../../stores/builderStore';
 
+interface OutletContextType {
+  instance: Record<string, unknown>;
+}
+
 const messageTypeOptions = [
   { value: 'email', label: 'Email' },
   { value: 'sms', label: 'SMS' },
@@ -21,39 +25,71 @@ const templateTypeOptions = [
   { value: 'custom', label: 'Custom' },
 ];
 
+interface MessageFormData {
+  contactId: string;
+  type: string;
+  subject: string;
+  body: string;
+  status: string;
+  createdAt?: string;
+}
+
+interface MessageFormProps {
+  item: Record<string, unknown> | null;
+  contacts: Record<string, unknown>[];
+  onSave: (data: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
 // MESSAGE FORM
-function MessageForm({ item, contacts, onSave, onClose }) {
-  const [form, setForm] = useState(item || { contactId: '', type: 'email', subject: '', body: '', status: 'draft' });
-  const handleSubmit = (e) => { e.preventDefault(); onSave({ ...form, createdAt: item?.createdAt || new Date().toISOString() }); onClose(); };
+function MessageForm({ item, contacts, onSave, onClose }: MessageFormProps) {
+  const [form, setForm] = useState<MessageFormData>((item as unknown as MessageFormData) || { contactId: '', type: 'email', subject: '', body: '', status: 'draft' });
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave({ ...form, createdAt: item?.createdAt || new Date().toISOString() }); onClose(); };
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Select label="Recipient" value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} options={contacts.map(c => ({ value: c.id, label: `${c.name} (${c.email || c.phone || 'no contact'})` }))} placeholder="Select contact" required />
-        <Select label="Type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} options={messageTypeOptions} />
+        <Select label="Recipient" value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, contactId: e.target.value })} options={contacts.map((c: Record<string, unknown>) => ({ value: c.id as string, label: `${c.name} (${c.email || c.phone || 'no contact'})` }))} placeholder="Select contact" required />
+        <Select label="Type" value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })} options={messageTypeOptions} />
       </div>
-      {form.type === 'email' && <Input label="Subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Email subject" />}
-      <Textarea label="Message" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Write your message..." rows={5} required />
-      <Select label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} options={[{ value: 'draft', label: 'Draft' }, { value: 'sent', label: 'Sent' }, { value: 'delivered', label: 'Delivered' }, { value: 'read', label: 'Read' }]} />
+      {form.type === 'email' && <Input label="Subject" value={form.subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, subject: e.target.value })} placeholder="Email subject" />}
+      <Textarea label="Message" value={form.body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, body: e.target.value })} placeholder="Write your message..." rows={5} required />
+      <Select label="Status" value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, status: e.target.value })} options={[{ value: 'draft', label: 'Draft' }, { value: 'sent', label: 'Sent' }, { value: 'delivered', label: 'Delivered' }, { value: 'read', label: 'Read' }]} />
       <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit">{item ? 'Update' : 'Save'}</Button></div>
     </form>
   );
 }
 
+interface TemplateFormData {
+  name: string;
+  type: string;
+  channel: string;
+  subject: string;
+  body: string;
+  active: boolean;
+  createdAt?: string;
+}
+
+interface TemplateFormProps {
+  item: Record<string, unknown> | null;
+  onSave: (data: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
 // TEMPLATE FORM
-function TemplateForm({ item, onSave, onClose }) {
-  const [form, setForm] = useState(item || { name: '', type: 'custom', channel: 'email', subject: '', body: '', active: true });
-  const handleSubmit = (e) => { e.preventDefault(); onSave({ ...form, createdAt: item?.createdAt || new Date().toISOString() }); onClose(); };
+function TemplateForm({ item, onSave, onClose }: TemplateFormProps) {
+  const [form, setForm] = useState<TemplateFormData>((item as unknown as TemplateFormData) || { name: '', type: 'custom', channel: 'email', subject: '', body: '', active: true });
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave({ ...form, createdAt: item?.createdAt || new Date().toISOString() }); onClose(); };
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Input label="Template Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Job Complete Thank You" required />
+      <Input label="Template Name" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Job Complete Thank You" required />
       <div className="grid grid-cols-2 gap-4">
-        <Select label="Template Type" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} options={templateTypeOptions} />
-        <Select label="Channel" value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })} options={[{ value: 'email', label: 'Email' }, { value: 'sms', label: 'SMS' }, { value: 'both', label: 'Both' }]} />
+        <Select label="Template Type" value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })} options={templateTypeOptions} />
+        <Select label="Channel" value={form.channel} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, channel: e.target.value })} options={[{ value: 'email', label: 'Email' }, { value: 'sms', label: 'SMS' }, { value: 'both', label: 'Both' }]} />
       </div>
-      {(form.channel === 'email' || form.channel === 'both') && <Input label="Subject" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Email subject line" />}
-      <Textarea label="Message Body" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} placeholder="Use {{customer_name}}, {{job_name}}, etc. for merge fields" rows={5} required />
+      {(form.channel === 'email' || form.channel === 'both') && <Input label="Subject" value={form.subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, subject: e.target.value })} placeholder="Email subject line" />}
+      <Textarea label="Message Body" value={form.body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, body: e.target.value })} placeholder="Use {{customer_name}}, {{job_name}}, etc. for merge fields" rows={5} required />
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
+        <input type="checkbox" checked={form.active} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, active: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
         <span className="text-sm text-slate-300">Active (available for use)</span>
       </label>
       <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit">{item ? 'Update' : 'Create'}</Button></div>
@@ -62,21 +98,30 @@ function TemplateForm({ item, onSave, onClose }) {
 }
 
 export function CommunicationPage() {
-  const { instance } = useOutletContext();
-  const { contacts, messages = [], templates = [], addMessage, updateMessage, deleteMessage, addTemplate, updateTemplate, deleteTemplate } = useCRMDataStore();
-  const [activeTab, setActiveTab] = useState('messages');
-  const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const { instance } = useOutletContext<OutletContextType>();
+  const store = useCRMDataStore();
+  const contacts = store.contacts as Record<string, unknown>[];
+  const messages = (store.messages || []) as Record<string, unknown>[];
+  const templates = (store.templates || []) as Record<string, unknown>[];
+  const addMessage = store.addMessage as ((item: Record<string, unknown>) => void) | undefined;
+  const updateMessage = store.updateMessage as ((id: unknown, updates: Record<string, unknown>) => void) | undefined;
+  const deleteMessage = store.deleteMessage as ((id: unknown) => void) | undefined;
+  const addTemplate = store.addTemplate as ((item: Record<string, unknown>) => void) | undefined;
+  const updateTemplate = store.updateTemplate as ((id: unknown, updates: Record<string, unknown>) => void) | undefined;
+  const deleteTemplate = store.deleteTemplate as ((id: unknown) => void) | undefined;
+  const [activeTab, setActiveTab] = useState<string>('messages');
+  const [search, setSearch] = useState<string>('');
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editItem, setEditItem] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
-  const filteredMessages = useMemo(() => (messages || []).filter(m => !search || m.body?.toLowerCase().includes(search.toLowerCase()) || m.subject?.toLowerCase().includes(search.toLowerCase())), [messages, search]);
-  const filteredTemplates = useMemo(() => (templates || []).filter(t => !search || t.name?.toLowerCase().includes(search.toLowerCase())), [templates, search]);
+  const filteredMessages = useMemo(() => (messages || []).filter((m: Record<string, unknown>) => !search || (m.body as string)?.toLowerCase().includes(search.toLowerCase()) || (m.subject as string)?.toLowerCase().includes(search.toLowerCase())), [messages, search]);
+  const filteredTemplates = useMemo(() => (templates || []).filter((t: Record<string, unknown>) => !search || (t.name as string)?.toLowerCase().includes(search.toLowerCase())), [templates, search]);
 
-  const getContactName = (id) => contacts.find(c => c.id === id)?.name || '-';
+  const getContactName = (id: string): string => (contacts.find((c: Record<string, unknown>) => c.id === id)?.name as string) || '-';
 
-  const handleSave = (data) => {
+  const handleSave = (data: Record<string, unknown>) => {
     if (activeTab === 'messages') { editItem ? updateMessage?.(editItem.id, data) : addMessage?.(data); }
     else if (activeTab === 'templates') { editItem ? updateTemplate?.(editItem.id, data) : addTemplate?.(data); }
     setEditItem(null); setShowForm(false);
@@ -88,14 +133,14 @@ export function CommunicationPage() {
     setDeleteTarget(null);
   };
 
-  const handleSend = (msg) => updateMessage?.(msg.id, { status: 'sent', sentAt: new Date().toISOString() });
+  const handleSend = (msg: Record<string, unknown>) => updateMessage?.(msg.id, { status: 'sent', sentAt: new Date().toISOString() });
 
-  const sentCount = messages.filter(m => m.status !== 'draft').length;
-  const emailCount = messages.filter(m => m.type === 'email').length;
-  const smsCount = messages.filter(m => m.type === 'sms').length;
-  const activeTemplates = templates.filter(t => t.active).length;
+  const sentCount = messages.filter((m: Record<string, unknown>) => m.status !== 'draft').length;
+  const emailCount = messages.filter((m: Record<string, unknown>) => m.type === 'email').length;
+  const smsCount = messages.filter((m: Record<string, unknown>) => m.type === 'sms').length;
+  const activeTemplates = templates.filter((t: Record<string, unknown>) => t.active).length;
 
-  const typeIcons = { email: Mail, sms: MessageSquare, internal: FileText };
+  const typeIcons: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = { email: Mail, sms: MessageSquare, internal: FileText };
 
   return (
     <div className="space-y-6">
@@ -117,9 +162,9 @@ export function CommunicationPage() {
         ))}
       </div>
 
-      <Card><CardBody className="p-4"><div className="relative max-w-md"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-11" /></div></CardBody></Card>
+      <Card><CardBody className="p-4"><div className="relative max-w-md"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="input pl-11" /></div></CardBody></Card>
 
-      <Tabs value={activeTab} onChange={(v) => { setActiveTab(v); setSearch(''); }}>
+      <Tabs value={activeTab} onChange={(v: string) => { setActiveTab(v); setSearch(''); }}>
         <TabsList>
           <TabsTrigger value="messages">Messages ({messages.length})</TabsTrigger>
           <TabsTrigger value="templates">Templates ({templates.length})</TabsTrigger>
@@ -129,14 +174,14 @@ export function CommunicationPage() {
           <Card>
             {filteredMessages.length > 0 ? (
               <Table><TableHead><TableRow><TableHeader>Type</TableHeader><TableHeader>Recipient</TableHeader><TableHeader>Subject / Preview</TableHeader><TableHeader>Date</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>
-                {filteredMessages.map((m) => {
-                  const Icon = typeIcons[m.type] || MessageSquare;
+                {filteredMessages.map((m: Record<string, unknown>) => {
+                  const Icon = typeIcons[m.type as string] || MessageSquare;
                   return (
-                    <TableRow key={m.id}>
-                      <TableCell><div className="flex items-center gap-2"><Icon className="w-4 h-4" style={{ color: primaryColor }} /><span className="text-slate-400 text-sm">{m.type}</span></div></TableCell>
-                      <TableCell className="font-medium text-white">{getContactName(m.contactId)}</TableCell>
-                      <TableCell><span className="text-slate-300">{m.subject || m.body?.substring(0, 40) + '...'}</span></TableCell>
-                      <TableCell className="text-slate-400 text-sm">{m.createdAt ? format(new Date(m.createdAt), 'MMM d, h:mm a') : '-'}</TableCell>
+                    <TableRow key={m.id as string}>
+                      <TableCell><div className="flex items-center gap-2"><Icon className="w-4 h-4" style={{ color: primaryColor }} /><span className="text-slate-400 text-sm">{m.type as string}</span></div></TableCell>
+                      <TableCell className="font-medium text-white">{getContactName(m.contactId as string)}</TableCell>
+                      <TableCell><span className="text-slate-300">{(m.subject as string) || (m.body as string)?.substring(0, 40) + '...'}</span></TableCell>
+                      <TableCell className="text-slate-400 text-sm">{m.createdAt ? format(new Date(m.createdAt as string), 'MMM d, h:mm a') : '-'}</TableCell>
                       <TableCell><StatusBadge status={m.status === 'sent' || m.status === 'delivered' || m.status === 'read' ? 'completed' : 'draft'} /></TableCell>
                       <TableCell><div className="flex gap-1">
                         {m.status === 'draft' && <button onClick={() => handleSend(m)} className="p-1.5 hover:bg-blue-500/20 rounded text-blue-400" title="Send"><Send className="w-4 h-4" /></button>}
@@ -155,12 +200,12 @@ export function CommunicationPage() {
           <Card>
             {filteredTemplates.length > 0 ? (
               <Table><TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Type</TableHeader><TableHeader>Channel</TableHeader><TableHeader>Preview</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>
-                {filteredTemplates.map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-medium text-white">{t.name}</TableCell>
-                    <TableCell><span className="text-slate-400 text-sm">{t.type?.replace('_', ' ')}</span></TableCell>
-                    <TableCell><span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}>{t.channel}</span></TableCell>
-                    <TableCell className="text-slate-400 text-sm max-w-xs truncate">{t.body?.substring(0, 50)}...</TableCell>
+                {filteredTemplates.map((t: Record<string, unknown>) => (
+                  <TableRow key={t.id as string}>
+                    <TableCell className="font-medium text-white">{t.name as string}</TableCell>
+                    <TableCell><span className="text-slate-400 text-sm">{(t.type as string)?.replace('_', ' ')}</span></TableCell>
+                    <TableCell><span className="px-2 py-0.5 rounded text-xs" style={{ backgroundColor: `${primaryColor}20`, color: primaryColor }}>{t.channel as string}</span></TableCell>
+                    <TableCell className="text-slate-400 text-sm max-w-xs truncate">{(t.body as string)?.substring(0, 50)}...</TableCell>
                     <TableCell>{t.active ? <span className="text-emerald-400 text-sm">Active</span> : <span className="text-slate-500 text-sm">Inactive</span>}</TableCell>
                     <TableCell><div className="flex gap-1">
                       <button onClick={() => updateTemplate?.(t.id, { active: !t.active })} className={`p-1.5 hover:bg-slate-700 rounded ${t.active ? 'text-emerald-400' : 'text-slate-500'}`} title={t.active ? 'Deactivate' : 'Activate'}><Check className="w-4 h-4" /></button>

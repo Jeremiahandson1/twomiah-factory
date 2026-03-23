@@ -1,42 +1,57 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
-class ErrorBoundary extends React.Component<any, any> {
-  constructor(props: any) {
+const isDev = import.meta.env.DEV;
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallback?: (error: Error, reset: () => void) => React.ReactNode;
+  onReset?: () => void;
+  message?: string;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
   }
 
-  static getDerivedStateFromError(error: any) {
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: any, errorInfo: any) {
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     this.setState({ errorInfo });
-    
+
     // Log error to console in development
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       console.error('Error caught by boundary:', error, errorInfo);
     }
-    
+
     // TODO: Send to error tracking service (Sentry, etc.)
   }
 
-  handleReset = () => {
+  handleReset = (): void => {
     this.setState({ hasError: false, error: null, errorInfo: null });
     if (this.props.onReset) {
       this.props.onReset();
     }
   };
 
-  handleGoHome = () => {
+  handleGoHome = (): void => {
     window.location.href = '/';
   };
 
   render() {
     if (this.state.hasError) {
       // Custom fallback UI
-      if (this.props.fallback) {
+      if (this.props.fallback && this.state.error) {
         return this.props.fallback(this.state.error, this.handleReset);
       }
 
@@ -50,8 +65,8 @@ class ErrorBoundary extends React.Component<any, any> {
             <p className="text-gray-600 mb-6">
               {this.props.message || "We're sorry, but something unexpected happened. Please try again."}
             </p>
-            
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+
+            {isDev && this.state.error && (
               <div className="mb-6 p-4 bg-red-50 rounded-lg text-left">
                 <p className="font-mono text-sm text-red-800 break-all">
                   {this.state.error.toString()}
@@ -66,7 +81,7 @@ class ErrorBoundary extends React.Component<any, any> {
                 )}
               </div>
             )}
-            
+
             <div className="flex gap-3 justify-center">
               <button
                 onClick={this.handleReset}
@@ -93,8 +108,11 @@ class ErrorBoundary extends React.Component<any, any> {
 }
 
 // HOC for wrapping components
-export function withErrorBoundary(Component: any, errorBoundaryProps = {}) {
-  return function WrappedComponent(props: any) {
+export function withErrorBoundary<P extends Record<string, unknown>>(
+  Component: React.ComponentType<P>,
+  errorBoundaryProps: Omit<ErrorBoundaryProps, 'children'> = {}
+) {
+  return function WrappedComponent(props: P) {
     return (
       <ErrorBoundary {...errorBoundaryProps}>
         <Component {...props} />
@@ -104,14 +122,14 @@ export function withErrorBoundary(Component: any, errorBoundaryProps = {}) {
 }
 
 // Hook-based error handling for functional components
-export function useErrorHandler() {
-  const [error, setError] = React.useState(null);
-  
-  const resetError = React.useCallback(() => {
+export function useErrorHandler(): { handleError: (error: Error) => void; resetError: () => void } {
+  const [error, setError] = React.useState<Error | null>(null);
+
+  const resetError = React.useCallback((): void => {
     setError(null);
   }, []);
 
-  const handleError = React.useCallback((error) => {
+  const handleError = React.useCallback((error: Error): void => {
     setError(error);
   }, []);
 

@@ -1,42 +1,85 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  CreditCard, Check, ArrowRight, Loader2, AlertTriangle, 
+import {
+  CreditCard, Check, ArrowRight, Loader2, AlertTriangle,
   Plus, Package, Calendar, Receipt, X, ChevronRight
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const PLANS = {
+interface PlanInfo {
+  id: string;
+  name: string;
+  price: number;
+  priceAnnual: number;
+  users: number;
+  perUser?: boolean;
+}
+
+const PLANS: Record<string, PlanInfo> = {
   starter: { id: 'starter', name: 'Starter', price: 49, priceAnnual: 39, users: 2 },
   pro: { id: 'pro', name: 'Pro', price: 149, priceAnnual: 119, users: 5 },
   business: { id: 'business', name: 'Business', price: 299, priceAnnual: 239, users: 15 },
   construction: { id: 'construction', name: 'Construction', price: 599, priceAnnual: 479, users: 20 },
-  enterprise: { id: 'enterprise', name: 'Enterprise', price: 199, priceAnnual: 159, perUser: true },
+  enterprise: { id: 'enterprise', name: 'Enterprise', price: 199, priceAnnual: 159, users: 0, perUser: true },
 };
 
-const PLAN_ORDER = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+const PLAN_ORDER: string[] = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+
+interface SubscriptionData {
+  plan: string;
+  status: string;
+  cancelAtPeriodEnd: boolean;
+  currentPeriodEnd?: string;
+}
+
+interface UsageData {
+  users?: { current: number; limit: number };
+  contacts?: { current: number; limit: number };
+  jobs?: { current: number; limit: number };
+}
+
+interface InvoiceData {
+  id: string;
+  createdAt: string;
+  number: string;
+  total: number;
+  status: string;
+}
+
+interface PaymentMethodData {
+  id: string;
+  card?: { last4: string; exp_month: number; exp_year: number };
+}
+
+interface AddonData {
+  id: string;
+  name: string;
+  price: number;
+  purchased: boolean;
+  features?: string[];
+}
 
 export default function BillingSettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  
-  const [subscription, setSubscription] = useState(null);
-  const [usage, setUsage] = useState(null);
-  const [invoices, setInvoices] = useState([]);
-  const [paymentMethods, setPaymentMethods] = useState([]);
-  const [addons, setAddons] = useState([]);
-  
-  const [showPlanModal, setShowPlanModal] = useState(false);
-  const [showAddonModal, setShowAddonModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+
+  const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceData[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodData[]>([]);
+  const [addons, setAddons] = useState<AddonData[]>([]);
+
+  const [showPlanModal, setShowPlanModal] = useState<boolean>(false);
+  const [showAddonModal, setShowAddonModal] = useState<boolean>(false);
+  const [showCancelModal, setShowCancelModal] = useState<boolean>(false);
 
   useEffect(() => {
     loadBillingData();
   }, []);
 
-  const getAuthHeaders = () => ({
+  const getAuthHeaders = (): Record<string, string> => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token')}`,
   });
@@ -64,14 +107,14 @@ export default function BillingSettingsPage() {
       setInvoices(Array.isArray(invoicesData) ? invoicesData : []);
       setPaymentMethods(pmData.paymentMethods || []);
       setAddons(addonsData.addons || []);
-    } catch (err) {
+    } catch (err: unknown) {
       setError('Failed to load billing data');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChangePlan = async (newPlan) => {
+  const handleChangePlan = async (newPlan: string) => {
     setSaving(true);
     setError('');
 
@@ -94,14 +137,14 @@ export default function BillingSettingsPage() {
       setSuccess(data.message || 'Plan updated successfully');
       setShowPlanModal(false);
       loadBillingData();
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
-  const handlePurchaseAddon = async (addonId) => {
+  const handlePurchaseAddon = async (addonId: string) => {
     setSaving(true);
     setError('');
 
@@ -124,8 +167,8 @@ export default function BillingSettingsPage() {
       setSuccess('Add-on activated successfully');
       setShowAddonModal(false);
       loadBillingData();
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -149,8 +192,8 @@ export default function BillingSettingsPage() {
       setSuccess('Subscription will be canceled at the end of your billing period');
       setShowCancelModal(false);
       loadBillingData();
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -167,8 +210,8 @@ export default function BillingSettingsPage() {
 
       setSuccess('Subscription reactivated');
       loadBillingData();
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     }
   };
 
@@ -183,7 +226,7 @@ export default function BillingSettingsPage() {
       if (data.clientSecret) {
         alert('Payment method setup would open Stripe Elements here');
       }
-    } catch (err) {
+    } catch (err: unknown) {
       setError('Failed to setup payment method');
     }
   };
@@ -196,7 +239,7 @@ export default function BillingSettingsPage() {
     );
   }
 
-  const currentPlan = PLANS[subscription?.plan] || PLANS.starter;
+  const currentPlan = PLANS[subscription?.plan || 'starter'] || PLANS.starter;
   const isTrialing = subscription?.status === 'trialing';
   const isCanceled = subscription?.cancelAtPeriodEnd;
 
@@ -246,7 +289,7 @@ export default function BillingSettingsPage() {
           <div className="mt-4 p-4 bg-red-50 rounded-lg flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertTriangle className="w-5 h-5 text-red-600" />
-              <span className="text-red-700">Cancels {new Date(subscription.currentPeriodEnd).toLocaleDateString()}</span>
+              <span className="text-red-700">Cancels {new Date(subscription!.currentPeriodEnd!).toLocaleDateString()}</span>
             </div>
             <button onClick={handleReactivate} className="text-orange-600 hover:underline font-medium">Reactivate</button>
           </div>
@@ -273,10 +316,10 @@ export default function BillingSettingsPage() {
             <Plus className="w-4 h-4" /> Add Features
           </button>
         </div>
-        
-        {addons.filter(a => a.purchased).length > 0 ? (
+
+        {addons.filter((a: AddonData) => a.purchased).length > 0 ? (
           <div className="space-y-3">
-            {addons.filter(a => a.purchased).map((addon) => (
+            {addons.filter((a: AddonData) => a.purchased).map((addon: AddonData) => (
               <div key={addon.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div>
                   <p className="font-medium text-gray-900">{addon.name}</p>
@@ -302,12 +345,12 @@ export default function BillingSettingsPage() {
 
         {paymentMethods.length > 0 ? (
           <div className="space-y-3">
-            {paymentMethods.map((pm) => (
+            {paymentMethods.map((pm: PaymentMethodData) => (
               <div key={pm.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <CreditCard className="w-5 h-5 text-gray-400" />
                   <div>
-                    <p className="font-medium text-gray-900">•••• {pm.card?.last4}</p>
+                    <p className="font-medium text-gray-900">{pm.card?.last4}</p>
                     <p className="text-sm text-gray-500">Expires {pm.card?.exp_month}/{pm.card?.exp_year}</p>
                   </div>
                 </div>
@@ -324,7 +367,7 @@ export default function BillingSettingsPage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Billing History</h2>
         {invoices.length > 0 ? (
           <div className="space-y-2">
-            {invoices.slice(0, 5).map((invoice) => (
+            {invoices.slice(0, 5).map((invoice: InvoiceData) => (
               <div key={invoice.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <Receipt className="w-5 h-5 text-gray-400" />
@@ -355,14 +398,20 @@ export default function BillingSettingsPage() {
       )}
 
       {/* Modals */}
-      {showPlanModal && <PlanModal currentPlan={subscription?.plan} onSelect={handleChangePlan} onClose={() => setShowPlanModal(false)} saving={saving} />}
+      {showPlanModal && <PlanModal currentPlan={subscription?.plan || 'starter'} onSelect={handleChangePlan} onClose={() => setShowPlanModal(false)} saving={saving} />}
       {showAddonModal && <AddonModal addons={addons} onPurchase={handlePurchaseAddon} onClose={() => setShowAddonModal(false)} saving={saving} />}
       {showCancelModal && <CancelModal onConfirm={handleCancelSubscription} onClose={() => setShowCancelModal(false)} saving={saving} periodEnd={subscription?.currentPeriodEnd} />}
     </div>
   );
 }
 
-function UsageBar({ label, current, limit }) {
+interface UsageBarProps {
+  label: string;
+  current: number;
+  limit?: number;
+}
+
+function UsageBar({ label, current, limit }: UsageBarProps) {
   const percentage = limit ? Math.min((current / limit) * 100, 100) : 0;
   const isNearLimit = percentage >= 80;
   const isAtLimit = percentage >= 100;
@@ -371,7 +420,7 @@ function UsageBar({ label, current, limit }) {
     <div>
       <div className="flex justify-between text-sm mb-1">
         <span className="text-gray-600">{label}</span>
-        <span className={isAtLimit ? 'text-red-600 font-medium' : 'text-gray-900'}>{current.toLocaleString()} / {limit?.toLocaleString() || '∞'}</span>
+        <span className={isAtLimit ? 'text-red-600 font-medium' : 'text-gray-900'}>{current.toLocaleString()} / {limit?.toLocaleString() || '\u221E'}</span>
       </div>
       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${isAtLimit ? 'bg-red-500' : isNearLimit ? 'bg-yellow-500' : 'bg-green-500'}`} style={{ width: `${percentage}%` }} />
@@ -380,8 +429,15 @@ function UsageBar({ label, current, limit }) {
   );
 }
 
-function PlanModal({ currentPlan, onSelect, onClose, saving }) {
-  const [selected, setSelected] = useState(currentPlan);
+interface PlanModalProps {
+  currentPlan: string;
+  onSelect: (plan: string) => void;
+  onClose: () => void;
+  saving: boolean;
+}
+
+function PlanModal({ currentPlan, onSelect, onClose, saving }: PlanModalProps) {
+  const [selected, setSelected] = useState<string>(currentPlan);
   const currentIndex = PLAN_ORDER.indexOf(currentPlan);
 
   return (
@@ -392,7 +448,7 @@ function PlanModal({ currentPlan, onSelect, onClose, saving }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
         </div>
         <div className="p-6 space-y-3">
-          {PLAN_ORDER.map((planId, index) => {
+          {PLAN_ORDER.map((planId: string, index: number) => {
             const plan = PLANS[planId];
             const isCurrent = planId === currentPlan;
             const isUpgrade = index > currentIndex;
@@ -427,7 +483,14 @@ function PlanModal({ currentPlan, onSelect, onClose, saving }) {
   );
 }
 
-function AddonModal({ addons, onPurchase, onClose, saving }) {
+interface AddonModalProps {
+  addons: AddonData[];
+  onPurchase: (addonId: string) => void;
+  onClose: () => void;
+  saving: boolean;
+}
+
+function AddonModal({ addons, onPurchase, onClose, saving }: AddonModalProps) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -436,7 +499,7 @@ function AddonModal({ addons, onPurchase, onClose, saving }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
         </div>
         <div className="p-6 grid gap-3">
-          {addons.map((addon) => (
+          {addons.map((addon: AddonData) => (
             <div key={addon.id} className="p-4 rounded-lg border flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -458,7 +521,14 @@ function AddonModal({ addons, onPurchase, onClose, saving }) {
   );
 }
 
-function CancelModal({ onConfirm, onClose, saving, periodEnd }) {
+interface CancelModalProps {
+  onConfirm: () => void;
+  onClose: () => void;
+  saving: boolean;
+  periodEnd?: string;
+}
+
+function CancelModal({ onConfirm, onClose, saving, periodEnd }: CancelModalProps) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-md w-full p-6">

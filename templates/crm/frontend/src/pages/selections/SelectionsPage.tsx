@@ -1,12 +1,59 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Palette, Plus, Check, Clock, Package, Truck,
   DollarSign, AlertTriangle, ChevronRight, Search,
   Loader2, Image, ArrowUpRight, ArrowDownRight, Filter
 } from 'lucide-react';
 import api from '../../services/api';
 
-const STATUS_CONFIG = {
+interface SelectionsPageProps {
+  projectId?: string;
+}
+
+interface SelectionSummary {
+  total: number;
+  pending: number;
+  overdue: number;
+  totalAllowance: number;
+  totalSelected: number;
+  netDifference: number;
+}
+
+interface SelectionOption {
+  id: string;
+  name: string;
+  imageUrl?: string;
+  manufacturer?: string;
+  model?: string;
+  price: number;
+}
+
+interface SelectionItem {
+  id: string;
+  name: string;
+  status: string;
+  location?: string;
+  allowance?: number;
+  priceDifference?: number;
+  dueDate?: string;
+  quantity: number;
+  unit: string;
+  categoryId?: string;
+  category?: { name: string };
+  selectedOption?: SelectionOption;
+}
+
+interface CategoryItem {
+  id: string;
+  name: string;
+}
+
+interface ProjectItem {
+  id: string;
+  name: string;
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
   pending: { label: 'Pending', color: 'gray', icon: Clock },
   selected: { label: 'Selected', color: 'blue', icon: Check },
   approved: { label: 'Approved', color: 'green', icon: Check },
@@ -17,22 +64,22 @@ const STATUS_CONFIG = {
 /**
  * Project Selections Page
  */
-export default function SelectionsPage({ projectId: propProjectId }) {
-  const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState(propProjectId || '');
-  const [selections, setSelections] = useState([]);
-  const [summary, setSummary] = useState(null);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
-  const [showOptionPicker, setShowOptionPicker] = useState(null);
-  const [showAddSelection, setShowAddSelection] = useState(false);
+export default function SelectionsPage({ projectId: propProjectId }: SelectionsPageProps) {
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [projectId, setProjectId] = useState<string>(propProjectId || '');
+  const [selections, setSelections] = useState<SelectionItem[]>([]);
+  const [summary, setSummary] = useState<SelectionSummary | null>(null);
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filter, setFilter] = useState<string>('all');
+  const [showOptionPicker, setShowOptionPicker] = useState<SelectionItem | null>(null);
+  const [showAddSelection, setShowAddSelection] = useState<boolean>(false);
 
   // Load projects for standalone route (no projectId prop)
   useEffect(() => {
     if (!propProjectId) {
-      api.get('/api/projects?limit=100').then(res => {
-        const data = res?.data || res || [];
+      api.get('/api/projects?limit=100').then((res: Record<string, unknown>) => {
+        const data = (res?.data || res || []) as ProjectItem[];
         setProjects(data);
         if (data.length > 0 && !projectId) setProjectId(data[0].id);
       }).catch(() => {});
@@ -56,31 +103,31 @@ export default function SelectionsPage({ projectId: propProjectId }) {
         api.get(`/api/selections/project/${projectId}/summary`),
         api.get('/api/selections/categories'),
       ]);
-      setSelections(selectionsRes || []);
-      setSummary(summaryRes);
-      setCategories(categoriesRes || []);
-    } catch (error) {
+      setSelections((selectionsRes || []) as SelectionItem[]);
+      setSummary(summaryRes as SelectionSummary);
+      setCategories((categoriesRes || []) as CategoryItem[]);
+    } catch (error: unknown) {
       console.error('Failed to load selections:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredSelections = selections.filter(sel => {
+  const filteredSelections = selections.filter((sel: SelectionItem) => {
     if (filter === 'all') return true;
     if (filter === 'pending') return sel.status === 'pending';
-    if (filter === 'upgrades') return sel.priceDifference > 0;
-    if (filter === 'credits') return sel.priceDifference < 0;
+    if (filter === 'upgrades') return (sel.priceDifference ?? 0) > 0;
+    if (filter === 'credits') return (sel.priceDifference ?? 0) < 0;
     return true;
   });
 
   // Group by category
-  const grouped = filteredSelections.reduce((acc, sel) => {
+  const grouped = filteredSelections.reduce((acc: Record<string, SelectionItem[]>, sel: SelectionItem) => {
     const cat = sel.category?.name || 'Other';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(sel);
     return acc;
-  }, {});
+  }, {} as Record<string, SelectionItem[]>);
 
   if (!projectId && !propProjectId) {
     return (
@@ -91,11 +138,11 @@ export default function SelectionsPage({ projectId: propProjectId }) {
           {projects.length > 0 ? (
             <select
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProjectId(e.target.value)}
               className="px-4 py-2 border rounded-lg text-sm"
             >
               <option value="">Choose a project...</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map((p: ProjectItem) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           ) : (
             <p className="text-sm text-gray-400">No projects found. Create a project first.</p>
@@ -113,10 +160,10 @@ export default function SelectionsPage({ projectId: propProjectId }) {
           <span className="text-sm text-gray-500">Project:</span>
           <select
             value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProjectId(e.target.value)}
             className="px-3 py-1.5 border rounded-lg text-sm font-medium"
           >
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {projects.map((p: ProjectItem) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
       )}
@@ -174,7 +221,7 @@ export default function SelectionsPage({ projectId: propProjectId }) {
 
       {/* Filters */}
       <div className="flex items-center gap-2">
-        {['all', 'pending', 'upgrades', 'credits'].map(f => (
+        {['all', 'pending', 'upgrades', 'credits'].map((f: string) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -201,13 +248,13 @@ export default function SelectionsPage({ projectId: propProjectId }) {
         </div>
       ) : (
         <div className="space-y-6">
-          {Object.entries(grouped).map(([category, items]) => (
+          {Object.entries(grouped).map(([category, items]: [string, SelectionItem[]]) => (
             <div key={category} className="bg-white rounded-xl border overflow-hidden">
               <div className="px-4 py-3 bg-gray-50 border-b">
                 <h3 className="font-medium text-gray-900">{category}</h3>
               </div>
               <div className="divide-y">
-                {items.map(selection => (
+                {items.map((selection: SelectionItem) => (
                   <SelectionRow
                     key={selection.id}
                     selection={selection}
@@ -225,7 +272,7 @@ export default function SelectionsPage({ projectId: propProjectId }) {
       {showOptionPicker && (
         <OptionPickerModal
           selection={showOptionPicker}
-          onSelect={(optionId) => handleSelectOption(showOptionPicker.id, optionId)}
+          onSelect={(optionId: string) => handleSelectOption(showOptionPicker.id, optionId)}
           onClose={() => setShowOptionPicker(null)}
         />
       )}
@@ -242,19 +289,27 @@ export default function SelectionsPage({ projectId: propProjectId }) {
     </div>
   );
 
-  async function handleSelectOption(selectionId, optionId) {
+  async function handleSelectOption(selectionId: string, optionId: string) {
     try {
       await api.post(`/api/selections/${selectionId}/select`, { optionId });
       setShowOptionPicker(null);
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save selection');
     }
   }
 }
 
-function SummaryCard({ label, value, icon: Icon, color = 'gray', subtitle }) {
-  const colors = {
+interface SummaryCardProps {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  color?: string;
+  subtitle?: string | null;
+}
+
+function SummaryCard({ label, value, icon: Icon, color = 'gray', subtitle }: SummaryCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -271,20 +326,26 @@ function SummaryCard({ label, value, icon: Icon, color = 'gray', subtitle }) {
   );
 }
 
-function SelectionRow({ selection, onSelect, onRefresh }) {
-  const [showActions, setShowActions] = useState(false);
+interface SelectionRowProps {
+  selection: SelectionItem;
+  onSelect: () => void;
+  onRefresh: () => void;
+}
+
+function SelectionRow({ selection, onSelect, onRefresh }: SelectionRowProps) {
+  const [showActions, setShowActions] = useState<boolean>(false);
   const status = STATUS_CONFIG[selection.status] || STATUS_CONFIG.pending;
   const StatusIcon = status.icon;
 
-  const isOverdue = selection.dueDate && 
-    new Date(selection.dueDate) < new Date() && 
+  const isOverdue = selection.dueDate &&
+    new Date(selection.dueDate) < new Date() &&
     selection.status === 'pending';
 
   const handleApprove = async () => {
     try {
       await api.post(`/api/selections/${selection.id}/approve`);
       onRefresh();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to approve');
     }
   };
@@ -294,7 +355,7 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
     try {
       await api.post(`/api/selections/${selection.id}/ordered`, { orderNumber });
       onRefresh();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to update');
     }
   };
@@ -303,7 +364,7 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
     try {
       await api.post(`/api/selections/${selection.id}/received`, {});
       onRefresh();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to update');
     }
   };
@@ -361,9 +422,9 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
               Allowance: ${selection.allowance?.toLocaleString() || 0}
             </span>
             {selection.priceDifference !== 0 && selection.priceDifference !== undefined && (
-              <span className={selection.priceDifference > 0 ? 'text-orange-600' : 'text-green-600'}>
-                {selection.priceDifference > 0 ? '+' : ''}${selection.priceDifference.toLocaleString()}
-                {selection.priceDifference > 0 ? ' upgrade' : ' credit'}
+              <span className={(selection.priceDifference ?? 0) > 0 ? 'text-orange-600' : 'text-green-600'}>
+                {(selection.priceDifference ?? 0) > 0 ? '+' : ''}${(selection.priceDifference ?? 0).toLocaleString()}
+                {(selection.priceDifference ?? 0) > 0 ? ' upgrade' : ' credit'}
               </span>
             )}
           </div>
@@ -371,7 +432,7 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
           {/* Due date */}
           {selection.dueDate && (
             <p className={`mt-1 text-xs ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
-              {isOverdue ? '⚠️ Overdue: ' : 'Due: '}
+              {isOverdue ? 'Overdue: ' : 'Due: '}
               {new Date(selection.dueDate).toLocaleDateString()}
             </p>
           )}
@@ -417,10 +478,16 @@ function SelectionRow({ selection, onSelect, onRefresh }) {
   );
 }
 
-function OptionPickerModal({ selection, onSelect, onClose }) {
-  const [options, setOptions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+interface OptionPickerModalProps {
+  selection: SelectionItem;
+  onSelect: (optionId: string) => void;
+  onClose: () => void;
+}
+
+function OptionPickerModal({ selection, onSelect, onClose }: OptionPickerModalProps) {
+  const [options, setOptions] = useState<SelectionOption[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [search, setSearch] = useState<string>('');
 
   useEffect(() => {
     loadOptions();
@@ -429,15 +496,15 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
   const loadOptions = async () => {
     try {
       const data = await api.get(`/api/selections/options?categoryId=${selection.categoryId}`);
-      setOptions(data || []);
-    } catch (error) {
+      setOptions((data || []) as SelectionOption[]);
+    } catch (error: unknown) {
       console.error('Failed to load options:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filtered = options.filter(opt =>
+  const filtered = options.filter((opt: SelectionOption) =>
     opt.name.toLowerCase().includes(search.toLowerCase()) ||
     opt.manufacturer?.toLowerCase().includes(search.toLowerCase())
   );
@@ -451,7 +518,7 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
           <div className="p-4 border-b">
             <h2 className="text-lg font-bold">Select {selection.name}</h2>
             <p className="text-sm text-gray-500">
-              Allowance: ${selection.allowance?.toLocaleString() || 0} • 
+              Allowance: ${selection.allowance?.toLocaleString() || 0} •
               Qty: {selection.quantity} {selection.unit}
             </p>
           </div>
@@ -463,7 +530,7 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
                 placeholder="Search options..."
                 className="w-full pl-10 pr-4 py-2 border rounded-lg"
               />
@@ -482,7 +549,7 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {filtered.map(option => {
+                {filtered.map((option: SelectionOption) => {
                   const totalPrice = option.price * selection.quantity;
                   const diff = totalPrice - (selection.allowance || 0);
 
@@ -534,7 +601,14 @@ function OptionPickerModal({ selection, onSelect, onClose }) {
   );
 }
 
-function AddSelectionModal({ projectId, categories, onSave, onClose }) {
+interface AddSelectionModalProps {
+  projectId: string;
+  categories: CategoryItem[];
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function AddSelectionModal({ projectId, categories, onSave, onClose }: AddSelectionModalProps) {
   const [form, setForm] = useState({
     categoryId: '',
     name: '',
@@ -544,15 +618,15 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
     unit: 'each',
     dueDate: '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.post(`/api/selections/project/${projectId}`, form);
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to create selection');
     } finally {
       setSaving(false);
@@ -571,12 +645,12 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
               <select
                 value={form.categoryId}
-                onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, categoryId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select category...</option>
-                {categories.map(cat => (
+                {categories.map((cat: CategoryItem) => (
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
@@ -587,7 +661,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., Kitchen Countertops"
                 required
@@ -599,7 +673,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
               <input
                 type="text"
                 value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, location: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., Master Bath, Kitchen"
               />
@@ -611,7 +685,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.allowance}
-                  onChange={(e) => setForm({ ...form, allowance: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, allowance: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -620,7 +694,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.quantity}
-                  onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: Number(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -631,7 +705,7 @@ function AddSelectionModal({ projectId, categories, onSave, onClose }) {
               <input
                 type="date"
                 value={form.dueDate}
-                onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, dueDate: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
               />
             </div>

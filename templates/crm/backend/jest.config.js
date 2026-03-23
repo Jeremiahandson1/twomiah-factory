@@ -1,11 +1,11 @@
 export default {
   testEnvironment: 'node',
   transform: {},
-  moduleFileExtensions: ['js', 'mjs'],
-  testMatch: ['**/__tests__/**/*.test.js', '**/*.test.js'],
+  moduleFileExtensions: ['ts', 'js', 'mjs'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/*.test.ts'],
   collectCoverageFrom: [
-    'src/**/*.js',
-    '!src/index.js',
+    'src/**/*.ts',
+    '!src/index.ts',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],

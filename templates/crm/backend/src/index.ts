@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
+import crypto from 'crypto'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
 import { serve } from '@hono/node-server'
@@ -96,15 +97,25 @@ app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin',
 }))
 
-// CORS — allow all origins; auth is handled by JWT, not origin checks
+// CORS — restrict to frontend origin in production
 app.use('*', cors({
-  origin: '*',
+  origin: process.env.FRONTEND_URL || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Request-ID'],
+  credentials: true,
 }))
 
 function createRateLimiter(windowMs: number, max: number) {
   const hits = new Map<string, { count: number; resetAt: number }>()
+
+  // Periodic cleanup to prevent memory leak
+  setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of hits) {
+      if (now > entry.resetAt) hits.delete(key)
+    }
+  }, windowMs)
+
   return async (c: Context, next: Next) => {
     const key = c.req.header('x-forwarded-for') || 'unknown'
     const now = Date.now()
@@ -203,7 +214,7 @@ app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
   if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
   const authHeader = c.req.header('X-Factory-Key')
-  if (authHeader !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  if (!authHeader || authHeader.length !== syncKey.length || !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(syncKey))) return c.json({ error: 'Unauthorized' }, 401)
   const { features } = await c.req.json()
   if (!Array.isArray(features)) return c.json({ error: 'features must be an array' }, 400)
   const [comp] = await db.select().from(company).limit(1)

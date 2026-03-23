@@ -2,7 +2,12 @@ import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 
 // Skip Link - Allows keyboard users to skip navigation
-export function SkipLink({ targetId = 'main-content', children = 'Skip to main content' }) {
+interface SkipLinkProps {
+  targetId?: string;
+  children?: React.ReactNode;
+}
+
+export function SkipLink({ targetId = 'main-content', children = 'Skip to main content' }: SkipLinkProps) {
   return (
     <a
       href={`#${targetId}`}
@@ -20,8 +25,13 @@ export function SkipLink({ targetId = 'main-content', children = 'Skip to main c
 }
 
 // Focus trap for modals and dialogs
-export function FocusTrap({ children, active = true }) {
-  const containerRef = useRef(null);
+interface FocusTrapProps {
+  children: React.ReactNode;
+  active?: boolean;
+}
+
+export function FocusTrap({ children, active = true }: FocusTrapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!active || !containerRef.current) return;
@@ -30,10 +40,10 @@ export function FocusTrap({ children, active = true }) {
     const focusableElements = container.querySelectorAll(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
+    const firstElement = focusableElements[0] as HTMLElement | undefined;
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement | undefined;
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
 
       if (e.shiftKey && document.activeElement === firstElement) {
@@ -57,14 +67,14 @@ export function FocusTrap({ children, active = true }) {
 // Announce route changes to screen readers
 export function RouteAnnouncer() {
   const location = useLocation();
-  const announcerRef = useRef(null);
+  const announcerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Get page title from document or generate from path
-    const getPageTitle = () => {
+    const getPageTitle = (): string => {
       const path = location.pathname;
       if (path === '/') return 'Dashboard';
-      return path.slice(1).split('-').map(w => 
+      return path.slice(1).split('-').map((w: string) =>
         w.charAt(0).toUpperCase() + w.slice(1)
       ).join(' ');
     };
@@ -86,7 +96,12 @@ export function RouteAnnouncer() {
 }
 
 // Live region for dynamic updates
-export function LiveRegion({ message, type = 'polite' }) {
+interface LiveRegionProps {
+  message: string;
+  type?: 'polite' | 'assertive' | 'off';
+}
+
+export function LiveRegion({ message, type = 'polite' }: LiveRegionProps) {
   return (
     <div
       role="status"
@@ -100,7 +115,12 @@ export function LiveRegion({ message, type = 'polite' }) {
 }
 
 // Visually hidden but accessible
-export function VisuallyHidden({ children, as: Component = 'span' }) {
+interface VisuallyHiddenProps {
+  children: React.ReactNode;
+  as?: React.ElementType;
+}
+
+export function VisuallyHidden({ children, as: Component = 'span' }: VisuallyHiddenProps) {
   return (
     <Component className="sr-only">
       {children}

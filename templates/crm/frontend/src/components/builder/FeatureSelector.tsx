@@ -10,7 +10,7 @@ import { useBuilderStore } from '../../stores/builderStore';
 import { FEATURE_CATEGORIES } from '../../data/features';
 import { Checkbox } from '../ui';
 
-const iconMap = {
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Megaphone,
   Calculator,
   Calendar,
@@ -27,9 +27,40 @@ const iconMap = {
   Server,
 };
 
-function CategorySection({ category, isExpanded, onToggle }) {
-  const { config, toggleFeature, enableFeatures, disableFeatures } = useBuilderStore();
-  const enabledInCategory = category.features.filter(f => 
+interface FeatureDef {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface CategoryDef {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  features: FeatureDef[];
+}
+
+interface FSBuilderConfig {
+  companyName: string;
+  companyLogo: string | null;
+  primaryColor: string;
+  enabledFeatures: string[];
+}
+
+interface CategorySectionProps {
+  category: CategoryDef;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+function CategorySection({ category, isExpanded, onToggle }: CategorySectionProps) {
+  const store = useBuilderStore();
+  const config = store.config as FSBuilderConfig;
+  const toggleFeature = store.toggleFeature as (id: string) => void;
+  const enableFeatures = store.enableFeatures as (ids: string[]) => void;
+  const disableFeatures = store.disableFeatures as (ids: string[]) => void;
+  const enabledInCategory = category.features.filter((f: FeatureDef) =>
     config.enabledFeatures.includes(f.id)
   ).length;
   const totalInCategory = category.features.length;
@@ -89,7 +120,7 @@ function CategorySection({ category, isExpanded, onToggle }) {
       
       {isExpanded && (
         <div className="px-4 py-3 space-y-2 bg-slate-900/50">
-          {category.features.map((feature) => (
+          {category.features.map((feature: FeatureDef) => (
             <Checkbox
               key={feature.id}
               checked={config.enabledFeatures.includes(feature.id)}
@@ -106,11 +137,14 @@ function CategorySection({ category, isExpanded, onToggle }) {
 }
 
 export function FeatureSelector() {
-  const { config, enableAllFeatures, disableAllFeatures } = useBuilderStore();
-  const [expandedCategories, setExpandedCategories] = useState(new Set(['crm']));
+  const store = useBuilderStore();
+  const config = store.config as FSBuilderConfig;
+  const enableAllFeatures = store.enableAllFeatures as () => void;
+  const disableAllFeatures = store.disableAllFeatures as () => void;
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['crm']));
   const [searchQuery, setSearchQuery] = useState('');
 
-  const toggleCategory = (categoryId) => {
+  const toggleCategory = (categoryId: string) => {
     setExpandedCategories(prev => {
       const next = new Set(prev);
       if (next.has(categoryId)) {
@@ -188,7 +222,7 @@ export function FeatureSelector() {
           <CategorySection
             key={category.id}
             category={category}
-            isExpanded={expandedCategories.has(category.id) || searchQuery.trim()}
+            isExpanded={expandedCategories.has(category.id) || !!searchQuery.trim()}
             onToggle={() => toggleCategory(category.id)}
           />
         ))}

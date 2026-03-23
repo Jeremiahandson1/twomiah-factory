@@ -1,8 +1,43 @@
 import React, { useState } from 'react';
 import { Check, X, HelpCircle, ArrowRight, Zap, Building, Users, Shield } from 'lucide-react';
 
+interface SaaSTier {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  priceAnnual: number;
+  users: { included?: number; max?: number; additionalPrice?: number; min?: number };
+  highlight: boolean;
+  perUser?: boolean;
+}
+
+interface SelfHostedPackage {
+  name: string;
+  price: number;
+}
+
+interface Feature {
+  name: string;
+  starter: boolean;
+  pro: boolean;
+  business: boolean;
+  construction: boolean;
+}
+
+interface FeatureCategory {
+  name: string;
+  items: Feature[];
+}
+
+interface Addon {
+  name: string;
+  price: number;
+  description: string;
+}
+
 // Pricing data (mirrors backend config)
-const SAAS_TIERS = {
+const SAAS_TIERS: Record<string, SaaSTier> = {
   starter: {
     id: 'starter',
     name: 'Starter',
@@ -51,7 +86,7 @@ const SAAS_TIERS = {
   },
 };
 
-const SELF_HOSTED = {
+const SELF_HOSTED: Record<string, SelfHostedPackage> = {
   starter: { name: 'Starter License', price: 997 },
   pro: { name: 'Pro License', price: 2497 },
   business: { name: 'Business License', price: 4997 },
@@ -59,7 +94,7 @@ const SELF_HOSTED = {
   full: { name: 'Full Platform', price: 14997 },
 };
 
-const FEATURES = {
+const FEATURES: Record<string, FeatureCategory> = {
   core: {
     name: 'Core Features',
     items: [
@@ -127,7 +162,7 @@ const FEATURES = {
   },
 };
 
-const ADDONS = [
+const ADDONS: Addon[] = [
   { name: 'SMS Communication', price: 39, description: 'Two-way texting, templates, scheduling' },
   { name: 'GPS & Field', price: 49, description: 'Tracking, geofencing, route optimization' },
   { name: 'Inventory', price: 49, description: 'Items, locations, transfers, POs' },
@@ -138,9 +173,9 @@ const ADDONS = [
 ];
 
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] = useState('monthly');
-  const [pricingModel, setPricingModel] = useState('saas');
-  const [showFeatures, setShowFeatures] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<string>('monthly');
+  const [pricingModel, setPricingModel] = useState<string>('saas');
+  const [showFeatures, setShowFeatures] = useState<boolean>(false);
 
   const isAnnual = billingCycle === 'annual';
 
@@ -154,7 +189,7 @@ export default function PricingPage() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
+              <span className="text-2xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</span>
             </div>
             <div className="flex items-center gap-4">
               <a href="/login" className="text-gray-600 hover:text-gray-900">Log In</a>
@@ -273,7 +308,7 @@ export default function PricingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {ADDONS.map((addon) => (
+            {ADDONS.map((addon: Addon) => (
               <div key={addon.name} className="bg-white rounded-lg border p-6">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-semibold text-gray-900">{addon.name}</h3>
@@ -335,7 +370,7 @@ export default function PricingPage() {
                 <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
                   <Building className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-lg font-bold text-white">{{COMPANY_NAME}}</span>
+                <span className="text-lg font-bold text-white">{'{{COMPANY_NAME}}'}</span>
               </div>
               <p className="text-sm">
                 The complete platform for contractors and service businesses.
@@ -370,7 +405,7 @@ export default function PricingPage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-12 pt-8 text-sm text-center">
-            © {new Date().getFullYear()} {{COMPANY_NAME}}. All rights reserved.
+            © {new Date().getFullYear()} {'{{COMPANY_NAME}}'}. All rights reserved.
           </div>
         </div>
       </footer>
@@ -379,12 +414,16 @@ export default function PricingPage() {
 }
 
 // SaaS Pricing Cards
-function SaaSPricing({ isAnnual }) {
-  const tiers = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+interface SaaSPricingProps {
+  isAnnual: boolean;
+}
+
+function SaaSPricing({ isAnnual }: SaaSPricingProps) {
+  const tiers: string[] = ['starter', 'pro', 'business', 'construction', 'enterprise'];
 
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
-      {tiers.map((tierId) => {
+      {tiers.map((tierId: string) => {
         const tier = SAAS_TIERS[tierId];
         const price = isAnnual ? tier.priceAnnual : tier.price;
 
@@ -443,7 +482,7 @@ function SaaSPricing({ isAnnual }) {
             </a>
 
             <ul className="mt-6 space-y-2">
-              {getTierHighlights(tierId).map((feature, i) => (
+              {getTierHighlights(tierId).map((feature: string, i: number) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
                   <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-600">{feature}</span>
@@ -459,7 +498,7 @@ function SaaSPricing({ isAnnual }) {
 
 // Self-Hosted Pricing Cards
 function SelfHostedPricing() {
-  const packages = Object.entries(SELF_HOSTED);
+  const packages: [string, SelfHostedPackage][] = Object.entries(SELF_HOSTED);
 
   return (
     <div>
@@ -476,7 +515,7 @@ function SelfHostedPricing() {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {packages.map(([id, pkg]) => (
+        {packages.map(([id, pkg]: [string, SelfHostedPackage]) => (
           <div key={id} className="bg-white rounded-xl border-2 border-gray-200 p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-1">{pkg.name}</h3>
 
@@ -495,7 +534,7 @@ function SelfHostedPricing() {
             </a>
 
             <ul className="mt-6 space-y-2">
-              {getSelfHostedIncludes(id).map((item, i) => (
+              {getSelfHostedIncludes(id).map((item: string, i: number) => (
                 <li key={i} className="flex items-start gap-2 text-sm">
                   <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                   <span className="text-gray-600">{item}</span>
@@ -542,14 +581,14 @@ function FeatureComparison() {
           </tr>
         </thead>
         <tbody>
-          {Object.entries(FEATURES).map(([categoryKey, category]) => (
+          {Object.entries(FEATURES).map(([categoryKey, category]: [string, FeatureCategory]) => (
             <React.Fragment key={categoryKey}>
               <tr className="bg-gray-50">
                 <td colSpan={5} className="py-3 px-4 font-semibold text-gray-700">
                   {category.name}
                 </td>
               </tr>
-              {category.items.map((feature, i) => (
+              {category.items.map((feature: Feature, i: number) => (
                 <tr key={i} className="border-b border-gray-100">
                   <td className="py-3 px-4 text-gray-600">{feature.name}</td>
                   <td className="text-center py-3 px-2">
@@ -591,8 +630,13 @@ function FeatureComparison() {
 }
 
 // FAQ Component
+interface FAQItem {
+  q: string;
+  a: string;
+}
+
 function FAQ() {
-  const faqs = [
+  const faqs: FAQItem[] = [
     {
       q: 'Is there a free trial?',
       a: 'Yes! All plans include a 14-day free trial with full access to all features. No credit card required to start.',
@@ -627,11 +671,11 @@ function FAQ() {
     },
   ];
 
-  const [openIndex, setOpenIndex] = useState(null);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   return (
     <div className="space-y-4">
-      {faqs.map((faq, i) => (
+      {faqs.map((faq: FAQItem, i: number) => (
         <div key={i} className="border rounded-lg">
           <button
             onClick={() => setOpenIndex(openIndex === i ? null : i)}
@@ -654,8 +698,8 @@ function FAQ() {
 }
 
 // Helper: Get tier highlights for cards
-function getTierHighlights(tierId) {
-  const highlights = {
+function getTierHighlights(tierId: string): string[] {
+  const highlights: Record<string, string[]> = {
     starter: [
       'CRM & Contact Management',
       'Quotes & Invoicing',
@@ -706,8 +750,8 @@ function getTierHighlights(tierId) {
 }
 
 // Helper: Get self-hosted includes
-function getSelfHostedIncludes(packageId) {
-  const includes = {
+function getSelfHostedIncludes(packageId: string): string[] {
+  const includes: Record<string, string[]> = {
     starter: [
       'Full source code',
       'Core CRM features',

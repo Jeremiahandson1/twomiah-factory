@@ -1,15 +1,61 @@
 import { useState } from 'react';
-import { 
-  Trash2, Edit2, Archive, UserPlus, Calendar, CheckCircle, 
-  X, Loader2, AlertTriangle 
+import {
+  Trash2, Edit2, Archive, UserPlus, Calendar, CheckCircle,
+  X, Loader2, AlertTriangle
 } from 'lucide-react';
 import api from '../../services/api';
 
+interface StatusOption {
+  value: string;
+  label: string;
+}
+
+interface UserOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface CustomAction {
+  id: string;
+  label: string;
+  icon?: React.ElementType;
+  className?: string;
+  onClick: (selectedIds: string[]) => void;
+}
+
+interface ActionData {
+  status?: string;
+  assignedToId?: string;
+  scheduledDate?: string;
+  updates?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+interface BulkPayload {
+  ids: string[];
+  assignedToId?: string;
+  status?: string;
+  scheduledDate?: string;
+  updates?: Record<string, unknown>;
+}
+
+interface BulkActionBarProps {
+  selectedIds?: string[];
+  entityType: string;
+  onClear: () => void;
+  onComplete?: () => void;
+  actions?: string[];
+  customActions?: CustomAction[];
+  users?: UserOption[];
+  statuses?: StatusOption[];
+}
+
 /**
  * Bulk Action Bar
- * 
+ *
  * Shows when items are selected, provides bulk operations
- * 
+ *
  * Usage:
  *   <BulkActionBar
  *     selectedIds={selectedIds}
@@ -19,36 +65,36 @@ import api from '../../services/api';
  *     actions={['delete', 'status', 'assign']}
  *   />
  */
-export default function BulkActionBar({ 
-  selectedIds = [], 
-  entityType, 
-  onClear, 
+export default function BulkActionBar({
+  selectedIds = [],
+  entityType,
+  onClear,
   onComplete,
   actions = ['delete'],
   customActions = [],
   users = [], // For assign action
   statuses = [], // For status change
-}) {
+}: BulkActionBarProps) {
   const [loading, setLoading] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(null);
-  const [actionData, setActionData] = useState({});
+  const [showConfirm, setShowConfirm] = useState<string | null>(null);
+  const [actionData, setActionData] = useState<ActionData>({});
 
   if (selectedIds.length === 0) return null;
 
-  const handleAction = async (action) => {
+  const handleAction = async (action: string): Promise<void> => {
     if (action === 'delete') {
       setShowConfirm('delete');
       return;
     }
-    
+
     await executeAction(action, actionData);
   };
 
-  const executeAction = async (action, data = {}) => {
+  const executeAction = async (action: string, data: ActionData = {}): Promise<void> => {
     setLoading(true);
     try {
       let endpoint = `/bulk/${entityType}`;
-      let payload = { ids: selectedIds };
+      const payload: BulkPayload = { ids: selectedIds };
 
       switch (action) {
         case 'delete':
@@ -85,8 +131,9 @@ export default function BulkActionBar({
 
       await api.post(endpoint, payload);
       onComplete?.();
-    } catch (error) {
-      alert(`Action failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Action failed: ${message}`);
     } finally {
       setLoading(false);
       setShowConfirm(null);
@@ -94,7 +141,7 @@ export default function BulkActionBar({
     }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = (): void => {
     executeAction('delete');
   };
 
@@ -117,7 +164,7 @@ export default function BulkActionBar({
             {actions.includes('status') && statuses.length > 0 && (
               <select
                 value={actionData.status || ''}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   if (e.target.value) {
                     executeAction('status', { status: e.target.value });
                   }
@@ -126,7 +173,7 @@ export default function BulkActionBar({
                 disabled={loading}
               >
                 <option value="">Change Status</option>
-                {statuses.map(s => (
+                {statuses.map((s: StatusOption) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
@@ -136,7 +183,7 @@ export default function BulkActionBar({
             {actions.includes('assign') && users.length > 0 && (
               <select
                 value={actionData.assignedToId || ''}
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
                   if (e.target.value) {
                     executeAction('assign', { assignedToId: e.target.value });
                   }
@@ -145,7 +192,7 @@ export default function BulkActionBar({
                 disabled={loading}
               >
                 <option value="">Assign To</option>
-                {users.map(u => (
+                {users.map((u: UserOption) => (
                   <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                 ))}
               </select>
@@ -155,7 +202,7 @@ export default function BulkActionBar({
             {actions.includes('reschedule') && (
               <input
                 type="date"
-                onChange={(e) => {
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                   if (e.target.value) {
                     executeAction('reschedule', { scheduledDate: e.target.value });
                   }
@@ -202,7 +249,7 @@ export default function BulkActionBar({
             )}
 
             {/* Custom actions */}
-            {customActions.map((action) => (
+            {customActions.map((action: CustomAction) => (
               <button
                 key={action.id}
                 onClick={() => action.onClick(selectedIds)}
@@ -282,12 +329,18 @@ export default function BulkActionBar({
 /**
  * Checkbox for selecting items
  */
-export function SelectCheckbox({ checked, onChange, className = '' }) {
+interface SelectCheckboxProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  className?: string;
+}
+
+export function SelectCheckbox({ checked, onChange, className = '' }: SelectCheckboxProps) {
   return (
     <input
       type="checkbox"
       checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.checked)}
       className={`w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500 ${className}`}
     />
   );
@@ -296,7 +349,14 @@ export function SelectCheckbox({ checked, onChange, className = '' }) {
 /**
  * Select all checkbox for table headers
  */
-export function SelectAllCheckbox({ selectedIds, allIds, onSelectAll, onClearAll }) {
+interface SelectAllCheckboxProps {
+  selectedIds: string[];
+  allIds: string[];
+  onSelectAll: () => void;
+  onClearAll: () => void;
+}
+
+export function SelectAllCheckbox({ selectedIds, allIds, onSelectAll, onClearAll }: SelectAllCheckboxProps) {
   const allSelected = allIds.length > 0 && selectedIds.length === allIds.length;
   const someSelected = selectedIds.length > 0 && selectedIds.length < allIds.length;
 
@@ -304,10 +364,10 @@ export function SelectAllCheckbox({ selectedIds, allIds, onSelectAll, onClearAll
     <input
       type="checkbox"
       checked={allSelected}
-      ref={(el) => {
+      ref={(el: HTMLInputElement | null) => {
         if (el) el.indeterminate = someSelected;
       }}
-      onChange={(e) => {
+      onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
           onSelectAll();
         } else {
@@ -322,26 +382,26 @@ export function SelectAllCheckbox({ selectedIds, allIds, onSelectAll, onClearAll
 /**
  * Hook for managing selection state
  */
-export function useSelection(initialIds = []) {
-  const [selectedIds, setSelectedIds] = useState(initialIds);
+export function useSelection(initialIds: string[] = []) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(initialIds);
 
-  const toggle = (id) => {
-    setSelectedIds(prev => 
-      prev.includes(id) 
+  const toggle = (id: string): void => {
+    setSelectedIds(prev =>
+      prev.includes(id)
         ? prev.filter(i => i !== id)
         : [...prev, id]
     );
   };
 
-  const selectAll = (ids) => {
+  const selectAll = (ids: string[]): void => {
     setSelectedIds(ids);
   };
 
-  const clear = () => {
+  const clear = (): void => {
     setSelectedIds([]);
   };
 
-  const isSelected = (id) => selectedIds.includes(id);
+  const isSelected = (id: string): boolean => selectedIds.includes(id);
 
   return {
     selectedIds,

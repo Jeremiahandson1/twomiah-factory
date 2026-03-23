@@ -1,12 +1,48 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Shield, Plus, Clock, AlertTriangle, CheckCircle,
   XCircle, Calendar, Loader2, FileText, Phone,
   ChevronRight, Search, Filter
 } from 'lucide-react';
 import api from '../../services/api';
 
-const CLAIM_STATUS = {
+interface WarrantyData {
+  id: string;
+  name: string;
+  category: string;
+  expiresAt: string;
+  daysRemaining: number;
+  isExpiringSoon: boolean;
+  isExpired: boolean;
+  project?: { name: string };
+  contact?: { name: string };
+  _count?: { claims: number };
+}
+
+interface ClaimData {
+  id: string;
+  title: string;
+  status: string;
+  reportedDate: string;
+  warranty?: { name: string };
+  project?: { name: string };
+  contact?: { name: string };
+}
+
+interface WarrantyStats {
+  activeWarranties: number;
+  expiringSoon: number;
+  openClaims: number;
+  totalClaims: number;
+}
+
+interface TabItem {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const CLAIM_STATUS: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
   open: { label: 'Open', color: 'blue', icon: Clock },
   scheduled: { label: 'Scheduled', color: 'purple', icon: Calendar },
   in_progress: { label: 'In Progress', color: 'orange', icon: Clock },
@@ -18,13 +54,13 @@ const CLAIM_STATUS = {
  * Warranty Management Page
  */
 export default function WarrantiesPage() {
-  const [tab, setTab] = useState('warranties'); // warranties, claims
-  const [warranties, setWarranties] = useState([]);
-  const [claims, setClaims] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [showExpiring, setShowExpiring] = useState(false);
-  const [showNewClaim, setShowNewClaim] = useState(false);
+  const [tab, setTab] = useState<string>('warranties'); // warranties, claims
+  const [warranties, setWarranties] = useState<WarrantyData[]>([]);
+  const [claims, setClaims] = useState<ClaimData[]>([]);
+  const [stats, setStats] = useState<WarrantyStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showExpiring, setShowExpiring] = useState<boolean>(false);
+  const [showNewClaim, setShowNewClaim] = useState<boolean>(false);
 
   useEffect(() => {
     loadData();
@@ -38,10 +74,10 @@ export default function WarrantiesPage() {
         api.get('/api/warranties/claims?status=open'),
         api.get('/api/warranties/stats'),
       ]);
-      setWarranties(warrantiesRes.data || []);
-      setClaims(claimsRes.data || []);
-      setStats(statsRes);
-    } catch (error) {
+      setWarranties(((warrantiesRes as Record<string, unknown>).data || []) as WarrantyData[]);
+      setClaims(((claimsRes as Record<string, unknown>).data || []) as ClaimData[]);
+      setStats(statsRes as WarrantyStats);
+    } catch (error: unknown) {
       console.error('Failed to load warranties:', error);
     } finally {
       setLoading(false);
@@ -69,15 +105,15 @@ export default function WarrantiesPage() {
       {stats && (
         <div className="grid grid-cols-4 gap-4">
           <StatCard icon={Shield} label="Active Warranties" value={stats.activeWarranties} />
-          <StatCard 
-            icon={AlertTriangle} 
-            label="Expiring Soon" 
+          <StatCard
+            icon={AlertTriangle}
+            label="Expiring Soon"
             value={stats.expiringSoon}
             color={stats.expiringSoon > 0 ? 'orange' : 'gray'}
           />
-          <StatCard 
-            icon={Clock} 
-            label="Open Claims" 
+          <StatCard
+            icon={Clock}
+            label="Open Claims"
             value={stats.openClaims}
             color={stats.openClaims > 0 ? 'blue' : 'gray'}
           />
@@ -88,10 +124,10 @@ export default function WarrantiesPage() {
       {/* Tabs */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2 border-b">
-          {[
+          {([
             { id: 'warranties', label: 'Warranties', icon: Shield },
             { id: 'claims', label: 'Claims', icon: FileText },
-          ].map(t => (
+          ] as TabItem[]).map((t: TabItem) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -106,13 +142,13 @@ export default function WarrantiesPage() {
             </button>
           ))}
         </div>
-        
+
         {tab === 'warranties' && (
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={showExpiring}
-              onChange={(e) => setShowExpiring(e.target.checked)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowExpiring(e.target.checked)}
               className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
             />
             Show expiring soon only
@@ -148,8 +184,15 @@ export default function WarrantiesPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+interface StatCardProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number;
+  color?: string;
+}
+
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     blue: 'bg-blue-50 text-blue-600',
     orange: 'bg-orange-50 text-orange-600',
@@ -164,7 +207,12 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function WarrantiesList({ warranties, onRefresh }) {
+interface WarrantiesListProps {
+  warranties: WarrantyData[];
+  onRefresh: () => void;
+}
+
+function WarrantiesList({ warranties, onRefresh }: WarrantiesListProps) {
   if (warranties.length === 0) {
     return (
       <div className="text-center py-12 bg-gray-50 rounded-xl">
@@ -188,16 +236,16 @@ function WarrantiesList({ warranties, onRefresh }) {
           </tr>
         </thead>
         <tbody className="divide-y">
-          {warranties.map(warranty => (
+          {warranties.map((warranty: WarrantyData) => (
             <tr key={warranty.id} className="hover:bg-gray-50">
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                    warranty.isExpiringSoon ? 'bg-orange-100' : 
+                    warranty.isExpiringSoon ? 'bg-orange-100' :
                     warranty.isExpired ? 'bg-red-100' : 'bg-green-100'
                   }`}>
                     <Shield className={`w-5 h-5 ${
-                      warranty.isExpiringSoon ? 'text-orange-600' : 
+                      warranty.isExpiringSoon ? 'text-orange-600' :
                       warranty.isExpired ? 'text-red-600' : 'text-green-600'
                     }`} />
                   </div>
@@ -241,10 +289,15 @@ function WarrantiesList({ warranties, onRefresh }) {
   );
 }
 
-function ClaimsList({ claims, onRefresh }) {
-  const [allClaims, setAllClaims] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
+interface ClaimsListProps {
+  claims: ClaimData[];
+  onRefresh: () => void;
+}
+
+function ClaimsList({ claims, onRefresh }: ClaimsListProps) {
+  const [allClaims, setAllClaims] = useState<ClaimData[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
   useEffect(() => {
     loadClaims();
@@ -255,44 +308,44 @@ function ClaimsList({ claims, onRefresh }) {
     try {
       const params = statusFilter ? `?status=${statusFilter}` : '';
       const data = await api.get(`/api/warranties/claims${params}`);
-      setAllClaims(data.data || []);
-    } catch (error) {
+      setAllClaims(((data as Record<string, unknown>).data || []) as ClaimData[]);
+    } catch (error: unknown) {
       console.error('Failed to load claims:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSchedule = async (claimId) => {
+  const handleSchedule = async (claimId: string) => {
     const date = prompt('Enter scheduled date (YYYY-MM-DD):');
     if (!date) return;
     try {
       await api.post(`/api/warranties/claims/${claimId}/schedule`, { scheduledDate: date });
       loadClaims();
       onRefresh();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to schedule');
     }
   };
 
-  const handleComplete = async (claimId) => {
+  const handleComplete = async (claimId: string) => {
     try {
       await api.put(`/api/warranties/claims/${claimId}/status`, { status: 'completed' });
       loadClaims();
       onRefresh();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to update');
     }
   };
 
-  const handleDeny = async (claimId) => {
+  const handleDeny = async (claimId: string) => {
     const reason = prompt('Enter denial reason:');
     if (!reason) return;
     try {
       await api.post(`/api/warranties/claims/${claimId}/deny`, { reason });
       loadClaims();
       onRefresh();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to deny');
     }
   };
@@ -311,7 +364,7 @@ function ClaimsList({ claims, onRefresh }) {
       <div className="flex items-center gap-4">
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)}
           className="px-4 py-2 border rounded-lg"
         >
           <option value="">All Status</option>
@@ -341,7 +394,7 @@ function ClaimsList({ claims, onRefresh }) {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {allClaims.map(claim => {
+              {allClaims.map((claim: ClaimData) => {
                 const status = CLAIM_STATUS[claim.status] || CLAIM_STATUS.open;
                 const StatusIcon = status.icon;
 
@@ -403,7 +456,13 @@ function ClaimsList({ claims, onRefresh }) {
   );
 }
 
-function NewClaimModal({ warranties, onSave, onClose }) {
+interface NewClaimModalProps {
+  warranties: WarrantyData[];
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function NewClaimModal({ warranties, onSave, onClose }: NewClaimModalProps) {
   const [form, setForm] = useState({
     warrantyId: '',
     title: '',
@@ -412,16 +471,20 @@ function NewClaimModal({ warranties, onSave, onClose }) {
     priority: 'normal',
     reportedMethod: 'phone',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.post('/api/warranties/claims', form);
       onSave();
-    } catch (error) {
-      alert(error.response?.data?.error || 'Failed to create claim');
+    } catch (error: unknown) {
+      alert((error as Record<string, unknown>)?.response
+        ? ((error as Record<string, unknown>).response as Record<string, unknown>)?.data
+          ? (((error as Record<string, unknown>).response as Record<string, unknown>).data as Record<string, unknown>)?.error || 'Failed to create claim'
+          : 'Failed to create claim'
+        : 'Failed to create claim');
     } finally {
       setSaving(false);
     }
@@ -439,12 +502,12 @@ function NewClaimModal({ warranties, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Warranty</label>
               <select
                 value={form.warrantyId}
-                onChange={(e) => setForm({ ...form, warrantyId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, warrantyId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select warranty...</option>
-                {warranties.filter(w => !w.isExpired).map(w => (
+                {warranties.filter((w: WarrantyData) => !w.isExpired).map((w: WarrantyData) => (
                   <option key={w.id} value={w.id}>
                     {w.project?.name} - {w.name}
                   </option>
@@ -457,7 +520,7 @@ function NewClaimModal({ warranties, onSave, onClose }) {
               <input
                 type="text"
                 value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, title: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., Leak in master bathroom"
                 required
@@ -468,7 +531,7 @@ function NewClaimModal({ warranties, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
               <textarea
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={3}
                 placeholder="Describe the issue..."
@@ -481,7 +544,7 @@ function NewClaimModal({ warranties, onSave, onClose }) {
               <input
                 type="text"
                 value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, location: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., Master bathroom, near shower"
               />
@@ -492,7 +555,7 @@ function NewClaimModal({ warranties, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
                 <select
                   value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, priority: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="low">Low</option>
@@ -505,7 +568,7 @@ function NewClaimModal({ warranties, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reported Via</label>
                 <select
                   value={form.reportedMethod}
-                  onChange={(e) => setForm({ ...form, reportedMethod: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, reportedMethod: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="phone">Phone</option>

@@ -1,26 +1,121 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   FileText, Plus, Search, Calendar, DollarSign, Users,
   AlertTriangle, RefreshCw, XCircle, Clock, Star, TrendingUp,
   Loader2, Edit2, ChevronRight, CalendarPlus, Check
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
+
+interface AgreementContact {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+interface AgreementPlan {
+  name?: string;
+}
+
+interface Agreement {
+  id: string;
+  status: string;
+  contact?: AgreementContact;
+  plan?: AgreementPlan;
+  visitsRemaining: number;
+  endDate: string;
+  price: number;
+  billingFrequency: string;
+  planId?: string;
+  contactId?: string;
+  startDate?: string;
+  autoRenew?: boolean;
+}
+
+interface Plan {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  billingFrequency: string;
+  visitsIncluded: number;
+  discountPercent: number;
+  priorityService: boolean;
+  durationMonths: number;
+  autoRenew: boolean;
+  active: boolean;
+  _count?: { agreements?: number };
+}
+
+interface AgreementStats {
+  activeAgreements: number;
+  expiringIn30Days: number;
+  monthlyRecurringRevenue?: number;
+  annualRecurringRevenue?: number;
+}
+
+interface Visit {
+  id: string;
+  scheduledDate: string;
+  serviceType?: string;
+  agreement?: {
+    contact?: AgreementContact;
+    plan?: AgreementPlan;
+  };
+}
+
+interface Contact {
+  id: string;
+  name: string;
+}
+
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  color?: string;
+}
+
+interface AgreementRowProps {
+  agreement: Agreement;
+  onView: () => void;
+  onRenew: () => void;
+}
+
+interface PlansTabProps {
+  plans: Plan[];
+  onEdit: (plan: Plan) => void;
+  onRefresh: () => void;
+}
+
+interface PlanFormModalProps {
+  plan: Plan | null;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface AgreementFormModalProps {
+  agreement: Agreement | null;
+  plans: Plan[];
+  onSave: () => void;
+  onClose: () => void;
+}
 
 /**
  * Service Agreements / Memberships Page
  */
 export default function AgreementsPage() {
-  const [tab, setTab] = useState('agreements'); // agreements, plans, visits
-  const [agreements, setAgreements] = useState([]);
-  const [plans, setPlans] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active');
-  const [showPlanForm, setShowPlanForm] = useState(false);
-  const [showAgreementForm, setShowAgreementForm] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [selectedAgreement, setSelectedAgreement] = useState(null);
+  const [tab, setTab] = useState<string>('agreements'); // agreements, plans, visits
+  const [agreements, setAgreements] = useState<Agreement[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [stats, setStats] = useState<AgreementStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [search, setSearch] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('active');
+  const [showPlanForm, setShowPlanForm] = useState<boolean>(false);
+  const [showAgreementForm, setShowAgreementForm] = useState<boolean>(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [selectedAgreement, setSelectedAgreement] = useState<Agreement | null>(null);
 
   useEffect(() => {
     loadData();
@@ -44,8 +139,8 @@ export default function AgreementsPage() {
     }
   };
 
-  const filteredAgreements = agreements.filter(a =>
-    !search || 
+  const filteredAgreements = agreements.filter((a: Agreement) =>
+    !search ||
     a.contact?.name?.toLowerCase().includes(search.toLowerCase()) ||
     a.plan?.name?.toLowerCase().includes(search.toLowerCase())
   );
@@ -79,26 +174,26 @@ export default function AgreementsPage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-4 gap-4">
-          <StatCard 
-            icon={FileText} 
-            label="Active Agreements" 
+          <StatCard
+            icon={FileText}
+            label="Active Agreements"
             value={stats.activeAgreements}
           />
-          <StatCard 
-            icon={AlertTriangle} 
-            label="Expiring in 30 Days" 
+          <StatCard
+            icon={AlertTriangle}
+            label="Expiring in 30 Days"
             value={stats.expiringIn30Days}
             color="orange"
           />
-          <StatCard 
-            icon={DollarSign} 
-            label="Monthly Revenue" 
+          <StatCard
+            icon={DollarSign}
+            label="Monthly Revenue"
             value={`$${stats.monthlyRecurringRevenue?.toLocaleString() || 0}`}
             color="green"
           />
-          <StatCard 
-            icon={TrendingUp} 
-            label="Annual Revenue" 
+          <StatCard
+            icon={TrendingUp}
+            label="Annual Revenue"
             value={`$${stats.annualRecurringRevenue?.toLocaleString() || 0}`}
             color="blue"
           />
@@ -111,7 +206,7 @@ export default function AgreementsPage() {
           { id: 'agreements', label: 'Agreements', icon: FileText },
           { id: 'plans', label: 'Plans', icon: Star },
           { id: 'visits', label: 'Upcoming Visits', icon: Calendar },
-        ].map(t => (
+        ].map((t: { id: string; label: string; icon: LucideIcon }) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -137,14 +232,14 @@ export default function AgreementsPage() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
                 placeholder="Search agreements..."
                 className="w-full pl-10 pr-4 py-2 border rounded-lg"
               />
             </div>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)}
               className="px-4 py-2 border rounded-lg"
             >
               <option value="active">Active</option>
@@ -175,9 +270,9 @@ export default function AgreementsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredAgreements.map(agreement => (
-                    <AgreementRow 
-                      key={agreement.id} 
+                  {filteredAgreements.map((agreement: Agreement) => (
+                    <AgreementRow
+                      key={agreement.id}
                       agreement={agreement}
                       onView={() => { setSelectedAgreement(agreement); }}
                       onRenew={() => handleRenew(agreement.id)}
@@ -197,9 +292,9 @@ export default function AgreementsPage() {
 
       {/* Plans Tab */}
       {tab === 'plans' && (
-        <PlansTab 
-          plans={plans} 
-          onEdit={(plan) => { setSelectedPlan(plan); setShowPlanForm(true); }}
+        <PlansTab
+          plans={plans}
+          onEdit={(plan: Plan) => { setSelectedPlan(plan); setShowPlanForm(true); }}
           onRefresh={loadData}
         />
       )}
@@ -229,7 +324,7 @@ export default function AgreementsPage() {
     </div>
   );
 
-  async function handleRenew(agreementId) {
+  async function handleRenew(agreementId: string) {
     if (!confirm('Renew this agreement for another term?')) return;
     try {
       await api.post(`/api/agreements/${agreementId}/renew`);
@@ -240,8 +335,8 @@ export default function AgreementsPage() {
   }
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     orange: 'bg-orange-50 text-orange-600',
     green: 'bg-green-50 text-green-600',
@@ -257,10 +352,10 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function AgreementRow({ agreement, onView, onRenew }) {
+function AgreementRow({ agreement, onView, onRenew }: AgreementRowProps) {
   const isExpiringSoon = new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  
-  const statusColors = {
+
+  const statusColors: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
     pending: 'bg-yellow-100 text-yellow-700',
     expired: 'bg-red-100 text-red-700',
@@ -321,10 +416,10 @@ function AgreementRow({ agreement, onView, onRenew }) {
   );
 }
 
-function PlansTab({ plans, onEdit, onRefresh }) {
+function PlansTab({ plans, onEdit, onRefresh }: PlansTabProps) {
   return (
     <div className="grid grid-cols-3 gap-6">
-      {plans.map(plan => (
+      {plans.map((plan: Plan) => (
         <div key={plan.id} className="bg-white rounded-xl border p-6">
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -383,8 +478,8 @@ function PlansTab({ plans, onEdit, onRefresh }) {
 }
 
 function VisitsTab() {
-  const [visits, setVisits] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadVisits();
@@ -420,7 +515,7 @@ function VisitsTab() {
         </div>
       ) : (
         <div className="divide-y">
-          {visits.map(visit => (
+          {visits.map((visit: Visit) => (
             <div key={visit.id} className="p-4 flex items-center justify-between">
               <div>
                 <p className="font-medium text-gray-900">
@@ -446,8 +541,18 @@ function VisitsTab() {
   );
 }
 
-function PlanFormModal({ plan, onSave, onClose }) {
-  const [form, setForm] = useState({
+function PlanFormModal({ plan, onSave, onClose }: PlanFormModalProps) {
+  const [form, setForm] = useState<{
+    name: string;
+    description: string;
+    price: string | number;
+    billingFrequency: string;
+    visitsIncluded: number;
+    discountPercent: number;
+    priorityService: boolean;
+    durationMonths: number;
+    autoRenew: boolean;
+  }>({
     name: plan?.name || '',
     description: plan?.description || '',
     price: plan?.price || '',
@@ -458,9 +563,9 @@ function PlanFormModal({ plan, onSave, onClose }) {
     durationMonths: plan?.durationMonths || 12,
     autoRenew: plan?.autoRenew ?? true,
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -483,14 +588,14 @@ function PlanFormModal({ plan, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
           <h2 className="text-lg font-bold mb-4">{plan ? 'Edit Plan' : 'Create Plan'}</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Plan Name</label>
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., HVAC Maintenance Plan"
                 required
@@ -501,7 +606,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
               <textarea
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={2}
               />
@@ -513,7 +618,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.price}
-                  onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, price: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 />
@@ -522,7 +627,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Billing</label>
                 <select
                   value={form.billingFrequency}
-                  onChange={(e) => setForm({ ...form, billingFrequency: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, billingFrequency: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="monthly">Monthly</option>
@@ -538,7 +643,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.visitsIncluded}
-                  onChange={(e) => setForm({ ...form, visitsIncluded: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, visitsIncluded: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -547,7 +652,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.discountPercent}
-                  onChange={(e) => setForm({ ...form, discountPercent: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, discountPercent: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -556,7 +661,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.durationMonths}
-                  onChange={(e) => setForm({ ...form, durationMonths: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, durationMonths: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -567,7 +672,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 <input
                   type="checkbox"
                   checked={form.priorityService}
-                  onChange={(e) => setForm({ ...form, priorityService: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, priorityService: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
                 <span className="text-sm text-gray-700">Priority Service</span>
@@ -576,7 +681,7 @@ function PlanFormModal({ plan, onSave, onClose }) {
                 <input
                   type="checkbox"
                   checked={form.autoRenew}
-                  onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoRenew: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
                 <span className="text-sm text-gray-700">Auto-Renew</span>
@@ -598,15 +703,20 @@ function PlanFormModal({ plan, onSave, onClose }) {
   );
 }
 
-function AgreementFormModal({ agreement, plans, onSave, onClose }) {
-  const [form, setForm] = useState({
+function AgreementFormModal({ agreement, plans, onSave, onClose }: AgreementFormModalProps) {
+  const [form, setForm] = useState<{
+    planId: string;
+    contactId: string;
+    startDate: string;
+    autoRenew: boolean;
+  }>({
     planId: agreement?.planId || '',
     contactId: agreement?.contactId || '',
     startDate: agreement?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
     autoRenew: agreement?.autoRenew ?? true,
   });
-  const [contacts, setContacts] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     loadContacts();
@@ -621,7 +731,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -644,18 +754,18 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
           <h2 className="text-lg font-bold mb-4">{agreement ? 'Edit Agreement' : 'New Agreement'}</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
               <select
                 value={form.contactId}
-                onChange={(e) => setForm({ ...form, contactId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, contactId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select customer...</option>
-                {contacts.map(c => (
+                {contacts.map((c: Contact) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
@@ -665,12 +775,12 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Plan</label>
               <select
                 value={form.planId}
-                onChange={(e) => setForm({ ...form, planId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, planId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select plan...</option>
-                {plans.filter(p => p.active).map(p => (
+                {plans.filter((p: Plan) => p.active).map((p: Plan) => (
                   <option key={p.id} value={p.id}>
                     {p.name} - ${Number(p.price).toFixed(0)}/{p.billingFrequency}
                   </option>
@@ -683,7 +793,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
               <input
                 type="date"
                 value={form.startDate}
-                onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, startDate: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               />
@@ -693,7 +803,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
               <input
                 type="checkbox"
                 checked={form.autoRenew}
-                onChange={(e) => setForm({ ...form, autoRenew: e.target.checked })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, autoRenew: e.target.checked })}
                 className="w-4 h-4 rounded text-orange-500"
               />
               <span className="text-sm text-gray-700">Auto-renew when term ends</span>

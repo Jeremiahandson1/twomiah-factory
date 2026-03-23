@@ -5,6 +5,10 @@ import { format } from 'date-fns';
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog } from '../ui';
 import { useCRMDataStore } from '../../stores/builderStore';
 
+interface OutletContextType {
+  instance: Record<string, unknown>;
+}
+
 const statusOptions = [
   { value: 'draft', label: 'Draft' },
   { value: 'submitted', label: 'Submitted' },
@@ -22,86 +26,116 @@ const bidTypeOptions = [
   { value: 'design_build', label: 'Design-Build' },
 ];
 
-function BidForm({ bid, contacts, onSave, onClose }) {
-  const [form, setForm] = useState(bid || { 
+interface BidFormData {
+  projectName: string;
+  client: string;
+  bidType: string;
+  dueDate: string;
+  dueTime: string;
+  estimatedValue: string | number;
+  bidAmount: string | number;
+  bondRequired: boolean;
+  bondAmount: string | number;
+  prebidDate: string;
+  prebidLocation: string;
+  scope: string;
+  notes: string;
+  status: string;
+  createdAt?: string;
+}
+
+interface BidFormProps {
+  bid: Record<string, unknown> | null;
+  contacts: Record<string, unknown>[];
+  onSave: (data: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
+function BidForm({ bid, contacts, onSave, onClose }: BidFormProps) {
+  const [form, setForm] = useState<BidFormData>((bid as unknown as BidFormData) || {
     projectName: '', client: '', bidType: 'lump_sum', dueDate: '', dueTime: '',
     estimatedValue: '', bidAmount: '', bondRequired: false, bondAmount: '',
     prebidDate: '', prebidLocation: '', scope: '', notes: '', status: 'draft'
   });
-  const handleSubmit = (e) => { 
-    e.preventDefault(); 
-    onSave({ 
-      ...form, 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      ...form,
       estimatedValue: Number(form.estimatedValue) || 0,
       bidAmount: Number(form.bidAmount) || 0,
       bondAmount: Number(form.bondAmount) || 0,
-      createdAt: bid?.createdAt || new Date().toISOString() 
-    }); 
-    onClose(); 
+      createdAt: bid?.createdAt || new Date().toISOString()
+    });
+    onClose();
   };
-  const clients = contacts.filter(c => c.type === 'client');
-  
+  const clients = contacts.filter((c: Record<string, unknown>) => c.type === 'client');
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Input label="Project Name" value={form.projectName} onChange={(e) => setForm({ ...form, projectName: e.target.value })} placeholder="Project being bid" required />
+      <Input label="Project Name" value={form.projectName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, projectName: e.target.value })} placeholder="Project being bid" required />
       <div className="grid grid-cols-2 gap-4">
-        <Select label="Client / Owner" value={form.client} onChange={(e) => setForm({ ...form, client: e.target.value })} options={clients.map(c => ({ value: c.id, label: c.name }))} placeholder="Select client" />
-        <Select label="Bid Type" value={form.bidType} onChange={(e) => setForm({ ...form, bidType: e.target.value })} options={bidTypeOptions} />
+        <Select label="Client / Owner" value={form.client} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, client: e.target.value })} options={clients.map((c: Record<string, unknown>) => ({ value: c.id as string, label: c.name as string }))} placeholder="Select client" />
+        <Select label="Bid Type" value={form.bidType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, bidType: e.target.value })} options={bidTypeOptions} />
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <Input label="Due Date" type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
-        <Input label="Due Time" type="time" value={form.dueTime} onChange={(e) => setForm({ ...form, dueTime: e.target.value })} />
-        <Input label="Estimated Value ($)" type="number" value={form.estimatedValue} onChange={(e) => setForm({ ...form, estimatedValue: e.target.value })} />
+        <Input label="Due Date" type="date" value={form.dueDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, dueDate: e.target.value })} />
+        <Input label="Due Time" type="time" value={form.dueTime} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, dueTime: e.target.value })} />
+        <Input label="Estimated Value ($)" type="number" value={form.estimatedValue} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, estimatedValue: e.target.value })} />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Bid Amount ($)" type="number" value={form.bidAmount} onChange={(e) => setForm({ ...form, bidAmount: e.target.value })} placeholder="Your bid amount" />
-        <Select label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} options={statusOptions} />
+        <Input label="Bid Amount ($)" type="number" value={form.bidAmount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, bidAmount: e.target.value })} placeholder="Your bid amount" />
+        <Select label="Status" value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, status: e.target.value })} options={statusOptions} />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Pre-Bid Meeting Date" type="date" value={form.prebidDate} onChange={(e) => setForm({ ...form, prebidDate: e.target.value })} />
-        <Input label="Pre-Bid Location" value={form.prebidLocation} onChange={(e) => setForm({ ...form, prebidLocation: e.target.value })} />
+        <Input label="Pre-Bid Meeting Date" type="date" value={form.prebidDate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, prebidDate: e.target.value })} />
+        <Input label="Pre-Bid Location" value={form.prebidLocation} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, prebidLocation: e.target.value })} />
       </div>
       <div className="flex items-center gap-4">
         <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={form.bondRequired} onChange={(e) => setForm({ ...form, bondRequired: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
+          <input type="checkbox" checked={form.bondRequired} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, bondRequired: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
           <span className="text-sm text-slate-300">Bid Bond Required</span>
         </label>
-        {form.bondRequired && <Input placeholder="Bond Amount ($)" type="number" value={form.bondAmount} onChange={(e) => setForm({ ...form, bondAmount: e.target.value })} className="flex-1" />}
+        {form.bondRequired && <Input placeholder="Bond Amount ($)" type="number" value={form.bondAmount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, bondAmount: e.target.value })} className="flex-1" />}
       </div>
-      <Textarea label="Scope of Work" value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} placeholder="Brief description of scope..." rows={2} />
-      <Textarea label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
+      <Textarea label="Scope of Work" value={form.scope} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, scope: e.target.value })} placeholder="Brief description of scope..." rows={2} />
+      <Textarea label="Notes" value={form.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })} rows={2} />
       <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit">{bid ? 'Update' : 'Create'} Bid</Button></div>
     </form>
   );
 }
 
 export function BiddingPage() {
-  const { instance } = useOutletContext();
-  const { contacts, bids = [], addBid, updateBid, deleteBid } = useCRMDataStore();
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editBid, setEditBid] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const { instance } = useOutletContext<OutletContextType>();
+  const store = useCRMDataStore();
+  const contacts = store.contacts as Record<string, unknown>[];
+  const bids = (store.bids || []) as Record<string, unknown>[];
+  const addBid = store.addBid as ((item: Record<string, unknown>) => void) | undefined;
+  const updateBid = store.updateBid as ((id: unknown, updates: Record<string, unknown>) => void) | undefined;
+  const deleteBid = store.deleteBid as ((id: unknown) => void) | undefined;
+  const [search, setSearch] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editBid, setEditBid] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
-  const filtered = useMemo(() => (bids || []).filter(b => {
-    const matchesSearch = !search || b.projectName?.toLowerCase().includes(search.toLowerCase());
+  const filtered = useMemo(() => (bids || []).filter((b: Record<string, unknown>) => {
+    const matchesSearch = !search || (b.projectName as string)?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = !statusFilter || b.status === statusFilter;
     return matchesSearch && matchesStatus;
   }), [bids, search, statusFilter]);
 
-  const handleSave = (data) => { editBid ? updateBid?.(editBid.id, data) : addBid?.(data); setEditBid(null); setShowForm(false); };
-  const getClientName = (id) => contacts.find(c => c.id === id)?.name || '-';
+  const handleSave = (data: Record<string, unknown>) => { editBid ? updateBid?.(editBid.id, data) : addBid?.(data); setEditBid(null); setShowForm(false); };
+  const getClientName = (id: string): string => (contacts.find((c: Record<string, unknown>) => c.id === id)?.name as string) || '-';
 
-  const totalValue = bids.reduce((s, b) => s + (b.bidAmount || b.estimatedValue || 0), 0);
-  const wonValue = bids.filter(b => b.status === 'won').reduce((s, b) => s + (b.bidAmount || 0), 0);
-  const pendingCount = bids.filter(b => ['submitted', 'under_review'].includes(b.status)).length;
-  const winRate = bids.filter(b => ['won', 'lost'].includes(b.status)).length > 0 
-    ? Math.round(bids.filter(b => b.status === 'won').length / bids.filter(b => ['won', 'lost'].includes(b.status)).length * 100) 
+  const totalValue = bids.reduce((s: number, b: Record<string, unknown>) => s + ((b.bidAmount as number) || (b.estimatedValue as number) || 0), 0);
+  const wonValue = bids.filter((b: Record<string, unknown>) => b.status === 'won').reduce((s: number, b: Record<string, unknown>) => s + ((b.bidAmount as number) || 0), 0);
+  const pendingCount = bids.filter((b: Record<string, unknown>) => ['submitted', 'under_review'].includes(b.status as string)).length;
+  const winRate = bids.filter((b: Record<string, unknown>) => ['won', 'lost'].includes(b.status as string)).length > 0
+    ? Math.round(bids.filter((b: Record<string, unknown>) => b.status === 'won').length / bids.filter((b: Record<string, unknown>) => ['won', 'lost'].includes(b.status as string)).length * 100)
     : 0;
 
-  const statusColors = { won: 'text-emerald-400', lost: 'text-red-400', submitted: 'text-blue-400', under_review: 'text-amber-400', draft: 'text-slate-400', no_bid: 'text-slate-500' };
+  const statusColors: Record<string, string> = { won: 'text-emerald-400', lost: 'text-red-400', submitted: 'text-blue-400', under_review: 'text-amber-400', draft: 'text-slate-400', no_bid: 'text-slate-500' };
 
   return (
     <div className="space-y-6">
@@ -122,23 +156,23 @@ export function BiddingPage() {
       </div>
 
       <Card><CardBody className="p-4"><div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search bids..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-11" /></div>
-        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} options={[{ value: '', label: 'All Status' }, ...statusOptions]} className="sm:w-48" />
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search bids..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="input pl-11" /></div>
+        <Select value={statusFilter} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)} options={[{ value: '', label: 'All Status' }, ...statusOptions]} className="sm:w-48" />
       </div></CardBody></Card>
 
       <Card>
         {filtered.length > 0 ? (
           <Table><TableHead><TableRow><TableHeader>Project</TableHeader><TableHeader>Client</TableHeader><TableHeader>Bid Amount</TableHeader><TableHeader>Due Date</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>
-            {filtered.map((bid) => (
-              <TableRow key={bid.id}>
-                <TableCell><span className="font-medium text-white">{bid.projectName}</span><p className="text-xs text-slate-500">{bid.bidType?.replace('_', ' ')}</p></TableCell>
-                <TableCell className="text-slate-300">{getClientName(bid.client)}</TableCell>
-                <TableCell><span className="text-white font-medium">${(bid.bidAmount || bid.estimatedValue || 0).toLocaleString()}</span></TableCell>
+            {filtered.map((bid: Record<string, unknown>) => (
+              <TableRow key={bid.id as string}>
+                <TableCell><span className="font-medium text-white">{bid.projectName as string}</span><p className="text-xs text-slate-500">{(bid.bidType as string)?.replace('_', ' ')}</p></TableCell>
+                <TableCell className="text-slate-300">{getClientName(bid.client as string)}</TableCell>
+                <TableCell><span className="text-white font-medium">${((bid.bidAmount as number) || (bid.estimatedValue as number) || 0).toLocaleString()}</span></TableCell>
                 <TableCell>
-                  <span className="text-slate-300">{bid.dueDate ? format(new Date(bid.dueDate), 'MMM d, yyyy') : '-'}</span>
-                  {bid.dueTime && <span className="text-slate-500 text-xs ml-1">{bid.dueTime}</span>}
+                  <span className="text-slate-300">{bid.dueDate ? format(new Date(bid.dueDate as string), 'MMM d, yyyy') : '-'}</span>
+                  {(bid.dueTime as string) && <span className="text-slate-500 text-xs ml-1">{bid.dueTime as string}</span>}
                 </TableCell>
-                <TableCell><span className={`font-medium ${statusColors[bid.status]}`}>{bid.status?.replace('_', ' ')}</span></TableCell>
+                <TableCell><span className={`font-medium ${statusColors[bid.status as string]}`}>{(bid.status as string)?.replace('_', ' ')}</span></TableCell>
                 <TableCell><div className="flex gap-1">
                   {bid.status === 'draft' && <button onClick={() => updateBid?.(bid.id, { status: 'submitted' })} className="p-1.5 hover:bg-blue-500/20 rounded text-blue-400" title="Submit"><Send className="w-4 h-4" /></button>}
                   {bid.status === 'submitted' && <><button onClick={() => updateBid?.(bid.id, { status: 'won' })} className="p-1.5 hover:bg-emerald-500/20 rounded text-emerald-400" title="Won"><CheckCircle2 className="w-4 h-4" /></button><button onClick={() => updateBid?.(bid.id, { status: 'lost' })} className="p-1.5 hover:bg-red-500/20 rounded text-red-400" title="Lost"><XCircle className="w-4 h-4" /></button></>}

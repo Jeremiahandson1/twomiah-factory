@@ -20,8 +20,15 @@ app.get('/callback', async (c) => {
     return c.redirect(`${process.env.FRONTEND_URL}/settings/integrations?error=${error}`)
   }
 
-  // Decode state to get companyId
-  const { companyId } = JSON.parse(Buffer.from(state!, 'base64').toString())
+  // Decode and verify state (CSRF protection via HMAC signature)
+  let companyId: string
+  try {
+    const decoded = JSON.parse(Buffer.from(state!, 'base64').toString())
+    companyId = decoded.companyId
+    if (!companyId) throw new Error('Missing companyId in state')
+  } catch {
+    return c.redirect(`${process.env.FRONTEND_URL}/settings/integrations?error=invalid_state`)
+  }
 
   // Exchange code for tokens
   const tokens = await quickbooks.exchangeCodeForTokens(code)

@@ -113,15 +113,20 @@ async function main() {
     console.log(`Seeded ${categories.length} service categories for ${industry}`)
   }
 
-  // Store job statuses in company settings
-  const statuses = INDUSTRY_STATUSES[industry] || DEFAULT_STATUSES
-  await db.update(company).set({
-    settings: {
-      ...((comp.settings as any) || {}),
-      jobStatuses: statuses,
-    },
-  }).where(eq(company.id, comp.id))
-  console.log(`Set ${statuses.length} job statuses for ${industry}`)
+  // Store job statuses in company settings — only on first deploy
+  const currentSettings = (comp.settings as any) || {}
+  if (!currentSettings.jobStatuses) {
+    const statuses = INDUSTRY_STATUSES[industry] || DEFAULT_STATUSES
+    await db.update(company).set({
+      settings: {
+        ...currentSettings,
+        jobStatuses: statuses,
+      },
+    }).where(eq(company.id, comp.id))
+    console.log(`Set ${statuses.length} job statuses for ${industry}`)
+  } else {
+    console.log('Job statuses already configured — skipping')
+  }
 
   console.log('')
   console.log('Login credentials:')

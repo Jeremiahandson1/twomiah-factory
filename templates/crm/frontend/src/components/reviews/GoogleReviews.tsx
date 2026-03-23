@@ -1,20 +1,66 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Star, Send, MessageSquare, Mail, Phone, Clock,
   CheckCircle, AlertCircle, Settings, BarChart3,
   ExternalLink, Loader2, TrendingUp, Users
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import api from '../../services/api';
+
+interface ReviewSettings {
+  googlePlaceId?: string;
+  googleBusinessName?: string;
+  reviewLink?: string;
+  reviewRequestEnabled?: boolean;
+  reviewSmsEnabled?: boolean;
+  reviewEmailEnabled?: boolean;
+  reviewRequestDelay?: number;
+  reviewFollowUpDelay?: number;
+  reviewMinimumJobValue?: number;
+  [key: string]: unknown;
+}
+
+interface ReviewStats {
+  total: number;
+  clickRate: number;
+  completed: number;
+  conversionRate: number;
+}
+
+interface ReviewRequest {
+  id: string;
+  status: string;
+  sentAt?: string;
+  createdAt: string;
+  followUpSentAt?: string | null;
+  contact?: { name: string };
+  job?: { title: string };
+  [key: string]: unknown;
+}
+
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  icon: LucideIcon;
+  color?: string;
+}
 
 /**
  * Review Request Button
  * 
  * Add to job detail page to request reviews
  */
-export function ReviewRequestButton({ jobId, contactPhone, contactEmail, onSent }) {
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [channel, setChannel] = useState('both');
+interface ReviewRequestButtonProps {
+  jobId: string;
+  contactPhone?: string | null;
+  contactEmail?: string | null;
+  onSent?: () => void;
+}
+
+export function ReviewRequestButton({ jobId, contactPhone, contactEmail, onSent }: ReviewRequestButtonProps) {
+  const [sending, setSending] = useState<boolean>(false);
+  const [sent, setSent] = useState<boolean>(false);
+  const [channel, setChannel] = useState<string>('both');
 
   const handleSend = async () => {
     setSending(true);
@@ -22,8 +68,9 @@ export function ReviewRequestButton({ jobId, contactPhone, contactEmail, onSent 
       await api.post(`/reviews/request/${jobId}`, { channel });
       setSent(true);
       onSent?.();
-    } catch (error) {
-      alert(error.message || 'Failed to send review request');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to send review request';
+      alert(message);
     } finally {
       setSending(false);
     }
@@ -42,7 +89,7 @@ export function ReviewRequestButton({ jobId, contactPhone, contactEmail, onSent 
     <div className="flex items-center gap-2">
       <select
         value={channel}
-        onChange={(e) => setChannel(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setChannel(e.target.value)}
         className="px-3 py-2 border rounded-lg text-sm"
         disabled={sending}
       >
@@ -70,10 +117,10 @@ export function ReviewRequestButton({ jobId, contactPhone, contactEmail, onSent 
  * Review Settings Page
  */
 export function ReviewSettingsPage() {
-  const [settings, setSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [stats, setStats] = useState(null);
+  const [settings, setSettings] = useState<ReviewSettings | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [stats, setStats] = useState<ReviewStats | null>(null);
 
   useEffect(() => {
     loadData();
@@ -87,7 +134,7 @@ export function ReviewSettingsPage() {
       ]);
       setSettings(settingsData);
       setStats(statsData);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load settings:', error);
     } finally {
       setLoading(false);
@@ -99,7 +146,7 @@ export function ReviewSettingsPage() {
     try {
       await api.put('/reviews/settings', settings);
       alert('Settings saved!');
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save settings');
     } finally {
       setSaving(false);
@@ -166,7 +213,7 @@ export function ReviewSettingsPage() {
             <input
               type="text"
               value={settings?.googlePlaceId || ''}
-              onChange={(e) => setSettings({ ...settings, googlePlaceId: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, googlePlaceId: e.target.value })}
               placeholder="ChIJ..."
               className="w-full px-3 py-2 border rounded-lg"
             />
@@ -190,7 +237,7 @@ export function ReviewSettingsPage() {
             <input
               type="text"
               value={settings?.googleBusinessName || ''}
-              onChange={(e) => setSettings({ ...settings, googleBusinessName: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, googleBusinessName: e.target.value })}
               placeholder="Your Company Name"
               className="w-full px-3 py-2 border rounded-lg"
             />
@@ -237,7 +284,7 @@ export function ReviewSettingsPage() {
             <input
               type="checkbox"
               checked={settings?.reviewRequestEnabled ?? true}
-              onChange={(e) => setSettings({ ...settings, reviewRequestEnabled: e.target.checked })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, reviewRequestEnabled: e.target.checked })}
               className="w-5 h-5 rounded text-orange-500"
             />
           </label>
@@ -248,7 +295,7 @@ export function ReviewSettingsPage() {
               <input
                 type="checkbox"
                 checked={settings?.reviewSmsEnabled ?? true}
-                onChange={(e) => setSettings({ ...settings, reviewSmsEnabled: e.target.checked })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, reviewSmsEnabled: e.target.checked })}
                 className="w-4 h-4 rounded text-orange-500"
               />
               <Phone className="w-5 h-5 text-gray-400" />
@@ -258,7 +305,7 @@ export function ReviewSettingsPage() {
               <input
                 type="checkbox"
                 checked={settings?.reviewEmailEnabled ?? true}
-                onChange={(e) => setSettings({ ...settings, reviewEmailEnabled: e.target.checked })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, reviewEmailEnabled: e.target.checked })}
                 className="w-4 h-4 rounded text-orange-500"
               />
               <Mail className="w-5 h-5 text-gray-400" />
@@ -274,7 +321,7 @@ export function ReviewSettingsPage() {
               </label>
               <select
                 value={settings?.reviewRequestDelay || 2}
-                onChange={(e) => setSettings({ ...settings, reviewRequestDelay: parseInt(e.target.value) })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSettings({ ...settings, reviewRequestDelay: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value={1}>1 hour</option>
@@ -290,7 +337,7 @@ export function ReviewSettingsPage() {
               </label>
               <select
                 value={settings?.reviewFollowUpDelay || 3}
-                onChange={(e) => setSettings({ ...settings, reviewFollowUpDelay: parseInt(e.target.value) })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSettings({ ...settings, reviewFollowUpDelay: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value={0}>No follow-up</option>
@@ -311,7 +358,7 @@ export function ReviewSettingsPage() {
               <input
                 type="number"
                 value={settings?.reviewMinimumJobValue || ''}
-                onChange={(e) => setSettings({ ...settings, reviewMinimumJobValue: parseInt(e.target.value) || 0 })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, reviewMinimumJobValue: parseInt(e.target.value) || 0 })}
                 placeholder="0"
                 className="w-32 px-3 py-2 border rounded-lg"
               />
@@ -339,8 +386,8 @@ export function ReviewSettingsPage() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color = 'gray' }) {
-  const colors = {
+function StatCard({ label, value, icon: Icon, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     blue: 'bg-blue-50 text-blue-600',
     yellow: 'bg-yellow-50 text-yellow-600',
@@ -360,8 +407,8 @@ function StatCard({ label, value, icon: Icon, color = 'gray' }) {
  * Review Requests List
  */
 export function ReviewRequestsList() {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<ReviewRequest[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadRequests();
@@ -371,18 +418,18 @@ export function ReviewRequestsList() {
     try {
       const data = await api.get('/reviews/requests?limit=20');
       setRequests(data.data || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load requests:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFollowUp = async (requestId) => {
+  const handleFollowUp = async (requestId: string) => {
     try {
       await api.post(`/reviews/follow-up/${requestId}`);
       loadRequests();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to send follow-up');
     }
   };

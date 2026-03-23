@@ -15,7 +15,13 @@ export default function IntegrationsPage() {
   const [expandedGuide, setExpandedGuide] = useState<string | null>(null);
   const [twilioForm, setTwilioForm] = useState({ accountSid: '', authToken: '', phoneNumber: '' });
   const [showTwilioToken, setShowTwilioToken] = useState(false);
-  const [integrations, setIntegrations] = useState({
+  const [integrations, setIntegrations] = useState<{
+    quickbooks: { connected: boolean; companyName: string | null; lastSync: string | null; enabled?: boolean };
+    stripe: { connected: boolean; accountId: string | null; chargesEnabled: boolean; enabled?: boolean };
+    sms: { enabled: boolean; usage: number };
+    email: { enabled: boolean; usage: number };
+    twilio: { configured: boolean; phoneNumber: string | null; enabled?: boolean };
+  }>({
     quickbooks: { connected: false, companyName: null, lastSync: null },
     stripe: { connected: false, accountId: null, chargesEnabled: false },
     sms: { enabled: false, usage: 0 },
@@ -137,7 +143,7 @@ export default function IntegrationsPage() {
       const response = await fetch(`${API_URL}/api/integrations/${service}/toggle`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ enabled: !integrations[service as keyof typeof integrations]?.enabled }),
+        body: JSON.stringify({ enabled: !(integrations[service as keyof typeof integrations] as Record<string, unknown>)?.enabled }),
       });
 
       const data = await response.json();
@@ -148,8 +154,8 @@ export default function IntegrationsPage() {
         [service]: { ...prev[service as keyof typeof prev], enabled: !(prev[service as keyof typeof prev] as any)?.enabled },
       }));
       setSuccess(`${service === 'sms' ? 'SMS' : 'Email'} ${(integrations[service as keyof typeof integrations] as any)?.enabled ? 'disabled' : 'enabled'}`);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setSaving(null);
     }
@@ -189,8 +195,8 @@ export default function IntegrationsPage() {
       setIntegrations(prev => ({ ...prev, twilio: { configured: true, phoneNumber: twilioForm.phoneNumber } }));
       setSuccess('Twilio configured successfully');
       setTwilioForm(prev => ({ ...prev, accountSid: '', authToken: '' }));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setSaving(null);
     }

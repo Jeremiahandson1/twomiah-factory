@@ -1,4 +1,5 @@
 import { pgTable, text, boolean, integer, decimal, real, timestamp, date, time, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { relations } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
 
 // ==================== MULTI-TENANT ====================
@@ -702,9 +703,9 @@ export const emailLog = pgTable('email_log', {
   contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
   sentById: text('sent_by_id').references(() => user.id, { onDelete: 'set null' }),
 
-  invoiceId: text('invoice_id'),
-  quoteId: text('quote_id'),
-  jobId: text('job_id'),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
 }, (t) => [
   index('email_log_company_id_created_at_idx').on(t.companyId, t.createdAt),
   index('email_log_contact_id_idx').on(t.contactId),
@@ -930,7 +931,7 @@ export const pricebookCategory = pgTable('pricebook_category', {
   active: boolean('active').default(true).notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  parentId: text('parent_id'),
+  parentId: text('parent_id').references(() => pricebookCategory.id, { onDelete: 'set null' }),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -1716,7 +1717,7 @@ export const scheduleOfValues = pgTable('schedule_of_values', {
 
 export const sovLineItem = pgTable('sov_line_item', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  companyId: text('company_id').notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
   scheduleOfValuesId: text('schedule_of_values_id').notNull().references(() => scheduleOfValues.id, { onDelete: 'cascade' }),
 
@@ -1767,7 +1768,7 @@ export const drawRequest = pgTable('draw_request', {
 
 export const drawLineItem = pgTable('draw_line_item', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
-  companyId: text('company_id').notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
 
   drawRequestId: text('draw_request_id').notNull().references(() => drawRequest.id, { onDelete: 'cascade' }),
 
@@ -2024,20 +2025,7 @@ export const activity = pgTable('activity', {
   index('activity_entity_type_entity_id_idx').on(t.entityType, t.entityId),
 ])
 
-export const activityLog = pgTable('activity_log', {
-  id: text('id').primaryKey().$defaultFn(() => createId()),
-  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  userId: text('user_id').references(() => user.id),
-  entityType: text('entity_type').notNull(),
-  entityId: text('entity_id').notNull(),
-  action: text('action').notNull(),
-  description: text('description'),
-  metadata: json('metadata'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [
-  index('activity_log_company_id_idx').on(t.companyId),
-  index('activity_log_entity_type_entity_id_idx').on(t.entityType, t.entityId),
-])
+// activityLog table removed — use `activity` table instead (identical schema, consolidated)
 
 export const callLog = pgTable('call_log', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
@@ -2112,7 +2100,7 @@ export const comment = pgTable('comment', {
   content: text('content').notNull(),
   mentions: json('mentions'),
   attachments: json('attachments'),
-  parentId: text('parent_id'),
+  parentId: text('parent_id').references(() => comment.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
@@ -2609,3 +2597,903 @@ export const roofReport = pgTable('roof_report', {
   index('roof_report_company_id_idx').on(t.companyId),
   index('roof_report_contact_id_idx').on(t.contactId),
 ])
+
+// ==================== RELATIONS ====================
+
+export const companyRelations = relations(company, ({ many, one }) => ({
+  users: many(user),
+  contacts: many(contact),
+  projects: many(project),
+  jobs: many(job),
+  quotes: many(quote),
+  invoices: many(invoice),
+  timeEntries: many(timeEntry),
+  expenses: many(expense),
+  dailyLogs: many(dailyLog),
+  rfis: many(rfi),
+  submittals: many(submittal),
+  changeOrders: many(changeOrder),
+  punchListItems: many(punchListItem),
+  inspections: many(inspection),
+  bids: many(bid),
+  campaigns: many(campaign),
+  messages: many(message),
+  documents: many(document),
+  teamMembers: many(teamMember),
+  smsConversations: many(smsConversation),
+  smsTemplates: many(smsTemplate),
+  scheduledSmses: many(scheduledSms),
+  emailLogs: many(emailLog),
+  locationLogs: many(locationLog),
+  geofences: many(geofence),
+  inventoryItems: many(inventoryItem),
+  inventoryLocations: many(inventoryLocation),
+  inventoryTransactions: many(inventoryTransaction),
+  inventoryUsages: many(inventoryUsage),
+  inventoryTransfers: many(inventoryTransfer),
+  purchaseOrders: many(purchaseOrder),
+  pricebookCategories: many(pricebookCategory),
+  pricebookItems: many(pricebookItem),
+  reviewRequests: many(reviewRequest),
+  reviews: many(review),
+  financingApplications: many(financingApplication),
+  serviceAgreements: many(serviceAgreement),
+  equipmentCategories: many(equipmentCategory),
+  equipmentList: many(equipment),
+  vehicles: many(vehicle),
+  emailTemplates: many(emailTemplate),
+  emailCampaigns: many(emailCampaign),
+  automations: many(automation),
+  trackingNumbers: many(trackingNumber),
+  phoneCalls: many(phoneCall),
+  scheduleEvents: many(scheduleEvent),
+  recurringSchedules: many(recurringSchedule),
+  selectionCategories: many(selectionCategory),
+  selectionItems: many(selectionItem),
+  takeoffs: many(takeoff),
+  warranties: many(warranty),
+  warrantyClaims: many(warrantyClaim),
+  subscription: one(subscription),
+  licenses: many(license),
+  addonPurchases: many(addonPurchase),
+  usageRecords: many(usageRecord),
+  billingInvoices: many(billingInvoice),
+  bookingSettings: one(bookingSettings),
+  bookableServices: many(bookableService),
+  onlineBookings: many(onlineBooking),
+  formTemplates: many(formTemplate),
+  formSubmissions: many(formSubmission),
+  lienWaivers: many(lienWaiver),
+  schedulesOfValues: many(scheduleOfValues),
+  drawRequests: many(drawRequest),
+  auditLogs: many(auditLog),
+  agreementPlans: many(agreementPlan),
+  warrantyTemplates: many(warrantyTemplate),
+  projectWarranties: many(projectWarranty),
+  takeoffAssemblies: many(takeoffAssembly),
+  takeoffSheets: many(takeoffSheet),
+  recurringInvoices: many(recurringInvoice),
+  equipmentTypes: many(equipmentType),
+  tasks: many(task),
+  activities: many(activity),
+  callLogs: many(callLog),
+  aiReceptionistRules: many(aiReceptionistRule),
+  aiReceptionistSettings: one(aiReceptionistSettings),
+  comments: many(comment),
+  dripSequences: many(dripSequence),
+  equipmentServiceRecords: many(equipmentServiceRecord),
+  photos: many(photo),
+  products: many(product),
+  projectBaselines: many(projectBaseline),
+  projectSelections: many(projectSelection),
+  projectTasks: many(projectTask),
+  taskDependencies: many(taskDependency),
+  selectionOptions: many(selectionOption),
+  smsAutoResponders: many(smsAutoResponder),
+  supportTickets: many(supportTicket),
+  supportKnowledgeBases: many(supportKnowledgeBase),
+  supportSlaPolicies: many(supportSlaPolicy),
+  leadSources: many(leadSource),
+  leads: many(lead),
+  roofReports: many(roofReport),
+}))
+
+export const userRelations = relations(user, ({ one, many }) => ({
+  company: one(company, { fields: [user.companyId], references: [company.id] }),
+  settings: one(userSettings),
+  timeEntries: many(timeEntry),
+  dailyLogs: many(dailyLog),
+  messages: many(message),
+  locationLogs: many(locationLog),
+  geofenceEvents: many(geofenceEvent),
+  smsMessages: many(smsMessage),
+  scheduleEvents: many(scheduleEvent),
+  jobsAssigned: many(job, { relationName: 'jobAssignedTo' }),
+  jobsCreated: many(job, { relationName: 'jobCreatedBy' }),
+  documentsUploaded: many(document, { relationName: 'documentUploadedBy' }),
+  inventoryLocationsAssigned: many(inventoryLocation),
+  inventoryTransactions: many(inventoryTransaction),
+  inventoryUsages: many(inventoryUsage),
+  inventoryTransfers: many(inventoryTransfer),
+  purchaseOrdersCreated: many(purchaseOrder),
+  scheduledSmsesCreated: many(scheduledSms),
+  emailLogsSent: many(emailLog),
+  vehiclesAssigned: many(vehicle),
+  formSubmissions: many(formSubmission),
+  lienWaiversApproved: many(lienWaiver, { relationName: 'lienWaiverApprovedBy' }),
+  lienWaiversRejected: many(lienWaiver, { relationName: 'lienWaiverRejectedBy' }),
+  drawRequestsApproved: many(drawRequest, { relationName: 'drawRequestApprovedBy' }),
+  drawRequestsRejected: many(drawRequest, { relationName: 'drawRequestRejectedBy' }),
+  tasksCreated: many(task, { relationName: 'taskCreatedBy' }),
+  tasksAssigned: many(task, { relationName: 'taskAssignedTo' }),
+  activities: many(activity),
+  comments: many(comment),
+  commentReactions: many(commentReaction),
+  equipmentServiceRecords: many(equipmentServiceRecord),
+  jobAssignments: many(jobAssignment),
+  photos: many(photo),
+  projectTasks: many(projectTask),
+  supportTicketsAssigned: many(supportTicket, { relationName: 'supportTicketAssignedTo' }),
+  supportTicketsCreated: many(supportTicket, { relationName: 'supportTicketCreatedBy' }),
+  supportTicketMessages: many(supportTicketMessage),
+  supportKnowledgeBases: many(supportKnowledgeBase),
+  pushSubscriptions: many(pushSubscription),
+}))
+
+export const contactRelations = relations(contact, ({ one, many }) => ({
+  company: one(company, { fields: [contact.companyId], references: [company.id] }),
+  projects: many(project),
+  jobs: many(job),
+  quotes: many(quote),
+  invoices: many(invoice),
+  messages: many(message),
+  smsConversations: many(smsConversation),
+  scheduledSmses: many(scheduledSms),
+  emailLogs: many(emailLog),
+  documents: many(document),
+  reviewRequests: many(reviewRequest),
+  reviews: many(review),
+  financingApplications: many(financingApplication),
+  serviceAgreements: many(serviceAgreement),
+  selections: many(selection),
+  lienWaivers: many(lienWaiver),
+  onlineBookings: many(onlineBooking),
+  formSubmissions: many(formSubmission),
+  projectWarranties: many(projectWarranty),
+  recurringInvoices: many(recurringInvoice),
+  emailRecipients: many(emailRecipient),
+  sequenceEnrollments: many(sequenceEnrollment),
+  tasks: many(task),
+  callLogs: many(callLog),
+  supportTickets: many(supportTicket),
+  supportTicketMessages: many(supportTicketMessage),
+  leadsConverted: many(lead),
+  roofReports: many(roofReport),
+}))
+
+export const projectRelations = relations(project, ({ one, many }) => ({
+  company: one(company, { fields: [project.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [project.contactId], references: [contact.id] }),
+  jobs: many(job),
+  quotes: many(quote),
+  invoices: many(invoice),
+  timeEntries: many(timeEntry),
+  expenses: many(expense),
+  dailyLogs: many(dailyLog),
+  rfis: many(rfi),
+  submittals: many(submittal),
+  changeOrders: many(changeOrder),
+  punchListItems: many(punchListItem),
+  inspections: many(inspection),
+  documents: many(document),
+  geofences: many(geofence),
+  selections: many(selection),
+  takeoffs: many(takeoff),
+  lienWaivers: many(lienWaiver),
+  scheduleOfValues: one(scheduleOfValues),
+  drawRequests: many(drawRequest),
+  recurringInvoices: many(recurringInvoice),
+  formSubmissions: many(formSubmission),
+  projectWarranties: many(projectWarranty),
+  takeoffSheets: many(takeoffSheet),
+  projectBaselines: many(projectBaseline),
+  projectSelections: many(projectSelection),
+  projectTasks: many(projectTask),
+  taskDependencies: many(taskDependency),
+  tasks: many(task),
+}))
+
+export const jobRelations = relations(job, ({ one, many }) => ({
+  company: one(company, { fields: [job.companyId], references: [company.id] }),
+  project: one(project, { fields: [job.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [job.contactId], references: [contact.id] }),
+  assignedTo: one(user, { fields: [job.assignedToId], references: [user.id], relationName: 'jobAssignedTo' }),
+  createdBy: one(user, { fields: [job.createdById], references: [user.id], relationName: 'jobCreatedBy' }),
+  quote: one(quote, { fields: [job.quoteId], references: [quote.id] }),
+  timeEntries: many(timeEntry),
+  expenses: many(expense),
+  documents: many(document),
+  locationLogs: many(locationLog),
+  geofences: many(geofence),
+  scheduledSmses: many(scheduledSms),
+  inventoryTransactions: many(inventoryTransaction),
+  inventoryUsages: many(inventoryUsage),
+  reviewRequests: many(reviewRequest),
+  onlineBookings: many(onlineBooking),
+  formSubmissions: many(formSubmission),
+  jobAssignments: many(jobAssignment),
+  equipmentServiceRecords: many(equipmentServiceRecord),
+  tasks: many(task),
+}))
+
+export const quoteRelations = relations(quote, ({ one, many }) => ({
+  company: one(company, { fields: [quote.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [quote.contactId], references: [contact.id] }),
+  project: one(project, { fields: [quote.projectId], references: [project.id] }),
+  lineItems: many(quoteLineItem),
+  jobs: many(job),
+  invoice: one(invoice),
+}))
+
+export const quoteLineItemRelations = relations(quoteLineItem, ({ one }) => ({
+  quote: one(quote, { fields: [quoteLineItem.quoteId], references: [quote.id] }),
+}))
+
+export const invoiceRelations = relations(invoice, ({ one, many }) => ({
+  company: one(company, { fields: [invoice.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [invoice.contactId], references: [contact.id] }),
+  project: one(project, { fields: [invoice.projectId], references: [project.id] }),
+  quote: one(quote, { fields: [invoice.quoteId], references: [quote.id] }),
+  lineItems: many(invoiceLineItem),
+  payments: many(payment),
+  documents: many(document),
+}))
+
+export const invoiceLineItemRelations = relations(invoiceLineItem, ({ one }) => ({
+  invoice: one(invoice, { fields: [invoiceLineItem.invoiceId], references: [invoice.id] }),
+}))
+
+export const paymentRelations = relations(payment, ({ one }) => ({
+  invoice: one(invoice, { fields: [payment.invoiceId], references: [invoice.id] }),
+}))
+
+export const timeEntryRelations = relations(timeEntry, ({ one }) => ({
+  company: one(company, { fields: [timeEntry.companyId], references: [company.id] }),
+  user: one(user, { fields: [timeEntry.userId], references: [user.id] }),
+  job: one(job, { fields: [timeEntry.jobId], references: [job.id] }),
+  project: one(project, { fields: [timeEntry.projectId], references: [project.id] }),
+}))
+
+export const expenseRelations = relations(expense, ({ one }) => ({
+  company: one(company, { fields: [expense.companyId], references: [company.id] }),
+  project: one(project, { fields: [expense.projectId], references: [project.id] }),
+  job: one(job, { fields: [expense.jobId], references: [job.id] }),
+}))
+
+export const dailyLogRelations = relations(dailyLog, ({ one }) => ({
+  company: one(company, { fields: [dailyLog.companyId], references: [company.id] }),
+  project: one(project, { fields: [dailyLog.projectId], references: [project.id] }),
+  user: one(user, { fields: [dailyLog.userId], references: [user.id] }),
+}))
+
+export const rfiRelations = relations(rfi, ({ one }) => ({
+  company: one(company, { fields: [rfi.companyId], references: [company.id] }),
+  project: one(project, { fields: [rfi.projectId], references: [project.id] }),
+}))
+
+export const submittalRelations = relations(submittal, ({ one }) => ({
+  company: one(company, { fields: [submittal.companyId], references: [company.id] }),
+  project: one(project, { fields: [submittal.projectId], references: [project.id] }),
+}))
+
+export const changeOrderRelations = relations(changeOrder, ({ one, many }) => ({
+  company: one(company, { fields: [changeOrder.companyId], references: [company.id] }),
+  project: one(project, { fields: [changeOrder.projectId], references: [project.id] }),
+  lineItems: many(changeOrderLineItem),
+}))
+
+export const changeOrderLineItemRelations = relations(changeOrderLineItem, ({ one }) => ({
+  changeOrder: one(changeOrder, { fields: [changeOrderLineItem.changeOrderId], references: [changeOrder.id] }),
+}))
+
+export const punchListItemRelations = relations(punchListItem, ({ one }) => ({
+  company: one(company, { fields: [punchListItem.companyId], references: [company.id] }),
+  project: one(project, { fields: [punchListItem.projectId], references: [project.id] }),
+}))
+
+export const inspectionRelations = relations(inspection, ({ one }) => ({
+  company: one(company, { fields: [inspection.companyId], references: [company.id] }),
+  project: one(project, { fields: [inspection.projectId], references: [project.id] }),
+}))
+
+export const bidRelations = relations(bid, ({ one }) => ({
+  company: one(company, { fields: [bid.companyId], references: [company.id] }),
+}))
+
+export const campaignRelations = relations(campaign, ({ one }) => ({
+  company: one(company, { fields: [campaign.companyId], references: [company.id] }),
+}))
+
+export const messageRelations = relations(message, ({ one }) => ({
+  company: one(company, { fields: [message.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [message.contactId], references: [contact.id] }),
+  user: one(user, { fields: [message.userId], references: [user.id] }),
+}))
+
+export const documentRelations = relations(document, ({ one }) => ({
+  company: one(company, { fields: [document.companyId], references: [company.id] }),
+  project: one(project, { fields: [document.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [document.contactId], references: [contact.id] }),
+  job: one(job, { fields: [document.jobId], references: [job.id] }),
+  invoice: one(invoice, { fields: [document.invoiceId], references: [invoice.id] }),
+  uploadedBy: one(user, { fields: [document.uploadedById], references: [user.id], relationName: 'documentUploadedBy' }),
+}))
+
+export const teamMemberRelations = relations(teamMember, ({ one }) => ({
+  company: one(company, { fields: [teamMember.companyId], references: [company.id] }),
+}))
+
+export const smsConversationRelations = relations(smsConversation, ({ one, many }) => ({
+  company: one(company, { fields: [smsConversation.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [smsConversation.contactId], references: [contact.id] }),
+  messages: many(smsMessage),
+}))
+
+export const smsMessageRelations = relations(smsMessage, ({ one }) => ({
+  conversation: one(smsConversation, { fields: [smsMessage.conversationId], references: [smsConversation.id] }),
+  sentBy: one(user, { fields: [smsMessage.sentById], references: [user.id] }),
+}))
+
+export const smsTemplateRelations = relations(smsTemplate, ({ one }) => ({
+  company: one(company, { fields: [smsTemplate.companyId], references: [company.id] }),
+}))
+
+export const scheduledSmsRelations = relations(scheduledSms, ({ one }) => ({
+  company: one(company, { fields: [scheduledSms.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [scheduledSms.contactId], references: [contact.id] }),
+  job: one(job, { fields: [scheduledSms.jobId], references: [job.id] }),
+  createdBy: one(user, { fields: [scheduledSms.createdById], references: [user.id] }),
+}))
+
+export const emailLogRelations = relations(emailLog, ({ one }) => ({
+  company: one(company, { fields: [emailLog.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [emailLog.contactId], references: [contact.id] }),
+  sentBy: one(user, { fields: [emailLog.sentById], references: [user.id] }),
+}))
+
+export const locationLogRelations = relations(locationLog, ({ one }) => ({
+  user: one(user, { fields: [locationLog.userId], references: [user.id] }),
+  company: one(company, { fields: [locationLog.companyId], references: [company.id] }),
+  job: one(job, { fields: [locationLog.jobId], references: [job.id] }),
+}))
+
+export const geofenceRelations = relations(geofence, ({ one, many }) => ({
+  company: one(company, { fields: [geofence.companyId], references: [company.id] }),
+  job: one(job, { fields: [geofence.jobId], references: [job.id] }),
+  project: one(project, { fields: [geofence.projectId], references: [project.id] }),
+  events: many(geofenceEvent),
+}))
+
+export const geofenceEventRelations = relations(geofenceEvent, ({ one }) => ({
+  user: one(user, { fields: [geofenceEvent.userId], references: [user.id] }),
+  geofence: one(geofence, { fields: [geofenceEvent.geofenceId], references: [geofence.id] }),
+}))
+
+export const userSettingsRelations = relations(userSettings, ({ one }) => ({
+  user: one(user, { fields: [userSettings.userId], references: [user.id] }),
+}))
+
+export const inventoryItemRelations = relations(inventoryItem, ({ one, many }) => ({
+  company: one(company, { fields: [inventoryItem.companyId], references: [company.id] }),
+  stockLevels: many(stockLevel),
+  transactions: many(inventoryTransaction),
+  usages: many(inventoryUsage),
+  transfers: many(inventoryTransfer),
+  purchaseOrderItems: many(purchaseOrderItem),
+  pricebookItems: many(pricebookItem),
+  assemblyMaterials: many(assemblyMaterial),
+  pricebookMaterials: many(pricebookMaterial),
+}))
+
+export const inventoryLocationRelations = relations(inventoryLocation, ({ one, many }) => ({
+  company: one(company, { fields: [inventoryLocation.companyId], references: [company.id] }),
+  assignedUser: one(user, { fields: [inventoryLocation.assignedUserId], references: [user.id] }),
+  stockLevels: many(stockLevel),
+  transactions: many(inventoryTransaction),
+  usages: many(inventoryUsage),
+  transfersFrom: many(inventoryTransfer, { relationName: 'transferFromLocation' }),
+  transfersTo: many(inventoryTransfer, { relationName: 'transferToLocation' }),
+  purchaseOrders: many(purchaseOrder),
+}))
+
+export const stockLevelRelations = relations(stockLevel, ({ one }) => ({
+  item: one(inventoryItem, { fields: [stockLevel.itemId], references: [inventoryItem.id] }),
+  location: one(inventoryLocation, { fields: [stockLevel.locationId], references: [inventoryLocation.id] }),
+}))
+
+export const inventoryTransactionRelations = relations(inventoryTransaction, ({ one }) => ({
+  company: one(company, { fields: [inventoryTransaction.companyId], references: [company.id] }),
+  item: one(inventoryItem, { fields: [inventoryTransaction.itemId], references: [inventoryItem.id] }),
+  location: one(inventoryLocation, { fields: [inventoryTransaction.locationId], references: [inventoryLocation.id] }),
+  user: one(user, { fields: [inventoryTransaction.userId], references: [user.id] }),
+  job: one(job, { fields: [inventoryTransaction.jobId], references: [job.id] }),
+}))
+
+export const inventoryUsageRelations = relations(inventoryUsage, ({ one }) => ({
+  company: one(company, { fields: [inventoryUsage.companyId], references: [company.id] }),
+  job: one(job, { fields: [inventoryUsage.jobId], references: [job.id] }),
+  item: one(inventoryItem, { fields: [inventoryUsage.itemId], references: [inventoryItem.id] }),
+  location: one(inventoryLocation, { fields: [inventoryUsage.locationId], references: [inventoryLocation.id] }),
+  user: one(user, { fields: [inventoryUsage.userId], references: [user.id] }),
+}))
+
+export const inventoryTransferRelations = relations(inventoryTransfer, ({ one }) => ({
+  company: one(company, { fields: [inventoryTransfer.companyId], references: [company.id] }),
+  item: one(inventoryItem, { fields: [inventoryTransfer.itemId], references: [inventoryItem.id] }),
+  fromLocation: one(inventoryLocation, { fields: [inventoryTransfer.fromLocationId], references: [inventoryLocation.id], relationName: 'transferFromLocation' }),
+  toLocation: one(inventoryLocation, { fields: [inventoryTransfer.toLocationId], references: [inventoryLocation.id], relationName: 'transferToLocation' }),
+  user: one(user, { fields: [inventoryTransfer.userId], references: [user.id] }),
+}))
+
+export const purchaseOrderRelations = relations(purchaseOrder, ({ one, many }) => ({
+  company: one(company, { fields: [purchaseOrder.companyId], references: [company.id] }),
+  location: one(inventoryLocation, { fields: [purchaseOrder.locationId], references: [inventoryLocation.id] }),
+  createdBy: one(user, { fields: [purchaseOrder.createdById], references: [user.id] }),
+  items: many(purchaseOrderItem),
+}))
+
+export const purchaseOrderItemRelations = relations(purchaseOrderItem, ({ one }) => ({
+  purchaseOrder: one(purchaseOrder, { fields: [purchaseOrderItem.purchaseOrderId], references: [purchaseOrder.id] }),
+  item: one(inventoryItem, { fields: [purchaseOrderItem.itemId], references: [inventoryItem.id] }),
+}))
+
+export const pricebookCategoryRelations = relations(pricebookCategory, ({ one, many }) => ({
+  company: one(company, { fields: [pricebookCategory.companyId], references: [company.id] }),
+  items: many(pricebookItem),
+  selectionItems: many(selectionItem),
+  selectionOptions: many(selectionOption),
+  projectSelections: many(projectSelection),
+}))
+
+export const pricebookItemRelations = relations(pricebookItem, ({ one, many }) => ({
+  company: one(company, { fields: [pricebookItem.companyId], references: [company.id] }),
+  category: one(pricebookCategory, { fields: [pricebookItem.categoryId], references: [pricebookCategory.id] }),
+  inventoryItem: one(inventoryItem, { fields: [pricebookItem.inventoryItemId], references: [inventoryItem.id] }),
+  goodBetterBest: many(pricebookGoodBetterBest),
+  materials: many(pricebookMaterial),
+}))
+
+export const reviewRequestRelations = relations(reviewRequest, ({ one }) => ({
+  company: one(company, { fields: [reviewRequest.companyId], references: [company.id] }),
+  job: one(job, { fields: [reviewRequest.jobId], references: [job.id] }),
+  contact: one(contact, { fields: [reviewRequest.contactId], references: [contact.id] }),
+  review: one(review),
+}))
+
+export const reviewRelations = relations(review, ({ one }) => ({
+  company: one(company, { fields: [review.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [review.contactId], references: [contact.id] }),
+  request: one(reviewRequest, { fields: [review.requestId], references: [reviewRequest.id] }),
+}))
+
+export const financingApplicationRelations = relations(financingApplication, ({ one }) => ({
+  company: one(company, { fields: [financingApplication.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [financingApplication.contactId], references: [contact.id] }),
+}))
+
+export const serviceAgreementRelations = relations(serviceAgreement, ({ one, many }) => ({
+  company: one(company, { fields: [serviceAgreement.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [serviceAgreement.contactId], references: [contact.id] }),
+  visits: many(agreementVisit),
+}))
+
+export const agreementVisitRelations = relations(agreementVisit, ({ one }) => ({
+  agreement: one(serviceAgreement, { fields: [agreementVisit.agreementId], references: [serviceAgreement.id] }),
+}))
+
+export const equipmentCategoryRelations = relations(equipmentCategory, ({ one, many }) => ({
+  company: one(company, { fields: [equipmentCategory.companyId], references: [company.id] }),
+  equipment: many(equipment),
+}))
+
+export const equipmentRelations = relations(equipment, ({ one, many }) => ({
+  company: one(company, { fields: [equipment.companyId], references: [company.id] }),
+  category: one(equipmentCategory, { fields: [equipment.categoryId], references: [equipmentCategory.id] }),
+  maintenanceRecords: many(equipmentMaintenance),
+  serviceRecords: many(equipmentServiceRecord),
+}))
+
+export const equipmentMaintenanceRelations = relations(equipmentMaintenance, ({ one }) => ({
+  equipment: one(equipment, { fields: [equipmentMaintenance.equipmentId], references: [equipment.id] }),
+}))
+
+export const vehicleRelations = relations(vehicle, ({ one, many }) => ({
+  company: one(company, { fields: [vehicle.companyId], references: [company.id] }),
+  assignedUser: one(user, { fields: [vehicle.assignedUserId], references: [user.id] }),
+  maintenanceRecords: many(vehicleMaintenance),
+  fuelLogs: many(fuelLog),
+}))
+
+export const vehicleMaintenanceRelations = relations(vehicleMaintenance, ({ one }) => ({
+  vehicle: one(vehicle, { fields: [vehicleMaintenance.vehicleId], references: [vehicle.id] }),
+}))
+
+export const fuelLogRelations = relations(fuelLog, ({ one }) => ({
+  vehicle: one(vehicle, { fields: [fuelLog.vehicleId], references: [vehicle.id] }),
+}))
+
+export const emailTemplateRelations = relations(emailTemplate, ({ one }) => ({
+  company: one(company, { fields: [emailTemplate.companyId], references: [company.id] }),
+}))
+
+export const emailCampaignRelations = relations(emailCampaign, ({ one, many }) => ({
+  company: one(company, { fields: [emailCampaign.companyId], references: [company.id] }),
+  recipients: many(emailRecipient),
+}))
+
+export const automationRelations = relations(automation, ({ one }) => ({
+  company: one(company, { fields: [automation.companyId], references: [company.id] }),
+}))
+
+export const trackingNumberRelations = relations(trackingNumber, ({ one, many }) => ({
+  company: one(company, { fields: [trackingNumber.companyId], references: [company.id] }),
+  phoneCalls: many(phoneCall),
+  callLogs: many(callLog),
+}))
+
+export const phoneCallRelations = relations(phoneCall, ({ one }) => ({
+  trackingNumber: one(trackingNumber, { fields: [phoneCall.trackingNumberId], references: [trackingNumber.id] }),
+  company: one(company, { fields: [phoneCall.companyId], references: [company.id] }),
+}))
+
+export const scheduleEventRelations = relations(scheduleEvent, ({ one }) => ({
+  company: one(company, { fields: [scheduleEvent.companyId], references: [company.id] }),
+  user: one(user, { fields: [scheduleEvent.userId], references: [user.id] }),
+}))
+
+export const recurringScheduleRelations = relations(recurringSchedule, ({ one }) => ({
+  company: one(company, { fields: [recurringSchedule.companyId], references: [company.id] }),
+}))
+
+export const selectionCategoryRelations = relations(selectionCategory, ({ one, many }) => ({
+  company: one(company, { fields: [selectionCategory.companyId], references: [company.id] }),
+  items: many(selectionItem),
+  selections: many(selection),
+}))
+
+export const selectionItemRelations = relations(selectionItem, ({ one, many }) => ({
+  category: one(selectionCategory, { fields: [selectionItem.categoryId], references: [selectionCategory.id] }),
+  company: one(company, { fields: [selectionItem.companyId], references: [company.id] }),
+  selections: many(selection),
+}))
+
+export const selectionRelations = relations(selection, ({ one }) => ({
+  project: one(project, { fields: [selection.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [selection.contactId], references: [contact.id] }),
+  item: one(selectionItem, { fields: [selection.itemId], references: [selectionItem.id] }),
+}))
+
+export const takeoffRelations = relations(takeoff, ({ one, many }) => ({
+  company: one(company, { fields: [takeoff.companyId], references: [company.id] }),
+  project: one(project, { fields: [takeoff.projectId], references: [project.id] }),
+  items: many(takeoffItem),
+}))
+
+export const takeoffItemRelations = relations(takeoffItem, ({ one }) => ({
+  sheet: one(takeoffSheet, { fields: [takeoffItem.sheetId], references: [takeoffSheet.id] }),
+  assembly: one(takeoffAssembly, { fields: [takeoffItem.assemblyId], references: [takeoffAssembly.id] }),
+  takeoff: one(takeoff, { fields: [takeoffItem.takeoffId], references: [takeoff.id] }),
+}))
+
+export const warrantyRelations = relations(warranty, ({ one, many }) => ({
+  company: one(company, { fields: [warranty.companyId], references: [company.id] }),
+  claims: many(warrantyClaim),
+}))
+
+export const warrantyClaimRelations = relations(warrantyClaim, ({ one }) => ({
+  warranty: one(warranty, { fields: [warrantyClaim.warrantyId], references: [warranty.id] }),
+  company: one(company, { fields: [warrantyClaim.companyId], references: [company.id] }),
+}))
+
+export const subscriptionRelations = relations(subscription, ({ one }) => ({
+  company: one(company, { fields: [subscription.companyId], references: [company.id] }),
+}))
+
+export const licenseRelations = relations(license, ({ one }) => ({
+  company: one(company, { fields: [license.companyId], references: [company.id] }),
+}))
+
+export const addonPurchaseRelations = relations(addonPurchase, ({ one }) => ({
+  company: one(company, { fields: [addonPurchase.companyId], references: [company.id] }),
+}))
+
+export const usageRecordRelations = relations(usageRecord, ({ one }) => ({
+  company: one(company, { fields: [usageRecord.companyId], references: [company.id] }),
+}))
+
+export const billingInvoiceRelations = relations(billingInvoice, ({ one }) => ({
+  company: one(company, { fields: [billingInvoice.companyId], references: [company.id] }),
+}))
+
+export const bookingSettingsRelations = relations(bookingSettings, ({ one }) => ({
+  company: one(company, { fields: [bookingSettings.companyId], references: [company.id] }),
+}))
+
+export const bookableServiceRelations = relations(bookableService, ({ one, many }) => ({
+  company: one(company, { fields: [bookableService.companyId], references: [company.id] }),
+  bookings: many(onlineBooking),
+}))
+
+export const onlineBookingRelations = relations(onlineBooking, ({ one }) => ({
+  company: one(company, { fields: [onlineBooking.companyId], references: [company.id] }),
+  job: one(job, { fields: [onlineBooking.jobId], references: [job.id] }),
+  contact: one(contact, { fields: [onlineBooking.contactId], references: [contact.id] }),
+  service: one(bookableService, { fields: [onlineBooking.serviceId], references: [bookableService.id] }),
+}))
+
+export const formTemplateRelations = relations(formTemplate, ({ one, many }) => ({
+  company: one(company, { fields: [formTemplate.companyId], references: [company.id] }),
+  submissions: many(formSubmission),
+}))
+
+export const formSubmissionRelations = relations(formSubmission, ({ one }) => ({
+  company: one(company, { fields: [formSubmission.companyId], references: [company.id] }),
+  template: one(formTemplate, { fields: [formSubmission.templateId], references: [formTemplate.id] }),
+  job: one(job, { fields: [formSubmission.jobId], references: [job.id] }),
+  project: one(project, { fields: [formSubmission.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [formSubmission.contactId], references: [contact.id] }),
+  submittedBy: one(user, { fields: [formSubmission.submittedById], references: [user.id] }),
+}))
+
+export const lienWaiverRelations = relations(lienWaiver, ({ one }) => ({
+  company: one(company, { fields: [lienWaiver.companyId], references: [company.id] }),
+  project: one(project, { fields: [lienWaiver.projectId], references: [project.id] }),
+  vendor: one(contact, { fields: [lienWaiver.vendorId], references: [contact.id] }),
+  approvedBy: one(user, { fields: [lienWaiver.approvedById], references: [user.id], relationName: 'lienWaiverApprovedBy' }),
+  rejectedBy: one(user, { fields: [lienWaiver.rejectedById], references: [user.id], relationName: 'lienWaiverRejectedBy' }),
+}))
+
+export const scheduleOfValuesRelations = relations(scheduleOfValues, ({ one, many }) => ({
+  company: one(company, { fields: [scheduleOfValues.companyId], references: [company.id] }),
+  project: one(project, { fields: [scheduleOfValues.projectId], references: [project.id] }),
+  lineItems: many(sovLineItem),
+  drawRequests: many(drawRequest),
+}))
+
+export const sovLineItemRelations = relations(sovLineItem, ({ one, many }) => ({
+  scheduleOfValues: one(scheduleOfValues, { fields: [sovLineItem.scheduleOfValuesId], references: [scheduleOfValues.id] }),
+  drawLineItems: many(drawLineItem),
+}))
+
+export const drawRequestRelations = relations(drawRequest, ({ one, many }) => ({
+  company: one(company, { fields: [drawRequest.companyId], references: [company.id] }),
+  scheduleOfValues: one(scheduleOfValues, { fields: [drawRequest.scheduleOfValuesId], references: [scheduleOfValues.id] }),
+  project: one(project, { fields: [drawRequest.projectId], references: [project.id] }),
+  approvedBy: one(user, { fields: [drawRequest.approvedById], references: [user.id], relationName: 'drawRequestApprovedBy' }),
+  rejectedBy: one(user, { fields: [drawRequest.rejectedById], references: [user.id], relationName: 'drawRequestRejectedBy' }),
+  lineItems: many(drawLineItem),
+}))
+
+export const drawLineItemRelations = relations(drawLineItem, ({ one }) => ({
+  drawRequest: one(drawRequest, { fields: [drawLineItem.drawRequestId], references: [drawRequest.id] }),
+  sovLineItem: one(sovLineItem, { fields: [drawLineItem.sovLineItemId], references: [sovLineItem.id] }),
+}))
+
+export const auditLogRelations = relations(auditLog, ({ one }) => ({
+  company: one(company, { fields: [auditLog.companyId], references: [company.id] }),
+}))
+
+export const agreementPlanRelations = relations(agreementPlan, ({ one }) => ({
+  company: one(company, { fields: [agreementPlan.companyId], references: [company.id] }),
+}))
+
+export const warrantyTemplateRelations = relations(warrantyTemplate, ({ one, many }) => ({
+  company: one(company, { fields: [warrantyTemplate.companyId], references: [company.id] }),
+  projectWarranties: many(projectWarranty),
+}))
+
+export const projectWarrantyRelations = relations(projectWarranty, ({ one }) => ({
+  company: one(company, { fields: [projectWarranty.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectWarranty.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [projectWarranty.contactId], references: [contact.id] }),
+  template: one(warrantyTemplate, { fields: [projectWarranty.templateId], references: [warrantyTemplate.id] }),
+}))
+
+export const takeoffAssemblyRelations = relations(takeoffAssembly, ({ one, many }) => ({
+  company: one(company, { fields: [takeoffAssembly.companyId], references: [company.id] }),
+  materials: many(assemblyMaterial),
+  takeoffItems: many(takeoffItem),
+}))
+
+export const assemblyMaterialRelations = relations(assemblyMaterial, ({ one }) => ({
+  assembly: one(takeoffAssembly, { fields: [assemblyMaterial.assemblyId], references: [takeoffAssembly.id] }),
+  inventoryItem: one(inventoryItem, { fields: [assemblyMaterial.inventoryItemId], references: [inventoryItem.id] }),
+}))
+
+export const takeoffSheetRelations = relations(takeoffSheet, ({ one, many }) => ({
+  company: one(company, { fields: [takeoffSheet.companyId], references: [company.id] }),
+  project: one(project, { fields: [takeoffSheet.projectId], references: [project.id] }),
+  items: many(takeoffItem),
+}))
+
+export const recurringInvoiceRelations = relations(recurringInvoice, ({ one, many }) => ({
+  company: one(company, { fields: [recurringInvoice.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [recurringInvoice.contactId], references: [contact.id] }),
+  project: one(project, { fields: [recurringInvoice.projectId], references: [project.id] }),
+  lineItems: many(recurringLineItem),
+}))
+
+export const recurringLineItemRelations = relations(recurringLineItem, ({ one }) => ({
+  recurringInvoice: one(recurringInvoice, { fields: [recurringLineItem.recurringInvoiceId], references: [recurringInvoice.id] }),
+}))
+
+export const equipmentTypeRelations = relations(equipmentType, ({ one }) => ({
+  company: one(company, { fields: [equipmentType.companyId], references: [company.id] }),
+}))
+
+export const emailRecipientRelations = relations(emailRecipient, ({ one, many }) => ({
+  campaign: one(emailCampaign, { fields: [emailRecipient.campaignId], references: [emailCampaign.id] }),
+  contact: one(contact, { fields: [emailRecipient.contactId], references: [contact.id] }),
+  clicks: many(emailClick),
+}))
+
+export const taskRelations = relations(task, ({ one }) => ({
+  company: one(company, { fields: [task.companyId], references: [company.id] }),
+  createdBy: one(user, { fields: [task.createdById], references: [user.id], relationName: 'taskCreatedBy' }),
+  assignedTo: one(user, { fields: [task.assignedToId], references: [user.id], relationName: 'taskAssignedTo' }),
+  project: one(project, { fields: [task.projectId], references: [project.id] }),
+  job: one(job, { fields: [task.jobId], references: [job.id] }),
+  contact: one(contact, { fields: [task.contactId], references: [contact.id] }),
+}))
+
+export const activityRelations = relations(activity, ({ one }) => ({
+  company: one(company, { fields: [activity.companyId], references: [company.id] }),
+  user: one(user, { fields: [activity.userId], references: [user.id] }),
+}))
+
+export const callLogRelations = relations(callLog, ({ one }) => ({
+  company: one(company, { fields: [callLog.companyId], references: [company.id] }),
+  trackingNumber: one(trackingNumber, { fields: [callLog.trackingNumberId], references: [trackingNumber.id] }),
+  contact: one(contact, { fields: [callLog.contactId], references: [contact.id] }),
+}))
+
+export const aiReceptionistRuleRelations = relations(aiReceptionistRule, ({ one }) => ({
+  company: one(company, { fields: [aiReceptionistRule.companyId], references: [company.id] }),
+}))
+
+export const aiReceptionistSettingsRelations = relations(aiReceptionistSettings, ({ one }) => ({
+  company: one(company, { fields: [aiReceptionistSettings.companyId], references: [company.id] }),
+}))
+
+export const commentRelations = relations(comment, ({ one, many }) => ({
+  company: one(company, { fields: [comment.companyId], references: [company.id] }),
+  user: one(user, { fields: [comment.userId], references: [user.id] }),
+  reactions: many(commentReaction),
+}))
+
+export const commentReactionRelations = relations(commentReaction, ({ one }) => ({
+  comment: one(comment, { fields: [commentReaction.commentId], references: [comment.id] }),
+  user: one(user, { fields: [commentReaction.userId], references: [user.id] }),
+}))
+
+export const dripSequenceRelations = relations(dripSequence, ({ one, many }) => ({
+  company: one(company, { fields: [dripSequence.companyId], references: [company.id] }),
+  enrollments: many(sequenceEnrollment),
+}))
+
+export const sequenceEnrollmentRelations = relations(sequenceEnrollment, ({ one }) => ({
+  sequence: one(dripSequence, { fields: [sequenceEnrollment.sequenceId], references: [dripSequence.id] }),
+  contact: one(contact, { fields: [sequenceEnrollment.contactId], references: [contact.id] }),
+}))
+
+export const emailClickRelations = relations(emailClick, ({ one }) => ({
+  recipient: one(emailRecipient, { fields: [emailClick.recipientId], references: [emailRecipient.id] }),
+}))
+
+export const equipmentServiceRecordRelations = relations(equipmentServiceRecord, ({ one }) => ({
+  equipment: one(equipment, { fields: [equipmentServiceRecord.equipmentId], references: [equipment.id] }),
+  company: one(company, { fields: [equipmentServiceRecord.companyId], references: [company.id] }),
+  job: one(job, { fields: [equipmentServiceRecord.jobId], references: [job.id] }),
+  technician: one(user, { fields: [equipmentServiceRecord.technicianId], references: [user.id] }),
+}))
+
+export const jobAssignmentRelations = relations(jobAssignment, ({ one }) => ({
+  job: one(job, { fields: [jobAssignment.jobId], references: [job.id] }),
+  user: one(user, { fields: [jobAssignment.userId], references: [user.id] }),
+}))
+
+export const photoRelations = relations(photo, ({ one }) => ({
+  company: one(company, { fields: [photo.companyId], references: [company.id] }),
+  user: one(user, { fields: [photo.userId], references: [user.id] }),
+}))
+
+export const pricebookGoodBetterBestRelations = relations(pricebookGoodBetterBest, ({ one }) => ({
+  pricebookItem: one(pricebookItem, { fields: [pricebookGoodBetterBest.pricebookItemId], references: [pricebookItem.id] }),
+}))
+
+export const pricebookMaterialRelations = relations(pricebookMaterial, ({ one }) => ({
+  pricebookItem: one(pricebookItem, { fields: [pricebookMaterial.pricebookItemId], references: [pricebookItem.id] }),
+  inventoryItem: one(inventoryItem, { fields: [pricebookMaterial.inventoryItemId], references: [inventoryItem.id] }),
+}))
+
+export const productRelations = relations(product, ({ one }) => ({
+  company: one(company, { fields: [product.companyId], references: [company.id] }),
+}))
+
+export const projectBaselineRelations = relations(projectBaseline, ({ one }) => ({
+  company: one(company, { fields: [projectBaseline.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectBaseline.projectId], references: [project.id] }),
+}))
+
+export const projectSelectionRelations = relations(projectSelection, ({ one }) => ({
+  company: one(company, { fields: [projectSelection.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectSelection.projectId], references: [project.id] }),
+  category: one(selectionCategory, { fields: [projectSelection.categoryId], references: [selectionCategory.id] }),
+}))
+
+export const projectTaskRelations = relations(projectTask, ({ one, many }) => ({
+  company: one(company, { fields: [projectTask.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectTask.projectId], references: [project.id] }),
+  assignedTo: one(user, { fields: [projectTask.assignedToId], references: [user.id] }),
+  predecessorOf: many(taskDependency, { relationName: 'predecessorTask' }),
+  successorOf: many(taskDependency, { relationName: 'successorTask' }),
+}))
+
+export const taskDependencyRelations = relations(taskDependency, ({ one }) => ({
+  company: one(company, { fields: [taskDependency.companyId], references: [company.id] }),
+  project: one(project, { fields: [taskDependency.projectId], references: [project.id] }),
+  predecessor: one(projectTask, { fields: [taskDependency.predecessorId], references: [projectTask.id], relationName: 'predecessorTask' }),
+  successor: one(projectTask, { fields: [taskDependency.successorId], references: [projectTask.id], relationName: 'successorTask' }),
+}))
+
+export const selectionOptionRelations = relations(selectionOption, ({ one }) => ({
+  company: one(company, { fields: [selectionOption.companyId], references: [company.id] }),
+  category: one(selectionCategory, { fields: [selectionOption.categoryId], references: [selectionCategory.id] }),
+}))
+
+export const smsAutoResponderRelations = relations(smsAutoResponder, ({ one }) => ({
+  company: one(company, { fields: [smsAutoResponder.companyId], references: [company.id] }),
+}))
+
+export const supportTicketRelations = relations(supportTicket, ({ one, many }) => ({
+  contact: one(contact, { fields: [supportTicket.contactId], references: [contact.id] }),
+  assignedTo: one(user, { fields: [supportTicket.assignedToId], references: [user.id], relationName: 'supportTicketAssignedTo' }),
+  createdBy: one(user, { fields: [supportTicket.createdById], references: [user.id], relationName: 'supportTicketCreatedBy' }),
+  company: one(company, { fields: [supportTicket.companyId], references: [company.id] }),
+  messages: many(supportTicketMessage),
+}))
+
+export const supportTicketMessageRelations = relations(supportTicketMessage, ({ one }) => ({
+  ticket: one(supportTicket, { fields: [supportTicketMessage.ticketId], references: [supportTicket.id] }),
+  user: one(user, { fields: [supportTicketMessage.userId], references: [user.id] }),
+  contact: one(contact, { fields: [supportTicketMessage.contactId], references: [contact.id] }),
+}))
+
+export const supportKnowledgeBaseRelations = relations(supportKnowledgeBase, ({ one }) => ({
+  company: one(company, { fields: [supportKnowledgeBase.companyId], references: [company.id] }),
+  createdBy: one(user, { fields: [supportKnowledgeBase.createdById], references: [user.id] }),
+}))
+
+export const supportSlaPolicyRelations = relations(supportSlaPolicy, ({ one }) => ({
+  company: one(company, { fields: [supportSlaPolicy.companyId], references: [company.id] }),
+}))
+
+export const pushSubscriptionRelations = relations(pushSubscription, ({ one }) => ({
+  user: one(user, { fields: [pushSubscription.userId], references: [user.id] }),
+}))
+
+export const leadSourceRelations = relations(leadSource, ({ one, many }) => ({
+  company: one(company, { fields: [leadSource.companyId], references: [company.id] }),
+  leads: many(lead),
+}))
+
+export const leadRelations = relations(lead, ({ one }) => ({
+  source: one(leadSource, { fields: [lead.sourceId], references: [leadSource.id] }),
+  convertedContact: one(contact, { fields: [lead.convertedContactId], references: [contact.id] }),
+  company: one(company, { fields: [lead.companyId], references: [company.id] }),
+}))
+
+export const roofReportRelations = relations(roofReport, ({ one }) => ({
+  company: one(company, { fields: [roofReport.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [roofReport.contactId], references: [contact.id] }),
+}))

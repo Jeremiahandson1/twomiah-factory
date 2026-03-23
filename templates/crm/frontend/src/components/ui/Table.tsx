@@ -1,7 +1,13 @@
 import React from 'react';
 import clsx from 'clsx';
+import { LucideIcon } from 'lucide-react';
 
-export function Table({ children, className }) {
+interface TableProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function Table({ children, className }: TableProps) {
   return (
     <div className="table-container">
       <table className={clsx('table', className)}>
@@ -11,18 +17,32 @@ export function Table({ children, className }) {
   );
 }
 
-export function TableHead({ children }) {
+interface TableHeadProps {
+  children: React.ReactNode;
+}
+
+export function TableHead({ children }: TableHeadProps) {
   return <thead>{children}</thead>;
 }
 
-export function TableBody({ children }) {
+interface TableBodyProps {
+  children: React.ReactNode;
+}
+
+export function TableBody({ children }: TableBodyProps) {
   return <tbody>{children}</tbody>;
 }
 
-export function TableRow({ children, className, onClick }) {
+interface TableRowProps {
+  children: React.ReactNode;
+  className?: string;
+  onClick?: () => void;
+}
+
+export function TableRow({ children, className, onClick }: TableRowProps) {
   return (
-    <tr 
-      className={clsx(onClick && 'cursor-pointer', className)} 
+    <tr
+      className={clsx(onClick && 'cursor-pointer', className)}
       onClick={onClick}
     >
       {children}
@@ -30,7 +50,12 @@ export function TableRow({ children, className, onClick }) {
   );
 }
 
-export function TableHeader({ children, className, ...props }) {
+interface TableHeaderProps extends React.ThHTMLAttributes<HTMLTableHeaderCellElement> {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+export function TableHeader({ children, className, ...props }: TableHeaderProps) {
   return (
     <th className={className} {...props}>
       {children}
@@ -38,7 +63,12 @@ export function TableHeader({ children, className, ...props }) {
   );
 }
 
-export function TableCell({ children, className, ...props }) {
+interface TableCellProps extends React.TdHTMLAttributes<HTMLTableDataCellElement> {
+  children?: React.ReactNode;
+  className?: string;
+}
+
+export function TableCell({ children, className, ...props }: TableCellProps) {
   return (
     <td className={className} {...props}>
       {children}
@@ -47,12 +77,19 @@ export function TableCell({ children, className, ...props }) {
 }
 
 // Empty state component
-export function EmptyState({ 
-  icon: Icon, 
-  title, 
-  description, 
-  action 
-}) {
+interface EmptyStateProps {
+  icon?: LucideIcon;
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+}
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action
+}: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-12 text-center">
       {Icon && (
@@ -70,12 +107,18 @@ export function EmptyState({
 }
 
 // Pagination component
-export function Pagination({ 
-  currentPage, 
-  totalPages, 
-  onPageChange 
-}) {
-  const pages = [];
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}
+
+export function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange
+}: PaginationProps) {
+  const pages: number[] = [];
   for (let i = 1; i <= totalPages; i++) {
     pages.push(i);
   }
@@ -97,8 +140,8 @@ export function Pagination({
           onClick={() => onPageChange(page)}
           className={clsx(
             'w-8 h-8 rounded-lg text-sm font-medium transition-colors',
-            page === currentPage 
-              ? 'bg-brand-500 text-white' 
+            page === currentPage
+              ? 'bg-brand-500 text-white'
               : 'text-slate-400 hover:bg-slate-800'
           )}
         >

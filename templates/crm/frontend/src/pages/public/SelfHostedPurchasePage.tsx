@@ -5,15 +5,15 @@ import { Building, Check, Server, Download, Shield, Loader2, ArrowRight } from '
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 export default function SelfHostedPurchasePage() {
-  const [licenses, setLicenses] = useState([]);
-  const [addons, setAddons] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [purchasing, setPurchasing] = useState(false);
-  const [error, setError] = useState('');
+  const [licenses, setLicenses] = useState<Record<string, unknown>[]>([]);
+  const [addons, setAddons] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [purchasing, setPurchasing] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
 
-  const [selectedLicense, setSelectedLicense] = useState('pro');
-  const [selectedAddons, setSelectedAddons] = useState([]);
-  const [formData, setFormData] = useState({
+  const [selectedLicense, setSelectedLicense] = useState<string>('pro');
+  const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [formData, setFormData] = useState<{ email: string; companyName: string }>({
     email: '',
     companyName: '',
   });
@@ -28,27 +28,27 @@ export default function SelfHostedPurchasePage() {
       const data = await response.json();
       setLicenses(data.licenses || []);
       setAddons(data.addons || []);
-    } catch (err) {
+    } catch (err: unknown) {
       setError('Failed to load pricing');
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleAddon = (addonId) => {
-    setSelectedAddons(prev =>
+  const toggleAddon = (addonId: string) => {
+    setSelectedAddons((prev: string[]) =>
       prev.includes(addonId)
-        ? prev.filter(id => id !== addonId)
+        ? prev.filter((id: string) => id !== addonId)
         : [...prev, addonId]
     );
   };
 
-  const calculateTotal = () => {
-    const license = licenses.find(l => l.id === selectedLicense);
-    const licensePrice = license?.price || 0;
-    const addonsPrice = selectedAddons.reduce((sum, id) => {
-      const addon = addons.find(a => a.id === id);
-      return sum + (addon?.price || 0);
+  const calculateTotal = (): number => {
+    const license = licenses.find((l: Record<string, unknown>) => l.id === selectedLicense);
+    const licensePrice = (license?.price as number) || 0;
+    const addonsPrice = selectedAddons.reduce((sum: number, id: string) => {
+      const addon = addons.find((a: Record<string, unknown>) => a.id === id);
+      return sum + ((addon?.price as number) || 0);
     }, 0);
     return licensePrice + addonsPrice;
   };
@@ -83,8 +83,8 @@ export default function SelfHostedPurchasePage() {
       if (data.checkoutUrl) {
         window.location.href = data.checkoutUrl;
       }
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setPurchasing(false);
     }
@@ -98,7 +98,7 @@ export default function SelfHostedPurchasePage() {
     );
   }
 
-  const selectedLicenseData = licenses.find(l => l.id === selectedLicense);
+  const selectedLicenseData = licenses.find((l: Record<string, unknown>) => l.id === selectedLicense);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -110,7 +110,7 @@ export default function SelfHostedPurchasePage() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
+              <span className="text-2xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</span>
             </Link>
             <Link to="/pricing" className="text-gray-600 hover:text-gray-900">
               ← Back to Pricing
@@ -123,7 +123,7 @@ export default function SelfHostedPurchasePage() {
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Self-Hosted License</h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Own {{COMPANY_NAME}} forever. Deploy on your own servers with full control over your data.
+            Own {'{{COMPANY_NAME}}'} forever. Deploy on your own servers with full control over your data.
           </p>
         </div>
 
@@ -139,10 +139,10 @@ export default function SelfHostedPurchasePage() {
             <div className="bg-white rounded-xl border p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Select License</h2>
               <div className="space-y-3">
-                {licenses.map((license) => (
+                {licenses.map((license: Record<string, unknown>) => (
                   <button
-                    key={license.id}
-                    onClick={() => setSelectedLicense(license.id)}
+                    key={license.id as string}
+                    onClick={() => setSelectedLicense(license.id as string)}
                     className={`w-full p-4 rounded-lg border-2 text-left transition ${
                       selectedLicense === license.id
                         ? 'border-orange-500 bg-orange-50'
@@ -151,12 +151,12 @@ export default function SelfHostedPurchasePage() {
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-semibold text-gray-900">{license.name}</span>
+                        <span className="font-semibold text-gray-900">{license.name as string}</span>
                         <p className="text-sm text-gray-500 mt-1">Perpetual license · Unlimited installs</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-2xl font-bold text-gray-900">
-                          ${license.price.toLocaleString()}
+                          ${(license.price as number).toLocaleString()}
                         </span>
                         <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
                           selectedLicense === license.id ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
@@ -174,20 +174,20 @@ export default function SelfHostedPurchasePage() {
             <div className="bg-white rounded-xl border p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Optional Services</h2>
               <div className="space-y-3">
-                {addons.map((addon) => (
+                {addons.map((addon: Record<string, unknown>) => (
                   <button
-                    key={addon.id}
-                    onClick={() => toggleAddon(addon.id)}
+                    key={addon.id as string}
+                    onClick={() => toggleAddon(addon.id as string)}
                     className={`w-full p-4 rounded-lg border-2 text-left transition ${
-                      selectedAddons.includes(addon.id)
+                      selectedAddons.includes(addon.id as string)
                         ? 'border-orange-500 bg-orange-50'
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="font-semibold text-gray-900">{addon.name}</span>
-                        {addon.recurring && (
+                        <span className="font-semibold text-gray-900">{addon.name as string}</span>
+                        {!!addon.recurring && (
                           <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                             {addon.id === 'updates' ? 'Annual' : 'Monthly'}
                           </span>
@@ -195,13 +195,13 @@ export default function SelfHostedPurchasePage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="font-bold text-gray-900">
-                          ${addon.price.toLocaleString()}
-                          {addon.recurring && <span className="text-gray-500 font-normal">/{addon.id === 'updates' ? 'yr' : 'mo'}</span>}
+                          ${(addon.price as number).toLocaleString()}
+                          {!!addon.recurring && <span className="text-gray-500 font-normal">/{addon.id === 'updates' ? 'yr' : 'mo'}</span>}
                         </span>
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          selectedAddons.includes(addon.id) ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
+                          selectedAddons.includes(addon.id as string) ? 'border-orange-500 bg-orange-500' : 'border-gray-300'
                         }`}>
-                          {selectedAddons.includes(addon.id) && <Check className="w-3 h-3 text-white" />}
+                          {selectedAddons.includes(addon.id as string) && <Check className="w-3 h-3 text-white" />}
                         </div>
                       </div>
                     </div>
@@ -219,7 +219,7 @@ export default function SelfHostedPurchasePage() {
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
                     placeholder="you@company.com"
                   />
@@ -229,7 +229,7 @@ export default function SelfHostedPurchasePage() {
                   <input
                     type="text"
                     value={formData.companyName}
-                    onChange={(e) => setFormData({ ...formData, companyName: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, companyName: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
                     placeholder="Your Company"
                   />
@@ -242,25 +242,25 @@ export default function SelfHostedPurchasePage() {
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl border p-6 sticky top-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
-              
+
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">{selectedLicenseData?.name}</span>
-                  <span className="font-medium">${selectedLicenseData?.price.toLocaleString()}</span>
+                  <span className="text-gray-600">{selectedLicenseData?.name as string}</span>
+                  <span className="font-medium">${(selectedLicenseData?.price as number)?.toLocaleString()}</span>
                 </div>
-                
-                {selectedAddons.map((addonId) => {
-                  const addon = addons.find(a => a.id === addonId);
+
+                {selectedAddons.map((addonId: string) => {
+                  const addon = addons.find((a: Record<string, unknown>) => a.id === addonId);
                   return (
                     <div key={addonId} className="flex justify-between text-sm">
-                      <span className="text-gray-600">{addon?.name}</span>
-                      <span>${addon?.price.toLocaleString()}</span>
+                      <span className="text-gray-600">{addon?.name as string}</span>
+                      <span>${(addon?.price as number)?.toLocaleString()}</span>
                     </div>
                   );
                 })}
-                
+
                 <hr />
-                
+
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total</span>
                   <span>${calculateTotal().toLocaleString()}</span>

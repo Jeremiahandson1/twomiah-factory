@@ -14,16 +14,27 @@ const colorPresets = [
   { name: 'Amber', value: '#f59e0b' },
 ];
 
-export function CompanyConfig() {
-  const { config, setCompanyName, setCompanyLogo, setPrimaryColor } = useBuilderStore();
-  const fileInputRef = useRef(null);
+interface BuilderConfig {
+  companyName: string;
+  companyLogo: string | null;
+  primaryColor: string;
+  enabledFeatures: string[];
+}
 
-  const handleLogoUpload = (e) => {
+export function CompanyConfig() {
+  const store = useBuilderStore();
+  const config = store.config as BuilderConfig;
+  const setCompanyName = store.setCompanyName as (name: string) => void;
+  const setCompanyLogo = store.setCompanyLogo as (logo: string | null) => void;
+  const setPrimaryColor = store.setPrimaryColor as (color: string) => void;
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCompanyLogo(reader.result);
+        setCompanyLogo(reader.result as string);
       };
       reader.readAsDataURL(file);
     }

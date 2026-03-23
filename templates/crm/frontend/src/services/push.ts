@@ -11,14 +11,14 @@ const VAPID_PUBLIC_KEY_STORAGE = 'vapid_public_key';
 /**
  * Check if push notifications are supported
  */
-export function isPushSupported() {
+export function isPushSupported(): boolean {
   return 'PushManager' in window && 'serviceWorker' in navigator;
 }
 
 /**
  * Get current notification permission state
  */
-export function getPermissionState() {
+export function getPermissionState(): string {
   if (!isPushSupported()) return 'unsupported';
   return Notification.permission; // 'granted', 'denied', 'default'
 }
@@ -26,7 +26,7 @@ export function getPermissionState() {
 /**
  * Request notification permission
  */
-export async function requestPermission() {
+export async function requestPermission(): Promise<{ granted: boolean; permission?: NotificationPermission; reason?: string }> {
   if (!isPushSupported()) {
     return { granted: false, reason: 'unsupported' };
   }
@@ -42,7 +42,7 @@ export async function requestPermission() {
 /**
  * Subscribe to push notifications
  */
-export async function subscribe() {
+export async function subscribe(): Promise<PushSubscription> {
   if (!isPushSupported()) {
     throw new Error('Push notifications not supported');
   }
@@ -58,8 +58,8 @@ export async function subscribe() {
   
   if (!vapidKey) {
     const response = await api.get('/push/vapid-public-key');
-    vapidKey = response.key;
-    localStorage.setItem(VAPID_PUBLIC_KEY_STORAGE, vapidKey);
+    vapidKey = response.key as string;
+    localStorage.setItem(VAPID_PUBLIC_KEY_STORAGE, vapidKey!);
   }
 
   // Get service worker registration
@@ -68,7 +68,7 @@ export async function subscribe() {
   // Subscribe to push
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidKey),
+    applicationServerKey: urlBase64ToUint8Array(vapidKey!) as BufferSource,
   });
 
   // Send subscription to server
@@ -82,7 +82,7 @@ export async function subscribe() {
 /**
  * Unsubscribe from push notifications
  */
-export async function unsubscribe() {
+export async function unsubscribe(): Promise<boolean> {
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
 
@@ -102,7 +102,7 @@ export async function unsubscribe() {
 /**
  * Check if currently subscribed
  */
-export async function isSubscribed() {
+export async function isSubscribed(): Promise<boolean> {
   if (!isPushSupported()) return false;
 
   try {
@@ -117,7 +117,7 @@ export async function isSubscribed() {
 /**
  * Get current subscription
  */
-export async function getSubscription() {
+export async function getSubscription(): Promise<PushSubscription | null> {
   if (!isPushSupported()) return null;
 
   try {
@@ -131,14 +131,14 @@ export async function getSubscription() {
 /**
  * Send test notification
  */
-export async function sendTest() {
+export async function sendTest(): Promise<unknown> {
   return api.post('/push/test');
 }
 
 /**
  * Show local notification (doesn't require server)
  */
-export async function showLocalNotification(title, options = {}) {
+export async function showLocalNotification(title: string, options: NotificationOptions = {}): Promise<boolean> {
   if (!isPushSupported()) return false;
   
   if (Notification.permission !== 'granted') {
@@ -158,7 +158,7 @@ export async function showLocalNotification(title, options = {}) {
 }
 
 // Helper: Convert VAPID key to Uint8Array
-function urlBase64ToUint8Array(base64String) {
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding)
     .replace(/-/g, '+')

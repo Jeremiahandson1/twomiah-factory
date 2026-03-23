@@ -1,31 +1,111 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Wrench, Plus, Search, Filter, AlertTriangle, Shield,
   Calendar, Clock, Edit2, History, Loader2, ChevronRight,
   ThermometerSun, Droplets, Zap, Home
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
 
-const CATEGORIES = [
+interface CategoryDef {
+  id: string;
+  name: string;
+  icon: LucideIcon;
+  color: string;
+}
+
+const CATEGORIES: CategoryDef[] = [
   { id: 'HVAC', name: 'HVAC', icon: ThermometerSun, color: 'blue' },
   { id: 'Plumbing', name: 'Plumbing', icon: Droplets, color: 'cyan' },
   { id: 'Electrical', name: 'Electrical', icon: Zap, color: 'yellow' },
   { id: 'Appliance', name: 'Appliance', icon: Home, color: 'gray' },
 ];
 
+interface EquipmentContact {
+  name?: string;
+}
+
+interface Equipment {
+  id: string;
+  name: string;
+  brand?: string;
+  model?: string;
+  serialNumber?: string;
+  location?: string;
+  category: string;
+  installDate?: string;
+  age?: number | null;
+  warrantyMonths?: number;
+  maintenanceIntervalMonths?: number;
+  condition?: string;
+  contactId?: string;
+  notes?: string;
+  contact?: EquipmentContact;
+  maintenanceDue?: boolean;
+  warrantyActive?: boolean;
+  status?: string;
+}
+
+interface EquipmentStats {
+  total: number;
+  needsMaintenance: number;
+  warrantyExpiring: number;
+  needsRepair: number;
+}
+
+interface ServiceRecord {
+  id: string;
+  serviceType: string;
+  serviceDate: string;
+  technician?: { firstName: string; lastName: string };
+  cost?: number;
+  description?: string;
+  recommendations?: string;
+}
+
+interface Contact {
+  id: string;
+  name: string;
+}
+
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  color?: string;
+}
+
+interface EquipmentRowProps {
+  equipment: Equipment;
+  onEdit: () => void;
+  onHistory: () => void;
+}
+
+interface EquipmentFormModalProps {
+  equipment: Equipment | null;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface ServiceHistoryModalProps {
+  equipment: Equipment;
+  onClose: () => void;
+  onRefresh: () => void;
+}
+
 /**
  * Equipment Tracking Page
  */
 export default function EquipmentPage() {
-  const [equipment, setEquipment] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [filter, setFilter] = useState(''); // needsMaintenance, warrantyExpiring
-  const [showForm, setShowForm] = useState(false);
-  const [selectedEquipment, setSelectedEquipment] = useState(null);
-  const [showHistory, setShowHistory] = useState(false);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [stats, setStats] = useState<EquipmentStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [search, setSearch] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
+  const [filter, setFilter] = useState<string>(''); // needsMaintenance, warrantyExpiring
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
 
   useEffect(() => {
     loadData();
@@ -74,21 +154,21 @@ export default function EquipmentPage() {
       {stats && (
         <div className="grid grid-cols-4 gap-4">
           <StatCard icon={Wrench} label="Total Equipment" value={stats.total} />
-          <StatCard 
-            icon={Calendar} 
-            label="Maintenance Due" 
+          <StatCard
+            icon={Calendar}
+            label="Maintenance Due"
             value={stats.needsMaintenance}
             color={stats.needsMaintenance > 0 ? 'orange' : 'gray'}
           />
-          <StatCard 
-            icon={Shield} 
-            label="Warranty Expiring" 
+          <StatCard
+            icon={Shield}
+            label="Warranty Expiring"
             value={stats.warrantyExpiring}
             color={stats.warrantyExpiring > 0 ? 'yellow' : 'gray'}
           />
-          <StatCard 
-            icon={AlertTriangle} 
-            label="Needs Repair" 
+          <StatCard
+            icon={AlertTriangle}
+            label="Needs Repair"
             value={stats.needsRepair}
             color={stats.needsRepair > 0 ? 'red' : 'gray'}
           />
@@ -102,24 +182,24 @@ export default function EquipmentPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             placeholder="Search equipment..."
             className="w-full pl-10 pr-4 py-2 border rounded-lg"
           />
         </div>
         <select
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCategory(e.target.value)}
           className="px-4 py-2 border rounded-lg"
         >
           <option value="">All Categories</option>
-          {CATEGORIES.map(cat => (
+          {CATEGORIES.map((cat: CategoryDef) => (
             <option key={cat.id} value={cat.id}>{cat.name}</option>
           ))}
         </select>
         <select
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter(e.target.value)}
           className="px-4 py-2 border rounded-lg"
         >
           <option value="">All Status</option>
@@ -152,7 +232,7 @@ export default function EquipmentPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {equipment.map(eq => (
+              {equipment.map((eq: Equipment) => (
                 <EquipmentRow
                   key={eq.id}
                   equipment={eq}
@@ -185,8 +265,8 @@ export default function EquipmentPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     orange: 'bg-orange-50 text-orange-600',
     yellow: 'bg-yellow-50 text-yellow-600',
@@ -202,8 +282,8 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function EquipmentRow({ equipment, onEdit, onHistory }) {
-  const CategoryIcon = CATEGORIES.find(c => c.id === equipment.category)?.icon || Wrench;
+function EquipmentRow({ equipment, onEdit, onHistory }: EquipmentRowProps) {
+  const CategoryIcon = CATEGORIES.find((c: CategoryDef) => c.id === equipment.category)?.icon || Wrench;
 
   return (
     <tr className="hover:bg-gray-50">
@@ -231,7 +311,7 @@ function EquipmentRow({ equipment, onEdit, onHistory }) {
             <p className="text-gray-900">
               {new Date(equipment.installDate).toLocaleDateString()}
             </p>
-            {equipment.age !== null && (
+            {equipment.age !== null && equipment.age !== undefined && (
               <p className="text-sm text-gray-500">{equipment.age} years old</p>
             )}
           </div>
@@ -284,8 +364,21 @@ function EquipmentRow({ equipment, onEdit, onHistory }) {
   );
 }
 
-function EquipmentFormModal({ equipment, onSave, onClose }) {
-  const [form, setForm] = useState({
+function EquipmentFormModal({ equipment, onSave, onClose }: EquipmentFormModalProps) {
+  const [form, setForm] = useState<{
+    name: string;
+    category: string;
+    brand: string;
+    model: string;
+    serialNumber: string;
+    location: string;
+    installDate: string;
+    warrantyMonths: number;
+    maintenanceIntervalMonths: number;
+    condition: string;
+    contactId: string;
+    notes: string;
+  }>({
     name: equipment?.name || '',
     category: equipment?.category || 'HVAC',
     brand: equipment?.brand || '',
@@ -299,8 +392,8 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
     contactId: equipment?.contactId || '',
     notes: equipment?.notes || '',
   });
-  const [contacts, setContacts] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     loadContacts();
@@ -315,7 +408,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -347,12 +440,12 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
                 <select
                   value={form.contactId}
-                  onChange={(e) => setForm({ ...form, contactId: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, contactId: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 >
                   <option value="">Select customer...</option>
-                  {contacts.map(c => (
+                  {contacts.map((c: Contact) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
@@ -363,7 +456,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="e.g., Main AC Unit"
                   required
@@ -374,10 +467,10 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                 <select
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, category: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
-                  {CATEGORIES.map(cat => (
+                  {CATEGORIES.map((cat: CategoryDef) => (
                     <option key={cat.id} value={cat.id}>{cat.name}</option>
                   ))}
                 </select>
@@ -388,7 +481,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.brand}
-                  onChange={(e) => setForm({ ...form, brand: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, brand: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="e.g., Carrier"
                 />
@@ -399,7 +492,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.model}
-                  onChange={(e) => setForm({ ...form, model: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, model: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -409,7 +502,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.serialNumber}
-                  onChange={(e) => setForm({ ...form, serialNumber: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, serialNumber: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -419,7 +512,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, location: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="e.g., Basement, Attic"
                 />
@@ -430,7 +523,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="date"
                   value={form.installDate}
-                  onChange={(e) => setForm({ ...form, installDate: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, installDate: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -440,7 +533,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.warrantyMonths}
-                  onChange={(e) => setForm({ ...form, warrantyMonths: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, warrantyMonths: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -450,7 +543,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.maintenanceIntervalMonths}
-                  onChange={(e) => setForm({ ...form, maintenanceIntervalMonths: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, maintenanceIntervalMonths: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -459,7 +552,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Condition</label>
                 <select
                   value={form.condition}
-                  onChange={(e) => setForm({ ...form, condition: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, condition: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="excellent">Excellent</option>
@@ -473,7 +566,7 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                 <textarea
                   value={form.notes}
-                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   rows={2}
                 />
@@ -495,10 +588,10 @@ function EquipmentFormModal({ equipment, onSave, onClose }) {
   );
 }
 
-function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
+function ServiceHistoryModal({ equipment, onClose, onRefresh }: ServiceHistoryModalProps) {
+  const [history, setHistory] = useState<ServiceRecord[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showAddForm, setShowAddForm] = useState<boolean>(false);
 
   useEffect(() => {
     loadHistory();
@@ -543,7 +636,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
             </div>
           ) : (
             <div className="space-y-4">
-              {history.map(record => (
+              {history.map((record: ServiceRecord) => (
                 <div key={record.id} className="p-4 border rounded-lg">
                   <div className="flex items-start justify-between">
                     <div>
@@ -553,7 +646,7 @@ function ServiceHistoryModal({ equipment, onClose, onRefresh }) {
                         {record.technician && ` • ${record.technician.firstName} ${record.technician.lastName}`}
                       </p>
                     </div>
-                    {record.cost > 0 && (
+                    {record.cost && record.cost > 0 && (
                       <span className="text-gray-900 font-medium">${record.cost}</span>
                     )}
                   </div>

@@ -14,7 +14,7 @@ import {
   warrantyTemplate,
   projectWarranty,
   warrantyClaim,
-  activityLog,
+  activity,
   jobAssignment,
   job,
   project,
@@ -368,7 +368,7 @@ export async function createClaim(companyId: string, data: {
   }).returning();
 
   // Log activity
-  await db.insert(activityLog).values({
+  await db.insert(activity).values({
     companyId,
     entityType: 'warranty_claim',
     entityId: claim.id,
@@ -478,7 +478,7 @@ export async function updateClaimStatus(
     .where(eq(warrantyClaim.id, claimId))
     .returning();
 
-  await db.insert(activityLog).values({
+  await db.insert(activity).values({
     companyId,
     entityType: 'warranty_claim',
     entityId: claimId,

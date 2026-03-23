@@ -12,10 +12,12 @@ export default function AdsPage() {
   const { hasFeature } = useAuth();
 
   if (!hasFeature('paid_ads')) {
-    window.location.href = 'https://twomiah.com/ads';
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500 dark:text-slate-400">Redirecting...</p>
+      <div className="flex items-center justify-center h-64 flex-col gap-4">
+        <p className="text-gray-500 dark:text-slate-400">This feature is not included in your plan.</p>
+        <a href="https://twomiah.com/ads" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1">
+          Learn more <ExternalLink className="w-4 h-4" />
+        </a>
       </div>
     );
   }

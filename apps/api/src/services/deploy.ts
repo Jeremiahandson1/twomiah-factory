@@ -1235,6 +1235,122 @@ export async function redeployCustomer(factoryCustomer: { renderServiceIds?: Rec
   return results
 }
 
+/**
+ * Update code for an existing customer WITHOUT destroying anything.
+ *
+ * Safe update flow:
+ * 1. Extract new code from zip
+ * 2. Push to EXISTING GitHub repo (no delete/recreate)
+ * 3. Trigger Render redeploy (existing service, existing DB)
+ * 4. Render runs: migrate (additive only) → seed (idempotent) → start
+ *
+ * Database is NEVER touched. Service URL is NEVER changed.
+ * Only the code is updated.
+ */
+export async function updateCustomerCode(
+  factoryCustomer: {
+    id: string
+    slug: string
+    name?: string
+    renderServiceIds?: Record<string, string>
+  },
+  zipPath: string,
+): Promise<{ success: boolean; steps: Array<{ step: string; status: string; detail?: string }>; errors: string[] }> {
+  const slug = factoryCustomer.slug
+  const steps: Array<{ step: string; status: string; detail?: string }> = []
+  const errors: string[] = []
+
+  const org = process.env.GITHUB_ORG || process.env.GITHUB_USER
+  if (!org) return { success: false, steps, errors: ['GITHUB_ORG or GITHUB_USER must be set'] }
+
+  const repoFullName = org + '/' + slug
+  let extractDir = ''
+
+  try {
+    // Step 1: Verify the GitHub repo exists (do NOT create or delete)
+    const repoCheck = await fetchWithTimeout(GITHUB_API + '/repos/' + repoFullName, { headers: githubHeaders() })
+    if (repoCheck.status === 404) {
+      return { success: false, steps, errors: [`GitHub repo ${repoFullName} not found. Use deployCustomer() for first-time deploys.`] }
+    }
+    steps.push({ step: 'verify_repo', status: 'ok', detail: repoFullName })
+
+    // Step 2: Extract zip to temp directory
+    const tmpBase = process.env.TEMP || process.env.TMP || (process.platform === 'win32' ? 'C:\\Windows\\Temp' : '/tmp')
+    extractDir = path.join(tmpBase, 'update-' + slug + '-' + Date.now())
+    fs.mkdirSync(extractDir, { recursive: true })
+    const zip = new AdmZip(zipPath)
+    zip.extractAllTo(extractDir, true)
+    steps.push({ step: 'extract', status: 'ok' })
+
+    // Step 3: Push new code to existing repo
+    // Uses force push on main — the repo is Factory-managed, not manually edited
+    const token = process.env.GITHUB_TOKEN
+    const cmds: string[][] = [
+      ['git', 'init'],
+      ['git', 'checkout', '-b', 'main'],
+      ['git', 'config', 'user.email', 'factory@twomiah.app'],
+      ['git', 'config', 'user.name', 'Twomiah Factory'],
+      ['git', 'config', 'credential.helper', ''],
+      ['git', 'remote', 'add', 'origin', 'https://github.com/' + repoFullName + '.git'],
+      ['git', 'add', '-A'],
+      ['git', 'commit', '-m', 'Code update from Twomiah Factory — ' + new Date().toISOString().split('T')[0]],
+      ['git', 'push', 'origin', 'main', '--force'],
+    ]
+
+    for (const [cmd, ...args] of cmds) {
+      const env = { ...process.env } as Record<string, string>
+      if (cmd === 'git' && args[0] === 'push') {
+        env.GIT_ASKPASS = 'echo'
+        env.GIT_TERMINAL_PROMPT = '0'
+        const extraHeader = 'Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64')
+        args.unshift('-c', 'http.extraHeader=' + extraHeader)
+      }
+      const result = spawnSync(cmd, args, { cwd: extractDir, stdio: ['pipe', 'pipe', 'pipe'], env })
+      if (result.status !== 0) {
+        const stderr = result.stderr?.toString() || ''
+        if (cmd === 'git' && args.includes('remote') && stderr.includes('already exists')) continue
+        throw new Error('Git command failed: ' + cmd + ' ' + args.join(' ') + '\n' + stderr)
+      }
+    }
+    steps.push({ step: 'push_code', status: 'ok', detail: 'Force pushed to ' + repoFullName })
+
+    // Step 4: Trigger Render redeploy if we have service IDs
+    // If Render has autoDeploy enabled, this happens automatically from the git push.
+    // We trigger manually as a fallback.
+    const serviceIds = factoryCustomer.renderServiceIds
+    if (serviceIds && Object.keys(serviceIds).length > 0) {
+      for (const [role, serviceId] of Object.entries(serviceIds)) {
+        try {
+          const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/deploys', {
+            method: 'POST',
+            headers: renderHeaders(),
+            body: JSON.stringify({ clearCache: 'clear' }),
+          })
+          if (res.ok) {
+            steps.push({ step: 'redeploy_' + role, status: 'ok', detail: serviceId })
+          } else {
+            steps.push({ step: 'redeploy_' + role, status: 'warning', detail: 'Render returned ' + res.status + ' — autoDeploy may handle it' })
+          }
+        } catch (err: any) {
+          steps.push({ step: 'redeploy_' + role, status: 'warning', detail: err.message })
+        }
+      }
+    } else {
+      steps.push({ step: 'redeploy', status: 'skipped', detail: 'No renderServiceIds — Render autoDeploy will pick up the git push' })
+    }
+
+    return { success: true, steps, errors }
+  } catch (err: any) {
+    errors.push(err.message)
+    return { success: false, steps, errors }
+  } finally {
+    // Cleanup temp directory
+    if (extractDir && fs.existsSync(extractDir)) {
+      try { fs.rmSync(extractDir, { recursive: true, force: true }) } catch {}
+    }
+  }
+}
+
 export async function findRenderServicesBySlug(slug: string): Promise<Record<string, string>> {
   const serviceIds: Record<string, string> = {}
   try {

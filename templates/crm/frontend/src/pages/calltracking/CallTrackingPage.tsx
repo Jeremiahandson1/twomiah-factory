@@ -1,20 +1,91 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Phone, PhoneIncoming, PhoneOutgoing, PhoneMissed,
   Clock, MapPin, Tag, Play, Loader2, Search,
   TrendingUp, Users, DollarSign, BarChart3
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
+
+interface CallFilters {
+  source: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+}
+
+interface Call {
+  id: string;
+  callerName?: string;
+  callerNumber: string;
+  source?: string;
+  firstTimeCaller?: boolean;
+  startTime: string;
+  duration: number;
+  status: string;
+  recordingUrl?: string;
+}
+
+interface SourceReport {
+  source: string;
+  calls: number;
+  avgDuration: number;
+}
+
+interface ReportTotals {
+  totalCalls?: number;
+  firstTimeCallers?: number;
+  avgDuration?: number;
+  leads?: number;
+  leadValue?: number;
+  totalDuration?: number;
+}
+
+interface Report {
+  totals?: ReportTotals;
+  bySource?: SourceReport[];
+}
+
+interface TrackingNumber {
+  id: string;
+  phoneNumber: string;
+  name?: string;
+  source: string;
+  forwardTo: string;
+  _count?: { calls?: number };
+}
+
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  color?: string;
+}
+
+interface CallsTabProps {
+  calls: Call[];
+  filters: CallFilters;
+  setFilters: (filters: CallFilters) => void;
+  onRefresh: () => void;
+}
+
+interface CallRowProps {
+  call: Call;
+}
+
+interface AttributionTabProps {
+  report: Report;
+}
 
 /**
  * Call Tracking Page
  */
 export default function CallTrackingPage() {
-  const [tab, setTab] = useState('calls'); // calls, numbers, reports
-  const [calls, setCalls] = useState([]);
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
+  const [tab, setTab] = useState<string>('calls'); // calls, numbers, reports
+  const [calls, setCalls] = useState<Call[]>([]);
+  const [report, setReport] = useState<Report | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filters, setFilters] = useState<CallFilters>({
     source: '',
     status: '',
     startDate: '',
@@ -74,7 +145,7 @@ export default function CallTrackingPage() {
           { id: 'calls', label: 'Call Log', icon: Phone },
           { id: 'attribution', label: 'Attribution', icon: BarChart3 },
           { id: 'numbers', label: 'Tracking Numbers', icon: PhoneIncoming },
-        ].map(t => (
+        ].map((t: { id: string; label: string; icon: LucideIcon }) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -117,8 +188,8 @@ export default function CallTrackingPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -135,8 +206,8 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function CallsTab({ calls, filters, setFilters, onRefresh }) {
-  const sources = ['google_ads', 'facebook', 'yelp', 'website', 'direct_mail', 'organic'];
+function CallsTab({ calls, filters, setFilters, onRefresh }: CallsTabProps) {
+  const sources: string[] = ['google_ads', 'facebook', 'yelp', 'website', 'direct_mail', 'organic'];
 
   return (
     <div className="space-y-4">
@@ -144,17 +215,17 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
       <div className="flex items-center gap-4">
         <select
           value={filters.source}
-          onChange={(e) => setFilters({ ...filters, source: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilters({ ...filters, source: e.target.value })}
           className="px-4 py-2 border rounded-lg"
         >
           <option value="">All Sources</option>
-          {sources.map(s => (
+          {sources.map((s: string) => (
             <option key={s} value={s}>{s.replace('_', ' ')}</option>
           ))}
         </select>
         <select
           value={filters.status}
-          onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilters({ ...filters, status: e.target.value })}
           className="px-4 py-2 border rounded-lg"
         >
           <option value="">All Status</option>
@@ -165,14 +236,14 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
         <input
           type="date"
           value={filters.startDate}
-          onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilters({ ...filters, startDate: e.target.value })}
           className="px-4 py-2 border rounded-lg"
           placeholder="Start Date"
         />
         <input
           type="date"
           value={filters.endDate}
-          onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFilters({ ...filters, endDate: e.target.value })}
           className="px-4 py-2 border rounded-lg"
           placeholder="End Date"
         />
@@ -192,7 +263,7 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {calls.map(call => (
+            {calls.map((call: Call) => (
               <CallRow key={call.id} call={call} />
             ))}
           </tbody>
@@ -205,11 +276,11 @@ function CallsTab({ calls, filters, setFilters, onRefresh }) {
   );
 }
 
-function CallRow({ call }) {
-  const StatusIcon = call.status === 'completed' ? PhoneIncoming : 
+function CallRow({ call }: CallRowProps) {
+  const StatusIcon = call.status === 'completed' ? PhoneIncoming :
                      call.status === 'missed' ? PhoneMissed : Phone;
-  
-  const statusColors = {
+
+  const statusColors: Record<string, string> = {
     completed: 'text-green-600 bg-green-50',
     missed: 'text-red-600 bg-red-50',
     voicemail: 'text-yellow-600 bg-yellow-50',
@@ -268,14 +339,14 @@ function CallRow({ call }) {
   );
 }
 
-function AttributionTab({ report }) {
+function AttributionTab({ report }: AttributionTabProps) {
   return (
     <div className="grid grid-cols-2 gap-6">
       {/* By Source */}
       <div className="bg-white rounded-xl border p-6">
         <h3 className="font-medium text-gray-900 mb-4">Calls by Source</h3>
         <div className="space-y-4">
-          {(report.bySource || []).map(source => (
+          {(report.bySource || []).map((source: SourceReport) => (
             <div key={source.source} className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-3 h-3 rounded-full bg-orange-500" />
@@ -325,8 +396,8 @@ function AttributionTab({ report }) {
 }
 
 function TrackingNumbersTab() {
-  const [numbers, setNumbers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [numbers, setNumbers] = useState<TrackingNumber[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadNumbers();
@@ -379,7 +450,7 @@ function TrackingNumbersTab() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {numbers.map(num => (
+            {numbers.map((num: TrackingNumber) => (
               <tr key={num.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono">{num.phoneNumber}</td>
                 <td className="px-4 py-3">{num.name || '-'}</td>
@@ -399,7 +470,7 @@ function TrackingNumbersTab() {
   );
 }
 
-function formatDuration(seconds) {
+function formatDuration(seconds: number): string {
   if (!seconds) return '0s';
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;

@@ -525,7 +525,7 @@ export function getCoreFeatureIds() {
 /**
  * Get feature by ID
  */
-export function getFeatureById(featureId) {
+export function getFeatureById(featureId: string) {
   for (const category of Object.values(FEATURE_REGISTRY)) {
     if (category.features[featureId]) {
       return category.features[featureId];
@@ -537,7 +537,7 @@ export function getFeatureById(featureId) {
 /**
  * Get features for a package
  */
-export function getPackageFeatures(packageId) {
+export function getPackageFeatures(packageId: string) {
   const pkg = FEATURE_PACKAGES[packageId];
   if (!pkg) return getCoreFeatureIds();
   
@@ -551,7 +551,7 @@ export function getPackageFeatures(packageId) {
 /**
  * Check if a route is allowed for given features
  */
-export function isRouteAllowed(route, enabledFeatures) {
+export function isRouteAllowed(route: string, enabledFeatures: string[]) {
   // Core features always allowed
   const coreIds = getCoreFeatureIds();
   const allEnabled = [...coreIds, ...enabledFeatures];

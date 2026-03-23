@@ -1,20 +1,28 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   DollarSign, Calculator, CreditCard, CheckCircle, Clock,
   XCircle, ExternalLink, Loader2, AlertCircle, Percent,
   Calendar, TrendingUp, Zap
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import api from '../../services/api';
 
-/**
- * Financing Options Display
- * 
- * Shows available financing options with monthly payment calculations
- */
-export function FinancingOptions({ amount, onApply }) {
-  const [options, setOptions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedTerm, setSelectedTerm] = useState(36);
+interface FinancingOption {
+  termMonths: number;
+  monthlyPayment: number;
+  apr: number;
+  totalCost: number;
+}
+
+interface FinancingOptionsProps {
+  amount: number;
+  onApply: () => void;
+}
+
+export function FinancingOptions({ amount, onApply }: FinancingOptionsProps) {
+  const [options, setOptions] = useState<FinancingOption[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedTerm, setSelectedTerm] = useState<number>(36);
 
   useEffect(() => {
     if (amount) {
@@ -27,7 +35,7 @@ export function FinancingOptions({ amount, onApply }) {
     try {
       const data = await api.get(`/wisetack/options?amount=${amount}`);
       setOptions(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load financing options:', error);
     } finally {
       setLoading(false);
@@ -54,9 +62,8 @@ export function FinancingOptions({ amount, onApply }) {
         </div>
       </div>
 
-      {/* Options Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        {options.map((option) => (
+        {options.map((option: FinancingOption) => (
           <button
             key={option.termMonths}
             onClick={() => setSelectedTerm(option.termMonths)}
@@ -78,13 +85,12 @@ export function FinancingOptions({ amount, onApply }) {
         ))}
       </div>
 
-      {/* Selected Option Details */}
       {selectedTerm && (
         <div className="bg-white rounded-lg p-4 mb-4">
           {(() => {
-            const selected = options.find(o => o.termMonths === selectedTerm);
+            const selected = options.find((o: FinancingOption) => o.termMonths === selectedTerm);
             if (!selected) return null;
-            
+
             return (
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
@@ -111,7 +117,6 @@ export function FinancingOptions({ amount, onApply }) {
         </div>
       )}
 
-      {/* Apply Button */}
       <button
         onClick={onApply}
         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium"
@@ -127,19 +132,41 @@ export function FinancingOptions({ amount, onApply }) {
   );
 }
 
-/**
- * Financing Application Modal
- */
-export function FinancingApplicationModal({ 
-  amount, 
-  quoteId, 
-  invoiceId, 
-  contactId, 
-  onClose, 
-  onSuccess 
-}) {
-  const [step, setStep] = useState('form'); // form, loading, success, error
-  const [form, setForm] = useState({
+interface FinancingApplicationModalProps {
+  amount: number;
+  quoteId?: string;
+  invoiceId?: string;
+  contactId?: string;
+  onClose: () => void;
+  onSuccess?: (result: ApplicationResult) => void;
+}
+
+interface ApplicationResult {
+  applicationUrl: string;
+  [key: string]: unknown;
+}
+
+interface ApplicationFormData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
+export function FinancingApplicationModal({
+  amount,
+  quoteId,
+  invoiceId,
+  contactId,
+  onClose,
+  onSuccess
+}: FinancingApplicationModalProps) {
+  const [step, setStep] = useState<'form' | 'loading' | 'success' | 'error'>('form');
+  const [form, setForm] = useState<ApplicationFormData>({
     firstName: '',
     lastName: '',
     email: '',
@@ -149,10 +176,10 @@ export function FinancingApplicationModal({
     state: '',
     zip: '',
   });
-  const [application, setApplication] = useState(null);
-  const [error, setError] = useState(null);
+  const [application, setApplication] = useState<ApplicationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStep('loading');
     setError(null);
@@ -169,8 +196,9 @@ export function FinancingApplicationModal({
       setApplication(result);
       setStep('success');
       onSuccess?.(result);
-    } catch (err) {
-      setError(err.message || 'Failed to create application');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create application';
+      setError(message);
       setStep('error');
     }
   };
@@ -180,134 +208,62 @@ export function FinancingApplicationModal({
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-          {/* Header */}
           <div className="text-center mb-6">
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
               <CreditCard className="w-6 h-6 text-green-600" />
             </div>
             <h2 className="text-xl font-bold text-gray-900">Apply for Financing</h2>
             <p className="text-gray-500">
-              ${amount.toLocaleString()} • Quick pre-qualification
+              ${amount.toLocaleString()} - Quick pre-qualification
             </p>
           </div>
 
-          {/* Form Step */}
           {step === 'form' && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    value={form.firstName}
-                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
-                  />
+                  <input type="text" value={form.firstName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, firstName: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    value={form.lastName}
-                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
-                  />
+                  <input type="text" value={form.lastName} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, lastName: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                />
+                <input type="email" value={form.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                />
+                <input type="tel" value={form.phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, phone: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <input
-                  type="text"
-                  value={form.address}
-                  onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                />
+                <input type="text" value={form.address} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, address: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
               </div>
-
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                  <input
-                    type="text"
-                    value={form.city}
-                    onChange={(e) => setForm({ ...form, city: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    required
-                  />
+                  <input type="text" value={form.city} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, city: e.target.value })} className="w-full px-3 py-2 border rounded-lg" required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                  <input
-                    type="text"
-                    value={form.state}
-                    onChange={(e) => setForm({ ...form, state: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    maxLength={2}
-                    required
-                  />
+                  <input type="text" value={form.state} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, state: e.target.value })} className="w-full px-3 py-2 border rounded-lg" maxLength={2} required />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">ZIP</label>
-                  <input
-                    type="text"
-                    value={form.zip}
-                    onChange={(e) => setForm({ ...form, zip: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    maxLength={5}
-                    required
-                  />
+                  <input type="text" value={form.zip} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, zip: e.target.value })} className="w-full px-3 py-2 border rounded-lg" maxLength={5} required />
                 </div>
               </div>
-
               <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
-                >
-                  Check My Rate
-                </button>
+                <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-900">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">Check My Rate</button>
               </div>
-
-              <p className="text-xs text-center text-gray-500">
-                Checking your rate won't affect your credit score.
-              </p>
+              <p className="text-xs text-center text-gray-500">Checking your rate won't affect your credit score.</p>
             </form>
           )}
 
-          {/* Loading Step */}
           {step === 'loading' && (
             <div className="text-center py-8">
               <Loader2 className="w-12 h-12 animate-spin text-green-500 mx-auto mb-4" />
@@ -315,47 +271,25 @@ export function FinancingApplicationModal({
             </div>
           )}
 
-          {/* Success Step */}
           {step === 'success' && application && (
             <div className="text-center py-4">
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
               <h3 className="text-lg font-bold text-gray-900 mb-2">Application Created!</h3>
-              <p className="text-gray-600 mb-6">
-                Complete your application to see your financing options.
-              </p>
-              
-              <a
-                href={application.applicationUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600"
-              >
+              <p className="text-gray-600 mb-6">Complete your application to see your financing options.</p>
+              <a href={application.applicationUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600">
                 Complete Application
                 <ExternalLink className="w-4 h-4" />
               </a>
-
-              <button
-                onClick={onClose}
-                className="w-full mt-3 px-4 py-2 text-gray-600 hover:text-gray-900"
-              >
-                I'll complete this later
-              </button>
+              <button onClick={onClose} className="w-full mt-3 px-4 py-2 text-gray-600 hover:text-gray-900">I'll complete this later</button>
             </div>
           )}
 
-          {/* Error Step */}
           {step === 'error' && (
             <div className="text-center py-4">
               <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
               <h3 className="text-lg font-bold text-gray-900 mb-2">Something went wrong</h3>
               <p className="text-red-600 mb-6">{error}</p>
-              
-              <button
-                onClick={() => setStep('form')}
-                className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-              >
-                Try Again
-              </button>
+              <button onClick={() => setStep('form')} className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Try Again</button>
             </div>
           )}
         </div>
@@ -364,12 +298,23 @@ export function FinancingApplicationModal({
   );
 }
 
-/**
- * Financing Application Status Card
- */
-export function FinancingStatusCard({ applicationId }) {
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
+interface FinancingStatusData {
+  status: string;
+  approvedAmount?: number;
+  monthlyPayment?: number;
+  termMonths?: number;
+  apr?: number;
+  applicationUrl?: string;
+  [key: string]: unknown;
+}
+
+interface FinancingStatusCardProps {
+  applicationId: string;
+}
+
+export function FinancingStatusCard({ applicationId }: FinancingStatusCardProps) {
+  const [status, setStatus] = useState<FinancingStatusData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadStatus();
@@ -379,20 +324,17 @@ export function FinancingStatusCard({ applicationId }) {
     try {
       const data = await api.get(`/wisetack/applications/${applicationId}`);
       setStatus(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load status:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return <div className="animate-pulse bg-gray-100 h-24 rounded-lg" />;
-  }
-
+  if (loading) return <div className="animate-pulse bg-gray-100 h-24 rounded-lg" />;
   if (!status) return null;
 
-  const statusConfig = {
+  const statusConfig: Record<string, { icon: LucideIcon; color: string; label: string }> = {
     pending: { icon: Clock, color: 'yellow', label: 'Pending Review' },
     approved: { icon: CheckCircle, color: 'green', label: 'Approved' },
     declined: { icon: XCircle, color: 'red', label: 'Declined' },
@@ -410,38 +352,30 @@ export function FinancingStatusCard({ applicationId }) {
         <div className="flex-1">
           <p className="font-medium text-gray-900">{config.label}</p>
           {status.approvedAmount && (
-            <p className="text-sm text-gray-600">
-              Approved for ${status.approvedAmount.toLocaleString()}
-            </p>
+            <p className="text-sm text-gray-600">Approved for ${status.approvedAmount.toLocaleString()}</p>
           )}
           {status.monthlyPayment && (
-            <p className="text-sm text-gray-600">
-              ${status.monthlyPayment}/mo for {status.termMonths} months @ {status.apr}% APR
-            </p>
+            <p className="text-sm text-gray-600">${status.monthlyPayment}/mo for {status.termMonths} months @ {status.apr}% APR</p>
           )}
         </div>
         {status.applicationUrl && status.status === 'pending' && (
-          <a
-            href={status.applicationUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1 bg-white border rounded-lg text-sm hover:bg-gray-50"
-          >
-            Complete
-          </a>
+          <a href={status.applicationUrl} target="_blank" rel="noopener noreferrer" className="px-3 py-1 bg-white border rounded-lg text-sm hover:bg-gray-50">Complete</a>
         )}
       </div>
     </div>
   );
 }
 
-/**
- * Wisetack Settings/Connection Component
- */
+interface WisetackStatusData {
+  connected: boolean;
+  connectedAt?: string;
+  [key: string]: unknown;
+}
+
 export function WisetackSettings() {
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [connecting, setConnecting] = useState(false);
+  const [status, setStatus] = useState<WisetackStatusData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [connecting, setConnecting] = useState<boolean>(false);
 
   useEffect(() => {
     loadStatus();
@@ -451,7 +385,7 @@ export function WisetackSettings() {
     try {
       const data = await api.get('/wisetack/status');
       setStatus(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load status:', error);
     } finally {
       setLoading(false);
@@ -465,28 +399,24 @@ export function WisetackSettings() {
         returnUrl: `${window.location.origin}/settings/integrations?wisetack=callback`,
       });
       window.location.href = authUrl;
-    } catch (error) {
-      alert('Failed to connect: ' + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert('Failed to connect: ' + message);
       setConnecting(false);
     }
   };
 
   const handleDisconnect = async () => {
-    if (!confirm('Disconnect from Wisetack? This will disable financing for your customers.')) {
-      return;
-    }
-
+    if (!confirm('Disconnect from Wisetack? This will disable financing for your customers.')) return;
     try {
       await api.post('/wisetack/disconnect');
       loadStatus();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to disconnect');
     }
   };
 
-  if (loading) {
-    return <div className="animate-pulse bg-gray-100 h-32 rounded-xl" />;
-  }
+  if (loading) return <div className="animate-pulse bg-gray-100 h-32 rounded-xl" />;
 
   return (
     <div className="bg-white rounded-xl border p-6">
@@ -506,42 +436,26 @@ export function WisetackSettings() {
             <CheckCircle className="w-5 h-5 text-green-600" />
             <span className="text-green-700 font-medium">Connected</span>
             <span className="text-sm text-green-600 ml-auto">
-              Since {new Date(status.connectedAt).toLocaleDateString()}
+              Since {new Date(status.connectedAt!).toLocaleDateString()}
             </span>
           </div>
-
           <div className="space-y-3 text-sm text-gray-600">
-            <p>✓ Financing options appear on quotes and invoices</p>
-            <p>✓ Customers can apply in 60 seconds</p>
-            <p>✓ Get paid within 1-2 business days</p>
+            <p>{'✓'} Financing options appear on quotes and invoices</p>
+            <p>{'✓'} Customers can apply in 60 seconds</p>
+            <p>{'✓'} Get paid within 1-2 business days</p>
           </div>
-
-          <button
-            onClick={handleDisconnect}
-            className="mt-4 text-sm text-red-600 hover:text-red-700"
-          >
-            Disconnect Wisetack
-          </button>
+          <button onClick={handleDisconnect} className="mt-4 text-sm text-red-600 hover:text-red-700">Disconnect Wisetack</button>
         </>
       ) : (
         <>
           <div className="space-y-3 text-sm text-gray-600 mb-4">
-            <p>• Offer 0% financing to close bigger jobs</p>
-            <p>• Increase average ticket size by 30%+</p>
-            <p>• You get paid in full, customer pays over time</p>
-            <p>• No credit check to see options</p>
+            <p>- Offer 0% financing to close bigger jobs</p>
+            <p>- Increase average ticket size by 30%+</p>
+            <p>- You get paid in full, customer pays over time</p>
+            <p>- No credit check to see options</p>
           </div>
-
-          <button
-            onClick={handleConnect}
-            disabled={connecting}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
-          >
-            {connecting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Zap className="w-5 h-5" />
-            )}
+          <button onClick={handleConnect} disabled={connecting} className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50">
+            {connecting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
             Connect Wisetack
           </button>
         </>

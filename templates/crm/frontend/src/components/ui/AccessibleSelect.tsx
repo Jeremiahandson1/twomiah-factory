@@ -1,7 +1,23 @@
-import { forwardRef, useId } from 'react';
+import React, { forwardRef, useId } from 'react';
 import { ChevronDown, AlertCircle } from 'lucide-react';
 
-const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface AccessibleSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  error?: string;
+  helperText?: string;
+  required?: boolean;
+  options?: SelectOption[];
+  placeholder?: string;
+  className?: string;
+  containerClassName?: string;
+}
+
+const AccessibleSelect = forwardRef<HTMLSelectElement, AccessibleSelectProps>(({
   label,
   error,
   helperText,
@@ -21,7 +37,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
   return (
     <div className={containerClassName}>
       {label && (
-        <label 
+        <label
           htmlFor={id}
           className="block text-sm font-medium text-gray-700 mb-1"
         >
@@ -30,7 +46,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
           {required && <span className="sr-only">(required)</span>}
         </label>
       )}
-      
+
       <div className="relative">
         <select
           ref={ref}
@@ -63,7 +79,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
             </option>
           ))}
         </select>
-        
+
         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" aria-hidden="true">
           {hasError ? (
             <AlertCircle className="w-5 h-5 text-red-500" />
@@ -78,7 +94,7 @@ const AccessibleSelect = forwardRef<HTMLSelectElement, any>(({
           {error}
         </p>
       )}
-      
+
       {helperText && !hasError && (
         <p id={helperId} className="mt-1 text-sm text-gray-500">
           {helperText}

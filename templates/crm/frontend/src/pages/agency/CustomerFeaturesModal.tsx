@@ -2,18 +2,56 @@ import { useState, useEffect } from 'react';
 import { X, Check, Loader2, ChevronDown, ChevronRight, Package } from 'lucide-react';
 import api from '../../services/api';
 
+interface Feature {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface FeatureCategory {
+  name: string;
+  alwaysEnabled?: boolean;
+  features: Record<string, Feature>;
+}
+
+interface PackageInfo {
+  id: string;
+  name: string;
+  price: string;
+  features: string[] | 'all';
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  enabledFeatures?: string[];
+  settings?: { packageId?: string };
+}
+
+interface CustomerFeaturesModalProps {
+  customer: Customer;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+interface FeatureCategorySectionProps {
+  category: FeatureCategory;
+  enabledFeatures: string[];
+  onToggle: (featureId: string) => void;
+}
+
 /**
  * Edit Customer Features Modal
- * 
+ *
  * Simple checkbox interface to add/remove features for an existing customer.
  */
-export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [featureRegistry, setFeatureRegistry] = useState(null);
-  const [packages, setPackages] = useState(null);
-  const [enabledFeatures, setEnabledFeatures] = useState([]);
-  const [selectedPackage, setSelectedPackage] = useState(null);
+export default function CustomerFeaturesModal({ customer, onClose, onSaved }: CustomerFeaturesModalProps) {
+  const [loading, setLoading] = useState<boolean>(true);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [featureRegistry, setFeatureRegistry] = useState<Record<string, FeatureCategory> | null>(null);
+  const [packages, setPackages] = useState<Record<string, PackageInfo> | null>(null);
+  const [enabledFeatures, setEnabledFeatures] = useState<string[]>([]);
+  const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -25,7 +63,7 @@ export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
         api.get('/api/agency/features'),
         api.get(`/api/agency/customers/${customer.id}`),
       ]);
-      
+
       setFeatureRegistry(featuresData.registry);
       setPackages(featuresData.packages);
       setEnabledFeatures(customerData.enabledFeatures || []);
@@ -37,31 +75,32 @@ export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
     }
   };
 
-  const handleFeatureToggle = (featureId) => {
-    setEnabledFeatures(prev => {
+  const handleFeatureToggle = (featureId: string) => {
+    setEnabledFeatures((prev: string[]) => {
       const updated = prev.includes(featureId)
-        ? prev.filter(id => id !== featureId)
+        ? prev.filter((id: string) => id !== featureId)
         : [...prev, featureId];
       return updated;
     });
     setSelectedPackage(null); // Clear package when manually changing
   };
 
-  const handlePackageSelect = (packageId) => {
+  const handlePackageSelect = (packageId: string) => {
+    if (!packages) return;
     const pkg = packages[packageId];
     if (!pkg) return;
-    
-    const features = pkg.features === 'all' 
-      ? getAllFeatureIds() 
+
+    const features = pkg.features === 'all'
+      ? getAllFeatureIds()
       : [...getCoreFeatureIds(), ...pkg.features];
-    
+
     setSelectedPackage(packageId);
     setEnabledFeatures(features);
   };
 
-  const getAllFeatureIds = () => {
+  const getAllFeatureIds = (): string[] => {
     if (!featureRegistry) return [];
-    const ids = [];
+    const ids: string[] = [];
     for (const category of Object.values(featureRegistry)) {
       for (const feature of Object.values(category.features)) {
         ids.push(feature.id);
@@ -70,21 +109,21 @@ export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
     return ids;
   };
 
-  const getCoreFeatureIds = () => {
+  const getCoreFeatureIds = (): string[] => {
     if (!featureRegistry?.core) return [];
-    return Object.values(featureRegistry.core.features).map(f => f.id);
+    return Object.values(featureRegistry.core.features).map((f: Feature) => f.id);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
       await api.put(`/api/agency/customers/${customer.id}/features`, {
-        enabledFeatures: enabledFeatures.filter(f => !getCoreFeatureIds().includes(f)),
+        enabledFeatures: enabledFeatures.filter((f: string) => !getCoreFeatureIds().includes(f)),
         packageId: selectedPackage,
       });
       onSaved();
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to save features');
+      alert((error as Record<string, Record<string, Record<string, string>>>).response?.data?.error || 'Failed to save features');
     } finally {
       setSaving(false);
     }
@@ -93,8 +132,8 @@ export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
   // Calculate what changed
   const originalFeatures = new Set(customer.enabledFeatures || []);
   const currentFeatures = new Set(enabledFeatures);
-  const added = enabledFeatures.filter(f => !originalFeatures.has(f));
-  const removed = (customer.enabledFeatures || []).filter(f => !currentFeatures.has(f));
+  const added = enabledFeatures.filter((f: string) => !originalFeatures.has(f));
+  const removed = (customer.enabledFeatures || []).filter((f: string) => !currentFeatures.has(f));
   const hasChanges = added.length > 0 || removed.length > 0;
 
   return (
@@ -126,7 +165,7 @@ export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
                   <div>
                     <h3 className="font-medium text-gray-900 mb-3">Quick Packages</h3>
                     <div className="grid grid-cols-3 gap-2">
-                      {Object.values(packages).map(pkg => (
+                      {Object.values(packages).map((pkg: PackageInfo) => (
                         <button
                           key={pkg.id}
                           onClick={() => handlePackageSelect(pkg.id)}
@@ -154,7 +193,7 @@ export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
                       </span>
                     </div>
 
-                    {Object.entries(featureRegistry).map(([key, category]) => (
+                    {Object.entries(featureRegistry).map(([key, category]: [string, FeatureCategory]) => (
                       <FeatureCategorySection
                         key={key}
                         category={category}
@@ -208,16 +247,16 @@ export default function CustomerFeaturesModal({ customer, onClose, onSaved }) {
   );
 }
 
-function FeatureCategorySection({ category, enabledFeatures, onToggle }) {
-  const [expanded, setExpanded] = useState(true);
-  const features = Object.values(category.features);
-  const enabledCount = features.filter(f => enabledFeatures.includes(f.id)).length;
+function FeatureCategorySection({ category, enabledFeatures, onToggle }: FeatureCategorySectionProps) {
+  const [expanded, setExpanded] = useState<boolean>(true);
+  const features = Object.values(category.features) as Feature[];
+  const enabledCount = features.filter((f: Feature) => enabledFeatures.includes(f.id)).length;
 
   const toggleAll = () => {
     if (category.alwaysEnabled) return;
-    
-    const allEnabled = features.every(f => enabledFeatures.includes(f.id));
-    features.forEach(f => {
+
+    const allEnabled = features.every((f: Feature) => enabledFeatures.includes(f.id));
+    features.forEach((f: Feature) => {
       if (allEnabled && enabledFeatures.includes(f.id)) {
         onToggle(f.id);
       } else if (!allEnabled && !enabledFeatures.includes(f.id)) {
@@ -245,7 +284,7 @@ function FeatureCategorySection({ category, enabledFeatures, onToggle }) {
             </span>
           )}
         </button>
-        
+
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">
             {enabledCount}/{features.length}
@@ -263,7 +302,7 @@ function FeatureCategorySection({ category, enabledFeatures, onToggle }) {
 
       {expanded && (
         <div className="p-3 grid grid-cols-2 gap-2">
-          {features.map(feature => (
+          {features.map((feature: Feature) => (
             <label
               key={feature.id}
               className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
@@ -274,9 +313,9 @@ function FeatureCategorySection({ category, enabledFeatures, onToggle }) {
             >
               <input
                 type="checkbox"
-                checked={enabledFeatures.includes(feature.id) || category.alwaysEnabled}
+                checked={enabledFeatures.includes(feature.id) || !!category.alwaysEnabled}
                 onChange={() => !category.alwaysEnabled && onToggle(feature.id)}
-                disabled={category.alwaysEnabled}
+                disabled={!!category.alwaysEnabled}
                 className="w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500"
               />
               <div className="flex-1 min-w-0">

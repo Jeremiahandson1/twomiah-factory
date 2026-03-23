@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
+import {
   MessageSquare, Send, Search, Phone, User, Clock,
   Check, CheckCheck, AlertCircle, Loader2, Plus,
   Archive, Star, MoreVertical, ArrowLeft
@@ -10,14 +10,14 @@ import api from '../../services/api';
  * Two-Way SMS Messaging Page
  */
 export default function MessagesPage() {
-  const [conversations, setConversations] = useState([]);
-  const [selectedConversation, setSelectedConversation] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [search, setSearch] = useState('');
-  const [showNewMessage, setShowNewMessage] = useState(false);
-  const [unreadFilter, setUnreadFilter] = useState(false);
+  const [conversations, setConversations] = useState<Record<string, unknown>[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<Record<string, unknown> | null>(null);
+  const [messages, setMessages] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
+  const [search, setSearch] = useState<string>('');
+  const [showNewMessage, setShowNewMessage] = useState<boolean>(false);
+  const [unreadFilter, setUnreadFilter] = useState<boolean>(false);
 
   useEffect(() => {
     loadConversations();
@@ -31,24 +31,24 @@ export default function MessagesPage() {
       const data = await api.get(`/api/sms/conversations?search=${search}&unreadOnly=${unreadFilter}`);
       setConversations(data.data || []);
       setLoading(false);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load conversations:', error);
       setLoading(false);
     }
   };
 
-  const selectConversation = async (conv) => {
+  const selectConversation = async (conv: Record<string, unknown>) => {
     setSelectedConversation(conv);
     setLoadingMessages(true);
     try {
       const data = await api.get(`/api/sms/conversations/${conv.id}/messages`);
       setMessages(data || []);
       // Mark as read
-      if (conv.unreadCount > 0) {
+      if ((conv.unreadCount as number) > 0) {
         await api.post(`/api/sms/conversations/${conv.id}/read`);
         loadConversations();
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load messages:', error);
     } finally {
       setLoadingMessages(false);
@@ -75,7 +75,7 @@ export default function MessagesPage() {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
               placeholder="Search conversations..."
               className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm"
             />
@@ -112,9 +112,9 @@ export default function MessagesPage() {
               <p>No conversations yet</p>
             </div>
           ) : (
-            conversations.map(conv => (
+            conversations.map((conv: Record<string, unknown>) => (
               <ConversationItem
-                key={conv.id}
+                key={conv.id as string}
                 conversation={conv}
                 selected={selectedConversation?.id === conv.id}
                 onClick={() => selectConversation(conv)}
@@ -141,9 +141,9 @@ export default function MessagesPage() {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-gray-900">
-                  {selectedConversation.contact?.name || selectedConversation.phoneNumber}
+                  {(selectedConversation.contact as Record<string, unknown>)?.name as string || selectedConversation.phoneNumber as string}
                 </p>
-                <p className="text-sm text-gray-500">{selectedConversation.phoneNumber}</p>
+                <p className="text-sm text-gray-500">{selectedConversation.phoneNumber as string}</p>
               </div>
               <button className="p-2 hover:bg-gray-100 rounded-lg">
                 <Phone className="w-5 h-5 text-gray-500" />
@@ -157,7 +157,7 @@ export default function MessagesPage() {
             <MessageThread
               messages={messages}
               loading={loadingMessages}
-              conversationId={selectedConversation.id}
+              conversationId={selectedConversation.id as string}
               onMessageSent={() => {
                 selectConversation(selectedConversation);
                 loadConversations();
@@ -177,7 +177,7 @@ export default function MessagesPage() {
       {/* New Message Modal */}
       {showNewMessage && (
         <NewMessageModal
-          onSend={(conv) => {
+          onSend={(conv: Record<string, unknown>) => {
             setShowNewMessage(false);
             loadConversations();
             if (conv) selectConversation(conv);
@@ -189,9 +189,15 @@ export default function MessagesPage() {
   );
 }
 
-function ConversationItem({ conversation, selected, onClick }) {
-  const lastMessage = conversation.lastMessage;
-  const timeAgo = lastMessage ? formatTimeAgo(lastMessage.createdAt) : '';
+interface ConversationItemProps {
+  conversation: Record<string, unknown>;
+  selected: boolean;
+  onClick: () => void;
+}
+
+function ConversationItem({ conversation, selected, onClick }: ConversationItemProps) {
+  const lastMessage = conversation.lastMessage as Record<string, unknown> | undefined;
+  const timeAgo = lastMessage ? formatTimeAgo(lastMessage.createdAt as string) : '';
 
   return (
     <button
@@ -205,23 +211,23 @@ function ConversationItem({ conversation, selected, onClick }) {
           <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
             <User className="w-5 h-5 text-gray-500" />
           </div>
-          {conversation.unreadCount > 0 && (
+          {(conversation.unreadCount as number) > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-orange-500 text-white text-xs rounded-full flex items-center justify-center">
-              {conversation.unreadCount}
+              {conversation.unreadCount as number}
             </span>
           )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <p className={`font-medium truncate ${conversation.unreadCount > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
-              {conversation.contact?.name || conversation.phoneNumber}
+            <p className={`font-medium truncate ${(conversation.unreadCount as number) > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+              {(conversation.contact as Record<string, unknown>)?.name as string || conversation.phoneNumber as string}
             </p>
             <span className="text-xs text-gray-500">{timeAgo}</span>
           </div>
           {lastMessage && (
-            <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
+            <p className={`text-sm truncate ${(conversation.unreadCount as number) > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
               {lastMessage.direction === 'outbound' && '↑ '}
-              {lastMessage.body}
+              {lastMessage.body as string}
             </p>
           )}
         </div>
@@ -230,16 +236,23 @@ function ConversationItem({ conversation, selected, onClick }) {
   );
 }
 
-function MessageThread({ messages, loading, conversationId, onMessageSent }) {
-  const [newMessage, setNewMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const messagesEndRef = useRef(null);
+interface MessageThreadProps {
+  messages: Record<string, unknown>[];
+  loading: boolean;
+  conversationId: string;
+  onMessageSent: () => void;
+}
+
+function MessageThread({ messages, loading, conversationId, onMessageSent }: MessageThreadProps) {
+  const [newMessage, setNewMessage] = useState<string>('');
+  const [sending, setSending] = useState<boolean>(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async (e) => {
+  const handleSend = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newMessage.trim() || sending) return;
 
@@ -250,7 +263,7 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }) {
       });
       setNewMessage('');
       onMessageSent();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to send message');
     } finally {
       setSending(false);
@@ -269,8 +282,8 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }) {
     <>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map(msg => (
-          <MessageBubble key={msg.id} message={msg} />
+        {messages.map((msg: Record<string, unknown>) => (
+          <MessageBubble key={msg.id as string} message={msg} />
         ))}
         <div ref={messagesEndRef} />
       </div>
@@ -281,7 +294,7 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }) {
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewMessage(e.target.value)}
             placeholder="Type a message..."
             className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
           />
@@ -302,7 +315,11 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }) {
   );
 }
 
-function MessageBubble({ message }) {
+interface MessageBubbleProps {
+  message: Record<string, unknown>;
+}
+
+function MessageBubble({ message }: MessageBubbleProps) {
   const isOutbound = message.direction === 'outbound';
 
   const statusIcon = () => {
@@ -328,11 +345,11 @@ function MessageBubble({ message }) {
               : 'bg-white border rounded-bl-md'
           }`}
         >
-          <p className="text-sm">{message.body}</p>
+          <p className="text-sm">{message.body as string}</p>
         </div>
         <div className={`flex items-center gap-1 mt-1 ${isOutbound ? 'justify-end' : ''}`}>
           <span className="text-xs text-gray-400">
-            {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {new Date(message.createdAt as string).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
           {isOutbound && statusIcon()}
         </div>
@@ -341,12 +358,17 @@ function MessageBubble({ message }) {
   );
 }
 
-function NewMessageModal({ onSend, onClose }) {
-  const [phone, setPhone] = useState('');
-  const [message, setMessage] = useState('');
-  const [contacts, setContacts] = useState([]);
-  const [searchResults, setSearchResults] = useState([]);
-  const [sending, setSending] = useState(false);
+interface NewMessageModalProps {
+  onSend: (conv: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
+function NewMessageModal({ onSend, onClose }: NewMessageModalProps) {
+  const [phone, setPhone] = useState<string>('');
+  const [message, setMessage] = useState<string>('');
+  const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
+  const [searchResults, setSearchResults] = useState<Record<string, unknown>[]>([]);
+  const [sending, setSending] = useState<boolean>(false);
 
   useEffect(() => {
     loadContacts();
@@ -356,17 +378,17 @@ function NewMessageModal({ onSend, onClose }) {
     try {
       const data = await api.get('/api/contacts?limit=100');
       setContacts(data.data || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load contacts:', error);
     }
   };
 
-  const handleSearch = (value) => {
+  const handleSearch = (value: string) => {
     setPhone(value);
     if (value.length >= 2) {
-      const results = contacts.filter(c =>
-        c.name?.toLowerCase().includes(value.toLowerCase()) ||
-        c.phone?.includes(value)
+      const results = contacts.filter((c: Record<string, unknown>) =>
+        (c.name as string)?.toLowerCase().includes(value.toLowerCase()) ||
+        (c.phone as string)?.includes(value)
       );
       setSearchResults(results.slice(0, 5));
     } else {
@@ -374,8 +396,8 @@ function NewMessageModal({ onSend, onClose }) {
     }
   };
 
-  const selectContact = (contact) => {
-    setPhone(contact.phone);
+  const selectContact = (contact: Record<string, unknown>) => {
+    setPhone(contact.phone as string);
     setSearchResults([]);
   };
 
@@ -388,7 +410,7 @@ function NewMessageModal({ onSend, onClose }) {
         body: message,
       });
       onSend(result.conversation);
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to send message');
       setSending(false);
     }
@@ -407,20 +429,20 @@ function NewMessageModal({ onSend, onClose }) {
               <input
                 type="text"
                 value={phone}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleSearch(e.target.value)}
                 placeholder="Phone number or contact name"
                 className="w-full px-3 py-2 border rounded-lg"
               />
               {searchResults.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg">
-                  {searchResults.map(contact => (
+                  {searchResults.map((contact: Record<string, unknown>) => (
                     <button
-                      key={contact.id}
+                      key={contact.id as string}
                       onClick={() => selectContact(contact)}
                       className="w-full px-4 py-2 text-left hover:bg-gray-50"
                     >
-                      <p className="font-medium">{contact.name}</p>
-                      <p className="text-sm text-gray-500">{contact.phone}</p>
+                      <p className="font-medium">{contact.name as string}</p>
+                      <p className="text-sm text-gray-500">{contact.phone as string}</p>
                     </button>
                   ))}
                 </div>
@@ -431,7 +453,7 @@ function NewMessageModal({ onSend, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
               <textarea
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={4}
                 placeholder="Type your message..."
@@ -460,11 +482,11 @@ function NewMessageModal({ onSend, onClose }) {
   );
 }
 
-function formatTimeAgo(dateString) {
+function formatTimeAgo(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
-  const diff = now - date;
-  
+  const diff = now.getTime() - date.getTime();
+
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);

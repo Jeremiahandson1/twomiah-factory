@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   BookOpen, Plus, Search, Filter, Edit2, Copy, Trash2,
   Loader2, ChevronRight, DollarSign, Clock, Package,
-  Image, Star, Percent, Upload, Download, FolderTree
+  Image, Star, Percent, Upload, Download, FolderTree,
+  LucideIcon
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -10,15 +11,15 @@ import api from '../../services/api';
  * Pricebook Management Page
  */
 export default function PricebookPage() {
-  const [items, setItems] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [showItemForm, setShowItemForm] = useState(false);
-  const [showCategoryForm, setShowCategoryForm] = useState(false);
-  const [showGBB, setShowGBB] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [items, setItems] = useState<Record<string, unknown>[]>([]);
+  const [categories, setCategories] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [search, setSearch] = useState<string>('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [showItemForm, setShowItemForm] = useState<boolean>(false);
+  const [showCategoryForm, setShowCategoryForm] = useState<boolean>(false);
+  const [showGBB, setShowGBB] = useState<boolean>(false);
+  const [selectedItem, setSelectedItem] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     loadData();
@@ -33,18 +34,18 @@ export default function PricebookPage() {
       ]);
       setItems(Array.isArray(itemsRes?.data) ? itemsRes.data : []);
       setCategories(Array.isArray(catsRes) ? catsRes : []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load pricebook:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDuplicate = async (itemId) => {
+  const handleDuplicate = async (itemId: string) => {
     try {
       await api.post(`/api/pricebook/items/${itemId}/duplicate`);
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to duplicate item');
     }
   };
@@ -79,15 +80,15 @@ export default function PricebookPage() {
       <div className="grid grid-cols-4 gap-4">
         <StatCard icon={BookOpen} label="Total Services" value={items.length} />
         <StatCard icon={FolderTree} label="Categories" value={categories.length} />
-        <StatCard 
-          icon={DollarSign} 
-          label="Avg Price" 
-          value={items.length ? `$${Math.round(items.reduce((s, i) => s + Number(i.price), 0) / items.length)}` : '$0'} 
+        <StatCard
+          icon={DollarSign}
+          label="Avg Price"
+          value={items.length ? `$${Math.round(items.reduce((s: number, i: Record<string, unknown>) => s + Number(i.price), 0) / items.length)}` : '$0'}
         />
-        <StatCard 
-          icon={Percent} 
-          label="Avg Margin" 
-          value={items.length ? `${Math.round(items.reduce((s, i) => s + Number(i.margin || 0), 0) / items.length)}%` : '0%'}
+        <StatCard
+          icon={Percent}
+          label="Avg Margin"
+          value={items.length ? `${Math.round(items.reduce((s: number, i: Record<string, unknown>) => s + Number(i.margin || 0), 0) / items.length)}%` : '0%'}
           color="green"
         />
       </div>
@@ -99,19 +100,19 @@ export default function PricebookPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             placeholder="Search services..."
             className="w-full pl-10 pr-4 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
           />
         </div>
         <select
           value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedCategory(e.target.value)}
           className="px-4 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
         >
           <option value="">All Categories</option>
-          {categories.map(cat => (
-            <option key={cat.id} value={cat.id}>{cat.name}</option>
+          {categories.map((cat: Record<string, unknown>) => (
+            <option key={cat.id as string} value={cat.id as string}>{cat.name as string}</option>
           ))}
         </select>
       </div>
@@ -134,12 +135,12 @@ export default function PricebookPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map(item => (
+          {items.map((item: Record<string, unknown>) => (
             <ServiceCard
-              key={item.id}
+              key={item.id as string}
               item={item}
               onEdit={() => { setSelectedItem(item); setShowItemForm(true); }}
-              onDuplicate={() => handleDuplicate(item.id)}
+              onDuplicate={() => handleDuplicate(item.id as string)}
               onGBB={() => { setSelectedItem(item); setShowGBB(true); }}
             />
           ))}
@@ -175,8 +176,15 @@ export default function PricebookPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  color?: 'gray' | 'green';
+}
+
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     green: 'bg-green-50 text-green-600',
   };
@@ -190,30 +198,37 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
+interface ServiceCardProps {
+  item: Record<string, unknown>;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onGBB: () => void;
+}
+
+function ServiceCard({ item, onEdit, onDuplicate, onGBB }: ServiceCardProps) {
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 p-4 hover:shadow-lg transition-shadow">
       <div className="flex items-start gap-3">
         {item.imageUrl ? (
-          <img src={item.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
+          <img src={item.imageUrl as string} alt="" className="w-16 h-16 rounded-lg object-cover" />
         ) : (
           <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
             <Package className="w-6 h-6 text-gray-400" />
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-gray-900 truncate">{item.name}</p>
-          <p className="text-sm text-gray-500">{item.code}</p>
-          {item.category && (
+          <p className="font-medium text-gray-900 truncate">{item.name as string}</p>
+          <p className="text-sm text-gray-500">{item.code as string}</p>
+          {!!item.category && (
             <span className="inline-block mt-1 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded">
-              {item.category.name}
+              {(item.category as Record<string, unknown>).name as string}
             </span>
           )}
         </div>
       </div>
 
-      {item.description && (
-        <p className="mt-3 text-sm text-gray-600 line-clamp-2">{item.description}</p>
+      {!!item.description && (
+        <p className="mt-3 text-sm text-gray-600 line-clamp-2">{item.description as string}</p>
       )}
 
       <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
@@ -228,19 +243,19 @@ function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
         <div>
           <p className="text-gray-500">Margin</p>
           <p className={`font-medium ${Number(item.margin) > 30 ? 'text-green-600' : 'text-orange-600'}`}>
-            {item.margin}%
+            {item.margin as number}%
           </p>
         </div>
       </div>
 
-      {item.laborHours > 0 && (
+      {(item.laborHours as number) > 0 && (
         <div className="mt-2 flex items-center gap-1 text-sm text-gray-500">
           <Clock className="w-4 h-4" />
-          {item.laborHours} hours
+          {item.laborHours as number} hours
         </div>
       )}
 
-      {item._count?.goodBetterBest > 0 && (
+      {(item._count as Record<string, unknown>)?.goodBetterBest as number > 0 && (
         <div className="mt-2 flex items-center gap-1 text-sm text-blue-600">
           <Star className="w-4 h-4" />
           Good-Better-Best options
@@ -273,22 +288,33 @@ function ServiceCard({ item, onEdit, onDuplicate, onGBB }) {
   );
 }
 
-function ServiceFormModal({ item, categories, onSave, onClose }) {
-  const [form, setForm] = useState({
-    name: item?.name || '',
-    code: item?.code || '',
-    categoryId: item?.categoryId || '',
-    description: item?.description || '',
-    customerDescription: item?.customerDescription || '',
-    price: item?.price || '',
-    cost: item?.cost || '',
-    laborHours: item?.laborHours || '',
-    taxable: item?.taxable ?? true,
-    showToCustomer: item?.showToCustomer ?? true,
-  });
-  const [saving, setSaving] = useState(false);
+interface ServiceFormModalProps {
+  item: Record<string, unknown> | null;
+  categories: Record<string, unknown>[];
+  onSave: () => void;
+  onClose: () => void;
+}
 
-  const handleSubmit = async (e) => {
+function ServiceFormModal({ item, categories, onSave, onClose }: ServiceFormModalProps) {
+  const [form, setForm] = useState<{
+    name: string; code: string; categoryId: string; description: string;
+    customerDescription: string; price: string | number; cost: string | number;
+    laborHours: string | number; taxable: boolean; showToCustomer: boolean;
+  }>({
+    name: (item?.name as string) || '',
+    code: (item?.code as string) || '',
+    categoryId: (item?.categoryId as string) || '',
+    description: (item?.description as string) || '',
+    customerDescription: (item?.customerDescription as string) || '',
+    price: (item?.price as string | number) || '',
+    cost: (item?.cost as string | number) || '',
+    laborHours: (item?.laborHours as string | number) || '',
+    taxable: item?.taxable as boolean ?? true,
+    showToCustomer: item?.showToCustomer as boolean ?? true,
+  });
+  const [saving, setSaving] = useState<boolean>(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -298,7 +324,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
         await api.post('/api/pricebook/items', form);
       }
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save service');
     } finally {
       setSaving(false);
@@ -306,8 +332,8 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
   };
 
   // Calculate margin
-  const margin = form.price && form.cost 
-    ? ((form.price - form.cost) / form.price * 100).toFixed(1) 
+  const margin = form.price && form.cost
+    ? ((Number(form.price) - Number(form.cost)) / Number(form.price) * 100).toFixed(1)
     : 0;
 
   return (
@@ -316,7 +342,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto text-gray-900 dark:text-slate-100">
           <h2 className="text-lg font-bold mb-4">{item ? 'Edit Service' : 'Add Service'}</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -324,43 +350,43 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   placeholder="e.g., AC Tune-Up"
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Code</label>
                 <input
                   type="text"
                   value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, code: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   placeholder="Auto-generated"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Category</label>
                 <select
                   value={form.categoryId}
-                  onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, categoryId: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                 >
                   <option value="">No Category</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  {categories.map((cat: Record<string, unknown>) => (
+                    <option key={cat.id as string} value={cat.id as string}>{cat.name as string}</option>
                   ))}
                 </select>
               </div>
-              
+
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Internal Description</label>
                 <textarea
                   value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   rows={2}
                   placeholder="For your team's reference"
@@ -371,7 +397,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Customer Description</label>
                 <textarea
                   value={form.customerDescription}
-                  onChange={(e) => setForm({ ...form, customerDescription: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, customerDescription: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   rows={2}
                   placeholder="What customers will see on quotes/invoices"
@@ -391,7 +417,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                       type="number"
                       step="0.01"
                       value={form.price}
-                      onChange={(e) => setForm({ ...form, price: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, price: e.target.value })}
                       className="w-full pl-7 pr-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                     />
                   </div>
@@ -404,7 +430,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                       type="number"
                       step="0.01"
                       value={form.cost}
-                      onChange={(e) => setForm({ ...form, cost: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, cost: e.target.value })}
                       className="w-full pl-7 pr-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                     />
                   </div>
@@ -415,14 +441,14 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                     type="number"
                     step="0.25"
                     value={form.laborHours}
-                    onChange={(e) => setForm({ ...form, laborHours: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, laborHours: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg text-gray-900 bg-white dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Margin</label>
                   <div className={`px-3 py-2 rounded-lg font-medium ${
-                    margin > 30 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                    Number(margin) > 30 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
                   }`}>
                     {margin}%
                   </div>
@@ -436,7 +462,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                 <input
                   type="checkbox"
                   checked={form.taxable}
-                  onChange={(e) => setForm({ ...form, taxable: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, taxable: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
                 <span className="text-sm text-gray-700">Taxable</span>
@@ -445,7 +471,7 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
                 <input
                   type="checkbox"
                   checked={form.showToCustomer}
-                  onChange={(e) => setForm({ ...form, showToCustomer: e.target.checked })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, showToCustomer: e.target.checked })}
                   className="w-4 h-4 rounded text-orange-500"
                 />
                 <span className="text-sm text-gray-700">Show to customers</span>
@@ -467,9 +493,15 @@ function ServiceFormModal({ item, categories, onSave, onClose }) {
   );
 }
 
-function CategoriesModal({ categories, onSave, onClose }) {
-  const [newCategory, setNewCategory] = useState('');
-  const [saving, setSaving] = useState(false);
+interface CategoriesModalProps {
+  categories: Record<string, unknown>[];
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function CategoriesModal({ categories, onSave, onClose }: CategoriesModalProps) {
+  const [newCategory, setNewCategory] = useState<string>('');
+  const [saving, setSaving] = useState<boolean>(false);
 
   const handleAdd = async () => {
     if (!newCategory.trim()) return;
@@ -478,7 +510,7 @@ function CategoriesModal({ categories, onSave, onClose }) {
       await api.post('/api/pricebook/categories', { name: newCategory });
       setNewCategory('');
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to add category');
     } finally {
       setSaving(false);
@@ -491,12 +523,12 @@ function CategoriesModal({ categories, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 text-gray-900 dark:text-slate-100">
           <h2 className="text-lg font-bold mb-4">Manage Categories</h2>
-          
+
           <div className="space-y-2 mb-4 max-h-64 overflow-y-auto">
-            {categories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span>{cat.name}</span>
-                <span className="text-sm text-gray-500">{cat._count?.items || 0} items</span>
+            {categories.map((cat: Record<string, unknown>) => (
+              <div key={cat.id as string} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <span>{cat.name as string}</span>
+                <span className="text-sm text-gray-500">{(cat._count as Record<string, unknown>)?.items as number || 0} items</span>
               </div>
             ))}
           </div>
@@ -505,10 +537,10 @@ function CategoriesModal({ categories, onSave, onClose }) {
             <input
               type="text"
               value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewCategory(e.target.value)}
               placeholder="New category name"
               className="flex-1 px-3 py-2 border rounded-lg"
-              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleAdd()}
             />
             <button
               onClick={handleAdd}
@@ -531,13 +563,28 @@ function CategoriesModal({ categories, onSave, onClose }) {
   );
 }
 
-function GoodBetterBestModal({ item, onSave, onClose }) {
-  const [options, setOptions] = useState([
+interface GoodBetterBestModalProps {
+  item: Record<string, unknown>;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface GBBOption {
+  tier: string;
+  name: string;
+  description: string;
+  price: string | number;
+  features: string[];
+  recommended: boolean;
+}
+
+function GoodBetterBestModal({ item, onSave, onClose }: GoodBetterBestModalProps) {
+  const [options, setOptions] = useState<GBBOption[]>([
     { tier: 'best', name: 'Sign Today', description: 'Best price — available today only', price: '', features: [], recommended: true },
     { tier: 'better', name: 'Within 30 Days', description: 'Valid for 30 days from proposal date', price: '', features: [], recommended: false },
     { tier: 'good', name: 'Valid 1 Year', description: 'Price valid for up to 12 months', price: '', features: [], recommended: false },
   ]);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     loadOptions();
@@ -547,15 +594,15 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
     try {
       const data = await api.get(`/api/pricebook/items/${item.id}/options`);
       if (data.length > 0) {
-        setOptions(data.map(o => ({ ...o, features: o.features || [] })));
+        setOptions(data.map((o: Record<string, unknown>) => ({ ...o, features: o.features || [] })) as GBBOption[]);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load options:', error);
     }
   };
 
-  const updateOption = (tier, field, value) => {
-    setOptions(opts => opts.map(o => 
+  const updateOption = (tier: string, field: string, value: string | number | boolean) => {
+    setOptions((opts: GBBOption[]) => opts.map((o: GBBOption) =>
       o.tier === tier ? { ...o, [field]: value } : o
     ));
   };
@@ -563,11 +610,11 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.put(`/api/pricebook/items/${item.id}/options`, { 
-        options: options.filter(o => o.name && o.price)
+      await api.put(`/api/pricebook/items/${item.id}/options`, {
+        options: options.filter((o: GBBOption) => o.name && o.price)
       });
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save options');
     } finally {
       setSaving(false);
@@ -580,12 +627,12 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-4xl w-full p-6 text-gray-900 dark:text-slate-100">
           <h2 className="text-lg font-bold mb-2">Pricing Tiers</h2>
-          <p className="text-gray-500 mb-4">for {item.name}</p>
+          <p className="text-gray-500 mb-4">for {item.name as string}</p>
 
           <div className="grid grid-cols-3 gap-4">
-            {options.map((opt) => (
-              <div 
-                key={opt.tier} 
+            {options.map((opt: GBBOption) => (
+              <div
+                key={opt.tier}
                 className={`p-4 rounded-xl border-2 ${
                   opt.recommended ? 'border-orange-500 bg-orange-50' : 'border-gray-200'
                 }`}
@@ -604,7 +651,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                       name="recommended"
                       checked={opt.recommended}
                       onChange={() => {
-                        setOptions(opts => opts.map(o => ({ ...o, recommended: o.tier === opt.tier })));
+                        setOptions((opts: GBBOption[]) => opts.map((o: GBBOption) => ({ ...o, recommended: o.tier === opt.tier })));
                       }}
                       className="text-orange-500"
                     />
@@ -615,7 +662,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                 <input
                   type="text"
                   value={opt.name}
-                  onChange={(e) => updateOption(opt.tier, 'name', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateOption(opt.tier, 'name', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg mb-2 font-medium text-gray-900 bg-white"
                   placeholder="Option name"
                 />
@@ -625,7 +672,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
                   <input
                     type="number"
                     value={opt.price}
-                    onChange={(e) => updateOption(opt.tier, 'price', e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateOption(opt.tier, 'price', e.target.value)}
                     className="w-full pl-7 pr-3 py-2 border rounded-lg text-xl font-bold text-gray-900 bg-white"
                     placeholder="0.00"
                   />
@@ -633,7 +680,7 @@ function GoodBetterBestModal({ item, onSave, onClose }) {
 
                 <textarea
                   value={opt.description}
-                  onChange={(e) => updateOption(opt.tier, 'description', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateOption(opt.tier, 'description', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg text-sm text-gray-900 bg-white"
                   rows={3}
                   placeholder="Description..."

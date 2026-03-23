@@ -9,7 +9,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setLocalError('');
@@ -18,7 +18,7 @@ export default function LoginPage() {
       await login(formData.email.toLowerCase().trim(), formData.password);
       navigate('/');
     } catch (err) {
-      setLocalError(err.message || 'Login failed');
+      setLocalError((err as Error).message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -28,7 +28,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{{COMPANY_NAME}}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</h1>
           <p className="mt-2 text-gray-600">Sign in to your account</p>
         </div>
 
@@ -48,7 +48,7 @@ export default function LoginPage() {
                 autoCapitalize="none"
                 autoCorrect="off"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
                 placeholder="you@example.com"
               />
@@ -63,7 +63,7 @@ export default function LoginPage() {
                 autoCorrect="off"
                 spellCheck={false}
                 value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, password: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
                 placeholder="••••••••"
               />
@@ -85,11 +85,6 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
-            <p className="font-medium mb-1">Demo credentials:</p>
-            <p>Email: {{ADMIN_EMAIL}}</p>
-            <p>Password: {{DEFAULT_PASSWORD}}</p>
-          </div>
         </div>
       </div>
     </div>

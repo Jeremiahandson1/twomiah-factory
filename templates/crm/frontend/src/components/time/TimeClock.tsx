@@ -2,23 +2,29 @@ import { useState, useEffect, useRef } from 'react';
 import { Clock, Play, Square, Coffee, Briefcase, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 
+interface TimeEntry { startTime: string; job?: { title: string } | null; project?: { name: string } | null; [key: string]: unknown; }
+interface TimeJob { id: string; number: string; title: string; [key: string]: unknown; }
+interface TimeProject { id: string; number: string; name: string; [key: string]: unknown; }
+interface TimeClockProps { onUpdate?: () => void; }
+interface TimeClockCompactProps { onUpdate?: () => void; }
+
 /**
  * Time Clock Widget
  * 
  * Shows current status and allows clock in/out
  */
-export default function TimeClock({ onUpdate }) {
-  const [activeEntry, setActiveEntry] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [showJobSelect, setShowJobSelect] = useState(false);
-  const [jobs, setJobs] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [selectedJob, setSelectedJob] = useState('');
-  const [selectedProject, setSelectedProject] = useState('');
-  const [notes, setNotes] = useState('');
-  const timerRef = useRef(null);
+export default function TimeClock({ onUpdate }: TimeClockProps) {
+  const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [processing, setProcessing] = useState<boolean>(false);
+  const [elapsed, setElapsed] = useState<number>(0);
+  const [showJobSelect, setShowJobSelect] = useState<boolean>(false);
+  const [jobs, setJobs] = useState<TimeJob[]>([]);
+  const [projects, setProjects] = useState<TimeProject[]>([]);
+  const [selectedJob, setSelectedJob] = useState<string>('');
+  const [selectedProject, setSelectedProject] = useState<string>('');
+  const [notes, setNotes] = useState<string>('');
+  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
     loadActiveEntry();
@@ -42,15 +48,15 @@ export default function TimeClock({ onUpdate }) {
     if (activeEntry?.startTime) {
       const start = new Date(activeEntry.startTime);
       const now = new Date();
-      setElapsed(Math.floor((now - start) / 1000));
+      setElapsed(Math.floor((now.getTime() - start.getTime()) / 1000));
     }
   };
 
   const loadActiveEntry = async () => {
     try {
       const entry = await api.get('/time/active');
-      setActiveEntry(entry);
-    } catch (error) {
+      setActiveEntry(entry as TimeEntry | null);
+    } catch (error: unknown) {
       console.error('Failed to load active entry:', error);
     } finally {
       setLoading(false);
@@ -63,9 +69,9 @@ export default function TimeClock({ onUpdate }) {
         api.get('/jobs?status=scheduled&status=in_progress&limit=50'),
         api.get('/projects?status=active&limit=50'),
       ]);
-      setJobs(jobsRes.data || []);
-      setProjects(projectsRes.data || []);
-    } catch (error) {
+      setJobs((jobsRes as Record<string, unknown>).data as TimeJob[] || []);
+      setProjects((projectsRes as Record<string, unknown>).data as TimeProject[] || []);
+    } catch (error: unknown) {
       console.error('Failed to load jobs/projects:', error);
     }
   };
@@ -83,14 +89,15 @@ export default function TimeClock({ onUpdate }) {
         projectId: selectedProject || null,
         notes,
       });
-      setActiveEntry(entry);
+      setActiveEntry(entry as TimeEntry);
       setShowJobSelect(false);
       setSelectedJob('');
       setSelectedProject('');
       setNotes('');
       onUpdate?.();
-    } catch (error) {
-      alert(error.message || 'Failed to clock in');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to clock in';
+      alert(message);
     } finally {
       setProcessing(false);
     }
@@ -103,14 +110,15 @@ export default function TimeClock({ onUpdate }) {
       setActiveEntry(null);
       setNotes('');
       onUpdate?.();
-    } catch (error) {
-      alert(error.message || 'Failed to clock out');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to clock out';
+      alert(message);
     } finally {
       setProcessing(false);
     }
   };
 
-  const formatElapsed = (seconds) => {
+  const formatElapsed = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
@@ -168,7 +176,7 @@ export default function TimeClock({ onUpdate }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Job (optional)</label>
             <select
               value={selectedJob}
-              onChange={(e) => setSelectedJob(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedJob(e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm"
             >
               <option value="">No specific job</option>
@@ -184,7 +192,7 @@ export default function TimeClock({ onUpdate }) {
             <label className="block text-sm font-medium text-gray-700 mb-1">Project (optional)</label>
             <select
               value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedProject(e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm"
             >
               <option value="">No specific project</option>
@@ -201,7 +209,7 @@ export default function TimeClock({ onUpdate }) {
             <input
               type="text"
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNotes(e.target.value)}
               placeholder="What are you working on?"
               className="w-full px-3 py-2 border rounded-lg text-sm"
             />
@@ -256,11 +264,11 @@ export default function TimeClock({ onUpdate }) {
 /**
  * Compact clock widget for header/sidebar
  */
-export function TimeClockCompact({ onUpdate }) {
-  const [activeEntry, setActiveEntry] = useState(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const timerRef = useRef(null);
+export function TimeClockCompact({ onUpdate }: TimeClockCompactProps) {
+  const [activeEntry, setActiveEntry] = useState<TimeEntry | null>(null);
+  const [elapsed, setElapsed] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+  const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
     loadActiveEntry();
@@ -282,15 +290,15 @@ export function TimeClockCompact({ onUpdate }) {
     if (activeEntry?.startTime) {
       const start = new Date(activeEntry.startTime);
       const now = new Date();
-      setElapsed(Math.floor((now - start) / 1000));
+      setElapsed(Math.floor((now.getTime() - start.getTime()) / 1000));
     }
   };
 
   const loadActiveEntry = async () => {
     try {
       const entry = await api.get('/time/active');
-      setActiveEntry(entry);
-    } catch (error) {
+      setActiveEntry(entry as TimeEntry | null);
+    } catch (error: unknown) {
       // Ignore
     } finally {
       setLoading(false);
@@ -300,10 +308,11 @@ export function TimeClockCompact({ onUpdate }) {
   const handleQuickClockIn = async () => {
     try {
       const entry = await api.post('/time/clock-in', {});
-      setActiveEntry(entry);
+      setActiveEntry(entry as TimeEntry);
       onUpdate?.();
-    } catch (error) {
-      alert(error.message || 'Failed to clock in');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to clock in';
+      alert(message);
     }
   };
 
@@ -312,12 +321,13 @@ export function TimeClockCompact({ onUpdate }) {
       await api.post('/time/clock-out', {});
       setActiveEntry(null);
       onUpdate?.();
-    } catch (error) {
-      alert(error.message || 'Failed to clock out');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to clock out';
+      alert(message);
     }
   };
 
-  const formatElapsed = (seconds) => {
+  const formatElapsed = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     return `${hours}:${minutes.toString().padStart(2, '0')}`;

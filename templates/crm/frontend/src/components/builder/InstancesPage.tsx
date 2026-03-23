@@ -8,17 +8,31 @@ import { format } from 'date-fns';
 import { useBuilderStore } from '../../stores/builderStore';
 import { Button, Card, CardBody, ConfirmDialog, EmptyState } from '../ui';
 
+interface BuilderInstance {
+  id: string;
+  companyName?: string;
+  companyLogo?: string;
+  primaryColor?: string;
+  enabledFeatures: string[];
+  createdAt: string;
+  [key: string]: unknown;
+}
+
 export function InstancesPage() {
   const navigate = useNavigate();
-  const { instances, deleteInstance, loadInstance } = useBuilderStore();
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const { instances, deleteInstance, loadInstance } = useBuilderStore() as {
+    instances: BuilderInstance[];
+    deleteInstance: (id: string) => void;
+    loadInstance: (id: string) => void;
+  };
+  const [deleteTarget, setDeleteTarget] = useState<BuilderInstance | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const filteredInstances = instances.filter(i => 
+  const filteredInstances = instances.filter((i: BuilderInstance) =>
     i.companyName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleOpen = (instance) => {
+  const handleOpen = (instance: BuilderInstance) => {
     loadInstance(instance.id);
     navigate(`/crm/${instance.id}`);
   };
@@ -66,7 +80,7 @@ export function InstancesPage() {
 
             {/* Instances Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredInstances.map((instance) => (
+              {filteredInstances.map((instance: BuilderInstance) => (
                 <Card 
                   key={instance.id}
                   className="group hover:border-slate-700 transition-colors cursor-pointer"
@@ -160,7 +174,7 @@ export function InstancesPage() {
       <ConfirmDialog
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteInstance(deleteTarget?.id)}
+        onConfirm={() => deleteInstance(deleteTarget?.id ?? '')}
         title="Delete CRM Instance"
         message={`Are you sure you want to delete "${deleteTarget?.companyName || 'this CRM'}"? This action cannot be undone.`}
         confirmText="Delete"

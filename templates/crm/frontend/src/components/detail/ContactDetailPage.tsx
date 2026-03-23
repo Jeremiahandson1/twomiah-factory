@@ -12,18 +12,49 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
 
+interface ContactDetailData {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  type: string;
+  company?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  notes?: string | null;
+  source?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  projects?: Array<{ id: string; name: string; number: string; status: string }>;
+  quotes?: Array<{ id: string; name: string; number: string; total: string | number; status: string }>;
+  invoices?: Array<{ id: string; number: string; total: string | number; status: string }>;
+  [key: string]: unknown;
+}
+
+interface RoofReport {
+  id: string;
+  totalSquares: number;
+  imageryQuality: string;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
 export default function ContactDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
   const { hasFeature } = useAuth();
-  const [contact, setContact] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [roofReports, setRoofReports] = useState([]);
-  const [generatingReport, setGeneratingReport] = useState(false);
+  const [contact, setContact] = useState<ContactDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
+  const [roofReports, setRoofReports] = useState<RoofReport[]>([]);
+  const [generatingReport, setGeneratingReport] = useState<boolean>(false);
 
   useEffect(() => {
     loadContact();
@@ -36,8 +67,9 @@ export default function ContactDetailPage() {
     try {
       const data = await api.contacts.get(id);
       setContact(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
       toast.error('Failed to load contact');
     } finally {
       setLoading(false);
@@ -48,7 +80,9 @@ export default function ContactDetailPage() {
     try {
       const data = await api.request(`/api/roof-reports?contactId=${id}`);
       setRoofReports(data?.data || []);
-    } catch {}
+    } catch {
+      // silently ignore
+    }
   };
 
   const purchaseRoofReport = async () => {
@@ -61,8 +95,9 @@ export default function ContactDetailPage() {
       } else if (result.checkoutUrl) {
         window.location.href = result.checkoutUrl;
       }
-    } catch (err) {
-      toast.error(err.message || 'Failed — does this contact have an address?');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed — does this contact have an address?';
+      toast.error(message);
     } finally {
       setGeneratingReport(false);
     }
@@ -74,8 +109,9 @@ export default function ContactDetailPage() {
       await api.contacts.delete(id);
       toast.success('Contact deleted');
       navigate('/crm/contacts');
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     } finally {
       setDeleting(false);
     }
@@ -86,8 +122,9 @@ export default function ContactDetailPage() {
       await api.contacts.convert(id);
       toast.success('Lead converted to client');
       loadContact();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -95,7 +132,7 @@ export default function ContactDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error loading contact" description={error} onAction={loadContact} actionLabel="Retry" />;
   if (!contact) return <EmptyState title="Contact not found" />;
 
-  const typeColors = {
+  const typeColors: Record<string, string> = {
     lead: 'bg-yellow-100 text-yellow-700',
     client: 'bg-green-100 text-green-700',
     subcontractor: 'bg-blue-100 text-blue-700',
@@ -116,7 +153,7 @@ export default function ContactDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{contact.name}</h1>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${typeColors[contact.type]}`}>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${typeColors[contact.type] || ''}`}>
                 {contact.type}
               </span>
             </div>
@@ -196,7 +233,7 @@ export default function ContactDetailPage() {
                   <div>
                     <p className="text-sm text-gray-500">Mobile</p>
                     <a href={`tel:${contact.mobile}`} className="text-gray-900 hover:underline">
-                      {contact.mobile}
+                      {contact.mobile as string}
                     </a>
                   </div>
                 </div>
@@ -227,14 +264,14 @@ export default function ContactDetailPage() {
           )}
 
           {/* Related Projects */}
-          {contact.projects?.length > 0 && (
+          {(contact.projects?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Projects</h2>
-                <span className="text-sm text-gray-500">{contact.projects.length}</span>
+                <span className="text-sm text-gray-500">{contact.projects!.length}</span>
               </div>
               <div className="divide-y">
-                {contact.projects.map(project => (
+                {contact.projects!.map((project) => (
                   <Link
                     key={project.id}
                     to={`/crm/projects/${project.id}`}
@@ -255,14 +292,14 @@ export default function ContactDetailPage() {
           )}
 
           {/* Related Quotes */}
-          {contact.quotes?.length > 0 && (
+          {(contact.quotes?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Quotes</h2>
-                <span className="text-sm text-gray-500">{contact.quotes.length}</span>
+                <span className="text-sm text-gray-500">{contact.quotes!.length}</span>
               </div>
               <div className="divide-y">
-                {contact.quotes.map(quote => (
+                {contact.quotes!.map((quote) => (
                   <Link
                     key={quote.id}
                     to={`/crm/quotes/${quote.id}`}
@@ -376,7 +413,7 @@ export default function ContactDetailPage() {
                 <span className="text-sm text-gray-500">{roofReports.length}</span>
               </div>
               <div className="divide-y">
-                {roofReports.map((report: any) => (
+                {roofReports.map((report: RoofReport) => (
                   <Link
                     key={report.id}
                     to={`/crm/roof-reports/${report.id}`}

@@ -1,17 +1,70 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   DollarSign, Briefcase, FolderKanban, FileText, TrendingUp, TrendingDown,
-  Users, Clock, AlertCircle, CheckCircle, Loader2, Calendar, ArrowUpRight
+  Users, Clock, AlertCircle, CheckCircle, Loader2, Calendar, ArrowUpRight,
+  LucideIcon
 } from 'lucide-react';
 import api from '../../services/api';
 
+interface DashboardData {
+  revenue: {
+    collected: number;
+    invoiced: number;
+    outstanding: number;
+    overdue: number;
+    overdueCount: number;
+    collectionRate: number;
+  };
+  jobs: {
+    total: number;
+    completed: number;
+    completionRate: number;
+    today: number;
+    scheduled?: number;
+    inProgress?: number;
+    cancelled?: number;
+    byStatus?: Record<string, number>;
+    [key: string]: unknown;
+  };
+  projects: {
+    total: number;
+    active: number;
+    completed: number;
+    totalValue: number;
+  };
+  quotes: {
+    total: number;
+    approved: number;
+    conversionRate: number;
+  };
+  recentActivity: Record<string, unknown>[];
+}
+
+interface MonthlyRevenueItem {
+  month: string;
+  invoiced: number;
+  collected: number;
+}
+
+interface CustomerItem {
+  contact?: { name?: string };
+  invoiceCount: number;
+  total: number;
+}
+
+interface TeamMember {
+  user?: { firstName?: string; lastName?: string };
+  jobsCompleted: number;
+  hoursWorked: number;
+}
+
 export default function ReportsDashboard() {
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
-  const [monthlyRevenue, setMonthlyRevenue] = useState([]);
-  const [topCustomers, setTopCustomers] = useState([]);
-  const [teamData, setTeamData] = useState([]);
-  const [dateRange, setDateRange] = useState('30');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenueItem[]>([]);
+  const [topCustomers, setTopCustomers] = useState<CustomerItem[]>([]);
+  const [teamData, setTeamData] = useState<TeamMember[]>([]);
+  const [dateRange, setDateRange] = useState<string>('30');
 
   useEffect(() => {
     loadData();
@@ -26,12 +79,12 @@ export default function ReportsDashboard() {
         api.get('/api/reports/revenue/customers?limit=5'),
         api.get('/api/reports/team'),
       ]);
-      
+
       setData(dashboard || null);
       setMonthlyRevenue(Array.isArray(monthly) ? monthly : []);
       setTopCustomers(Array.isArray(customers) ? customers : []);
       setTeamData(Array.isArray(team) ? team : []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load reports:', error);
     } finally {
       setLoading(false);
@@ -70,7 +123,7 @@ export default function ReportsDashboard() {
         </div>
         <select
           value={dateRange}
-          onChange={(e) => setDateRange(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setDateRange(e.target.value)}
           className="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
         >
           <option value="7">Last 7 days</option>
@@ -141,7 +194,7 @@ export default function ReportsDashboard() {
             {topCustomers.length === 0 ? (
               <p className="text-gray-500 text-sm">No data yet</p>
             ) : (
-              topCustomers.map((customer, i) => (
+              topCustomers.map((customer: CustomerItem, i: number) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium">
@@ -166,7 +219,7 @@ export default function ReportsDashboard() {
             {teamData.length === 0 ? (
               <p className="text-gray-500 text-sm">No time entries yet</p>
             ) : (
-              teamData.slice(0, 5).map((member, i) => (
+              teamData.slice(0, 5).map((member: TeamMember, i: number) => (
                 <div key={i} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
@@ -192,7 +245,7 @@ export default function ReportsDashboard() {
         <div className="bg-white rounded-xl border p-6">
           <h3 className="font-semibold text-gray-900 mb-4">Recent Activity</h3>
           <div className="space-y-3">
-            {recentActivity.map((item, i) => (
+            {recentActivity.map((item: Record<string, unknown>, i: number) => (
               <div key={i} className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   item.type === 'invoice' ? 'bg-green-100' :
@@ -204,12 +257,12 @@ export default function ReportsDashboard() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
-                    {item.type === 'invoice' ? `Invoice ${item.number}` :
-                     item.type === 'job' ? item.title :
-                     `Quote ${item.number}`}
+                    {item.type === 'invoice' ? `Invoice ${item.number as string}` :
+                     item.type === 'job' ? item.title as string :
+                     `Quote ${item.number as string}`}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {new Date(item.createdAt).toLocaleDateString()}
+                    {new Date(item.createdAt as string).toLocaleDateString()}
                   </p>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full ${
@@ -217,7 +270,7 @@ export default function ReportsDashboard() {
                     ? 'bg-green-100 text-green-700'
                     : 'bg-gray-100 text-gray-600'
                 }`}>
-                  {item.status}
+                  {item.status as string}
                 </span>
               </div>
             ))}
@@ -251,8 +304,19 @@ export default function ReportsDashboard() {
   );
 }
 
-function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendLabel, alert }) {
-  const colors = {
+interface MetricCardProps {
+  title: string;
+  value: string | number;
+  subtitle: string;
+  icon: LucideIcon;
+  color: 'green' | 'orange' | 'blue' | 'purple';
+  trend?: number;
+  trendLabel?: string;
+  alert?: boolean;
+}
+
+function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendLabel, alert }: MetricCardProps) {
+  const colors: Record<string, string> = {
     green: 'bg-green-100 text-green-600',
     orange: 'bg-orange-100 text-orange-600',
     blue: 'bg-blue-100 text-blue-600',
@@ -281,25 +345,29 @@ function MetricCard({ title, value, subtitle, icon: Icon, color, trend, trendLab
   );
 }
 
-function RevenueChart({ data }) {
+interface RevenueChartProps {
+  data: MonthlyRevenueItem[];
+}
+
+function RevenueChart({ data }: RevenueChartProps) {
   if (!data || data.length === 0) {
     return <div className="h-48 flex items-center justify-center text-gray-400">No data</div>;
   }
 
-  const maxValue = Math.max(...data.map(d => Math.max(d.invoiced, d.collected)));
-  
+  const maxValue = Math.max(...data.map((d: MonthlyRevenueItem) => Math.max(d.invoiced, d.collected)));
+
   return (
     <div className="h-48">
       <div className="flex items-end justify-between h-40 gap-2">
-        {data.map((month, i) => (
+        {data.map((month: MonthlyRevenueItem, i: number) => (
           <div key={i} className="flex-1 flex flex-col items-center gap-1">
             <div className="w-full flex gap-1 items-end h-32">
-              <div 
+              <div
                 className="flex-1 bg-blue-200 rounded-t"
                 style={{ height: `${(month.invoiced / maxValue) * 100}%` }}
                 title={`Invoiced: $${month.invoiced.toLocaleString()}`}
               />
-              <div 
+              <div
                 className="flex-1 bg-green-500 rounded-t"
                 style={{ height: `${(month.collected / maxValue) * 100}%` }}
                 title={`Collected: $${month.collected.toLocaleString()}`}
@@ -325,8 +393,12 @@ function RevenueChart({ data }) {
   );
 }
 
-function JobStatusChart({ jobs }) {
-  const statuses = [
+interface JobStatusChartProps {
+  jobs: DashboardData['jobs'];
+}
+
+function JobStatusChart({ jobs }: JobStatusChartProps) {
+  const statuses: { key: string; label: string; color: string }[] = [
     { key: 'scheduled', label: 'Scheduled', color: 'bg-blue-500' },
     { key: 'inProgress', label: 'In Progress', color: 'bg-yellow-500' },
     { key: 'completed', label: 'Completed', color: 'bg-green-500' },
@@ -339,11 +411,11 @@ function JobStatusChart({ jobs }) {
     <div className="space-y-4">
       {/* Progress bar */}
       <div className="h-4 bg-gray-100 rounded-full overflow-hidden flex">
-        {statuses.map(status => {
-          const count = jobs[status.key] || jobs.byStatus?.[status.key.replace(/([A-Z])/g, '_$1').toLowerCase()] || 0;
-          const percent = (count / total) * 100;
+        {statuses.map((status: { key: string; label: string; color: string }) => {
+          const count = (jobs[status.key] as number) || jobs.byStatus?.[status.key.replace(/([A-Z])/g, '_$1').toLowerCase()] || 0;
+          const percent = (Number(count) / total) * 100;
           return percent > 0 ? (
-            <div 
+            <div
               key={status.key}
               className={`${status.color} transition-all`}
               style={{ width: `${percent}%` }}
@@ -355,8 +427,8 @@ function JobStatusChart({ jobs }) {
 
       {/* Legend */}
       <div className="grid grid-cols-2 gap-3">
-        {statuses.map(status => {
-          const count = jobs[status.key] || jobs.byStatus?.[status.key.replace(/([A-Z])/g, '_$1').toLowerCase()] || 0;
+        {statuses.map((status: { key: string; label: string; color: string }) => {
+          const count = (jobs[status.key] as number) || jobs.byStatus?.[status.key.replace(/([A-Z])/g, '_$1').toLowerCase()] || 0;
           return (
             <div key={status.key} className="flex items-center justify-between">
               <div className="flex items-center gap-2">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Building2, Users, Briefcase, Plus, Search,
   Settings, Trash2, MoreVertical, ExternalLink,
   CheckCircle, Package
@@ -7,20 +7,57 @@ import {
 import api from '../../services/api';
 import CreateCustomerModal from './CreateCustomerModal';
 import CustomerFeaturesModal from './CustomerFeaturesModal';
+import { LucideIcon } from 'lucide-react';
+
+interface AgencyStats {
+  totalCustomers: number;
+  totalUsers: number;
+  totalJobs: number;
+}
+
+interface CustomerStats {
+  users: number;
+  contacts: number;
+  jobs: number;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  email?: string;
+  slug: string;
+  logo?: string;
+  featureCount: number;
+  enabledFeatures?: string[];
+  stats?: CustomerStats;
+}
+
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  color: 'blue' | 'green' | 'purple' | 'orange';
+}
+
+interface CustomerRowProps {
+  customer: Customer;
+  onEditFeatures: () => void;
+  onRefresh: () => void;
+}
 
 /**
  * Agency Admin Dashboard
- * 
+ *
  * The control center for managing customer CRM deployments.
  */
 export default function AgencyDashboard() {
-  const [stats, setStats] = useState(null);
-  const [customers, setCustomers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [showFeaturesModal, setShowFeaturesModal] = useState(false);
+  const [stats, setStats] = useState<AgencyStats | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [search, setSearch] = useState<string>('');
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showFeaturesModal, setShowFeaturesModal] = useState<boolean>(false);
 
   useEffect(() => {
     loadData();
@@ -42,7 +79,7 @@ export default function AgencyDashboard() {
     }
   };
 
-  const filteredCustomers = customers.filter(c =>
+  const filteredCustomers = customers.filter((c: Customer) =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.email?.toLowerCase().includes(search.toLowerCase())
   );
@@ -52,7 +89,7 @@ export default function AgencyDashboard() {
     loadData();
   };
 
-  const handleEditFeatures = (customer) => {
+  const handleEditFeatures = (customer: Customer) => {
     setSelectedCustomer(customer);
     setShowFeaturesModal(true);
   };
@@ -122,7 +159,7 @@ export default function AgencyDashboard() {
               type="text"
               placeholder="Search customers..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
               className="pl-10 pr-4 py-2 border rounded-lg text-sm w-64"
             />
           </div>
@@ -130,7 +167,7 @@ export default function AgencyDashboard() {
 
         {filteredCustomers.length > 0 ? (
           <div className="divide-y">
-            {filteredCustomers.map((customer) => (
+            {filteredCustomers.map((customer: Customer) => (
               <CustomerRow
                 key={customer.id}
                 customer={customer}
@@ -176,8 +213,8 @@ export default function AgencyDashboard() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color }) {
-  const colors = {
+function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
+  const colors: Record<string, string> = {
     blue: 'bg-blue-100 text-blue-600',
     green: 'bg-green-100 text-green-600',
     purple: 'bg-purple-100 text-purple-600',
@@ -199,8 +236,8 @@ function StatCard({ icon: Icon, label, value, color }) {
   );
 }
 
-function CustomerRow({ customer, onEditFeatures, onRefresh }) {
-  const [showMenu, setShowMenu] = useState(false);
+function CustomerRow({ customer, onEditFeatures, onRefresh }: CustomerRowProps) {
+  const [showMenu, setShowMenu] = useState<boolean>(false);
 
   const handleDelete = async () => {
     const slug = prompt(`Type "${customer.slug}" to confirm deletion:`);
@@ -210,8 +247,9 @@ function CustomerRow({ customer, onEditFeatures, onRefresh }) {
     }
 
     try {
-      await api.delete(`/api/agency/customers/${customer.id}`, {
-        data: { confirmDelete: customer.slug },
+      await api.request(`/api/agency/customers/${customer.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmDelete: customer.slug }),
       });
       onRefresh();
     } catch (error) {

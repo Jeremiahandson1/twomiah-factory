@@ -5,27 +5,50 @@ import { format } from 'date-fns';
 import { Card, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, EmptyState, ConfirmDialog } from '../ui';
 import { useCRMDataStore } from '../../stores/builderStore';
 
-function TimeEntryForm({ entry, jobs, team, onSave, onClose }) {
-  const [form, setForm] = useState(entry || { 
-    userId: '', jobId: '', date: format(new Date(), 'yyyy-MM-dd'), 
-    startTime: '', endTime: '', hours: '', description: '', billable: true 
+interface OutletContextType {
+  instance: Record<string, unknown>;
+}
+
+interface TimeEntryFormData {
+  userId: string;
+  jobId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  hours: string | number;
+  description: string;
+  billable: boolean;
+}
+
+interface TimeEntryFormProps {
+  entry: Record<string, unknown> | null;
+  jobs: Record<string, unknown>[];
+  team: Record<string, unknown>[];
+  onSave: (data: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
+function TimeEntryForm({ entry, jobs, team, onSave, onClose }: TimeEntryFormProps) {
+  const [form, setForm] = useState<TimeEntryFormData>((entry as unknown as TimeEntryFormData) || {
+    userId: '', jobId: '', date: format(new Date(), 'yyyy-MM-dd'),
+    startTime: '', endTime: '', hours: '', description: '', billable: true
   });
-  const handleSubmit = (e) => { e.preventDefault(); onSave({ ...form, hours: Number(form.hours) || 0 }); onClose(); };
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSave({ ...form, hours: Number(form.hours) || 0 }); onClose(); };
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Select label="Team Member" value={form.userId} onChange={(e) => setForm({ ...form, userId: e.target.value })} options={team.map(t => ({ value: t.id, label: t.name }))} placeholder="Select person" required />
-        <Select label="Job" value={form.jobId} onChange={(e) => setForm({ ...form, jobId: e.target.value })} options={jobs.map(j => ({ value: j.id, label: j.title }))} placeholder="Select job" />
+        <Select label="Team Member" value={form.userId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, userId: e.target.value })} options={team.map((t: Record<string, unknown>) => ({ value: t.id as string, label: t.name as string }))} placeholder="Select person" required />
+        <Select label="Job" value={form.jobId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, jobId: e.target.value })} options={jobs.map((j: Record<string, unknown>) => ({ value: j.id as string, label: j.title as string }))} placeholder="Select job" />
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <Input label="Date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
-        <Input label="Start Time" type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
-        <Input label="End Time" type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
+        <Input label="Date" type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })} required />
+        <Input label="Start Time" type="time" value={form.startTime} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, startTime: e.target.value })} />
+        <Input label="End Time" type="time" value={form.endTime} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, endTime: e.target.value })} />
       </div>
-      <Input label="Hours" type="number" step="0.25" value={form.hours} onChange={(e) => setForm({ ...form, hours: e.target.value })} placeholder="0.00" required />
-      <Textarea label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Work performed..." rows={2} />
+      <Input label="Hours" type="number" step="0.25" value={form.hours} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, hours: e.target.value })} placeholder="0.00" required />
+      <Textarea label="Description" value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })} placeholder="Work performed..." rows={2} />
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" checked={form.billable} onChange={(e) => setForm({ ...form, billable: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
+        <input type="checkbox" checked={form.billable} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, billable: e.target.checked })} className="w-4 h-4 rounded border-slate-600 bg-slate-800" />
         <span className="text-sm text-slate-300">Billable time</span>
       </label>
       <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit">{entry ? 'Update' : 'Log'} Time</Button></div>
@@ -34,27 +57,34 @@ function TimeEntryForm({ entry, jobs, team, onSave, onClose }) {
 }
 
 export function TimeTrackingPage() {
-  const { instance } = useOutletContext();
-  const { timeEntries, jobs, teamMembers, addTimeEntry, updateTimeEntry, deleteTimeEntry } = useCRMDataStore();
-  const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editEntry, setEditEntry] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [activeTimer, setActiveTimer] = useState(null);
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const { instance } = useOutletContext<OutletContextType>();
+  const { timeEntries, jobs, teamMembers, addTimeEntry, updateTimeEntry, deleteTimeEntry } = useCRMDataStore() as {
+    timeEntries: Record<string, unknown>[];
+    jobs: Record<string, unknown>[];
+    teamMembers: Record<string, unknown>[];
+    addTimeEntry: (entry: Record<string, unknown>) => void;
+    updateTimeEntry: (id: unknown, updates: Record<string, unknown>) => void;
+    deleteTimeEntry: (id: unknown) => void;
+  };
+  const [search, setSearch] = useState<string>('');
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editEntry, setEditEntry] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
+  const [activeTimer, setActiveTimer] = useState<Date | null>(null);
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
-  const filtered = useMemo(() => timeEntries.filter(e => {
-    const matchesSearch = !search || e.description?.toLowerCase().includes(search.toLowerCase());
+  const filtered = useMemo(() => timeEntries.filter((e: Record<string, unknown>) => {
+    const matchesSearch = !search || (e.description as string)?.toLowerCase().includes(search.toLowerCase());
     return matchesSearch;
   }), [timeEntries, search]);
 
-  const handleSave = (data) => { editEntry ? updateTimeEntry(editEntry.id, data) : addTimeEntry(data); setEditEntry(null); setShowForm(false); };
-  const getTeamName = (id) => teamMembers.find(t => t.id === id)?.name || '-';
-  const getJobTitle = (id) => jobs.find(j => j.id === id)?.title || '-';
+  const handleSave = (data: Record<string, unknown>) => { editEntry ? updateTimeEntry(editEntry.id, data) : addTimeEntry(data); setEditEntry(null); setShowForm(false); };
+  const getTeamName = (id: string): string => (teamMembers.find((t: Record<string, unknown>) => t.id === id)?.name as string) || '-';
+  const getJobTitle = (id: string): string => (jobs.find((j: Record<string, unknown>) => j.id === id)?.title as string) || '-';
 
-  const totalHours = timeEntries.reduce((s, e) => s + (e.hours || 0), 0);
-  const billableHours = timeEntries.filter(e => e.billable).reduce((s, e) => s + (e.hours || 0), 0);
-  const thisWeek = timeEntries.filter(e => new Date(e.date) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).reduce((s, e) => s + (e.hours || 0), 0);
+  const totalHours = timeEntries.reduce((s: number, e: Record<string, unknown>) => s + ((e.hours as number) || 0), 0);
+  const billableHours = timeEntries.filter((e: Record<string, unknown>) => e.billable).reduce((s: number, e: Record<string, unknown>) => s + ((e.hours as number) || 0), 0);
+  const thisWeek = timeEntries.filter((e: Record<string, unknown>) => new Date(e.date as string) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)).reduce((s: number, e: Record<string, unknown>) => s + ((e.hours as number) || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -90,17 +120,17 @@ export function TimeTrackingPage() {
           <Card key={i} className="p-4"><div className="flex items-center justify-between"><div><p className="text-xl font-bold text-white">{stat.value}</p><p className="text-sm text-slate-400">{stat.label}</p></div><stat.icon className="w-8 h-8" style={{ color: primaryColor }} /></div></Card>
         ))}
       </div>
-      <Card><CardBody className="p-4"><div className="relative max-w-md"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search entries..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-11" /></div></CardBody></Card>
+      <Card><CardBody className="p-4"><div className="relative max-w-md"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search entries..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="input pl-11" /></div></CardBody></Card>
       <Card>
         {filtered.length > 0 ? (
           <Table><TableHead><TableRow><TableHeader>Date</TableHeader><TableHeader>Team Member</TableHeader><TableHeader>Job</TableHeader><TableHeader>Hours</TableHeader><TableHeader>Description</TableHeader><TableHeader>Billable</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>
-            {filtered.map((entry) => (
-              <TableRow key={entry.id}>
-                <TableCell><span className="font-medium text-white">{format(new Date(entry.date), 'MMM d')}</span></TableCell>
-                <TableCell className="text-slate-300">{getTeamName(entry.userId)}</TableCell>
-                <TableCell className="text-slate-300">{getJobTitle(entry.jobId)}</TableCell>
-                <TableCell className="text-white font-medium">{entry.hours}h</TableCell>
-                <TableCell><span className="text-slate-400 line-clamp-1">{entry.description || '-'}</span></TableCell>
+            {filtered.map((entry: Record<string, unknown>) => (
+              <TableRow key={entry.id as string}>
+                <TableCell><span className="font-medium text-white">{format(new Date(entry.date as string), 'MMM d')}</span></TableCell>
+                <TableCell className="text-slate-300">{getTeamName(entry.userId as string)}</TableCell>
+                <TableCell className="text-slate-300">{getJobTitle(entry.jobId as string)}</TableCell>
+                <TableCell className="text-white font-medium">{entry.hours as number}h</TableCell>
+                <TableCell><span className="text-slate-400 line-clamp-1">{(entry.description as string) || '-'}</span></TableCell>
                 <TableCell>{entry.billable ? <span className="text-emerald-400">✓</span> : <span className="text-slate-500">—</span>}</TableCell>
                 <TableCell><div className="flex gap-1">
                   <button onClick={() => { setEditEntry(entry); setShowForm(true); }} className="p-1.5 hover:bg-slate-700 rounded"><Edit2 className="w-4 h-4 text-slate-400" /></button>

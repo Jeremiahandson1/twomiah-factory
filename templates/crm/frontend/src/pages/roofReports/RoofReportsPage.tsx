@@ -40,7 +40,7 @@ function isSummerMonth(dateStr: string): boolean {
 }
 
 export default function RoofReportsPage() {
-  const { token } = useAuth()
+  const _auth = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -79,7 +79,7 @@ export default function RoofReportsPage() {
   const confirmPurchase = async (sessionId: string) => {
     setConfirming(true)
     try {
-      const result = await api.request('/api/roof-reports/confirm-purchase', {
+      const result = await api.request<Record<string, unknown>>('/api/roof-reports/confirm-purchase', {
         method: 'POST',
         body: JSON.stringify({ sessionId }),
       })
@@ -105,8 +105,8 @@ export default function RoofReportsPage() {
   const loadReports = async () => {
     setLoading(true)
     try {
-      const data = await api.request('/api/roof-reports')
-      setReports(data?.data || [])
+      const data = await api.request<Record<string, unknown>>('/api/roof-reports')
+      setReports((data?.data as RoofReport[]) || [])
     } catch {
       toast.error('Failed to load roof reports')
     } finally {
@@ -116,8 +116,8 @@ export default function RoofReportsPage() {
 
   const loadContacts = async () => {
     try {
-      const data = await api.request('/api/contacts?limit=200')
-      setContacts(data?.data || data || [])
+      const data = await api.request<Record<string, unknown>>('/api/contacts?limit=200')
+      setContacts((data?.data as unknown as Contact[]) || (data as unknown as Contact[]) || [])
     } catch {}
   }
 
@@ -128,7 +128,7 @@ export default function RoofReportsPage() {
     }
     setPurchasing(true)
     try {
-      const result = await api.request('/api/roof-reports/purchase', {
+      const result = await api.request<Record<string, unknown>>('/api/roof-reports/purchase', {
         method: 'POST',
         body: JSON.stringify({
           address: form.address,
@@ -148,10 +148,10 @@ export default function RoofReportsPage() {
         loadReports()
       } else if (result.free && result.preview) {
         // Manual: show editor
-        setPreview(result.preview)
+        setPreview(result.preview as Record<string, unknown>)
         setShowForm(false)
       } else if (result.checkoutUrl) {
-        window.location.href = result.checkoutUrl
+        window.location.href = result.checkoutUrl as string
       }
     } catch (err: any) {
       toast.error(err?.message || 'Failed to generate')

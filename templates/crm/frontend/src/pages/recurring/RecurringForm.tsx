@@ -3,7 +3,40 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Save, ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 
-const FREQUENCIES = [
+interface FrequencyOption {
+  value: string;
+  label: string;
+}
+
+interface DayOfWeekOption {
+  value: number;
+  label: string;
+}
+
+interface LineItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+interface RecurringFormState {
+  contactId: string;
+  projectId: string;
+  frequency: string;
+  startDate: string;
+  endDate: string;
+  dayOfMonth: number;
+  dayOfWeek: number;
+  lineItems: LineItem[];
+  notes: string;
+  terms: string;
+  taxRate: number;
+  discount: number;
+  autoSend: boolean;
+  paymentTermsDays: number;
+}
+
+const FREQUENCIES: FrequencyOption[] = [
   { value: 'weekly', label: 'Weekly' },
   { value: 'biweekly', label: 'Bi-Weekly' },
   { value: 'monthly', label: 'Monthly' },
@@ -11,7 +44,7 @@ const FREQUENCIES = [
   { value: 'yearly', label: 'Yearly' },
 ];
 
-const DAYS_OF_WEEK = [
+const DAYS_OF_WEEK: DayOfWeekOption[] = [
   { value: 0, label: 'Sunday' },
   { value: 1, label: 'Monday' },
   { value: 2, label: 'Tuesday' },
@@ -22,16 +55,16 @@ const DAYS_OF_WEEK = [
 ];
 
 export default function RecurringForm() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEdit = !!id;
 
-  const [loading, setLoading] = useState(isEdit);
-  const [saving, setSaving] = useState(false);
-  const [contacts, setContacts] = useState([]);
-  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState<boolean>(isEdit);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
+  const [projects, setProjects] = useState<Record<string, unknown>[]>([]);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<RecurringFormState>({
     contactId: '',
     projectId: '',
     frequency: 'monthly',
@@ -59,46 +92,46 @@ export default function RecurringForm() {
         api.get('/api/contacts?type=client&limit=200'),
         api.get('/api/projects?limit=200'),
       ]);
-      setContacts(contactsRes.data || []);
-      setProjects(projectsRes.data || []);
-    } catch (error) {
+      setContacts((contactsRes as Record<string, unknown>).data as Record<string, unknown>[] || []);
+      setProjects((projectsRes as Record<string, unknown>).data as Record<string, unknown>[] || []);
+    } catch (error: unknown) {
       console.error('Failed to load contacts:', error);
     }
   };
 
   const loadRecurring = async () => {
     try {
-      const data = await api.get(`/api/recurring/${id}`);
+      const data = await api.get(`/api/recurring/${id}`) as Record<string, unknown>;
       setForm({
-        contactId: data.contactId || '',
-        projectId: data.projectId || '',
-        frequency: data.frequency,
-        startDate: data.startDate?.split('T')[0] || '',
-        endDate: data.endDate?.split('T')[0] || '',
-        dayOfMonth: data.dayOfMonth || 1,
-        dayOfWeek: data.dayOfWeek || 1,
-        lineItems: data.lineItems?.length > 0 
-          ? data.lineItems.map(i => ({ description: i.description, quantity: i.quantity, unitPrice: i.unitPrice }))
+        contactId: (data.contactId as string) || '',
+        projectId: (data.projectId as string) || '',
+        frequency: data.frequency as string,
+        startDate: (data.startDate as string)?.split('T')[0] || '',
+        endDate: (data.endDate as string)?.split('T')[0] || '',
+        dayOfMonth: (data.dayOfMonth as number) || 1,
+        dayOfWeek: (data.dayOfWeek as number) || 1,
+        lineItems: (data.lineItems as Record<string, unknown>[])?.length > 0
+          ? (data.lineItems as Record<string, unknown>[]).map((i: Record<string, unknown>) => ({ description: i.description as string, quantity: i.quantity as number, unitPrice: i.unitPrice as number }))
           : [{ description: '', quantity: 1, unitPrice: 0 }],
-        notes: data.notes || '',
-        terms: data.terms || '',
-        taxRate: data.taxRate || 0,
-        discount: data.discount || 0,
-        autoSend: data.autoSend || false,
-        paymentTermsDays: data.paymentTermsDays || 30,
+        notes: (data.notes as string) || '',
+        terms: (data.terms as string) || '',
+        taxRate: (data.taxRate as number) || 0,
+        discount: (data.discount as number) || 0,
+        autoSend: (data.autoSend as boolean) || false,
+        paymentTermsDays: (data.paymentTermsDays as number) || 30,
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load recurring invoice:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (field, value) => {
+  const handleChange = (field: string, value: string | number | boolean) => {
     setForm({ ...form, [field]: value });
   };
 
-  const handleLineItemChange = (index, field, value) => {
+  const handleLineItemChange = (index: number, field: string, value: string | number) => {
     const items = [...form.lineItems];
     items[index] = { ...items[index], [field]: value };
     setForm({ ...form, lineItems: items });
@@ -111,14 +144,14 @@ export default function RecurringForm() {
     });
   };
 
-  const removeLineItem = (index) => {
+  const removeLineItem = (index: number) => {
     if (form.lineItems.length <= 1) return;
-    const items = form.lineItems.filter((_, i) => i !== index);
+    const items = form.lineItems.filter((_: LineItem, i: number) => i !== index);
     setForm({ ...form, lineItems: items });
   };
 
-  const calculateTotals = () => {
-    const subtotal = form.lineItems.reduce((sum, item) => {
+  const calculateTotals = (): { subtotal: number; taxAmount: number; total: number } => {
+    const subtotal = form.lineItems.reduce((sum: number, item: LineItem) => {
       return sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
     }, 0);
     const taxAmount = subtotal * (Number(form.taxRate) || 0) / 100;
@@ -126,13 +159,13 @@ export default function RecurringForm() {
     return { subtotal, taxAmount, total };
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!form.contactId) {
       alert('Please select a contact');
       return;
     }
-    if (form.lineItems.every(i => !i.description)) {
+    if (form.lineItems.every((i: LineItem) => !i.description)) {
       alert('Please add at least one line item');
       return;
     }
@@ -147,8 +180,8 @@ export default function RecurringForm() {
         discount: Number(form.discount) || 0,
         paymentTermsDays: Number(form.paymentTermsDays) || 30,
         lineItems: form.lineItems
-          .filter(i => i.description)
-          .map(i => ({
+          .filter((i: LineItem) => i.description)
+          .map((i: LineItem) => ({
             description: i.description,
             quantity: Number(i.quantity) || 1,
             unitPrice: Number(i.unitPrice) || 0,
@@ -162,8 +195,8 @@ export default function RecurringForm() {
       }
 
       navigate('/recurring');
-    } catch (error) {
-      alert('Failed to save: ' + (error.message || 'Unknown error'));
+    } catch (error: unknown) {
+      alert('Failed to save: ' + ((error as Error).message || 'Unknown error'));
     } finally {
       setSaving(false);
     }
@@ -205,13 +238,13 @@ export default function RecurringForm() {
               </label>
               <select
                 value={form.contactId}
-                onChange={(e) => handleChange('contactId', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange('contactId', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
                 required
               >
                 <option value="">Select contact...</option>
-                {contacts.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                {contacts.map((c: Record<string, unknown>) => (
+                  <option key={c.id as string} value={c.id as string}>{c.name as string}</option>
                 ))}
               </select>
             </div>
@@ -219,12 +252,12 @@ export default function RecurringForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
               <select
                 value={form.projectId}
-                onChange={(e) => handleChange('projectId', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange('projectId', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
               >
                 <option value="">No project</option>
-                {projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
+                {projects.map((p: Record<string, unknown>) => (
+                  <option key={p.id as string} value={p.id as string}>{p.name as string}</option>
                 ))}
               </select>
             </div>
@@ -239,10 +272,10 @@ export default function RecurringForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
               <select
                 value={form.frequency}
-                onChange={(e) => handleChange('frequency', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange('frequency', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
               >
-                {FREQUENCIES.map(f => (
+                {FREQUENCIES.map((f: FrequencyOption) => (
                   <option key={f.value} value={f.value}>{f.label}</option>
                 ))}
               </select>
@@ -253,10 +286,10 @@ export default function RecurringForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Day of Week</label>
                 <select
                   value={form.dayOfWeek}
-                  onChange={(e) => handleChange('dayOfWeek', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange('dayOfWeek', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
                 >
-                  {DAYS_OF_WEEK.map(d => (
+                  {DAYS_OF_WEEK.map((d: DayOfWeekOption) => (
                     <option key={d.value} value={d.value}>{d.label}</option>
                   ))}
                 </select>
@@ -268,10 +301,10 @@ export default function RecurringForm() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Day of Month</label>
                 <select
                   value={form.dayOfMonth}
-                  onChange={(e) => handleChange('dayOfMonth', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange('dayOfMonth', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
                 >
-                  {Array.from({ length: 28 }, (_, i) => i + 1).map(d => (
+                  {Array.from({ length: 28 }, (_: unknown, i: number) => i + 1).map((d: number) => (
                     <option key={d} value={d}>{d}</option>
                   ))}
                 </select>
@@ -283,7 +316,7 @@ export default function RecurringForm() {
               <input
                 type="date"
                 value={form.startDate}
-                onChange={(e) => handleChange('startDate', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('startDate', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
               />
             </div>
@@ -293,7 +326,7 @@ export default function RecurringForm() {
               <input
                 type="date"
                 value={form.endDate}
-                onChange={(e) => handleChange('endDate', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('endDate', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
               />
             </div>
@@ -303,7 +336,7 @@ export default function RecurringForm() {
               <input
                 type="number"
                 value={form.paymentTermsDays}
-                onChange={(e) => handleChange('paymentTermsDays', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('paymentTermsDays', e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
                 min="0"
               />
@@ -315,7 +348,7 @@ export default function RecurringForm() {
               <input
                 type="checkbox"
                 checked={form.autoSend}
-                onChange={(e) => handleChange('autoSend', e.target.checked)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('autoSend', e.target.checked)}
                 className="rounded border-gray-300 text-orange-500 focus:ring-orange-500 text-gray-900"
               />
               <span className="text-sm text-gray-700">
@@ -329,14 +362,14 @@ export default function RecurringForm() {
         <div className="bg-white rounded-xl border p-6">
           <h2 className="font-semibold text-gray-900 mb-4">Line Items</h2>
           <div className="space-y-3">
-            {form.lineItems.map((item, index) => (
+            {form.lineItems.map((item: LineItem, index: number) => (
               <div key={index} className="flex gap-3 items-start">
                 <div className="flex-1">
                   <input
                     type="text"
                     placeholder="Description"
                     value={item.description}
-                    onChange={(e) => handleLineItemChange(index, 'description', e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLineItemChange(index, 'description', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
                   />
                 </div>
@@ -345,7 +378,7 @@ export default function RecurringForm() {
                     type="number"
                     placeholder="Qty"
                     value={item.quantity}
-                    onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLineItemChange(index, 'quantity', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
                     min="1"
                   />
@@ -355,7 +388,7 @@ export default function RecurringForm() {
                     type="number"
                     placeholder="Price"
                     value={item.unitPrice}
-                    onChange={(e) => handleLineItemChange(index, 'unitPrice', e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleLineItemChange(index, 'unitPrice', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
                     min="0"
                     step="0.01"
@@ -397,7 +430,7 @@ export default function RecurringForm() {
                 <input
                   type="number"
                   value={form.taxRate}
-                  onChange={(e) => handleChange('taxRate', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('taxRate', e.target.value)}
                   className="w-20 px-2 py-1 border rounded text-right"
                   min="0"
                   step="0.1"
@@ -409,7 +442,7 @@ export default function RecurringForm() {
                 <input
                   type="number"
                   value={form.discount}
-                  onChange={(e) => handleChange('discount', e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('discount', e.target.value)}
                   className="w-20 px-2 py-1 border rounded text-right"
                   min="0"
                   step="0.01"
@@ -432,7 +465,7 @@ export default function RecurringForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes (visible to customer)</label>
               <textarea
                 value={form.notes}
-                onChange={(e) => handleChange('notes', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleChange('notes', e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
               />
@@ -441,7 +474,7 @@ export default function RecurringForm() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Terms</label>
               <textarea
                 value={form.terms}
-                onChange={(e) => handleChange('terms', e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleChange('terms', e.target.value)}
                 rows={3}
                 className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500"
               />

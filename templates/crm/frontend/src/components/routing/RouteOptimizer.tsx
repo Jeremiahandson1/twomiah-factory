@@ -1,18 +1,35 @@
 import { useState, useEffect } from 'react';
-import { 
-  Navigation, MapPin, Clock, Fuel, TrendingDown, 
+import {
+  Navigation, MapPin, Clock, Fuel, TrendingDown,
   ExternalLink, Loader2, RefreshCw, Calendar, Users
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import api from '../../services/api';
+
+interface RouteData {
+  optimizedRoute: { optimizedOrder: Array<Record<string, unknown>>; totalDistanceMiles: number; totalDurationMinutes: number; fuelCost?: { cost: number }; savings?: { percentDistance: number; distanceMiles: number; timeMinutes: number }; legs?: Array<{ from: { name: string }; to: { name: string }; distanceMiles: number; durationMinutes: number }> };
+  jobs: Record<string, unknown>[];
+  googleMapsUrl?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
+interface StopData { id?: string; name?: string; address?: string; scheduledTime?: string; [key: string]: unknown; }
+interface LegData { from: { name: string }; to: { name: string }; distanceMiles: number; durationMinutes: number; }
+interface TeamRouteData { routes: Array<{ user: { id: string; firstName: string; lastName: string }; jobs?: Record<string, unknown>[]; optimizedRoute?: { totalDistanceMiles: number; optimizedOrder: Array<{ name: string; [key: string]: unknown }> }; googleMapsUrl?: string; message?: string }>; totalJobs: number; totalMiles: number; }
+interface StatCardProps { icon: LucideIcon; label: string; value: string | number; color: string; }
+interface StopItemProps { stop: StopData; index: number; isFirst: boolean; isLast: boolean; leg?: LegData; }
 
 /**
  * Route Optimization Component
  * Can be used standalone or embedded in schedule view
  */
-export default function RouteOptimizer({ date = new Date(), userId = null }) {
-  const [loading, setLoading] = useState(true);
-  const [routeData, setRouteData] = useState(null);
-  const [error, setError] = useState(null);
+interface RouteOptimizerProps { date?: Date | string; userId?: string | null; }
+
+export default function RouteOptimizer({ date = new Date(), userId = null }: RouteOptimizerProps) {
+  const [loading, setLoading] = useState<boolean>(true);
+  const [routeData, setRouteData] = useState<RouteData | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRoute();
@@ -26,7 +43,7 @@ export default function RouteOptimizer({ date = new Date(), userId = null }) {
       const params = userId ? `?date=${dateStr}&userId=${userId}` : `?date=${dateStr}`;
       const data = await api.get(`/routing/optimize-day${params}`);
       setRouteData(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load route:', error);
       setError('Failed to optimize route');
     } finally {
@@ -92,15 +109,15 @@ export default function RouteOptimizer({ date = new Date(), userId = null }) {
       </div>
 
       {/* Savings */}
-      {optimizedRoute.savings?.percentDistance > 0 && (
+      {(optimizedRoute.savings?.percentDistance ?? 0) > 0 && (
         <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-center gap-2 text-green-700">
             <TrendingDown className="w-5 h-5" />
             <span className="font-medium">Route optimized!</span>
           </div>
           <p className="text-sm text-green-600 mt-1">
-            Saving {optimizedRoute.savings.distanceMiles.toFixed(1)} miles 
-            ({optimizedRoute.savings.percentDistance}%) and {optimizedRoute.savings.timeMinutes} minutes
+            Saving {optimizedRoute.savings!.distanceMiles.toFixed(1)} miles
+            ({optimizedRoute.savings!.percentDistance}%) and {optimizedRoute.savings!.timeMinutes} minutes
           </p>
         </div>
       )}
@@ -133,7 +150,7 @@ export default function RouteOptimizer({ date = new Date(), userId = null }) {
         <div className="divide-y">
           {optimizedRoute.optimizedOrder.map((stop, index) => (
             <StopItem
-              key={stop.id || index}
+              key={(stop.id as string) || index}
               stop={stop}
               index={index}
               isFirst={index === 0}
@@ -145,13 +162,13 @@ export default function RouteOptimizer({ date = new Date(), userId = null }) {
       </div>
 
       {/* Leg Details */}
-      {optimizedRoute.legs?.length > 0 && (
+      {(optimizedRoute.legs?.length ?? 0) > 0 && (
         <div className="bg-white rounded-xl border overflow-hidden">
           <div className="p-4 border-b">
             <h3 className="font-medium text-gray-900">Route Legs</h3>
           </div>
           <div className="divide-y">
-            {optimizedRoute.legs.map((leg, index) => (
+            {optimizedRoute.legs!.map((leg, index) => (
               <div key={index} className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium">
@@ -176,8 +193,8 @@ export default function RouteOptimizer({ date = new Date(), userId = null }) {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color }) {
-  const colors = {
+function StatCard({ icon: Icon, label, value, color }: StatCardProps) {
+  const colors: Record<string, string> = {
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
     purple: 'bg-purple-50 text-purple-600',
@@ -193,7 +210,7 @@ function StatCard({ icon: Icon, label, value, color }) {
   );
 }
 
-function StopItem({ stop, index, isFirst, isLast, leg }) {
+function StopItem({ stop, index, isFirst, isLast, leg }: StopItemProps) {
   return (
     <div className="p-4 flex items-start gap-4">
       {/* Timeline */}
@@ -238,9 +255,9 @@ function StopItem({ stop, index, isFirst, isLast, leg }) {
  * Team Routes View for Dispatchers
  */
 export function TeamRoutesPage() {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [loading, setLoading] = useState(true);
-  const [teamRoutes, setTeamRoutes] = useState(null);
+  const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [teamRoutes, setTeamRoutes] = useState<TeamRouteData | null>(null);
 
   useEffect(() => {
     loadTeamRoutes();
@@ -251,7 +268,7 @@ export function TeamRoutesPage() {
     try {
       const data = await api.get(`/routing/team-routes?date=${date}`);
       setTeamRoutes(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load team routes:', error);
     } finally {
       setLoading(false);
@@ -270,7 +287,7 @@ export function TeamRoutesPage() {
           <input
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDate(e.target.value)}
             className="px-4 py-2 border rounded-lg"
           />
           <button

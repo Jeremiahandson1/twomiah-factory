@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+declare const global: typeof globalThis;
+
 describe('API Client', () => {
   beforeEach(() => {
-    global.fetch = vi.fn();
-    global.localStorage = {
+    (global as Record<string, unknown>).fetch = vi.fn();
+    (global as Record<string, unknown>).localStorage = {
       getItem: vi.fn(),
       setItem: vi.fn(),
       removeItem: vi.fn(),
@@ -26,21 +28,21 @@ describe('API Client', () => {
 
   describe('Request building', () => {
     it('builds query string from params', () => {
-      const params = { page: 1, limit: 25, status: 'active' };
-      const query = new URLSearchParams(params).toString();
+      const params: Record<string, string | number> = { page: 1, limit: 25, status: 'active' };
+      const query = new URLSearchParams(params as Record<string, string>).toString();
       expect(query).toBe('page=1&limit=25&status=active');
     });
 
     it('handles empty params', () => {
-      const params = {};
+      const params: Record<string, string> = {};
       const query = new URLSearchParams(params).toString();
       expect(query).toBe('');
     });
 
     it('filters out undefined values', () => {
-      const params = { page: 1, search: undefined };
-      Object.keys(params).forEach(k => params[k] === undefined && delete params[k]);
-      const query = new URLSearchParams(params).toString();
+      const params: Record<string, string | number | undefined> = { page: 1, search: undefined };
+      Object.keys(params).forEach((k: string) => params[k] === undefined && delete params[k]);
+      const query = new URLSearchParams(params as Record<string, string>).toString();
       expect(query).toBe('page=1');
     });
   });
@@ -48,19 +50,19 @@ describe('API Client', () => {
   describe('Response handling', () => {
     it('parses JSON response', async () => {
       const mockData = { id: '1', name: 'Test' };
-      global.fetch.mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockData),
       });
 
       const response = await fetch('/api/test');
       const data = await response.json();
-      
+
       expect(data).toEqual(mockData);
     });
 
     it('handles error response', async () => {
-      global.fetch.mockResolvedValueOnce({
+      (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
         ok: false,
         status: 404,
         json: () => Promise.resolve({ error: 'Not found' }),

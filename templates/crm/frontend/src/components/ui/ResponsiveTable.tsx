@@ -1,19 +1,42 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp, MoreVertical } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, ChevronUp, MoreVertical, LucideIcon } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 
-export function ResponsiveTable({
+interface ResponsiveTableColumn<T = Record<string, unknown>> {
+  key: string;
+  label: string;
+  render?: (value: unknown, row: T) => React.ReactNode;
+}
+
+interface ResponsiveTableAction<T = Record<string, unknown>> {
+  label: string;
+  icon?: LucideIcon;
+  className?: string;
+  onClick: (row: T) => void;
+}
+
+interface ResponsiveTableProps<T = Record<string, unknown>> {
+  data?: T[];
+  columns?: ResponsiveTableColumn<T>[];
+  loading?: boolean;
+  onRowClick?: (row: T) => void;
+  actions?: ResponsiveTableAction<T>[];
+  emptyMessage?: string;
+  mobileRender?: (row: T) => React.ReactNode;
+}
+
+export function ResponsiveTable<T extends Record<string, unknown> = Record<string, unknown>>({
   data = [],
   columns = [],
   loading = false,
   onRowClick,
   actions = [],
   emptyMessage = 'No data found',
-  mobileRender, // Custom mobile card renderer
-}) {
+  mobileRender,
+}: ResponsiveTableProps<T>) {
   const isMobile = useIsMobile();
-  const [expandedRow, setExpandedRow] = useState(null);
-  const [openMenu, setOpenMenu] = useState(null);
+  const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [openMenu, setOpenMenu] = useState<number | null>(null);
 
   if (loading) {
     return (
@@ -39,7 +62,7 @@ export function ResponsiveTable({
       <div className="divide-y" role="list">
         {data.map((row, idx) => (
           <div
-            key={row.id || idx}
+            key={(row as Record<string, unknown>).id as string | number || idx}
             className="p-4 hover:bg-gray-50 active:bg-gray-100"
             role="listitem"
           >
@@ -54,11 +77,11 @@ export function ResponsiveTable({
                       <div key={col.key}>
                         {col.key === columns[0].key ? (
                           <p className="font-medium text-gray-900 truncate">
-                            {col.render ? col.render(row[col.key], row) : row[col.key]}
+                            {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : (row as Record<string, unknown>)[col.key] as React.ReactNode}
                           </p>
                         ) : (
                           <p className="text-sm text-gray-500">
-                            {col.render ? col.render(row[col.key], row) : row[col.key]}
+                            {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : (row as Record<string, unknown>)[col.key] as React.ReactNode}
                           </p>
                         )}
                       </div>
@@ -69,7 +92,7 @@ export function ResponsiveTable({
                   {actions.length > 0 && (
                     <div className="relative ml-2">
                       <button
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation();
                           setOpenMenu(openMenu === idx ? null : idx);
                         }}
@@ -89,7 +112,7 @@ export function ResponsiveTable({
                             {actions.map((action, i) => (
                               <button
                                 key={i}
-                                onClick={(e) => {
+                                onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                                   e.stopPropagation();
                                   action.onClick(row);
                                   setOpenMenu(null);
@@ -131,7 +154,7 @@ export function ResponsiveTable({
                           <div key={col.key} className="flex justify-between text-sm">
                             <span className="text-gray-500">{col.label}</span>
                             <span className="font-medium">
-                              {col.render ? col.render(row[col.key], row) : row[col.key] || '-'}
+                              {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : ((row as Record<string, unknown>)[col.key] as React.ReactNode) || '-'}
                             </span>
                           </div>
                         ))}
@@ -171,13 +194,13 @@ export function ResponsiveTable({
         <tbody className="divide-y">
           {data.map((row, idx) => (
             <tr
-              key={row.id || idx}
+              key={(row as Record<string, unknown>).id as string | number || idx}
               onClick={() => onRowClick?.(row)}
               className={`hover:bg-gray-50 ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               {columns.map((col) => (
                 <td key={col.key} className="px-4 py-3 text-sm text-gray-900">
-                  {col.render ? col.render(row[col.key], row) : row[col.key]}
+                  {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : (row as Record<string, unknown>)[col.key] as React.ReactNode}
                 </td>
               ))}
               {actions.length > 0 && (
@@ -186,7 +209,7 @@ export function ResponsiveTable({
                     {actions.map((action, i) => (
                       <button
                         key={i}
-                        onClick={(e) => {
+                        onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation();
                           action.onClick(row);
                         }}

@@ -1,28 +1,111 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Package, Plus, Search, Filter, Warehouse, Truck,
   AlertTriangle, ArrowRightLeft, ShoppingCart, BarChart3,
   Edit2, Trash2, Loader2, ChevronRight, Minus, Check
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
+
+interface InventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  description?: string;
+  category?: string;
+  unitCost: number | string;
+  unitPrice: number | string;
+  unit: string;
+  totalStock: number;
+  isLowStock: boolean;
+  reorderPoint?: number | string;
+  vendor?: string;
+}
+
+interface InventoryLocation {
+  id: string;
+  name: string;
+  type: string;
+  _count?: { stockLevels?: number };
+}
+
+interface StockLevel {
+  id: string;
+  quantity: number;
+  item: { name: string; sku: string; unit: string };
+}
+
+interface LocationInventory {
+  name: string;
+  stockLevels?: StockLevel[];
+}
+
+interface PurchaseOrder {
+  id: string;
+  number: string;
+  vendor: string;
+  status: string;
+}
+
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  color?: string;
+}
+
+interface LocationsTabProps {
+  locations: InventoryLocation[];
+  onAddLocation: () => void;
+  onRefresh: () => void;
+}
+
+interface PurchaseOrdersTabProps {
+  locations: InventoryLocation[];
+}
+
+interface ItemFormModalProps {
+  item: InventoryItem | null;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface LocationFormModalProps {
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface TransferModalProps {
+  items: InventoryItem[];
+  locations: InventoryLocation[];
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface AdjustStockModalProps {
+  item: InventoryItem;
+  locations: InventoryLocation[];
+  onSave: () => void;
+  onClose: () => void;
+}
 
 /**
  * Inventory Management Page
  */
 export default function InventoryPage() {
-  const [tab, setTab] = useState('items'); // items, locations, orders, reports
-  const [items, setItems] = useState([]);
-  const [locations, setLocations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [categories, setCategories] = useState([]);
-  const [showLowStock, setShowLowStock] = useState(false);
-  const [showItemForm, setShowItemForm] = useState(false);
-  const [showLocationForm, setShowLocationForm] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
-  const [showAdjust, setShowAdjust] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
+  const [tab, setTab] = useState<string>('items'); // items, locations, orders, reports
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [locations, setLocations] = useState<InventoryLocation[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [search, setSearch] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
+  const [categories, setCategories] = useState<string[]>([]);
+  const [showLowStock, setShowLowStock] = useState<boolean>(false);
+  const [showItemForm, setShowItemForm] = useState<boolean>(false);
+  const [showLocationForm, setShowLocationForm] = useState<boolean>(false);
+  const [showTransfer, setShowTransfer] = useState<boolean>(false);
+  const [showAdjust, setShowAdjust] = useState<boolean>(false);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
 
   useEffect(() => {
     loadData();
@@ -74,25 +157,25 @@ export default function InventoryPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard 
-          icon={Package} 
-          label="Total Items" 
+        <StatCard
+          icon={Package}
+          label="Total Items"
           value={items.length}
         />
-        <StatCard 
-          icon={Warehouse} 
-          label="Locations" 
+        <StatCard
+          icon={Warehouse}
+          label="Locations"
           value={locations.length}
         />
-        <StatCard 
-          icon={AlertTriangle} 
-          label="Low Stock" 
-          value={items.filter(i => i.isLowStock).length}
+        <StatCard
+          icon={AlertTriangle}
+          label="Low Stock"
+          value={items.filter((i: InventoryItem) => i.isLowStock).length}
           color="red"
         />
-        <StatCard 
-          icon={BarChart3} 
-          label="Total Value" 
+        <StatCard
+          icon={BarChart3}
+          label="Total Value"
           value="$--"
           color="green"
         />
@@ -104,7 +187,7 @@ export default function InventoryPage() {
           { id: 'items', label: 'Items', icon: Package },
           { id: 'locations', label: 'Locations', icon: Warehouse },
           { id: 'orders', label: 'Purchase Orders', icon: ShoppingCart },
-        ].map(t => (
+        ].map((t: { id: string; label: string; icon: LucideIcon }) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -130,18 +213,18 @@ export default function InventoryPage() {
               <input
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
                 placeholder="Search items..."
                 className="w-full pl-10 pr-4 py-2 border rounded-lg"
               />
             </div>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCategory(e.target.value)}
               className="px-4 py-2 border rounded-lg"
             >
               <option value="">All Categories</option>
-              {categories.map(cat => (
+              {categories.map((cat: string) => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
@@ -149,7 +232,7 @@ export default function InventoryPage() {
               <input
                 type="checkbox"
                 checked={showLowStock}
-                onChange={(e) => setShowLowStock(e.target.checked)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setShowLowStock(e.target.checked)}
                 className="w-4 h-4 rounded text-orange-500"
               />
               <span className="text-sm text-gray-600">Low Stock Only</span>
@@ -176,7 +259,7 @@ export default function InventoryPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {items.map(item => (
+                  {items.map((item: InventoryItem) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
@@ -237,8 +320,8 @@ export default function InventoryPage() {
 
       {/* Locations Tab */}
       {tab === 'locations' && (
-        <LocationsTab 
-          locations={locations} 
+        <LocationsTab
+          locations={locations}
           onAddLocation={() => setShowLocationForm(true)}
           onRefresh={loadData}
         />
@@ -286,8 +369,8 @@ export default function InventoryPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     red: 'bg-red-50 text-red-600',
     green: 'bg-green-50 text-green-600',
@@ -302,12 +385,12 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function LocationsTab({ locations, onAddLocation, onRefresh }) {
-  const [selectedLocation, setSelectedLocation] = useState(null);
-  const [inventory, setInventory] = useState(null);
-  const [loading, setLoading] = useState(false);
+function LocationsTab({ locations, onAddLocation, onRefresh }: LocationsTabProps) {
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const [inventory, setInventory] = useState<LocationInventory | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const loadLocationInventory = async (locationId) => {
+  const loadLocationInventory = async (locationId: string) => {
     setLoading(true);
     try {
       const data = await api.get(`/api/inventory/locations/${locationId}/inventory`);
@@ -333,8 +416,8 @@ function LocationsTab({ locations, onAddLocation, onRefresh }) {
             + Add
           </button>
         </div>
-        
-        {locations.map(loc => (
+
+        {locations.map((loc: InventoryLocation) => (
           <button
             key={loc.id}
             onClick={() => loadLocationInventory(loc.id)}
@@ -374,7 +457,7 @@ function LocationsTab({ locations, onAddLocation, onRefresh }) {
               <h3 className="font-medium text-gray-900">{inventory.name} Inventory</h3>
             </div>
             <div className="divide-y max-h-96 overflow-y-auto">
-              {inventory.stockLevels?.map(sl => (
+              {inventory.stockLevels?.map((sl: StockLevel) => (
                 <div key={sl.id} className="p-4 flex items-center justify-between">
                   <div>
                     <p className="font-medium text-gray-900">{sl.item.name}</p>
@@ -402,9 +485,9 @@ function LocationsTab({ locations, onAddLocation, onRefresh }) {
   );
 }
 
-function PurchaseOrdersTab({ locations }) {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+function PurchaseOrdersTab({ locations }: PurchaseOrdersTabProps) {
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadOrders();
@@ -443,7 +526,7 @@ function PurchaseOrdersTab({ locations }) {
         </div>
       ) : (
         <div className="divide-y">
-          {orders.map(order => (
+          {orders.map((order: PurchaseOrder) => (
             <div key={order.id} className="p-4 flex items-center justify-between">
               <div>
                 <p className="font-medium text-gray-900">{order.number}</p>
@@ -464,8 +547,18 @@ function PurchaseOrdersTab({ locations }) {
   );
 }
 
-function ItemFormModal({ item, onSave, onClose }) {
-  const [form, setForm] = useState({
+function ItemFormModal({ item, onSave, onClose }: ItemFormModalProps) {
+  const [form, setForm] = useState<{
+    name: string;
+    sku: string;
+    description: string;
+    category: string;
+    unitCost: string | number;
+    unitPrice: string | number;
+    unit: string;
+    reorderPoint: string | number;
+    vendor: string;
+  }>({
     name: item?.name || '',
     sku: item?.sku || '',
     description: item?.description || '',
@@ -476,9 +569,9 @@ function ItemFormModal({ item, onSave, onClose }) {
     reorderPoint: item?.reorderPoint || '',
     vendor: item?.vendor || '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -501,7 +594,7 @@ function ItemFormModal({ item, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
           <h2 className="text-lg font-bold mb-4">{item ? 'Edit Item' : 'Add Item'}</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
@@ -509,7 +602,7 @@ function ItemFormModal({ item, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 />
@@ -519,7 +612,7 @@ function ItemFormModal({ item, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.sku}
-                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, sku: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="Auto-generated"
                 />
@@ -529,7 +622,7 @@ function ItemFormModal({ item, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, category: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -539,7 +632,7 @@ function ItemFormModal({ item, onSave, onClose }) {
                   type="number"
                   step="0.01"
                   value={form.unitCost}
-                  onChange={(e) => setForm({ ...form, unitCost: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, unitCost: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -549,7 +642,7 @@ function ItemFormModal({ item, onSave, onClose }) {
                   type="number"
                   step="0.01"
                   value={form.unitPrice}
-                  onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, unitPrice: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -557,7 +650,7 @@ function ItemFormModal({ item, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
                 <select
                   value={form.unit}
-                  onChange={(e) => setForm({ ...form, unit: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, unit: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="each">Each</option>
@@ -572,7 +665,7 @@ function ItemFormModal({ item, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.reorderPoint}
-                  onChange={(e) => setForm({ ...form, reorderPoint: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, reorderPoint: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -601,11 +694,11 @@ function ItemFormModal({ item, onSave, onClose }) {
   );
 }
 
-function LocationFormModal({ onSave, onClose }) {
-  const [form, setForm] = useState({ name: '', type: 'warehouse' });
-  const [saving, setSaving] = useState(false);
+function LocationFormModal({ onSave, onClose }: LocationFormModalProps) {
+  const [form, setForm] = useState<{ name: string; type: string }>({ name: '', type: 'warehouse' });
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -624,14 +717,14 @@ function LocationFormModal({ onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
           <h2 className="text-lg font-bold mb-4">Add Location</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="Main Warehouse, Truck #1, etc."
                 required
@@ -641,7 +734,7 @@ function LocationFormModal({ onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
               <select
                 value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="warehouse">Warehouse</option>
@@ -665,23 +758,28 @@ function LocationFormModal({ onSave, onClose }) {
   );
 }
 
-function TransferModal({ items, locations, onSave, onClose }) {
-  const [form, setForm] = useState({
+function TransferModal({ items, locations, onSave, onClose }: TransferModalProps) {
+  const [form, setForm] = useState<{
+    itemId: string;
+    fromLocationId: string;
+    toLocationId: string;
+    quantity: string;
+  }>({
     itemId: '',
     fromLocationId: '',
     toLocationId: '',
     quantity: '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.post('/api/inventory/transfer', form);
       onSave();
     } catch (error) {
-      alert(error.message || 'Failed to transfer');
+      alert((error as Error).message || 'Failed to transfer');
     } finally {
       setSaving(false);
     }
@@ -693,18 +791,18 @@ function TransferModal({ items, locations, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
           <h2 className="text-lg font-bold mb-4">Transfer Stock</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Item</label>
               <select
                 value={form.itemId}
-                onChange={(e) => setForm({ ...form, itemId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, itemId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select item...</option>
-                {items.map(item => (
+                {items.map((item: InventoryItem) => (
                   <option key={item.id} value={item.id}>{item.name} ({item.sku})</option>
                 ))}
               </select>
@@ -713,12 +811,12 @@ function TransferModal({ items, locations, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">From</label>
               <select
                 value={form.fromLocationId}
-                onChange={(e) => setForm({ ...form, fromLocationId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, fromLocationId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select source...</option>
-                {locations.map(loc => (
+                {locations.map((loc: InventoryLocation) => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
@@ -727,12 +825,12 @@ function TransferModal({ items, locations, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
               <select
                 value={form.toLocationId}
-                onChange={(e) => setForm({ ...form, toLocationId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, toLocationId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select destination...</option>
-                {locations.filter(l => l.id !== form.fromLocationId).map(loc => (
+                {locations.filter((l: InventoryLocation) => l.id !== form.fromLocationId).map((loc: InventoryLocation) => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
@@ -742,7 +840,7 @@ function TransferModal({ items, locations, onSave, onClose }) {
               <input
                 type="number"
                 value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 min="1"
                 required
@@ -764,16 +862,20 @@ function TransferModal({ items, locations, onSave, onClose }) {
   );
 }
 
-function AdjustStockModal({ item, locations, onSave, onClose }) {
-  const [form, setForm] = useState({
+function AdjustStockModal({ item, locations, onSave, onClose }: AdjustStockModalProps) {
+  const [form, setForm] = useState<{
+    locationId: string;
+    quantity: string;
+    reason: string;
+  }>({
     locationId: '',
     quantity: '',
     reason: '',
   });
-  const [adjustType, setAdjustType] = useState('add');
-  const [saving, setSaving] = useState(false);
+  const [adjustType, setAdjustType] = useState<string>('add');
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -786,7 +888,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }) {
       });
       onSave();
     } catch (error) {
-      alert(error.message || 'Failed to adjust');
+      alert((error as Error).message || 'Failed to adjust');
     } finally {
       setSaving(false);
     }
@@ -798,7 +900,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
           <h2 className="text-lg font-bold mb-4">Adjust Stock - {item.name}</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex gap-2">
               <button
@@ -824,12 +926,12 @@ function AdjustStockModal({ item, locations, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
               <select
                 value={form.locationId}
-                onChange={(e) => setForm({ ...form, locationId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, locationId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select location...</option>
-                {locations.map(loc => (
+                {locations.map((loc: InventoryLocation) => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
@@ -839,7 +941,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }) {
               <input
                 type="number"
                 value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 min="1"
                 required
@@ -850,7 +952,7 @@ function AdjustStockModal({ item, locations, onSave, onClose }) {
               <input
                 type="text"
                 value={form.reason}
-                onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, reason: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="Received shipment, damaged, etc."
               />

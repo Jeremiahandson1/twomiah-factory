@@ -1,18 +1,56 @@
 import { useState, useEffect } from 'react';
-import { 
-  CheckCircle2, Circle, Plus, Calendar, User, Flag, 
+import {
+  CheckCircle2, Circle, Plus, Calendar, User, Flag,
   Trash2, Edit2, Loader2, AlertCircle, FolderKanban,
   ChevronDown, ChevronRight, MoreVertical
 } from 'lucide-react';
 import api from '../../services/api';
 
+interface TaskData {
+  id: string;
+  title: string;
+  description?: string;
+  status: string;
+  priority: string;
+  dueDate?: string;
+  assignedToId?: string;
+  assignedTo?: { firstName: string };
+  projectId?: string;
+  project?: { name: string };
+  checklist?: ChecklistItem[];
+}
+
+interface ChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+interface TaskStats {
+  total: number;
+  completed: number;
+  pending: number;
+  overdue: number;
+}
+
+interface UserData {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+interface ProjectData {
+  id: string;
+  name: string;
+}
+
 export default function TasksPage() {
-  const [tasks, setTasks] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, pending, completed, overdue
-  const [showForm, setShowForm] = useState(false);
-  const [editingTask, setEditingTask] = useState(null);
+  const [tasks, setTasks] = useState<TaskData[]>([]);
+  const [stats, setStats] = useState<TaskStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filter, setFilter] = useState<string>('all'); // all, pending, completed, overdue
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editingTask, setEditingTask] = useState<TaskData | null>(null);
 
   useEffect(() => {
     loadData();
@@ -29,63 +67,63 @@ export default function TasksPage() {
         api.get('/api/tasks/stats'),
       ]);
 
-      let taskList = tasksRes?.data || [];
+      let taskList = ((tasksRes as Record<string, unknown>)?.data || []) as TaskData[];
 
       // Filter overdue locally
       if (filter === 'overdue') {
-        taskList = taskList.filter(t =>
+        taskList = taskList.filter((t: TaskData) =>
           t.status !== 'completed' && t.dueDate && new Date(t.dueDate) < new Date()
         );
       }
 
       setTasks(taskList);
-      setStats(statsRes || { total: 0, completed: 0, pending: 0, overdue: 0 });
-    } catch (error) {
+      setStats((statsRes || { total: 0, completed: 0, pending: 0, overdue: 0 }) as TaskStats);
+    } catch (error: unknown) {
       console.error('Failed to load tasks:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggle = async (taskId) => {
+  const handleToggle = async (taskId: string) => {
     try {
       const updated = await api.post(`/api/tasks/${taskId}/toggle`);
-      setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+      setTasks((prev: TaskData[]) => prev.map((t: TaskData) => t.id === taskId ? updated as TaskData : t));
       loadData(); // Refresh stats
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to update task');
     }
   };
 
-  const handleDelete = async (taskId) => {
+  const handleDelete = async (taskId: string) => {
     if (!confirm('Delete this task?')) return;
     try {
       await api.delete(`/api/tasks/${taskId}`);
-      setTasks(prev => prev.filter(t => t.id !== taskId));
+      setTasks((prev: TaskData[]) => prev.filter((t: TaskData) => t.id !== taskId));
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to delete task');
     }
   };
 
-  const handleSave = async (taskData) => {
+  const handleSave = async (taskData: Record<string, unknown>) => {
     try {
       if (editingTask) {
         const updated = await api.put(`/api/tasks/${editingTask.id}`, taskData);
-        setTasks(prev => prev.map(t => t.id === editingTask.id ? updated : t));
+        setTasks((prev: TaskData[]) => prev.map((t: TaskData) => t.id === editingTask.id ? updated as TaskData : t));
       } else {
         const created = await api.post('/api/tasks', taskData);
-        setTasks(prev => [created, ...prev]);
+        setTasks((prev: TaskData[]) => [created as TaskData, ...prev]);
       }
       setShowForm(false);
       setEditingTask(null);
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save task');
     }
   };
 
-  const priorityColors = {
+  const priorityColors: Record<string, string> = {
     low: 'text-gray-400',
     medium: 'text-yellow-500',
     high: 'text-orange-500',
@@ -121,7 +159,7 @@ export default function TasksPage() {
 
       {/* Filters */}
       <div className="flex gap-2">
-        {['all', 'pending', 'completed', 'overdue'].map((f) => (
+        {['all', 'pending', 'completed', 'overdue'].map((f: string) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -148,7 +186,7 @@ export default function TasksPage() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border divide-y">
-          {tasks.map((task) => (
+          {tasks.map((task: TaskData) => (
             <TaskItem
               key={task.id}
               task={task}
@@ -173,8 +211,14 @@ export default function TasksPage() {
   );
 }
 
-function StatCard({ label, value, color = 'gray' }) {
-  const colors = {
+interface StatCardProps {
+  label: string;
+  value: number;
+  color?: string;
+}
+
+function StatCard({ label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50',
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -189,8 +233,16 @@ function StatCard({ label, value, color = 'gray' }) {
   );
 }
 
-function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }) {
-  const [showMenu, setShowMenu] = useState(false);
+interface TaskItemProps {
+  task: TaskData;
+  onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  priorityColors: Record<string, string>;
+}
+
+function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }: TaskItemProps) {
+  const [showMenu, setShowMenu] = useState<boolean>(false);
   const isOverdue = task.status !== 'completed' && task.dueDate && new Date(task.dueDate) < new Date();
 
   return (
@@ -213,7 +265,7 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }) {
             </p>
             <Flag className={`w-4 h-4 ${priorityColors[task.priority]}`} />
           </div>
-          
+
           {task.description && (
             <p className="text-sm text-gray-500 mt-1 line-clamp-1">{task.description}</p>
           )}
@@ -241,9 +293,9 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }) {
           </div>
 
           {/* Checklist preview */}
-          {task.checklist?.length > 0 && (
+          {task.checklist && task.checklist.length > 0 && (
             <div className="mt-2 text-xs text-gray-500">
-              {task.checklist.filter(i => i.completed).length}/{task.checklist.length} items completed
+              {task.checklist.filter((i: ChecklistItem) => i.completed).length}/{task.checklist.length} items completed
             </div>
           )}
         </div>
@@ -283,7 +335,13 @@ function TaskItem({ task, onToggle, onEdit, onDelete, priorityColors }) {
   );
 }
 
-function TaskFormModal({ task, onSave, onClose }) {
+interface TaskFormModalProps {
+  task: TaskData | null;
+  onSave: (data: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
+function TaskFormModal({ task, onSave, onClose }: TaskFormModalProps) {
   const [form, setForm] = useState({
     title: task?.title || '',
     description: task?.description || '',
@@ -291,12 +349,12 @@ function TaskFormModal({ task, onSave, onClose }) {
     priority: task?.priority || 'medium',
     assignedToId: task?.assignedToId || '',
     projectId: task?.projectId || '',
-    checklist: task?.checklist || [],
+    checklist: task?.checklist || [] as ChecklistItem[],
   });
-  const [newItem, setNewItem] = useState('');
-  const [users, setUsers] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [newItem, setNewItem] = useState<string>('');
+  const [users, setUsers] = useState<UserData[]>([]);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     loadOptions();
@@ -308,14 +366,14 @@ function TaskFormModal({ task, onSave, onClose }) {
         api.get('/api/team'),
         api.get('/api/projects?status=active&limit=100'),
       ]);
-      setUsers(usersRes.data || usersRes || []);
-      setProjects(projectsRes.data || []);
-    } catch (error) {
+      setUsers(((usersRes as Record<string, unknown>).data || usersRes || []) as UserData[]);
+      setProjects(((projectsRes as Record<string, unknown>).data || []) as ProjectData[]);
+    } catch (error: unknown) {
       console.error('Failed to load options:', error);
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!form.title.trim()) return;
 
@@ -326,17 +384,17 @@ function TaskFormModal({ task, onSave, onClose }) {
 
   const addChecklistItem = () => {
     if (!newItem.trim()) return;
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       checklist: [...prev.checklist, { id: `item-${Date.now()}`, text: newItem, completed: false }],
     }));
     setNewItem('');
   };
 
-  const removeChecklistItem = (id) => {
-    setForm(prev => ({
+  const removeChecklistItem = (id: string) => {
+    setForm((prev) => ({
       ...prev,
-      checklist: prev.checklist.filter(i => i.id !== id),
+      checklist: prev.checklist.filter((i: ChecklistItem) => i.id !== id),
     }));
   };
 
@@ -355,7 +413,7 @@ function TaskFormModal({ task, onSave, onClose }) {
               <input
                 type="text"
                 value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, title: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="What needs to be done?"
                 required
@@ -366,7 +424,7 @@ function TaskFormModal({ task, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
               <textarea
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={2}
               />
@@ -378,7 +436,7 @@ function TaskFormModal({ task, onSave, onClose }) {
                 <input
                   type="date"
                   value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, dueDate: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
@@ -386,7 +444,7 @@ function TaskFormModal({ task, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
                 <select
                   value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, priority: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="low">Low</option>
@@ -402,11 +460,11 @@ function TaskFormModal({ task, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
                 <select
                   value={form.assignedToId}
-                  onChange={(e) => setForm({ ...form, assignedToId: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, assignedToId: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="">Myself</option>
-                  {users.map(u => (
+                  {users.map((u: UserData) => (
                     <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
                   ))}
                 </select>
@@ -415,11 +473,11 @@ function TaskFormModal({ task, onSave, onClose }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
                 <select
                   value={form.projectId}
-                  onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, projectId: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
                   <option value="">None</option>
-                  {projects.map(p => (
+                  {projects.map((p: ProjectData) => (
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
@@ -430,7 +488,7 @@ function TaskFormModal({ task, onSave, onClose }) {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Checklist</label>
               <div className="space-y-2 mb-2">
-                {form.checklist.map((item) => (
+                {form.checklist.map((item: ChecklistItem) => (
                   <div key={item.id} className="flex items-center gap-2 text-sm">
                     <Circle className="w-4 h-4 text-gray-300" />
                     <span className="flex-1">{item.text}</span>
@@ -448,8 +506,8 @@ function TaskFormModal({ task, onSave, onClose }) {
                 <input
                   type="text"
                   value={newItem}
-                  onChange={(e) => setNewItem(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addChecklistItem())}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewItem(e.target.value)}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && (e.preventDefault(), addChecklistItem())}
                   placeholder="Add checklist item"
                   className="flex-1 px-3 py-2 border rounded-lg text-sm"
                 />
@@ -491,8 +549,8 @@ function TaskFormModal({ task, onSave, onClose }) {
  * Task Widget for Dashboard
  */
 export function TaskWidget() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<TaskData[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadTasks();
@@ -501,19 +559,19 @@ export function TaskWidget() {
   const loadTasks = async () => {
     try {
       const data = await api.get('/api/tasks/upcoming');
-      setTasks(Array.isArray(data) ? data : []);
-    } catch (error) {
+      setTasks(Array.isArray(data) ? data as TaskData[] : []);
+    } catch (error: unknown) {
       console.error('Failed to load tasks:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleToggle = async (taskId) => {
+  const handleToggle = async (taskId: string) => {
     try {
       await api.post(`/api/tasks/${taskId}/toggle`);
       loadTasks();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to toggle task:', error);
     }
   };
@@ -527,7 +585,7 @@ export function TaskWidget() {
       {tasks.length === 0 ? (
         <p className="text-sm text-gray-500 text-center py-4">No upcoming tasks</p>
       ) : (
-        tasks.slice(0, 5).map((task) => (
+        tasks.slice(0, 5).map((task: TaskData) => (
           <div key={task.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg">
             <button onClick={() => handleToggle(task.id)}>
               <Circle className="w-4 h-4 text-gray-300 hover:text-gray-400" />

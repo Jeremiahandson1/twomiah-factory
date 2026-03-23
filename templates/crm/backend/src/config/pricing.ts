@@ -773,7 +773,7 @@ export const INDUSTRY_TEMPLATES = {
 /**
  * Get tier by ID
  */
-export function getTier(tierId) {
+export function getTier(tierId: string) {
   return SAAS_TIERS[tierId] || null;
 }
 
@@ -787,7 +787,7 @@ export function getAllTiers() {
 /**
  * Check if a feature is included in a tier
  */
-export function tierHasFeature(tierId, featureId) {
+export function tierHasFeature(tierId: string, featureId: string) {
   const tier = SAAS_TIERS[tierId];
   if (!tier) return false;
   if (tier.features.includes('all')) return true;
@@ -797,7 +797,7 @@ export function tierHasFeature(tierId, featureId) {
 /**
  * Get the minimum tier that includes a feature
  */
-export function getMinTierForFeature(featureId) {
+export function getMinTierForFeature(featureId: string) {
   const tierOrder = ['starter', 'pro', 'business', 'construction', 'enterprise'];
   for (const tierId of tierOrder) {
     if (tierHasFeature(tierId, featureId)) {
@@ -810,7 +810,7 @@ export function getMinTierForFeature(featureId) {
 /**
  * Calculate price for additional users
  */
-export function calculateUserPrice(tierId, userCount) {
+export function calculateUserPrice(tierId: string, userCount: number) {
   const tier = SAAS_TIERS[tierId];
   if (!tier) return null;
 
@@ -829,7 +829,7 @@ export function calculateUserPrice(tierId, userCount) {
 /**
  * Get bundle price vs individual price
  */
-export function getBundleSavings(bundleId) {
+export function getBundleSavings(bundleId: string) {
   const bundle = FEATURE_BUNDLES[bundleId];
   if (!bundle || !bundle.subFeatures) return null;
 
@@ -847,7 +847,7 @@ export function getBundleSavings(bundleId) {
 /**
  * Format price in cents to display string
  */
-export function formatPrice(cents, options = {}) {
+export function formatPrice(cents: number, options: { showCents?: boolean; interval?: string | null } = {}) {
   const { showCents = false, interval = null } = options;
   const dollars = cents / 100;
 
@@ -868,7 +868,7 @@ export function formatPrice(cents, options = {}) {
 /**
  * Get recommended tier for user count
  */
-export function getRecommendedTier(userCount) {
+export function getRecommendedTier(userCount: number) {
   if (userCount <= 2) return 'starter';
   if (userCount <= 5) return 'pro';
   if (userCount <= 15) return 'business';
@@ -879,7 +879,7 @@ export function getRecommendedTier(userCount) {
 /**
  * Check if user should be prompted to upgrade
  */
-export function shouldPromptUpgrade(currentTier, addons = [], totalSpend) {
+export function shouldPromptUpgrade(currentTier: string, addons: string[] = [], totalSpend: number) {
   const tier = SAAS_TIERS[currentTier];
   if (!tier) return null;
 

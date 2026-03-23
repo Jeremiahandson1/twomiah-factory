@@ -1,15 +1,19 @@
 import React, { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { 
+import {
   Plus, Search, Filter, MoreVertical, Phone, Mail, MapPin,
   Building, User, Truck, Edit2, Trash2, Eye
 } from 'lucide-react';
-import { 
+import {
   Card, CardHeader, CardBody, Button, Input, Select, Modal,
   Table, TableHead, TableBody, TableRow, TableHeader, TableCell,
   StatusBadge, EmptyState, ConfirmDialog
 } from '../ui';
 import { useCRMDataStore } from '../../stores/builderStore';
+
+interface OutletContextType {
+  instance: Record<string, unknown>;
+}
 
 const contactTypes = [
   { value: 'client', label: 'Client', icon: User },
@@ -18,8 +22,23 @@ const contactTypes = [
   { value: 'lead', label: 'Lead', icon: User },
 ];
 
-function ContactForm({ contact, onSave, onClose }) {
-  const [form, setForm] = useState(contact || {
+interface ContactFormData {
+  type: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  address: string;
+}
+
+interface ContactFormProps {
+  contact: Record<string, unknown> | null;
+  onSave: (data: ContactFormData) => void;
+  onClose: () => void;
+}
+
+function ContactForm({ contact, onSave, onClose }: ContactFormProps) {
+  const [form, setForm] = useState<ContactFormData>((contact as unknown as ContactFormData) || {
     type: 'client',
     name: '',
     email: '',
@@ -28,7 +47,7 @@ function ContactForm({ contact, onSave, onClose }) {
     address: '',
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(form);
     onClose();
@@ -39,13 +58,13 @@ function ContactForm({ contact, onSave, onClose }) {
       <Select
         label="Contact Type"
         value={form.type}
-        onChange={(e) => setForm({ ...form, type: e.target.value })}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
         options={contactTypes}
       />
       <Input
         label="Name"
         value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
         placeholder="Full name"
         required
       />
@@ -53,25 +72,25 @@ function ContactForm({ contact, onSave, onClose }) {
         label="Email"
         type="email"
         value={form.email}
-        onChange={(e) => setForm({ ...form, email: e.target.value })}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })}
         placeholder="email@example.com"
       />
       <Input
         label="Phone"
         value={form.phone}
-        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, phone: e.target.value })}
         placeholder="555-0100"
       />
       <Input
         label="Company"
         value={form.company}
-        onChange={(e) => setForm({ ...form, company: e.target.value })}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, company: e.target.value })}
         placeholder="Company name"
       />
       <Input
         label="Address"
         value={form.address}
-        onChange={(e) => setForm({ ...form, address: e.target.value })}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, address: e.target.value })}
         placeholder="123 Main St, City, State"
       />
       <div className="flex justify-end gap-3 pt-4">
@@ -82,60 +101,66 @@ function ContactForm({ contact, onSave, onClose }) {
   );
 }
 
-function ContactDetail({ contact, onClose, onEdit }) {
-  const { instance } = useOutletContext();
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+interface ContactDetailProps {
+  contact: Record<string, unknown>;
+  onClose: () => void;
+  onEdit: (contact: Record<string, unknown>) => void;
+}
+
+function ContactDetail({ contact, onClose, onEdit }: ContactDetailProps) {
+  const { instance } = useOutletContext<OutletContextType>();
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
   const TypeIcon = contactTypes.find(t => t.value === contact.type)?.icon || User;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <div 
+        <div
           className="w-16 h-16 rounded-xl flex items-center justify-center text-white text-2xl font-bold"
           style={{ backgroundColor: primaryColor }}
         >
-          {contact.name?.[0]?.toUpperCase()}
+          {(contact.name as string)?.[0]?.toUpperCase()}
         </div>
         <div>
-          <h3 className="text-xl font-semibold text-white">{contact.name}</h3>
-          <StatusBadge status={contact.type} />
+          <h3 className="text-xl font-semibold text-white">{contact.name as string}</h3>
+          <StatusBadge status={contact.type as string} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {contact.email && (
+        {!!contact.email && (
           <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
             <Mail className="w-5 h-5 text-slate-400" />
             <div>
               <p className="text-xs text-slate-500">Email</p>
-              <p className="text-sm text-white">{contact.email}</p>
+              <p className="text-sm text-white">{contact.email as string}</p>
             </div>
           </div>
         )}
-        {contact.phone && (
+        {!!contact.phone && (
           <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
             <Phone className="w-5 h-5 text-slate-400" />
             <div>
               <p className="text-xs text-slate-500">Phone</p>
-              <p className="text-sm text-white">{contact.phone}</p>
+              <p className="text-sm text-white">{contact.phone as string}</p>
             </div>
           </div>
         )}
-        {contact.company && (
+        {!!contact.company && (
           <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
             <Building className="w-5 h-5 text-slate-400" />
             <div>
               <p className="text-xs text-slate-500">Company</p>
-              <p className="text-sm text-white">{contact.company}</p>
+              <p className="text-sm text-white">{contact.company as string}</p>
             </div>
           </div>
         )}
-        {contact.address && (
+        {!!contact.address && (
           <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg">
             <MapPin className="w-5 h-5 text-slate-400" />
             <div>
               <p className="text-xs text-slate-500">Address</p>
-              <p className="text-sm text-white">{contact.address}</p>
+              <p className="text-sm text-white">{contact.address as string}</p>
             </div>
           </div>
         )}
@@ -150,29 +175,34 @@ function ContactDetail({ contact, onClose, onEdit }) {
 }
 
 export function ContactsPage() {
-  const { instance } = useOutletContext();
-  const { contacts, addContact, updateContact, deleteContact } = useCRMDataStore();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editContact, setEditContact] = useState(null);
-  const [viewContact, setViewContact] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const { instance } = useOutletContext<OutletContextType>();
+  const { contacts, addContact, updateContact, deleteContact } = useCRMDataStore() as {
+    contacts: Record<string, unknown>[];
+    addContact: (data: Record<string, unknown> | ContactFormData) => void;
+    updateContact: (id: unknown, data: Record<string, unknown> | ContactFormData) => void;
+    deleteContact: (id: unknown) => void;
+  };
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<string>('');
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editContact, setEditContact] = useState<Record<string, unknown> | null>(null);
+  const [viewContact, setViewContact] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
 
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
   const filteredContacts = useMemo(() => {
-    return contacts.filter(c => {
-      const matchesSearch = !searchQuery || 
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        c.company?.toLowerCase().includes(searchQuery.toLowerCase());
+    return contacts.filter((c: Record<string, unknown>) => {
+      const matchesSearch = !searchQuery ||
+        (c.name as string).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.email as string)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.company as string)?.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesType = !typeFilter || c.type === typeFilter;
       return matchesSearch && matchesType;
     });
   }, [contacts, searchQuery, typeFilter]);
 
-  const handleSave = (contactData) => {
+  const handleSave = (contactData: ContactFormData) => {
     if (editContact) {
       updateContact(editContact.id, contactData);
     } else {
@@ -182,7 +212,7 @@ export function ContactsPage() {
     setShowForm(false);
   };
 
-  const handleEdit = (contact) => {
+  const handleEdit = (contact: Record<string, unknown>) => {
     setViewContact(null);
     setEditContact(contact);
     setShowForm(true);
@@ -211,13 +241,13 @@ export function ContactsPage() {
                 type="text"
                 placeholder="Search contacts..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
                 className="input pl-11"
               />
             </div>
             <Select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTypeFilter(e.target.value)}
               options={[{ value: '', label: 'All Types' }, ...contactTypes]}
               className="sm:w-48"
             />
@@ -240,35 +270,35 @@ export function ContactsPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredContacts.map((contact) => (
-                <TableRow key={contact.id} onClick={() => setViewContact(contact)}>
+              {filteredContacts.map((contact: Record<string, unknown>) => (
+                <TableRow key={contact.id as string} onClick={() => setViewContact(contact)}>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div 
+                      <div
                         className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-medium"
                         style={{ backgroundColor: primaryColor }}
                       >
-                        {contact.name?.[0]?.toUpperCase()}
+                        {(contact.name as string)?.[0]?.toUpperCase()}
                       </div>
-                      <span className="font-medium text-white">{contact.name}</span>
+                      <span className="font-medium text-white">{contact.name as string}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={contact.type} />
+                    <StatusBadge status={contact.type as string} />
                   </TableCell>
-                  <TableCell className="text-slate-300">{contact.email || '-'}</TableCell>
-                  <TableCell className="text-slate-300">{contact.phone || '-'}</TableCell>
-                  <TableCell className="text-slate-300">{contact.company || '-'}</TableCell>
+                  <TableCell className="text-slate-300">{(contact.email as string) || '-'}</TableCell>
+                  <TableCell className="text-slate-300">{(contact.phone as string) || '-'}</TableCell>
+                  <TableCell className="text-slate-300">{(contact.company as string) || '-'}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleEdit(contact); }}
+                      <button
+                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleEdit(contact); }}
                         className="p-1.5 hover:bg-slate-700 rounded"
                       >
                         <Edit2 className="w-4 h-4 text-slate-400" />
                       </button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(contact); }}
+                      <button
+                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); setDeleteTarget(contact); }}
                         className="p-1.5 hover:bg-red-500/20 rounded"
                       >
                         <Trash2 className="w-4 h-4 text-red-400" />

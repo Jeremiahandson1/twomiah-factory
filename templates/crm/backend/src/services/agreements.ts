@@ -202,7 +202,24 @@ export async function updateAgreement(agreementId: string, companyId: string, da
  * Cancel agreement
  */
 export async function cancelAgreement(agreementId: string, companyId: string, _reason?: string) {
-  // TODO: Cancel Stripe subscription if exists
+  // Cancel Stripe subscription if one is linked
+  const [agreement] = await db.select()
+    .from(serviceAgreement)
+    .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId)))
+    .limit(1);
+
+  if (!agreement) throw new Error('Agreement not found');
+
+  const metadata = agreement.notes ? JSON.parse(agreement.notes).stripeSubscriptionId : null;
+  if (metadata && process.env.STRIPE_SECRET_KEY) {
+    try {
+      const Stripe = (await import('stripe')).default;
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' as any });
+      await stripe.subscriptions.cancel(metadata);
+    } catch (err) {
+      console.error('Failed to cancel Stripe subscription:', (err as Error).message);
+    }
+  }
 
   return db.update(serviceAgreement)
     .set({

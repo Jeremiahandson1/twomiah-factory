@@ -7,10 +7,43 @@ import {
   TrendingUp, Calendar, Clock, AlertCircle
 } from 'lucide-react';
 
+interface DashboardStats {
+  contacts?: number;
+  projects?: { byStatus?: { active?: number; [key: string]: unknown }; [key: string]: unknown };
+  jobs?: { today?: number; [key: string]: unknown };
+  quotes?: { pending?: number; [key: string]: unknown };
+  invoices?: { outstanding?: number; outstandingValue?: number; [key: string]: unknown };
+  [key: string]: unknown;
+}
+
+interface ActivityData {
+  recentJobs?: Record<string, unknown>[];
+  recentQuotes?: Record<string, unknown>[];
+  recentInvoices?: Record<string, unknown>[];
+  [key: string]: unknown;
+}
+
+interface StatCard {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  link: string;
+}
+
+const colorClasses: Record<string, string> = {
+  blue: 'bg-blue-50 text-blue-600',
+  green: 'bg-green-50 text-green-600',
+  purple: 'bg-purple-50 text-purple-600',
+  orange: 'bg-orange-50 text-orange-600',
+  red: 'bg-red-50 text-red-600',
+  emerald: 'bg-emerald-50 text-emerald-600',
+};
+
 export default function DashboardPage() {
   const { user, company } = useAuth();
-  const [stats, setStats] = useState(null);
-  const [activity, setActivity] = useState(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,8 +56,8 @@ export default function DashboardPage() {
         api.dashboard.stats(),
         api.dashboard.recentActivity(),
       ]);
-      setStats(statsData);
-      setActivity(activityData);
+      setStats(statsData as DashboardStats);
+      setActivity(activityData as ActivityData);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
     } finally {
@@ -40,23 +73,14 @@ export default function DashboardPage() {
     );
   }
 
-  const statCards = [
+  const statCards: StatCard[] = [
     { label: 'Contacts', value: stats?.contacts || 0, icon: Users, color: 'blue', link: '/contacts' },
-    { label: 'Active Projects', value: stats?.projects?.byStatus?.active || 0, icon: FolderKanban, color: 'green', link: '/projects' },
-    { label: 'Jobs Today', value: stats?.jobs?.today || 0, icon: Briefcase, color: 'purple', link: '/jobs' },
-    { label: 'Pending Quotes', value: stats?.quotes?.pending || 0, icon: FileText, color: 'orange', link: '/quotes' },
-    { label: 'Open Invoices', value: stats?.invoices?.outstanding || 0, icon: Receipt, color: 'red', link: '/invoices' },
-    { label: 'Outstanding', value: `$${(stats?.invoices?.outstandingValue || 0).toLocaleString()}`, icon: DollarSign, color: 'emerald', link: '/invoices' },
+    { label: 'Active Projects', value: (stats?.projects as Record<string, unknown>)?.byStatus ? ((stats?.projects as Record<string, unknown>).byStatus as Record<string, unknown>)?.active as number || 0 : 0, icon: FolderKanban, color: 'green', link: '/projects' },
+    { label: 'Jobs Today', value: (stats?.jobs as Record<string, unknown>)?.today as number || 0, icon: Briefcase, color: 'purple', link: '/jobs' },
+    { label: 'Pending Quotes', value: (stats?.quotes as Record<string, unknown>)?.pending as number || 0, icon: FileText, color: 'orange', link: '/quotes' },
+    { label: 'Open Invoices', value: (stats?.invoices as Record<string, unknown>)?.outstanding as number || 0, icon: Receipt, color: 'red', link: '/invoices' },
+    { label: 'Outstanding', value: `$${((stats?.invoices as Record<string, unknown>)?.outstandingValue as number || 0).toLocaleString()}`, icon: DollarSign, color: 'emerald', link: '/invoices' },
   ];
-
-  const colorClasses = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-green-50 text-green-600',
-    purple: 'bg-purple-50 text-purple-600',
-    orange: 'bg-orange-50 text-orange-600',
-    red: 'bg-red-50 text-red-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-  };
 
   return (
     <div className="space-y-6">
@@ -92,16 +116,16 @@ export default function DashboardPage() {
             <Link to="/jobs" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
-            {activity?.recentJobs?.length > 0 ? activity.recentJobs.map((job) => (
-              <div key={job.id} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{job.title || 'Untitled'}</p>
-                <p className="text-sm text-gray-500">{job.number || '—'}</p>
+            {(activity?.recentJobs?.length ?? 0) > 0 ? activity!.recentJobs!.map((job: Record<string, unknown>) => (
+              <div key={job.id as string} className="p-4">
+                <p className="font-medium text-gray-900 truncate">{(job.title as string) || 'Untitled'}</p>
+                <p className="text-sm text-gray-500">{(job.number as string) || '—'}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   job.status === 'completed' ? 'bg-green-100 text-green-700' :
                   job.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
                   'bg-gray-100 text-gray-700'
                 }`}>
-                  {(job.status || 'pending').replace('_', ' ')}
+                  {((job.status as string) || 'pending').replace('_', ' ')}
                 </span>
               </div>
             )) : (
@@ -117,17 +141,17 @@ export default function DashboardPage() {
             <Link to="/quotes" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
-            {activity?.recentQuotes?.length > 0 ? activity.recentQuotes.map((quote) => (
-              <div key={quote.id} className="p-4">
-                <p className="font-medium text-gray-900 truncate">{quote.name || 'Untitled'}</p>
-                <p className="text-sm text-gray-500">{quote.number || '—'} • ${Number(quote.total || 0).toLocaleString()}</p>
+            {(activity?.recentQuotes?.length ?? 0) > 0 ? activity!.recentQuotes!.map((quote: Record<string, unknown>) => (
+              <div key={quote.id as string} className="p-4">
+                <p className="font-medium text-gray-900 truncate">{(quote.name as string) || 'Untitled'}</p>
+                <p className="text-sm text-gray-500">{(quote.number as string) || '—'} • ${Number(quote.total || 0).toLocaleString()}</p>
                 <span className={`inline-block mt-1 px-2 py-0.5 text-xs rounded-full ${
                   quote.status === 'approved' ? 'bg-green-100 text-green-700' :
                   quote.status === 'sent' ? 'bg-blue-100 text-blue-700' :
                   quote.status === 'rejected' ? 'bg-red-100 text-red-700' :
                   'bg-gray-100 text-gray-700'
                 }`}>
-                  {quote.status || 'draft'}
+                  {(quote.status as string) || 'draft'}
                 </span>
               </div>
             )) : (
@@ -143,9 +167,9 @@ export default function DashboardPage() {
             <Link to="/invoices" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
-            {activity?.recentInvoices?.length > 0 ? activity.recentInvoices.map((invoice) => (
-              <div key={invoice.id} className="p-4">
-                <p className="font-medium text-gray-900">{invoice.number || '—'}</p>
+            {(activity?.recentInvoices?.length ?? 0) > 0 ? activity!.recentInvoices!.map((invoice: Record<string, unknown>) => (
+              <div key={invoice.id as string} className="p-4">
+                <p className="font-medium text-gray-900">{(invoice.number as string) || '—'}</p>
                 <p className="text-sm text-gray-500">
                   ${Number(invoice.total || 0).toLocaleString()}
                   {Number(invoice.balance || 0) > 0 && (
@@ -158,7 +182,7 @@ export default function DashboardPage() {
                   invoice.status === 'overdue' ? 'bg-red-100 text-red-700' :
                   'bg-gray-100 text-gray-700'
                 }`}>
-                  {invoice.status || 'draft'}
+                  {(invoice.status as string) || 'draft'}
                 </span>
               </div>
             )) : (

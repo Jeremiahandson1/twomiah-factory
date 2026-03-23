@@ -1,39 +1,58 @@
 import { useState, useEffect } from 'react';
-import { 
-  MessageCircle, Send, MoreVertical, Edit2, Trash2, 
-  ThumbsUp, Reply, Loader2, User 
+import {
+  MessageCircle, Send, MoreVertical, Edit2, Trash2,
+  ThumbsUp, Reply, Loader2, User
 } from 'lucide-react';
 import api from '../../services/api';
 
+interface CommentUser {
+  firstName?: string;
+  lastName?: string;
+}
+
+interface Comment {
+  id: string;
+  content: string;
+  createdAt: string;
+  editedAt?: string;
+  user?: CommentUser;
+  replies?: Comment[];
+}
+
+interface CommentsProps {
+  entityType: string;
+  entityId: string;
+}
+
 /**
  * Comments Section
- * 
+ *
  * Usage:
  *   <Comments entityType="project" entityId={projectId} />
  */
-export default function Comments({ entityType, entityId }) {
-  const [comments, setComments] = useState([]);
+export default function Comments({ entityType, entityId }: CommentsProps) {
+  const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
 
   useEffect(() => {
     loadComments();
   }, [entityType, entityId]);
 
-  const loadComments = async () => {
+  const loadComments = async (): Promise<void> => {
     try {
       const data = await api.get(`/comments/${entityType}/${entityId}`);
-      setComments(data);
-    } catch (error) {
+      setComments(data as Comment[]);
+    } catch (error: unknown) {
       console.error('Failed to load comments:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     if (!newComment.trim()) return;
 
@@ -42,12 +61,12 @@ export default function Comments({ entityType, entityId }) {
       const comment = await api.post(`/comments/${entityType}/${entityId}`, {
         content: newComment,
         parentId: replyingTo,
-      });
+      }) as Comment;
 
       if (replyingTo) {
         // Add reply to parent comment
-        setComments(prev => prev.map(c => 
-          c.id === replyingTo 
+        setComments(prev => prev.map((c: Comment) =>
+          c.id === replyingTo
             ? { ...c, replies: [...(c.replies || []), comment] }
             : c
         ));
@@ -57,20 +76,20 @@ export default function Comments({ entityType, entityId }) {
 
       setNewComment('');
       setReplyingTo(null);
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to post comment');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (commentId) => {
+  const handleDelete = async (commentId: string): Promise<void> => {
     if (!confirm('Delete this comment?')) return;
 
     try {
       await api.delete(`/comments/${commentId}`);
-      setComments(prev => prev.filter(c => c.id !== commentId));
-    } catch (error) {
+      setComments(prev => prev.filter((c: Comment) => c.id !== commentId));
+    } catch (error: unknown) {
       alert('Failed to delete comment');
     }
   };
@@ -108,7 +127,7 @@ export default function Comments({ entityType, entityId }) {
             <input
               type="text"
               value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewComment(e.target.value)}
               placeholder={replyingTo ? 'Write a reply...' : 'Write a comment...'}
               className="flex-1 px-4 py-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
@@ -135,12 +154,12 @@ export default function Comments({ entityType, entityId }) {
         </div>
       ) : (
         <div className="space-y-4">
-          {comments.map((comment) => (
+          {comments.map((comment: Comment) => (
             <CommentItem
               key={comment.id}
               comment={comment}
               onDelete={handleDelete}
-              onReply={(id) => setReplyingTo(id)}
+              onReply={(id: string) => setReplyingTo(id)}
             />
           ))}
         </div>
@@ -149,15 +168,22 @@ export default function Comments({ entityType, entityId }) {
   );
 }
 
-function CommentItem({ comment, onDelete, onReply, isReply = false }) {
+interface CommentItemProps {
+  comment: Comment;
+  onDelete: (commentId: string) => void;
+  onReply: (commentId: string) => void;
+  isReply?: boolean;
+}
+
+function CommentItem({ comment, onDelete, onReply, isReply = false }: CommentItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const [liked, setLiked] = useState(false);
 
-  const handleLike = async () => {
+  const handleLike = async (): Promise<void> => {
     try {
       await api.post(`/comments/${comment.id}/react`, { reaction: 'like' });
       setLiked(!liked);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to react:', error);
     }
   };
@@ -229,9 +255,9 @@ function CommentItem({ comment, onDelete, onReply, isReply = false }) {
         </div>
 
         {/* Replies */}
-        {comment.replies?.length > 0 && (
+        {comment.replies && comment.replies.length > 0 && (
           <div className="mt-3 space-y-3">
-            {comment.replies.map((reply) => (
+            {comment.replies.map((reply: Comment) => (
               <CommentItem
                 key={reply.id}
                 comment={reply}
@@ -247,22 +273,28 @@ function CommentItem({ comment, onDelete, onReply, isReply = false }) {
   );
 }
 
+interface ActivityFeedProps {
+  entityType: string;
+  entityId: string;
+  limit?: number;
+}
+
 /**
  * Activity Feed Component
  */
-export function ActivityFeed({ entityType, entityId, limit = 20 }) {
-  const [activities, setActivities] = useState([]);
+export function ActivityFeed({ entityType, entityId, limit = 20 }: ActivityFeedProps) {
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadActivity();
   }, [entityType, entityId]);
 
-  const loadActivity = async () => {
+  const loadActivity = async (): Promise<void> => {
     try {
       const data = await api.get(`/comments/activity/${entityType}/${entityId}?limit=${limit}`);
-      setActivities(data);
-    } catch (error) {
+      setActivities(data as Activity[]);
+    } catch (error: unknown) {
       console.error('Failed to load activity:', error);
     } finally {
       setLoading(false);
@@ -279,16 +311,40 @@ export function ActivityFeed({ entityType, entityId, limit = 20 }) {
 
   return (
     <div className="space-y-3">
-      {activities.map((activity) => (
+      {activities.map((activity: Activity) => (
         <ActivityItem key={activity.id} activity={activity} />
       ))}
     </div>
   );
 }
 
-function ActivityItem({ activity }) {
-  const getActivityIcon = (action) => {
-    const icons = {
+interface ActivityUser {
+  firstName?: string;
+  lastName?: string;
+}
+
+interface ActivityMetadata {
+  newStatus?: string;
+  assigneeName?: string;
+  [key: string]: unknown;
+}
+
+interface Activity {
+  id: string;
+  action: string;
+  createdAt: string;
+  user?: ActivityUser;
+  metadata?: ActivityMetadata;
+  entityType?: string;
+}
+
+interface ActivityItemProps {
+  activity: Activity;
+}
+
+function ActivityItem({ activity }: ActivityItemProps) {
+  const getActivityIcon = (action: string): string => {
+    const icons: Record<string, string> = {
       created: '🆕',
       updated: '✏️',
       comment_added: '💬',
@@ -305,11 +361,11 @@ function ActivityItem({ activity }) {
     return icons[action] || '•';
   };
 
-  const formatAction = (activity) => {
+  const formatAction = (activity: Activity): string => {
     const { action, metadata, user } = activity;
     const name = user ? `${user.firstName} ${user.lastName}` : 'Someone';
 
-    const formats = {
+    const formats: Record<string, string> = {
       created: `${name} created this`,
       updated: `${name} made updates`,
       comment_added: `${name} commented`,
@@ -340,22 +396,31 @@ function ActivityItem({ activity }) {
   );
 }
 
+interface GlobalActivityFeedProps {
+  limit?: number;
+}
+
+interface FeedData {
+  activities: Activity[];
+  pagination: Record<string, unknown>;
+}
+
 /**
  * Global Activity Feed (for dashboard)
  */
-export function GlobalActivityFeed({ limit = 20 }) {
-  const [data, setData] = useState({ activities: [], pagination: {} });
+export function GlobalActivityFeed({ limit = 20 }: GlobalActivityFeedProps) {
+  const [data, setData] = useState<FeedData>({ activities: [], pagination: {} });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadFeed();
   }, []);
 
-  const loadFeed = async () => {
+  const loadFeed = async (): Promise<void> => {
     try {
       const result = await api.get(`/comments/activity/feed?limit=${limit}`);
-      setData(result);
-    } catch (error) {
+      setData(result as FeedData);
+    } catch (error: unknown) {
       console.error('Failed to load activity feed:', error);
     } finally {
       setLoading(false);
@@ -368,7 +433,7 @@ export function GlobalActivityFeed({ limit = 20 }) {
 
   return (
     <div className="space-y-3">
-      {data.activities.map((activity) => (
+      {data.activities.map((activity: Activity) => (
         <div key={activity.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg">
           <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm">
             {activity.user?.firstName?.[0]}{activity.user?.lastName?.[0]}

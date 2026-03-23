@@ -6,14 +6,35 @@ import {
   Clock, LogOut, Camera, Sparkles, BookOpen, Ruler
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../services/api';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+interface DashboardStats {
+  contacts?: number;
+  jobs?: { today?: number; [key: string]: unknown };
+  quotes?: { pending?: number; [key: string]: unknown };
+  invoices?: { outstandingValue?: number; [key: string]: unknown };
+  [key: string]: unknown;
+}
+
+interface ActivityData {
+  recentJobs?: Record<string, unknown>[];
+  recentQuotes?: Record<string, unknown>[];
+  recentInvoices?: Record<string, unknown>[];
+  [key: string]: unknown;
+}
+
+interface StatCard {
+  label: string;
+  value: string | number;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+}
 
 export default function CustomerPortal() {
   const { user, company, logout, loading: authLoading, checkAuth, hasFeature } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState<any>(null);
-  const [activity, setActivity] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [activity, setActivity] = useState<ActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [configReady, setConfigReady] = useState(false);
 
@@ -36,14 +57,12 @@ export default function CustomerPortal() {
 
   async function fetchDashboardData() {
     try {
-      const token = localStorage.getItem('accessToken');
-      const headers = { 'Authorization': `Bearer ${token}` };
-      const [statsRes, activityRes] = await Promise.all([
-        fetch(`${API_URL}/api/dashboard/stats`, { headers }).catch(() => null),
-        fetch(`${API_URL}/api/dashboard/recent-activity`, { headers }).catch(() => null),
+      const [statsData, activityData] = await Promise.all([
+        api.dashboard.stats().catch(() => null),
+        api.dashboard.recentActivity().catch(() => null),
       ]);
-      if (statsRes?.ok) setStats(await statsRes.json());
-      if (activityRes?.ok) setActivity(await activityRes.json());
+      if (statsData) setStats(statsData as DashboardStats);
+      if (activityData) setActivity(activityData as ActivityData);
     } catch (err) {
       // Stats may not be available yet
     } finally {
@@ -64,18 +83,18 @@ export default function CustomerPortal() {
   const companyName = company?.name || import.meta.env.VITE_COMPANY_NAME || 'My Company';
 
   // Determine which products are available based on company settings
-  let settings: Record<string, any> = {};
+  let settings: Record<string, unknown> = {};
   try {
     settings = typeof company?.settings === 'string'
-      ? JSON.parse(company.settings)
-      : (company?.settings || {});
+      ? JSON.parse(company.settings as string)
+      : (company?.settings || {}) as Record<string, unknown>;
   } catch {
     // Invalid JSON in settings, use defaults
   }
-  
-  const products = settings.products || ['crm']; // default: CRM always available
-  const siteUrl = settings.siteUrl || null;
-  const cmsUrl = settings.cmsUrl || null;
+
+  const products = (settings.products as string[]) || ['crm']; // default: CRM always available
+  const siteUrl = (settings.siteUrl as string) || null;
+  const cmsUrl = (settings.cmsUrl as string) || null;
 
   const handleLogout = async () => {
     await logout();
@@ -92,7 +111,7 @@ export default function CustomerPortal() {
               {company?.logo ? (
                 <img src={company.logo} alt="" className="h-8 w-8 object-contain" />
               ) : (
-                <div 
+                <div
                   className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
                   style={{ backgroundColor: primaryColor }}
                 >
@@ -129,12 +148,12 @@ export default function CustomerPortal() {
         {/* Quick Stats */}
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-            {[
+            {([
               { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: stats.jobs?.today ?? 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: stats.quotes?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${(stats.invoices?.outstandingValue ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
-            ].map((stat) => (
+              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
+              { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+            ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
                   <stat.icon className={`w-4 h-4 text-${stat.color}-500`} />
@@ -153,12 +172,12 @@ export default function CustomerPortal() {
             onClick={() => navigate('/crm')}
             className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden"
           >
-            <div 
+            <div
               className="absolute top-0 left-0 right-0 h-1"
               style={{ backgroundColor: primaryColor }}
             />
             <div className="flex items-start justify-between mb-4">
-              <div 
+              <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center"
                 style={{ backgroundColor: `${primaryColor}15` }}
               >
@@ -310,23 +329,23 @@ export default function CustomerPortal() {
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
-            {(activity?.recentJobs?.length > 0 || activity?.recentQuotes?.length > 0 || activity?.recentInvoices?.length > 0) ? (
+            {(activity?.recentJobs?.length || activity?.recentQuotes?.length || activity?.recentInvoices?.length) ? (
               <>
-                {(activity.recentJobs || []).slice(0, 3).map((item: any) => (
-                  <div key={item.id} className="px-6 py-3 flex items-center gap-3">
+                {(activity?.recentJobs || []).slice(0, 3).map((item: Record<string, unknown>) => (
+                  <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-sm text-slate-700">Job: {item.title || item.number} — {item.status?.replace('_', ' ') || 'pending'}</span>
+                    <span className="text-sm text-slate-700">Job: {(item.title as string) || (item.number as string)} — {((item.status as string)?.replace('_', ' ')) || 'pending'}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}
+                      {item.updatedAt ? new Date(item.updatedAt as string).toLocaleDateString() : ''}
                     </span>
                   </div>
                 ))}
-                {(activity.recentQuotes || []).slice(0, 2).map((item: any) => (
-                  <div key={item.id} className="px-6 py-3 flex items-center gap-3">
+                {(activity?.recentQuotes || []).slice(0, 2).map((item: Record<string, unknown>) => (
+                  <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-sm text-slate-700">Quote: {item.name || item.number} — ${Number(item.total || 0).toLocaleString()}</span>
+                    <span className="text-sm text-slate-700">Quote: {(item.name as string) || (item.number as string)} — ${Number(item.total || 0).toLocaleString()}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : ''}
+                      {item.updatedAt ? new Date(item.updatedAt as string).toLocaleDateString() : ''}
                     </span>
                   </div>
                 ))}
@@ -344,7 +363,7 @@ export default function CustomerPortal() {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-xs text-slate-400">
-            Powered by <span className="font-medium">{{COMPANY_NAME}}</span>
+            Powered by <span className="font-medium">{'{{COMPANY_NAME}}'}</span>
           </p>
         </div>
       </main>

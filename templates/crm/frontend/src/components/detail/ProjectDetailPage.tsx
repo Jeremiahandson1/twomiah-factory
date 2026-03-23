@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
+import {
   ArrowLeft, Edit, Trash2, MapPin, Calendar, DollarSign,
   Briefcase, FileText, Receipt, FileQuestion, FileDiff, ClipboardList
 } from 'lucide-react';
@@ -11,15 +11,52 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
 
+interface RelatedItem {
+  id: string;
+  title?: string;
+  name?: string;
+  subject?: string;
+  number: string;
+  status: string;
+  amount?: string | number;
+  [key: string]: unknown;
+}
+
+interface ProjectDetailData {
+  id: string;
+  name: string;
+  number: string;
+  status: string;
+  description?: string | null;
+  type?: string | null;
+  progress?: number | null;
+  budget?: string | number | null;
+  estimatedValue?: string | number | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  createdAt: string;
+  contact?: { id: string; name: string } | null;
+  jobs?: RelatedItem[];
+  rfis?: RelatedItem[];
+  changeOrders?: RelatedItem[];
+  punchListItems?: RelatedItem[];
+  [key: string]: unknown;
+}
+
 export default function ProjectDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [project, setProject] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [project, setProject] = useState<ProjectDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
 
   useEffect(() => {
     loadProject();
@@ -31,8 +68,9 @@ export default function ProjectDetailPage() {
     try {
       const data = await api.projects.get(id);
       setProject(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
       toast.error('Failed to load project');
     } finally {
       setLoading(false);
@@ -45,8 +83,9 @@ export default function ProjectDetailPage() {
       await api.projects.delete(id);
       toast.success('Project deleted');
       navigate('/crm/projects');
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     } finally {
       setDeleting(false);
     }
@@ -56,7 +95,7 @@ export default function ProjectDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error loading project" description={error} onAction={loadProject} actionLabel="Retry" />;
   if (!project) return <EmptyState title="Project not found" />;
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     planning: 'bg-gray-100 text-gray-700',
     active: 'bg-blue-100 text-blue-700',
     on_hold: 'bg-yellow-100 text-yellow-700',
@@ -78,7 +117,7 @@ export default function ProjectDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <span className="text-sm font-mono text-gray-500">{project.number}</span>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[project.status]}`}>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[project.status] || ''}`}>
                 {project.status?.replace('_', ' ')}
               </span>
             </div>
@@ -115,7 +154,7 @@ export default function ProjectDetailPage() {
           <span className="text-sm font-medium text-orange-600">{project.progress || 0}%</span>
         </div>
         <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-orange-500 rounded-full transition-all duration-300"
             style={{ width: `${project.progress || 0}%` }}
           />
@@ -191,7 +230,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Jobs */}
-          {project.jobs?.length > 0 && (
+          {(project.jobs?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Jobs</h2>
@@ -200,7 +239,7 @@ export default function ProjectDetailPage() {
                 </Link>
               </div>
               <div className="divide-y">
-                {project.jobs.slice(0, 5).map(job => (
+                {project.jobs!.slice(0, 5).map((job: RelatedItem) => (
                   <Link
                     key={job.id}
                     to={`/crm/jobs/${job.id}`}
@@ -221,7 +260,7 @@ export default function ProjectDetailPage() {
           )}
 
           {/* RFIs */}
-          {project.rfis?.length > 0 && (
+          {(project.rfis?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">RFIs</h2>
@@ -230,7 +269,7 @@ export default function ProjectDetailPage() {
                 </Link>
               </div>
               <div className="divide-y">
-                {project.rfis.slice(0, 5).map(rfi => (
+                {project.rfis!.slice(0, 5).map((rfi: RelatedItem) => (
                   <div key={rfi.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <FileQuestion className="w-5 h-5 text-gray-400" />
@@ -247,7 +286,7 @@ export default function ProjectDetailPage() {
           )}
 
           {/* Change Orders */}
-          {project.changeOrders?.length > 0 && (
+          {(project.changeOrders?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Change Orders</h2>
@@ -256,7 +295,7 @@ export default function ProjectDetailPage() {
                 </Link>
               </div>
               <div className="divide-y">
-                {project.changeOrders.slice(0, 5).map(co => (
+                {project.changeOrders!.slice(0, 5).map((co: RelatedItem) => (
                   <div key={co.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <FileDiff className="w-5 h-5 text-gray-400" />
@@ -311,11 +350,11 @@ export default function ProjectDetailPage() {
                   <span className="font-medium">${Number(project.budget).toLocaleString()}</span>
                 </div>
               )}
-              {project.changeOrders?.length > 0 && (
+              {(project.changeOrders?.length ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Change Orders</span>
                   <span className="font-medium text-orange-600">
-                    +${project.changeOrders.reduce((sum, co) => sum + Number(co.amount), 0).toLocaleString()}
+                    +${project.changeOrders!.reduce((sum: number, co: RelatedItem) => sum + Number(co.amount), 0).toLocaleString()}
                   </span>
                 </div>
               )}

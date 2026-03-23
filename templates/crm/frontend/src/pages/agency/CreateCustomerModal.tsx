@@ -1,28 +1,86 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   X, Building2, User, Mail, Phone, MapPin, Palette,
   Package, Check, ChevronDown, ChevronRight, Loader2,
   Copy, CheckCircle
 } from 'lucide-react';
 import api from '../../services/api';
 
+interface CreateCustomerModalProps {
+  onClose: () => void;
+  onCreated: () => void;
+}
+
+interface Feature {
+  id: string;
+  name: string;
+  description: string;
+}
+
+interface FeatureCategory {
+  name: string;
+  alwaysEnabled?: boolean;
+  features: Record<string, Feature>;
+}
+
+interface PackageInfo {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+  features: string[] | 'all';
+}
+
+interface CreatedResult {
+  company: { name: string };
+  loginUrl: string;
+  adminUser: { email: string };
+  generatedPassword?: string;
+}
+
+interface CustomerForm {
+  name: string;
+  slug: string;
+  email: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  logo: string;
+  primaryColor: string;
+  secondaryColor: string;
+  selectedPackage: string | null;
+  enabledFeatures: string[];
+  adminFirstName: string;
+  adminLastName: string;
+  adminEmail: string;
+  adminPassword: string;
+}
+
+interface FeatureCategoryProps {
+  category: FeatureCategory;
+  enabledFeatures: string[];
+  onToggle: (featureId: string) => void;
+}
+
 /**
  * Create Customer Modal
- * 
+ *
  * Step 1: Company Info + Logo + Colors
  * Step 2: Select Features (checkboxes by category)
  * Step 3: Admin Account
  * Step 4: Confirm & Create
  */
-export default function CreateCustomerModal({ onClose, onCreated }) {
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [featureRegistry, setFeatureRegistry] = useState(null);
-  const [packages, setPackages] = useState(null);
-  const [created, setCreated] = useState(null);
-  
+export default function CreateCustomerModal({ onClose, onCreated }: CreateCustomerModalProps) {
+  const [step, setStep] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [featureRegistry, setFeatureRegistry] = useState<Record<string, FeatureCategory> | null>(null);
+  const [packages, setPackages] = useState<Record<string, PackageInfo> | null>(null);
+  const [created, setCreated] = useState<CreatedResult | null>(null);
+
   // Form data
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<CustomerForm>({
     // Company
     name: '',
     slug: '',
@@ -32,16 +90,16 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
     city: '',
     state: '',
     zip: '',
-    
+
     // Branding
     logo: '',
     primaryColor: '{{PRIMARY_COLOR}}',
     secondaryColor: '#1e293b',
-    
+
     // Features
     selectedPackage: null,
     enabledFeatures: [],
-    
+
     // Admin
     adminFirstName: '',
     adminLastName: '',
@@ -71,37 +129,38 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
-      setForm(f => ({ ...f, slug }));
+      setForm((f: CustomerForm) => ({ ...f, slug }));
     }
   }, [form.name]);
 
-  const handleFeatureToggle = (featureId) => {
-    setForm(f => {
+  const handleFeatureToggle = (featureId: string) => {
+    setForm((f: CustomerForm) => {
       const features = f.enabledFeatures.includes(featureId)
-        ? f.enabledFeatures.filter(id => id !== featureId)
+        ? f.enabledFeatures.filter((id: string) => id !== featureId)
         : [...f.enabledFeatures, featureId];
       return { ...f, enabledFeatures: features, selectedPackage: null };
     });
   };
 
-  const handlePackageSelect = (packageId) => {
+  const handlePackageSelect = (packageId: string) => {
+    if (!packages) return;
     const pkg = packages[packageId];
     if (!pkg) return;
-    
-    const features = pkg.features === 'all' 
-      ? getAllFeatureIds() 
+
+    const features = pkg.features === 'all'
+      ? getAllFeatureIds()
       : pkg.features;
-    
-    setForm(f => ({
+
+    setForm((f: CustomerForm) => ({
       ...f,
       selectedPackage: packageId,
       enabledFeatures: features,
     }));
   };
 
-  const getAllFeatureIds = () => {
+  const getAllFeatureIds = (): string[] => {
     if (!featureRegistry) return [];
-    const ids = [];
+    const ids: string[] = [];
     for (const category of Object.values(featureRegistry)) {
       for (const feature of Object.values(category.features)) {
         ids.push(feature.id);
@@ -131,24 +190,24 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
         adminEmail: form.adminEmail,
         adminPassword: form.adminPassword || undefined,
       });
-      
+
       setCreated(result);
       setStep(5); // Success step
     } catch (error) {
-      alert(error.response?.data?.error || 'Failed to create customer');
+      alert((error as Record<string, Record<string, Record<string, string>>>).response?.data?.error || 'Failed to create customer');
     } finally {
       setLoading(false);
     }
   };
 
-  const isStepValid = () => {
+  const isStepValid = (): boolean => {
     switch (step) {
       case 1:
-        return form.name && form.email;
+        return !!(form.name && form.email);
       case 2:
         return form.enabledFeatures.length > 0;
       case 3:
-        return form.adminFirstName && form.adminLastName && form.adminEmail;
+        return !!(form.adminFirstName && form.adminLastName && form.adminEmail);
       default:
         return true;
     }
@@ -180,7 +239,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
           {step < 5 && (
             <div className="px-6 py-3 border-b bg-gray-50">
               <div className="flex gap-2">
-                {[1, 2, 3, 4].map(s => (
+                {[1, 2, 3, 4].map((s: number) => (
                   <div
                     key={s}
                     className={`flex-1 h-2 rounded-full ${
@@ -206,7 +265,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                     <input
                       type="text"
                       value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value, slug: '' })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value, slug: '' })}
                       className="w-full px-4 py-2 border rounded-lg"
                       placeholder="ABC Plumbing"
                     />
@@ -220,7 +279,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                       <input
                         type="text"
                         value={form.slug}
-                        onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
                         className="flex-1 px-3 py-2 border rounded-lg text-sm"
                         placeholder="abc-plumbing"
                       />
@@ -233,7 +292,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                     <input
                       type="email"
                       value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, email: e.target.value })}
                       className="w-full px-4 py-2 border rounded-lg"
                       placeholder="info@abcplumbing.com"
                     />
@@ -245,7 +304,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                     <input
                       type="tel"
                       value={form.phone}
-                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, phone: e.target.value })}
                       className="w-full px-4 py-2 border rounded-lg"
                       placeholder="(555) 123-4567"
                     />
@@ -260,7 +319,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                   <input
                     type="text"
                     value={form.address}
-                    onChange={(e) => setForm({ ...form, address: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, address: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg mb-2"
                     placeholder="123 Main St"
                   />
@@ -268,21 +327,21 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                     <input
                       type="text"
                       value={form.city}
-                      onChange={(e) => setForm({ ...form, city: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, city: e.target.value })}
                       className="px-4 py-2 border rounded-lg"
                       placeholder="City"
                     />
                     <input
                       type="text"
                       value={form.state}
-                      onChange={(e) => setForm({ ...form, state: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, state: e.target.value })}
                       className="px-4 py-2 border rounded-lg"
                       placeholder="State"
                     />
                     <input
                       type="text"
                       value={form.zip}
-                      onChange={(e) => setForm({ ...form, zip: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, zip: e.target.value })}
                       className="px-4 py-2 border rounded-lg"
                       placeholder="ZIP"
                     />
@@ -300,7 +359,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                       <input
                         type="url"
                         value={form.logo}
-                        onChange={(e) => setForm({ ...form, logo: e.target.value })}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, logo: e.target.value })}
                         className="w-full px-4 py-2 border rounded-lg text-sm"
                         placeholder="https://..."
                       />
@@ -313,13 +372,13 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                         <input
                           type="color"
                           value={form.primaryColor}
-                          onChange={(e) => setForm({ ...form, primaryColor: e.target.value })}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, primaryColor: e.target.value })}
                           className="w-10 h-10 rounded border cursor-pointer"
                         />
                         <input
                           type="text"
                           value={form.primaryColor}
-                          onChange={(e) => setForm({ ...form, primaryColor: e.target.value })}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, primaryColor: e.target.value })}
                           className="flex-1 px-3 py-2 border rounded-lg text-sm"
                         />
                       </div>
@@ -332,13 +391,13 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                         <input
                           type="color"
                           value={form.secondaryColor}
-                          onChange={(e) => setForm({ ...form, secondaryColor: e.target.value })}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, secondaryColor: e.target.value })}
                           className="w-10 h-10 rounded border cursor-pointer"
                         />
                         <input
                           type="text"
                           value={form.secondaryColor}
-                          onChange={(e) => setForm({ ...form, secondaryColor: e.target.value })}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, secondaryColor: e.target.value })}
                           className="flex-1 px-3 py-2 border rounded-lg text-sm"
                         />
                       </div>
@@ -356,7 +415,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                   <div>
                     <h3 className="font-medium text-gray-900 mb-3">Quick Start Packages</h3>
                     <div className="grid grid-cols-2 gap-3">
-                      {Object.values(packages).map(pkg => (
+                      {Object.values(packages).map((pkg: PackageInfo) => (
                         <button
                           key={pkg.id}
                           onClick={() => handlePackageSelect(pkg.id)}
@@ -390,7 +449,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                   </div>
 
                   <div className="space-y-4">
-                    {Object.entries(featureRegistry).map(([categoryKey, category]) => (
+                    {Object.entries(featureRegistry).map(([categoryKey, category]: [string, FeatureCategory]) => (
                       <FeatureCategory
                         key={categoryKey}
                         category={category}
@@ -418,7 +477,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                     <input
                       type="text"
                       value={form.adminFirstName}
-                      onChange={(e) => setForm({ ...form, adminFirstName: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, adminFirstName: e.target.value })}
                       className="w-full px-4 py-2 border rounded-lg"
                     />
                   </div>
@@ -429,7 +488,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                     <input
                       type="text"
                       value={form.adminLastName}
-                      onChange={(e) => setForm({ ...form, adminLastName: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, adminLastName: e.target.value })}
                       className="w-full px-4 py-2 border rounded-lg"
                     />
                   </div>
@@ -442,7 +501,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                   <input
                     type="email"
                     value={form.adminEmail}
-                    onChange={(e) => setForm({ ...form, adminEmail: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, adminEmail: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg"
                     placeholder="owner@abcplumbing.com"
                   />
@@ -455,7 +514,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                   <input
                     type="text"
                     value={form.adminPassword}
-                    onChange={(e) => setForm({ ...form, adminPassword: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, adminPassword: e.target.value })}
                     className="w-full px-4 py-2 border rounded-lg"
                     placeholder="Leave blank to auto-generate"
                   />
@@ -481,7 +540,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                     Features ({form.enabledFeatures.length} enabled)
                   </h4>
                   <div className="flex flex-wrap gap-2">
-                    {form.enabledFeatures.slice(0, 10).map(id => (
+                    {form.enabledFeatures.slice(0, 10).map((id: string) => (
                       <span key={id} className="px-2 py-1 bg-orange-100 text-orange-700 text-xs rounded-full">
                         {id}
                       </span>
@@ -556,7 +615,7 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
                             {created.generatedPassword}
                           </code>
                           <button
-                            onClick={() => navigator.clipboard.writeText(created.generatedPassword)}
+                            onClick={() => navigator.clipboard.writeText(created.generatedPassword!)}
                             className="p-2 hover:bg-gray-200 rounded"
                           >
                             <Copy className="w-4 h-4" />
@@ -613,11 +672,11 @@ export default function CreateCustomerModal({ onClose, onCreated }) {
   );
 }
 
-function FeatureCategory({ category, enabledFeatures, onToggle }) {
-  const [expanded, setExpanded] = useState(!category.alwaysEnabled);
+function FeatureCategory({ category, enabledFeatures, onToggle }: FeatureCategoryProps) {
+  const [expanded, setExpanded] = useState<boolean>(!category.alwaysEnabled);
 
-  const features = Object.values(category.features);
-  const enabledCount = features.filter(f => enabledFeatures.includes(f.id)).length;
+  const features = Object.values(category.features) as Feature[];
+  const enabledCount = features.filter((f: Feature) => enabledFeatures.includes(f.id)).length;
 
   return (
     <div className="border rounded-xl overflow-hidden">
@@ -645,7 +704,7 @@ function FeatureCategory({ category, enabledFeatures, onToggle }) {
 
       {expanded && (
         <div className="p-4 grid grid-cols-2 gap-3">
-          {features.map(feature => (
+          {features.map((feature: Feature) => (
             <label
               key={feature.id}
               className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-all ${
@@ -656,9 +715,9 @@ function FeatureCategory({ category, enabledFeatures, onToggle }) {
             >
               <input
                 type="checkbox"
-                checked={enabledFeatures.includes(feature.id) || category.alwaysEnabled}
+                checked={enabledFeatures.includes(feature.id) || !!category.alwaysEnabled}
                 onChange={() => !category.alwaysEnabled && onToggle(feature.id)}
-                disabled={category.alwaysEnabled}
+                disabled={!!category.alwaysEnabled}
                 className="mt-1 w-4 h-4 text-orange-500 rounded border-gray-300 focus:ring-orange-500"
               />
               <div>

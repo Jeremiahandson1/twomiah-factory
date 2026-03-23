@@ -1,7 +1,14 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 
+interface ParsedAddress {
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+}
+
 interface AddressAutocompleteProps {
-  onSelect: (parsed: { address: string; city: string; state: string; zip: string }) => void
+  onSelect: (parsed: ParsedAddress) => void
   placeholder?: string
   className?: string
   value?: string
@@ -45,7 +52,15 @@ function loadGooglePlaces(): Promise<void> {
   return window._googleMapsLoading
 }
 
-function parseAddressComponents(components: any[]): { address: string; city: string; state: string; zip: string } {
+interface AddressComponent {
+  types: string[];
+  longText?: string;
+  long_name?: string;
+  shortText?: string;
+  short_name?: string;
+}
+
+function parseAddressComponents(components: AddressComponent[]): ParsedAddress {
   let streetNumber = ''
   let route = ''
   let city = ''
@@ -162,7 +177,7 @@ export default function AddressAutocomplete({
           ref={inputRef}
           type="text"
           value={value ?? ''}
-          onChange={(e) => onChange?.(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange?.(e.target.value)}
           placeholder={placeholder}
           className={inputClasses}
         />

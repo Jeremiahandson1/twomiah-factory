@@ -1,19 +1,55 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  Clock, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, Check, 
+import {
+  Clock, ChevronLeft, ChevronRight, Plus, Edit2, Trash2, Check,
   Loader2, Calendar, User, Briefcase, Download
 } from 'lucide-react';
 import api from '../../services/api';
 import TimeClock from '../../components/time/TimeClock';
 
+interface DayEntry {
+  id: string;
+  startTime: string;
+  endTime?: string;
+  workedMinutes: number;
+  job?: { title: string };
+  project?: { name: string };
+  user?: { firstName: string; lastName: string };
+  notes?: string;
+  approved?: boolean;
+}
+
+interface DayData {
+  date: string;
+  dayName: string;
+  totalHours: number;
+  entries: DayEntry[];
+}
+
+interface TimesheetData {
+  days: DayData[];
+  totalHours: number;
+}
+
+interface JobData {
+  id: string;
+  number: string;
+  title: string;
+}
+
+interface ProjectData {
+  id: string;
+  number: string;
+  name: string;
+}
+
 export default function TimesheetPage() {
-  const [view, setView] = useState('week'); // week, list
-  const [weekStart, setWeekStart] = useState(getWeekStart(new Date()));
-  const [timesheet, setTimesheet] = useState(null);
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showManualEntry, setShowManualEntry] = useState(false);
+  const [view, setView] = useState<string>('week'); // week, list
+  const [weekStart, setWeekStart] = useState<string>(getWeekStart(new Date()));
+  const [timesheet, setTimesheet] = useState<TimesheetData | null>(null);
+  const [entries, setEntries] = useState<DayEntry[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showManualEntry, setShowManualEntry] = useState<boolean>(false);
 
   useEffect(() => {
     loadData();
@@ -24,12 +60,12 @@ export default function TimesheetPage() {
     try {
       if (view === 'week') {
         const data = await api.get(`/api/time/weekly?weekStart=${weekStart}`);
-        setTimesheet(data);
+        setTimesheet(data as TimesheetData);
       } else {
         const result = await api.get('/api/time?limit=50');
-        setEntries(result.data || []);
+        setEntries(((result as Record<string, unknown>).data || []) as DayEntry[]);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load time data:', error);
     } finally {
       setLoading(false);
@@ -52,17 +88,17 @@ export default function TimesheetPage() {
     setWeekStart(getWeekStart(new Date()));
   };
 
-  const handleDeleteEntry = async (entryId) => {
+  const handleDeleteEntry = async (entryId: string) => {
     if (!confirm('Delete this time entry?')) return;
     try {
       await api.delete(`/api/time/${entryId}`);
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to delete entry');
     }
   };
 
-  const formatDuration = (minutes) => {
+  const formatDuration = (minutes: number): string => {
     if (!minutes) return '0:00';
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
@@ -130,7 +166,7 @@ export default function TimesheetPage() {
                   <button onClick={handlePrevWeek} className="p-2 hover:bg-gray-100 rounded-lg">
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <button 
+                  <button
                     onClick={handleThisWeek}
                     className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg"
                   >
@@ -149,14 +185,14 @@ export default function TimesheetPage() {
               <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
             </div>
           ) : view === 'week' ? (
-            <WeekView 
-              timesheet={timesheet} 
+            <WeekView
+              timesheet={timesheet}
               formatDuration={formatDuration}
               onDelete={handleDeleteEntry}
             />
           ) : (
-            <ListView 
-              entries={entries} 
+            <ListView
+              entries={entries}
               formatDuration={formatDuration}
               onDelete={handleDeleteEntry}
             />
@@ -166,7 +202,7 @@ export default function TimesheetPage() {
 
       {/* Manual Entry Modal */}
       {showManualEntry && (
-        <ManualEntryModal 
+        <ManualEntryModal
           onClose={() => setShowManualEntry(false)}
           onSave={() => {
             setShowManualEntry(false);
@@ -178,7 +214,13 @@ export default function TimesheetPage() {
   );
 }
 
-function WeekView({ timesheet, formatDuration, onDelete }) {
+interface WeekViewProps {
+  timesheet: TimesheetData | null;
+  formatDuration: (minutes: number) => string;
+  onDelete: (entryId: string) => void;
+}
+
+function WeekView({ timesheet, formatDuration, onDelete }: WeekViewProps) {
   if (!timesheet) return null;
 
   return (
@@ -186,7 +228,7 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
       {/* Week header */}
       <div className="grid grid-cols-8 border-b bg-gray-50">
         <div className="p-3 text-sm font-medium text-gray-500">Date</div>
-        {timesheet.days.map((day, i) => (
+        {timesheet.days.map((day: DayData, i: number) => (
           <div key={i} className="p-3 text-center border-l">
             <p className="text-sm font-medium text-gray-900">{day.dayName}</p>
             <p className="text-xs text-gray-500">
@@ -199,7 +241,7 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
       {/* Hours row */}
       <div className="grid grid-cols-8 border-b">
         <div className="p-3 text-sm font-medium text-gray-700">Hours</div>
-        {timesheet.days.map((day, i) => (
+        {timesheet.days.map((day: DayData, i: number) => (
           <div key={i} className="p-3 text-center border-l">
             <p className={`text-lg font-bold ${day.totalHours > 0 ? 'text-green-600' : 'text-gray-300'}`}>
               {day.totalHours}
@@ -210,8 +252,8 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
 
       {/* Entries */}
       <div className="divide-y max-h-96 overflow-y-auto">
-        {timesheet.days.flatMap(day => 
-          day.entries.map(entry => (
+        {timesheet.days.flatMap((day: DayData) =>
+          day.entries.map((entry: DayEntry) => (
             <div key={entry.id} className="flex items-center justify-between p-3 hover:bg-gray-50">
               <div className="flex items-center gap-3">
                 <div className="w-20 text-sm text-gray-500">
@@ -242,7 +284,7 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
             </div>
           ))
         )}
-        {timesheet.days.every(d => d.entries.length === 0) && (
+        {timesheet.days.every((d: DayData) => d.entries.length === 0) && (
           <div className="p-8 text-center text-gray-500">
             No time entries this week
           </div>
@@ -262,7 +304,13 @@ function WeekView({ timesheet, formatDuration, onDelete }) {
   );
 }
 
-function ListView({ entries, formatDuration, onDelete }) {
+interface ListViewProps {
+  entries: DayEntry[];
+  formatDuration: (minutes: number) => string;
+  onDelete: (entryId: string) => void;
+}
+
+function ListView({ entries, formatDuration, onDelete }: ListViewProps) {
   return (
     <div className="bg-white rounded-xl border overflow-hidden">
       <div className="divide-y">
@@ -271,7 +319,7 @@ function ListView({ entries, formatDuration, onDelete }) {
             No time entries found
           </div>
         ) : (
-          entries.map(entry => (
+          entries.map((entry: DayEntry) => (
             <div key={entry.id} className="p-4 hover:bg-gray-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -295,7 +343,7 @@ function ListView({ entries, formatDuration, onDelete }) {
                       </span>
                       {entry.user && (
                         <>
-                          <span>•</span>
+                          <span>&bull;</span>
                           <span>{entry.user.firstName} {entry.user.lastName}</span>
                         </>
                       )}
@@ -330,7 +378,12 @@ function ListView({ entries, formatDuration, onDelete }) {
   );
 }
 
-function ManualEntryModal({ onClose, onSave }) {
+interface ManualEntryModalProps {
+  onClose: () => void;
+  onSave: () => void;
+}
+
+function ManualEntryModal({ onClose, onSave }: ManualEntryModalProps) {
   const [form, setForm] = useState({
     date: new Date().toISOString().split('T')[0],
     startTime: '09:00',
@@ -340,9 +393,9 @@ function ManualEntryModal({ onClose, onSave }) {
     notes: '',
     breakMinutes: 0,
   });
-  const [jobs, setJobs] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [jobs, setJobs] = useState<JobData[]>([]);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     loadOptions();
@@ -354,21 +407,21 @@ function ManualEntryModal({ onClose, onSave }) {
         api.get('/api/jobs?limit=100'),
         api.get('/api/projects?limit=100'),
       ]);
-      setJobs(jobsRes.data || []);
-      setProjects(projectsRes.data || []);
-    } catch (error) {
+      setJobs(((jobsRes as Record<string, unknown>).data || []) as JobData[]);
+      setProjects(((projectsRes as Record<string, unknown>).data || []) as ProjectData[]);
+    } catch (error: unknown) {
       console.error('Failed to load options:', error);
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.post('/api/time', form);
       onSave();
-    } catch (error) {
-      alert(error.message || 'Failed to save entry');
+    } catch (error: unknown) {
+      alert((error as Error).message || 'Failed to save entry');
     } finally {
       setSaving(false);
     }
@@ -380,14 +433,14 @@ function ManualEntryModal({ onClose, onSave }) {
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Add Time Entry</h2>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
               <input
                 type="date"
                 value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               />
@@ -399,7 +452,7 @@ function ManualEntryModal({ onClose, onSave }) {
                 <input
                   type="time"
                   value={form.startTime}
-                  onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, startTime: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 />
@@ -409,7 +462,7 @@ function ManualEntryModal({ onClose, onSave }) {
                 <input
                   type="time"
                   value={form.endTime}
-                  onChange={(e) => setForm({ ...form, endTime: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, endTime: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 />
@@ -421,7 +474,7 @@ function ManualEntryModal({ onClose, onSave }) {
               <input
                 type="number"
                 value={form.breakMinutes}
-                onChange={(e) => setForm({ ...form, breakMinutes: parseInt(e.target.value) || 0 })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, breakMinutes: parseInt(e.target.value) || 0 })}
                 className="w-full px-3 py-2 border rounded-lg"
                 min="0"
               />
@@ -431,11 +484,11 @@ function ManualEntryModal({ onClose, onSave }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Job</label>
               <select
                 value={form.jobId}
-                onChange={(e) => setForm({ ...form, jobId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, jobId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="">No specific job</option>
-                {jobs.map(job => (
+                {jobs.map((job: JobData) => (
                   <option key={job.id} value={job.id}>{job.number} - {job.title}</option>
                 ))}
               </select>
@@ -445,11 +498,11 @@ function ManualEntryModal({ onClose, onSave }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
               <select
                 value={form.projectId}
-                onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, projectId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="">No specific project</option>
-                {projects.map(project => (
+                {projects.map((project: ProjectData) => (
                   <option key={project.id} value={project.id}>{project.number} - {project.name}</option>
                 ))}
               </select>
@@ -459,7 +512,7 @@ function ManualEntryModal({ onClose, onSave }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
               <textarea
                 value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, notes: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={2}
               />
@@ -490,7 +543,7 @@ function ManualEntryModal({ onClose, onSave }) {
 }
 
 // Helper
-function getWeekStart(date) {
+function getWeekStart(date: Date): string {
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);

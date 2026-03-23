@@ -423,6 +423,24 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     `,
     text: `Hi ${data.contactName}, access your customer portal for ${data.companyName}: ${data.portalUrl}`,
   }),
+
+  lowStockAlert: (data) => ({
+    subject: `Low Stock Alert: ${data.itemName}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">{{COMPANY_NAME}}</h1></div>
+        <div class="content">
+          <h2>Low Stock Alert</h2>
+          <p><strong>${data.itemName}</strong> has dropped to <strong>${data.currentStock}</strong> units, which is at or below the reorder point of <strong>${data.reorderPoint}</strong>.</p>
+          <p>Consider reordering soon to avoid running out.</p>
+          <p style="text-align:center;"><a href="${APP_URL}/crm/inventory" class="button">View Inventory</a></p>
+        </div>
+        <div class="footer">&copy; ${new Date().getFullYear()} {{COMPANY_NAME}}</div>
+      </div></body></html>
+    `,
+    text: `Low Stock Alert: ${data.itemName} is at ${data.currentStock} units (reorder point: ${data.reorderPoint}). View inventory at ${APP_URL}/crm/inventory`,
+  }),
 };
 
 // ============================================

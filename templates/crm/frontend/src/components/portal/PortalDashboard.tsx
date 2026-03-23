@@ -9,30 +9,30 @@ export default function PortalDashboard() {
   const stats = [
     {
       label: 'Active Projects',
-      value: summary?.activeProjects || 0,
+      value: (summary?.activeProjects as number) || 0,
       icon: FolderKanban,
       color: 'bg-purple-100 text-purple-600',
       link: `/portal/${token}/projects`,
     },
     {
       label: 'Pending Quotes',
-      value: summary?.pendingQuotes || 0,
+      value: (summary?.pendingQuotes as number) || 0,
       icon: FileText,
       color: 'bg-blue-100 text-blue-600',
       link: `/portal/${token}/quotes`,
     },
     {
       label: 'Total Invoices',
-      value: summary?.totalInvoices || 0,
+      value: (summary?.totalInvoices as number) || 0,
       icon: Receipt,
       color: 'bg-green-100 text-green-600',
       link: `/portal/${token}/invoices`,
     },
     {
       label: 'Outstanding Balance',
-      value: `$${(summary?.outstandingBalance || 0).toLocaleString()}`,
+      value: `$${((summary?.outstandingBalance as number) || 0).toLocaleString()}`,
       icon: DollarSign,
-      color: summary?.outstandingBalance > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600',
+      color: (summary?.outstandingBalance as number) > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600',
       link: `/portal/${token}/invoices`,
     },
   ];
@@ -41,7 +41,7 @@ export default function PortalDashboard() {
     <div>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Welcome back!</h1>
-        <p className="text-gray-600">Here's an overview of your account with {company?.name}.</p>
+        <p className="text-gray-600">Here's an overview of your account with {company?.name as string}.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -90,15 +90,15 @@ export default function PortalDashboard() {
         <h2 className="font-semibold text-gray-900 mb-2">Need Help?</h2>
         <p className="text-gray-600">
           Contact us at{' '}
-          {company?.email && (
-            <a href={`mailto:${company.email}`} className="text-orange-600 hover:underline">
-              {company.email}
+          {!!company?.email && (
+            <a href={`mailto:${company.email as string}`} className="text-orange-600 hover:underline">
+              {company.email as string}
             </a>
           )}
-          {company?.email && company?.phone && ' or '}
-          {company?.phone && (
-            <a href={`tel:${company.phone}`} className="text-orange-600 hover:underline">
-              {company.phone}
+          {!!company?.email && !!company?.phone && ' or '}
+          {!!company?.phone && (
+            <a href={`tel:${company.phone as string}`} className="text-orange-600 hover:underline">
+              {company.phone as string}
             </a>
           )}
         </p>

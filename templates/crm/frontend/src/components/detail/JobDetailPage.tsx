@@ -8,14 +8,34 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
 
+interface JobDetailData {
+  id: string;
+  number: string;
+  title: string;
+  status: string;
+  priority: string;
+  description?: string | null;
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
+  estimatedHours?: number | null;
+  address?: string | null;
+  city?: string | null;
+  assignedTo?: { firstName: string; lastName: string } | null;
+  project?: { id: string; name: string } | null;
+  contact?: { id: string; name: string } | null;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
 export default function JobDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [job, setJob] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [job, setJob] = useState<JobDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
 
   useEffect(() => { loadJob(); }, [id]);
 
@@ -24,8 +44,9 @@ export default function JobDetailPage() {
     try {
       const data = await api.jobs.get(id);
       setJob(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
       toast.error('Failed to load job');
     } finally {
       setLoading(false);
@@ -37,8 +58,9 @@ export default function JobDetailPage() {
       await api.jobs.delete(id);
       toast.success('Job deleted');
       navigate('/crm/jobs');
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -47,8 +69,9 @@ export default function JobDetailPage() {
       await api.jobs.start(id);
       toast.success('Job started');
       loadJob();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -57,8 +80,9 @@ export default function JobDetailPage() {
       await api.jobs.complete(id);
       toast.success('Job completed');
       loadJob();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -66,7 +90,7 @@ export default function JobDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadJob} actionLabel="Retry" />;
   if (!job) return <EmptyState title="Job not found" />;
 
-  const priorityColors = { low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' };
+  const priorityColors: Record<string, string> = { low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' };
 
   return (
     <div className="space-y-6">
@@ -80,7 +104,7 @@ export default function JobDetailPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{job.title}</h1>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
-              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${priorityColors[job.priority]}`}>{job.priority}</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${priorityColors[job.priority] || ''}`}>{job.priority}</span>
             </div>
           </div>
         </div>
@@ -114,7 +138,7 @@ export default function JobDetailPage() {
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Scheduled</p>
-                    <p>{new Date(job.scheduledDate.split('T')[0] + 'T00:00:00').toLocaleDateString()} {job.scheduledTime}</p>
+                    <p>{new Date((job.scheduledDate as string).split('T')[0] + 'T00:00:00').toLocaleDateString()} {job.scheduledTime}</p>
                   </div>
                 </div>
               )}

@@ -1,32 +1,31 @@
-FROM node:20-alpine AS base
+FROM oven/bun:1-alpine AS base
 WORKDIR /app
-RUN apk add --no-cache libc6-compat curl
+RUN apk add --no-cache curl
 
 FROM base AS deps
-COPY package*.json ./
-RUN npm ci --only=production
+COPY package.json bun.lock* ./
+RUN bun install --production --frozen-lockfile
 
 FROM base AS builder
-COPY package*.json ./
-RUN npm ci
+COPY package.json bun.lock* ./
+RUN bun install --frozen-lockfile
 COPY . .
-RUN npx prisma generate
 
 FROM base AS runner
 ENV NODE_ENV=production
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 expressjs
+RUN addgroup --system --gid 1001 appgroup
+RUN adduser --system --uid 1001 appuser
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/db ./db
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
-RUN mkdir -p uploads logs && chown -R expressjs:nodejs uploads logs
+RUN mkdir -p uploads logs && chown -R appuser:appgroup uploads logs
 
-USER expressjs
+USER appuser
 
 EXPOSE 10000
 
-CMD ["node", "src/index.js"]
+CMD ["bun", "run", "start"]

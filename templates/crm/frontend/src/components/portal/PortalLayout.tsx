@@ -49,29 +49,29 @@ export default function PortalLayout() {
       {/* Header */}
       <header 
         className="bg-white border-b shadow-sm"
-        style={{ borderTopColor: company?.primaryColor || '{{PRIMARY_COLOR}}', borderTopWidth: '4px' }}
+        style={{ borderTopColor: (company?.primaryColor as string) || '{{PRIMARY_COLOR}}', borderTopWidth: '4px' }}
       >
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               {company?.logo ? (
-                <img src={company.logo} alt={company.name} className="h-10" />
+                <img src={company.logo as string} alt={(company.name as string) || ''} className="h-10" />
               ) : (
-                <div 
+                <div
                   className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-                  style={{ backgroundColor: company?.primaryColor || '{{PRIMARY_COLOR}}' }}
+                  style={{ backgroundColor: (company?.primaryColor as string) || '{{PRIMARY_COLOR}}' }}
                 >
-                  {company?.name?.charAt(0) || 'C'}
+                  {(company?.name as string)?.charAt(0) || 'C'}
                 </div>
               )}
               <div>
-                <h1 className="font-bold text-gray-900">{company?.name}</h1>
+                <h1 className="font-bold text-gray-900">{company?.name as string}</h1>
                 <p className="text-sm text-gray-500">Customer Portal</p>
               </div>
             </div>
             <div className="text-right text-sm">
-              <p className="font-medium text-gray-900">{contact?.name}</p>
-              <p className="text-gray-500">{contact?.email}</p>
+              <p className="font-medium text-gray-900">{contact?.name as string}</p>
+              <p className="text-gray-500">{contact?.email as string}</p>
             </div>
           </div>
         </div>
@@ -111,7 +111,7 @@ export default function PortalLayout() {
       {/* Footer */}
       <footer className="border-t bg-white mt-auto">
         <div className="max-w-6xl mx-auto px-4 py-6 text-center text-sm text-gray-500">
-          <p>Need help? Contact us at {company?.email || company?.phone}</p>
+          <p>Need help? Contact us at {(company?.email as string) || (company?.phone as string)}</p>
         </div>
       </footer>
     </div>

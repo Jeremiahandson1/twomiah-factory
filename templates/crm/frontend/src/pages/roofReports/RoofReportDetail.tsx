@@ -35,7 +35,7 @@ interface RoofReport {
 
 export default function RoofReportDetail() {
   const { id } = useParams<{ id: string }>()
-  const { token } = useAuth()
+  const _auth = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
 
@@ -51,7 +51,7 @@ export default function RoofReportDetail() {
     setLoading(true)
     try {
       const data = await api.request(`/api/roof-reports/${id}`)
-      setReport(data)
+      setReport(data as RoofReport)
     } catch {
       toast.error('Failed to load roof report')
     } finally {
@@ -62,7 +62,7 @@ export default function RoofReportDetail() {
   const handleDownloadPdf = async () => {
     try {
       const res = await fetch(`/api/roof-reports/${id}/pdf`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${_auth.getToken() || ''}` },
       })
       if (!res.ok) throw new Error('Download failed')
       const blob = await res.blob()

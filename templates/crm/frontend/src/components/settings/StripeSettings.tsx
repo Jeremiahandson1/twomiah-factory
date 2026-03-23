@@ -6,11 +6,18 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 
+import type { LucideIcon } from 'lucide-react';
+
+interface StripeStatus { connected: boolean; chargesEnabled?: boolean; payoutsEnabled?: boolean; detailsSubmitted?: boolean; requirements?: { currently_due?: string[] }; [key: string]: unknown; }
+interface StripeMessage { type: 'success' | 'error' | 'info'; text: string; }
+interface StatusItemProps { label: string; enabled: boolean; }
+interface FeatureItemProps { icon: LucideIcon; title: string; description: string; }
+
 export default function StripeSettings() {
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState(null);
+  const [status, setStatus] = useState<StripeStatus | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [message, setMessage] = useState<StripeMessage | null>(null);
 
   useEffect(() => {
     loadStatus();
@@ -30,7 +37,7 @@ export default function StripeSettings() {
     try {
       const statusRes = await api.get('/stripe/account-status');
       setStatus(statusRes);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load Stripe status:', error);
     } finally {
       setLoading(false);
@@ -41,7 +48,7 @@ export default function StripeSettings() {
     try {
       const { url } = await api.post('/stripe/onboarding');
       window.location.href = url;
-    } catch (error) {
+    } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Failed to start onboarding' });
     }
   };
@@ -119,21 +126,21 @@ export default function StripeSettings() {
           <div className="mt-6 pt-6 border-t grid grid-cols-1 md:grid-cols-3 gap-4">
             <StatusItem 
               label="Accept Payments" 
-              enabled={status.chargesEnabled} 
+              enabled={status.chargesEnabled ?? false}
             />
-            <StatusItem 
-              label="Receive Payouts" 
-              enabled={status.payoutsEnabled} 
+            <StatusItem
+              label="Receive Payouts"
+              enabled={status.payoutsEnabled ?? false}
             />
-            <StatusItem 
-              label="Details Submitted" 
-              enabled={status.detailsSubmitted} 
+            <StatusItem
+              label="Details Submitted"
+              enabled={status.detailsSubmitted ?? false}
             />
           </div>
         )}
 
         {/* Pending requirements */}
-        {status?.connected && status?.requirements?.currently_due?.length > 0 && (
+        {status?.connected && (status?.requirements?.currently_due?.length ?? 0) > 0 && (
           <div className="mt-4 p-4 bg-yellow-50 rounded-lg">
             <p className="text-sm font-medium text-yellow-800 mb-2">
               Action Required
@@ -194,7 +201,7 @@ export default function StripeSettings() {
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-4 h-4" />
-              Payments automatically marked in {{COMPANY_NAME}}
+              Payments automatically marked in {'{{COMPANY_NAME}}'}
             </li>
             <li className="flex items-center gap-2">
               <Check className="w-4 h-4" />
@@ -230,7 +237,7 @@ export default function StripeSettings() {
   );
 }
 
-function StatusItem({ label, enabled }) {
+function StatusItem({ label, enabled }: StatusItemProps) {
   return (
     <div className="flex items-center gap-2">
       <div className={`w-2 h-2 rounded-full ${enabled ? 'bg-green-500' : 'bg-yellow-500'}`} />
@@ -244,7 +251,7 @@ function StatusItem({ label, enabled }) {
   );
 }
 
-function FeatureItem({ icon: Icon, title, description }) {
+function FeatureItem({ icon: Icon, title, description }: FeatureItemProps) {
   return (
     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
       <div className="p-2 bg-purple-100 rounded-lg">

@@ -18,7 +18,7 @@ const steps = [
   { id: 4, name: 'Review', description: 'Confirm and create' },
 ];
 
-function StepIndicator({ currentStep }) {
+function StepIndicator({ currentStep }: { currentStep: number }) {
   return (
     <div className="flex items-center justify-center mb-8">
       {steps.map((step, index) => (
@@ -58,14 +58,22 @@ function StepIndicator({ currentStep }) {
   );
 }
 
+interface BuilderConfigType {
+  companyName: string;
+  companyLogo: string | null;
+  primaryColor: string;
+  enabledFeatures: string[];
+}
+
 function ReviewStep() {
-  const { config } = useBuilderStore();
-  
+  const store = useBuilderStore();
+  const config = store.config as BuilderConfigType;
+
   // Group enabled features by category
-  const enabledByCategory = {};
+  const enabledByCategory: Record<string, { id: string; name: string; description: string }[]> = {};
   import('../../data/features').then(({ FEATURE_CATEGORIES }) => {
-    FEATURE_CATEGORIES.forEach(cat => {
-      const enabled = cat.features.filter(f => config.enabledFeatures.includes(f.id));
+    FEATURE_CATEGORIES.forEach((cat: { name: string; features: { id: string; name: string; description: string }[] }) => {
+      const enabled = cat.features.filter((f: { id: string }) => config.enabledFeatures.includes(f.id));
       if (enabled.length > 0) {
         enabledByCategory[cat.name] = enabled;
       }
@@ -156,7 +164,13 @@ function ReviewStep() {
 
 export function BuilderPage() {
   const navigate = useNavigate();
-  const { step, setStep, nextStep, prevStep, config, buildCRM } = useBuilderStore();
+  const store = useBuilderStore();
+  const step = store.step as number;
+  const setStep = store.setStep as (step: number) => void;
+  const nextStep = store.nextStep as () => void;
+  const prevStep = store.prevStep as () => void;
+  const config = store.config as BuilderConfigType;
+  const buildCRM = store.buildCRM as () => { id: string };
 
   const canProceed = () => {
     if (step === 4) return config.enabledFeatures.length > 0;
@@ -179,7 +193,7 @@ export function BuilderPage() {
                 <Hammer className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">{{COMPANY_NAME}} Builder</h1>
+                <h1 className="text-xl font-bold text-white">{'{{COMPANY_NAME}}'} Builder</h1>
                 <p className="text-xs text-slate-500">Create your custom CRM</p>
               </div>
             </div>

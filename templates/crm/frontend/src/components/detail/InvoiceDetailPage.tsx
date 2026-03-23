@@ -8,17 +8,55 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { Modal, ConfirmModal } from '../ui/Modal';
 
+interface LineItem {
+  description: string;
+  quantity: string | number;
+  unitPrice: string | number;
+  total: string | number;
+}
+
+interface PaymentRecord {
+  paidAt: string;
+  method: string;
+  reference?: string;
+  amount: string | number;
+}
+
+interface InvoiceDetailData {
+  id: string;
+  number: string;
+  status: string;
+  total: string | number;
+  subtotal: string | number;
+  taxAmount: string | number;
+  amountPaid: string | number;
+  dueDate?: string | null;
+  createdAt: string;
+  lineItems?: LineItem[];
+  payments?: PaymentRecord[];
+  contact?: { id: string; name: string } | null;
+  [key: string]: unknown;
+}
+
+interface PaymentFormData {
+  amount: string;
+  method: string;
+  reference: string;
+  notes: string;
+}
+
 export default function InvoiceDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [invoice, setInvoice] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '' });
-  const [recording, setRecording] = useState(false);
+  const [invoice, setInvoice] = useState<InvoiceDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
+  const [paymentOpen, setPaymentOpen] = useState<boolean>(false);
+  const [payment, setPayment] = useState<PaymentFormData>({ amount: '', method: 'card', reference: '', notes: '' });
+  const [recording, setRecording] = useState<boolean>(false);
 
   useEffect(() => { loadInvoice(); }, [id]);
 
@@ -27,9 +65,10 @@ export default function InvoiceDetailPage() {
     try {
       const data = await api.invoices.get(id);
       setInvoice(data);
-      setPayment(p => ({ ...p, amount: (Number(data.total) - Number(data.amountPaid || 0)).toFixed(2) }));
-    } catch (err) {
-      setError(err.message);
+      setPayment((p: PaymentFormData) => ({ ...p, amount: (Number(data.total) - Number(data.amountPaid || 0)).toFixed(2) }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -40,8 +79,9 @@ export default function InvoiceDetailPage() {
       await api.invoices.delete(id);
       toast.success('Invoice deleted');
       navigate('/crm/invoices');
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -50,8 +90,9 @@ export default function InvoiceDetailPage() {
       await api.invoices.send(id);
       toast.success('Invoice sent');
       loadInvoice();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -66,8 +107,9 @@ export default function InvoiceDetailPage() {
       toast.success('Payment recorded');
       setPaymentOpen(false);
       loadInvoice();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     } finally {
       setRecording(false);
     }
@@ -127,7 +169,7 @@ export default function InvoiceDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {invoice.lineItems?.map((item, i) => (
+                {invoice.lineItems?.map((item: LineItem, i: number) => (
                   <tr key={i}>
                     <td className="px-4 py-3">{item.description}</td>
                     <td className="px-4 py-3 text-right">{Number(item.quantity)}</td>
@@ -137,16 +179,16 @@ export default function InvoiceDetailPage() {
                 ))}
               </tbody>
               <tfoot className="bg-gray-50 dark:bg-slate-800">
-                <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(invoice.subtotal).toFixed(2)}</td></tr>
-                {Number(invoice.taxAmount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
-                <tr className="font-bold"><td colSpan="3" className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
-                <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>
-                <tr className="font-bold text-lg"><td colSpan="3" className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${balance.toFixed(2)}</td></tr>
+                <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(invoice.subtotal).toFixed(2)}</td></tr>
+                {Number(invoice.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
+                <tr className="font-bold"><td colSpan={3} className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
+                <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>
+                <tr className="font-bold text-lg"><td colSpan={3} className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${balance.toFixed(2)}</td></tr>
               </tfoot>
             </table>
           </div>
 
-          {invoice.payments?.length > 0 && (
+          {(invoice.payments?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden">
               <div className="p-4 border-b"><h2 className="font-semibold">Payments</h2></div>
               <table className="w-full">
@@ -159,7 +201,7 @@ export default function InvoiceDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {invoice.payments.map((p, i) => (
+                  {invoice.payments!.map((p: PaymentRecord, i: number) => (
                     <tr key={i}>
                       <td className="px-4 py-2">{new Date(p.paidAt).toLocaleDateString()}</td>
                       <td className="px-4 py-2 capitalize">{p.method}</td>
@@ -208,11 +250,11 @@ export default function InvoiceDetailPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Amount *</label>
-            <input type="number" step="0.01" value={payment.amount} onChange={(e) => setPayment({...payment, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+            <input type="number" step="0.01" value={payment.amount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayment({...payment, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Method</label>
-            <select value={payment.method} onChange={(e) => setPayment({...payment, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+            <select value={payment.method} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPayment({...payment, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
               <option value="card">Card</option>
               <option value="cash">Cash</option>
               <option value="check">Check</option>
@@ -221,11 +263,11 @@ export default function InvoiceDetailPage() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Reference</label>
-            <input value={payment.reference} onChange={(e) => setPayment({...payment, reference: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="Check #, transaction ID..." />
+            <input value={payment.reference} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayment({...payment, reference: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="Check #, transaction ID..." />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Notes</label>
-            <textarea value={payment.notes} onChange={(e) => setPayment({...payment, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            <textarea value={payment.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPayment({...payment, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

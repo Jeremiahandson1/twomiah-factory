@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { authenticate, supabase, requireRole } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
-import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
 import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue } from '../services/email'
@@ -840,6 +840,41 @@ factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c)
   return c.json(result)
 })
 
+
+// ─── Update Code (safe — no data loss) ──────────────────────────────────────
+// Regenerates code from template and pushes to existing repo + redeploys.
+// Does NOT touch the database, does NOT recreate services.
+factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async (c) => {
+  if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+
+  const { data: tenant } = await supabase.from('tenants').select('*').eq('id', id).single()
+  if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+
+  const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+
+  // Get service IDs for redeploy trigger
+  let serviceIds = job?.render_service_ids || {}
+  if (Object.keys(serviceIds).length === 0 && tenant.slug) {
+    serviceIds = await findRenderServicesBySlug(tenant.slug)
+  }
+
+  // Regenerate the code from template using existing config
+  const config = (tenant.config || job?.config || {}) as GenerateConfig
+  const { zipPath } = await generate(config)
+
+  // Push code update — safe, no destructive operations
+  const result = await updateCustomerCode(
+    { id: tenant.id, slug: tenant.slug, name: tenant.name, renderServiceIds: serviceIds },
+    zipPath,
+  )
+
+  // Cleanup zip
+  try { fs.unlinkSync(zipPath) } catch {}
+
+  return c.json(result)
+})
 
 // ─── Update Service Settings ─────────────────────────────────────────────────
 factory.patch('/customers/:id/service/:role', requireRole('owner', 'admin'), async (c) => {

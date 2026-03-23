@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { loadStripe, Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { CreditCard, Lock, Loader2, Check, AlertCircle } from 'lucide-react';
 import api from '../../services/api';
 
-// Initialize Stripe outside component to avoid recreating on render
-let stripePromise = null;
+let stripePromise: Promise<Stripe | null> | null = null;
 
-const getStripe = async () => {
+const getStripe = async (): Promise<Stripe | null> => {
   if (!stripePromise) {
     const { publishableKey } = await api.get('/stripe/config');
     stripePromise = loadStripe(publishableKey);
@@ -15,21 +14,19 @@ const getStripe = async () => {
   return stripePromise;
 };
 
-/**
- * Payment Form Wrapper
- * 
- * Usage:
- *   <PaymentForm 
- *     invoiceId="abc123" 
- *     amount={1500.00} 
- *     onSuccess={() => reload()} 
- *   />
- */
-export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, portalToken }) {
-  const [clientSecret, setClientSecret] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [stripe, setStripe] = useState(null);
+interface PaymentFormProps {
+  invoiceId: string;
+  amount: number;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  portalToken?: string;
+}
+
+export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, portalToken }: PaymentFormProps) {
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stripe, setStripe] = useState<Stripe | null>(null);
 
   useEffect(() => {
     initPayment();
@@ -37,20 +34,19 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
 
   const initPayment = async () => {
     try {
-      // Load Stripe
       const stripeInstance = await getStripe();
       setStripe(stripeInstance);
 
-      // Create payment intent
       const endpoint = portalToken ? '/stripe/portal/payment-intent' : '/stripe/payment-intent';
-      const payload = { invoiceId, amount };
+      const payload: Record<string, unknown> = { invoiceId, amount };
       if (portalToken) payload.portalToken = portalToken;
 
       const { clientSecret } = await api.post(endpoint, payload);
       setClientSecret(clientSecret);
       setError(null);
-    } catch (err) {
-      setError(err.message || 'Failed to initialize payment');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to initialize payment';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -74,14 +70,12 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
     );
   }
 
-  if (!clientSecret || !stripe) {
-    return null;
-  }
+  if (!clientSecret || !stripe) return null;
 
   const options = {
     clientSecret,
     appearance: {
-      theme: 'stripe',
+      theme: 'stripe' as const,
       variables: {
         colorPrimary: '{{PRIMARY_COLOR}}',
         colorBackground: '#ffffff',
@@ -95,61 +89,53 @@ export default function PaymentForm({ invoiceId, amount, onSuccess, onCancel, po
 
   return (
     <Elements stripe={stripe} options={options}>
-      <CheckoutForm 
-        amount={amount} 
-        onSuccess={onSuccess} 
-        onCancel={onCancel} 
-      />
+      <CheckoutForm amount={amount} onSuccess={onSuccess} onCancel={onCancel} />
     </Elements>
   );
 }
 
-/**
- * Inner checkout form with Stripe Elements
- */
-function CheckoutForm({ amount, onSuccess, onCancel }) {
+interface CheckoutFormProps {
+  amount: number;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+}
+
+function CheckoutForm({ amount, onSuccess, onCancel }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
-  const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(false);
+  const [processing, setProcessing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!stripe || !elements) {
-      return;
-    }
+    if (!stripe || !elements) return;
 
     setProcessing(true);
     setError(null);
 
     const { error: submitError } = await elements.submit();
     if (submitError) {
-      setError(submitError.message);
+      setError(submitError.message || 'Submission error');
       setProcessing(false);
       return;
     }
 
     const { error: confirmError, paymentIntent } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        return_url: window.location.href,
-      },
+      confirmParams: { return_url: window.location.href },
       redirect: 'if_required',
     });
 
     if (confirmError) {
-      setError(confirmError.message);
+      setError(confirmError.message || 'Payment confirmation error');
       setProcessing(false);
       return;
     }
 
-    if (paymentIntent.status === 'succeeded') {
+    if (paymentIntent?.status === 'succeeded') {
       setSuccess(true);
-      setTimeout(() => {
-        onSuccess?.();
-      }, 2000);
+      setTimeout(() => { onSuccess?.(); }, 2000);
     }
 
     setProcessing(false);
@@ -169,75 +155,47 @@ function CheckoutForm({ amount, onSuccess, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Amount display */}
       {amount && (
         <div className="bg-gray-50 rounded-lg p-4 text-center">
           <p className="text-sm text-gray-500">Payment Amount</p>
           <p className="text-3xl font-bold text-gray-900">${Number(amount).toLocaleString()}</p>
         </div>
       )}
-
-      {/* Payment element */}
       <div className="bg-white rounded-lg border p-4">
-        <PaymentElement 
-          options={{
-            layout: 'tabs',
-          }}
-        />
+        <PaymentElement options={{ layout: 'tabs' }} />
       </div>
-
-      {/* Error message */}
       {error && (
         <div className="bg-red-50 text-red-700 p-3 rounded-lg flex items-center gap-2 text-sm">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
       )}
-
-      {/* Security note */}
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <Lock className="w-3 h-3" />
         <span>Your payment info is encrypted and secure</span>
       </div>
-
-      {/* Buttons */}
       <div className="flex gap-3">
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={processing}
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900"
-          >
-            Cancel
-          </button>
+          <button type="button" onClick={onCancel} disabled={processing} className="flex-1 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900">Cancel</button>
         )}
-        <button
-          type="submit"
-          disabled={!stripe || processing}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50"
-        >
-          {processing ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              <CreditCard className="w-4 h-4" />
-              Pay ${Number(amount).toLocaleString()}
-            </>
-          )}
+        <button type="submit" disabled={!stripe || processing} className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50">
+          {processing ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : <><CreditCard className="w-4 h-4" /> Pay ${Number(amount).toLocaleString()}</>}
         </button>
       </div>
     </form>
   );
 }
 
-/**
- * Payment Modal
- */
-export function PaymentModal({ isOpen, onClose, invoiceId, amount, onSuccess, portalToken }) {
+interface PaymentModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  invoiceId: string;
+  amount: number;
+  onSuccess?: () => void;
+  portalToken?: string;
+}
+
+export function PaymentModal({ isOpen, onClose, invoiceId, amount, onSuccess, portalToken }: PaymentModalProps) {
   if (!isOpen) return null;
 
   const handleSuccess = () => {
@@ -251,79 +209,68 @@ export function PaymentModal({ isOpen, onClose, invoiceId, amount, onSuccess, po
       <div className="relative min-h-screen flex items-center justify-center p-4">
         <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Make Payment</h2>
-          <PaymentForm
-            invoiceId={invoiceId}
-            amount={amount}
-            onSuccess={handleSuccess}
-            onCancel={onClose}
-            portalToken={portalToken}
-          />
+          <PaymentForm invoiceId={invoiceId} amount={amount} onSuccess={handleSuccess} onCancel={onClose} portalToken={portalToken} />
         </div>
       </div>
     </div>
   );
 }
 
-/**
- * Simple Pay Button that opens checkout
- */
-export function PayButton({ invoiceId, amount, label = 'Pay Now', className = '' }) {
-  const [loading, setLoading] = useState(false);
+interface PayButtonProps {
+  invoiceId: string;
+  amount: number;
+  label?: string;
+  className?: string;
+}
+
+export function PayButton({ invoiceId, amount, label = 'Pay Now', className = '' }: PayButtonProps) {
+  const [loading, setLoading] = useState<boolean>(false);
 
   const handleClick = async () => {
     setLoading(true);
     try {
       const { url } = await api.post('/stripe/checkout-session', { invoiceId });
       window.location.href = url;
-    } catch (error) {
-      alert('Failed to start checkout: ' + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert('Failed to start checkout: ' + message);
       setLoading(false);
     }
   };
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className={`flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 ${className}`}
-    >
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <CreditCard className="w-4 h-4" />
-      )}
+    <button onClick={handleClick} disabled={loading} className={`flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 ${className}`}>
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
       {label}
     </button>
   );
 }
 
-/**
- * Payment Link Generator
- */
-export function PaymentLinkButton({ invoiceId, onGenerated }) {
-  const [loading, setLoading] = useState(false);
+interface PaymentLinkButtonProps {
+  invoiceId: string;
+  onGenerated?: (url: string) => void;
+}
+
+export function PaymentLinkButton({ invoiceId, onGenerated }: PaymentLinkButtonProps) {
+  const [loading, setLoading] = useState<boolean>(false);
 
   const handleGenerate = async () => {
     setLoading(true);
     try {
       const { url } = await api.post('/stripe/payment-link', { invoiceId });
       onGenerated?.(url);
-      // Copy to clipboard
       navigator.clipboard.writeText(url);
       alert('Payment link copied to clipboard!');
-    } catch (error) {
-      alert('Failed to generate payment link: ' + error.message);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert('Failed to generate payment link: ' + message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <button
-      onClick={handleGenerate}
-      disabled={loading}
-      className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900"
-    >
+    <button onClick={handleGenerate} disabled={loading} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-900">
       {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
       Generate Payment Link
     </button>

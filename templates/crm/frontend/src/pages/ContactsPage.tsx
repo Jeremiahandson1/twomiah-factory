@@ -6,6 +6,37 @@ import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
 import { Modal, ConfirmModal } from '../components/ui/Modal';
 
+interface ContactForm {
+  type: string;
+  name: string;
+  company: string;
+  email: string;
+  phone: string;
+  mobile: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  source: string;
+  notes: string;
+}
+
+interface ContactStats {
+  total: number;
+  lead?: number;
+  client?: number;
+  subcontractor?: number;
+  vendor?: number;
+  [key: string]: unknown;
+}
+
+interface PaginationData {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 const contactTypes = [
   { value: 'lead', label: 'Lead' },
   { value: 'client', label: 'Client' },
@@ -13,7 +44,7 @@ const contactTypes = [
   { value: 'vendor', label: 'Vendor' },
 ];
 
-const initialFormData = {
+const initialFormData: ContactForm = {
   type: 'lead',
   name: '',
   company: '',
@@ -31,27 +62,27 @@ const initialFormData = {
 export default function ContactsPage() {
   const toast = useToast();
   const navigate = useNavigate();
-  const [contacts, setContacts] = useState([]);
-  const [stats, setStats] = useState(null);
+  const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
+  const [stats, setStats] = useState<ContactStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState(null);
+  const [pagination, setPagination] = useState<PaginationData | null>(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [page, setPage] = useState(1);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingContact, setEditingContact] = useState(null);
-  const [formData, setFormData] = useState(initialFormData);
+  const [editingContact, setEditingContact] = useState<Record<string, unknown> | null>(null);
+  const [formData, setFormData] = useState<ContactForm>(initialFormData);
   const [saving, setSaving] = useState(false);
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [contactToDelete, setContactToDelete] = useState(null);
+  const [contactToDelete, setContactToDelete] = useState<Record<string, unknown> | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const loadContacts = useCallback(async (retry = true) => {
     setLoading(true);
     try {
-      const params = { page, limit: 25 };
+      const params: Record<string, string | number> = { page, limit: 25 };
       if (search) params.search = search;
       if (typeFilter) params.type = typeFilter;
 
@@ -60,9 +91,10 @@ export default function ContactsPage() {
         api.contacts.stats().catch(() => null),
       ]);
 
-      setContacts(contactsData.data);
-      setPagination(contactsData.pagination);
-      if (statsData) setStats(statsData);
+      const cd = contactsData as Record<string, unknown>;
+      setContacts(cd.data as Record<string, unknown>[]);
+      setPagination(cd.pagination as PaginationData | null);
+      if (statsData) setStats(statsData as ContactStats);
     } catch (err) {
       // Retry once on first load failure (cold-start race condition)
       if (retry) {
@@ -89,21 +121,21 @@ export default function ContactsPage() {
     setModalOpen(true);
   };
 
-  const openEditModal = (contact) => {
+  const openEditModal = (contact: Record<string, unknown>) => {
     setEditingContact(contact);
     setFormData({
-      type: contact.type || 'lead',
-      name: contact.name || '',
-      company: contact.company || '',
-      email: contact.email || '',
-      phone: contact.phone || '',
-      mobile: contact.mobile || '',
-      address: contact.address || '',
-      city: contact.city || '',
-      state: contact.state || '',
-      zip: contact.zip || '',
-      source: contact.source || '',
-      notes: contact.notes || '',
+      type: (contact.type as string) || 'lead',
+      name: (contact.name as string) || '',
+      company: (contact.company as string) || '',
+      email: (contact.email as string) || '',
+      phone: (contact.phone as string) || '',
+      mobile: (contact.mobile as string) || '',
+      address: (contact.address as string) || '',
+      city: (contact.city as string) || '',
+      state: (contact.state as string) || '',
+      zip: (contact.zip as string) || '',
+      source: (contact.source as string) || '',
+      notes: (contact.notes as string) || '',
     });
     setModalOpen(true);
   };
@@ -117,7 +149,7 @@ export default function ContactsPage() {
     setSaving(true);
     try {
       if (editingContact) {
-        await api.contacts.update(editingContact.id, formData);
+        await api.contacts.update(editingContact.id as string, formData);
         toast.success('Contact updated');
       } else {
         await api.contacts.create(formData);
@@ -126,7 +158,7 @@ export default function ContactsPage() {
       setModalOpen(false);
       loadContacts();
     } catch (err) {
-      toast.error(err.message || 'Failed to save contact');
+      toast.error((err as Error).message || 'Failed to save contact');
     } finally {
       setSaving(false);
     }
@@ -136,25 +168,25 @@ export default function ContactsPage() {
     if (!contactToDelete) return;
     setDeleting(true);
     try {
-      await api.contacts.delete(contactToDelete.id);
+      await api.contacts.delete(contactToDelete.id as string);
       toast.success('Contact deleted');
       setDeleteModalOpen(false);
       setContactToDelete(null);
       loadContacts();
     } catch (err) {
-      toast.error(err.message || 'Failed to delete contact');
+      toast.error((err as Error).message || 'Failed to delete contact');
     } finally {
       setDeleting(false);
     }
   };
 
-  const handleConvert = async (contact) => {
+  const handleConvert = async (contact: Record<string, unknown>) => {
     try {
-      await api.contacts.convert(contact.id);
+      await api.contacts.convert(contact.id as string);
       toast.success('Lead converted to client');
       loadContacts();
     } catch (err) {
-      toast.error(err.message || 'Failed to convert lead');
+      toast.error((err as Error).message || 'Failed to convert lead');
     }
   };
 
@@ -162,38 +194,38 @@ export default function ContactsPage() {
     {
       key: 'name',
       label: 'Name',
-      render: (val, row) => (
+      render: (val: unknown, row: Record<string, unknown>) => (
         <div>
-          <p className="font-medium text-gray-900">{val}</p>
-          {row.company && <p className="text-sm text-gray-500">{row.company}</p>}
+          <p className="font-medium text-gray-900">{val as string}</p>
+          {!!row.company && <p className="text-sm text-gray-500">{row.company as string}</p>}
         </div>
       ),
     },
     {
       key: 'type',
       label: 'Type',
-      render: (val) => <StatusBadge status={val} />,
+      render: (val: unknown) => <StatusBadge status={val as string} />,
     },
     {
       key: 'email',
       label: 'Email',
-      render: (val) => val ? <a href={`mailto:${val}`} className="text-orange-500 hover:underline">{val}</a> : '-',
+      render: (val: unknown) => val ? <a href={`mailto:${val}`} className="text-orange-500 hover:underline">{val as string}</a> : '-',
     },
     {
       key: 'phone',
       label: 'Phone',
-      render: (val) => <span className="text-gray-700">{val || '-'}</span>,
+      render: (val: unknown) => <span className="text-gray-700">{(val as string) || '-'}</span>,
     },
     {
       key: 'city',
       label: 'Location',
-      render: (val, row) => <span className="text-gray-700">{row.city && row.state ? `${row.city}, ${row.state}` : row.city || row.state || '-'}</span>,
+      render: (val: unknown, row: Record<string, unknown>) => <span className="text-gray-700">{row.city && row.state ? `${row.city}, ${row.state}` : (row.city as string) || (row.state as string) || '-'}</span>,
     },
   ];
 
   const actions = [
     { label: 'Edit', icon: Edit, onClick: openEditModal },
-    { label: 'Delete', icon: Trash2, onClick: (row) => { setContactToDelete(row); setDeleteModalOpen(true); }, className: 'text-red-600' },
+    { label: 'Delete', icon: Trash2, onClick: (row: Record<string, unknown>) => { setContactToDelete(row); setDeleteModalOpen(true); }, className: 'text-red-600' },
   ];
 
   return (
@@ -220,7 +252,7 @@ export default function ContactsPage() {
                 typeFilter === type.value ? 'border-orange-500 bg-orange-50' : 'bg-white hover:border-gray-300'
               }`}
             >
-              <p className="text-2xl font-bold text-gray-900">{stats[type.value] || 0}</p>
+              <p className="text-2xl font-bold text-gray-900">{(stats[type.value] as number) || 0}</p>
               <p className="text-sm text-gray-500">{type.label}s</p>
             </button>
           ))}
@@ -235,13 +267,13 @@ export default function ContactsPage() {
             type="text"
             placeholder="Search contacts..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
           />
         </div>
         <select
           value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setTypeFilter(e.target.value)}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
         >
           <option value="">All Types</option>
@@ -253,7 +285,7 @@ export default function ContactsPage() {
 
       {/* Table */}
       <DataTable
-        onRowClick={(row) => navigate(`/crm/contacts/${row.id}`)}
+        onRowClick={(row: Record<string, unknown>) => navigate(`/crm/contacts/${row.id}`)}
         data={contacts}
         columns={columns}
         loading={loading}
@@ -275,7 +307,7 @@ export default function ContactsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
             <select
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, type: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             >
               {contactTypes.map(type => (
@@ -288,7 +320,7 @@ export default function ContactsPage() {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
               placeholder="John Smith"
             />
@@ -298,7 +330,7 @@ export default function ContactsPage() {
             <input
               type="text"
               value={formData.company}
-              onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, company: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />
           </div>
@@ -307,7 +339,7 @@ export default function ContactsPage() {
             <input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, email: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />
           </div>
@@ -316,7 +348,7 @@ export default function ContactsPage() {
             <input
               type="tel"
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, phone: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />
           </div>
@@ -325,7 +357,7 @@ export default function ContactsPage() {
             <input
               type="tel"
               value={formData.mobile}
-              onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, mobile: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />
           </div>
@@ -334,7 +366,7 @@ export default function ContactsPage() {
             <input
               type="text"
               value={formData.source}
-              onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, source: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
               placeholder="Referral, Website, etc."
             />
@@ -344,7 +376,7 @@ export default function ContactsPage() {
             <input
               type="text"
               value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, address: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />
           </div>
@@ -353,7 +385,7 @@ export default function ContactsPage() {
             <input
               type="text"
               value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, city: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />
           </div>
@@ -363,7 +395,7 @@ export default function ContactsPage() {
               <input
                 type="text"
                 value={formData.state}
-                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, state: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
               />
             </div>
@@ -372,7 +404,7 @@ export default function ContactsPage() {
               <input
                 type="text"
                 value={formData.zip}
-                onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, zip: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
               />
             </div>
@@ -381,7 +413,7 @@ export default function ContactsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
             <textarea
               value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />
@@ -406,7 +438,7 @@ export default function ContactsPage() {
         onClose={() => { setDeleteModalOpen(false); setContactToDelete(null); }}
         onConfirm={handleDelete}
         title="Delete Contact"
-        message={`Are you sure you want to delete "${contactToDelete?.name}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${contactToDelete?.name as string}"? This action cannot be undone.`}
         confirmText="Delete"
         loading={deleting}
       />

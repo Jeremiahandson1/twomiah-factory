@@ -1,9 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
+import {
   ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon,
   Clock, MapPin, User, Loader2, GripVertical
 } from 'lucide-react';
 import api from '../../services/api';
+
+interface CalendarJob {
+  id: string; title: string; status: string; scheduledDate?: string | null;
+  address?: string | null; assignedTo?: { firstName: string } | null;
+  [key: string]: unknown;
+}
+
+interface MonthViewProps { currentDate: Date; jobs: CalendarJob[]; getJobsForDate: (date: Date) => CalendarJob[]; onDragStart: (e: React.DragEvent, job: CalendarJob) => void; onDragOver: (e: React.DragEvent, date: Date) => void; onDragLeave: () => void; onDrop: (e: React.DragEvent, date: Date) => void; dropTarget: string | null; }
+interface WeekViewProps { currentDate: Date; jobs: CalendarJob[]; getJobsForDate: (date: Date) => CalendarJob[]; onDragStart: (e: React.DragEvent, job: CalendarJob) => void; onDragOver: (e: React.DragEvent, date: Date) => void; onDragLeave: () => void; onDrop: (e: React.DragEvent, date: Date) => void; dropTarget: string | null; }
+interface DayViewProps { currentDate: Date; jobs: CalendarJob[]; onDragStart: (e: React.DragEvent, job: CalendarJob) => void; }
+interface JobChipProps { job: CalendarJob; onDragStart: (e: React.DragEvent, job: CalendarJob) => void; compact?: boolean; detailed?: boolean; }
 
 /**
  * Drag and Drop Calendar
@@ -15,12 +26,12 @@ import api from '../../services/api';
  * - Visual time slots
  */
 export default function DragDropCalendar() {
-  const [view, setView] = useState('week'); // month, week, day
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [draggingJob, setDraggingJob] = useState(null);
-  const [dropTarget, setDropTarget] = useState(null);
+  const [view, setView] = useState<string>('week');
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [jobs, setJobs] = useState<CalendarJob[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [draggingJob, setDraggingJob] = useState<CalendarJob | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   useEffect(() => {
     loadJobs();
@@ -37,7 +48,7 @@ export default function DragDropCalendar() {
       });
       const response = await api.get(`/jobs?${params}`);
       setJobs(response.data || response || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load jobs:', error);
     } finally {
       setLoading(false);
@@ -63,13 +74,13 @@ export default function DragDropCalendar() {
     return { start, end };
   };
 
-  const handleDragStart = (e, job) => {
+  const handleDragStart = (e: React.DragEvent, job: CalendarJob) => {
     setDraggingJob(job);
     e.dataTransfer.setData('text/plain', job.id);
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e, date) => {
+  const handleDragOver = (e: React.DragEvent, date: Date) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDropTarget(date.toDateString());
@@ -79,7 +90,7 @@ export default function DragDropCalendar() {
     setDropTarget(null);
   };
 
-  const handleDrop = async (e, date) => {
+  const handleDrop = async (e: React.DragEvent, date: Date) => {
     e.preventDefault();
     setDropTarget(null);
 
@@ -105,14 +116,14 @@ export default function DragDropCalendar() {
           ? { ...j, scheduledDate: newDate.toISOString() }
           : j
       ));
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to reschedule job');
     }
 
     setDraggingJob(null);
   };
 
-  const navigate = (direction) => {
+  const navigate = (direction: number) => {
     const newDate = new Date(currentDate);
     if (view === 'month') {
       newDate.setMonth(newDate.getMonth() + direction);
@@ -128,7 +139,7 @@ export default function DragDropCalendar() {
     setCurrentDate(new Date());
   };
 
-  const getJobsForDate = (date) => {
+  const getJobsForDate = (date: Date): CalendarJob[] => {
     return jobs.filter(job => {
       if (!job.scheduledDate) return false;
       const jobDate = new Date(job.scheduledDate);
@@ -226,7 +237,7 @@ export default function DragDropCalendar() {
   );
 }
 
-function MonthView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDragLeave, onDrop, dropTarget }) {
+function MonthView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDragLeave, onDrop, dropTarget }: MonthViewProps) {
   const getDaysInMonth = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -316,7 +327,7 @@ function MonthView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDra
   );
 }
 
-function WeekView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDragLeave, onDrop, dropTarget }) {
+function WeekView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDragLeave, onDrop, dropTarget }: WeekViewProps) {
   const getWeekDays = () => {
     const days = [];
     const start = new Date(currentDate);
@@ -386,13 +397,13 @@ function WeekView({ currentDate, getJobsForDate, onDragStart, onDragOver, onDrag
   );
 }
 
-function DayView({ currentDate, jobs, onDragStart }) {
+function DayView({ currentDate, jobs, onDragStart }: DayViewProps) {
   // Time slots from 6 AM to 8 PM
   const hours = Array.from({ length: 15 }, (_, i) => i + 6);
 
-  const getJobsForHour = (hour) => {
-    return jobs.filter(job => {
-      const jobDate = new Date(job.scheduledDate);
+  const getJobsForHour = (hour: number) => {
+    return jobs.filter((job: Record<string, unknown>) => {
+      const jobDate = new Date(job.scheduledDate as string);
       return jobDate.getHours() === hour;
     });
   };
@@ -427,8 +438,8 @@ function DayView({ currentDate, jobs, onDragStart }) {
   );
 }
 
-function JobChip({ job, onDragStart, compact = false, detailed = false }) {
-  const statusColors = {
+function JobChip({ job, onDragStart, compact = false, detailed = false }: JobChipProps) {
+  const statusColors: Record<string, string> = {
     pending: 'bg-gray-100 border-gray-300',
     scheduled: 'bg-blue-100 border-blue-300',
     in_progress: 'bg-yellow-100 border-yellow-300',

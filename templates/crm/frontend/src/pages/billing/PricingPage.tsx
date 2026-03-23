@@ -1,14 +1,61 @@
 import { useState, useEffect } from 'react';
-import { 
-  Check, X, Zap, Building2, Wrench, Crown, 
+import {
+  Check, X, Zap, Building2, Wrench, Crown,
   CreditCard, Calendar, Users, HelpCircle,
   ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
+
+interface PackageData {
+  name?: string;
+  monthlyPrice?: number;
+  yearlyPrice?: number;
+  usersIncluded?: number;
+  oneTimePrice?: number;
+  features?: string[];
+}
+
+interface PricingData {
+  packages: Record<string, PackageData>;
+  features: Record<string, { name?: string }>;
+}
+
+interface PricingCardProps {
+  name: string;
+  description: string;
+  icon: LucideIcon;
+  price: number;
+  billingCycle: string;
+  yearlyTotal?: number;
+  users?: number;
+  features: string[];
+  cta: string;
+  popular?: boolean;
+  dark?: boolean;
+}
+
+interface AddonCardProps {
+  name: string;
+  description: string;
+  monthlyPrice?: number;
+  oneTimePrice?: number;
+  oneTimeOnly?: boolean;
+}
+
+interface FeatureComparisonProps {
+  packages: Record<string, PackageData>;
+  features: Record<string, { name?: string }>;
+}
+
+interface FAQProps {
+  question: string;
+  answer: string;
+}
 
 /**
  * Pricing Page
- * 
+ *
  * Shows all pricing options:
  * - Package comparison
  * - Monthly vs yearly toggle
@@ -16,10 +63,10 @@ import api from '../../services/api';
  * - Feature breakdown
  */
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] = useState('monthly');
-  const [pricing, setPricing] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [expandedFeatures, setExpandedFeatures] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<string>('monthly');
+  const [pricing, setPricing] = useState<PricingData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [expandedFeatures, setExpandedFeatures] = useState<boolean>(false);
 
   useEffect(() => {
     loadPricing();
@@ -94,7 +141,7 @@ export default function PricingPage() {
             name="Starter"
             description="Core CRM for small teams"
             icon={Zap}
-            price={billingCycle === 'yearly' ? packages.starter?.yearlyPrice / 12 : packages.starter?.monthlyPrice}
+            price={billingCycle === 'yearly' ? (packages.starter?.yearlyPrice || 0) / 12 : (packages.starter?.monthlyPrice || 0)}
             billingCycle={billingCycle}
             yearlyTotal={packages.starter?.yearlyPrice}
             users={packages.starter?.usersIncluded}
@@ -114,7 +161,7 @@ export default function PricingPage() {
             name="Service Pro"
             description="Complete service trade solution"
             icon={Wrench}
-            price={billingCycle === 'yearly' ? packages.servicePro?.yearlyPrice / 12 : packages.servicePro?.monthlyPrice}
+            price={billingCycle === 'yearly' ? (packages.servicePro?.yearlyPrice || 0) / 12 : (packages.servicePro?.monthlyPrice || 0)}
             billingCycle={billingCycle}
             yearlyTotal={packages.servicePro?.yearlyPrice}
             users={packages.servicePro?.usersIncluded}
@@ -139,7 +186,7 @@ export default function PricingPage() {
             name="Construction"
             description="Complete construction management"
             icon={Building2}
-            price={billingCycle === 'yearly' ? packages.construction?.yearlyPrice / 12 : packages.construction?.monthlyPrice}
+            price={billingCycle === 'yearly' ? (packages.construction?.yearlyPrice || 0) / 12 : (packages.construction?.monthlyPrice || 0)}
             billingCycle={billingCycle}
             yearlyTotal={packages.construction?.yearlyPrice}
             users={packages.construction?.usersIncluded}
@@ -163,7 +210,7 @@ export default function PricingPage() {
             name="Enterprise"
             description="Everything, unlimited"
             icon={Crown}
-            price={billingCycle === 'yearly' ? packages.enterprise?.yearlyPrice / 12 : packages.enterprise?.monthlyPrice}
+            price={billingCycle === 'yearly' ? (packages.enterprise?.yearlyPrice || 0) / 12 : (packages.enterprise?.monthlyPrice || 0)}
             billingCycle={billingCycle}
             yearlyTotal={packages.enterprise?.yearlyPrice}
             users={packages.enterprise?.usersIncluded}
@@ -188,7 +235,7 @@ export default function PricingPage() {
             <div>
               <h3 className="text-2xl font-bold mb-2">Prefer a One-Time Purchase?</h3>
               <p className="text-orange-100">
-                Own {{COMPANY_NAME}} forever with our lifetime license. No monthly fees, self-hosted option available.
+                Own {'{{COMPANY_NAME}}'} forever with our lifetime license. No monthly fees, self-hosted option available.
               </p>
             </div>
             <div className="text-right">
@@ -277,16 +324,16 @@ export default function PricingPage() {
   );
 }
 
-function PricingCard({ 
+function PricingCard({
   name, description, icon: Icon, price, billingCycle, yearlyTotal,
-  users, features, cta, popular, dark 
-}) {
+  users, features, cta, popular, dark
+}: PricingCardProps) {
   return (
     <div className={`relative rounded-2xl p-6 ${
-      dark 
-        ? 'bg-gray-900 text-white' 
-        : popular 
-          ? 'bg-white border-2 border-orange-500 shadow-xl' 
+      dark
+        ? 'bg-gray-900 text-white'
+        : popular
+          ? 'bg-white border-2 border-orange-500 shadow-xl'
           : 'bg-white border shadow-sm'
     }`}>
       {popular && (
@@ -320,7 +367,7 @@ function PricingCard({
       </div>
 
       <ul className="space-y-3 mb-6">
-        {features.map((feature, i) => (
+        {features.map((feature: string, i: number) => (
           <li key={i} className="flex items-start gap-2 text-sm">
             <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${dark ? 'text-green-400' : 'text-green-600'}`} />
             <span>{feature}</span>
@@ -341,7 +388,7 @@ function PricingCard({
   );
 }
 
-function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly }) {
+function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly }: AddonCardProps) {
   return (
     <div className="bg-white rounded-xl border p-6">
       <h4 className="font-bold text-gray-900">{name}</h4>
@@ -362,9 +409,9 @@ function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly 
   );
 }
 
-function FeatureComparison({ packages, features }) {
-  const packageList = ['starter', 'servicePro', 'construction', 'enterprise'];
-  const categories = {
+function FeatureComparison({ packages, features }: FeatureComparisonProps) {
+  const packageList: string[] = ['starter', 'servicePro', 'construction', 'enterprise'];
+  const categories: Record<string, string[]> = {
     'Core': ['contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team'],
     'Service Trade': ['timeTracking', 'gpsTracking', 'routing', 'equipment', 'agreements', 'pricebook', 'fleet'],
     'Construction': ['projects', 'changeOrders', 'rfis', 'dailyLogs', 'punchLists', 'gantt', 'selections', 'takeoffs', 'lienWaivers', 'drawSchedules'],
@@ -379,7 +426,7 @@ function FeatureComparison({ packages, features }) {
         <thead>
           <tr className="border-b">
             <th className="text-left py-4 px-4 font-medium text-gray-500">Features</th>
-            {packageList.map(pkg => (
+            {packageList.map((pkg: string) => (
               <th key={pkg} className="text-center py-4 px-4 font-bold text-gray-900">
                 {packages[pkg]?.name}
               </th>
@@ -387,17 +434,17 @@ function FeatureComparison({ packages, features }) {
           </tr>
         </thead>
         <tbody>
-          {Object.entries(categories).map(([category, featureIds]) => (
+          {Object.entries(categories).map(([category, featureIds]: [string, string[]]) => (
             <>
               <tr key={category} className="bg-gray-50">
                 <td colSpan={5} className="py-3 px-4 font-bold text-gray-700">{category}</td>
               </tr>
-              {featureIds.map(featureId => (
+              {featureIds.map((featureId: string) => (
                 <tr key={featureId} className="border-b">
                   <td className="py-3 px-4 text-gray-600">
                     {features[featureId]?.name || featureId}
                   </td>
-                  {packageList.map(pkg => (
+                  {packageList.map((pkg: string) => (
                     <td key={pkg} className="text-center py-3 px-4">
                       {packages[pkg]?.features?.includes(featureId) ? (
                         <Check className="w-5 h-5 text-green-600 mx-auto" />
@@ -416,8 +463,8 @@ function FeatureComparison({ packages, features }) {
   );
 }
 
-function FAQ({ question, answer }) {
-  const [open, setOpen] = useState(false);
+function FAQ({ question, answer }: FAQProps) {
+  const [open, setOpen] = useState<boolean>(false);
 
   return (
     <div className="border rounded-lg">

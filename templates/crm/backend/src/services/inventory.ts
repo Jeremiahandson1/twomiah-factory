@@ -374,7 +374,35 @@ export async function adjustStock(companyId: string, {
     .where(eq(inventoryItem.id, itemId))
 
   if (item && newQuantity <= item.reorderPoint && newQuantity > 0) {
-    // TODO: Send low stock notification
+    // Send low stock notification to company admins
+    try {
+      const emailService = (await import('./email.ts')).default
+      const { user: userTable, company: companyTable } = await import('../../db/schema.ts')
+      const { inArray } = await import('drizzle-orm')
+      const admins = await db.select({ email: userTable.email, firstName: userTable.firstName })
+        .from(userTable)
+        .where(and(
+          eq(userTable.companyId, companyId),
+          eq(userTable.isActive, true),
+          inArray(userTable.role, ['owner', 'admin', 'manager']),
+        ))
+
+      const [comp] = await db.select({ name: companyTable.name })
+        .from(companyTable)
+        .where(eq(companyTable.id, companyId))
+        .limit(1)
+
+      for (const admin of admins) {
+        await emailService.send(admin.email, 'lowStockAlert', {
+          itemName: item.name,
+          currentStock: newQuantity,
+          reorderPoint: item.reorderPoint,
+          companyName: comp?.name || 'Your Company',
+        }).catch(() => {}) // Don't fail the stock update if email fails
+      }
+    } catch {
+      // Email service may not be configured — don't block stock updates
+    }
   }
 
   return updated

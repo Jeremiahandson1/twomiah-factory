@@ -5,6 +5,10 @@ import { format } from 'date-fns';
 import { Card, CardHeader, CardBody, Button, Input, Select, Modal, Textarea, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, StatusBadge, EmptyState, ConfirmDialog, Tabs, TabsList, TabsTrigger, TabsContent } from '../ui';
 import { useCRMDataStore } from '../../stores/builderStore';
 
+interface OutletContextType {
+  instance: Record<string, unknown>;
+}
+
 const statusOptions = [
   { value: 'pending', label: 'Pending Review' },
   { value: 'approved', label: 'Approved' },
@@ -13,48 +17,66 @@ const statusOptions = [
   { value: 'expired', label: 'Expired' },
 ];
 
+interface FinancingFormData {
+  contactId: string;
+  amount: string | number;
+  term: number;
+  jobDescription: string;
+  status: string;
+  apr: number;
+  monthlyPayment: number;
+  createdAt?: string;
+}
+
+interface FinancingFormProps {
+  item: Record<string, unknown> | null;
+  contacts: Record<string, unknown>[];
+  onSave: (data: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
 // FINANCING APPLICATION FORM
-function FinancingForm({ item, contacts, onSave, onClose }) {
-  const [form, setForm] = useState(item || { 
-    contactId: '', amount: '', term: 12, jobDescription: '', status: 'pending', apr: 0, monthlyPayment: 0 
+function FinancingForm({ item, contacts, onSave, onClose }: FinancingFormProps) {
+  const [form, setForm] = useState<FinancingFormData>((item as unknown as FinancingFormData) || {
+    contactId: '', amount: '', term: 12, jobDescription: '', status: 'pending', apr: 0, monthlyPayment: 0
   });
-  
+
   // Calculate monthly payment
-  const calcPayment = (amt, months, rate) => {
-    if (!amt || !months) return 0;
+  const calcPayment = (amt: string | number, months: number, rate: number): string => {
+    if (!amt || !months) return '0';
     const principal = Number(amt);
     const monthlyRate = (rate / 100) / 12;
     if (monthlyRate === 0) return (principal / months).toFixed(2);
     return ((principal * monthlyRate * Math.pow(1 + monthlyRate, months)) / (Math.pow(1 + monthlyRate, months) - 1)).toFixed(2);
   };
 
-  const handleSubmit = (e) => { 
-    e.preventDefault(); 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     const monthlyPayment = calcPayment(form.amount, form.term, form.apr);
-    onSave({ ...form, amount: Number(form.amount), monthlyPayment: Number(monthlyPayment), createdAt: item?.createdAt || new Date().toISOString() }); 
-    onClose(); 
+    onSave({ ...form, amount: Number(form.amount), monthlyPayment: Number(monthlyPayment), createdAt: item?.createdAt || new Date().toISOString() });
+    onClose();
   };
-  
-  const clients = contacts.filter(c => c.type === 'client' || c.type === 'lead');
-  
+
+  const clients = contacts.filter((c: Record<string, unknown>) => c.type === 'client' || c.type === 'lead');
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Select label="Customer" value={form.contactId} onChange={(e) => setForm({ ...form, contactId: e.target.value })} options={clients.map(c => ({ value: c.id, label: c.name }))} placeholder="Select customer" required />
+      <Select label="Customer" value={form.contactId} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, contactId: e.target.value })} options={clients.map((c: Record<string, unknown>) => ({ value: c.id as string, label: c.name as string }))} placeholder="Select customer" required />
       <div className="grid grid-cols-3 gap-4">
-        <Input label="Amount ($)" type="number" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="5000" required />
-        <Select label="Term (months)" value={form.term} onChange={(e) => setForm({ ...form, term: Number(e.target.value) })} options={[
-          { value: 6, label: '6 months' },
-          { value: 12, label: '12 months' },
-          { value: 24, label: '24 months' },
-          { value: 36, label: '36 months' },
-          { value: 48, label: '48 months' },
-          { value: 60, label: '60 months' },
+        <Input label="Amount ($)" type="number" value={form.amount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, amount: e.target.value })} placeholder="5000" required />
+        <Select label="Term (months)" value={String(form.term)} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, term: Number(e.target.value) })} options={[
+          { value: '6', label: '6 months' },
+          { value: '12', label: '12 months' },
+          { value: '24', label: '24 months' },
+          { value: '36', label: '36 months' },
+          { value: '48', label: '48 months' },
+          { value: '60', label: '60 months' },
         ]} />
-        <Input label="APR (%)" type="number" step="0.1" value={form.apr} onChange={(e) => setForm({ ...form, apr: Number(e.target.value) })} placeholder="0 for promo" />
+        <Input label="APR (%)" type="number" step="0.1" value={form.apr} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, apr: Number(e.target.value) })} placeholder="0 for promo" />
       </div>
-      <Input label="Job Description" value={form.jobDescription} onChange={(e) => setForm({ ...form, jobDescription: e.target.value })} placeholder="e.g. Kitchen remodel, HVAC replacement" />
-      <Select label="Status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} options={statusOptions} />
-      
+      <Input label="Job Description" value={form.jobDescription} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, jobDescription: e.target.value })} placeholder="e.g. Kitchen remodel, HVAC replacement" />
+      <Select label="Status" value={form.status} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, status: e.target.value })} options={statusOptions} />
+
       {form.amount && form.term && (
         <div className="p-4 bg-slate-800/50 rounded-lg">
           <p className="text-sm text-slate-400">Estimated Monthly Payment</p>
@@ -62,43 +84,49 @@ function FinancingForm({ item, contacts, onSave, onClose }) {
           <p className="text-xs text-slate-500 mt-1">{form.term} months at {form.apr}% APR</p>
         </div>
       )}
-      
+
       <div className="flex justify-end gap-3 pt-4"><Button type="button" variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit">{item ? 'Update' : 'Create'}</Button></div>
     </form>
   );
 }
 
 export function FinancingPage() {
-  const { instance } = useOutletContext();
-  const { contacts, financingApplications = [], addFinancingApplication, updateFinancingApplication, deleteFinancingApplication, financingSettings = {} } = useCRMDataStore();
-  const [activeTab, setActiveTab] = useState('applications');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editItem, setEditItem] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const { instance } = useOutletContext<OutletContextType>();
+  const store = useCRMDataStore();
+  const contacts = store.contacts as Record<string, unknown>[];
+  const financingApplications = (store.financingApplications || []) as Record<string, unknown>[];
+  const addFinancingApplication = store.addFinancingApplication as ((item: Record<string, unknown>) => void) | undefined;
+  const updateFinancingApplication = store.updateFinancingApplication as ((id: unknown, updates: Record<string, unknown>) => void) | undefined;
+  const deleteFinancingApplication = store.deleteFinancingApplication as ((id: unknown) => void) | undefined;
+  const financingSettings = (store.financingSettings || {}) as Record<string, unknown>;
+  const [activeTab, setActiveTab] = useState<string>('applications');
+  const [search, setSearch] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editItem, setEditItem] = useState<Record<string, unknown> | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null);
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
-  const filtered = useMemo(() => (financingApplications || []).filter(a => {
-    const contact = contacts.find(c => c.id === a.contactId);
-    const matchesSearch = !search || contact?.name?.toLowerCase().includes(search.toLowerCase()) || a.jobDescription?.toLowerCase().includes(search.toLowerCase());
+  const filtered = useMemo(() => (financingApplications || []).filter((a: Record<string, unknown>) => {
+    const contact = contacts.find((c: Record<string, unknown>) => c.id === a.contactId);
+    const matchesSearch = !search || (contact?.name as string)?.toLowerCase().includes(search.toLowerCase()) || (a.jobDescription as string)?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = !statusFilter || a.status === statusFilter;
     return matchesSearch && matchesStatus;
   }), [financingApplications, contacts, search, statusFilter]);
 
-  const getContactName = (id) => contacts.find(c => c.id === id)?.name || '-';
+  const getContactName = (id: string): string => (contacts.find((c: Record<string, unknown>) => c.id === id)?.name as string) || '-';
 
-  const handleSave = (data) => { editItem ? updateFinancingApplication?.(editItem.id, data) : addFinancingApplication?.(data); setEditItem(null); setShowForm(false); };
+  const handleSave = (data: Record<string, unknown>) => { editItem ? updateFinancingApplication?.(editItem.id, data) : addFinancingApplication?.(data); setEditItem(null); setShowForm(false); };
   const handleDelete = () => { deleteFinancingApplication?.(deleteTarget?.id); setDeleteTarget(null); };
 
-  const totalFinanced = financingApplications.filter(a => a.status === 'funded').reduce((s, a) => s + (a.amount || 0), 0);
-  const approvedCount = financingApplications.filter(a => a.status === 'approved').length;
-  const pendingCount = financingApplications.filter(a => a.status === 'pending').length;
-  const approvalRate = financingApplications.filter(a => ['approved', 'funded', 'declined'].includes(a.status)).length > 0
-    ? Math.round(financingApplications.filter(a => ['approved', 'funded'].includes(a.status)).length / financingApplications.filter(a => ['approved', 'funded', 'declined'].includes(a.status)).length * 100)
+  const totalFinanced = financingApplications.filter((a: Record<string, unknown>) => a.status === 'funded').reduce((s: number, a: Record<string, unknown>) => s + ((a.amount as number) || 0), 0);
+  const approvedCount = financingApplications.filter((a: Record<string, unknown>) => a.status === 'approved').length;
+  const pendingCount = financingApplications.filter((a: Record<string, unknown>) => a.status === 'pending').length;
+  const approvalRate = financingApplications.filter((a: Record<string, unknown>) => ['approved', 'funded', 'declined'].includes(a.status as string)).length > 0
+    ? Math.round(financingApplications.filter((a: Record<string, unknown>) => ['approved', 'funded'].includes(a.status as string)).length / financingApplications.filter((a: Record<string, unknown>) => ['approved', 'funded', 'declined'].includes(a.status as string)).length * 100)
     : 0;
 
-  const statusColors = { approved: 'text-emerald-400', funded: 'text-emerald-400', pending: 'text-amber-400', declined: 'text-red-400', expired: 'text-slate-400' };
+  const statusColors: Record<string, string> = { approved: 'text-emerald-400', funded: 'text-emerald-400', pending: 'text-amber-400', declined: 'text-red-400', expired: 'text-slate-400' };
 
   return (
     <div className="space-y-6">
@@ -127,20 +155,20 @@ export function FinancingPage() {
 
         <TabsContent value="applications">
           <Card><CardBody className="p-4"><div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-11" /></div>
-            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} options={[{ value: '', label: 'All Status' }, ...statusOptions]} className="sm:w-48" />
+            <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" /><input type="text" placeholder="Search..." value={search} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)} className="input pl-11" /></div>
+            <Select value={statusFilter} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setStatusFilter(e.target.value)} options={[{ value: '', label: 'All Status' }, ...statusOptions]} className="sm:w-48" />
           </div></CardBody></Card>
           <Card className="mt-4">
             {filtered.length > 0 ? (
               <Table><TableHead><TableRow><TableHeader>Customer</TableHeader><TableHeader>Amount</TableHeader><TableHeader>Term</TableHeader><TableHeader>Monthly</TableHeader><TableHeader>Job</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>
-                {filtered.map((app) => (
-                  <TableRow key={app.id}>
-                    <TableCell className="font-medium text-white">{getContactName(app.contactId)}</TableCell>
-                    <TableCell className="text-white">${app.amount?.toLocaleString()}</TableCell>
-                    <TableCell className="text-slate-400">{app.term} mo</TableCell>
-                    <TableCell className="text-emerald-400">${app.monthlyPayment}/mo</TableCell>
-                    <TableCell className="text-slate-400 text-sm max-w-xs truncate">{app.jobDescription || '-'}</TableCell>
-                    <TableCell><span className={`font-medium ${statusColors[app.status]}`}>{app.status}</span></TableCell>
+                {filtered.map((app: Record<string, unknown>) => (
+                  <TableRow key={app.id as string}>
+                    <TableCell className="font-medium text-white">{getContactName(app.contactId as string)}</TableCell>
+                    <TableCell className="text-white">${(app.amount as number)?.toLocaleString()}</TableCell>
+                    <TableCell className="text-slate-400">{app.term as number} mo</TableCell>
+                    <TableCell className="text-emerald-400">${String(app.monthlyPayment)}/mo</TableCell>
+                    <TableCell className="text-slate-400 text-sm max-w-xs truncate">{(app.jobDescription as string) || '-'}</TableCell>
+                    <TableCell><span className={`font-medium ${statusColors[app.status as string]}`}>{app.status as string}</span></TableCell>
                     <TableCell><div className="flex gap-1">
                       {app.status === 'pending' && <><button onClick={() => updateFinancingApplication?.(app.id, { status: 'approved' })} className="p-1.5 hover:bg-emerald-500/20 rounded text-emerald-400" title="Approve"><Check className="w-4 h-4" /></button></>}
                       {app.status === 'approved' && <button onClick={() => updateFinancingApplication?.(app.id, { status: 'funded' })} className="p-1.5 hover:bg-emerald-500/20 rounded text-emerald-400" title="Mark Funded"><DollarSign className="w-4 h-4" /></button>}
@@ -190,13 +218,17 @@ export function FinancingPage() {
   );
 }
 
-// Simple calculator component
-function FinancingCalculator({ primaryColor }) {
-  const [amount, setAmount] = useState(5000);
-  const [term, setTerm] = useState(24);
-  const [apr, setApr] = useState(0);
+interface FinancingCalculatorProps {
+  primaryColor: string;
+}
 
-  const monthlyPayment = () => {
+// Simple calculator component
+function FinancingCalculator({ primaryColor }: FinancingCalculatorProps) {
+  const [amount, setAmount] = useState<number>(5000);
+  const [term, setTerm] = useState<number>(24);
+  const [apr, setApr] = useState<number>(0);
+
+  const monthlyPayment = (): string => {
     const principal = Number(amount);
     const monthlyRate = (apr / 100) / 12;
     if (monthlyRate === 0) return (principal / term).toFixed(2);
@@ -206,15 +238,15 @@ function FinancingCalculator({ primaryColor }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       <div className="space-y-4">
-        <div><label className="block text-sm text-slate-400 mb-1">Loan Amount</label><Input type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} /></div>
+        <div><label className="block text-sm text-slate-400 mb-1">Loan Amount</label><Input type="number" value={amount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAmount(Number(e.target.value))} /></div>
         <div><label className="block text-sm text-slate-400 mb-1">Term (months)</label>
           <div className="flex gap-2">
-            {[12, 24, 36, 48, 60].map(t => (
+            {[12, 24, 36, 48, 60].map((t: number) => (
               <button key={t} onClick={() => setTerm(t)} className={`px-3 py-2 rounded text-sm ${term === t ? 'text-white' : 'bg-slate-800 text-slate-400'}`} style={term === t ? { backgroundColor: primaryColor } : {}}>{t}</button>
             ))}
           </div>
         </div>
-        <div><label className="block text-sm text-slate-400 mb-1">APR (%)</label><Input type="number" step="0.1" value={apr} onChange={(e) => setApr(Number(e.target.value))} /></div>
+        <div><label className="block text-sm text-slate-400 mb-1">APR (%)</label><Input type="number" step="0.1" value={apr} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setApr(Number(e.target.value))} /></div>
       </div>
       <div className="flex items-center justify-center">
         <div className="text-center p-6 bg-slate-800/50 rounded-xl">

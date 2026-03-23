@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, X, User, Folder, Wrench, FileText, File, Users, HelpCircle, Loader2 } from 'lucide-react';
 import api from '../../services/api';
 
-const TYPE_ICONS = {
+const TYPE_ICONS: Record<string, React.ElementType> = {
   contact: User,
   project: Folder,
   job: Wrench,
@@ -14,7 +14,7 @@ const TYPE_ICONS = {
   rfi: HelpCircle,
 };
 
-const TYPE_COLORS = {
+const TYPE_COLORS: Record<string, string> = {
   contact: 'bg-blue-100 text-blue-700',
   project: 'bg-purple-100 text-purple-700',
   job: 'bg-orange-100 text-orange-700',
@@ -25,20 +25,28 @@ const TYPE_COLORS = {
   rfi: 'bg-red-100 text-red-700',
 };
 
+interface SearchItem {
+  id: string;
+  type: string;
+  name: string;
+  description?: string;
+  url: string;
+}
+
 export default function GlobalSearch() {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState([]);
-  const [recentItems, setRecentItems] = useState([]);
+  const [results, setResults] = useState<SearchItem[]>([]);
+  const [recentItems, setRecentItems] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  
-  const inputRef = useRef(null);
+
+  const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
   // Keyboard shortcut to open (Cmd+K / Ctrl+K)
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setIsOpen(true);
@@ -47,7 +55,7 @@ export default function GlobalSearch() {
         setIsOpen(false);
       }
     };
-    
+
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
@@ -74,7 +82,7 @@ export default function GlobalSearch() {
         const response = await api.get('/api/search', { q: query });
         setResults(response.results || []);
         setSelectedIndex(0);
-      } catch (error) {
+      } catch (error: unknown) {
         console.error('Search error:', error);
         setResults([]);
       } finally {
@@ -85,33 +93,33 @@ export default function GlobalSearch() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const loadRecentItems = async () => {
+  const loadRecentItems = async (): Promise<void> => {
     try {
       const items = await api.get('/api/search/recent');
       setRecentItems(items || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load recent items:', error);
     }
   };
 
-  const handleSelect = useCallback((item) => {
+  const handleSelect = useCallback((item: SearchItem): void => {
     setIsOpen(false);
     setQuery('');
     navigate(item.url);
   }, [navigate]);
 
   // Keyboard navigation
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     const items = query.length >= 2 ? results : recentItems;
-    
+
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(i => Math.min(i + 1, items.length - 1));
+        setSelectedIndex((i: number) => Math.min(i + 1, items.length - 1));
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(i => Math.max(i - 1, 0));
+        setSelectedIndex((i: number) => Math.max(i - 1, 0));
         break;
       case 'Enter':
         e.preventDefault();
@@ -142,11 +150,11 @@ export default function GlobalSearch() {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/50 transition-opacity"
         onClick={() => setIsOpen(false)}
       />
-      
+
       {/* Modal */}
       <div className="relative min-h-screen flex items-start justify-center pt-[15vh] px-4">
         <div className="relative w-full max-w-xl bg-white rounded-xl shadow-2xl overflow-hidden">
@@ -157,7 +165,7 @@ export default function GlobalSearch() {
               ref={inputRef}
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Search contacts, projects, jobs, invoices..."
               className="flex-1 px-3 py-4 text-lg outline-none placeholder:text-gray-400"
@@ -191,11 +199,11 @@ export default function GlobalSearch() {
                     Recent
                   </div>
                 )}
-                
-                {displayItems.map((item, index) => {
+
+                {displayItems.map((item: SearchItem, index: number) => {
                   const Icon = TYPE_ICONS[item.type] || File;
                   const colorClass = TYPE_COLORS[item.type] || 'bg-gray-100 text-gray-700';
-                  
+
                   return (
                     <button
                       key={`${item.type}-${item.id}`}

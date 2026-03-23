@@ -2,14 +2,31 @@ import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
-export function Modal({ 
-  isOpen, 
-  onClose, 
-  title, 
-  children, 
+const modalSizes = {
+  sm: 'max-w-md',
+  md: 'max-w-lg',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+  full: 'max-w-[90vw]',
+};
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;
+  children?: React.ReactNode;
+  size?: keyof typeof modalSizes;
+  showClose?: boolean;
+}
+
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
   size = 'md',
-  showClose = true 
-}) {
+  showClose = true
+}: ModalProps) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -23,17 +40,9 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    full: 'max-w-[90vw]',
-  };
-
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
-      <div 
+      <div
         className="fixed inset-0 bg-black/70 backdrop-blur-sm"
         onClick={onClose}
       />
@@ -41,7 +50,7 @@ export function Modal({
         <div
           className={clsx(
             'relative w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl',
-            sizes[size]
+            modalSizes[size]
           )}
         >
           {title && (
@@ -64,16 +73,28 @@ export function Modal({
   );
 }
 
-export function ConfirmDialog({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  title = 'Confirm', 
+interface ConfirmDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title?: string;
+  message?: React.ReactNode;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: 'danger' | 'primary';
+  loading?: boolean;
+}
+
+export function ConfirmDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  title = 'Confirm',
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   variant = 'danger'
-}) {
+}: ConfirmDialogProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
       <p className="text-gray-600 dark:text-slate-300 mb-6">{message}</p>
@@ -81,8 +102,8 @@ export function ConfirmDialog({
         <button onClick={onClose} className="btn btn-secondary">
           {cancelText}
         </button>
-        <button 
-          onClick={() => { onConfirm(); onClose(); }} 
+        <button
+          onClick={() => { onConfirm(); onClose(); }}
           className={clsx('btn', variant === 'danger' ? 'btn-danger' : 'btn-primary')}
         >
           {confirmText}

@@ -6,14 +6,22 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 
+import type { LucideIcon } from 'lucide-react';
+
+interface QBStatus { connected: boolean; realmId?: string; lastSyncAt?: string; [key: string]: unknown; }
+interface QBCompanyInfo { CompanyName: string; [key: string]: unknown; }
+interface QBMessage { type: 'success' | 'error'; text: string; }
+interface QBSyncResults { type: string; total: number; successful?: number; created?: number; failed?: number; results?: Array<{ success: boolean; number?: string; id?: string; error?: string }>; [key: string]: unknown; }
+interface SyncCardProps { icon: LucideIcon; title: string; description: string; onClick: () => void; loading: boolean; }
+
 export default function QuickBooksSettings() {
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState(null);
-  const [companyInfo, setCompanyInfo] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(null);
-  const [syncResults, setSyncResults] = useState(null);
-  const [message, setMessage] = useState(null);
+  const [status, setStatus] = useState<QBStatus | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<QBCompanyInfo | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [syncResults, setSyncResults] = useState<QBSyncResults | null>(null);
+  const [message, setMessage] = useState<QBMessage | null>(null);
 
   useEffect(() => {
     loadStatus();
@@ -31,18 +39,18 @@ export default function QuickBooksSettings() {
 
   const loadStatus = async () => {
     try {
-      const statusRes = await api.get('/quickbooks/status');
+      const statusRes = await api.get('/quickbooks/status') as QBStatus;
       setStatus(statusRes);
 
       if (statusRes.connected) {
         try {
-          const info = await api.get('/quickbooks/company-info');
+          const info = await api.get('/quickbooks/company-info') as QBCompanyInfo;
           setCompanyInfo(info);
         } catch (e) {
           // Company info is optional
         }
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load QuickBooks status:', error);
     } finally {
       setLoading(false);
@@ -51,9 +59,9 @@ export default function QuickBooksSettings() {
 
   const handleConnect = async () => {
     try {
-      const { url } = await api.get('/quickbooks/auth-url');
+      const { url } = await api.get('/quickbooks/auth-url') as { url: string };
       window.location.href = url;
-    } catch (error) {
+    } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Failed to start connection' });
     }
   };
@@ -66,12 +74,12 @@ export default function QuickBooksSettings() {
       setStatus({ connected: false });
       setCompanyInfo(null);
       setMessage({ type: 'success', text: 'QuickBooks disconnected' });
-    } catch (error) {
+    } catch (error: unknown) {
       setMessage({ type: 'error', text: 'Failed to disconnect' });
     }
   };
 
-  const handleSync = async (type) => {
+  const handleSync = async (type: string) => {
     setSyncing(type);
     setSyncResults(null);
 
@@ -91,14 +99,16 @@ export default function QuickBooksSettings() {
           throw new Error('Unknown sync type');
       }
 
+      const syncResult = result as Record<string, unknown>;
       setSyncResults({
         type,
-        ...result,
-      });
-      setMessage({ type: 'success', text: `Sync completed: ${result.successful || result.total} items processed` });
+        ...syncResult,
+      } as QBSyncResults);
+      setMessage({ type: 'success', text: `Sync completed: ${(syncResult.successful as number) || (syncResult.total as number)} items processed` });
       loadStatus();
-    } catch (error) {
-      setMessage({ type: 'error', text: `Sync failed: ${error.message}` });
+    } catch (error: unknown) {
+      const errMsg = error instanceof Error ? error.message : 'Unknown error';
+      setMessage({ type: 'error', text: `Sync failed: ${errMsg}` });
     } finally {
       setSyncing(null);
     }
@@ -136,7 +146,7 @@ export default function QuickBooksSettings() {
                 src="https://www.vectorlogo.zone/logos/intikibooks/intikibooks-icon.svg" 
                 alt="QuickBooks"
                 className="w-8 h-8"
-                onError={(e) => { e.target.style.display = 'none'; }}
+                onError={(e: React.SyntheticEvent<HTMLImageElement>) => { (e.target as HTMLImageElement).style.display = 'none'; }}
               />
             </div>
             <div>
@@ -193,7 +203,7 @@ export default function QuickBooksSettings() {
               Sync to QuickBooks
             </h3>
             <p className="text-sm text-gray-500 mb-4">
-              Push your {{COMPANY_NAME}} data to QuickBooks
+              Push your {"{{COMPANY_NAME}}"} data to QuickBooks
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -221,7 +231,7 @@ export default function QuickBooksSettings() {
               Import from QuickBooks
             </h3>
             <p className="text-sm text-gray-500 mb-4">
-              Pull data from QuickBooks into {{COMPANY_NAME}}
+              Pull data from QuickBooks into {"{{COMPANY_NAME}}"}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -306,11 +316,11 @@ export default function QuickBooksSettings() {
           <ol className="list-decimal list-inside space-y-2 text-sm text-blue-800">
             <li>Click "Connect QuickBooks" above</li>
             <li>Sign in to your QuickBooks Online account</li>
-            <li>Authorize {{COMPANY_NAME}} to access your data</li>
+            <li>Authorize {"{{COMPANY_NAME}}"} to access your data</li>
             <li>You'll be redirected back here once connected</li>
           </ol>
           <p className="mt-4 text-xs text-blue-600">
-            {{COMPANY_NAME}} will only access customer and invoice data. Your financial reports and 
+            {"{{COMPANY_NAME}}"} will only access customer and invoice data. Your financial reports and 
             sensitive information remain private.
           </p>
         </div>
@@ -319,7 +329,7 @@ export default function QuickBooksSettings() {
   );
 }
 
-function SyncCard({ icon: Icon, title, description, onClick, loading }) {
+function SyncCard({ icon: Icon, title, description, onClick, loading }: SyncCardProps) {
   return (
     <button
       onClick={onClick}

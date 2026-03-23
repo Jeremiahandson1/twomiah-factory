@@ -1,22 +1,24 @@
 import React from 'react';
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
+import type { SocketContextValue } from '../types';
 
-const SocketContext = createContext<any>(null);
+const SocketContext = createContext<SocketContextValue | null>(null);
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || '';
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
-  const { token, isAuthenticated } = useAuth();
+  const { getToken, isAuthenticated } = useAuth();
   const toast = useToast();
-  const [socket, setSocket] = useState(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
-  const listenersRef = useRef(new Map());
+  const listenersRef = useRef(new Map<string, Set<(...args: unknown[]) => void>>());
 
   useEffect(() => {
-    if (!isAuthenticated || !token) {
+    const currentToken = getToken();
+    if (!isAuthenticated || !currentToken) {
       if (socket) {
         socket.disconnect();
         setSocket(null);
@@ -26,7 +28,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     }
 
     const newSocket = io(SOCKET_URL, {
-      auth: { token },
+      auth: { token: currentToken },
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
@@ -48,7 +50,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Notification handler
-    newSocket.on('notification', (data) => {
+    newSocket.on('notification', (data: { message?: string }) => {
       toast.info(data.message || 'New notification');
     });
 
@@ -57,49 +59,49 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     return () => {
       newSocket.disconnect();
     };
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, getToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to event
-  const subscribe = useCallback((event, callback) => {
+  const subscribe = useCallback((event: string, callback: (...args: unknown[]) => void) => {
     if (!socket) return () => {};
 
-    socket.on(event, callback);
-    
+    socket.on(event, callback as (...args: unknown[]) => void);
+
     // Track listener
     if (!listenersRef.current.has(event)) {
       listenersRef.current.set(event, new Set());
     }
-    listenersRef.current.get(event).add(callback);
+    listenersRef.current.get(event)!.add(callback);
 
     // Return unsubscribe function
     return () => {
-      socket.off(event, callback);
+      socket.off(event, callback as (...args: unknown[]) => void);
       listenersRef.current.get(event)?.delete(callback);
     };
   }, [socket]);
 
   // Emit event
-  const emit = useCallback((event, data) => {
+  const emit = useCallback((event: string, data?: unknown) => {
     if (socket && connected) {
       socket.emit(event, data);
     }
   }, [socket, connected]);
 
   // Join room (e.g., project)
-  const joinRoom = useCallback((room) => {
+  const joinRoom = useCallback((room: string) => {
     if (socket && connected) {
       socket.emit(`join:${room.split(':')[0]}`, room.split(':')[1]);
     }
   }, [socket, connected]);
 
   // Leave room
-  const leaveRoom = useCallback((room) => {
+  const leaveRoom = useCallback((room: string) => {
     if (socket && connected) {
       socket.emit(`leave:${room.split(':')[0]}`, room.split(':')[1]);
     }
   }, [socket, connected]);
 
-  const value = {
+  const value: SocketContextValue = {
     socket,
     connected,
     subscribe,
@@ -115,7 +117,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useSocket() {
+export function useSocket(): SocketContextValue {
   const context = useContext(SocketContext);
   if (!context) {
     throw new Error('useSocket must be used within SocketProvider');
@@ -124,13 +126,13 @@ export function useSocket() {
 }
 
 // Hook for subscribing to real-time updates
-export function useRealTimeUpdates(event, callback, deps = []) {
+export function useRealTimeUpdates(event: string, callback: (...args: unknown[]) => void, deps: React.DependencyList = []) {
   const { subscribe } = useSocket();
 
   useEffect(() => {
     const unsubscribe = subscribe(event, callback);
     return unsubscribe;
-  }, [event, subscribe, ...deps]);
+  }, [event, subscribe, ...deps]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // Event types (match backend)
@@ -159,6 +161,6 @@ export const EVENTS = {
   CO_CREATED: 'change_order:created',
   CO_APPROVED: 'change_order:approved',
   NOTIFICATION: 'notification',
-};
+} as const;
 
 export default SocketContext;

@@ -136,9 +136,46 @@ const greenskyProvider: FinancingProvider = {
     if (!config.apiKey || !config.merchantId) {
       return { success: false, error: 'GreenSky not configured — add API key and Merchant ID in Settings → Integrations' }
     }
-    // TODO: Implement GreenSky API call
-    // POST https://api.greensky.com/v1/applications
-    return { success: false, error: 'GreenSky integration coming soon' }
+    const baseUrl = config.sandbox
+      ? 'https://sandbox-api.greensky.com/v1'
+      : 'https://api.greensky.com/v1'
+
+    try {
+      const response = await fetch(`${baseUrl}/applications`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+          'X-Merchant-Id': config.merchantId!,
+        },
+        body: JSON.stringify({
+          merchantId: config.merchantId,
+          loanAmount: req.amount,
+          borrower: {
+            firstName: req.contactName.split(' ')[0] || req.contactName,
+            lastName: req.contactName.split(' ').slice(1).join(' ') || '',
+            email: req.contactEmail,
+            phone: req.contactPhone,
+          },
+          purpose: req.purpose || 'Home improvement',
+        }),
+      })
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ message: 'GreenSky API error' }))
+        return { success: false, error: err.message || `GreenSky returned ${response.status}` }
+      }
+
+      const data = await response.json()
+      return {
+        success: true,
+        applicationId: data.applicationId || data.id,
+        applicationUrl: data.applicationUrl || data.url,
+        externalId: data.applicationId || data.id,
+      }
+    } catch (err) {
+      return { success: false, error: `GreenSky API error: ${(err as Error).message}` }
+    }
   },
   async getStatus(_externalId, _config) {
     return 'pending'

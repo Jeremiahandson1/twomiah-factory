@@ -1,23 +1,114 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Truck, Plus, MapPin, Navigation, Fuel, Wrench,
   Clock, User, AlertTriangle, Loader2, Calendar,
   TrendingUp, DollarSign, MoreVertical, RefreshCw
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
+
+interface VehicleLocation {
+  lat: number;
+  lng: number;
+  speed: number;
+  timestamp: string;
+}
+
+interface VehicleUser {
+  firstName: string;
+  lastName: string;
+}
+
+interface Vehicle {
+  id: string;
+  name: string;
+  type?: string;
+  make?: string;
+  model?: string;
+  year?: string;
+  licensePlate?: string;
+  vin?: string;
+  currentMileage?: number | string;
+  status: string;
+  currentLocation?: VehicleLocation;
+  assignedUser?: VehicleUser;
+  nextOilChangeMiles?: number;
+}
+
+interface FleetStats {
+  totalVehicles: number;
+  tripsThisMonth: number;
+  milesThisMonth: number;
+  fuelCostThisMonth?: number;
+  gallonsThisMonth?: number;
+}
+
+interface Trip {
+  id: string;
+  vehicle?: { name?: string };
+  driver?: { firstName: string; lastName: string };
+  startTime: string;
+  endTime?: string;
+  distance?: number;
+  duration?: number;
+}
+
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  color?: string;
+}
+
+interface VehiclesGridProps {
+  vehicles: Vehicle[];
+  onSelect: (v: Vehicle) => void;
+  onEdit: (v: Vehicle) => void;
+  onFuel: (v: Vehicle) => void;
+  onMaintenance: (v: Vehicle) => void;
+}
+
+interface VehicleCardProps {
+  vehicle: Vehicle;
+  onEdit: () => void;
+  onFuel: () => void;
+  onMaintenance: () => void;
+}
+
+interface FleetMapProps {
+  vehicles: Vehicle[];
+}
+
+interface VehicleFormModalProps {
+  vehicle: Vehicle | null;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface FuelEntryModalProps {
+  vehicle: Vehicle;
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface MaintenanceModalProps {
+  vehicle: Vehicle;
+  onSave: () => void;
+  onClose: () => void;
+}
 
 /**
  * Fleet Management Page
  */
 export default function FleetPage() {
-  const [vehicles, setVehicles] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedVehicle, setSelectedVehicle] = useState(null);
-  const [showForm, setShowForm] = useState(false);
-  const [showFuel, setShowFuel] = useState(false);
-  const [showMaintenance, setShowMaintenance] = useState(false);
-  const [tab, setTab] = useState('vehicles'); // vehicles, map, trips
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [stats, setStats] = useState<FleetStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [showFuel, setShowFuel] = useState<boolean>(false);
+  const [showMaintenance, setShowMaintenance] = useState<boolean>(false);
+  const [tab, setTab] = useState<string>('vehicles'); // vehicles, map, trips
 
   useEffect(() => {
     loadData();
@@ -83,7 +174,7 @@ export default function FleetPage() {
           { id: 'vehicles', label: 'Vehicles', icon: Truck },
           { id: 'map', label: 'Live Map', icon: MapPin },
           { id: 'trips', label: 'Trips', icon: Navigation },
-        ].map(t => (
+        ].map((t: { id: string; label: string; icon: LucideIcon }) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -109,10 +200,10 @@ export default function FleetPage() {
           {tab === 'vehicles' && (
             <VehiclesGrid
               vehicles={vehicles}
-              onSelect={(v) => { setSelectedVehicle(v); }}
-              onEdit={(v) => { setSelectedVehicle(v); setShowForm(true); }}
-              onFuel={(v) => { setSelectedVehicle(v); setShowFuel(true); }}
-              onMaintenance={(v) => { setSelectedVehicle(v); setShowMaintenance(true); }}
+              onSelect={(v: Vehicle) => { setSelectedVehicle(v); }}
+              onEdit={(v: Vehicle) => { setSelectedVehicle(v); setShowForm(true); }}
+              onFuel={(v: Vehicle) => { setSelectedVehicle(v); setShowFuel(true); }}
+              onMaintenance={(v: Vehicle) => { setSelectedVehicle(v); setShowMaintenance(true); }}
             />
           )}
 
@@ -154,8 +245,8 @@ export default function FleetPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -172,7 +263,7 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
   );
 }
 
-function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }) {
+function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }: VehiclesGridProps) {
   if (vehicles.length === 0) {
     return (
       <div className="text-center py-12 bg-gray-50 rounded-xl">
@@ -184,7 +275,7 @@ function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {vehicles.map(vehicle => (
+      {vehicles.map((vehicle: Vehicle) => (
         <VehicleCard
           key={vehicle.id}
           vehicle={vehicle}
@@ -197,9 +288,9 @@ function VehiclesGrid({ vehicles, onSelect, onEdit, onFuel, onMaintenance }) {
   );
 }
 
-function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
-  const hasAlert = vehicle.status === 'maintenance' || 
-    (vehicle.nextOilChangeMiles && vehicle.currentMileage >= vehicle.nextOilChangeMiles - 500);
+function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }: VehicleCardProps) {
+  const hasAlert = vehicle.status === 'maintenance' ||
+    (vehicle.nextOilChangeMiles && typeof vehicle.currentMileage === 'number' && vehicle.currentMileage >= vehicle.nextOilChangeMiles - 500);
 
   return (
     <div className="bg-white rounded-xl border p-4 hover:shadow-lg transition-shadow">
@@ -238,7 +329,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
       <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
         <div>
           <p className="text-gray-500">Mileage</p>
-          <p className="font-medium">{vehicle.currentMileage?.toLocaleString()} mi</p>
+          <p className="font-medium">{typeof vehicle.currentMileage === 'number' ? vehicle.currentMileage.toLocaleString() : vehicle.currentMileage} mi</p>
         </div>
         <div>
           <p className="text-gray-500">Assigned To</p>
@@ -283,7 +374,7 @@ function VehicleCard({ vehicle, onEdit, onFuel, onMaintenance }) {
   );
 }
 
-function FleetMap({ vehicles }) {
+function FleetMap({ vehicles }: FleetMapProps) {
   // Simple placeholder - in production would use Google Maps or Mapbox
   return (
     <div className="bg-white rounded-xl border overflow-hidden">
@@ -294,24 +385,24 @@ function FleetMap({ vehicles }) {
         <div className="text-center text-gray-500">
           <MapPin className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p>Map integration requires Google Maps API key</p>
-          <p className="text-sm mt-2">{vehicles.filter(v => v.currentLocation).length} vehicles with locations</p>
+          <p className="text-sm mt-2">{vehicles.filter((v: Vehicle) => v.currentLocation).length} vehicles with locations</p>
         </div>
       </div>
       {/* Vehicle list with locations */}
       <div className="divide-y max-h-64 overflow-y-auto">
-        {vehicles.filter(v => v.currentLocation).map(v => (
+        {vehicles.filter((v: Vehicle) => v.currentLocation).map((v: Vehicle) => (
           <div key={v.id} className="p-3 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Truck className="w-5 h-5 text-gray-400" />
               <div>
                 <p className="font-medium">{v.name}</p>
                 <p className="text-sm text-gray-500">
-                  {v.currentLocation.lat.toFixed(4)}, {v.currentLocation.lng.toFixed(4)}
+                  {v.currentLocation!.lat.toFixed(4)}, {v.currentLocation!.lng.toFixed(4)}
                 </p>
               </div>
             </div>
-            {v.currentLocation.speed > 0 && (
-              <span className="text-sm text-green-600">{Math.round(v.currentLocation.speed)} mph</span>
+            {v.currentLocation!.speed > 0 && (
+              <span className="text-sm text-green-600">{Math.round(v.currentLocation!.speed)} mph</span>
             )}
           </div>
         ))}
@@ -321,8 +412,8 @@ function FleetMap({ vehicles }) {
 }
 
 function TripsTab() {
-  const [trips, setTrips] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadTrips();
@@ -361,7 +452,7 @@ function TripsTab() {
           </tr>
         </thead>
         <tbody className="divide-y">
-          {trips.map(trip => (
+          {trips.map((trip: Trip) => (
             <tr key={trip.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium">{trip.vehicle?.name}</td>
               <td className="px-4 py-3 text-gray-500">
@@ -386,8 +477,17 @@ function TripsTab() {
   );
 }
 
-function VehicleFormModal({ vehicle, onSave, onClose }) {
-  const [form, setForm] = useState({
+function VehicleFormModal({ vehicle, onSave, onClose }: VehicleFormModalProps) {
+  const [form, setForm] = useState<{
+    name: string;
+    type: string;
+    make: string;
+    model: string;
+    year: string;
+    licensePlate: string;
+    vin: string;
+    currentMileage: string | number;
+  }>({
     name: vehicle?.name || '',
     type: vehicle?.type || 'truck',
     make: vehicle?.make || '',
@@ -397,9 +497,9 @@ function VehicleFormModal({ vehicle, onSave, onClose }) {
     vin: vehicle?.vin || '',
     currentMileage: vehicle?.currentMileage || '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -426,12 +526,12 @@ function VehicleFormModal({ vehicle, onSave, onClose }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., Truck 1" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
+                <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="truck">Truck</option>
                   <option value="van">Van</option>
@@ -441,27 +541,27 @@ function VehicleFormModal({ vehicle, onSave, onClose }) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                <input type="number" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })}
+                <input type="number" value={form.year} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, year: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Make</label>
-                <input type="text" value={form.make} onChange={(e) => setForm({ ...form, make: e.target.value })}
+                <input type="text" value={form.make} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, make: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., Ford" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Model</label>
-                <input type="text" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}
+                <input type="text" value={form.model} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, model: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" placeholder="e.g., F-150" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">License Plate</label>
-                <input type="text" value={form.licensePlate} onChange={(e) => setForm({ ...form, licensePlate: e.target.value })}
+                <input type="text" value={form.licensePlate} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, licensePlate: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Mileage</label>
-                <input type="number" value={form.currentMileage} onChange={(e) => setForm({ ...form, currentMileage: e.target.value })}
+                <input type="number" value={form.currentMileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, currentMileage: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>
@@ -478,17 +578,23 @@ function VehicleFormModal({ vehicle, onSave, onClose }) {
   );
 }
 
-function FuelEntryModal({ vehicle, onSave, onClose }) {
-  const [form, setForm] = useState({
+function FuelEntryModal({ vehicle, onSave, onClose }: FuelEntryModalProps) {
+  const [form, setForm] = useState<{
+    date: string;
+    gallons: string;
+    pricePerGallon: string;
+    mileage: string | number;
+    station: string;
+  }>({
     date: new Date().toISOString().split('T')[0],
     gallons: '',
     pricePerGallon: '',
     mileage: vehicle.currentMileage || '',
     station: '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -501,8 +607,8 @@ function FuelEntryModal({ vehicle, onSave, onClose }) {
     }
   };
 
-  const totalCost = form.gallons && form.pricePerGallon 
-    ? (form.gallons * form.pricePerGallon).toFixed(2) 
+  const totalCost = form.gallons && form.pricePerGallon
+    ? (Number(form.gallons) * Number(form.pricePerGallon)).toFixed(2)
     : '0.00';
 
   return (
@@ -514,18 +620,18 @@ function FuelEntryModal({ vehicle, onSave, onClose }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}
+              <input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Gallons</label>
-                <input type="number" step="0.01" value={form.gallons} onChange={(e) => setForm({ ...form, gallons: e.target.value })}
+                <input type="number" step="0.01" value={form.gallons} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, gallons: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Price/Gallon</label>
-                <input type="number" step="0.01" value={form.pricePerGallon} onChange={(e) => setForm({ ...form, pricePerGallon: e.target.value })}
+                <input type="number" step="0.01" value={form.pricePerGallon} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, pricePerGallon: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
             </div>
@@ -535,7 +641,7 @@ function FuelEntryModal({ vehicle, onSave, onClose }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Current Mileage</label>
-              <input type="number" value={form.mileage} onChange={(e) => setForm({ ...form, mileage: e.target.value })}
+              <input type="number" value={form.mileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, mileage: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" />
             </div>
             <div className="flex gap-3 pt-4">
@@ -551,8 +657,15 @@ function FuelEntryModal({ vehicle, onSave, onClose }) {
   );
 }
 
-function MaintenanceModal({ vehicle, onSave, onClose }) {
-  const [form, setForm] = useState({
+function MaintenanceModal({ vehicle, onSave, onClose }: MaintenanceModalProps) {
+  const [form, setForm] = useState<{
+    date: string;
+    type: string;
+    description: string;
+    mileage: string | number;
+    cost: string;
+    vendor: string;
+  }>({
     date: new Date().toISOString().split('T')[0],
     type: 'oil_change',
     description: '',
@@ -560,9 +673,9 @@ function MaintenanceModal({ vehicle, onSave, onClose }) {
     cost: '',
     vendor: '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -585,12 +698,12 @@ function MaintenanceModal({ vehicle, onSave, onClose }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })}
+                <input type="date" value={form.date} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, date: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
+                <select value={form.type} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, type: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="oil_change">Oil Change</option>
                   <option value="tire">Tires</option>
@@ -603,18 +716,18 @@ function MaintenanceModal({ vehicle, onSave, onClose }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })}
+              <textarea value={form.description} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" rows={2} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Mileage</label>
-                <input type="number" value={form.mileage} onChange={(e) => setForm({ ...form, mileage: e.target.value })}
+                <input type="number" value={form.mileage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, mileage: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Cost</label>
-                <input type="number" step="0.01" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })}
+                <input type="number" step="0.01" value={form.cost} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, cost: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" />
               </div>
             </div>

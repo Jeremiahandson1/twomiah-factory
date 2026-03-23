@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, Briefcase } from 'lucide-react';
 
 export default function SchedulePage() {
   const toast = useToast();
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -14,9 +14,9 @@ export default function SchedulePage() {
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(endOfWeek.getDate() + 6);
-    
+
     api.jobs.list({ startDate: startOfWeek.toISOString(), endDate: endOfWeek.toISOString(), limit: 100 })
-      .then(res => setJobs(res.data))
+      .then((res: unknown) => setJobs(((res as Record<string, unknown>).data || []) as Record<string, unknown>[]))
       .catch(() => toast.error('Failed to load schedule'))
       .finally(() => setLoading(false));
   }, [currentDate]);
@@ -25,13 +25,13 @@ export default function SchedulePage() {
   const startOfWeek = new Date(currentDate);
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
 
-  const days = Array.from({ length: 7 }, (_, i) => {
+  const days = Array.from({ length: 7 }, (_: unknown, i: number) => {
     const d = new Date(startOfWeek);
     d.setDate(d.getDate() + i);
     return d;
   });
 
-  const getJobsForDay = (date) => jobs.filter(j => j.scheduledDate && new Date(j.scheduledDate).toDateString() === date.toDateString());
+  const getJobsForDay = (date: Date) => jobs.filter((j: Record<string, unknown>) => j.scheduledDate && new Date(j.scheduledDate as string).toDateString() === date.toDateString());
 
   return (
     <div>
@@ -45,17 +45,17 @@ export default function SchedulePage() {
       </div>
       {loading ? <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" /></div> : (
         <div className="grid grid-cols-7 gap-4">
-          {days.map((day, i) => (
+          {days.map((day: Date, i: number) => (
             <div key={i} className={`bg-white rounded-lg shadow-sm overflow-hidden ${day.toDateString() === new Date().toDateString() ? 'ring-2 ring-orange-500' : ''}`}>
               <div className={`px-3 py-2 text-center border-b ${day.toDateString() === new Date().toDateString() ? 'bg-orange-500 text-white' : 'bg-gray-50'}`}>
                 <p className="text-xs font-medium">{weekDays[i]}</p>
                 <p className="text-lg font-bold">{day.getDate()}</p>
               </div>
               <div className="p-2 space-y-2 min-h-[200px]">
-                {getJobsForDay(day).map(job => (
-                  <div key={job.id} className={`p-2 rounded text-xs ${job.status === 'completed' ? 'bg-green-50 border-l-2 border-green-500' : job.status === 'in_progress' ? 'bg-blue-50 border-l-2 border-blue-500' : 'bg-gray-50 border-l-2 border-gray-300'}`}>
-                    <p className="font-medium truncate">{job.title}</p>
-                    {job.scheduledTime && <p className="text-gray-500">{job.scheduledTime}</p>}
+                {getJobsForDay(day).map((job: Record<string, unknown>) => (
+                  <div key={job.id as string} className={`p-2 rounded text-xs ${job.status === 'completed' ? 'bg-green-50 border-l-2 border-green-500' : job.status === 'in_progress' ? 'bg-blue-50 border-l-2 border-blue-500' : 'bg-gray-50 border-l-2 border-gray-300'}`}>
+                    <p className="font-medium truncate">{job.title as string}</p>
+                    {!!job.scheduledTime && <p className="text-gray-500">{job.scheduledTime as string}</p>}
                   </div>
                 ))}
               </div>

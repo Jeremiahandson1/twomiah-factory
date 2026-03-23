@@ -8,14 +8,42 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
 
+interface LineItem {
+  description: string;
+  quantity: string | number;
+  unitPrice: string | number;
+  total: string | number;
+}
+
+interface QuoteDetailData {
+  id: string;
+  number: string;
+  name: string;
+  status: string;
+  total: string | number;
+  subtotal: string | number;
+  taxAmount: string | number;
+  taxRate?: string | number;
+  discount?: string | number;
+  notes?: string | null;
+  terms?: string | null;
+  expiryDate?: string | null;
+  createdAt: string;
+  lineItems?: LineItem[];
+  contact?: { id: string; name: string } | null;
+  project?: { id: string; name: string } | null;
+  [key: string]: unknown;
+}
+
 export default function QuoteDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [quote, setQuote] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [quote, setQuote] = useState<QuoteDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
 
   useEffect(() => { loadQuote(); }, [id]);
 
@@ -24,8 +52,9 @@ export default function QuoteDetailPage() {
     try {
       const data = await api.quotes.get(id);
       setQuote(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -36,8 +65,9 @@ export default function QuoteDetailPage() {
       await api.quotes.delete(id);
       toast.success('Quote deleted');
       navigate('/crm/quotes');
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -46,8 +76,9 @@ export default function QuoteDetailPage() {
       await api.quotes.send(id);
       toast.success('Quote sent');
       loadQuote();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -56,8 +87,9 @@ export default function QuoteDetailPage() {
       await api.quotes.approve(id);
       toast.success('Quote approved');
       loadQuote();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -66,8 +98,9 @@ export default function QuoteDetailPage() {
       const invoice = await api.quotes.convertToInvoice(id);
       toast.success('Invoice created');
       navigate(`/crm/invoices/${invoice.id}`);
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -128,7 +161,7 @@ export default function QuoteDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {quote.lineItems?.map((item, i) => (
+                {quote.lineItems?.map((item: LineItem, i: number) => (
                   <tr key={i}>
                     <td className="px-4 py-3">{item.description}</td>
                     <td className="px-4 py-3 text-right">{Number(item.quantity)}</td>
@@ -138,10 +171,10 @@ export default function QuoteDetailPage() {
                 ))}
               </tbody>
               <tfoot className="bg-gray-50">
-                <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(quote.subtotal).toFixed(2)}</td></tr>
-                {Number(quote.taxAmount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Tax ({quote.taxRate}%)</td><td className="px-4 py-2 text-right">${Number(quote.taxAmount).toFixed(2)}</td></tr>}
-                {Number(quote.discount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-red-600">-${Number(quote.discount).toFixed(2)}</td></tr>}
-                <tr className="font-bold"><td colSpan="3" className="px-4 py-3 text-right">Total</td><td className="px-4 py-3 text-right text-lg">${Number(quote.total).toFixed(2)}</td></tr>
+                <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(quote.subtotal).toFixed(2)}</td></tr>
+                {Number(quote.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax ({quote.taxRate}%)</td><td className="px-4 py-2 text-right">${Number(quote.taxAmount).toFixed(2)}</td></tr>}
+                {Number(quote.discount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-red-600">-${Number(quote.discount).toFixed(2)}</td></tr>}
+                <tr className="font-bold"><td colSpan={3} className="px-4 py-3 text-right">Total</td><td className="px-4 py-3 text-right text-lg">${Number(quote.total).toFixed(2)}</td></tr>
               </tfoot>
             </table>
           </div>

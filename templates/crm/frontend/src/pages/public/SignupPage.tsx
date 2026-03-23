@@ -4,8 +4,50 @@ import { Building, User, CreditCard, Check, X, ArrowLeft, ArrowRight, Loader2, E
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+interface Plan {
+  id: string;
+  name: string;
+  price: number;
+  priceAnnual: number;
+  description: string;
+  users: number;
+  popular?: boolean;
+  highlights: string[];
+}
+
+interface FeatureComparisonItem {
+  name: string;
+  starter: boolean | string;
+  pro: boolean | string;
+  business: boolean | string;
+  construction: boolean | string;
+  [key: string]: boolean | string;
+}
+
+interface FeatureGroup {
+  category: string;
+  features: FeatureComparisonItem[];
+}
+
+interface FormData {
+  companyName: string;
+  industry: string;
+  phone: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  website: string;
+  employeeCount: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+}
+
 // Plan data (matches pricing config)
-const PLANS = {
+const PLANS: Record<string, Plan> = {
   starter: {
     id: 'starter',
     name: 'Starter',
@@ -85,7 +127,7 @@ const PLANS = {
   },
 };
 
-const FEATURE_COMPARISON = [
+const FEATURE_COMPARISON: FeatureGroup[] = [
   { category: 'Core', features: [
     { name: 'Contacts / CRM', starter: true, pro: true, business: true, construction: true },
     { name: 'Jobs & Work Orders', starter: true, pro: true, business: true, construction: true },
@@ -134,7 +176,7 @@ const FEATURE_COMPARISON = [
   ]},
 ];
 
-const INDUSTRIES = [
+const INDUSTRIES: { value: string; label: string }[] = [
   { value: 'plumber', label: 'Plumbing' },
   { value: 'hvac', label: 'HVAC' },
   { value: 'electrician', label: 'Electrical' },
@@ -150,7 +192,13 @@ const INDUSTRIES = [
   { value: 'other', label: 'Other' },
 ];
 
-const STEPS = [
+interface StepDef {
+  id: string;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const STEPS: StepDef[] = [
   { id: 'plan', title: 'Select Plan', icon: Building },
   { id: 'company', title: 'Company Info', icon: Building },
   { id: 'account', title: 'Your Account', icon: User },
@@ -160,15 +208,15 @@ const STEPS = [
 export default function SignupPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
-  const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  
+
+  const [step, setStep] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+
   // Form state
-  const [selectedPlan, setSelectedPlan] = useState(searchParams.get('plan') || 'pro');
-  const [billingCycle, setBillingCycle] = useState('monthly');
-  const [formData, setFormData] = useState({
+  const [selectedPlan, setSelectedPlan] = useState<string>(searchParams.get('plan') || 'pro');
+  const [billingCycle, setBillingCycle] = useState<string>('monthly');
+  const [formData, setFormData] = useState<FormData>({
     companyName: '',
     industry: '',
     phone: '',
@@ -184,9 +232,9 @@ export default function SignupPage() {
     password: '',
     confirmPassword: '',
   });
-  
-  const [showPassword, setShowPassword] = useState(false);
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [agreedToTerms, setAgreedToTerms] = useState<boolean>(false);
 
   useEffect(() => {
     if (searchParams.get('plan')) {
@@ -194,12 +242,12 @@ export default function SignupPage() {
     }
   }, [searchParams]);
 
-  const updateForm = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const updateForm = (field: string, value: string) => {
+    setFormData((prev: FormData) => ({ ...prev, [field]: value }));
     setError('');
   };
 
-  const validateStep = () => {
+  const validateStep = (): boolean => {
     switch (step) {
       case 0:
         if (!selectedPlan) {
@@ -207,7 +255,7 @@ export default function SignupPage() {
           return false;
         }
         return true;
-        
+
       case 1:
         if (!formData.companyName.trim()) {
           setError('Company name is required');
@@ -222,7 +270,7 @@ export default function SignupPage() {
           return false;
         }
         return true;
-        
+
       case 2:
         if (!formData.firstName.trim() || !formData.lastName.trim()) {
           setError('First and last name are required');
@@ -249,7 +297,7 @@ export default function SignupPage() {
           return false;
         }
         return true;
-        
+
       default:
         return true;
     }
@@ -296,8 +344,8 @@ export default function SignupPage() {
       localStorage.setItem('refreshToken', data.refreshToken);
       sessionStorage.setItem('signup_company_id', data.company.id);
       setStep(3);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -338,8 +386,8 @@ export default function SignupPage() {
       }
 
       window.location.href = data.checkoutUrl;
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
@@ -357,7 +405,7 @@ export default function SignupPage() {
               <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                 <Building className="w-6 h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
+              <span className="text-2xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</span>
             </Link>
             <Link to="/login" className="text-gray-600 hover:text-gray-900">
               Already have an account? Log in
@@ -370,11 +418,11 @@ export default function SignupPage() {
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-between">
-            {STEPS.map((s, i) => {
+            {STEPS.map((s: StepDef, i: number) => {
               const Icon = s.icon;
               const isActive = i === step;
               const isComplete = i < step;
-              
+
               return (
                 <React.Fragment key={s.id}>
                   <div className="flex flex-col items-center">
@@ -449,7 +497,7 @@ export default function SignupPage() {
               <ArrowLeft className="w-4 h-4" />
               Back
             </button>
-            
+
             <button
               onClick={handleNext}
               disabled={loading}
@@ -474,9 +522,16 @@ export default function SignupPage() {
   );
 }
 
-function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle }) {
-  const [showComparison, setShowComparison] = useState(false);
-  const tierKeys = ['starter', 'pro', 'business', 'construction'];
+interface PlanSelectionProps {
+  selectedPlan: string;
+  setSelectedPlan: (plan: string) => void;
+  billingCycle: string;
+  setBillingCycle: (cycle: string) => void;
+}
+
+function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle }: PlanSelectionProps) {
+  const [showComparison, setShowComparison] = useState<boolean>(false);
+  const tierKeys: string[] = ['starter', 'pro', 'business', 'construction'];
 
   return (
     <div>
@@ -498,7 +553,7 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Object.values(PLANS).map((plan) => {
+        {Object.values(PLANS).map((plan: Plan) => {
           const price = billingCycle === 'annual' ? plan.priceAnnual : plan.price;
           const isSelected = selectedPlan === plan.id;
 
@@ -521,7 +576,7 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
               <p className="text-sm text-gray-500 mt-1">{plan.users} users included</p>
               <p className="text-sm text-gray-600 mt-2 mb-3">{plan.description}</p>
               <ul className="space-y-1 mb-3">
-                {plan.highlights.map((h, i) => (
+                {plan.highlights.map((h: string, i: number) => (
                   <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">
                     <Check className="w-3.5 h-3.5 text-orange-500 mt-0.5 shrink-0" />
                     {h}
@@ -556,7 +611,7 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
             <thead>
               <tr className="border-b-2 border-gray-200">
                 <th className="text-left py-3 pr-4 font-medium text-gray-500 w-1/3">Feature</th>
-                {tierKeys.map(k => (
+                {tierKeys.map((k: string) => (
                   <th key={k} className={`text-center py-3 px-2 font-semibold ${selectedPlan === k ? 'text-orange-600' : 'text-gray-700'}`}>
                     {PLANS[k].name}
                   </th>
@@ -564,23 +619,23 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
               </tr>
             </thead>
             <tbody>
-              {FEATURE_COMPARISON.map((group) => (
+              {FEATURE_COMPARISON.map((group: FeatureGroup) => (
                 <React.Fragment key={group.category}>
                   <tr>
                     <td colSpan={5} className="pt-4 pb-2 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                       {group.category}
                     </td>
                   </tr>
-                  {group.features.map((f) => (
+                  {group.features.map((f: FeatureComparisonItem) => (
                     <tr key={f.name} className="border-b border-gray-100">
                       <td className="py-2 pr-4 text-gray-700">{f.name}</td>
-                      {tierKeys.map(k => {
+                      {tierKeys.map((k: string) => {
                         const val = f[k];
                         return (
                           <td key={k} className={`text-center py-2 px-2 ${selectedPlan === k ? 'bg-orange-50/50' : ''}`}>
                             {val === true ? <Check className="w-4 h-4 text-green-500 mx-auto" /> :
                              val === false ? <X className="w-4 h-4 text-gray-300 mx-auto" /> :
-                             <span className="text-gray-700 font-medium">{val}</span>}
+                             <span className="text-gray-700 font-medium">{val as string}</span>}
                           </td>
                         );
                       })}
@@ -596,7 +651,12 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
   );
 }
 
-function CompanyInfo({ formData, updateForm }) {
+interface CompanyInfoProps {
+  formData: FormData;
+  updateForm: (field: string, value: string) => void;
+}
+
+function CompanyInfo({ formData, updateForm }: CompanyInfoProps) {
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Company Information</h2>
@@ -608,7 +668,7 @@ function CompanyInfo({ formData, updateForm }) {
           <input
             type="text"
             value={formData.companyName}
-            onChange={(e) => updateForm('companyName', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('companyName', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="Acme Plumbing Co."
           />
@@ -618,11 +678,11 @@ function CompanyInfo({ formData, updateForm }) {
           <label className="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
           <select
             value={formData.industry}
-            onChange={(e) => updateForm('industry', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateForm('industry', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
           >
             <option value="">Select your industry</option>
-            {INDUSTRIES.map((ind) => (
+            {INDUSTRIES.map((ind: { value: string; label: string }) => (
               <option key={ind.value} value={ind.value}>{ind.label}</option>
             ))}
           </select>
@@ -633,7 +693,7 @@ function CompanyInfo({ formData, updateForm }) {
           <input
             type="tel"
             value={formData.phone}
-            onChange={(e) => updateForm('phone', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('phone', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="(555) 123-4567"
           />
@@ -644,7 +704,7 @@ function CompanyInfo({ formData, updateForm }) {
           <input
             type="text"
             value={formData.address}
-            onChange={(e) => updateForm('address', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('address', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="123 Main Street"
           />
@@ -655,7 +715,7 @@ function CompanyInfo({ formData, updateForm }) {
           <input
             type="text"
             value={formData.city}
-            onChange={(e) => updateForm('city', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('city', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="Austin"
           />
@@ -667,7 +727,7 @@ function CompanyInfo({ formData, updateForm }) {
             <input
               type="text"
               value={formData.state}
-              onChange={(e) => updateForm('state', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('state', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
               placeholder="TX"
             />
@@ -677,7 +737,7 @@ function CompanyInfo({ formData, updateForm }) {
             <input
               type="text"
               value={formData.zip}
-              onChange={(e) => updateForm('zip', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('zip', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
               placeholder="78701"
             />
@@ -689,7 +749,7 @@ function CompanyInfo({ formData, updateForm }) {
           <input
             type="url"
             value={formData.website}
-            onChange={(e) => updateForm('website', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('website', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="https://acmeplumbing.com"
           />
@@ -699,7 +759,7 @@ function CompanyInfo({ formData, updateForm }) {
           <label className="block text-sm font-medium text-gray-700 mb-1">Number of Employees</label>
           <select
             value={formData.employeeCount}
-            onChange={(e) => updateForm('employeeCount', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => updateForm('employeeCount', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
           >
             <option value="1-5">1-5</option>
@@ -715,7 +775,16 @@ function CompanyInfo({ formData, updateForm }) {
   );
 }
 
-function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agreedToTerms, setAgreedToTerms }) {
+interface AccountInfoProps {
+  formData: FormData;
+  updateForm: (field: string, value: string) => void;
+  showPassword: boolean;
+  setShowPassword: (show: boolean) => void;
+  agreedToTerms: boolean;
+  setAgreedToTerms: (agreed: boolean) => void;
+}
+
+function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agreedToTerms, setAgreedToTerms }: AccountInfoProps) {
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Account</h2>
@@ -727,7 +796,7 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
           <input
             type="text"
             value={formData.firstName}
-            onChange={(e) => updateForm('firstName', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('firstName', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="John"
           />
@@ -738,7 +807,7 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
           <input
             type="text"
             value={formData.lastName}
-            onChange={(e) => updateForm('lastName', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('lastName', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="Smith"
           />
@@ -749,7 +818,7 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
           <input
             type="email"
             value={formData.email}
-            onChange={(e) => updateForm('email', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('email', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="john@acmeplumbing.com"
           />
@@ -761,7 +830,7 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
             <input
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
-              onChange={(e) => updateForm('password', e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('password', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 pr-12 text-gray-900"
               placeholder="••••••••"
             />
@@ -781,7 +850,7 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
           <input
             type={showPassword ? 'text' : 'password'}
             value={formData.confirmPassword}
-            onChange={(e) => updateForm('confirmPassword', e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateForm('confirmPassword', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             placeholder="••••••••"
           />
@@ -792,7 +861,7 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
             <input
               type="checkbox"
               checked={agreedToTerms}
-              onChange={(e) => setAgreedToTerms(e.target.checked)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAgreedToTerms(e.target.checked)}
               className="w-5 h-5 text-orange-500 border-gray-300 rounded focus:ring-orange-500 mt-0.5 text-gray-900"
             />
             <span className="text-sm text-gray-600">
@@ -808,11 +877,20 @@ function AccountInfo({ formData, updateForm, showPassword, setShowPassword, agre
   );
 }
 
-function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loading }) {
+interface PaymentStepProps {
+  plan: Plan;
+  price: number | undefined;
+  billingCycle: string;
+  onStartTrial: () => void;
+  onSubscribe: () => void;
+  loading: boolean;
+}
+
+function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loading }: PaymentStepProps) {
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Start Your Free Trial</h2>
-      <p className="text-gray-600 mb-6">Try {{COMPANY_NAME}} free for 14 days. No credit card required.</p>
+      <p className="text-gray-600 mb-6">Try {'{{COMPANY_NAME}}'} free for 14 days. No credit card required.</p>
 
       <div className="bg-gray-50 rounded-lg p-6 mb-8">
         <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>

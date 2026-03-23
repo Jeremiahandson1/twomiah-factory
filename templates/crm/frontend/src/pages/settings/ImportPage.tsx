@@ -1,11 +1,31 @@
 import { useState, useCallback } from 'react';
-import { 
-  Upload, Download, FileText, Check, X, AlertCircle, 
-  Loader2, Users, FolderKanban, Briefcase, Package 
+import {
+  Upload, Download, FileText, Check, X, AlertCircle,
+  Loader2, Users, FolderKanban, Briefcase, Package
 } from 'lucide-react';
 import api from '../../services/api';
 
-const IMPORT_TYPES = [
+interface ImportType {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+}
+
+interface PreviewData {
+  rowCount: number;
+  columns: string[];
+  preview: Record<string, string>[];
+}
+
+interface ImportResults {
+  total: number;
+  imported: number;
+  skipped: number;
+  errors?: { row: number; error: string }[];
+}
+
+const IMPORT_TYPES: ImportType[] = [
   { id: 'contacts', label: 'Contacts', icon: Users, description: 'Import customers, vendors, and leads' },
   { id: 'projects', label: 'Projects', icon: FolderKanban, description: 'Import project records' },
   { id: 'jobs', label: 'Jobs', icon: Briefcase, description: 'Import work orders and jobs' },
@@ -13,19 +33,19 @@ const IMPORT_TYPES = [
 ];
 
 export default function ImportPage() {
-  const [selectedType, setSelectedType] = useState('contacts');
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [importing, setImporting] = useState(false);
-  const [results, setResults] = useState(null);
-  const [error, setError] = useState(null);
+  const [selectedType, setSelectedType] = useState<string>('contacts');
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<PreviewData | null>(null);
+  const [importing, setImporting] = useState<boolean>(false);
+  const [results, setResults] = useState<ImportResults | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [options, setOptions] = useState({
     skipDuplicates: true,
     updateExisting: false,
     defaultType: 'client',
   });
 
-  const handleFileChange = async (e) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
@@ -39,9 +59,9 @@ export default function ImportPage() {
       formData.append('file', selectedFile);
 
       const previewData = await api.upload(`/import/preview/${selectedType}`, formData);
-      setPreview(previewData);
-    } catch (err) {
-      setError(err.message || 'Failed to preview file');
+      setPreview(previewData as PreviewData);
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Failed to preview file');
       setPreview(null);
     }
   };
@@ -56,21 +76,21 @@ export default function ImportPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      Object.entries(options).forEach(([key, value]) => {
+      Object.entries(options).forEach(([key, value]: [string, string | boolean]) => {
         formData.append(key, String(value));
       });
 
       const result = await api.upload(`/import/${selectedType}`, formData);
-      setResults(result);
-    } catch (err) {
-      setError(err.message || 'Import failed');
+      setResults(result as ImportResults);
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Import failed');
     } finally {
       setImporting(false);
     }
   };
 
   const handleDownloadTemplate = () => {
-    window.open(`${api.baseUrl}/import/template/${selectedType}`, '_blank');
+    window.open(`${(api as unknown as Record<string, string>).baseUrl || ''}/import/template/${selectedType}`, '_blank');
   };
 
   const resetImport = () => {
@@ -92,7 +112,7 @@ export default function ImportPage() {
       <div className="bg-white rounded-xl border p-6">
         <h2 className="font-semibold text-gray-900 mb-4">What do you want to import?</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {IMPORT_TYPES.map((type) => {
+          {IMPORT_TYPES.map((type: ImportType) => {
             const Icon = type.icon;
             return (
               <button
@@ -136,7 +156,7 @@ export default function ImportPage() {
       {/* File Upload */}
       <div className="bg-white rounded-xl border p-6">
         <h2 className="font-semibold text-gray-900 mb-4">Upload CSV File</h2>
-        
+
         {!file ? (
           <label className="block border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors text-gray-900">
             <Upload className="w-12 h-12 mx-auto text-gray-400 mb-3" />
@@ -159,7 +179,7 @@ export default function ImportPage() {
                   <p className="font-medium text-gray-900">{file.name}</p>
                   <p className="text-sm text-gray-500">
                     {(file.size / 1024).toFixed(1)} KB
-                    {preview && ` • ${preview.rowCount} rows`}
+                    {preview && ` \u2022 ${preview.rowCount} rows`}
                   </p>
                 </div>
               </div>
@@ -179,7 +199,7 @@ export default function ImportPage() {
                   <table className="min-w-full text-sm border rounded-lg overflow-hidden">
                     <thead className="bg-gray-50">
                       <tr>
-                        {preview.columns.map((col, i) => (
+                        {preview.columns.map((col: string, i: number) => (
                           <th key={i} className="px-3 py-2 text-left font-medium text-gray-700 border-b">
                             {col}
                           </th>
@@ -187,9 +207,9 @@ export default function ImportPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {preview.preview.map((row, i) => (
+                      {preview.preview.map((row: Record<string, string>, i: number) => (
                         <tr key={i} className="border-b last:border-0">
-                          {preview.columns.map((col, j) => (
+                          {preview.columns.map((col: string, j: number) => (
                             <td key={j} className="px-3 py-2 text-gray-600 truncate max-w-48">
                               {row[col]}
                             </td>
@@ -214,7 +234,7 @@ export default function ImportPage() {
               <input
                 type="checkbox"
                 checked={options.skipDuplicates}
-                onChange={(e) => setOptions({ ...options, skipDuplicates: e.target.checked })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOptions({ ...options, skipDuplicates: e.target.checked })}
                 className="w-4 h-4 rounded border-gray-300 text-gray-900"
               />
               <span className="text-gray-700">Skip duplicate records</span>
@@ -223,7 +243,7 @@ export default function ImportPage() {
               <input
                 type="checkbox"
                 checked={options.updateExisting}
-                onChange={(e) => setOptions({ ...options, updateExisting: e.target.checked })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setOptions({ ...options, updateExisting: e.target.checked })}
                 className="w-4 h-4 rounded border-gray-300 text-gray-900"
               />
               <span className="text-gray-700">Update existing records if found</span>
@@ -233,7 +253,7 @@ export default function ImportPage() {
                 <span className="text-gray-700">Default contact type:</span>
                 <select
                   value={options.defaultType}
-                  onChange={(e) => setOptions({ ...options, defaultType: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setOptions({ ...options, defaultType: e.target.value })}
                   className="px-3 py-1.5 border rounded-lg"
                 >
                   <option value="client">Client</option>
@@ -259,7 +279,7 @@ export default function ImportPage() {
       {results && (
         <div className="bg-white rounded-xl border p-6">
           <h2 className="font-semibold text-gray-900 mb-4">Import Results</h2>
-          
+
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <p className="text-3xl font-bold text-gray-900">{results.total}</p>
@@ -275,11 +295,11 @@ export default function ImportPage() {
             </div>
           </div>
 
-          {results.errors?.length > 0 && (
+          {results.errors && results.errors.length > 0 && (
             <div>
               <h3 className="font-medium text-gray-900 mb-2">Errors ({results.errors.length})</h3>
               <div className="max-h-40 overflow-y-auto space-y-1">
-                {results.errors.map((err, i) => (
+                {results.errors.map((err: { row: number; error: string }, i: number) => (
                   <div key={i} className="text-sm text-red-600 bg-red-50 px-3 py-1.5 rounded">
                     Row {err.row}: {err.error}
                   </div>
@@ -299,7 +319,7 @@ export default function ImportPage() {
               href={`/${selectedType}`}
               className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-center"
             >
-              View {IMPORT_TYPES.find(t => t.id === selectedType)?.label}
+              View {IMPORT_TYPES.find((t: ImportType) => t.id === selectedType)?.label}
             </a>
           </div>
         </div>

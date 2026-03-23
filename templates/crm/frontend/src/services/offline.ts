@@ -17,15 +17,15 @@ const STORES = {
   USER_DATA: 'user_data',
 };
 
-let db = null;
+let db: IDBDatabase | null = null;
 
 /**
  * Initialize the database
  */
-export async function initDB() {
+export async function initDB(): Promise<IDBDatabase> {
   if (db) return db;
 
-  return new Promise((resolve, reject) => {
+  return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => reject(request.error);
@@ -35,8 +35,8 @@ export async function initDB() {
       resolve(db);
     };
 
-    request.onupgradeneeded = (event) => {
-      const database = event.target.result;
+    request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+      const database = (event.target as IDBOpenDBRequest).result;
 
       // Cache store for API responses
       if (!database.objectStoreNames.contains(STORES.CACHE)) {
@@ -66,11 +66,11 @@ export async function initDB() {
 /**
  * Get database connection
  */
-async function getDB() {
+async function getDB(): Promise<IDBDatabase> {
   if (!db) {
     await initDB();
   }
-  return db;
+  return db!;
 }
 
 // ============================================
@@ -80,7 +80,7 @@ async function getDB() {
 /**
  * Cache data with optional expiration
  */
-export async function cacheData(key, data, { type = 'api', ttl = 3600000 } = {}) {
+export async function cacheData(key: string, data: unknown, { type = 'api', ttl = 3600000 }: { type?: string; ttl?: number } = {}): Promise<Record<string, unknown>> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -104,7 +104,7 @@ export async function cacheData(key, data, { type = 'api', ttl = 3600000 } = {})
 /**
  * Get cached data
  */
-export async function getCachedData(key) {
+export async function getCachedData(key: string): Promise<unknown> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -133,7 +133,7 @@ export async function getCachedData(key) {
 /**
  * Delete cached data
  */
-export async function deleteCachedData(key) {
+export async function deleteCachedData(key: string): Promise<boolean> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -149,7 +149,7 @@ export async function deleteCachedData(key) {
 /**
  * Clear all cached data
  */
-export async function clearCache() {
+export async function clearCache(): Promise<boolean> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -165,7 +165,7 @@ export async function clearCache() {
 /**
  * Clear expired cache entries
  */
-export async function clearExpiredCache() {
+export async function clearExpiredCache(): Promise<number> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -176,8 +176,8 @@ export async function clearExpiredCache() {
     const request = index.openCursor();
     let deleted = 0;
     
-    request.onsuccess = (event) => {
-      const cursor = event.target.result;
+    request.onsuccess = (event: Event) => {
+      const cursor = (event.target as IDBRequest).result;
       if (cursor) {
         if (cursor.value.expiresAt < Date.now()) {
           cursor.delete();
@@ -200,7 +200,7 @@ export async function clearExpiredCache() {
 /**
  * Queue an action for later sync
  */
-export async function queueAction(action) {
+export async function queueAction(action: Record<string, unknown>): Promise<Record<string, unknown>> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -215,7 +215,7 @@ export async function queueAction(action) {
     
     const request = store.add(record);
     request.onsuccess = () => {
-      record.id = request.result;
+      (record as Record<string, unknown>).id = request.result;
       resolve(record);
     };
     request.onerror = () => reject(request.error);
@@ -225,7 +225,7 @@ export async function queueAction(action) {
 /**
  * Get all pending actions
  */
-export async function getPendingActions() {
+export async function getPendingActions(): Promise<Record<string, unknown>[]> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -241,7 +241,7 @@ export async function getPendingActions() {
 /**
  * Remove a pending action
  */
-export async function removePendingAction(id) {
+export async function removePendingAction(id: number): Promise<boolean> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -257,7 +257,7 @@ export async function removePendingAction(id) {
 /**
  * Update a pending action (e.g., increment retries)
  */
-export async function updatePendingAction(id, updates) {
+export async function updatePendingAction(id: number, updates: Record<string, unknown>): Promise<Record<string, unknown> | null> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -285,7 +285,7 @@ export async function updatePendingAction(id, updates) {
 /**
  * Clear all pending actions
  */
-export async function clearPendingActions() {
+export async function clearPendingActions(): Promise<boolean> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -305,7 +305,7 @@ export async function clearPendingActions() {
 /**
  * Store user data locally
  */
-export async function setUserData(key, value) {
+export async function setUserData(key: string, value: unknown): Promise<unknown> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -321,7 +321,7 @@ export async function setUserData(key, value) {
 /**
  * Get user data
  */
-export async function getUserData(key) {
+export async function getUserData(key: string): Promise<unknown> {
   const database = await getDB();
   
   return new Promise((resolve, reject) => {
@@ -341,24 +341,30 @@ export async function getUserData(key) {
 /**
  * Process pending actions when online
  */
-export async function syncPendingActions(apiClient) {
+interface SyncResults {
+  success: number;
+  failed: number;
+  errors: { action: Record<string, unknown>; error: string }[];
+}
+
+export async function syncPendingActions(apiClient: Record<string, unknown>): Promise<SyncResults> {
   const actions = await getPendingActions();
-  const results = { success: 0, failed: 0, errors: [] };
+  const results: SyncResults = { success: 0, failed: 0, errors: [] };
 
   for (const action of actions) {
     try {
       // Execute the action
       await executeAction(action, apiClient);
-      await removePendingAction(action.id);
+      await removePendingAction(action.id as number);
       results.success++;
     } catch (error) {
       results.failed++;
-      results.errors.push({ action, error: error.message });
+      results.errors.push({ action, error: (error as Error).message });
       
       // Update retry count
-      await updatePendingAction(action.id, { 
-        retries: action.retries + 1,
-        lastError: error.message,
+      await updatePendingAction(action.id as number, {
+        retries: (action.retries as number) + 1,
+        lastError: (error as Error).message,
       });
     }
   }
@@ -369,16 +375,16 @@ export async function syncPendingActions(apiClient) {
 /**
  * Execute a queued action
  */
-async function executeAction(action, apiClient) {
+async function executeAction(action: Record<string, unknown>, apiClient: Record<string, unknown>): Promise<unknown> {
   const { method, url, data } = action;
 
   switch (method) {
     case 'POST':
-      return apiClient.post(url, data);
+      return (apiClient as { post: (url: unknown, data: unknown) => Promise<unknown> }).post(url, data);
     case 'PUT':
-      return apiClient.put(url, data);
+      return (apiClient as { put: (url: unknown, data: unknown) => Promise<unknown> }).put(url, data);
     case 'DELETE':
-      return apiClient.delete(url);
+      return (apiClient as { delete: (url: unknown) => Promise<unknown> }).delete(url);
     default:
       throw new Error(`Unknown method: ${method}`);
   }
@@ -387,21 +393,24 @@ async function executeAction(action, apiClient) {
 /**
  * Check if we're online
  */
-export function isOnline() {
+export function isOnline(): boolean {
   return navigator.onLine;
 }
 
 /**
  * Listen for online/offline events
  */
-export function onConnectivityChange(callback) {
-  window.addEventListener('online', () => callback(true));
-  window.addEventListener('offline', () => callback(false));
-  
+export function onConnectivityChange(callback: (online: boolean) => void): () => void {
+  const onOnline = () => callback(true);
+  const onOffline = () => callback(false);
+
+  window.addEventListener('online', onOnline);
+  window.addEventListener('offline', onOffline);
+
   // Return cleanup function
   return () => {
-    window.removeEventListener('online', () => callback(true));
-    window.removeEventListener('offline', () => callback(false));
+    window.removeEventListener('online', onOnline);
+    window.removeEventListener('offline', onOffline);
   };
 }
 

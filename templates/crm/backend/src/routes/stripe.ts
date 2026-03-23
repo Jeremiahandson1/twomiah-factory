@@ -15,9 +15,9 @@ const app = new Hono();
 
 app.post('/webhook', async (c) => {
   const signature = c.req.header('stripe-signature');
-  const body = await c.req.json();
+  const rawBody = await c.req.text();
 
-  const event = stripeService.constructWebhookEvent(body, signature);
+  const event = stripeService.constructWebhookEvent(rawBody, signature);
   const result = await stripeService.handleWebhook(event);
 
   console.log(`Stripe webhook ${event.type}:`, result);

@@ -1,14 +1,87 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  LayoutDashboard, Settings, Plus, X, GripVertical, 
-  DollarSign, Briefcase, FileText, Users, Clock, 
+import {
+  LayoutDashboard, Settings, Plus, X, GripVertical,
+  DollarSign, Briefcase, FileText, Users, Clock,
   CheckCircle2, AlertCircle, TrendingUp, Calendar,
   FolderKanban, Loader2
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
+
+interface WidgetDefinition {
+  id: string;
+  title: string;
+  icon: LucideIcon;
+  defaultSize: string;
+  component: React.FC;
+}
+
+interface LayoutItem {
+  id: string;
+  size: string;
+}
+
+interface WidgetWrapperProps {
+  widget: WidgetDefinition;
+  size: string;
+  editing: boolean;
+  onRemove: () => void;
+  onResize: (size: string) => void;
+  children: React.ReactNode;
+}
+
+interface RevenueData {
+  collected?: number;
+  invoiced?: number;
+  outstanding?: number;
+}
+
+interface Job {
+  id: string;
+  title: string;
+  status?: string;
+  assignedTo?: { firstName?: string };
+  scheduledDate?: string;
+  contact?: { name?: string };
+}
+
+interface TeamMember {
+  user?: { firstName?: string; lastName?: string };
+  hoursWorked: number;
+}
+
+interface Task {
+  id: string;
+  title: string;
+}
+
+interface ActivityItem {
+  user?: { firstName?: string };
+  action?: string;
+  createdAt: string;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  progress?: number;
+}
+
+interface DashboardStats {
+  revenue?: { collected?: number };
+  jobs?: { completed?: number };
+  quotes?: { total?: number };
+  projects?: { active?: number };
+}
+
+interface QuickStatItem {
+  label: string;
+  value: string | number;
+  color: string;
+}
 
 // Widget registry
-const WIDGETS = {
+const WIDGETS: Record<string, WidgetDefinition> = {
   revenue: {
     id: 'revenue',
     title: 'Revenue',
@@ -81,7 +154,7 @@ const WIDGETS = {
   },
 };
 
-const DEFAULT_LAYOUT = [
+const DEFAULT_LAYOUT: LayoutItem[] = [
   { id: 'quick_stats', size: 'large' },
   { id: 'jobs_today', size: 'medium' },
   { id: 'my_tasks', size: 'medium' },
@@ -90,10 +163,10 @@ const DEFAULT_LAYOUT = [
 ];
 
 export default function CustomizableDashboard() {
-  const [layout, setLayout] = useState([]);
-  const [editing, setEditing] = useState(false);
-  const [showAddWidget, setShowAddWidget] = useState(false);
-  const [draggingIndex, setDraggingIndex] = useState(null);
+  const [layout, setLayout] = useState<LayoutItem[]>([]);
+  const [editing, setEditing] = useState<boolean>(false);
+  const [showAddWidget, setShowAddWidget] = useState<boolean>(false);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
 
   // Load saved layout
   useEffect(() => {
@@ -110,36 +183,36 @@ export default function CustomizableDashboard() {
   }, []);
 
   // Save layout changes
-  const saveLayout = useCallback((newLayout) => {
+  const saveLayout = useCallback((newLayout: LayoutItem[]) => {
     setLayout(newLayout);
     localStorage.setItem('dashboard_layout', JSON.stringify(newLayout));
   }, []);
 
-  const addWidget = (widgetId) => {
+  const addWidget = (widgetId: string) => {
     const widget = WIDGETS[widgetId];
     if (!widget) return;
-    
+
     saveLayout([...layout, { id: widgetId, size: widget.defaultSize }]);
     setShowAddWidget(false);
   };
 
-  const removeWidget = (index) => {
+  const removeWidget = (index: number) => {
     const newLayout = [...layout];
     newLayout.splice(index, 1);
     saveLayout(newLayout);
   };
 
-  const changeSize = (index, size) => {
+  const changeSize = (index: number, size: string) => {
     const newLayout = [...layout];
     newLayout[index] = { ...newLayout[index], size };
     saveLayout(newLayout);
   };
 
-  const handleDragStart = (index) => {
+  const handleDragStart = (index: number) => {
     setDraggingIndex(index);
   };
 
-  const handleDragOver = (e, index) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, index: number) => {
     e.preventDefault();
     if (draggingIndex === null || draggingIndex === index) return;
 
@@ -158,8 +231,8 @@ export default function CustomizableDashboard() {
     saveLayout(DEFAULT_LAYOUT);
   };
 
-  const usedWidgets = new Set(layout.map(w => w.id));
-  const availableWidgets = Object.values(WIDGETS).filter(w => !usedWidgets.has(w.id));
+  const usedWidgets = new Set(layout.map((w: LayoutItem) => w.id));
+  const availableWidgets = Object.values(WIDGETS).filter((w: WidgetDefinition) => !usedWidgets.has(w.id));
 
   return (
     <div className="space-y-6">
@@ -190,8 +263,8 @@ export default function CustomizableDashboard() {
           <button
             onClick={() => setEditing(!editing)}
             className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg ${
-              editing 
-                ? 'bg-orange-500 text-white' 
+              editing
+                ? 'bg-orange-500 text-white'
                 : 'border hover:bg-gray-50'
             }`}
           >
@@ -212,11 +285,11 @@ export default function CustomizableDashboard() {
 
       {/* Widget Grid */}
       <div className="grid grid-cols-12 gap-4">
-        {layout.map((item, index) => {
+        {layout.map((item: LayoutItem, index: number) => {
           const widget = WIDGETS[item.id];
           if (!widget) return null;
 
-          const sizeClasses = {
+          const sizeClasses: Record<string, string> = {
             small: 'col-span-12 sm:col-span-6 lg:col-span-3',
             medium: 'col-span-12 sm:col-span-6 lg:col-span-4',
             large: 'col-span-12 lg:col-span-6',
@@ -233,7 +306,7 @@ export default function CustomizableDashboard() {
               }`}
               draggable={editing}
               onDragStart={() => handleDragStart(index)}
-              onDragOver={(e) => handleDragOver(e, index)}
+              onDragOver={(e: React.DragEvent<HTMLDivElement>) => handleDragOver(e, index)}
               onDragEnd={handleDragEnd}
             >
               <WidgetWrapper
@@ -241,7 +314,7 @@ export default function CustomizableDashboard() {
                 size={item.size}
                 editing={editing}
                 onRemove={() => removeWidget(index)}
-                onResize={(size) => changeSize(index, size)}
+                onResize={(size: string) => changeSize(index, size)}
               >
                 <WidgetComponent />
               </WidgetWrapper>
@@ -280,7 +353,7 @@ export default function CustomizableDashboard() {
                 <p className="text-gray-500 text-center py-8">All widgets are already added</p>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  {availableWidgets.map((widget) => {
+                  {availableWidgets.map((widget: WidgetDefinition) => {
                     const Icon = widget.icon;
                     return (
                       <button
@@ -303,7 +376,7 @@ export default function CustomizableDashboard() {
   );
 }
 
-function WidgetWrapper({ widget, size, editing, onRemove, onResize, children }) {
+function WidgetWrapper({ widget, size, editing, onRemove, onResize, children }: WidgetWrapperProps) {
   const Icon = widget.icon;
 
   return (
@@ -322,7 +395,7 @@ function WidgetWrapper({ widget, size, editing, onRemove, onResize, children }) 
           <div className="flex items-center gap-2">
             <select
               value={size}
-              onChange={(e) => onResize(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => onResize(e.target.value)}
               className="text-xs border rounded px-2 py-1"
             >
               <option value="small">Small</option>
@@ -351,12 +424,12 @@ function WidgetWrapper({ widget, size, editing, onRemove, onResize, children }) 
 // ============================================
 
 function RevenueWidget() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<RevenueData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/reports/revenue')
-      .then(setData)
+      .then((res: unknown) => setData(res as RevenueData))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -384,8 +457,8 @@ function RevenueWidget() {
 }
 
 function JobsTodayWidget() {
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const today = new Date();
@@ -395,7 +468,7 @@ function JobsTodayWidget() {
       limit: '10',
     });
     api.get(`/api/jobs?${params}`)
-      .then(res => setJobs(res.data || res || []))
+      .then((res: unknown) => { const r = res as Record<string, unknown>; setJobs((r.data || r || []) as Job[]); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -407,7 +480,7 @@ function JobsTodayWidget() {
       {jobs.length === 0 ? (
         <p className="text-gray-500 text-sm">No jobs scheduled today</p>
       ) : (
-        jobs.slice(0, 5).map((job) => (
+        jobs.slice(0, 5).map((job: Job) => (
           <div key={job.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
             <div className="truncate">
               <p className="font-medium text-sm text-gray-900 truncate">{job.title}</p>
@@ -431,15 +504,16 @@ function JobsTodayWidget() {
 }
 
 function OverdueInvoicesWidget() {
-  const [data, setData] = useState({ count: 0, total: 0 });
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/invoices?status=overdue&limit=1')
-      .then(res => {
-        const invoices = res.data || [];
-        const total = invoices.reduce((sum, i) => sum + Number(i.balance || 0), 0);
-        setData({ count: res.pagination?.total || invoices.length, total });
+      .then((res: unknown) => {
+        const r = res as Record<string, unknown>;
+        const invoices = (r.data || []) as Record<string, unknown>[];
+        const total = invoices.reduce((sum: number, i: Record<string, unknown>) => sum + Number(i.balance || 0), 0);
+        setData({ count: (r.pagination as Record<string, number>)?.total || invoices.length, total });
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -461,14 +535,15 @@ function OverdueInvoicesWidget() {
 }
 
 function PendingQuotesWidget() {
-  const [data, setData] = useState({ count: 0, total: 0 });
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{ count: number; total: number }>({ count: 0, total: 0 });
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/quotes?status=sent&limit=100')
-      .then(res => {
-        const quotes = res.data || [];
-        const total = quotes.reduce((sum, q) => sum + Number(q.total || 0), 0);
+      .then((res: unknown) => {
+        const r = res as Record<string, unknown>;
+        const quotes = (r.data || []) as Record<string, unknown>[];
+        const total = quotes.reduce((sum: number, q: Record<string, unknown>) => sum + Number(q.total || 0), 0);
         setData({ count: quotes.length, total });
       })
       .catch(console.error)
@@ -491,12 +566,12 @@ function PendingQuotesWidget() {
 }
 
 function TeamActivityWidget() {
-  const [team, setTeam] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/reports/team')
-      .then(data => setTeam(data || []))
+      .then((data: unknown) => setTeam((data as TeamMember[]) || []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -505,7 +580,7 @@ function TeamActivityWidget() {
 
   return (
     <div className="space-y-2">
-      {team.slice(0, 5).map((member, i) => (
+      {team.slice(0, 5).map((member: TeamMember, i: number) => (
         <div key={i} className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center text-xs font-medium text-orange-600">
@@ -521,12 +596,12 @@ function TeamActivityWidget() {
 }
 
 function MyTasksWidget() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/tasks?mine=true&status=pending&limit=5')
-      .then(res => setTasks(res.data || []))
+      .then((res: unknown) => { const r = res as Record<string, unknown>; setTasks((r.data || []) as Task[]); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -538,7 +613,7 @@ function MyTasksWidget() {
       {tasks.length === 0 ? (
         <p className="text-gray-500 text-sm text-center py-4">No pending tasks!</p>
       ) : (
-        tasks.map((task) => (
+        tasks.map((task: Task) => (
           <div key={task.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded">
             <CheckCircle2 className="w-4 h-4 text-gray-300" />
             <span className="text-sm text-gray-900 truncate">{task.title}</span>
@@ -550,12 +625,12 @@ function MyTasksWidget() {
 }
 
 function RecentActivityWidget() {
-  const [activity, setActivity] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/comments/activity/feed?limit=10')
-      .then(res => setActivity(res.activities || []))
+      .then((res: unknown) => { const r = res as Record<string, unknown>; setActivity((r.activities || []) as ActivityItem[]); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -564,7 +639,7 @@ function RecentActivityWidget() {
 
   return (
     <div className="space-y-2 max-h-64 overflow-y-auto">
-      {activity.map((item, i) => (
+      {activity.map((item: ActivityItem, i: number) => (
         <div key={i} className="flex items-start gap-2 p-2 hover:bg-gray-50 rounded text-sm">
           <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-xs flex-shrink-0">
             {item.user?.firstName?.[0]}
@@ -583,12 +658,12 @@ function RecentActivityWidget() {
 }
 
 function ProjectProgressWidget() {
-  const [projects, setProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/projects?status=active&limit=5')
-      .then(res => setProjects(res.data || []))
+      .then((res: unknown) => { const r = res as Record<string, unknown>; setProjects((r.data || []) as Project[]); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -597,14 +672,14 @@ function ProjectProgressWidget() {
 
   return (
     <div className="space-y-3">
-      {projects.map((project) => (
+      {projects.map((project: Project) => (
         <div key={project.id}>
           <div className="flex items-center justify-between text-sm mb-1">
             <span className="font-medium truncate">{project.name}</span>
             <span className="text-gray-500">{project.progress || 0}%</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div 
+            <div
               className="h-full bg-orange-500 rounded-full"
               style={{ width: `${project.progress || 0}%` }}
             />
@@ -616,19 +691,19 @@ function ProjectProgressWidget() {
 }
 
 function QuickStatsWidget() {
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     api.get('/api/reports/dashboard')
-      .then(setStats)
+      .then((res: unknown) => setStats(res as DashboardStats))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <WidgetLoader />;
 
-  const items = [
+  const items: QuickStatItem[] = [
     { label: 'Revenue', value: `$${(stats?.revenue?.collected || 0).toLocaleString()}`, color: 'green' },
     { label: 'Jobs Completed', value: stats?.jobs?.completed || 0, color: 'blue' },
     { label: 'Quotes Sent', value: stats?.quotes?.total || 0, color: 'purple' },
@@ -637,7 +712,7 @@ function QuickStatsWidget() {
 
   return (
     <div className="grid grid-cols-2 gap-4">
-      {items.map((item, i) => (
+      {items.map((item: QuickStatItem, i: number) => (
         <div key={i} className={`p-3 bg-${item.color}-50 rounded-lg`}>
           <p className="text-2xl font-bold text-gray-900">{item.value}</p>
           <p className="text-xs text-gray-500">{item.label}</p>
@@ -648,22 +723,22 @@ function QuickStatsWidget() {
 }
 
 function UpcomingScheduleWidget() {
-  const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const today = new Date();
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
-    
+
     const params = new URLSearchParams({
       startDate: today.toISOString(),
       endDate: nextWeek.toISOString(),
       limit: '10',
     });
-    
+
     api.get(`/api/jobs?${params}`)
-      .then(res => setJobs(res.data || res || []))
+      .then((res: unknown) => { const r = res as Record<string, unknown>; setJobs((r.data || r || []) as Job[]); })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -672,14 +747,14 @@ function UpcomingScheduleWidget() {
 
   return (
     <div className="space-y-2">
-      {jobs.slice(0, 5).map((job) => (
+      {jobs.slice(0, 5).map((job: Job) => (
         <div key={job.id} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded">
           <div className="text-center">
             <div className="text-xs text-gray-500">
-              {new Date(job.scheduledDate).toLocaleDateString('en-US', { weekday: 'short' })}
+              {new Date(job.scheduledDate!).toLocaleDateString('en-US', { weekday: 'short' })}
             </div>
             <div className="text-lg font-bold">
-              {new Date(job.scheduledDate).getDate()}
+              {new Date(job.scheduledDate!).getDate()}
             </div>
           </div>
           <div className="flex-1 truncate">

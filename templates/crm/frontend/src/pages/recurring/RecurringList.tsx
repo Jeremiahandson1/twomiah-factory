@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  RefreshCw, Plus, Play, Pause, X, MoreVertical, Calendar, 
-  DollarSign, User, Clock, Loader2, ChevronRight 
+import {
+  RefreshCw, Plus, Play, Pause, X, MoreVertical, Calendar,
+  DollarSign, User, Clock, Loader2, ChevronRight
 } from 'lucide-react';
 import api from '../../services/api';
 
-const FREQUENCIES = {
+const FREQUENCIES: Record<string, string> = {
   weekly: 'Weekly',
   biweekly: 'Bi-Weekly',
   monthly: 'Monthly',
@@ -14,18 +14,25 @@ const FREQUENCIES = {
   yearly: 'Yearly',
 };
 
-const STATUS_STYLES = {
+const STATUS_STYLES: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
   paused: 'bg-yellow-100 text-yellow-700',
   cancelled: 'bg-gray-100 text-gray-600',
 };
 
+interface RecurringStats {
+  active: number;
+  paused: number;
+  total: number;
+  monthlyRecurringRevenue: number;
+}
+
 export default function RecurringInvoiceList() {
   const navigate = useNavigate();
-  const [recurring, setRecurring] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('');
+  const [recurring, setRecurring] = useState<Record<string, unknown>[]>([]);
+  const [stats, setStats] = useState<RecurringStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filter, setFilter] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -43,46 +50,46 @@ export default function RecurringInvoiceList() {
 
       setRecurring(listRes.data || []);
       setStats(statsRes);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load recurring invoices:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handlePause = async (id) => {
+  const handlePause = async (id: string) => {
     try {
       await api.post(`/api/recurring/${id}/pause`);
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to pause');
     }
   };
 
-  const handleResume = async (id) => {
+  const handleResume = async (id: string) => {
     try {
       await api.post(`/api/recurring/${id}/resume`);
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to resume');
     }
   };
 
-  const handleCancel = async (id) => {
+  const handleCancel = async (id: string) => {
     if (!confirm('Cancel this recurring invoice? This cannot be undone.')) return;
     try {
       await api.post(`/api/recurring/${id}/cancel`);
       loadData();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to cancel');
     }
   };
 
-  const handleGenerateNow = async (id) => {
+  const handleGenerateNow = async (id: string) => {
     try {
       const invoice = await api.post(`/api/recurring/${id}/generate`);
       navigate(`/invoices/${invoice.id}`);
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to generate invoice');
     }
   };
@@ -164,7 +171,7 @@ export default function RecurringInvoiceList() {
 
       {/* Filters */}
       <div className="flex gap-2">
-        {['', 'active', 'paused', 'cancelled'].map((s) => (
+        {['', 'active', 'paused', 'cancelled'].map((s: string) => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -193,8 +200,8 @@ export default function RecurringInvoiceList() {
         </div>
       ) : (
         <div className="bg-white rounded-xl border divide-y">
-          {recurring.map((item) => (
-            <div key={item.id} className="p-4 hover:bg-gray-50">
+          {recurring.map((item: Record<string, unknown>) => (
+            <div key={item.id as string} className="p-4 hover:bg-gray-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <div className={`p-2 rounded-lg ${item.status === 'active' ? 'bg-green-100' : 'bg-gray-100'}`}>
@@ -202,16 +209,16 @@ export default function RecurringInvoiceList() {
                   </div>
                   <div>
                     <Link to={`/recurring/${item.id}`} className="font-medium text-gray-900 hover:text-orange-600">
-                      {item.contact?.name || 'Unknown Contact'}
+                      {(item.contact as Record<string, unknown>)?.name as string || 'Unknown Contact'}
                     </Link>
                     <div className="flex items-center gap-3 text-sm text-gray-500">
-                      <span>{FREQUENCIES[item.frequency] || item.frequency}</span>
+                      <span>{FREQUENCIES[item.frequency as string] || item.frequency as string}</span>
                       <span>•</span>
                       <span>${Number(item.total).toLocaleString()}</span>
-                      {item._count?.generatedInvoices > 0 && (
+                      {(item._count as Record<string, unknown>)?.generatedInvoices as number > 0 && (
                         <>
                           <span>•</span>
-                          <span>{item._count.generatedInvoices} generated</span>
+                          <span>{(item._count as Record<string, unknown>).generatedInvoices as number} generated</span>
                         </>
                       )}
                     </div>
@@ -220,15 +227,15 @@ export default function RecurringInvoiceList() {
 
                 <div className="flex items-center gap-3">
                   {/* Next run date */}
-                  {item.status === 'active' && item.nextRunDate && (
+                  {item.status === 'active' && !!item.nextRunDate && (
                     <div className="text-right text-sm">
-                      <p className="text-gray-500">Next: {new Date(item.nextRunDate).toLocaleDateString()}</p>
+                      <p className="text-gray-500">Next: {new Date(item.nextRunDate as string).toLocaleDateString()}</p>
                     </div>
                   )}
 
                   {/* Status badge */}
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${STATUS_STYLES[item.status]}`}>
-                    {item.status}
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${STATUS_STYLES[item.status as string]}`}>
+                    {item.status as string}
                   </span>
 
                   {/* Actions */}
@@ -246,13 +253,13 @@ export default function RecurringInvoiceList() {
                       {item.status === 'active' && (
                         <>
                           <button
-                            onClick={() => handleGenerateNow(item.id)}
+                            onClick={() => handleGenerateNow(item.id as string)}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
                             Generate Invoice Now
                           </button>
                           <button
-                            onClick={() => handlePause(item.id)}
+                            onClick={() => handlePause(item.id as string)}
                             className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
                             Pause
@@ -261,7 +268,7 @@ export default function RecurringInvoiceList() {
                       )}
                       {item.status === 'paused' && (
                         <button
-                          onClick={() => handleResume(item.id)}
+                          onClick={() => handleResume(item.id as string)}
                           className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         >
                           Resume
@@ -269,7 +276,7 @@ export default function RecurringInvoiceList() {
                       )}
                       {item.status !== 'cancelled' && (
                         <button
-                          onClick={() => handleCancel(item.id)}
+                          onClick={() => handleCancel(item.id as string)}
                           className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
                         >
                           Cancel

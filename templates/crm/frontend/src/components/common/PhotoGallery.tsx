@@ -4,7 +4,13 @@ import api from '../../services/api';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const CATEGORIES = [
+interface PhotoCategory {
+  value: string;
+  label: string;
+  color: string;
+}
+
+const CATEGORIES: PhotoCategory[] = [
   { value: 'before', label: 'Before', color: 'bg-blue-100 text-blue-700' },
   { value: 'during', label: 'During', color: 'bg-yellow-100 text-yellow-700' },
   { value: 'after', label: 'After', color: 'bg-green-100 text-green-700' },
@@ -17,53 +23,73 @@ const CATEGORIES = [
   { value: 'other', label: 'Other', color: 'bg-gray-100 text-gray-600' },
 ];
 
+interface PhotoUser {
+  firstName?: string;
+  lastName?: string;
+}
+
+interface Photo {
+  id: string;
+  caption?: string;
+  category?: string;
+  createdAt: string;
+  uploadedBy?: PhotoUser;
+}
+
+interface PhotoGalleryProps {
+  projectId?: string;
+  jobId?: string;
+  title?: string;
+  showUpload?: boolean;
+}
+
 /**
  * Photo Gallery Component
- * 
+ *
  * Usage:
  *   <PhotoGallery projectId="abc123" />
  *   <PhotoGallery jobId="xyz789" />
  */
-export default function PhotoGallery({ projectId, jobId, title = 'Photos', showUpload = true }) {
-  const [photos, setPhotos] = useState([]);
+export default function PhotoGallery({ projectId, jobId, title = 'Photos', showUpload = true }: PhotoGalleryProps) {
+  const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [filter, setFilter] = useState('');
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadPhotos();
   }, [projectId, jobId, filter]);
 
-  const loadPhotos = async () => {
+  const loadPhotos = async (): Promise<void> => {
     try {
       const params = new URLSearchParams();
       if (projectId) params.append('projectId', projectId);
       if (jobId) params.append('jobId', jobId);
       if (filter) params.append('category', filter);
-      
+
       const result = await api.get(`/photos?${params}`);
       setPhotos(result.data || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load photos:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpload = async (files) => {
+  const handleUpload = async (files: FileList | null): Promise<void> => {
     if (!files || files.length === 0) return;
-    
+
     setUploading(true);
     const formData = new FormData();
-    
-    for (const file of files) {
+
+    for (const file of Array.from(files)) {
       formData.append('photos', file);
     }
     if (projectId) formData.append('projectId', projectId);
     if (jobId) formData.append('jobId', jobId);
-    
+
     try {
       const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_URL}/photos/bulk`, {
@@ -71,9 +97,9 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
       });
-      
+
       if (!response.ok) throw new Error('Upload failed');
-      
+
       const result = await response.json();
       if (result.uploaded > 0) {
         loadPhotos();
@@ -81,7 +107,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
       if (result.failed > 0) {
         alert(`${result.failed} photo(s) failed to upload`);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
       alert('Failed to upload photos');
     } finally {
@@ -90,25 +116,25 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
     }
   };
 
-  const handleDelete = async (photoId) => {
+  const handleDelete = async (photoId: string): Promise<void> => {
     if (!confirm('Delete this photo?')) return;
-    
+
     try {
       await api.delete(`/photos/${photoId}`);
-      setPhotos(photos.filter(p => p.id !== photoId));
+      setPhotos(photos.filter((p: Photo) => p.id !== photoId));
       if (selectedPhoto?.id === photoId) setSelectedPhoto(null);
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to delete photo');
     }
   };
 
-  const getCategoryStyle = (category) => {
-    const cat = CATEGORIES.find(c => c.value === category);
+  const getCategoryStyle = (category: string): string => {
+    const cat = CATEGORIES.find((c: PhotoCategory) => c.value === category);
     return cat?.color || 'bg-gray-100 text-gray-600';
   };
 
-  const getCategoryLabel = (category) => {
-    const cat = CATEGORIES.find(c => c.value === category);
+  const getCategoryLabel = (category: string): string => {
+    const cat = CATEGORIES.find((c: PhotoCategory) => c.value === category);
     return cat?.label || category;
   };
 
@@ -117,20 +143,20 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-        
+
         <div className="flex items-center gap-2">
           {/* Category filter */}
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilter(e.target.value)}
             className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-gray-900"
           >
             <option value="">All Categories</option>
-            {CATEGORIES.map(cat => (
+            {CATEGORIES.map((cat: PhotoCategory) => (
               <option key={cat.value} value={cat.value}>{cat.label}</option>
             ))}
           </select>
-          
+
           {/* Upload button */}
           {showUpload && (
             <>
@@ -139,7 +165,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={(e) => handleUpload(e.target.files)}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleUpload(e.target.files)}
                 className="hidden"
               />
               <button
@@ -185,7 +211,7 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
       {/* Photo grid */}
       {!loading && photos.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          {photos.map((photo) => (
+          {photos.map((photo: Photo) => (
             <div
               key={photo.id}
               className="relative group aspect-square bg-gray-100 rounded-lg overflow-hidden cursor-pointer"
@@ -197,21 +223,21 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
-              
+
               {/* Category badge */}
               {photo.category && (
                 <span className={`absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-medium ${getCategoryStyle(photo.category)}`}>
                   {getCategoryLabel(photo.category)}
                 </span>
               )}
-              
+
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                 <button className="p-2 bg-white rounded-full hover:bg-gray-100">
                   <ZoomIn className="w-5 h-5 text-gray-700" />
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(photo.id); }}
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => { e.stopPropagation(); handleDelete(photo.id); }}
                   className="p-2 bg-white rounded-full hover:bg-red-50"
                 >
                   <Trash2 className="w-5 h-5 text-red-600" />
@@ -236,23 +262,31 @@ export default function PhotoGallery({ projectId, jobId, title = 'Photos', showU
   );
 }
 
+interface PhotoLightboxProps {
+  photo: Photo;
+  photos: Photo[];
+  onClose: () => void;
+  onNavigate: (photo: Photo) => void;
+  onDelete: (photoId: string) => void;
+}
+
 /**
  * Photo Lightbox
  */
-function PhotoLightbox({ photo, photos, onClose, onNavigate, onDelete }) {
-  const currentIndex = photos.findIndex(p => p.id === photo.id);
+function PhotoLightbox({ photo, photos, onClose, onNavigate, onDelete }: PhotoLightboxProps) {
+  const currentIndex = photos.findIndex((p: Photo) => p.id === photo.id);
 
-  const handlePrev = () => {
+  const handlePrev = (): void => {
     if (currentIndex > 0) onNavigate(photos[currentIndex - 1]);
   };
 
-  const handleNext = () => {
+  const handleNext = (): void => {
     if (currentIndex < photos.length - 1) onNavigate(photos[currentIndex + 1]);
   };
 
   // Keyboard navigation
   useEffect(() => {
-    const handleKey = (e) => {
+    const handleKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose();
       if (e.key === 'ArrowLeft') handlePrev();
       if (e.key === 'ArrowRight') handleNext();
@@ -323,34 +357,47 @@ function PhotoLightbox({ photo, photos, onClose, onNavigate, onDelete }) {
   );
 }
 
+interface UploadResult {
+  uploaded?: number;
+  failed?: number;
+  [key: string]: unknown;
+}
+
+interface PhotoDropzoneProps {
+  projectId?: string;
+  jobId?: string;
+  onUpload?: (result: UploadResult) => void;
+  category?: string;
+}
+
 /**
  * Photo Upload Dropzone
  */
-export function PhotoDropzone({ projectId, jobId, onUpload, category }) {
+export function PhotoDropzone({ projectId, jobId, onUpload, category }: PhotoDropzoneProps) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDrop = async (e) => {
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>): Promise<void> => {
     e.preventDefault();
     setDragging(false);
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    const files = Array.from(e.dataTransfer.files).filter((f: File) => f.type.startsWith('image/'));
     if (files.length > 0) {
       await uploadFiles(files);
     }
   };
 
-  const uploadFiles = async (files) => {
+  const uploadFiles = async (files: File[]): Promise<void> => {
     setUploading(true);
     const formData = new FormData();
-    
+
     for (const file of files) {
       formData.append('photos', file);
     }
     if (projectId) formData.append('projectId', projectId);
     if (jobId) formData.append('jobId', jobId);
     if (category) formData.append('category', category);
-    
+
     try {
       const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_URL}/photos/bulk`, {
@@ -358,12 +405,12 @@ export function PhotoDropzone({ projectId, jobId, onUpload, category }) {
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData,
       });
-      
+
       if (!response.ok) throw new Error('Upload failed');
-      
-      const result = await response.json();
+
+      const result: UploadResult = await response.json();
       if (onUpload) onUpload(result);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Upload error:', error);
       alert('Failed to upload photos');
     } finally {
@@ -373,7 +420,7 @@ export function PhotoDropzone({ projectId, jobId, onUpload, category }) {
 
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      onDragOver={(e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragging(true); }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
       className={`
@@ -387,16 +434,16 @@ export function PhotoDropzone({ projectId, jobId, onUpload, category }) {
         type="file"
         accept="image/*"
         multiple
-        onChange={(e) => uploadFiles(Array.from(e.target.files))}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => uploadFiles(Array.from(e.target.files || []))}
         className="hidden"
       />
-      
+
       {uploading ? (
         <Loader2 className="w-10 h-10 text-orange-500 mx-auto animate-spin" />
       ) : (
         <Camera className="w-10 h-10 text-gray-400 mx-auto" />
       )}
-      
+
       <p className="mt-2 text-gray-600">
         {uploading ? 'Uploading...' : 'Drop photos here or click to upload'}
       </p>

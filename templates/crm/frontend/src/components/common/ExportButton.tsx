@@ -3,51 +3,58 @@ import { Download, FileSpreadsheet, FileText, ChevronDown, Loader2 } from 'lucid
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+interface ExportButtonProps {
+  type: string;
+  filters?: Record<string, string>;
+  label?: string;
+  className?: string;
+}
+
 /**
  * Export Button Component
- * 
+ *
  * Usage:
  *   <ExportButton type="contacts" />
  *   <ExportButton type="invoices" filters={{ status: 'sent' }} />
  */
-export default function ExportButton({ 
-  type, 
-  filters = {}, 
+export default function ExportButton({
+  type,
+  filters = {},
   label = 'Export',
   className = '',
-}) {
+}: ExportButtonProps) {
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(null);
+  const [loading, setLoading] = useState<string | null>(null);
 
-  const handleExport = async (format) => {
+  const handleExport = async (format: string): Promise<void> => {
     setLoading(format);
-    
+
     try {
       // Build query string
       const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
+      Object.entries(filters).forEach(([key, value]: [string, string]) => {
         if (value !== undefined && value !== null && value !== '') {
           params.append(key, value);
         }
       });
-      
+
       const queryString = params.toString();
       const url = `${API_URL}/export/${type}/${format}${queryString ? `?${queryString}` : ''}`;
-      
+
       // Get auth token
       const token = localStorage.getItem('accessToken');
-      
+
       // Fetch file
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
-      
+
       if (!response.ok) {
         throw new Error('Export failed');
       }
-      
+
       // Get filename from header or generate one
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = `${type}-export.${format === 'csv' ? 'csv' : 'xls'}`;
@@ -55,7 +62,7 @@ export default function ExportButton({
         const match = contentDisposition.match(/filename="(.+)"/);
         if (match) filename = match[1];
       }
-      
+
       // Download file
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -66,9 +73,9 @@ export default function ExportButton({
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(downloadUrl);
-      
+
       setOpen(false);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Export error:', error);
       alert('Export failed. Please try again.');
     } finally {
@@ -95,17 +102,17 @@ export default function ExportButton({
       {open && (
         <>
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setOpen(false)} 
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setOpen(false)}
           />
-          
+
           {/* Dropdown */}
           <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
             <div className="py-1">
               <button
                 onClick={() => handleExport('csv')}
-                disabled={loading}
+                disabled={loading !== null}
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 {loading === 'csv' ? (
@@ -117,7 +124,7 @@ export default function ExportButton({
               </button>
               <button
                 onClick={() => handleExport('excel')}
-                disabled={loading}
+                disabled={loading !== null}
                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 {loading === 'excel' ? (
@@ -138,35 +145,43 @@ export default function ExportButton({
 /**
  * Simple link-based export (no dropdown, direct download)
  */
-export function ExportLink({ 
-  type, 
-  format = 'csv', 
+interface ExportLinkProps {
+  type: string;
+  format?: string;
+  filters?: Record<string, string>;
+  children?: React.ReactNode;
+  className?: string;
+}
+
+export function ExportLink({
+  type,
+  format = 'csv',
   filters = {},
   children,
   className = '',
-}) {
+}: ExportLinkProps) {
   const [loading, setLoading] = useState(false);
 
-  const handleClick = async (e) => {
+  const handleClick = async (e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
+      Object.entries(filters).forEach(([key, value]: [string, string]) => {
         if (value) params.append(key, value);
       });
-      
+
       const queryString = params.toString();
       const url = `${API_URL}/export/${type}/${format}${queryString ? `?${queryString}` : ''}`;
       const token = localStorage.getItem('accessToken');
-      
+
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      
+
       if (!response.ok) throw new Error('Export failed');
-      
+
       const blob = await response.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -176,7 +191,7 @@ export function ExportLink({
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(downloadUrl);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Export error:', error);
     } finally {
       setLoading(false);
@@ -184,8 +199,8 @@ export function ExportLink({
   };
 
   return (
-    <button 
-      onClick={handleClick} 
+    <button
+      onClick={handleClick}
       disabled={loading}
       className={className}
     >

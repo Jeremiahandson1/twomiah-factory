@@ -1,12 +1,69 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Calculator, Plus, Ruler, Package, Trash2,
   FileText, DollarSign, Loader2, ChevronRight,
   Download, Layers, Square, ArrowRight
 } from 'lucide-react';
 import api from '../../services/api';
 
-const MEASUREMENT_LABELS = {
+interface TakeoffsPageProps {
+  projectId?: string;
+}
+
+interface ProjectItem {
+  id: string;
+  name: string;
+}
+
+interface SheetItem {
+  id: string;
+  name: string;
+  planReference?: string;
+  _count?: { items: number };
+  items?: TakeoffItem[];
+}
+
+interface MaterialData {
+  materialName: string;
+  baseQuantity: number;
+  wasteQuantity: number;
+  totalQuantity: number;
+  unitCost: number;
+  totalCost: number;
+  unit: string;
+}
+
+interface TakeoffItem {
+  id: string;
+  name: string;
+  location?: string;
+  measurementType: string;
+  measurementValue: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  quantity?: number;
+  wasteFactor?: number;
+  assembly?: { name: string; wasteFactor?: number; measurementType?: string };
+  calculatedMaterials?: MaterialData[];
+}
+
+interface AssemblyItem {
+  id: string;
+  name: string;
+  category: string;
+  measurementType: string;
+}
+
+interface TotalsData {
+  totals: {
+    materialCount: number;
+    totalCost: number;
+    totalPrice: number;
+  };
+}
+
+const MEASUREMENT_LABELS: Record<string, string> = {
   area: 'Square Feet',
   linear: 'Linear Feet',
   count: 'Count',
@@ -16,21 +73,21 @@ const MEASUREMENT_LABELS = {
 /**
  * Material Takeoff Page
  */
-export default function TakeoffsPage({ projectId: propProjectId }) {
-  const [projects, setProjects] = useState([]);
-  const [projectId, setProjectId] = useState(propProjectId || '');
-  const [sheets, setSheets] = useState([]);
-  const [selectedSheet, setSelectedSheet] = useState(null);
-  const [assemblies, setAssemblies] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showNewSheet, setShowNewSheet] = useState(false);
-  const [showAddItem, setShowAddItem] = useState(false);
+export default function TakeoffsPage({ projectId: propProjectId }: TakeoffsPageProps) {
+  const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [projectId, setProjectId] = useState<string>(propProjectId || '');
+  const [sheets, setSheets] = useState<SheetItem[]>([]);
+  const [selectedSheet, setSelectedSheet] = useState<SheetItem | null>(null);
+  const [assemblies, setAssemblies] = useState<AssemblyItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showNewSheet, setShowNewSheet] = useState<boolean>(false);
+  const [showAddItem, setShowAddItem] = useState<boolean>(false);
 
   // Load projects for standalone route (no projectId prop)
   useEffect(() => {
     if (!propProjectId) {
-      api.get('/api/projects?limit=100').then(res => {
-        const data = res?.data || res || [];
+      api.get('/api/projects?limit=100').then((res: Record<string, unknown>) => {
+        const data = (res?.data || res || []) as ProjectItem[];
         setProjects(data);
         if (data.length > 0 && !projectId) setProjectId(data[0].id);
       }).catch(() => {});
@@ -53,25 +110,25 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
         api.get(`/api/takeoffs/project/${projectId}`),
         api.get('/api/takeoffs/assemblies'),
       ]);
-      setSheets(sheetsRes || []);
-      setAssemblies(assembliesRes || []);
-      
+      setSheets((sheetsRes || []) as SheetItem[]);
+      setAssemblies((assembliesRes || []) as AssemblyItem[]);
+
       // Auto-select first sheet
-      if (sheetsRes?.length > 0 && !selectedSheet) {
-        loadSheet(sheetsRes[0].id);
+      if ((sheetsRes as SheetItem[])?.length > 0 && !selectedSheet) {
+        loadSheet((sheetsRes as SheetItem[])[0].id);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load takeoffs:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadSheet = async (sheetId) => {
+  const loadSheet = async (sheetId: string) => {
     try {
       const sheet = await api.get(`/api/takeoffs/sheets/${sheetId}`);
-      setSelectedSheet(sheet);
-    } catch (error) {
+      setSelectedSheet(sheet as SheetItem);
+    } catch (error: unknown) {
       console.error('Failed to load sheet:', error);
     }
   };
@@ -85,11 +142,11 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
           {projects.length > 0 ? (
             <select
               value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProjectId(e.target.value)}
               className="px-4 py-2 border rounded-lg text-sm"
             >
               <option value="">Choose a project...</option>
-              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {projects.map((p: ProjectItem) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           ) : (
             <p className="text-sm text-gray-400">No projects found. Create a project first.</p>
@@ -107,10 +164,10 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
           <span className="text-sm text-gray-500">Project:</span>
           <select
             value={projectId}
-            onChange={(e) => { setProjectId(e.target.value); setSelectedSheet(null); }}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { setProjectId(e.target.value); setSelectedSheet(null); }}
             className="px-3 py-1.5 border rounded-lg text-sm font-medium"
           >
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            {projects.map((p: ProjectItem) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
       )}
@@ -129,7 +186,7 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {sheets.map(sheet => (
+          {sheets.map((sheet: SheetItem) => (
             <button
               key={sheet.id}
               onClick={() => loadSheet(sheet.id)}
@@ -178,9 +235,9 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
 
             {/* Items Table */}
             <div className="flex-1 overflow-y-auto p-4">
-              {selectedSheet.items?.length > 0 ? (
+              {selectedSheet.items && selectedSheet.items.length > 0 ? (
                 <div className="space-y-4">
-                  {selectedSheet.items.map(item => (
+                  {selectedSheet.items.map((item: TakeoffItem) => (
                     <TakeoffItemCard
                       key={item.id}
                       item={item}
@@ -203,7 +260,7 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
             </div>
 
             {/* Totals Footer */}
-            {selectedSheet.items?.length > 0 && (
+            {selectedSheet.items && selectedSheet.items.length > 0 && (
               <TotalsFooter sheetId={selectedSheet.id} />
             )}
           </>
@@ -219,7 +276,7 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
       {showNewSheet && (
         <NewSheetModal
           projectId={projectId}
-          onSave={(sheet) => {
+          onSave={(sheet: SheetItem) => {
             setShowNewSheet(false);
             loadData();
             loadSheet(sheet.id);
@@ -244,21 +301,26 @@ export default function TakeoffsPage({ projectId: propProjectId }) {
   );
 }
 
-function TakeoffItemCard({ item, onUpdate }) {
-  const [expanded, setExpanded] = useState(false);
+interface TakeoffItemCardProps {
+  item: TakeoffItem;
+  onUpdate: () => void;
+}
+
+function TakeoffItemCard({ item, onUpdate }: TakeoffItemCardProps) {
+  const [expanded, setExpanded] = useState<boolean>(false);
 
   const handleDelete = async () => {
     if (!confirm('Delete this measurement?')) return;
     try {
       await api.delete(`/api/takeoffs/items/${item.id}`);
       onUpdate();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to delete');
     }
   };
 
   const totalCost = item.calculatedMaterials?.reduce(
-    (sum, m) => sum + Number(m.totalCost), 0
+    (sum: number, m: MaterialData) => sum + Number(m.totalCost), 0
   ) || 0;
 
   return (
@@ -275,7 +337,7 @@ function TakeoffItemCard({ item, onUpdate }) {
           <div>
             <p className="font-medium text-gray-900">{item.name}</p>
             <p className="text-sm text-gray-500">
-              {item.location && `${item.location} • `}
+              {item.location && `${item.location} \u2022 `}
               {item.assembly?.name}
             </p>
           </div>
@@ -341,7 +403,7 @@ function TakeoffItemCard({ item, onUpdate }) {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {item.calculatedMaterials?.map((mat, i) => (
+                {item.calculatedMaterials?.map((mat: MaterialData, i: number) => (
                   <tr key={i}>
                     <td className="px-3 py-2">{mat.materialName}</td>
                     <td className="px-3 py-2 text-right">{Number(mat.baseQuantity).toFixed(2)} {mat.unit}</td>
@@ -371,8 +433,12 @@ function TakeoffItemCard({ item, onUpdate }) {
   );
 }
 
-function TotalsFooter({ sheetId }) {
-  const [totals, setTotals] = useState(null);
+interface TotalsFooterProps {
+  sheetId: string;
+}
+
+function TotalsFooter({ sheetId }: TotalsFooterProps) {
+  const [totals, setTotals] = useState<TotalsData | null>(null);
 
   useEffect(() => {
     loadTotals();
@@ -381,8 +447,8 @@ function TotalsFooter({ sheetId }) {
   const loadTotals = async () => {
     try {
       const data = await api.get(`/api/takeoffs/sheets/${sheetId}/totals`);
-      setTotals(data);
-    } catch (error) {
+      setTotals(data as TotalsData);
+    } catch (error: unknown) {
       console.error('Failed to load totals:', error);
     }
   };
@@ -415,21 +481,27 @@ function TotalsFooter({ sheetId }) {
   );
 }
 
-function NewSheetModal({ projectId, onSave, onClose }) {
+interface NewSheetModalProps {
+  projectId: string;
+  onSave: (sheet: SheetItem) => void;
+  onClose: () => void;
+}
+
+function NewSheetModal({ projectId, onSave, onClose }: NewSheetModalProps) {
   const [form, setForm] = useState({
     name: '',
     description: '',
     planReference: '',
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       const sheet = await api.post(`/api/takeoffs/project/${projectId}`, form);
-      onSave(sheet);
-    } catch (error) {
+      onSave(sheet as SheetItem);
+    } catch (error: unknown) {
       alert('Failed to create sheet');
     } finally {
       setSaving(false);
@@ -449,7 +521,7 @@ function NewSheetModal({ projectId, onSave, onClose }) {
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., First Floor Framing"
                 required
@@ -461,7 +533,7 @@ function NewSheetModal({ projectId, onSave, onClose }) {
               <input
                 type="text"
                 value={form.planReference}
-                onChange={(e) => setForm({ ...form, planReference: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, planReference: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="e.g., Sheet A-101"
               />
@@ -471,7 +543,7 @@ function NewSheetModal({ projectId, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
               <textarea
                 value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, description: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 rows={2}
               />
@@ -492,7 +564,14 @@ function NewSheetModal({ projectId, onSave, onClose }) {
   );
 }
 
-function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
+interface AddItemModalProps {
+  sheetId: string;
+  assemblies: AssemblyItem[];
+  onSave: () => void;
+  onClose: () => void;
+}
+
+function AddItemModal({ sheetId, assemblies, onSave, onClose }: AddItemModalProps) {
   const [form, setForm] = useState({
     assemblyId: '',
     name: '',
@@ -502,11 +581,11 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
     height: '',
     quantity: 1,
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
-  const selectedAssembly = assemblies.find(a => a.id === form.assemblyId);
+  const selectedAssembly = assemblies.find((a: AssemblyItem) => a.id === form.assemblyId);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -515,7 +594,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
         name: form.name || selectedAssembly?.name,
       });
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to add measurement');
     } finally {
       setSaving(false);
@@ -534,20 +613,20 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Assembly Type</label>
               <select
                 value={form.assemblyId}
-                onChange={(e) => setForm({ ...form, assemblyId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, assemblyId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 required
               >
                 <option value="">Select assembly...</option>
                 {Object.entries(
-                  assemblies.reduce((acc, a) => {
+                  assemblies.reduce((acc: Record<string, AssemblyItem[]>, a: AssemblyItem) => {
                     if (!acc[a.category]) acc[a.category] = [];
                     acc[a.category].push(a);
                     return acc;
-                  }, {})
-                ).map(([category, items]) => (
+                  }, {} as Record<string, AssemblyItem[]>)
+                ).map(([category, items]: [string, AssemblyItem[]]) => (
                   <optgroup key={category} label={category.charAt(0).toUpperCase() + category.slice(1)}>
-                    {items.map(a => (
+                    {items.map((a: AssemblyItem) => (
                       <option key={a.id} value={a.id}>{a.name}</option>
                     ))}
                   </optgroup>
@@ -561,7 +640,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder={selectedAssembly?.name || 'Same as assembly'}
                 />
@@ -571,7 +650,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                 <input
                   type="text"
                   value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, location: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="e.g., Living Room"
                 />
@@ -595,7 +674,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                     type="number"
                     step="0.01"
                     value={form.length}
-                    onChange={(e) => setForm({ ...form, length: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, length: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                     required
                   />
@@ -606,7 +685,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                     type="number"
                     step="0.01"
                     value={form.width}
-                    onChange={(e) => setForm({ ...form, width: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, width: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                     required
                   />
@@ -621,7 +700,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                   type="number"
                   step="0.01"
                   value={form.length}
-                  onChange={(e) => setForm({ ...form, length: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, length: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   required
                 />
@@ -634,7 +713,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                 <input
                   type="number"
                   value={form.quantity}
-                  onChange={(e) => setForm({ ...form, quantity: parseInt(e.target.value) })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, quantity: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border rounded-lg"
                   min="1"
                   required
@@ -650,7 +729,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                     type="number"
                     step="0.01"
                     value={form.length}
-                    onChange={(e) => setForm({ ...form, length: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, length: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                     required
                   />
@@ -661,7 +740,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                     type="number"
                     step="0.01"
                     value={form.width}
-                    onChange={(e) => setForm({ ...form, width: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, width: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                     required
                   />
@@ -672,7 +751,7 @@ function AddItemModal({ sheetId, assemblies, onSave, onClose }) {
                     type="number"
                     step="0.01"
                     value={form.height}
-                    onChange={(e) => setForm({ ...form, height: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, height: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                     required
                   />

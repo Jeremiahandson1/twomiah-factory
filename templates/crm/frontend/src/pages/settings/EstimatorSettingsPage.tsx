@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 
 export default function EstimatorSettingsPage() {
-  const { token } = useAuth();
+  const _auth = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -21,7 +21,7 @@ export default function EstimatorSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  const headers: Record<string, string> = { Authorization: `Bearer ${_auth.getToken() || ''}` };
 
   const load = useCallback(async () => {
     try {
@@ -42,7 +42,7 @@ export default function EstimatorSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => { load(); }, [load]);
 

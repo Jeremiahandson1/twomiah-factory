@@ -122,6 +122,46 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'dispensary_analytics', name: 'Analytics', description: 'Sales reports, product performance, peak hours', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
   { id: 'merch_store', name: 'Merch Store', description: 'Non-cannabis merchandise with Stripe checkout', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
 
+  // Dispensary — NEW: Compliance & Tracking
+  { id: 'metrc', name: 'Metrc Integration', description: 'Direct Metrc API integration for state compliance sync', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'compliance', name: 'Compliance Reporting', description: 'State-format compliance reports, license management, waste tracking', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'labels', name: 'Label Printing', description: 'Compliant cannabis labels with QR codes, barcodes, custom design', category: 'Compliance', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Inventory & RFID
+  { id: 'multi_location', name: 'Multi-Location Inventory', description: 'Track inventory across locations with inter-store transfers', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'batches', name: 'Batch/Lot Tracking', description: 'Full batch lifecycle from receipt to depletion', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
+  { id: 'rfid', name: 'RFID Scanning', description: 'RFID tag management, scanning, and bulk inventory counts', category: 'Inventory & Compliance', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Delivery & Tracking
+  { id: 'delivery_tracking', name: 'Delivery Tracking', description: 'Real-time GPS tracking, route optimization, customer tracking', category: 'Delivery & Online', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: POS Enhancements
+  { id: 'kiosk', name: 'Self-Service Kiosk', description: 'Customer-facing kiosk for self-service ordering', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'ai_recommendations', name: 'AI Recommendations', description: 'Personalized product suggestions based on purchase history', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'pin_login', name: 'PIN Login', description: 'Quick PIN-based login for budtenders at POS', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+  { id: 'tip_management', name: 'Tip Management', description: 'Collect and distribute tips across budtenders', category: 'POS & Sales', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Marketing
+  { id: 'referrals', name: 'Referral Program', description: 'Customer referral tracking with automatic rewards', category: 'Loyalty & Marketing', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Analytics & BI
+  { id: 'custom_reports', name: 'Custom Reports & BI', description: 'Report builder, BI widgets, budtender performance', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'bi_dashboard', name: 'BI Dashboard', description: 'Drag-and-drop business intelligence dashboard', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'budtender_performance', name: 'Budtender Performance', description: 'Per-budtender sales attribution and metrics', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+  { id: 'website_analytics', name: 'Website & SEO Analytics', description: 'Page views, traffic sources, UTM campaigns, real-time visitors', category: 'Analytics', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Supply Chain
+  { id: 'cultivation', name: 'Cultivation / Grow Tracking', description: 'Plant tracking from seed to harvest with grow room management', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+  { id: 'manufacturing', name: 'Manufacturing / Processing', description: 'Extraction, infusion, and processing job management', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+  { id: 'wholesale', name: 'Distribution / Wholesale', description: 'B2B customers, wholesale orders, manifests, lab testing/CoA', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+  { id: 'lab_testing', name: 'Lab Testing (CoA)', description: 'Lab test tracking with Certificate of Analysis import', category: 'Supply Chain', core: false, templates: ['crm-dispensary'] },
+
+  // Dispensary — NEW: Enterprise
+  { id: 'multi_store', name: 'Multi-Store / Chain', description: 'Cross-location dashboard and reporting', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'franchise', name: 'Franchise Management', description: 'Manage franchise locations with shared settings', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'open_api', name: 'Open API', description: 'Published OpenAPI spec for third-party integrations', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+  { id: 'ach_payments', name: 'ACH/Bank Transfers', description: 'Accept ACH bank transfer payments', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
+
   // Add-on Products
   { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-fieldservice', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
   { id: 'instant_estimator', name: 'Instant Roof Estimator', description: 'Google Solar-powered instant roof estimates with embeddable widget and lead capture', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },

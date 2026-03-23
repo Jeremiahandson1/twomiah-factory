@@ -1,18 +1,25 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   Mail, Plus, Send, Calendar, Users, BarChart3,
   Edit2, Copy, Trash2, Loader2, Play, Pause,
-  FileText, Zap, Clock, TrendingUp, Eye, MousePointer
+  FileText, Zap, Clock, TrendingUp, Eye, MousePointer,
+  LucideIcon
 } from 'lucide-react';
 import api from '../../services/api';
+
+interface MarketingStats {
+  totalCampaigns: number;
+  activeSequences: number;
+  emailsSent30Days: number;
+}
 
 /**
  * Marketing Automation Page
  */
 export default function MarketingPage() {
-  const [tab, setTab] = useState('campaigns'); // campaigns, templates, sequences
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<string>('campaigns'); // campaigns, templates, sequences
+  const [stats, setStats] = useState<MarketingStats | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     loadStats();
@@ -22,7 +29,7 @@ export default function MarketingPage() {
     try {
       const data = await api.get('/api/marketing/stats');
       setStats(data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load stats:', error);
     } finally {
       setLoading(false);
@@ -54,7 +61,7 @@ export default function MarketingPage() {
           { id: 'campaigns', label: 'Campaigns', icon: Mail },
           { id: 'templates', label: 'Templates', icon: FileText },
           { id: 'sequences', label: 'Drip Sequences', icon: Zap },
-        ].map(t => (
+        ].map((t: { id: string; label: string; icon: LucideIcon }) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -78,8 +85,15 @@ export default function MarketingPage() {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color = 'gray' }) {
-  const colors = {
+interface StatCardProps {
+  icon: LucideIcon;
+  label: string;
+  value: string | number;
+  color?: 'gray' | 'purple' | 'green';
+}
+
+function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
+  const colors: Record<string, string> = {
     gray: 'bg-gray-50 text-gray-600',
     purple: 'bg-purple-50 text-purple-600',
     green: 'bg-green-50 text-green-600',
@@ -95,10 +109,10 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }) {
 }
 
 function CampaignsTab() {
-  const [campaigns, setCampaigns] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [campaigns, setCampaigns] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     loadCampaigns();
@@ -108,19 +122,19 @@ function CampaignsTab() {
     try {
       const data = await api.get('/api/marketing/campaigns');
       setCampaigns(data.data || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load campaigns:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSend = async (campaignId) => {
+  const handleSend = async (campaignId: string) => {
     if (!confirm('Are you sure you want to send this campaign?')) return;
     try {
       await api.post(`/api/marketing/campaigns/${campaignId}/send`);
       loadCampaigns();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to send campaign');
     }
   };
@@ -160,11 +174,11 @@ function CampaignsTab() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {campaigns.map(campaign => (
-                <tr key={campaign.id} className="hover:bg-gray-50">
+              {campaigns.map((campaign: Record<string, unknown>) => (
+                <tr key={campaign.id as string} className="hover:bg-gray-50">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-gray-900">{campaign.name}</p>
-                    <p className="text-sm text-gray-500">{campaign.subject}</p>
+                    <p className="font-medium text-gray-900">{campaign.name as string}</p>
+                    <p className="text-sm text-gray-500">{campaign.subject as string}</p>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 text-xs rounded-full ${
@@ -173,17 +187,17 @@ function CampaignsTab() {
                       campaign.status === 'sending' ? 'bg-yellow-100 text-yellow-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {campaign.status}
+                      {campaign.status as string}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">{campaign._count?.recipients || 0}</td>
+                  <td className="px-4 py-3 text-right">{(campaign._count as Record<string, unknown>)?.recipients as number || 0}</td>
                   <td className="px-4 py-3 text-right">-</td>
                   <td className="px-4 py-3 text-right">-</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
                       {campaign.status === 'draft' && (
                         <button
-                          onClick={() => handleSend(campaign.id)}
+                          onClick={() => handleSend(campaign.id as string)}
                           className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg"
                           title="Send"
                         >
@@ -217,10 +231,10 @@ function CampaignsTab() {
 }
 
 function TemplatesTab() {
-  const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templates, setTemplates] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<Record<string, unknown> | null>(null);
 
   useEffect(() => {
     loadTemplates();
@@ -230,7 +244,7 @@ function TemplatesTab() {
     try {
       const data = await api.get('/api/marketing/templates');
       setTemplates(data || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load templates:', error);
     } finally {
       setLoading(false);
@@ -260,12 +274,12 @@ function TemplatesTab() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {templates.map(template => (
-            <div key={template.id} className="bg-white rounded-xl border p-4">
+          {templates.map((template: Record<string, unknown>) => (
+            <div key={template.id as string} className="bg-white rounded-xl border p-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium text-gray-900">{template.name}</p>
-                  <p className="text-sm text-gray-500">{template.category}</p>
+                  <p className="font-medium text-gray-900">{template.name as string}</p>
+                  <p className="text-sm text-gray-500">{template.category as string}</p>
                 </div>
                 <div className="flex gap-1">
                   <button
@@ -276,7 +290,7 @@ function TemplatesTab() {
                   </button>
                 </div>
               </div>
-              <p className="mt-2 text-sm text-gray-600 line-clamp-2">{template.subject}</p>
+              <p className="mt-2 text-sm text-gray-600 line-clamp-2">{template.subject as string}</p>
             </div>
           ))}
         </div>
@@ -294,9 +308,9 @@ function TemplatesTab() {
 }
 
 function SequencesTab() {
-  const [sequences, setSequences] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [sequences, setSequences] = useState<Record<string, unknown>[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showForm, setShowForm] = useState<boolean>(false);
 
   useEffect(() => {
     loadSequences();
@@ -306,7 +320,7 @@ function SequencesTab() {
     try {
       const data = await api.get('/api/marketing/sequences');
       setSequences(data || []);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to load sequences:', error);
     } finally {
       setLoading(false);
@@ -337,8 +351,8 @@ function SequencesTab() {
         </div>
       ) : (
         <div className="space-y-4">
-          {sequences.map(sequence => (
-            <div key={sequence.id} className="bg-white rounded-xl border p-4">
+          {sequences.map((sequence: Record<string, unknown>) => (
+            <div key={sequence.id as string} className="bg-white rounded-xl border p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -347,10 +361,10 @@ function SequencesTab() {
                     <Zap className={`w-5 h-5 ${sequence.active ? 'text-green-600' : 'text-gray-400'}`} />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">{sequence.name}</p>
+                    <p className="font-medium text-gray-900">{sequence.name as string}</p>
                     <p className="text-sm text-gray-500">
-                      {sequence.steps?.length || 0} steps • 
-                      {sequence._count?.enrollments || 0} enrolled
+                      {(sequence.steps as Record<string, unknown>[])?.length || 0} steps •
+                      {(sequence._count as Record<string, unknown>)?.enrollments as number || 0} enrolled
                     </p>
                   </div>
                 </div>
@@ -361,25 +375,25 @@ function SequencesTab() {
                     {sequence.active ? 'Active' : 'Paused'}
                   </span>
                   <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                    Trigger: {sequence.trigger}
+                    Trigger: {sequence.trigger as string}
                   </span>
                 </div>
               </div>
 
               {/* Steps Preview */}
-              {sequence.steps?.length > 0 && (
+              {(sequence.steps as Record<string, unknown>[])?.length > 0 && (
                 <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-2">
-                  {sequence.steps.map((step, i) => (
-                    <div key={step.id} className="flex items-center">
+                  {(sequence.steps as Record<string, unknown>[]).map((step: Record<string, unknown>, i: number) => (
+                    <div key={step.id as string} className="flex items-center">
                       <div className="px-3 py-2 bg-gray-50 rounded-lg text-sm whitespace-nowrap">
-                        <p className="font-medium">Step {step.stepNumber}</p>
+                        <p className="font-medium">Step {step.stepNumber as number}</p>
                         <p className="text-xs text-gray-500">
-                          {step.delayDays > 0 && `${step.delayDays}d `}
-                          {step.delayHours > 0 && `${step.delayHours}h`}
-                          {!step.delayDays && !step.delayHours && 'Immediately'}
+                          {(step.delayDays as number) > 0 && `${step.delayDays}d `}
+                          {(step.delayHours as number) > 0 && `${step.delayHours}h`}
+                          {!(step.delayDays as number) && !(step.delayHours as number) && 'Immediately'}
                         </p>
                       </div>
-                      {i < sequence.steps.length - 1 && (
+                      {i < (sequence.steps as Record<string, unknown>[]).length - 1 && (
                         <div className="w-8 h-0.5 bg-gray-200" />
                       )}
                     </div>
@@ -402,16 +416,22 @@ function SequencesTab() {
 }
 
 // Form Modals
-function CampaignFormModal({ campaign, onSave, onClose }) {
-  const [form, setForm] = useState({
-    name: campaign?.name || '',
-    subject: campaign?.subject || '',
-    body: campaign?.body || '',
-    audienceType: campaign?.audienceType || 'all',
-  });
-  const [saving, setSaving] = useState(false);
+interface CampaignFormModalProps {
+  campaign: Record<string, unknown> | null;
+  onSave: () => void;
+  onClose: () => void;
+}
 
-  const handleSubmit = async (e) => {
+function CampaignFormModal({ campaign, onSave, onClose }: CampaignFormModalProps) {
+  const [form, setForm] = useState<{ name: string; subject: string; body: string; audienceType: string }>({
+    name: (campaign?.name as string) || '',
+    subject: (campaign?.subject as string) || '',
+    body: (campaign?.body as string) || '',
+    audienceType: (campaign?.audienceType as string) || 'all',
+  });
+  const [saving, setSaving] = useState<boolean>(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -421,7 +441,7 @@ function CampaignFormModal({ campaign, onSave, onClose }) {
         await api.post('/api/marketing/campaigns', form);
       }
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save campaign');
     } finally {
       setSaving(false);
@@ -437,17 +457,17 @@ function CampaignFormModal({ campaign, onSave, onClose }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Campaign Name</label>
-              <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+              <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Subject Line</label>
-              <input type="text" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })}
+              <input type="text" value={form.subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, subject: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Audience</label>
-              <select value={form.audienceType} onChange={(e) => setForm({ ...form, audienceType: e.target.value })}
+              <select value={form.audienceType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, audienceType: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg">
                 <option value="all">All Contacts</option>
                 <option value="segment">Segment</option>
@@ -455,7 +475,7 @@ function CampaignFormModal({ campaign, onSave, onClose }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Body (HTML)</label>
-              <textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })}
+              <textarea value={form.body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, body: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg font-mono text-sm" rows={10} />
             </div>
             <div className="flex gap-3 pt-4">
@@ -471,16 +491,22 @@ function CampaignFormModal({ campaign, onSave, onClose }) {
   );
 }
 
-function TemplateFormModal({ template, onSave, onClose }) {
-  const [form, setForm] = useState({
-    name: template?.name || '',
-    subject: template?.subject || '',
-    body: template?.body || '',
-    category: template?.category || 'general',
-  });
-  const [saving, setSaving] = useState(false);
+interface TemplateFormModalProps {
+  template: Record<string, unknown> | null;
+  onSave: () => void;
+  onClose: () => void;
+}
 
-  const handleSubmit = async (e) => {
+function TemplateFormModal({ template, onSave, onClose }: TemplateFormModalProps) {
+  const [form, setForm] = useState<{ name: string; subject: string; body: string; category: string }>({
+    name: (template?.name as string) || '',
+    subject: (template?.subject as string) || '',
+    body: (template?.body as string) || '',
+    category: (template?.category as string) || 'general',
+  });
+  const [saving, setSaving] = useState<boolean>(false);
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -490,7 +516,7 @@ function TemplateFormModal({ template, onSave, onClose }) {
         await api.post('/api/marketing/templates', form);
       }
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save template');
     } finally {
       setSaving(false);
@@ -507,12 +533,12 @@ function TemplateFormModal({ template, onSave, onClose }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
+                <select value={form.category} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, category: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="general">General</option>
                   <option value="followup">Follow-up</option>
@@ -524,12 +550,12 @@ function TemplateFormModal({ template, onSave, onClose }) {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-              <input type="text" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })}
+              <input type="text" value={form.subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, subject: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Body (HTML)</label>
-              <textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })}
+              <textarea value={form.body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setForm({ ...form, body: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg font-mono text-sm" rows={10} />
               <p className="text-xs text-gray-500 mt-1">Variables: {'{{name}}'}, {'{{firstName}}'}, {'{{company}}'}</p>
             </div>
@@ -546,13 +572,25 @@ function TemplateFormModal({ template, onSave, onClose }) {
   );
 }
 
-function SequenceFormModal({ onSave, onClose }) {
-  const [form, setForm] = useState({
+interface SequenceFormModalProps {
+  onSave: () => void;
+  onClose: () => void;
+}
+
+interface SequenceStep {
+  delayDays: number;
+  delayHours: number;
+  subject: string;
+  body: string;
+}
+
+function SequenceFormModal({ onSave, onClose }: SequenceFormModalProps) {
+  const [form, setForm] = useState<{ name: string; trigger: string; steps: SequenceStep[] }>({
     name: '',
     trigger: 'manual',
     steps: [{ delayDays: 0, delayHours: 0, subject: '', body: '' }],
   });
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
 
   const addStep = () => {
     setForm({
@@ -561,19 +599,19 @@ function SequenceFormModal({ onSave, onClose }) {
     });
   };
 
-  const updateStep = (index, field, value) => {
+  const updateStep = (index: number, field: string, value: string | number) => {
     const steps = [...form.steps];
-    steps[index][field] = value;
+    steps[index] = { ...steps[index], [field]: value };
     setForm({ ...form, steps });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       await api.post('/api/marketing/sequences', form);
       onSave();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save sequence');
     } finally {
       setSaving(false);
@@ -590,12 +628,12 @@ function SequenceFormModal({ onSave, onClose }) {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sequence Name</label>
-                <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                <input type="text" value={form.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg" required />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Trigger</label>
-                <select value={form.trigger} onChange={(e) => setForm({ ...form, trigger: e.target.value })}
+                <select value={form.trigger} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, trigger: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg">
                   <option value="manual">Manual Enrollment</option>
                   <option value="new_customer">New Customer</option>
@@ -613,21 +651,21 @@ function SequenceFormModal({ onSave, onClose }) {
                 </button>
               </div>
 
-              {form.steps.map((step, index) => (
+              {form.steps.map((step: SequenceStep, index: number) => (
                 <div key={index} className="p-4 border rounded-lg space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">Step {index + 1}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-gray-500">Delay:</span>
-                      <input type="number" value={step.delayDays} onChange={(e) => updateStep(index, 'delayDays', parseInt(e.target.value))}
+                      <input type="number" value={step.delayDays} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateStep(index, 'delayDays', parseInt(e.target.value))}
                         className="w-16 px-2 py-1 border rounded text-sm" min="0" /> days
-                      <input type="number" value={step.delayHours} onChange={(e) => updateStep(index, 'delayHours', parseInt(e.target.value))}
+                      <input type="number" value={step.delayHours} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateStep(index, 'delayHours', parseInt(e.target.value))}
                         className="w-16 px-2 py-1 border rounded text-sm" min="0" /> hours
                     </div>
                   </div>
-                  <input type="text" value={step.subject} onChange={(e) => updateStep(index, 'subject', e.target.value)}
+                  <input type="text" value={step.subject} onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateStep(index, 'subject', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg" placeholder="Subject line" />
-                  <textarea value={step.body} onChange={(e) => updateStep(index, 'body', e.target.value)}
+                  <textarea value={step.body} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateStep(index, 'body', e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg text-sm" rows={3} placeholder="Email body (HTML)" />
                 </div>
               ))}

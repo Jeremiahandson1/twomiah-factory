@@ -1,10 +1,10 @@
-import { 
-  Inbox, FileText, Users, FolderKanban, Briefcase, Receipt, 
+import {
+  Inbox, FileText, Users, FolderKanban, Briefcase, Receipt,
   Clock, DollarSign, FileQuestion, ClipboardList, Search,
   Plus, AlertCircle
 } from 'lucide-react';
 
-const icons = {
+const icons: Record<string, React.ElementType> = {
   default: Inbox,
   contacts: Users,
   projects: FolderKanban,
@@ -19,6 +19,17 @@ const icons = {
   error: AlertCircle,
 };
 
+interface EmptyStateProps {
+  icon?: React.ElementType;
+  iconType?: string;
+  title?: string;
+  description?: string;
+  action?: React.ReactNode;
+  actionLabel?: string;
+  onAction?: () => void;
+  className?: string;
+}
+
 export function EmptyState({
   icon: Icon,
   iconType = 'default',
@@ -28,7 +39,7 @@ export function EmptyState({
   actionLabel = 'Create New',
   onAction,
   className = '',
-}) {
+}: EmptyStateProps) {
   const IconComponent = Icon || icons[iconType] || icons.default;
 
   return (
@@ -54,7 +65,11 @@ export function EmptyState({
 }
 
 // Pre-configured empty states for common entities
-export function EmptyContacts({ onAction }) {
+interface EntityEmptyStateProps {
+  onAction?: () => void;
+}
+
+export function EmptyContacts({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="contacts"
@@ -66,7 +81,7 @@ export function EmptyContacts({ onAction }) {
   );
 }
 
-export function EmptyProjects({ onAction }) {
+export function EmptyProjects({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="projects"
@@ -78,7 +93,7 @@ export function EmptyProjects({ onAction }) {
   );
 }
 
-export function EmptyJobs({ onAction }) {
+export function EmptyJobs({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="jobs"
@@ -90,7 +105,7 @@ export function EmptyJobs({ onAction }) {
   );
 }
 
-export function EmptyQuotes({ onAction }) {
+export function EmptyQuotes({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="quotes"
@@ -102,7 +117,7 @@ export function EmptyQuotes({ onAction }) {
   );
 }
 
-export function EmptyInvoices({ onAction }) {
+export function EmptyInvoices({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="invoices"
@@ -114,7 +129,7 @@ export function EmptyInvoices({ onAction }) {
   );
 }
 
-export function EmptyTimeEntries({ onAction }) {
+export function EmptyTimeEntries({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="time"
@@ -126,7 +141,7 @@ export function EmptyTimeEntries({ onAction }) {
   );
 }
 
-export function EmptyExpenses({ onAction }) {
+export function EmptyExpenses({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="expenses"
@@ -138,7 +153,7 @@ export function EmptyExpenses({ onAction }) {
   );
 }
 
-export function EmptyRFIs({ onAction }) {
+export function EmptyRFIs({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="rfis"
@@ -150,7 +165,7 @@ export function EmptyRFIs({ onAction }) {
   );
 }
 
-export function EmptyPunchList({ onAction }) {
+export function EmptyPunchList({ onAction }: EntityEmptyStateProps) {
   return (
     <EmptyState
       iconType="punchLists"
@@ -162,7 +177,11 @@ export function EmptyPunchList({ onAction }) {
   );
 }
 
-export function EmptySearch({ query }) {
+interface EmptySearchProps {
+  query?: string;
+}
+
+export function EmptySearch({ query }: EmptySearchProps) {
   return (
     <EmptyState
       iconType="search"
@@ -172,7 +191,12 @@ export function EmptySearch({ query }) {
   );
 }
 
-export function ErrorState({ message, onRetry }) {
+interface ErrorStateProps {
+  message?: string;
+  onRetry?: () => void;
+}
+
+export function ErrorState({ message, onRetry }: ErrorStateProps) {
   return (
     <EmptyState
       iconType="error"
@@ -185,7 +209,12 @@ export function ErrorState({ message, onRetry }) {
 }
 
 // Table empty state (smaller version)
-export function TableEmptyState({ message = 'No data available', colSpan = 5 }) {
+interface TableEmptyStateProps {
+  message?: string;
+  colSpan?: number;
+}
+
+export function TableEmptyState({ message = 'No data available', colSpan = 5 }: TableEmptyStateProps) {
   return (
     <tr>
       <td colSpan={colSpan} className="px-4 py-12">

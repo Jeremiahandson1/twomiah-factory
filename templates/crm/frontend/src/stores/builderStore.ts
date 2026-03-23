@@ -2,7 +2,32 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getAllFeatureIds, PRESET_PACKAGES } from '../data/features';
 
-const initialConfig = {
+interface BuilderConfig {
+  companyName: string;
+  companyLogo: string | null;
+  primaryColor: string;
+  enabledFeatures: string[];
+  createdAt: string | null;
+  isBuilt: boolean;
+}
+
+interface BuilderInstance extends BuilderConfig {
+  id: string;
+}
+
+interface PresetPackage {
+  id: string;
+  features: string[] | 'all';
+  [key: string]: unknown;
+}
+
+interface FeatureCategory {
+  id: string;
+  features: { id: string; [key: string]: unknown }[];
+  [key: string]: unknown;
+}
+
+const initialConfig: BuilderConfig = {
   companyName: '',
   companyLogo: null,
   primaryColor: '{{PRIMARY_COLOR}}', // brand-500
@@ -11,9 +36,10 @@ const initialConfig = {
   isBuilt: false,
 };
 
-export const useBuilderStore = create(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const useBuilderStore = create<any>()(
   persist(
-    (set, get) => ({
+    (set: Function, get: Function) => ({
       // Config state
       config: { ...initialConfig },
       
@@ -27,62 +53,65 @@ export const useBuilderStore = create(
       step: 1,
       
       // Actions
-      setCompanyName: (name) => set((state) => ({
+      setCompanyName: (name: string) => set((state: any) => ({
         config: { ...state.config, companyName: name }
       })),
       
-      setCompanyLogo: (logo) => set((state) => ({
+      setCompanyLogo: (logo: string | null) => set((state: any) => ({
         config: { ...state.config, companyLogo: logo }
       })),
       
-      setPrimaryColor: (color) => set((state) => ({
+      setPrimaryColor: (color: string) => set((state: any) => ({
         config: { ...state.config, primaryColor: color }
       })),
       
-      toggleFeature: (featureId) => set((state) => {
-        const enabled = state.config.enabledFeatures;
+      toggleFeature: (featureId: string) => set((state: any) => {
+        const config = state.config as BuilderConfig;
+        const enabled = config.enabledFeatures;
         const newEnabled = enabled.includes(featureId)
-          ? enabled.filter(id => id !== featureId)
+          ? enabled.filter((id: string) => id !== featureId)
           : [...enabled, featureId];
-        return { config: { ...state.config, enabledFeatures: newEnabled } };
+        return { config: { ...config, enabledFeatures: newEnabled } };
       }),
-      
-      enableFeatures: (featureIds) => set((state) => {
-        const current = new Set(state.config.enabledFeatures);
-        featureIds.forEach(id => current.add(id));
-        return { config: { ...state.config, enabledFeatures: Array.from(current) } };
+
+      enableFeatures: (featureIds: string[]) => set((state: any) => {
+        const config = state.config as BuilderConfig;
+        const current = new Set(config.enabledFeatures);
+        featureIds.forEach((id: string) => current.add(id));
+        return { config: { ...config, enabledFeatures: Array.from(current) } };
       }),
-      
-      disableFeatures: (featureIds) => set((state) => {
+
+      disableFeatures: (featureIds: string[]) => set((state: any) => {
+        const config = state.config as BuilderConfig;
         const toRemove = new Set(featureIds);
-        const newEnabled = state.config.enabledFeatures.filter(id => !toRemove.has(id));
-        return { config: { ...state.config, enabledFeatures: newEnabled } };
+        const newEnabled = config.enabledFeatures.filter((id: string) => !toRemove.has(id));
+        return { config: { ...config, enabledFeatures: newEnabled } };
       }),
-      
-      enableAllFeatures: () => set((state) => ({
-        config: { ...state.config, enabledFeatures: getAllFeatureIds() }
+
+      enableAllFeatures: () => set((state: any) => ({
+        config: { ...(state.config as BuilderConfig), enabledFeatures: getAllFeatureIds() }
       })),
-      
-      disableAllFeatures: () => set((state) => ({
-        config: { ...state.config, enabledFeatures: [] }
+
+      disableAllFeatures: () => set((state: any) => ({
+        config: { ...(state.config as BuilderConfig), enabledFeatures: [] }
       })),
-      
-      applyPreset: (presetId) => set((state) => {
-        const preset = PRESET_PACKAGES.find(p => p.id === presetId);
+
+      applyPreset: (presetId: string) => set((state: any) => {
+        const preset = (PRESET_PACKAGES as PresetPackage[]).find((p: PresetPackage) => p.id === presetId);
         if (!preset) return state;
-        
-        const features = preset.features === 'all' 
-          ? getAllFeatureIds() 
+
+        const features = preset.features === 'all'
+          ? getAllFeatureIds()
           : preset.features;
-        
-        return { config: { ...state.config, enabledFeatures: features } };
+
+        return { config: { ...(state.config as BuilderConfig), enabledFeatures: features } };
       }),
+
+      setStep: (step: number) => set({ step }),
       
-      setStep: (step) => set({ step }),
-      
-      nextStep: () => set((state) => ({ step: state.step + 1 })),
-      
-      prevStep: () => set((state) => ({ step: Math.max(1, state.step - 1) })),
+      nextStep: () => set((state: any) => ({ step: (state.step as number) + 1 })),
+
+      prevStep: () => set((state: any) => ({ step: Math.max(1, (state.step as number) - 1) })),
       
       // Build the CRM instance
       buildCRM: () => {
@@ -105,19 +134,19 @@ export const useBuilderStore = create(
       },
       
       // Load an existing instance
-      loadInstance: (instanceId) => set((state) => ({
+      loadInstance: (instanceId: string) => set((_state: Record<string, unknown>) => ({
         activeInstance: instanceId
       })),
       
       // Get current instance
       getCurrentInstance: () => {
-        const state = get();
-        return state.instances.find(i => i.id === state.activeInstance);
+        const state = get() as Record<string, unknown>;
+        return (state.instances as BuilderInstance[]).find((i: BuilderInstance) => i.id === state.activeInstance);
       },
-      
+
       // Delete an instance
-      deleteInstance: (instanceId) => set((state) => ({
-        instances: state.instances.filter(i => i.id !== instanceId),
+      deleteInstance: (instanceId: string) => set((state: any) => ({
+        instances: (state.instances as BuilderInstance[]).filter((i: BuilderInstance) => i.id !== instanceId),
         activeInstance: state.activeInstance === instanceId ? null : state.activeInstance,
       })),
       
@@ -128,23 +157,25 @@ export const useBuilderStore = create(
       }),
       
       // Check if feature is enabled
-      isFeatureEnabled: (featureId) => {
-        const state = get();
-        const instance = state.getCurrentInstance();
+      isFeatureEnabled: (featureId: string) => {
+        const state = get() as Record<string, unknown>;
+        const getCurrentInstance = state.getCurrentInstance as () => BuilderInstance | undefined;
+        const instance = getCurrentInstance();
         if (instance) {
           return instance.enabledFeatures.includes(featureId);
         }
-        return state.config.enabledFeatures.includes(featureId);
+        return (state.config as BuilderConfig).enabledFeatures.includes(featureId);
       },
-      
+
       // Check if category has any enabled features
-      isCategoryEnabled: (categoryId, categories) => {
-        const state = get();
-        const instance = state.getCurrentInstance();
-        const enabled = instance ? instance.enabledFeatures : state.config.enabledFeatures;
-        const category = categories.find(c => c.id === categoryId);
+      isCategoryEnabled: (categoryId: string, categories: FeatureCategory[]) => {
+        const state = get() as Record<string, unknown>;
+        const getCurrentInstance = state.getCurrentInstance as () => BuilderInstance | undefined;
+        const instance = getCurrentInstance();
+        const enabled = instance ? instance.enabledFeatures : (state.config as BuilderConfig).enabledFeatures;
+        const category = categories.find((c: FeatureCategory) => c.id === categoryId);
         if (!category) return false;
-        return category.features.some(f => enabled.includes(f.id));
+        return category.features.some((f: { id: string }) => enabled.includes(f.id));
       },
     }),
     {
@@ -154,9 +185,10 @@ export const useBuilderStore = create(
 );
 
 // Demo data store for the CRM
-export const useCRMDataStore = create(
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const useCRMDataStore = create<any>()(
   persist(
-    (set, get) => ({
+    (set: Function, get: Function) => ({
       // Contacts
       contacts: [
         { id: '1', type: 'client', name: 'John Smith', email: 'john@example.com', phone: '555-0101', company: 'Smith Residence', address: '123 Main St', createdAt: '2024-01-15' },
@@ -226,215 +258,215 @@ export const useCRMDataStore = create(
       ],
       
       // CRUD operations
-      addContact: (contact) => set((state) => ({
+      addContact: (contact: Record<string, unknown>) => set((state: any) => ({
         contacts: [...state.contacts, { ...contact, id: Date.now().toString(), createdAt: new Date().toISOString() }]
       })),
       
-      updateContact: (id, updates) => set((state) => ({
-        contacts: state.contacts.map(c => c.id === id ? { ...c, ...updates } : c)
+      updateContact: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        contacts: (state.contacts as Record<string, unknown>[]).map((c: Record<string, unknown>) => c.id === id ? { ...c, ...updates } : c)
       })),
-      
-      deleteContact: (id) => set((state) => ({
-        contacts: state.contacts.filter(c => c.id !== id)
+
+      deleteContact: (id: string) => set((state: any) => ({
+        contacts: (state.contacts as Record<string, unknown>[]).filter((c: Record<string, unknown>) => c.id !== id)
       })),
-      
-      addProject: (project) => set((state) => ({
-        projects: [...state.projects, { ...project, id: Date.now().toString() }]
+
+      addProject: (project: Record<string, unknown>) => set((state: any) => ({
+        projects: [...(state.projects as Record<string, unknown>[]), { ...project, id: Date.now().toString() }]
       })),
-      
-      updateProject: (id, updates) => set((state) => ({
-        projects: state.projects.map(p => p.id === id ? { ...p, ...updates } : p)
+
+      updateProject: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        projects: (state.projects as Record<string, unknown>[]).map((p: Record<string, unknown>) => p.id === id ? { ...p, ...updates } : p)
       })),
-      
-      deleteProject: (id) => set((state) => ({
-        projects: state.projects.filter(p => p.id !== id)
+
+      deleteProject: (id: string) => set((state: any) => ({
+        projects: (state.projects as Record<string, unknown>[]).filter((p: Record<string, unknown>) => p.id !== id)
       })),
-      
-      addJob: (job) => set((state) => ({
-        jobs: [...state.jobs, { ...job, id: Date.now().toString() }]
+
+      addJob: (job: Record<string, unknown>) => set((state: any) => ({
+        jobs: [...(state.jobs as Record<string, unknown>[]), { ...job, id: Date.now().toString() }]
       })),
-      
-      updateJob: (id, updates) => set((state) => ({
-        jobs: state.jobs.map(j => j.id === id ? { ...j, ...updates } : j)
+
+      updateJob: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        jobs: (state.jobs as Record<string, unknown>[]).map((j: Record<string, unknown>) => j.id === id ? { ...j, ...updates } : j)
       })),
-      
-      deleteJob: (id) => set((state) => ({
-        jobs: state.jobs.filter(j => j.id !== id)
+
+      deleteJob: (id: string) => set((state: any) => ({
+        jobs: (state.jobs as Record<string, unknown>[]).filter((j: Record<string, unknown>) => j.id !== id)
       })),
-      
-      addQuote: (quote) => set((state) => ({
-        quotes: [...state.quotes, { ...quote, id: Date.now().toString(), number: `Q-2024-${String(state.quotes.length + 1).padStart(3, '0')}` }]
+
+      addQuote: (quote: Record<string, unknown>) => set((state: any) => ({
+        quotes: [...(state.quotes as Record<string, unknown>[]), { ...quote, id: Date.now().toString(), number: `Q-2024-${String((state.quotes as Record<string, unknown>[]).length + 1).padStart(3, '0')}` }]
       })),
-      
-      updateQuote: (id, updates) => set((state) => ({
-        quotes: state.quotes.map(q => q.id === id ? { ...q, ...updates } : q)
+
+      updateQuote: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        quotes: (state.quotes as Record<string, unknown>[]).map((q: Record<string, unknown>) => q.id === id ? { ...q, ...updates } : q)
       })),
-      
-      deleteQuote: (id) => set((state) => ({
-        quotes: state.quotes.filter(q => q.id !== id)
+
+      deleteQuote: (id: string) => set((state: any) => ({
+        quotes: (state.quotes as Record<string, unknown>[]).filter((q: Record<string, unknown>) => q.id !== id)
       })),
-      
-      addInvoice: (invoice) => set((state) => ({
-        invoices: [...state.invoices, { ...invoice, id: Date.now().toString(), number: `INV-2024-${String(state.invoices.length + 1).padStart(3, '0')}` }]
+
+      addInvoice: (invoice: Record<string, unknown>) => set((state: any) => ({
+        invoices: [...(state.invoices as Record<string, unknown>[]), { ...invoice, id: Date.now().toString(), number: `INV-2024-${String((state.invoices as Record<string, unknown>[]).length + 1).padStart(3, '0')}` }]
       })),
-      
-      updateInvoice: (id, updates) => set((state) => ({
-        invoices: state.invoices.map(i => i.id === id ? { ...i, ...updates } : i)
+
+      updateInvoice: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        invoices: (state.invoices as Record<string, unknown>[]).map((i: Record<string, unknown>) => i.id === id ? { ...i, ...updates } : i)
       })),
-      
-      deleteInvoice: (id) => set((state) => ({
-        invoices: state.invoices.filter(i => i.id !== id)
+
+      deleteInvoice: (id: string) => set((state: any) => ({
+        invoices: (state.invoices as Record<string, unknown>[]).filter((i: Record<string, unknown>) => i.id !== id)
       })),
-      
-      addRFI: (rfi) => set((state) => ({
-        rfis: [...state.rfis, { ...rfi, id: Date.now().toString(), number: `RFI-${String(state.rfis.length + 1).padStart(3, '0')}` }]
+
+      addRFI: (rfi: Record<string, unknown>) => set((state: any) => ({
+        rfis: [...(state.rfis as Record<string, unknown>[]), { ...rfi, id: Date.now().toString(), number: `RFI-${String((state.rfis as Record<string, unknown>[]).length + 1).padStart(3, '0')}` }]
       })),
-      
-      updateRFI: (id, updates) => set((state) => ({
-        rfis: state.rfis.map(r => r.id === id ? { ...r, ...updates } : r)
+
+      updateRFI: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        rfis: (state.rfis as Record<string, unknown>[]).map((r: Record<string, unknown>) => r.id === id ? { ...r, ...updates } : r)
       })),
-      
-      deleteRFI: (id) => set((state) => ({
-        rfis: state.rfis.filter(r => r.id !== id)
+
+      deleteRFI: (id: string) => set((state: any) => ({
+        rfis: (state.rfis as Record<string, unknown>[]).filter((r: Record<string, unknown>) => r.id !== id)
       })),
-      
-      addChangeOrder: (co) => set((state) => ({
-        changeOrders: [...state.changeOrders, { ...co, id: Date.now().toString(), number: `CO-${String(state.changeOrders.length + 1).padStart(3, '0')}` }]
+
+      addChangeOrder: (co: Record<string, unknown>) => set((state: any) => ({
+        changeOrders: [...(state.changeOrders as Record<string, unknown>[]), { ...co, id: Date.now().toString(), number: `CO-${String((state.changeOrders as Record<string, unknown>[]).length + 1).padStart(3, '0')}` }]
       })),
-      
-      updateChangeOrder: (id, updates) => set((state) => ({
-        changeOrders: state.changeOrders.map(c => c.id === id ? { ...c, ...updates } : c)
+
+      updateChangeOrder: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        changeOrders: (state.changeOrders as Record<string, unknown>[]).map((c: Record<string, unknown>) => c.id === id ? { ...c, ...updates } : c)
       })),
-      
-      deleteChangeOrder: (id) => set((state) => ({
-        changeOrders: state.changeOrders.filter(c => c.id !== id)
+
+      deleteChangeOrder: (id: string) => set((state: any) => ({
+        changeOrders: (state.changeOrders as Record<string, unknown>[]).filter((c: Record<string, unknown>) => c.id !== id)
       })),
-      
-      addPunchListItem: (item) => set((state) => ({
-        punchListItems: [...state.punchListItems, { ...item, id: Date.now().toString() }]
+
+      addPunchListItem: (item: Record<string, unknown>) => set((state: any) => ({
+        punchListItems: [...(state.punchListItems as Record<string, unknown>[]), { ...item, id: Date.now().toString() }]
       })),
-      
-      updatePunchListItem: (id, updates) => set((state) => ({
-        punchListItems: state.punchListItems.map(p => p.id === id ? { ...p, ...updates } : p)
+
+      updatePunchListItem: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        punchListItems: (state.punchListItems as Record<string, unknown>[]).map((p: Record<string, unknown>) => p.id === id ? { ...p, ...updates } : p)
       })),
-      
-      deletePunchListItem: (id) => set((state) => ({
-        punchListItems: state.punchListItems.filter(p => p.id !== id)
+
+      deletePunchListItem: (id: string) => set((state: any) => ({
+        punchListItems: (state.punchListItems as Record<string, unknown>[]).filter((p: Record<string, unknown>) => p.id !== id)
       })),
-      
-      addTimeEntry: (entry) => set((state) => ({
-        timeEntries: [...state.timeEntries, { ...entry, id: Date.now().toString() }]
+
+      addTimeEntry: (entry: Record<string, unknown>) => set((state: any) => ({
+        timeEntries: [...(state.timeEntries as Record<string, unknown>[]), { ...entry, id: Date.now().toString() }]
       })),
-      
-      updateTimeEntry: (id, updates) => set((state) => ({
-        timeEntries: state.timeEntries.map(t => t.id === id ? { ...t, ...updates } : t)
+
+      updateTimeEntry: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        timeEntries: (state.timeEntries as Record<string, unknown>[]).map((t: Record<string, unknown>) => t.id === id ? { ...t, ...updates } : t)
       })),
-      
-      deleteTimeEntry: (id) => set((state) => ({
-        timeEntries: state.timeEntries.filter(t => t.id !== id)
+
+      deleteTimeEntry: (id: string) => set((state: any) => ({
+        timeEntries: (state.timeEntries as Record<string, unknown>[]).filter((t: Record<string, unknown>) => t.id !== id)
       })),
-      
+
       // Daily logs
       dailyLogs: [],
-      
-      addDailyLog: (log) => set((state) => ({
-        dailyLogs: [...(state.dailyLogs || []), { ...log, id: Date.now().toString() }]
+
+      addDailyLog: (log: Record<string, unknown>) => set((state: any) => ({
+        dailyLogs: [...((state.dailyLogs as Record<string, unknown>[]) || []), { ...log, id: Date.now().toString() }]
       })),
-      
-      updateDailyLog: (id, updates) => set((state) => ({
-        dailyLogs: (state.dailyLogs || []).map(l => l.id === id ? { ...l, ...updates } : l)
+
+      updateDailyLog: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        dailyLogs: ((state.dailyLogs as Record<string, unknown>[]) || []).map((l: Record<string, unknown>) => l.id === id ? { ...l, ...updates } : l)
       })),
-      
-      deleteDailyLog: (id) => set((state) => ({
-        dailyLogs: (state.dailyLogs || []).filter(l => l.id !== id)
+
+      deleteDailyLog: (id: string) => set((state: any) => ({
+        dailyLogs: ((state.dailyLogs as Record<string, unknown>[]) || []).filter((l: Record<string, unknown>) => l.id !== id)
       })),
-      
+
       // Expenses
       expenses: [],
-      
-      addExpense: (expense) => set((state) => ({
-        expenses: [...(state.expenses || []), { ...expense, id: Date.now().toString() }]
+
+      addExpense: (expense: Record<string, unknown>) => set((state: any) => ({
+        expenses: [...((state.expenses as Record<string, unknown>[]) || []), { ...expense, id: Date.now().toString() }]
       })),
-      
-      updateExpense: (id, updates) => set((state) => ({
-        expenses: (state.expenses || []).map(e => e.id === id ? { ...e, ...updates } : e)
+
+      updateExpense: (id: string, updates: Record<string, unknown>) => set((state: any) => ({
+        expenses: ((state.expenses as Record<string, unknown>[]) || []).map((e: Record<string, unknown>) => e.id === id ? { ...e, ...updates } : e)
       })),
-      
-      deleteExpense: (id) => set((state) => ({
-        expenses: (state.expenses || []).filter(e => e.id !== id)
+
+      deleteExpense: (id: string) => set((state: any) => ({
+        expenses: ((state.expenses as Record<string, unknown>[]) || []).filter((e: Record<string, unknown>) => e.id !== id)
       })),
 
       // ========== QUALITY & SAFETY ==========
       inspections: [],
-      addInspection: (item) => set((state) => ({ inspections: [...(state.inspections || []), { ...item, id: Date.now().toString() }] })),
-      updateInspection: (id, updates) => set((state) => ({ inspections: (state.inspections || []).map(i => i.id === id ? { ...i, ...updates } : i) })),
-      deleteInspection: (id) => set((state) => ({ inspections: (state.inspections || []).filter(i => i.id !== id) })),
+      addInspection: (item: Record<string, unknown>) => set((state: any) => ({ inspections: [...((state.inspections as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateInspection: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ inspections: ((state.inspections as Record<string, unknown>[]) || []).map((i: Record<string, unknown>) => i.id === id ? { ...i, ...updates } : i) })),
+      deleteInspection: (id: string) => set((state: any) => ({ inspections: ((state.inspections as Record<string, unknown>[]) || []).filter((i: Record<string, unknown>) => i.id !== id) })),
 
       observations: [],
-      addObservation: (item) => set((state) => ({ observations: [...(state.observations || []), { ...item, id: Date.now().toString() }] })),
-      updateObservation: (id, updates) => set((state) => ({ observations: (state.observations || []).map(o => o.id === id ? { ...o, ...updates } : o) })),
-      deleteObservation: (id) => set((state) => ({ observations: (state.observations || []).filter(o => o.id !== id) })),
+      addObservation: (item: Record<string, unknown>) => set((state: any) => ({ observations: [...((state.observations as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateObservation: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ observations: ((state.observations as Record<string, unknown>[]) || []).map((o: Record<string, unknown>) => o.id === id ? { ...o, ...updates } : o) })),
+      deleteObservation: (id: string) => set((state: any) => ({ observations: ((state.observations as Record<string, unknown>[]) || []).filter((o: Record<string, unknown>) => o.id !== id) })),
 
       incidents: [],
-      addIncident: (item) => set((state) => ({ incidents: [...(state.incidents || []), { ...item, id: Date.now().toString() }] })),
-      updateIncident: (id, updates) => set((state) => ({ incidents: (state.incidents || []).map(i => i.id === id ? { ...i, ...updates } : i) })),
-      deleteIncident: (id) => set((state) => ({ incidents: (state.incidents || []).filter(i => i.id !== id) })),
+      addIncident: (item: Record<string, unknown>) => set((state: any) => ({ incidents: [...((state.incidents as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateIncident: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ incidents: ((state.incidents as Record<string, unknown>[]) || []).map((i: Record<string, unknown>) => i.id === id ? { ...i, ...updates } : i) })),
+      deleteIncident: (id: string) => set((state: any) => ({ incidents: ((state.incidents as Record<string, unknown>[]) || []).filter((i: Record<string, unknown>) => i.id !== id) })),
 
       // ========== BIDDING ==========
       bids: [],
-      addBid: (item) => set((state) => ({ bids: [...(state.bids || []), { ...item, id: Date.now().toString() }] })),
-      updateBid: (id, updates) => set((state) => ({ bids: (state.bids || []).map(b => b.id === id ? { ...b, ...updates } : b) })),
-      deleteBid: (id) => set((state) => ({ bids: (state.bids || []).filter(b => b.id !== id) })),
+      addBid: (item: Record<string, unknown>) => set((state: any) => ({ bids: [...((state.bids as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateBid: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ bids: ((state.bids as Record<string, unknown>[]) || []).map((b: Record<string, unknown>) => b.id === id ? { ...b, ...updates } : b) })),
+      deleteBid: (id: string) => set((state: any) => ({ bids: ((state.bids as Record<string, unknown>[]) || []).filter((b: Record<string, unknown>) => b.id !== id) })),
 
       // ========== MARKETING ==========
       campaigns: [],
-      addCampaign: (item) => set((state) => ({ campaigns: [...(state.campaigns || []), { ...item, id: Date.now().toString() }] })),
-      updateCampaign: (id, updates) => set((state) => ({ campaigns: (state.campaigns || []).map(c => c.id === id ? { ...c, ...updates } : c) })),
-      deleteCampaign: (id) => set((state) => ({ campaigns: (state.campaigns || []).filter(c => c.id !== id) })),
+      addCampaign: (item: Record<string, unknown>) => set((state: any) => ({ campaigns: [...((state.campaigns as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateCampaign: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ campaigns: ((state.campaigns as Record<string, unknown>[]) || []).map((c: Record<string, unknown>) => c.id === id ? { ...c, ...updates } : c) })),
+      deleteCampaign: (id: string) => set((state: any) => ({ campaigns: ((state.campaigns as Record<string, unknown>[]) || []).filter((c: Record<string, unknown>) => c.id !== id) })),
 
       reviewRequests: [],
-      addReviewRequest: (item) => set((state) => ({ reviewRequests: [...(state.reviewRequests || []), { ...item, id: Date.now().toString() }] })),
-      updateReviewRequest: (id, updates) => set((state) => ({ reviewRequests: (state.reviewRequests || []).map(r => r.id === id ? { ...r, ...updates } : r) })),
-      deleteReviewRequest: (id) => set((state) => ({ reviewRequests: (state.reviewRequests || []).filter(r => r.id !== id) })),
+      addReviewRequest: (item: Record<string, unknown>) => set((state: any) => ({ reviewRequests: [...((state.reviewRequests as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateReviewRequest: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ reviewRequests: ((state.reviewRequests as Record<string, unknown>[]) || []).map((r: Record<string, unknown>) => r.id === id ? { ...r, ...updates } : r) })),
+      deleteReviewRequest: (id: string) => set((state: any) => ({ reviewRequests: ((state.reviewRequests as Record<string, unknown>[]) || []).filter((r: Record<string, unknown>) => r.id !== id) })),
 
       referrals: [],
-      addReferral: (item) => set((state) => ({ referrals: [...(state.referrals || []), { ...item, id: Date.now().toString() }] })),
-      updateReferral: (id, updates) => set((state) => ({ referrals: (state.referrals || []).map(r => r.id === id ? { ...r, ...updates } : r) })),
-      deleteReferral: (id) => set((state) => ({ referrals: (state.referrals || []).filter(r => r.id !== id) })),
+      addReferral: (item: Record<string, unknown>) => set((state: any) => ({ referrals: [...((state.referrals as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateReferral: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ referrals: ((state.referrals as Record<string, unknown>[]) || []).map((r: Record<string, unknown>) => r.id === id ? { ...r, ...updates } : r) })),
+      deleteReferral: (id: string) => set((state: any) => ({ referrals: ((state.referrals as Record<string, unknown>[]) || []).filter((r: Record<string, unknown>) => r.id !== id) })),
 
       // ========== COMMUNICATION ==========
       messages: [],
-      addMessage: (item) => set((state) => ({ messages: [...(state.messages || []), { ...item, id: Date.now().toString() }] })),
-      updateMessage: (id, updates) => set((state) => ({ messages: (state.messages || []).map(m => m.id === id ? { ...m, ...updates } : m) })),
-      deleteMessage: (id) => set((state) => ({ messages: (state.messages || []).filter(m => m.id !== id) })),
+      addMessage: (item: Record<string, unknown>) => set((state: any) => ({ messages: [...((state.messages as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateMessage: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ messages: ((state.messages as Record<string, unknown>[]) || []).map((m: Record<string, unknown>) => m.id === id ? { ...m, ...updates } : m) })),
+      deleteMessage: (id: string) => set((state: any) => ({ messages: ((state.messages as Record<string, unknown>[]) || []).filter((m: Record<string, unknown>) => m.id !== id) })),
 
       templates: [],
-      addTemplate: (item) => set((state) => ({ templates: [...(state.templates || []), { ...item, id: Date.now().toString() }] })),
-      updateTemplate: (id, updates) => set((state) => ({ templates: (state.templates || []).map(t => t.id === id ? { ...t, ...updates } : t) })),
-      deleteTemplate: (id) => set((state) => ({ templates: (state.templates || []).filter(t => t.id !== id) })),
+      addTemplate: (item: Record<string, unknown>) => set((state: any) => ({ templates: [...((state.templates as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateTemplate: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ templates: ((state.templates as Record<string, unknown>[]) || []).map((t: Record<string, unknown>) => t.id === id ? { ...t, ...updates } : t) })),
+      deleteTemplate: (id: string) => set((state: any) => ({ templates: ((state.templates as Record<string, unknown>[]) || []).filter((t: Record<string, unknown>) => t.id !== id) })),
 
       // ========== WEBSITE BUILDER ==========
       websitePages: [],
-      addWebsitePage: (item) => set((state) => ({ websitePages: [...(state.websitePages || []), { ...item, id: Date.now().toString() }] })),
-      updateWebsitePage: (id, updates) => set((state) => ({ websitePages: (state.websitePages || []).map(p => p.id === id ? { ...p, ...updates } : p) })),
-      deleteWebsitePage: (id) => set((state) => ({ websitePages: (state.websitePages || []).filter(p => p.id !== id) })),
+      addWebsitePage: (item: Record<string, unknown>) => set((state: any) => ({ websitePages: [...((state.websitePages as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateWebsitePage: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ websitePages: ((state.websitePages as Record<string, unknown>[]) || []).map((p: Record<string, unknown>) => p.id === id ? { ...p, ...updates } : p) })),
+      deleteWebsitePage: (id: string) => set((state: any) => ({ websitePages: ((state.websitePages as Record<string, unknown>[]) || []).filter((p: Record<string, unknown>) => p.id !== id) })),
       websiteSettings: {},
-      updateWebsiteSettings: (settings) => set((state) => ({ websiteSettings: { ...state.websiteSettings, ...settings } })),
+      updateWebsiteSettings: (settings: Record<string, unknown>) => set((state: any) => ({ websiteSettings: { ...(state.websiteSettings as Record<string, unknown>), ...settings } })),
 
       // ========== AI RECEPTIONIST ==========
       aiReceptionistRules: [],
-      addAIReceptionistRule: (item) => set((state) => ({ aiReceptionistRules: [...(state.aiReceptionistRules || []), { ...item, id: Date.now().toString() }] })),
-      updateAIReceptionistRule: (id, updates) => set((state) => ({ aiReceptionistRules: (state.aiReceptionistRules || []).map(r => r.id === id ? { ...r, ...updates } : r) })),
-      deleteAIReceptionistRule: (id) => set((state) => ({ aiReceptionistRules: (state.aiReceptionistRules || []).filter(r => r.id !== id) })),
+      addAIReceptionistRule: (item: Record<string, unknown>) => set((state: any) => ({ aiReceptionistRules: [...((state.aiReceptionistRules as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateAIReceptionistRule: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ aiReceptionistRules: ((state.aiReceptionistRules as Record<string, unknown>[]) || []).map((r: Record<string, unknown>) => r.id === id ? { ...r, ...updates } : r) })),
+      deleteAIReceptionistRule: (id: string) => set((state: any) => ({ aiReceptionistRules: ((state.aiReceptionistRules as Record<string, unknown>[]) || []).filter((r: Record<string, unknown>) => r.id !== id) })),
       aiReceptionistSettings: { enabled: false, businessHours: { start: '09:00', end: '17:00' }, greeting: '' },
-      updateAIReceptionistSettings: (settings) => set((state) => ({ aiReceptionistSettings: { ...state.aiReceptionistSettings, ...settings } })),
+      updateAIReceptionistSettings: (settings: Record<string, unknown>) => set((state: any) => ({ aiReceptionistSettings: { ...(state.aiReceptionistSettings as Record<string, unknown>), ...settings } })),
       callLog: [],
 
       // ========== CONSUMER FINANCING ==========
       financingApplications: [],
-      addFinancingApplication: (item) => set((state) => ({ financingApplications: [...(state.financingApplications || []), { ...item, id: Date.now().toString() }] })),
-      updateFinancingApplication: (id, updates) => set((state) => ({ financingApplications: (state.financingApplications || []).map(a => a.id === id ? { ...a, ...updates } : a) })),
-      deleteFinancingApplication: (id) => set((state) => ({ financingApplications: (state.financingApplications || []).filter(a => a.id !== id) })),
+      addFinancingApplication: (item: Record<string, unknown>) => set((state: any) => ({ financingApplications: [...((state.financingApplications as Record<string, unknown>[]) || []), { ...item, id: Date.now().toString() }] })),
+      updateFinancingApplication: (id: string, updates: Record<string, unknown>) => set((state: any) => ({ financingApplications: ((state.financingApplications as Record<string, unknown>[]) || []).map((a: Record<string, unknown>) => a.id === id ? { ...a, ...updates } : a) })),
+      deleteFinancingApplication: (id: string) => set((state: any) => ({ financingApplications: ((state.financingApplications as Record<string, unknown>[]) || []).filter((a: Record<string, unknown>) => a.id !== id) })),
       financingSettings: {},
     }),
     {

@@ -7,8 +7,8 @@ const API_URL = import.meta.env.VITE_API_URL || '';
 export default function SignupSuccessPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const verifyCheckout = async () => {
@@ -44,8 +44,8 @@ export default function SignupSuccessPage() {
           sessionStorage.removeItem('signup_token');
           sessionStorage.removeItem('signup_company_id');
         }
-      } catch (err) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError((err as Error).message);
       } finally {
         setLoading(false);
       }
@@ -94,7 +94,7 @@ export default function SignupSuccessPage() {
             <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
               <Building className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-gray-900">{{COMPANY_NAME}}</span>
+            <span className="text-2xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</span>
           </Link>
         </div>
       </header>
@@ -105,9 +105,9 @@ export default function SignupSuccessPage() {
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <Check className="w-10 h-10 text-green-500" />
           </div>
-          
+
           <h1 className="text-3xl font-bold text-gray-900 mb-3">
-            Welcome to {{COMPANY_NAME}}!
+            Welcome to {'{{COMPANY_NAME}}'}!
           </h1>
           <p className="text-gray-600 mb-8 text-lg">
             Your account has been created successfully. You're ready to start managing your business.

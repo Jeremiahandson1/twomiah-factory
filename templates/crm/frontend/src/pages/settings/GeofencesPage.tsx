@@ -1,21 +1,60 @@
 import { useState, useEffect } from 'react';
-import { 
-  MapPin, Plus, Edit2, Trash2, Loader2, Target, 
+import {
+  MapPin, Plus, Edit2, Trash2, Loader2, Target,
   Navigation, Settings, CheckCircle, XCircle
 } from 'lucide-react';
 import api from '../../services/api';
 
+interface GeofenceData {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  radius: number;
+  address?: string;
+  active: boolean;
+  jobId?: string;
+  projectId?: string;
+  job?: { title: string };
+  project?: { name: string };
+}
+
+interface JobData {
+  id: string;
+  title: string;
+  number: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+}
+
+interface ProjectData {
+  id: string;
+  name: string;
+  number: string;
+}
+
+interface GeofenceFormData {
+  name: string;
+  lat: string | number;
+  lng: string | number;
+  radius: string | number;
+  address: string;
+  jobId: string;
+  projectId: string;
+}
+
 /**
  * Geofence Management Page
- * 
+ *
  * Admin page to manage job site geofences
  */
 export default function GeofencesPage() {
-  const [geofences, setGeofences] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [filter, setFilter] = useState('active');
+  const [geofences, setGeofences] = useState<GeofenceData[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [editing, setEditing] = useState<GeofenceData | null>(null);
+  const [filter, setFilter] = useState<string>('active');
 
   useEffect(() => {
     loadGeofences();
@@ -25,34 +64,34 @@ export default function GeofencesPage() {
     setLoading(true);
     try {
       const data = await api.get(`/api/geofencing?active=${filter}`);
-      setGeofences(data);
-    } catch (error) {
+      setGeofences(data as GeofenceData[]);
+    } catch (error: unknown) {
       console.error('Failed to load geofences:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Delete this geofence?')) return;
     try {
       await api.delete(`/api/geofencing/${id}`);
       loadGeofences();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to delete geofence');
     }
   };
 
-  const handleToggle = async (id, active) => {
+  const handleToggle = async (id: string, active: boolean) => {
     try {
       await api.put(`/api/geofencing/${id}`, { active: !active });
       loadGeofences();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to update geofence');
     }
   };
 
-  const handleSave = async (data) => {
+  const handleSave = async (data: Record<string, unknown>) => {
     try {
       if (editing) {
         await api.put(`/api/geofencing/${editing.id}`, data);
@@ -62,7 +101,7 @@ export default function GeofencesPage() {
       setShowForm(false);
       setEditing(null);
       loadGeofences();
-    } catch (error) {
+    } catch (error: unknown) {
       alert('Failed to save geofence');
     }
   };
@@ -95,7 +134,7 @@ export default function GeofencesPage() {
 
       {/* Filters */}
       <div className="flex gap-2">
-        {['active', 'all', 'false'].map((f) => (
+        {['active', 'all', 'false'].map((f: string) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -125,7 +164,7 @@ export default function GeofencesPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {geofences.map((geofence) => (
+          {geofences.map((geofence: GeofenceData) => (
             <GeofenceCard
               key={geofence.id}
               geofence={geofence}
@@ -149,7 +188,14 @@ export default function GeofencesPage() {
   );
 }
 
-function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
+interface GeofenceCardProps {
+  geofence: GeofenceData;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+}
+
+function GeofenceCard({ geofence, onEdit, onDelete, onToggle }: GeofenceCardProps) {
   return (
     <div className={`bg-white rounded-xl border p-4 ${!geofence.active ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between mb-3">
@@ -218,8 +264,14 @@ function GeofenceCard({ geofence, onEdit, onDelete, onToggle }) {
   );
 }
 
-function GeofenceFormModal({ geofence, onSave, onClose }) {
-  const [form, setForm] = useState({
+interface GeofenceFormModalProps {
+  geofence: GeofenceData | null;
+  onSave: (data: Record<string, unknown>) => void;
+  onClose: () => void;
+}
+
+function GeofenceFormModal({ geofence, onSave, onClose }: GeofenceFormModalProps) {
+  const [form, setForm] = useState<GeofenceFormData>({
     name: geofence?.name || '',
     lat: geofence?.lat || '',
     lng: geofence?.lng || '',
@@ -228,9 +280,9 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
     jobId: geofence?.jobId || '',
     projectId: geofence?.projectId || '',
   });
-  const [jobs, setJobs] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [gettingLocation, setGettingLocation] = useState(false);
+  const [jobs, setJobs] = useState<JobData[]>([]);
+  const [projects, setProjects] = useState<ProjectData[]>([]);
+  const [gettingLocation, setGettingLocation] = useState<boolean>(false);
 
   useEffect(() => {
     loadOptions();
@@ -242,9 +294,9 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
         api.get('/api/jobs?status=scheduled&limit=100'),
         api.get('/api/projects?status=active&limit=100'),
       ]);
-      setJobs(jobsRes.data || jobsRes || []);
-      setProjects(projectsRes.data || []);
-    } catch (error) {
+      setJobs(((jobsRes as Record<string, unknown>).data || jobsRes || []) as JobData[]);
+      setProjects(((projectsRes as Record<string, unknown>).data || []) as ProjectData[]);
+    } catch (error: unknown) {
       console.error('Failed to load options:', error);
     }
   };
@@ -252,7 +304,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
   const getCurrentLocation = () => {
     setGettingLocation(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      (pos: GeolocationPosition) => {
         setForm({
           ...form,
           lat: pos.coords.latitude.toFixed(6),
@@ -260,7 +312,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
         });
         setGettingLocation(false);
       },
-      (err) => {
+      (err: GeolocationPositionError) => {
         alert('Could not get location: ' + err.message);
         setGettingLocation(false);
       },
@@ -268,13 +320,13 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
     );
   };
 
-  const handleJobSelect = async (jobId) => {
+  const handleJobSelect = async (jobId: string) => {
     setForm({ ...form, jobId });
-    
+
     if (jobId) {
-      const job = jobs.find(j => j.id === jobId);
+      const job = jobs.find((j: JobData) => j.id === jobId);
       if (job) {
-        setForm(f => ({
+        setForm((f: GeofenceFormData) => ({
           ...f,
           jobId,
           name: f.name || job.title,
@@ -286,7 +338,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!form.lat || !form.lng) {
       alert('Location coordinates are required');
@@ -294,9 +346,9 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
     }
     onSave({
       ...form,
-      lat: parseFloat(form.lat),
-      lng: parseFloat(form.lng),
-      radius: parseInt(form.radius),
+      lat: parseFloat(String(form.lat)),
+      lng: parseFloat(String(form.lng)),
+      radius: parseInt(String(form.radius)),
       jobId: form.jobId || null,
       projectId: form.projectId || null,
     });
@@ -318,7 +370,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               <input
                 type="text"
                 value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="Job Site Name"
                 required
@@ -330,11 +382,11 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Link to Job (optional)</label>
               <select
                 value={form.jobId}
-                onChange={(e) => handleJobSelect(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleJobSelect(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="">No job</option>
-                {jobs.map(job => (
+                {jobs.map((job: JobData) => (
                   <option key={job.id} value={job.id}>{job.title} ({job.number})</option>
                 ))}
               </select>
@@ -345,11 +397,11 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Link to Project (optional)</label>
               <select
                 value={form.projectId}
-                onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, projectId: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="">No project</option>
-                {projects.map(proj => (
+                {projects.map((proj: ProjectData) => (
                   <option key={proj.id} value={proj.id}>{proj.name} ({proj.number})</option>
                 ))}
               </select>
@@ -361,7 +413,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
               <input
                 type="text"
                 value={form.address}
-                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, address: e.target.value })}
                 className="w-full px-3 py-2 border rounded-lg"
                 placeholder="123 Main St, City, ST"
               />
@@ -375,7 +427,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
                   type="number"
                   step="any"
                   value={form.lat}
-                  onChange={(e) => setForm({ ...form, lat: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, lat: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="41.8781"
                   required
@@ -387,7 +439,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
                   type="number"
                   step="any"
                   value={form.lng}
-                  onChange={(e) => setForm({ ...form, lng: e.target.value })}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, lng: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                   placeholder="-87.6298"
                   required
@@ -421,7 +473,7 @@ function GeofenceFormModal({ geofence, onSave, onClose }) {
                 max="500"
                 step="25"
                 value={form.radius}
-                onChange={(e) => setForm({ ...form, radius: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, radius: e.target.value })}
                 className="w-full"
               />
               <div className="flex justify-between text-xs text-gray-500">

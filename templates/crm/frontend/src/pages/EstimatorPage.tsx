@@ -64,7 +64,7 @@ export default function EstimatorPage() {
     return <div className="flex items-center justify-center h-96"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
   }
 
-  const siteUrl = company?.settings?.siteUrl;
+  const siteUrl = company?.settings?.siteUrl as string | undefined;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">

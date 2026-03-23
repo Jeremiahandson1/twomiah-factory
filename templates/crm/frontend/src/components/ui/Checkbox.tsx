@@ -2,14 +2,23 @@ import React from 'react';
 import clsx from 'clsx';
 import { Check } from 'lucide-react';
 
-export function Checkbox({ 
-  checked, 
-  onChange, 
-  label, 
+interface CheckboxProps {
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
+  label?: string;
+  description?: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+export function Checkbox({
+  checked,
+  onChange,
+  label,
   description,
   disabled,
-  className 
-}) {
+  className
+}: CheckboxProps) {
   return (
     <label className={clsx(
       'flex items-start gap-3 cursor-pointer group',
@@ -20,15 +29,15 @@ export function Checkbox({
         <input
           type="checkbox"
           checked={checked}
-          onChange={(e) => onChange?.(e.target.checked)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange?.(e.target.checked)}
           disabled={disabled}
           className="sr-only peer"
         />
         <div className={clsx(
           'w-5 h-5 rounded border-2 transition-all duration-200',
           'flex items-center justify-center',
-          checked 
-            ? 'bg-brand-500 border-brand-500' 
+          checked
+            ? 'bg-brand-500 border-brand-500'
             : 'bg-slate-800 border-slate-600 group-hover:border-slate-500'
         )}>
           {checked && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
@@ -50,22 +59,32 @@ export function Checkbox({
   );
 }
 
-export function Toggle({ 
-  checked, 
-  onChange, 
-  label, 
+const toggleSizes = {
+  sm: { track: 'w-8 h-4', thumb: 'w-3 h-3', translate: 'translate-x-4' },
+  md: { track: 'w-11 h-6', thumb: 'w-5 h-5', translate: 'translate-x-5' },
+  lg: { track: 'w-14 h-7', thumb: 'w-6 h-6', translate: 'translate-x-7' },
+};
+
+interface ToggleProps {
+  checked?: boolean;
+  onChange?: (checked: boolean) => void;
+  label?: string;
+  description?: string;
+  disabled?: boolean;
+  size?: keyof typeof toggleSizes;
+  className?: string;
+}
+
+export function Toggle({
+  checked,
+  onChange,
+  label,
   description,
   disabled,
   size = 'md',
-  className 
-}) {
-  const sizes = {
-    sm: { track: 'w-8 h-4', thumb: 'w-3 h-3', translate: 'translate-x-4' },
-    md: { track: 'w-11 h-6', thumb: 'w-5 h-5', translate: 'translate-x-5' },
-    lg: { track: 'w-14 h-7', thumb: 'w-6 h-6', translate: 'translate-x-7' },
-  };
-
-  const s = sizes[size];
+  className
+}: ToggleProps) {
+  const s = toggleSizes[size];
 
   return (
     <label className={clsx(
@@ -77,7 +96,7 @@ export function Toggle({
         <input
           type="checkbox"
           checked={checked}
-          onChange={(e) => onChange?.(e.target.checked)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange?.(e.target.checked)}
           disabled={disabled}
           className="sr-only peer"
         />

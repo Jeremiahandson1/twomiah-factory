@@ -297,29 +297,29 @@ export const PRESET_PACKAGES = [
 ];
 
 // Get all feature IDs
-export const getAllFeatureIds = () => {
-  const ids = [];
-  FEATURE_CATEGORIES.forEach(cat => {
-    cat.features.forEach(f => ids.push(f.id));
+export const getAllFeatureIds = (): string[] => {
+  const ids: string[] = [];
+  FEATURE_CATEGORIES.forEach((cat: { id: string; features: { id: string }[] }) => {
+    cat.features.forEach((f: { id: string }) => ids.push(f.id));
   });
   return ids;
 };
 
 // Get feature by ID
-export const getFeatureById = (id) => {
+export const getFeatureById = (id: string): { id: string; name: string; description: string; category: string; categoryName: string } | null => {
   for (const cat of FEATURE_CATEGORIES) {
-    const feature = cat.features.find(f => f.id === id);
+    const feature = cat.features.find((f: { id: string }) => f.id === id);
     if (feature) return { ...feature, category: cat.id, categoryName: cat.name };
   }
   return null;
 };
 
 // Get category by ID
-export const getCategoryById = (id) => {
-  return FEATURE_CATEGORIES.find(c => c.id === id);
+export const getCategoryById = (id: string) => {
+  return FEATURE_CATEGORIES.find((c: { id: string }) => c.id === id);
 };
 
 // Count features
-export const getTotalFeatureCount = () => {
-  return FEATURE_CATEGORIES.reduce((sum, cat) => sum + cat.features.length, 0);
+export const getTotalFeatureCount = (): number => {
+  return FEATURE_CATEGORIES.reduce((sum: number, cat: { features: unknown[] }) => sum + cat.features.length, 0);
 };

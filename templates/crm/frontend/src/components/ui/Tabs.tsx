@@ -1,13 +1,25 @@
 import React, { createContext, useContext, useState } from 'react';
 import clsx from 'clsx';
 
-const TabsContext = createContext<any>(null);
+interface TabsContextValue {
+  value: string;
+  onChange: (value: string) => void;
+}
 
-export function Tabs({ children, defaultValue, value, onChange }) {
-  const [internalValue, setInternalValue] = useState(defaultValue);
+const TabsContext = createContext<TabsContextValue | null>(null);
+
+interface TabsProps {
+  children: React.ReactNode;
+  defaultValue?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+}
+
+export function Tabs({ children, defaultValue, value, onChange }: TabsProps) {
+  const [internalValue, setInternalValue] = useState<string>(defaultValue ?? '');
   const currentValue = value ?? internalValue;
-  
-  const handleChange = (newValue) => {
+
+  const handleChange = (newValue: string): void => {
     if (onChange) {
       onChange(newValue);
     } else {
@@ -22,7 +34,12 @@ export function Tabs({ children, defaultValue, value, onChange }) {
   );
 }
 
-export function TabsList({ children, className }) {
+interface TabsListProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function TabsList({ children, className }: TabsListProps) {
   return (
     <div className={clsx(
       'flex gap-1 p-1 bg-slate-800/50 rounded-lg',
@@ -33,8 +50,16 @@ export function TabsList({ children, className }) {
   );
 }
 
-export function TabsTrigger({ children, value, className }) {
-  const { value: currentValue, onChange } = useContext(TabsContext);
+interface TabsTriggerProps {
+  children: React.ReactNode;
+  value: string;
+  className?: string;
+}
+
+export function TabsTrigger({ children, value, className }: TabsTriggerProps) {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error('TabsTrigger must be used within Tabs');
+  const { value: currentValue, onChange } = context;
   const isActive = currentValue === value;
 
   return (
@@ -42,8 +67,8 @@ export function TabsTrigger({ children, value, className }) {
       onClick={() => onChange(value)}
       className={clsx(
         'px-4 py-2 text-sm font-medium rounded-md transition-all',
-        isActive 
-          ? 'bg-slate-700 text-white shadow' 
+        isActive
+          ? 'bg-slate-700 text-white shadow'
           : 'text-slate-400 hover:text-white hover:bg-slate-700/50',
         className
       )}
@@ -53,9 +78,17 @@ export function TabsTrigger({ children, value, className }) {
   );
 }
 
-export function TabsContent({ children, value, className }) {
-  const { value: currentValue } = useContext(TabsContext);
-  
+interface TabsContentProps {
+  children: React.ReactNode;
+  value: string;
+  className?: string;
+}
+
+export function TabsContent({ children, value, className }: TabsContentProps) {
+  const context = useContext(TabsContext);
+  if (!context) throw new Error('TabsContent must be used within Tabs');
+  const { value: currentValue } = context;
+
   if (currentValue !== value) return null;
 
   return (

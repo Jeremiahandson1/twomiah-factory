@@ -4,35 +4,51 @@ import clsx from 'clsx';
 import { useBuilderStore } from '../../stores/builderStore';
 import { PRESET_PACKAGES, getAllFeatureIds } from '../../data/features';
 
-const presetIcons = {
+const presetIcons: Record<string, typeof Zap> = {
   service_starter: Zap,
   project_pro: Building2,
   contractor_suite: Rocket,
   enterprise: Crown,
 };
 
-const presetColors = {
+const presetColors: Record<string, string> = {
   service_starter: 'from-blue-500 to-cyan-500',
   project_pro: 'from-brand-500 to-amber-500',
   contractor_suite: 'from-purple-500 to-pink-500',
   enterprise: 'from-amber-500 to-yellow-400',
 };
 
+interface PresetPackage {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+  features: string[] | 'all';
+}
+
+interface BuilderConfig {
+  enabledFeatures: string[];
+  [key: string]: unknown;
+}
+
 export function PresetSelector() {
-  const { config, applyPreset } = useBuilderStore();
-  
-  const getFeatureCount = (preset) => {
+  const { config, applyPreset } = useBuilderStore() as {
+    config: BuilderConfig;
+    applyPreset: (id: string) => void;
+  };
+
+  const getFeatureCount = (preset: PresetPackage) => {
     if (preset.features === 'all') return getAllFeatureIds().length;
     return preset.features.length;
   };
 
-  const isPresetSelected = (preset) => {
-    const presetFeatures = preset.features === 'all' 
-      ? getAllFeatureIds() 
+  const isPresetSelected = (preset: PresetPackage) => {
+    const presetFeatures = preset.features === 'all'
+      ? getAllFeatureIds()
       : preset.features;
-    
+
     if (config.enabledFeatures.length !== presetFeatures.length) return false;
-    return presetFeatures.every(f => config.enabledFeatures.includes(f));
+    return presetFeatures.every((f: string) => config.enabledFeatures.includes(f));
   };
 
   return (
@@ -47,7 +63,7 @@ export function PresetSelector() {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {PRESET_PACKAGES.map((preset) => {
+        {(PRESET_PACKAGES as PresetPackage[]).map((preset) => {
           const Icon = presetIcons[preset.id] || Package;
           const isSelected = isPresetSelected(preset);
           const colorClass = presetColors[preset.id];

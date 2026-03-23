@@ -5,15 +5,23 @@ import { Card, CardHeader, CardBody, Button, Input, Tabs, TabsList, TabsTrigger,
 import { PieChart, Sparkles, DollarSign, TrendingUp, BarChart3, Users, FileText, Key, Globe, Zap } from 'lucide-react';
 import { useCRMDataStore } from '../../stores/builderStore';
 
+interface OutletContextType {
+  instance: Record<string, unknown>;
+}
+
 // FINANCIALS PAGE - displays calculated data from invoices/expenses
 export function FinancialsPage() {
-  const { instance } = useOutletContext();
-  const { projects, invoices, expenses = [] } = useCRMDataStore();
-  const [activeTab, setActiveTab] = useState('overview');
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const { instance } = useOutletContext<OutletContextType>();
+  const { projects, invoices, expenses = [] } = useCRMDataStore() as {
+    projects: Record<string, unknown>[];
+    invoices: Record<string, unknown>[];
+    expenses: Record<string, unknown>[];
+  };
+  const [activeTab, setActiveTab] = useState<string>('overview');
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
-  const totalRevenue = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.paid, 0);
-  const totalExpenses = expenses.reduce((s, e) => s + (e.amount || 0), 0);
+  const totalRevenue = invoices.filter((i: Record<string, unknown>) => i.status === 'paid').reduce((s: number, i: Record<string, unknown>) => s + (i.paid as number), 0);
+  const totalExpenses = expenses.reduce((s: number, e: Record<string, unknown>) => s + ((e.amount as number) || 0), 0);
   const profit = totalRevenue - totalExpenses;
 
   return (
@@ -34,13 +42,13 @@ export function FinancialsPage() {
         <TabsContent value="overview">
           <Card><CardHeader title="Profit by Project" /><CardBody>
             <div className="space-y-4">
-              {projects.map(p => {
-                const margin = p.budget > 0 ? Math.round((p.budget - p.spent) / p.budget * 100) : 0;
+              {projects.map((p: Record<string, unknown>) => {
+                const margin = (p.budget as number) > 0 ? Math.round(((p.budget as number) - (p.spent as number)) / (p.budget as number) * 100) : 0;
                 return (
-                  <div key={p.id} className="p-4 bg-slate-800/50 rounded-lg">
-                    <div className="flex justify-between mb-2"><span className="font-medium text-white">{p.name}</span><span className={margin >= 0 ? 'text-emerald-400' : 'text-red-400'}>{margin}% margin</span></div>
-                    <div className="flex gap-4 text-sm"><span className="text-slate-400">Budget: ${p.budget?.toLocaleString()}</span><span className="text-slate-400">Spent: ${p.spent?.toLocaleString()}</span><span className={margin >= 0 ? 'text-emerald-400' : 'text-red-400'}>Profit: ${(p.budget - p.spent)?.toLocaleString()}</span></div>
-                    <div className="h-2 bg-slate-700 rounded-full mt-2"><div className="h-full rounded-full" style={{ width: `${Math.min(100, p.spent / p.budget * 100)}%`, backgroundColor: p.spent > p.budget ? '#ef4444' : primaryColor }} /></div>
+                  <div key={p.id as string} className="p-4 bg-slate-800/50 rounded-lg">
+                    <div className="flex justify-between mb-2"><span className="font-medium text-white">{p.name as string}</span><span className={margin >= 0 ? 'text-emerald-400' : 'text-red-400'}>{margin}% margin</span></div>
+                    <div className="flex gap-4 text-sm"><span className="text-slate-400">Budget: ${(p.budget as number)?.toLocaleString()}</span><span className="text-slate-400">Spent: ${(p.spent as number)?.toLocaleString()}</span><span className={margin >= 0 ? 'text-emerald-400' : 'text-red-400'}>Profit: ${((p.budget as number) - (p.spent as number))?.toLocaleString()}</span></div>
+                    <div className="h-2 bg-slate-700 rounded-full mt-2"><div className="h-full rounded-full" style={{ width: `${Math.min(100, (p.spent as number) / (p.budget as number) * 100)}%`, backgroundColor: (p.spent as number) > (p.budget as number) ? '#ef4444' : primaryColor }} /></div>
                   </div>
                 );
               })}
@@ -57,8 +65,8 @@ export function FinancialsPage() {
 
 // ADVANCED PAGE - feature showcase
 export function AdvancedPage() {
-  const { instance } = useOutletContext();
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const { instance } = useOutletContext<OutletContextType>();
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
   const features = [
     { name: 'AI Assistant', desc: 'Get help with estimates, scheduling, and more', icon: Sparkles, id: 'ai_assistant' },
@@ -73,7 +81,7 @@ export function AdvancedPage() {
       <div><h1 className="text-2xl font-bold text-white">Advanced Features</h1><p className="text-slate-400 mt-1">AI tools and advanced capabilities</p></div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {features.map((f, i) => {
-          const enabled = instance.enabledFeatures.includes(f.id);
+          const enabled = (instance.enabledFeatures as string[]).includes(f.id);
           return (
             <Card key={i} className={`p-5 ${!enabled && 'opacity-50'}`}>
               <div className="flex items-start gap-4">
@@ -90,9 +98,9 @@ export function AdvancedPage() {
 
 // SETTINGS PAGE
 export function SettingsPage() {
-  const { instance } = useOutletContext();
-  const [activeTab, setActiveTab] = useState('general');
-  const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
+  const { instance } = useOutletContext<OutletContextType>();
+  const [activeTab, setActiveTab] = useState<string>('general');
+  const primaryColor = (instance.primaryColor as string) || '{{PRIMARY_COLOR}}';
 
   return (
     <div className="space-y-6">
@@ -102,11 +110,11 @@ export function SettingsPage() {
         <TabsContent value="general">
           <Card><CardHeader title="Company Settings" /><CardBody className="space-y-4">
             <div className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-lg">
-              {instance.companyLogo ? <img src={instance.companyLogo} alt="" className="w-16 h-16 object-contain rounded-lg" /> : <div className="w-16 h-16 rounded-lg flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: primaryColor }}>{instance.companyName?.[0]}</div>}
-              <div><p className="font-semibold text-white">{instance.companyName || 'My Company'}</p><p className="text-sm text-slate-400">{instance.enabledFeatures.length} features enabled</p></div>
+              {instance.companyLogo ? <img src={instance.companyLogo as string} alt="" className="w-16 h-16 object-contain rounded-lg" /> : <div className="w-16 h-16 rounded-lg flex items-center justify-center text-white text-2xl font-bold" style={{ backgroundColor: primaryColor }}>{(instance.companyName as string)?.[0]}</div>}
+              <div><p className="font-semibold text-white">{(instance.companyName as string) || 'My Company'}</p><p className="text-sm text-slate-400">{(instance.enabledFeatures as string[]).length} features enabled</p></div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div><label className="block text-sm text-slate-400 mb-1">Company Name</label><Input value={instance.companyName} disabled /></div>
+              <div><label className="block text-sm text-slate-400 mb-1">Company Name</label><Input value={instance.companyName as string} disabled /></div>
               <div><label className="block text-sm text-slate-400 mb-1">Primary Color</label><div className="flex items-center gap-2"><div className="w-10 h-10 rounded-lg" style={{ backgroundColor: primaryColor }} /><Input value={primaryColor} disabled className="flex-1" /></div></div>
             </div>
           </CardBody></Card>
@@ -114,8 +122,8 @@ export function SettingsPage() {
         <TabsContent value="integrations">
           <Card><CardHeader title="Integrations" /><CardBody>
             <div className="space-y-3">
-              {[{ name: 'QuickBooks', desc: 'Sync invoices and expenses', connected: instance.enabledFeatures.includes('quickbooks'), icon: DollarSign },
-                { name: 'Zapier', desc: 'Connect to 5000+ apps', connected: instance.enabledFeatures.includes('zapier'), icon: Zap },
+              {[{ name: 'QuickBooks', desc: 'Sync invoices and expenses', connected: (instance.enabledFeatures as string[]).includes('quickbooks'), icon: DollarSign },
+                { name: 'Zapier', desc: 'Connect to 5000+ apps', connected: (instance.enabledFeatures as string[]).includes('zapier'), icon: Zap },
                 { name: 'Google Calendar', desc: 'Sync schedules', connected: false, icon: Globe }].map((int, i) => (
                 <div key={i} className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg">
                   <div className="flex items-center gap-3"><int.icon className="w-8 h-8" style={{ color: primaryColor }} /><div><p className="font-medium text-white">{int.name}</p><p className="text-xs text-slate-500">{int.desc}</p></div></div>
@@ -127,7 +135,7 @@ export function SettingsPage() {
         </TabsContent>
         <TabsContent value="api">
           <Card><CardHeader title="API Access" /><CardBody>
-            {instance.enabledFeatures.includes('api_access') ? (
+            {(instance.enabledFeatures as string[]).includes('api_access') ? (
               <div className="space-y-4">
                 <div><label className="block text-sm text-slate-400 mb-1">API Key</label><div className="flex gap-2"><Input value="bp_live_xxxxxxxxxxxxxxxxxxxx" type="password" className="flex-1" /><Button variant="secondary" icon={Key}>Regenerate</Button></div></div>
                 <p className="text-sm text-slate-400">Use this key to authenticate API requests. Keep it secret!</p>

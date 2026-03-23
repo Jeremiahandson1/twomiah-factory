@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { 
+import {
   Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt,
   Calendar, Clock, DollarSign, FileQuestion, ClipboardList, CheckSquare,
   BookOpen, ClipboardCheck, Target, Settings, LogOut, Bell,
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
-  MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
+  MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy,
   Inbox, ExternalLink, Camera, Bot, Calculator, FileBarChart
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
@@ -16,10 +17,18 @@ import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
 import GlobalSearch from '../common/GlobalSearch';
 
+interface NavItem {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  exact?: boolean;
+  features?: string[];
+}
+
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
 // Items with `features` show if ANY listed feature is enabled.
-const ALL_NAV_ITEMS = [
+const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
   { to: '/crm/contacts', icon: Users, label: 'Contacts' },
   { to: '/crm/jobs', icon: Briefcase, label: 'Jobs' },
@@ -64,8 +73,8 @@ const ALL_NAV_ITEMS = [
 ];
 
 export default function AppLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
   const { user, company, logout, hasFeature } = useAuth();
   const { connected } = useSocket();
   const { theme, setTheme, isDark } = useTheme();
@@ -75,11 +84,11 @@ export default function AppLayout() {
 
   // Filter nav items based on enabled features
   const navItems = useMemo(() => {
-    return ALL_NAV_ITEMS.filter(item => {
+    return ALL_NAV_ITEMS.filter((item: NavItem) => {
       // Core items (no features array) always show
       if (!item.features) return true;
       // Feature-gated items show if ANY listed feature is enabled
-      return item.features.some(f => hasFeature(f));
+      return item.features.some((f: string) => hasFeature(f));
     });
   }, [hasFeature]);
 
@@ -90,7 +99,7 @@ export default function AppLayout() {
 
   // Close sidebar on escape
   useEffect(() => {
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setSidebarOpen(false);
         setUserMenuOpen(false);
@@ -115,13 +124,13 @@ export default function AppLayout() {
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950">
       {/* Skip Link */}
       <SkipLink />
-      
+
       {/* Route Announcer */}
       <RouteAnnouncer />
 
       {/* Mobile Overlay */}
       {sidebarOpen && isMobile && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
@@ -173,12 +182,12 @@ export default function AppLayout() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Sidebar">
           <ul className="space-y-1" role="list">
-            {navItems.map((item) => (
+            {navItems.map((item: NavItem) => (
               <li key={item.to}>
                 <NavLink
                   to={item.to}
                   end={item.exact}
-                  className={({ isActive }) => `
+                  className={({ isActive }: { isActive: boolean }) => `
                     flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
                     transition-colors
                     ${isActive
@@ -200,7 +209,7 @@ export default function AppLayout() {
 
           <NavLink
             to="/crm/settings"
-            className={({ isActive }) => `
+            className={({ isActive }: { isActive: boolean }) => `
               flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
               ${isActive ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400' : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'}
             `}
@@ -234,7 +243,7 @@ export default function AppLayout() {
             {/* Right side */}
             <div className="flex items-center gap-2">
               {/* Connection status */}
-              <div 
+              <div
                 className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`}
                 title={connected ? 'Connected' : 'Disconnected'}
                 aria-label={connected ? 'Real-time updates connected' : 'Real-time updates disconnected'}
