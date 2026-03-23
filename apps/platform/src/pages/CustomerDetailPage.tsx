@@ -5,7 +5,7 @@ import {
   ArrowLeft, Download, Rocket, RefreshCw, ExternalLink,
   Globe, Clock, CheckCircle, XCircle, AlertCircle,
   Copy, ChevronRight, DollarSign, CreditCard, Package,
-  Save, Trash2, Edit3, Database, Palette
+  Save, Trash2, Edit3, Database, Palette, Upload
 } from 'lucide-react'
 import FeatureManagement from '../components/factory/FeatureManagement'
 
@@ -253,6 +253,24 @@ export default function CustomerDetailPage() {
     finally { setDeploying(false) }
   }
 
+  async function updateCode() {
+    if (!tenant) return
+    if (!confirm('Update code from latest template? This will NOT touch the database or any saved data — only the application code is updated.')) return
+    setDeploying(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setDeploying(false); return }
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenant.id + '/update-code', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
+      })
+      const result = await res.json()
+      if (res.ok && result.success) { showToast('Code updated successfully — deploying now'); load() }
+      else { showToast(result.errors?.[0] || result.error || 'Update failed', 'error') }
+    } catch { showToast('Update failed', 'error') }
+    finally { setDeploying(false) }
+  }
+
   async function handleCheckout(type: string) {
     setCheckoutLoading(type)
     try {
@@ -456,7 +474,11 @@ export default function CustomerDetailPage() {
                   </div>
                 )}
                 {latestDeployed && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <button onClick={updateCode} disabled={deploying}
+                      className="flex items-center gap-2 px-3 py-2 text-sm font-semibold text-emerald-400 border border-emerald-800 rounded-lg hover:bg-emerald-900/20 disabled:opacity-50 transition-colors">
+                      <Upload size={14} /> Update Code
+                    </button>
                     <button onClick={redeploy} disabled={deploying}
                       className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-300 border border-gray-700 rounded-lg hover:bg-gray-800 transition-colors">
                       <RefreshCw size={14} /> Redeploy
@@ -467,7 +489,11 @@ export default function CustomerDetailPage() {
                     </button>
                   </div>
                 )}
-                <p className="text-xs text-gray-600">Creates GitHub repo + Render services automatically.</p>
+                <p className="text-xs text-gray-600">
+                  <strong>Update Code</strong> — pushes latest template fixes without touching data.
+                  <strong> Redeploy</strong> — restarts existing code.
+                  <strong> Regenerate</strong> — full rebuild from scratch.
+                </p>
               </div>
             ) : (
               <div className="flex items-center gap-2 text-xs text-amber-500 bg-amber-500/10 px-3 py-2 rounded-lg border border-amber-500/20">
