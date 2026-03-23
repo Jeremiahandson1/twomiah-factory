@@ -36,7 +36,7 @@ app.get('/sales', async (c) => {
       COALESCE(SUM(total_tax::numeric), 0) as tax_collected,
       COALESCE(SUM(discount_amount::numeric), 0) as discounts_given,
       COALESCE(AVG(total::numeric), 0) as avg_order_value
-    FROM "order"
+    FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status = 'completed'
       AND completed_at >= ${start}
@@ -80,7 +80,7 @@ app.get('/products', async (c) => {
       COUNT(DISTINCT oi.order_id)::int as order_count,
       COALESCE(AVG(oi.unit_price::numeric), 0) as avg_price
     FROM order_items oi
-    JOIN "order" o ON o.id = oi.order_id
+    JOIN orders o ON o.id = oi.order_id
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status = 'completed'
       AND o.completed_at >= ${start}
@@ -116,7 +116,7 @@ app.get('/summary', async (c) => {
         COUNT(CASE WHEN type = 'delivery' THEN 1 END)::int as delivery_count,
         COUNT(CASE WHEN type = 'online' THEN 1 END)::int as online_count,
         COUNT(CASE WHEN is_medical = true THEN 1 END)::int as medical_count
-      FROM "order"
+      FROM orders
       WHERE company_id = ${currentUser.companyId}
         AND created_at >= ${dayStart}
         AND created_at <= ${dayEnd}
@@ -125,7 +125,7 @@ app.get('/summary', async (c) => {
     db.execute(sql`
       SELECT oi.category, SUM(oi.quantity)::int as units_sold, COALESCE(SUM(oi.line_total::numeric), 0) as revenue
       FROM order_items oi
-      JOIN "order" o ON o.id = oi.order_id
+      JOIN orders o ON o.id = oi.order_id
       WHERE o.company_id = ${currentUser.companyId}
         AND o.status = 'completed'
         AND o.created_at >= ${dayStart}
@@ -136,7 +136,7 @@ app.get('/summary', async (c) => {
     // Payment method breakdown
     db.execute(sql`
       SELECT payment_method, COUNT(*)::int as count, COALESCE(SUM(total::numeric), 0) as total
-      FROM "order"
+      FROM orders
       WHERE company_id = ${currentUser.companyId}
         AND status = 'completed'
         AND created_at >= ${dayStart}
@@ -180,7 +180,7 @@ app.get('/peak-hours', async (c) => {
       COUNT(*)::int as order_count,
       COALESCE(SUM(total::numeric), 0) as revenue,
       COALESCE(AVG(total::numeric), 0) as avg_order_value
-    FROM "order"
+    FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status = 'completed'
       AND created_at >= ${start}

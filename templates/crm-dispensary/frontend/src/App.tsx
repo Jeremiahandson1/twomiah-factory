@@ -37,6 +37,53 @@ import AuditLogPage from './pages/AuditLogPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
 
+// New feature pages
+import MetrcPage from './pages/MetrcPage';
+import LabelsPage from './pages/LabelsPage';
+import CompliancePage from './pages/CompliancePage';
+import LocationsPage from './pages/LocationsPage';
+import BatchesPage from './pages/BatchesPage';
+import RFIDPage from './pages/RFIDPage';
+import TrackingPage from './pages/TrackingPage';
+import KioskPage from './pages/KioskPage';
+import KioskOrderPage from './pages/KioskOrderPage';
+import RecommendationsPage from './pages/RecommendationsPage';
+import ReferralsPage from './pages/ReferralsPage';
+import ReportsPage from './pages/ReportsPage';
+import CultivationPage from './pages/CultivationPage';
+import ManufacturingPage from './pages/ManufacturingPage';
+import WholesalePage from './pages/WholesalePage';
+import WebsiteAnalyticsPage from './pages/WebsiteAnalyticsPage';
+import EnterprisePage from './pages/EnterprisePage';
+
+// Phase 2 feature pages
+import CheckinPage from './pages/CheckinPage';
+import IDScannerPage from './pages/IDScannerPage';
+import BioTrackPage from './pages/BioTrackPage';
+import PayByBankPage from './pages/PayByBankPage';
+import AIBudtenderPage from './pages/AIBudtenderPage';
+import GamifiedLoyaltyPage from './pages/GamifiedLoyaltyPage';
+import SEOPagesPage from './pages/SEOPagesPage';
+import PredictiveInventoryPage from './pages/PredictiveInventoryPage';
+import SignagePage from './pages/SignagePage';
+import CurbsidePage from './pages/CurbsidePage';
+import EquivalencyPage from './pages/EquivalencyPage';
+import TaxFilingPage from './pages/TaxFilingPage';
+import MarketplacePage from './pages/MarketplacePage';
+import PlatformPage from './pages/PlatformPage';
+import SecurityPage from './pages/SecurityPage';
+import SOC2DashboardPage from './pages/SOC2DashboardPage';
+import GrowInputsPage from './pages/GrowInputsPage';
+import QRScannerPage from './pages/QRScannerPage';
+import SchedulingPage from './pages/SchedulingPage';
+import TrainingPage from './pages/TrainingPage';
+import FraudDetectionPage from './pages/FraudDetectionPage';
+import ApprovalsPage from './pages/ApprovalsPage';
+import OfflinePage from './pages/OfflinePage';
+import EODReportPage from './pages/EODReportPage';
+import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
+import MenuSyncPage from './pages/MenuSyncPage';
+
 // Layout
 import AppLayout from './components/layout/AppLayout';
 
@@ -101,7 +148,56 @@ function App() {
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
+
+                    {/* New feature routes */}
+                    <Route path="metrc" element={<MetrcPage />} />
+                    <Route path="labels" element={<LabelsPage />} />
+                    <Route path="compliance" element={<CompliancePage />} />
+                    <Route path="locations" element={<LocationsPage />} />
+                    <Route path="batches" element={<BatchesPage />} />
+                    <Route path="rfid" element={<RFIDPage />} />
+                    <Route path="tracking" element={<TrackingPage />} />
+                    <Route path="kiosk" element={<KioskPage />} />
+                    <Route path="recommendations" element={<RecommendationsPage />} />
+                    <Route path="referrals" element={<ReferralsPage />} />
+                    <Route path="reports" element={<ReportsPage />} />
+                    <Route path="cultivation" element={<CultivationPage />} />
+                    <Route path="manufacturing" element={<ManufacturingPage />} />
+                    <Route path="wholesale" element={<WholesalePage />} />
+                    <Route path="website-analytics" element={<WebsiteAnalyticsPage />} />
+                    <Route path="enterprise" element={<EnterprisePage />} />
+
+                    {/* Phase 2 feature routes */}
+                    <Route path="checkin" element={<CheckinPage />} />
+                    <Route path="id-scanner" element={<IDScannerPage />} />
+                    <Route path="biotrack" element={<BioTrackPage />} />
+                    <Route path="pay-by-bank" element={<PayByBankPage />} />
+                    <Route path="ai-budtender" element={<AIBudtenderPage />} />
+                    <Route path="gamified-loyalty" element={<GamifiedLoyaltyPage />} />
+                    <Route path="seo-pages" element={<SEOPagesPage />} />
+                    <Route path="predictive-inventory" element={<PredictiveInventoryPage />} />
+                    <Route path="signage" element={<SignagePage />} />
+                    <Route path="curbside" element={<CurbsidePage />} />
+                    <Route path="equivalency" element={<EquivalencyPage />} />
+                    <Route path="tax-filing" element={<TaxFilingPage />} />
+                    <Route path="marketplace" element={<MarketplacePage />} />
+                    <Route path="platform" element={<PlatformPage />} />
+                    <Route path="security" element={<SecurityPage />} />
+                    <Route path="soc2" element={<SOC2DashboardPage />} />
+                    <Route path="grow-inputs" element={<GrowInputsPage />} />
+                    <Route path="qr-scanner" element={<QRScannerPage />} />
+                    <Route path="scheduling" element={<SchedulingPage />} />
+                    <Route path="training" element={<TrainingPage />} />
+                    <Route path="fraud-detection" element={<FraudDetectionPage />} />
+                    <Route path="approvals" element={<ApprovalsPage />} />
+                    <Route path="offline" element={<OfflinePage />} />
+                    <Route path="eod" element={<EODReportPage />} />
+                    <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+                    <Route path="menu-sync" element={<MenuSyncPage />} />
                   </Route>
+
+                  {/* Kiosk mode — standalone fullscreen interface (no auth) */}
+                  <Route path="/kiosk" element={<KioskOrderPage />} />
 
                   {/* Catch all */}
                   <Route path="*" element={<Navigate to="/" replace />} />

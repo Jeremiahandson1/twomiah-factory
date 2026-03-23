@@ -47,6 +47,54 @@ import analyticsRoutes from './routes/analytics.ts'
 import cashRoutes from './routes/cash.ts'
 import integrationsRoutes from './routes/integrations.ts'
 
+// New feature routes
+import metrcRoutes from './routes/metrc.ts'
+import labelsRoutes from './routes/labels.ts'
+import complianceRoutes from './routes/compliance.ts'
+import locationsRoutes from './routes/locations.ts'
+import rfidRoutes from './routes/rfid.ts'
+import batchesRoutes from './routes/batches.ts'
+import trackingRoutes from './routes/tracking.ts'
+import kioskRoutes from './routes/kiosk.ts'
+import recommendationsRoutes from './routes/recommendations.ts'
+import referralsRoutes from './routes/referrals.ts'
+import reportsRoutes from './routes/reports.ts'
+import cultivationRoutes from './routes/cultivation.ts'
+import manufacturingRoutes from './routes/manufacturing.ts'
+import wholesaleRoutes from './routes/wholesale.ts'
+import websiteAnalyticsRoutes from './routes/website-analytics.ts'
+import enterpriseRoutes from './routes/enterprise.ts'
+
+// Phase 2 feature routes
+import checkinRoutes from './routes/checkin.ts'
+import idScannerRoutes from './routes/id-scanner.ts'
+import biotrackRoutes from './routes/biotrack.ts'
+import payByBankRoutes from './routes/pay-by-bank.ts'
+import walletPassesRoutes from './routes/wallet-passes.ts'
+import aiBudtenderRoutes from './routes/ai-budtender.ts'
+import seoPagesRoutes from './routes/seo-pages.ts'
+import predictiveInventoryRoutes from './routes/predictive-inventory.ts'
+import gamifiedLoyaltyRoutes from './routes/gamified-loyalty.ts'
+import signageRoutes from './routes/signage.ts'
+import curbsideRoutes from './routes/curbside.ts'
+import equivalencyRoutes from './routes/equivalency.ts'
+import taxFilingRoutes from './routes/tax-filing.ts'
+import marketplaceRoutes from './routes/marketplace.ts'
+import platformRoutes from './routes/platform.ts'
+import securityRoutes from './routes/security.ts'
+import complianceControlsRoutes from './routes/compliance-controls.ts'
+import growInputsRoutes from './routes/grow-inputs.ts'
+import qrScannerRoutes from './routes/qr-scanner.ts'
+import schedulingRoutes from './routes/scheduling.ts'
+import trainingRoutes from './routes/training.ts'
+import fraudDetectionRoutes from './routes/fraud-detection.ts'
+import approvalsRoutes from './routes/approvals.ts'
+import offlineRoutes from './routes/offline.ts'
+import eodRoutes from './routes/eod.ts'
+import purchaseOrdersRoutes from './routes/purchase-orders.ts'
+import menuSyncRoutes from './routes/menu-sync.ts'
+import leafDataRoutes from './routes/leaf-data.ts'
+
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -119,6 +167,54 @@ app.route('/api/public/menu', menuRoutes)
 app.route('/api/analytics', analyticsRoutes)
 app.route('/api/cash', cashRoutes)
 app.route('/api/integrations', integrationsRoutes)
+
+// New feature routes
+app.route('/api/metrc', metrcRoutes)
+app.route('/api/labels', labelsRoutes)
+app.route('/api/compliance', complianceRoutes)
+app.route('/api/locations', locationsRoutes)
+app.route('/api/rfid', rfidRoutes)
+app.route('/api/batches', batchesRoutes)
+app.route('/api/tracking', trackingRoutes)
+app.route('/api/kiosk', kioskRoutes)
+app.route('/api/recommendations', recommendationsRoutes)
+app.route('/api/referrals', referralsRoutes)
+app.route('/api/reports', reportsRoutes)
+app.route('/api/cultivation', cultivationRoutes)
+app.route('/api/manufacturing', manufacturingRoutes)
+app.route('/api/wholesale', wholesaleRoutes)
+app.route('/api/website-analytics', websiteAnalyticsRoutes)
+app.route('/api/enterprise', enterpriseRoutes)
+
+// Phase 2 feature routes
+app.route('/api/checkin', checkinRoutes)
+app.route('/api/id-scanner', idScannerRoutes)
+app.route('/api/biotrack', biotrackRoutes)
+app.route('/api/pay-by-bank', payByBankRoutes)
+app.route('/api/wallet-passes', walletPassesRoutes)
+app.route('/api/ai-budtender', aiBudtenderRoutes)
+app.route('/api/seo-pages', seoPagesRoutes)
+app.route('/api/predictive-inventory', predictiveInventoryRoutes)
+app.route('/api/gamified-loyalty', gamifiedLoyaltyRoutes)
+app.route('/api/signage', signageRoutes)
+app.route('/api/curbside', curbsideRoutes)
+app.route('/api/equivalency', equivalencyRoutes)
+app.route('/api/tax-filing', taxFilingRoutes)
+app.route('/api/marketplace', marketplaceRoutes)
+app.route('/api/platform', platformRoutes)
+app.route('/api/security', securityRoutes)
+app.route('/api/compliance-controls', complianceControlsRoutes)
+app.route('/api/grow-inputs', growInputsRoutes)
+app.route('/api/qr-scanner', qrScannerRoutes)
+app.route('/api/scheduling', schedulingRoutes)
+app.route('/api/training', trainingRoutes)
+app.route('/api/fraud-detection', fraudDetectionRoutes)
+app.route('/api/approvals', approvalsRoutes)
+app.route('/api/offline', offlineRoutes)
+app.route('/api/eod', eodRoutes)
+app.route('/api/purchase-orders', purchaseOrdersRoutes)
+app.route('/api/menu-sync', menuSyncRoutes)
+app.route('/api/leaf-data', leafDataRoutes)
 
 // Factory sync endpoint — allows Twomiah Factory to push feature updates via HTTP
 // Secured by a shared secret (FACTORY_SYNC_KEY env var)

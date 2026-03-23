@@ -64,28 +64,35 @@ export function Modal({
   );
 }
 
-export function ConfirmDialog({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  title = 'Confirm', 
+export function ConfirmDialog({
+  isOpen,
+  onClose,
+  onConfirm,
+  title = 'Confirm',
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  variant = 'danger'
+  variant = 'danger',
+  loading = false,
 }) {
+  const handleConfirm = async () => {
+    await onConfirm();
+    if (!loading) onClose();
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} size="sm">
+    <Modal isOpen={isOpen} onClose={loading ? undefined : onClose} title={title} size="sm">
       <p className="text-slate-300 mb-6">{message}</p>
       <div className="flex justify-end gap-3">
-        <button onClick={onClose} className="btn btn-secondary">
+        <button onClick={onClose} className="btn btn-secondary" disabled={loading}>
           {cancelText}
         </button>
-        <button 
-          onClick={() => { onConfirm(); onClose(); }} 
+        <button
+          onClick={handleConfirm}
           className={clsx('btn', variant === 'danger' ? 'btn-danger' : 'btn-primary')}
+          disabled={loading}
         >
-          {confirmText}
+          {loading ? 'Processing...' : confirmText}
         </button>
       </div>
     </Modal>

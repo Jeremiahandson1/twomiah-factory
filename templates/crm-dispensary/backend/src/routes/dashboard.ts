@@ -40,7 +40,7 @@ app.get('/stats', async (c) => {
         COALESCE(SUM(CASE WHEN status = 'completed' THEN total_tax::numeric ELSE 0 END), 0) as tax_collected,
         COALESCE(AVG(CASE WHEN status = 'completed' THEN total::numeric END), 0) as avg_order_value,
         COUNT(CASE WHEN is_medical = true AND status = 'completed' THEN 1 END)::int as medical_orders
-      FROM "order"
+      FROM orders
       WHERE company_id = ${companyId}
         AND created_at >= ${today}
         AND created_at < ${tomorrow}
@@ -51,7 +51,7 @@ app.get('/stats', async (c) => {
       SELECT
         COALESCE(SUM(total::numeric), 0) as revenue,
         COUNT(*)::int as order_count
-      FROM "order"
+      FROM orders
       WHERE company_id = ${companyId}
         AND status = 'completed'
         AND completed_at >= ${thirtyDaysAgo}
@@ -90,7 +90,7 @@ app.get('/stats', async (c) => {
         COUNT(CASE WHEN delivery_status = 'pending' THEN 1 END)::int as pending,
         COUNT(CASE WHEN delivery_status = 'en_route' THEN 1 END)::int as en_route,
         COUNT(CASE WHEN delivery_status = 'delivered' THEN 1 END)::int as delivered
-      FROM "order"
+      FROM orders
       WHERE company_id = ${companyId}
         AND type = 'delivery'
         AND created_at >= ${today}
@@ -141,7 +141,7 @@ app.get('/recent-activity', async (c) => {
     db.execute(sql`
       SELECT o.id, o.number, o.type, o.status, o.total, o.payment_method,
              o.customer_name, o.is_medical, o.created_at, o.completed_at
-      FROM "order" o
+      FROM orders o
       WHERE o.company_id = ${companyId}
       ORDER BY o.created_at DESC
       LIMIT 10

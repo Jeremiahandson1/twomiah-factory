@@ -129,7 +129,7 @@ app.get('/orders', async (c) => {
   const dataResult = await db.execute(sql`
     SELECT o.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address,
            u.first_name || ' ' || u.last_name as driver_name
-    FROM "order" o
+    FROM orders o
     LEFT JOIN contact c ON c.id = o.contact_id
     LEFT JOIN "user" u ON u.id = o.driver_id
     WHERE o.company_id = ${currentUser.companyId}
@@ -141,7 +141,7 @@ app.get('/orders', async (c) => {
   `)
 
   const countResult = await db.execute(sql`
-    SELECT COUNT(*)::int as total FROM "order" o
+    SELECT COUNT(*)::int as total FROM orders o
     WHERE o.company_id = ${currentUser.companyId}
       AND o.type = 'delivery'
       ${statusFilter}
@@ -168,7 +168,7 @@ app.put('/orders/:id/assign', requireRole('manager'), async (c) => {
   if (existing.type !== 'delivery') return c.json({ error: 'Not a delivery order' }, 400)
 
   const result = await db.execute(sql`
-    UPDATE "order"
+    UPDATE orders
     SET driver_id = ${driverId}, delivery_status = 'assigned', updated_at = NOW()
     WHERE id = ${id}
     RETURNING *
@@ -218,7 +218,7 @@ app.put('/orders/:id/status', async (c) => {
   const setClause = sets.reduce((acc, s, i) => i === 0 ? s : sql`${acc}, ${s}`)
 
   const result = await db.execute(sql`
-    UPDATE "order" SET ${setClause}
+    UPDATE orders SET ${setClause}
     WHERE id = ${id}
     RETURNING *
   `)

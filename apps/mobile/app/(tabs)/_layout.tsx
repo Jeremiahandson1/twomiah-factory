@@ -18,6 +18,7 @@ const ALL_TABS = [
   'shifts', 'time-clock', 'messages', 'more-homecare',
   'pipeline', 'canvass',
   'orders', 'products', 'customers', 'loyalty', 'more-dispensary',
+  'checkin-queue', 'driver', 'ai-chat', 'pos-mobile',
 ]
 
 export default function TabLayout() {

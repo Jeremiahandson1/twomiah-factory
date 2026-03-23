@@ -38,8 +38,16 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'delivery', 'merch', 'leads', 'marketing',
     'scheduled_sms', 'advanced_reporting', 'automations',
     'custom_forms', 'email_templates', 'email_campaigns',
+    'metrc', 'compliance', 'labels', 'multi_location', 'rfid',
+    'batches', 'delivery_tracking', 'kiosk', 'ai_recommendations',
+    'referrals', 'bi_dashboard', 'custom_reports', 'budtender_performance',
+    'website_analytics', 'tip_management', 'pin_login',
   ],
-  enterprise: ['all'],
+  enterprise: [
+    'all',
+    // Includes everything in business plus:
+    // cultivation, manufacturing, wholesale, franchise, open_api, ach_payments
+  ],
 }
 
 // Plan limits
@@ -304,6 +312,65 @@ app.post('/login', async (c) => {
     company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, visionUrl: process.env.VISION_URL || null, vertical: 'dispensary' },
     ...tokens,
   })
+})
+
+// PIN Login (for POS quick-login — budtenders switch fast without full email/password)
+app.post('/pin-login', async (c) => {
+  const pinSchema = z.object({ pin: z.string().min(4).max(8), companyId: z.string() })
+  const data = pinSchema.parse(await c.req.json())
+
+  // Find users in this company who have a PIN set
+  const users = await db.select().from(user).where(and(eq(user.companyId, data.companyId), eq(user.isActive, true)))
+  const usersWithPin = users.filter(u => u.pinHash)
+
+  if (usersWithPin.length === 0) {
+    return c.json({ error: 'No PIN-enabled users found' }, 404)
+  }
+
+  // Try each user's PIN (in practice, PINs should be unique per company)
+  for (const u of usersWithPin) {
+    // Check lockout
+    if (u.pinLockedUntil && new Date(u.pinLockedUntil) > new Date()) {
+      continue // Skip locked users
+    }
+
+    const valid = await Bun.password.verify(data.pin, u.pinHash!)
+    if (valid) {
+      // Reset attempts on success
+      await db.update(user).set({ pinAttempts: 0, lastLogin: new Date(), updatedAt: new Date() } as any).where(eq(user.id, u.id))
+
+      const [foundCompany] = await db.select().from(company).where(eq(company.id, u.companyId)).limit(1)
+      if (!foundCompany) return c.json({ error: 'Company not found' }, 404)
+
+      const tokens = generateTokens(u.id, u.companyId, u.email, u.role)
+      await db.update(user).set({ refreshToken: tokens.refreshToken, updatedAt: new Date() }).where(eq(user.id, u.id))
+
+      return c.json({
+        user: { id: u.id, email: u.email, firstName: u.firstName, lastName: u.lastName, role: u.role, avatar: u.avatar },
+        company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, enabledFeatures: foundCompany.enabledFeatures },
+        ...tokens,
+      })
+    } else {
+      // Increment failed attempts
+      const attempts = (u.pinAttempts ?? 0) + 1
+      const lockUntil = attempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null // Lock for 15 min after 5 failures
+      await db.update(user).set({ pinAttempts: attempts, pinLockedUntil: lockUntil, updatedAt: new Date() } as any).where(eq(user.id, u.id))
+    }
+  }
+
+  return c.json({ error: 'Invalid PIN' }, 401)
+})
+
+// Set/update PIN (authenticated users only)
+app.put('/pin', authenticate, async (c) => {
+  const currentUser = c.get('user') as any
+  const pinSchema = z.object({ pin: z.string().min(4).max(8) })
+  const data = pinSchema.parse(await c.req.json())
+
+  const pinHash = await Bun.password.hash(data.pin, 'bcrypt')
+  await db.update(user).set({ pinHash, pinAttempts: 0, pinLockedUntil: null, updatedAt: new Date() } as any).where(eq(user.id, currentUser.userId))
+
+  return c.json({ message: 'PIN updated' })
 })
 
 // Refresh token

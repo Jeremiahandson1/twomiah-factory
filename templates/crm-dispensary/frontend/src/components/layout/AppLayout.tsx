@@ -4,7 +4,13 @@ import {
   Menu, X, Home, Users, Settings, LogOut, Bell, Search,
   ChevronDown, Building, User, Package, Truck, ShoppingCart,
   BarChart3, Star, Shield, DollarSign, Sun, Moon,
-  ShoppingBag, LayoutDashboard, Users2
+  ShoppingBag, LayoutDashboard, Users2, Leaf, Tag, FileCheck,
+  MapPin, Layers, Radio, Navigation, Monitor, Sparkles,
+  Share2, PieChart, Sprout, Factory, Store, Globe, Briefcase,
+  UserCheck, ScanLine, Database, Wallet, MessageCircle, Trophy,
+  FileSearch, TrendingUp, Tv, Car, Scale, Receipt,
+  Puzzle, Activity, Server, Calendar, GraduationCap, AlertTriangle,
+  CheckSquare, WifiOff, ClipboardList, ShoppingBag as PurchaseIcon, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -16,17 +22,74 @@ import { useTheme } from '../../hooks/useTheme';
 // Items without `features` are always visible (core).
 // Items with `features` show if ANY listed feature is enabled.
 const ALL_NAV_ITEMS = [
+  // Core
   { to: '/crm', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { to: '/crm/products', icon: Package, label: 'Products' },
   { to: '/crm/orders', icon: ShoppingCart, label: 'Orders (POS)' },
   { to: '/crm/customers', icon: Users, label: 'Customers' },
+
+  // Inventory & Compliance
+  { to: '/crm/batches', icon: Layers, label: 'Batches', features: ['batches', 'inventory'] },
+  { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'] },
+  { to: '/crm/rfid', icon: Radio, label: 'RFID', features: ['rfid'] },
+  { to: '/crm/labels', icon: Tag, label: 'Labels', features: ['labels'] },
+  { to: '/crm/metrc', icon: Leaf, label: 'Metrc', features: ['metrc'] },
+  { to: '/crm/compliance', icon: FileCheck, label: 'Compliance', features: ['compliance'] },
+
+  // Sales & Marketing
   { to: '/crm/loyalty', icon: Star, label: 'Loyalty' },
-  { to: '/crm/delivery', icon: Truck, label: 'Delivery', features: ['delivery'] },
+  { to: '/crm/referrals', icon: Share2, label: 'Referrals', features: ['referrals'] },
+  { to: '/crm/recommendations', icon: Sparkles, label: 'AI Recs', features: ['ai_recommendations'] },
+  { to: '/crm/kiosk', icon: Monitor, label: 'Kiosk', features: ['kiosk'] },
   { to: '/crm/merch', icon: ShoppingBag, label: 'Merch Store', features: ['merch_store'] },
+
+  // Delivery
+  { to: '/crm/delivery', icon: Truck, label: 'Delivery', features: ['delivery'] },
+  { to: '/crm/tracking', icon: Navigation, label: 'Tracking', features: ['delivery_tracking'] },
+
+  // Supply Chain
+  { to: '/crm/cultivation', icon: Sprout, label: 'Cultivation', features: ['cultivation'] },
+  { to: '/crm/manufacturing', icon: Factory, label: 'Manufacturing', features: ['manufacturing'] },
+  { to: '/crm/wholesale', icon: Store, label: 'Wholesale', features: ['wholesale'] },
+
+  // Analytics & Reporting
   { to: '/crm/analytics', icon: BarChart3, label: 'Analytics' },
+  { to: '/crm/reports', icon: PieChart, label: 'Reports', features: ['custom_reports', 'bi_dashboard'] },
+  { to: '/crm/website-analytics', icon: Globe, label: 'Web Analytics', features: ['website_analytics'] },
+
+  // Operations
   { to: '/crm/cash', icon: DollarSign, label: 'Cash' },
   { to: '/crm/audit', icon: Shield, label: 'Audit Log' },
   { to: '/crm/team', icon: Users2, label: 'Team' },
+  { to: '/crm/enterprise', icon: Briefcase, label: 'Enterprise', features: ['franchise', 'multi_store'] },
+
+  // Phase 2 features
+  { to: '/crm/checkin', icon: UserCheck, label: 'Check-In', features: ['checkin', 'queue_management'] },
+  { to: '/crm/id-scanner', icon: ScanLine, label: 'ID Scanner', features: ['id_scanning'] },
+  { to: '/crm/biotrack', icon: Database, label: 'BioTrack', features: ['biotrack'] },
+  { to: '/crm/pay-by-bank', icon: Wallet, label: 'Pay by Bank', features: ['pay_by_bank'] },
+  { to: '/crm/ai-budtender', icon: MessageCircle, label: 'AI Budtender', features: ['ai_budtender'] },
+  { to: '/crm/gamified-loyalty', icon: Trophy, label: 'Challenges', features: ['gamified_loyalty'] },
+  { to: '/crm/seo-pages', icon: FileSearch, label: 'SEO Pages', features: ['seo_pages'] },
+  { to: '/crm/predictive-inventory', icon: TrendingUp, label: 'Forecasting', features: ['predictive_inventory'] },
+  { to: '/crm/signage', icon: Tv, label: 'Signage', features: ['digital_signage'] },
+  { to: '/crm/curbside', icon: Car, label: 'Curbside', features: ['curbside'] },
+  { to: '/crm/equivalency', icon: Scale, label: 'Equivalency', features: ['equivalency'] },
+  { to: '/crm/tax-filing', icon: Receipt, label: 'Tax Filing', features: ['tax_filing'] },
+  { to: '/crm/marketplace', icon: Puzzle, label: 'Integrations', features: ['marketplace'] },
+  { to: '/crm/platform', icon: Activity, label: 'Platform', features: ['platform'] },
+  { to: '/crm/security', icon: Shield, label: 'Security' },
+  { to: '/crm/soc2', icon: FileCheck, label: 'SOC 2', features: ['soc2'] },
+  { to: '/crm/grow-inputs', icon: Sprout, label: 'Grow Inputs', features: ['cultivation'] },
+  { to: '/crm/qr-scanner', icon: ScanLine, label: 'QR Scanner' },
+  { to: '/crm/scheduling', icon: Calendar, label: 'Scheduling', features: ['scheduling'] },
+  { to: '/crm/training', icon: GraduationCap, label: 'Training', features: ['training'] },
+  { to: '/crm/fraud-detection', icon: AlertTriangle, label: 'Fraud Detection', features: ['fraud_detection'] },
+  { to: '/crm/approvals', icon: CheckSquare, label: 'Approvals', features: ['approvals'] },
+  { to: '/crm/offline', icon: WifiOff, label: 'Offline Mode', features: ['offline_mode'] },
+  { to: '/crm/eod', icon: ClipboardList, label: 'EOD Report' },
+  { to: '/crm/purchase-orders', icon: PurchaseIcon, label: 'Purchase Orders', features: ['purchase_orders'] },
+  { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] },
 ];
 
 export default function AppLayout() {

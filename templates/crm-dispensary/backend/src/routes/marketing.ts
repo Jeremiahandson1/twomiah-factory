@@ -4,6 +4,48 @@ import { requirePermission } from '../middleware/permissions.ts'
 import marketing from '../services/marketing.ts'
 
 const app = new Hono()
+
+// ============================================
+// TRACKING (No auth - called by email pixels/links)
+// Must be BEFORE authenticate middleware
+// ============================================
+
+app.get('/track/open/:recipientId', async (c) => {
+  const recipientId = c.req.param('recipientId')
+  try {
+    await marketing.trackOpen(recipientId)
+  } catch (error) {
+    console.error('Track open error:', error)
+  }
+  const pixel = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), (ch) => ch.charCodeAt(0))
+  return new Response(pixel, {
+    headers: { 'Content-Type': 'image/gif' },
+  })
+})
+
+app.get('/track/click/:recipientId', async (c) => {
+  const recipientId = c.req.param('recipientId')
+  const url = c.req.query('url')
+  try {
+    await marketing.trackClick(recipientId, url)
+  } catch (error) {
+    console.error('Track click error:', error)
+  }
+  return c.redirect(url || '/')
+})
+
+app.get('/unsubscribe/:recipientId/:contactId', async (c) => {
+  const recipientId = c.req.param('recipientId')
+  const contactId = c.req.param('contactId')
+  try {
+    await marketing.handleUnsubscribe(recipientId, contactId)
+    return c.html('<html><body><h1>You have been unsubscribed</h1><p>You will no longer receive marketing emails from us.</p></body></html>')
+  } catch (error) {
+    return c.html('<html><body><h1>Error</h1><p>Could not process unsubscribe request.</p></body></html>')
+  }
+})
+
+// All remaining routes require authentication
 app.use('*', authenticate)
 
 // ============================================
@@ -123,45 +165,7 @@ app.post('/sequences/:id/enroll', requirePermission('marketing:update'), async (
   return c.json(enrollment, 201)
 })
 
-// ============================================
-// TRACKING (No auth - called by email pixels/links)
-// ============================================
-
-app.get('/track/open/:recipientId', async (c) => {
-  const recipientId = c.req.param('recipientId')
-  try {
-    await marketing.trackOpen(recipientId)
-  } catch (error) {
-    console.error('Track open error:', error)
-  }
-  // Return 1x1 transparent pixel
-  const pixel = Uint8Array.from(atob('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'), (ch) => ch.charCodeAt(0))
-  return new Response(pixel, {
-    headers: { 'Content-Type': 'image/gif' },
-  })
-})
-
-app.get('/track/click/:recipientId', async (c) => {
-  const recipientId = c.req.param('recipientId')
-  const url = c.req.query('url')
-  try {
-    await marketing.trackClick(recipientId, url)
-  } catch (error) {
-    console.error('Track click error:', error)
-  }
-  return c.redirect(url || '/')
-})
-
-app.get('/unsubscribe/:recipientId/:contactId', async (c) => {
-  const recipientId = c.req.param('recipientId')
-  const contactId = c.req.param('contactId')
-  try {
-    await marketing.handleUnsubscribe(recipientId, contactId)
-    return c.html('<html><body><h1>You have been unsubscribed</h1><p>You will no longer receive marketing emails from us.</p></body></html>')
-  } catch (error) {
-    return c.html('<html><body><h1>Error</h1><p>Could not process unsubscribe request.</p></body></html>')
-  }
-})
+// (Tracking routes moved above authenticate middleware)
 
 // ============================================
 // STATS

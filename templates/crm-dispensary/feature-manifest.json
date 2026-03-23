@@ -6,7 +6,7 @@
         "search.ts", "sms.ts", "push.ts", "documents.ts", "photos.ts",
         "support.ts", "export.ts", "import.ts", "leads.ts", "marketing.ts",
         "stripe.ts", "products.ts", "orders.ts", "loyalty.ts", "delivery.ts",
-        "menu.ts", "analytics.ts", "cash.ts", "audit.ts"
+        "menu.ts", "analytics.ts", "cash.ts", "audit.ts", "integrations.ts"
       ],
       "services": [
         "email.ts", "logger.ts", "socket.ts", "fileUpload.ts", "pdf.ts",
@@ -14,7 +14,218 @@
         "import.ts", "search.ts", "geocoding.ts", "photos.ts", "audit.ts",
         "compliance.ts", "loyalty.ts", "receipts.ts"
       ]
+    },
+    "frontend": {
+      "pages": [
+        "DashboardPage.tsx", "ProductsPage.tsx", "ProductDetailPage.tsx",
+        "OrdersPage.tsx", "POSPage.tsx", "OrderDetailPage.tsx",
+        "CustomersPage.tsx", "LoyaltyPage.tsx", "DeliveryPage.tsx",
+        "AnalyticsPage.tsx", "CashPage.tsx", "AuditLogPage.tsx",
+        "TeamPage.tsx", "SettingsPage.tsx", "MerchStorePage.tsx",
+        "CustomerPortal.tsx", "OnboardingWizard.tsx",
+        "LoginPage.tsx", "RegisterPage.tsx", "ForgotPasswordPage.tsx", "ResetPasswordPage.tsx"
+      ]
     }
   },
-  "features": {}
+  "features": {
+    "metrc": {
+      "label": "Metrc Integration",
+      "description": "Direct Metrc API integration for state compliance",
+      "tier": "pro",
+      "backend": {
+        "routes": ["metrc.ts"],
+        "services": ["metrc.ts"]
+      },
+      "frontend": {
+        "pages": ["MetrcPage.tsx"]
+      }
+    },
+    "compliance": {
+      "label": "Compliance & Licensing",
+      "description": "License management, compliance reporting, waste tracking",
+      "tier": "pro",
+      "backend": {
+        "routes": ["compliance.ts"]
+      },
+      "frontend": {
+        "pages": ["CompliancePage.tsx"]
+      }
+    },
+    "labels": {
+      "label": "Label Printing",
+      "description": "Compliant labels with QR codes, barcodes, and custom design",
+      "tier": "pro",
+      "backend": {
+        "routes": ["labels.ts"]
+      },
+      "frontend": {
+        "pages": ["LabelsPage.tsx"]
+      }
+    },
+    "multi_location": {
+      "label": "Multi-Location Inventory",
+      "description": "Track inventory across locations with inter-store transfers",
+      "tier": "business",
+      "backend": {
+        "routes": ["locations.ts"]
+      },
+      "frontend": {
+        "pages": ["LocationsPage.tsx"]
+      }
+    },
+    "batches": {
+      "label": "Batch/Lot Tracking",
+      "description": "Full batch lifecycle from receipt to depletion",
+      "tier": "pro",
+      "backend": {
+        "routes": ["batches.ts"]
+      },
+      "frontend": {
+        "pages": ["BatchesPage.tsx"]
+      }
+    },
+    "rfid": {
+      "label": "RFID Scanning",
+      "description": "RFID tag management, scanning, and inventory counting",
+      "tier": "business",
+      "backend": {
+        "routes": ["rfid.ts"]
+      },
+      "frontend": {
+        "pages": ["RFIDPage.tsx"]
+      }
+    },
+    "delivery_tracking": {
+      "label": "Delivery Tracking & Routing",
+      "description": "Real-time GPS tracking, route optimization, customer tracking",
+      "tier": "pro",
+      "backend": {
+        "routes": ["tracking.ts"]
+      },
+      "frontend": {
+        "pages": ["TrackingPage.tsx"]
+      }
+    },
+    "kiosk": {
+      "label": "Self-Service Kiosk",
+      "description": "Customer-facing kiosk for self-service ordering",
+      "tier": "business",
+      "backend": {
+        "routes": ["kiosk.ts"]
+      },
+      "frontend": {
+        "pages": ["KioskPage.tsx", "KioskOrderPage.tsx"]
+      }
+    },
+    "ai_recommendations": {
+      "label": "AI Recommendations",
+      "description": "Personalized product recommendations powered by purchase history",
+      "tier": "business",
+      "backend": {
+        "routes": ["recommendations.ts"]
+      },
+      "frontend": {
+        "pages": ["RecommendationsPage.tsx"]
+      }
+    },
+    "referrals": {
+      "label": "Referral Program",
+      "description": "Customer referral tracking with automatic rewards",
+      "tier": "pro",
+      "backend": {
+        "routes": ["referrals.ts"]
+      },
+      "frontend": {
+        "pages": ["ReferralsPage.tsx"]
+      }
+    },
+    "custom_reports": {
+      "label": "Custom Reports & BI Dashboard",
+      "description": "Report builder, BI widgets, budtender performance",
+      "tier": "business",
+      "backend": {
+        "routes": ["reports.ts"]
+      },
+      "frontend": {
+        "pages": ["ReportsPage.tsx"]
+      }
+    },
+    "website_analytics": {
+      "label": "Website & SEO Analytics",
+      "description": "Page views, traffic sources, UTM campaigns, real-time visitors",
+      "tier": "pro",
+      "backend": {
+        "routes": ["website-analytics.ts"]
+      },
+      "frontend": {
+        "pages": ["WebsiteAnalyticsPage.tsx"]
+      }
+    },
+    "cultivation": {
+      "label": "Cultivation / Grow Tracking",
+      "description": "Plant tracking from seed to harvest with grow room management",
+      "tier": "enterprise",
+      "backend": {
+        "routes": ["cultivation.ts"]
+      },
+      "frontend": {
+        "pages": ["CultivationPage.tsx"]
+      }
+    },
+    "manufacturing": {
+      "label": "Manufacturing / Processing",
+      "description": "Extraction, infusion, and processing job management",
+      "tier": "enterprise",
+      "backend": {
+        "routes": ["manufacturing.ts"]
+      },
+      "frontend": {
+        "pages": ["ManufacturingPage.tsx"]
+      }
+    },
+    "wholesale": {
+      "label": "Distribution / Wholesale",
+      "description": "B2B customers, wholesale orders, manifests, lab testing/CoA",
+      "tier": "enterprise",
+      "backend": {
+        "routes": ["wholesale.ts"]
+      },
+      "frontend": {
+        "pages": ["WholesalePage.tsx"]
+      }
+    },
+    "enterprise": {
+      "label": "Enterprise Features",
+      "description": "Multi-store, franchise, ACH payments, Open API",
+      "tier": "enterprise",
+      "backend": {
+        "routes": ["enterprise.ts"]
+      },
+      "frontend": {
+        "pages": ["EnterprisePage.tsx"]
+      }
+    }
+  },
+  "tiers": {
+    "starter": {
+      "price": 149,
+      "label": "Starter",
+      "includes": []
+    },
+    "pro": {
+      "price": 249,
+      "label": "Pro",
+      "includes": ["metrc", "compliance", "labels", "batches", "delivery_tracking", "referrals", "website_analytics"]
+    },
+    "business": {
+      "price": 399,
+      "label": "Business",
+      "includes": ["metrc", "compliance", "labels", "batches", "delivery_tracking", "referrals", "website_analytics", "multi_location", "rfid", "kiosk", "ai_recommendations", "custom_reports"]
+    },
+    "enterprise": {
+      "price": null,
+      "label": "Enterprise",
+      "includes": "all"
+    }
+  }
 }

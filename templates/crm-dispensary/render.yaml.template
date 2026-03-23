@@ -21,6 +21,12 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: FACTORY_SYNC_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
     disk:
       name: uploads
       mountPath: /opt/render/project/src/uploads

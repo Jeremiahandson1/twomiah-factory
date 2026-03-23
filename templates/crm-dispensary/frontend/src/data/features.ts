@@ -171,6 +171,116 @@ export const FEATURE_CATEGORIES = [
     ]
   },
   {
+    id: 'dispensary_pos',
+    name: 'Dispensary POS',
+    icon: 'ShoppingCart',
+    description: 'Point of sale for cannabis retail',
+    features: [
+      { id: 'pos', name: 'Dispensary POS System', description: 'Full point-of-sale with cannabis compliance' },
+      { id: 'purchase_limit', name: 'Purchase Limit Enforcement', description: 'Automatic cannabis purchase limit tracking (state-specific)' },
+      { id: 'id_verification', name: 'ID Verification at Checkout', description: 'Age and ID verification workflow at point of sale' },
+      { id: 'pin_login', name: 'PIN Login for Staff', description: 'Quick PIN-based login for budtenders at POS' },
+      { id: 'cash_management', name: 'Cash Session / Drawer Reconciliation', description: 'Open/close cash drawers with denomination tracking' },
+      { id: 'kiosk', name: 'Self-Service Kiosk', description: 'Customer-facing kiosk for self-service ordering' },
+      { id: 'ai_recommendations', name: 'AI-Powered Recommendations', description: 'Machine learning product suggestions based on purchase history' },
+      { id: 'tip_management', name: 'Tip Management', description: 'Collect and distribute tips across budtenders' },
+    ]
+  },
+  {
+    id: 'dispensary_inventory',
+    name: 'Inventory & Tracking',
+    icon: 'Package',
+    description: 'Cannabis inventory management',
+    features: [
+      { id: 'inventory', name: 'Inventory Management', description: 'Real-time cannabis inventory tracking with alerts' },
+      { id: 'multi_location', name: 'Multi-Location Inventory', description: 'Track inventory across multiple dispensary locations' },
+      { id: 'batches', name: 'Batch/Lot Tracking', description: 'Full batch lifecycle from receipt to depletion' },
+      { id: 'rfid', name: 'RFID Inventory Scanning', description: 'RFID tag registration, scanning, and bulk inventory counts' },
+      { id: 'labels', name: 'Label Printing', description: 'Compliant cannabis labels with barcodes and QR codes' },
+      { id: 'custom_labels', name: 'Custom Label Design', description: 'WYSIWYG label designer with compliance fields' },
+      { id: 'rfid_labels', name: 'RFID Labels', description: 'Encode and print RFID-enabled product labels' },
+    ]
+  },
+  {
+    id: 'dispensary_compliance',
+    name: 'Compliance',
+    icon: 'ShieldCheck',
+    description: 'Cannabis regulatory compliance',
+    features: [
+      { id: 'metrc', name: 'Metrc Integration', description: 'Direct API integration with state Metrc system' },
+      { id: 'metrc_retail_id', name: 'Metrc RetailID', description: 'Metrc RetailID support for retail transactions' },
+      { id: 'auto_metrc_reporting', name: 'Auto Metrc Reporting', description: 'Automatic sales and inventory reporting to Metrc' },
+      { id: 'license_management', name: 'License Management', description: 'Track license expirations, renewals, and compliance status' },
+      { id: 'compliance', name: 'Compliance Reporting', description: 'State-format compliance reports and exports' },
+      { id: 'waste_tracking', name: 'Waste Tracking', description: 'Cannabis waste logging with Metrc integration' },
+    ]
+  },
+  {
+    id: 'dispensary_delivery',
+    name: 'Delivery',
+    icon: 'Truck',
+    description: 'Cannabis delivery management',
+    features: [
+      { id: 'delivery', name: 'Delivery Management', description: 'Delivery zone configuration with fees and minimums' },
+      { id: 'delivery_tracking', name: 'Real-Time Delivery Tracking', description: 'GPS tracking of drivers with customer-facing status' },
+      { id: 'driver_routing', name: 'Driver Routing', description: 'Multi-stop route optimization for delivery drivers' },
+      { id: 'driver_app', name: 'Driver App', description: 'Mobile app for delivery drivers with navigation' },
+    ]
+  },
+  {
+    id: 'dispensary_marketing',
+    name: 'Loyalty & Marketing',
+    icon: 'Star',
+    description: 'Customer retention and marketing',
+    features: [
+      { id: 'loyalty', name: 'Loyalty/Rewards Program', description: 'Multi-tier points system with rewards catalog' },
+      { id: 'referrals', name: 'Referral Programs', description: 'Customer referral tracking with automatic rewards' },
+      { id: 'sms_marketing', name: 'SMS Marketing', description: 'Targeted SMS campaigns to customer segments' },
+      { id: 'email_campaigns', name: 'Email Marketing', description: 'Email campaigns with templates and tracking' },
+      { id: 'customer_segmentation', name: 'Customer Segmentation', description: 'Segment customers by behavior, tier, and preferences' },
+      { id: 'promotions', name: 'Promotions/Discounts', description: 'Create and manage promotions and discount codes' },
+    ]
+  },
+  {
+    id: 'dispensary_analytics',
+    name: 'Analytics & BI',
+    icon: 'BarChart3',
+    description: 'Business intelligence and reporting',
+    features: [
+      { id: 'analytics', name: 'Sales Reports & Analytics', description: 'Revenue, trends, and sales analytics by period' },
+      { id: 'budtender_performance', name: 'Budtender Performance Reports', description: 'Per-budtender sales attribution and metrics' },
+      { id: 'product_analytics', name: 'Product/Category Analytics', description: 'Top products, category performance, inventory turns' },
+      { id: 'custom_reports', name: 'Custom Reports', description: 'Build custom reports with flexible metrics and dimensions' },
+      { id: 'bi_dashboard', name: 'BI Dashboard', description: 'Drag-and-drop business intelligence dashboard with widgets' },
+      { id: 'website_analytics', name: 'SEO & Website Analytics', description: 'Track page views, traffic sources, and SEO performance' },
+    ]
+  },
+  {
+    id: 'dispensary_supply_chain',
+    name: 'Supply Chain / ERP',
+    icon: 'Factory',
+    description: 'Seed-to-sale supply chain management',
+    features: [
+      { id: 'cultivation', name: 'Cultivation / Grow Tracking', description: 'Track plants from seed/clone through harvest' },
+      { id: 'manufacturing', name: 'Manufacturing / Processing', description: 'Extraction, infusion, and processing job management' },
+      { id: 'wholesale', name: 'Distribution / Wholesale', description: 'B2B ordering, wholesale customers, manifests' },
+      { id: 'lab_testing', name: 'Lab Testing (CoA) Integration', description: 'Lab test tracking with Certificate of Analysis import' },
+    ]
+  },
+  {
+    id: 'dispensary_enterprise',
+    name: 'Enterprise',
+    icon: 'Building2',
+    description: 'Multi-store and enterprise features',
+    features: [
+      { id: 'multi_store', name: 'Multi-Store / Chain Support', description: 'Cross-location dashboard and reporting' },
+      { id: 'franchise', name: 'Franchise Management', description: 'Manage franchise locations with shared settings' },
+      { id: 'open_api', name: 'Open API', description: 'Published OpenAPI spec for third-party integrations' },
+      { id: 'white_label', name: 'White-Label Solution', description: 'Rebrand the platform as your own product' },
+      { id: 'ach_payments', name: 'ACH/Bank Transfers', description: 'Accept ACH bank transfer payments' },
+    ]
+  },
+  {
     id: 'addons',
     name: 'Add-Ons',
     icon: 'Sparkles',

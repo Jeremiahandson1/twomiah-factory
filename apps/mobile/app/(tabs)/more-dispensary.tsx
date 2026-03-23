@@ -1,39 +1,51 @@
 /**
- * More — dispensary navigation menu for less-used features.
+ * More — dispensary navigation menu with links to secondary screens.
  */
 
 import React from 'react'
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useAuth } from '../../src/auth/AuthContext'
 import { useHaptics } from '../../src/hooks/useHaptics'
-import { useToast } from '../../src/components/ToastProvider'
 
-const MENU_SECTIONS = [
+interface MenuItem {
+  icon: string
+  color: string
+  label: string
+  desc: string
+  route: string
+}
+
+const MENU_SECTIONS: { title: string; items: MenuItem[] }[] = [
   {
-    title: 'Operations',
+    title: 'Front of House',
     items: [
-      { icon: 'car', color: '#3b82f6', label: 'Delivery', desc: 'Manage delivery orders & drivers' },
-      { icon: 'cash', color: '#22c55e', label: 'Cash Drawer', desc: 'Open/close cash sessions' },
-      { icon: 'bar-chart', color: '#8b5cf6', label: 'Analytics', desc: 'Sales & performance reports' },
-      { icon: 'shield-checkmark', color: '#f59e0b', label: 'Audit Log', desc: 'View compliance records' },
+      { icon: 'people', color: '#3b82f6', label: 'Check-In Queue', desc: 'Manage customer waiting queue', route: '/(tabs)/checkin-queue' },
+      { icon: 'chatbubble-ellipses', color: '#8b5cf6', label: 'AI Budtender Chat', desc: 'AI-powered product recommendations', route: '/(tabs)/ai-chat' },
     ],
   },
   {
-    title: 'Inventory',
+    title: 'Operations',
     items: [
-      { icon: 'cube', color: '#06b6d4', label: 'Stock Adjustments', desc: 'Record stock changes' },
-      { icon: 'download', color: '#ec4899', label: 'Import Products', desc: 'Bulk import via CSV' },
+      { icon: 'car', color: '#06b6d4', label: 'Delivery Driver Mode', desc: 'Active route & delivery tracking', route: '/(tabs)/driver' },
+      { icon: 'cash', color: '#22c55e', label: 'Cash Management', desc: 'Open/close drawers, count cash', route: '/(tabs)/cash-management' },
+    ],
+  },
+  {
+    title: 'Insights',
+    items: [
+      { icon: 'bar-chart', color: '#f59e0b', label: 'Analytics', desc: 'Sales reports & performance', route: '/(tabs)/analytics' },
     ],
   },
   {
     title: 'Account',
     items: [
-      { icon: 'storefront', color: '#64748b', label: 'Store Settings', desc: 'Hours, tax rate, branding' },
-      { icon: 'people', color: '#64748b', label: 'Team', desc: 'Manage staff & roles' },
-      { icon: 'settings', color: '#64748b', label: 'Settings', desc: 'Notifications & preferences' },
+      { icon: 'storefront', color: '#64748b', label: 'Store Settings', desc: 'Hours, tax rate, branding', route: '/(tabs)/store-settings' },
+      { icon: 'people-circle', color: '#64748b', label: 'Team', desc: 'Staff management & roles', route: '/(tabs)/team' },
+      { icon: 'settings', color: '#64748b', label: 'Settings', desc: 'Notifications & preferences', route: '/(tabs)/settings' },
     ],
   },
 ]
@@ -42,11 +54,11 @@ export default function MoreDispensaryScreen() {
   const t = useTheme()
   const { logout } = useAuth()
   const haptics = useHaptics()
-  const toast = useToast()
+  const router = useRouter()
 
-  const handlePress = (label: string) => {
+  const handlePress = (item: MenuItem) => {
     haptics.light()
-    toast.info(`${label} — coming soon`)
+    router.push(item.route as any)
   }
 
   return (
@@ -63,7 +75,7 @@ export default function MoreDispensaryScreen() {
                     styles.menuItem,
                     idx < section.items.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border },
                   ]}
-                  onPress={() => handlePress(item.label)}
+                  onPress={() => handlePress(item)}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.iconBg, { backgroundColor: item.color + '18' }]}>

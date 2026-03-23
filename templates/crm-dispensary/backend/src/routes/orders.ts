@@ -251,8 +251,17 @@ app.post('/:id/complete', async (c) => {
   const id = c.req.param('id')
 
   const completeSchema = z.object({
-    paymentMethod: z.enum(['cash', 'debit', 'credit', 'check', 'other']).default('cash'),
+    paymentMethod: z.enum(['cash', 'debit', 'credit', 'check', 'ach', 'split', 'other']).default('cash'),
     cashTendered: z.number().optional(),
+    tipAmount: z.number().min(0).default(0),
+    tipMethod: z.enum(['cash', 'debit', 'split']).optional(),
+    // Split payment support
+    splitPayments: z.array(z.object({
+      method: z.enum(['cash', 'debit', 'ach', 'other']),
+      amount: z.number().min(0),
+    })).optional(),
+    // Send SMS notification to customer
+    sendSmsNotification: z.boolean().default(false),
   })
   const data = completeSchema.parse(await c.req.json())
 
@@ -276,6 +285,8 @@ app.post('/:id/complete', async (c) => {
       paymentMethod: data.paymentMethod,
       cashTendered: data.cashTendered != null ? String(data.cashTendered) : null,
       changeDue: String(changeDue),
+      tipAmount: String(data.tipAmount),
+      tipMethod: data.tipMethod || null,
       completedAt: new Date(),
       updatedAt: new Date(),
     } as any).where(eq(order.id, id))
@@ -310,8 +321,39 @@ app.post('/:id/complete', async (c) => {
         FROM loyalty_members lm
         WHERE lm.contact_id = ${existing.contactId} AND lm.company_id = ${currentUser.companyId}
       `)
+
+      // Auto-upgrade loyalty tier based on lifetime points
+      await tx.execute(sql`
+        UPDATE loyalty_members SET
+          tier = CASE
+            WHEN total_points_earned >= 5000 THEN 'platinum'
+            WHEN total_points_earned >= 1500 THEN 'gold'
+            WHEN total_points_earned >= 500 THEN 'silver'
+            ELSE 'bronze'
+          END,
+          updated_at = NOW()
+        WHERE contact_id = ${existing.contactId}
+          AND company_id = ${currentUser.companyId}
+      `)
     }
   })
+
+  // Send SMS order notification if requested
+  if (data.sendSmsNotification && existing.contactId) {
+    try {
+      const [customerContact] = await db.select().from(contact).where(eq(contact.id, existing.contactId)).limit(1)
+      if (customerContact?.phone) {
+        // Fire and forget — don't block the response
+        import('../services/sms.ts').then(smsModule => {
+          smsModule.default?.send?.({
+            to: customerContact.phone,
+            body: `Your order ${existing.number} is complete! Total: $${Number(existing.total).toFixed(2)}. Thank you for visiting!`,
+            companyId: currentUser.companyId,
+          }).catch(() => {})
+        }).catch(() => {})
+      }
+    } catch {}
+  }
 
   audit.log({
     action: audit.ACTIONS.STATUS_CHANGE,

@@ -42,9 +42,9 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
   ],
   dispensary: [
     { name: 'orders', title: 'Orders', icon: 'receipt-outline', activeIcon: 'receipt' },
-    { name: 'products', title: 'Products', icon: 'leaf-outline', activeIcon: 'leaf' },
-    { name: 'customers', title: 'Customers', icon: 'people-outline', activeIcon: 'people' },
-    { name: 'loyalty', title: 'Loyalty', icon: 'star-outline', activeIcon: 'star' },
+    { name: 'pos-mobile', title: 'POS', icon: 'card-outline', activeIcon: 'card' },
+    { name: 'ai-chat', title: 'AI Chat', icon: 'sparkles-outline', activeIcon: 'sparkles' },
+    { name: 'checkin-queue', title: 'Check-In', icon: 'people-outline', activeIcon: 'people' },
     { name: 'more-dispensary', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
 }

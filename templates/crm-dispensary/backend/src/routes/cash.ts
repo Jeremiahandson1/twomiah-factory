@@ -66,7 +66,7 @@ app.get('/sessions/:id', async (c) => {
   // Get cash transactions during this session
   const transactionsResult = await db.execute(sql`
     SELECT o.number, o.total, o.cash_tendered, o.change_due, o.payment_method, o.completed_at
-    FROM "order" o
+    FROM orders o
     WHERE o.company_id = ${currentUser.companyId}
       AND o.status = 'completed'
       AND o.payment_method = 'cash'
@@ -176,7 +176,7 @@ app.post('/sessions/:id/close', async (c) => {
     SELECT
       COALESCE(SUM(total::numeric), 0) as total_cash_in,
       COALESCE(SUM((change_due)::numeric), 0) as total_change_out
-    FROM "order"
+    FROM orders
     WHERE company_id = ${currentUser.companyId}
       AND status = 'completed'
       AND payment_method = 'cash'
