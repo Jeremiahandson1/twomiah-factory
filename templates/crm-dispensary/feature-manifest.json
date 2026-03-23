@@ -208,24 +208,36 @@
   },
   "tiers": {
     "starter": {
-      "price": 149,
+      "price": 299,
+      "priceAnnual": 239,
       "label": "Starter",
-      "includes": []
+      "tagline": "Everything you need to open day one",
+      "includes": [],
+      "comparison": "More features than Cova at $200-500/mo"
     },
     "pro": {
-      "price": 249,
+      "price": 499,
+      "priceAnnual": 399,
       "label": "Pro",
-      "includes": ["metrc", "compliance", "labels", "batches", "delivery_tracking", "referrals", "website_analytics"]
+      "tagline": "The complete dispensary platform",
+      "includes": ["metrc", "compliance", "labels", "batches", "delivery_tracking", "referrals", "website_analytics", "multi_location_3"],
+      "comparison": "Same price as Dutchie with 3x the features"
     },
     "business": {
-      "price": 399,
+      "price": 799,
+      "priceAnnual": 639,
       "label": "Business",
-      "includes": ["metrc", "compliance", "labels", "batches", "delivery_tracking", "referrals", "website_analytics", "multi_location", "rfid", "kiosk", "ai_recommendations", "custom_reports"]
+      "tagline": "Scale without limits",
+      "includes": ["metrc", "compliance", "labels", "batches", "delivery_tracking", "referrals", "website_analytics", "multi_location", "rfid", "kiosk", "ai_recommendations", "custom_reports"],
+      "comparison": "Replaces BLAZE + KayaPush + Alpine IQ"
     },
     "enterprise": {
-      "price": null,
+      "price": 1299,
+      "priceAnnual": 1039,
       "label": "Enterprise",
-      "includes": "all"
+      "tagline": "Seed-to-sale. Multi-state. White-glove.",
+      "includes": "all",
+      "comparison": "Replaces Treez + Canix + Distru"
     }
   }
 }

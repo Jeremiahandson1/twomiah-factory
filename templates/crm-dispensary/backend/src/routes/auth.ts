@@ -19,43 +19,61 @@ const generateTokens = (userId: string, companyId: string, email: string, role: 
   return { accessToken, refreshToken }
 }
 
-// Feature sets for each plan tier
+// Feature sets for each plan tier — $299/$499/$799/$1,299 per month
 const PLAN_FEATURES: Record<string, string[]> = {
   starter: [
+    // $299/mo — Compliant POS, more than Cova at $200-500/mo
     'customers', 'products', 'orders', 'pos', 'inventory', 'dashboard',
-    'cash_management', 'audit_log', 'documents', 'support',
+    'cash_management', 'audit_log', 'documents', 'support', 'team_management',
+    'pin_login', 'id_verification', 'purchase_limits', 'checkin_queue',
+    'tip_management', 'equivalency', 'eod_reports', 'receipt_templates',
+    'id_scanning', 'qr_scanner', 'offline_mode',
   ],
   pro: [
+    // $499/mo — Same price as Dutchie with 3x the features
     'customers', 'products', 'orders', 'pos', 'inventory', 'dashboard',
-    'cash_management', 'audit_log', 'documents', 'support',
-    'loyalty', 'team_management', 'sms', 'sms_templates', 'analytics',
-    'delivery', 'merch', 'leads', 'marketing',
+    'cash_management', 'audit_log', 'documents', 'support', 'team_management',
+    'pin_login', 'id_verification', 'purchase_limits', 'checkin_queue',
+    'tip_management', 'equivalency', 'eod_reports', 'receipt_templates',
+    'id_scanning', 'qr_scanner', 'offline_mode',
+    // Pro additions
+    'loyalty', 'referrals', 'analytics', 'sms', 'sms_templates',
+    'email_marketing', 'email_campaigns', 'marketing', 'leads',
+    'customer_portal', 'order_ahead', 'reports', 'labels',
+    'metrc', 'biotrack', 'leaf_data', 'compliance', 'license_management',
+    'waste_tracking', 'batches', 'delivery', 'delivery_tracking',
+    'driver_app', 'website_analytics', 'seo_pages', 'menu_sync',
+    'scheduling', 'training', 'approvals', 'purchase_orders',
+    'grow_inputs', 'merch',
   ],
   business: [
-    'customers', 'products', 'orders', 'pos', 'inventory', 'dashboard',
-    'cash_management', 'audit_log', 'documents', 'support',
-    'loyalty', 'team_management', 'sms', 'sms_templates', 'analytics',
-    'delivery', 'merch', 'leads', 'marketing',
-    'scheduled_sms', 'advanced_reporting', 'automations',
-    'custom_forms', 'email_templates', 'email_campaigns',
-    'metrc', 'compliance', 'labels', 'multi_location', 'rfid',
-    'batches', 'delivery_tracking', 'kiosk', 'ai_recommendations',
-    'referrals', 'bi_dashboard', 'custom_reports', 'budtender_performance',
-    'website_analytics', 'tip_management', 'pin_login',
+    // $799/mo — Replaces BLAZE + KayaPush + Alpine IQ, saves $1,000+/mo
+    'all_pro_features',
+    'multi_location', 'rfid', 'kiosk', 'ai_budtender', 'ai_recommendations',
+    'bi_dashboard', 'custom_reports', 'budtender_performance',
+    'predictive_inventory', 'gamified_loyalty', 'digital_signage',
+    'curbside', 'pay_by_bank', 'wallet_passes',
+    'fraud_detection', 'soc2_controls',
+    'advanced_reporting', 'api_access', 'marketplace',
   ],
   enterprise: [
+    // $1,299/mo — Replaces Treez + Canix + Distru, one platform for everything
     'all',
-    // Includes everything in business plus:
-    // cultivation, manufacturing, wholesale, franchise, open_api, ach_payments
   ],
 }
 
+// Resolve 'all_pro_features' at runtime
+const resolvedFeatures = { ...PLAN_FEATURES }
+if (resolvedFeatures.business[0] === 'all_pro_features') {
+  resolvedFeatures.business = [...PLAN_FEATURES.pro, ...PLAN_FEATURES.business.slice(1)]
+}
+
 // Plan limits
-const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | null; orders: number | null; storage: number | null }> = {
-  starter: { users: 2, contacts: 500, orders: 500, storage: 5 },
-  pro: { users: 5, contacts: 2500, orders: 5000, storage: 25 },
-  business: { users: 15, contacts: 10000, orders: 25000, storage: 100 },
-  enterprise: { users: null, contacts: null, orders: null, storage: null },
+const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | null; orders: number | null; storage: number | null; locations: number | null }> = {
+  starter: { users: 5, contacts: 2500, orders: null, storage: 10, locations: 1 },
+  pro: { users: 15, contacts: 10000, orders: null, storage: 50, locations: 3 },
+  business: { users: 30, contacts: 50000, orders: null, storage: 250, locations: 10 },
+  enterprise: { users: null, contacts: null, orders: null, storage: null, locations: null },
 }
 
 // Self-serve signup (multi-step flow)
