@@ -226,7 +226,7 @@ function CampaignsTab() {
     setError(null);
     try {
       const result = await api.get('/api/ads/campaigns', { status: filter });
-      setCampaigns(result.campaigns || []);
+      setCampaigns(result?.campaigns || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load campaigns');
     } finally {
@@ -342,8 +342,8 @@ function ApprovalsTab({ onCountChange }: { onCountChange: (n: number) => void })
     setError(null);
     try {
       const result = await api.get('/api/ads/pending-approvals');
-      setApprovals(result.approvals || []);
-      onCountChange(result.count || 0);
+      setApprovals(result?.approvals || []);
+      onCountChange(result?.count || 0);
     } catch (err: any) {
       setError(err.message || 'Failed to load pending approvals');
     } finally {
