@@ -182,8 +182,8 @@ app.route('/api/payroll', payrollRoutes)
 app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
 app.route('/api/pricebook', pricebookRoutes)
-app.route('/api/financing', (await import('./routes/financing.ts')).default)
-app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default)
+try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}
+try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
 app.route('/api/push', pushRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)
 app.route('/api/recurring', recurringRoutes)
