@@ -9,13 +9,16 @@ app.use('*', authenticate)
 
 async function adsProxy(method: string, path: string, body?: any) {
   const adsUrl = process.env.ADS_URL
+  const adsApiKey = process.env.ADS_API_KEY // Tenant-specific API key for the ads service
   if (!adsUrl) {
     return { error: 'Ads service not configured. Set ADS_URL environment variable.', notConfigured: true }
   }
   try {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (adsApiKey) headers['Authorization'] = `ApiKey ${adsApiKey}`
     const res = await fetch(`${adsUrl}${path}`, {
       method,
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(10000),
     })
