@@ -1561,9 +1561,9 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
 
 async function registerAdsTenant(slug: string, companyName: string, company?: any): Promise<{ url: string; apiKey: string }> {
   const adsUrl = process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com'
-  const webhookSecret = process.env.ADS_WEBHOOK_SECRET
+  const webhookSecret = process.env.ADS_WEBHOOK_SECRET || process.env.CRON_SECRET
   if (!webhookSecret) {
-    console.warn('[Deploy] ADS_WEBHOOK_SECRET env var is not set — skipping ads tenant registration for:', slug)
+    console.warn('[Deploy] No ADS_WEBHOOK_SECRET or CRON_SECRET — skipping ads tenant registration for:', slug)
     return { url: '', apiKey: '' }
   }
 
