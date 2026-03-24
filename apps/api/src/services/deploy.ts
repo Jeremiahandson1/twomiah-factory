@@ -1143,15 +1143,19 @@ export async function deployCustomer(
     // Register tenant with shared Twomiah Ads service
     if (factoryCustomer.config?.features?.paid_ads) {
       try {
-        const adsTenantUrl = await registerAdsTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
-        if (adsTenantUrl) {
-          results.adsUrl = adsTenantUrl
-          results.steps.push({ step: 'ads_tenant', status: 'ok', url: adsTenantUrl })
-          // Set ADS_URL on the CRM backend so it can link to the ads dashboard
+        const adsResult = await registerAdsTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
+        if (adsResult.url) {
+          results.adsUrl = adsResult.url
+          results.steps.push({ step: 'ads_tenant', status: 'ok', url: adsResult.url })
+          // Set ADS_URL and ADS_API_KEY on the CRM backend
           if (results.services.backend?.id) {
-            await updateRenderEnvVars(results.services.backend.id, [
-              { key: 'ADS_URL', value: adsTenantUrl },
-            ])
+            const envVars: { key: string; value: string }[] = [
+              { key: 'ADS_URL', value: adsResult.url },
+            ]
+            if (adsResult.apiKey) {
+              envVars.push({ key: 'ADS_API_KEY', value: adsResult.apiKey })
+            }
+            await updateRenderEnvVars(results.services.backend.id, envVars)
           }
         } else {
           results.steps.push({ step: 'ads_tenant', status: 'skipped', error: 'ADS_WEBHOOK_SECRET not configured' })
@@ -1555,41 +1559,47 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
   console.log('[Deploy] Registered visualizer tenant:', slug)
 }
 
-async function registerAdsTenant(slug: string, companyName: string, company?: any): Promise<string> {
+async function registerAdsTenant(slug: string, companyName: string, company?: any): Promise<{ url: string; apiKey: string }> {
   const adsUrl = process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com'
   const webhookSecret = process.env.ADS_WEBHOOK_SECRET
   if (!webhookSecret) {
     console.warn('[Deploy] ADS_WEBHOOK_SECRET env var is not set — skipping ads tenant registration for:', slug)
-    return ''
+    return { url: '', apiKey: '' }
   }
 
   const body = {
-    slug,
-    company_name: companyName,
-    email: company?.email || '',
-    website: company?.domain ? 'https://' + company.domain : '',
-    phone: company?.phone || '',
+    tenantName: companyName,
+    industry: company?.industry || 'general',
+    subdomain: slug,
+    factoryInstanceId: slug,
+    clientData: {
+      business_name: companyName,
+      phone: company?.phone || '',
+      website_url: company?.domain ? 'https://' + company.domain : '',
+      city: company?.city || '',
+      state: company?.state || '',
+    },
   }
 
-  const res = await fetchWithTimeout(adsUrl + '/api/tenants/register', {
+  const res = await fetchWithTimeout(adsUrl + '/factory/provision', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Factory-Secret': webhookSecret,
+      'X-Factory-Signature': webhookSecret,
     },
     body: JSON.stringify(body),
   })
 
   if (res.status === 409) {
-    // Tenant already exists — not an error
     console.log('[Deploy] Ads tenant already exists:', slug)
-    return adsUrl + '/t/' + slug
+    return { url: adsUrl, apiKey: '' }
   }
 
   if (!res.ok) {
     throw new Error('Ads tenant registration failed (' + res.status + '): ' + await res.text())
   }
 
-  console.log('[Deploy] Registered ads tenant:', slug)
-  return adsUrl + '/t/' + slug
+  const data = await res.json()
+  console.log('[Deploy] Registered ads tenant:', slug, 'tenantId:', data.tenantId)
+  return { url: adsUrl, apiKey: data.apiKey || '' }
 }
