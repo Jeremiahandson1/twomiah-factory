@@ -1140,33 +1140,34 @@ export async function deployCustomer(
       }
     }
 
-    // Register tenant with shared Twomiah Ads service
-    const crmFeatures = factoryCustomer.config?.features?.crm || []
-    const hasPaidAds = factoryCustomer.config?.features?.paid_ads || crmFeatures.includes('paid_ads') || crmFeatures.includes('ads')
-    if (hasPaidAds) {
-      try {
-        const adsResult = await registerAdsTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
-        if (adsResult.url) {
-          results.adsUrl = adsResult.url
-          results.steps.push({ step: 'ads_tenant', status: 'ok', url: adsResult.url })
-          // Set ADS_URL and ADS_API_KEY on the CRM backend
-          if (results.services.backend?.id) {
-            const envVars: { key: string; value: string }[] = [
-              { key: 'ADS_URL', value: adsResult.url },
-            ]
-            if (adsResult.apiKey) {
-              envVars.push({ key: 'ADS_API_KEY', value: adsResult.apiKey })
-            }
-            await updateRenderEnvVars(results.services.backend.id, envVars)
+    // Always set ADS_URL on every CRM deploy so the ads page works
+    const adsUrl = process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com'
+    if (results.services.backend?.id) {
+      const adsEnvVars: { key: string; value: string }[] = [
+        { key: 'ADS_URL', value: adsUrl },
+      ]
+
+      // Try to register tenant with ads service for API key
+      const crmFeatures = factoryCustomer.config?.features?.crm || []
+      const hasPaidAds = factoryCustomer.config?.features?.paid_ads || crmFeatures.includes('paid_ads') || crmFeatures.includes('ads')
+      if (hasPaidAds) {
+        try {
+          const adsResult = await registerAdsTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
+          if (adsResult.apiKey) {
+            adsEnvVars.push({ key: 'ADS_API_KEY', value: adsResult.apiKey })
+            results.steps.push({ step: 'ads_tenant', status: 'ok', url: adsUrl })
+          } else {
+            results.steps.push({ step: 'ads_tenant', status: 'partial', note: 'ADS_URL set but no API key — tenant registration failed or skipped' })
           }
-        } else {
-          results.steps.push({ step: 'ads_tenant', status: 'skipped', error: 'ADS_WEBHOOK_SECRET not configured' })
+        } catch (err: any) {
+          console.warn('[Deploy] Could not register ads tenant:', err.message)
+          results.steps.push({ step: 'ads_tenant', status: 'warning', error: err.message })
         }
-      } catch (err: any) {
-        // Non-critical — tenant can be registered manually later
-        console.warn('[Deploy] Could not register ads tenant:', err.message)
-        results.steps.push({ step: 'ads_tenant', status: 'warning', error: err.message })
       }
+
+      // ADS_URL is always set regardless of provisioning success
+      await updateRenderEnvVars(results.services.backend.id, adsEnvVars)
+      results.adsUrl = adsUrl
     }
 
     // Assign all created services to the Twomiah project so they appear in the Render dashboard
