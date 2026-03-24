@@ -61,24 +61,44 @@ function getValue(row: Record<string, string>, ...keys: string[]): string | null
 // ============================================
 
 const CONTACT_COLUMN_MAP = {
-  name: ['name', 'full_name', 'contact_name', 'customer_name', 'client_name', 'client'],
+  // Name fields
+  name: ['name', 'full_name', 'contact_name', 'customer_name', 'client_name', 'client', 'display_name'],
   firstName: ['first_name', 'firstname', 'first', 'given_name'],
   lastName: ['last_name', 'lastname', 'last', 'surname', 'family_name'],
-  email: ['email', 'email_address', 'e_mail', 'primary_email'],
-  phone: ['phone', 'phone_number', 'telephone', 'tel', 'primary_phone', 'main_phone', 'home_phone', 'work_phone'],
-  mobile: ['mobile', 'cell', 'cell_phone', 'mobile_phone', 'mobile_number'],
   company: ['company', 'company_name', 'business_name', 'organization'],
-  type: ['type', 'contact_type', 'category', 'client_type'],
-  address: ['address', 'street', 'street_address', 'address_1', 'address1', 'street_1', 'billing_address'],
+  title: ['title', 'prefix', 'salutation'],
+
+  // Contact info
+  email: ['email', 'email_address', 'e_mail', 'primary_email'],
+  phone: ['phone', 'phone_number', 'telephone', 'tel', 'primary_phone', 'main_phone', 'home_phone', 'work_phone', 'office_phone'],
+  mobile: ['mobile', 'cell', 'cell_phone', 'mobile_phone', 'mobile_number'],
+  fax: ['fax', 'fax_number'],
+
+  // Billing/mailing address
+  address: ['address', 'street', 'street_address', 'address_1', 'address1', 'street_1', 'billing_address', 'mailing_address'],
+  address2: ['address_2', 'address2', 'street_2', 'suite', 'apt', 'unit'],
   city: ['city', 'town', 'billing_city'],
   state: ['state', 'province', 'region', 'state_province', 'billing_state'],
-  zip: ['zip', 'zipcode', 'zip_code', 'postal_code', 'postcode', 'billing_zip'],
+  zip: ['zip', 'zipcode', 'zip_code', 'postal_code', 'postcode', 'billing_zip', 'billing_postal_code'],
+  country: ['country', 'billing_country'],
+
+  // Property/service address (Jobber exports these separately)
+  propertyAddress: ['property_street_1', 'property_address', 'service_address', 'job_address', 'property_street'],
+  propertyAddress2: ['property_street_2'],
+  propertyCity: ['property_city', 'service_city', 'job_city'],
+  propertyState: ['property_state_province', 'property_state', 'service_state'],
+  propertyZip: ['property_zip_postal_code', 'property_zip', 'property_postal_code', 'service_zip'],
+  propertyCountry: ['property_country'],
+
+  // Metadata
+  type: ['type', 'contact_type', 'category', 'client_type'],
   notes: ['notes', 'comments', 'description', 'note'],
+  tags: ['tags', 'tag', 'labels', 'categories'],
   website: ['website', 'web', 'url'],
   source: ['source', 'lead_source', 'referral_source'],
-  // Jobber-specific
-  title: ['title', 'prefix', 'salutation'],
-  jobberId: ['j_id', 'jobber_id', 'id', 'client_id', 'customer_id'],
+
+  // External IDs (for migration tracking)
+  externalId: ['j_id', 'jobber_id', 'id', 'client_id', 'customer_id', 'external_id', 'servicetitan_id', 'housecall_id'],
 }
 
 interface ImportOptions {
@@ -140,6 +160,28 @@ export async function importContacts(csvContent: string, companyId: string, opti
         }
       }
 
+      // Build address — prefer property address over billing if both exist (service businesses care about job site)
+      const billingAddress = getValue(row, ...CONTACT_COLUMN_MAP.address)
+      const propertyAddress = getValue(row, ...CONTACT_COLUMN_MAP.propertyAddress)
+      const address2 = getValue(row, ...CONTACT_COLUMN_MAP.address2) || getValue(row, ...CONTACT_COLUMN_MAP.propertyAddress2)
+
+      const primaryAddress = propertyAddress || billingAddress
+      const fullAddress = address2 ? `${primaryAddress}, ${address2}` : primaryAddress
+
+      const primaryCity = getValue(row, ...CONTACT_COLUMN_MAP.propertyCity) || getValue(row, ...CONTACT_COLUMN_MAP.city)
+      const primaryState = getValue(row, ...CONTACT_COLUMN_MAP.propertyState) || getValue(row, ...CONTACT_COLUMN_MAP.state)
+      const primaryZip = getValue(row, ...CONTACT_COLUMN_MAP.propertyZip) || getValue(row, ...CONTACT_COLUMN_MAP.zip)
+
+      // Build notes — include tags and any extra info
+      const notes = getValue(row, ...CONTACT_COLUMN_MAP.notes)
+      const tags = getValue(row, ...CONTACT_COLUMN_MAP.tags)
+      const externalId = getValue(row, ...CONTACT_COLUMN_MAP.externalId)
+      const fullNotes = [
+        notes,
+        tags ? `Tags: ${tags}` : null,
+        externalId ? `Imported ID: ${externalId}` : null,
+      ].filter(Boolean).join('\n') || null
+
       const contactData = {
         companyId,
         name,
@@ -148,12 +190,13 @@ export async function importContacts(csvContent: string, companyId: string, opti
         mobile: getValue(row, ...CONTACT_COLUMN_MAP.mobile),
         company: getValue(row, ...CONTACT_COLUMN_MAP.company),
         type: mapContactType(getValue(row, ...CONTACT_COLUMN_MAP.type)),
-        address: getValue(row, ...CONTACT_COLUMN_MAP.address),
-        city: getValue(row, ...CONTACT_COLUMN_MAP.city),
-        state: getValue(row, ...CONTACT_COLUMN_MAP.state),
-        zip: getValue(row, ...CONTACT_COLUMN_MAP.zip),
-        notes: getValue(row, ...CONTACT_COLUMN_MAP.notes),
+        address: fullAddress || null,
+        city: primaryCity,
+        state: primaryState,
+        zip: primaryZip,
+        notes: fullNotes,
         source: getValue(row, ...CONTACT_COLUMN_MAP.source),
+        tags: tags ? JSON.stringify(tags.split(',').map((t: string) => t.trim())) : '[]',
       }
 
       if (!dryRun) {
