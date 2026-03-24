@@ -61,19 +61,24 @@ function getValue(row: Record<string, string>, ...keys: string[]): string | null
 // ============================================
 
 const CONTACT_COLUMN_MAP = {
-  name: ['name', 'full_name', 'contact_name', 'company_name', 'customer_name', 'client_name'],
-  email: ['email', 'email_address', 'e_mail'],
-  phone: ['phone', 'phone_number', 'telephone', 'tel', 'primary_phone', 'main_phone'],
-  mobile: ['mobile', 'cell', 'cell_phone', 'mobile_phone'],
+  name: ['name', 'full_name', 'contact_name', 'customer_name', 'client_name', 'client'],
+  firstName: ['first_name', 'firstname', 'first', 'given_name'],
+  lastName: ['last_name', 'lastname', 'last', 'surname', 'family_name'],
+  email: ['email', 'email_address', 'e_mail', 'primary_email'],
+  phone: ['phone', 'phone_number', 'telephone', 'tel', 'primary_phone', 'main_phone', 'home_phone', 'work_phone'],
+  mobile: ['mobile', 'cell', 'cell_phone', 'mobile_phone', 'mobile_number'],
   company: ['company', 'company_name', 'business_name', 'organization'],
-  type: ['type', 'contact_type', 'category'],
-  address: ['address', 'street', 'street_address', 'address_1', 'address1'],
-  city: ['city', 'town'],
-  state: ['state', 'province', 'region'],
-  zip: ['zip', 'zipcode', 'zip_code', 'postal_code', 'postcode'],
-  notes: ['notes', 'comments', 'description'],
+  type: ['type', 'contact_type', 'category', 'client_type'],
+  address: ['address', 'street', 'street_address', 'address_1', 'address1', 'street_1', 'billing_address'],
+  city: ['city', 'town', 'billing_city'],
+  state: ['state', 'province', 'region', 'state_province', 'billing_state'],
+  zip: ['zip', 'zipcode', 'zip_code', 'postal_code', 'postcode', 'billing_zip'],
+  notes: ['notes', 'comments', 'description', 'note'],
   website: ['website', 'web', 'url'],
   source: ['source', 'lead_source', 'referral_source'],
+  // Jobber-specific
+  title: ['title', 'prefix', 'salutation'],
+  jobberId: ['j_id', 'jobber_id', 'id', 'client_id', 'customer_id'],
 }
 
 interface ImportOptions {
@@ -100,11 +105,23 @@ export async function importContacts(csvContent: string, companyId: string, opti
     const lineNum = i + 2
 
     try {
-      const name = getValue(row, ...CONTACT_COLUMN_MAP.name)
+      // Build name from full name OR first+last name columns
+      let name = getValue(row, ...CONTACT_COLUMN_MAP.name)
+      if (!name) {
+        const firstName = getValue(row, ...CONTACT_COLUMN_MAP.firstName)
+        const lastName = getValue(row, ...CONTACT_COLUMN_MAP.lastName)
+        if (firstName || lastName) {
+          name = [firstName, lastName].filter(Boolean).join(' ')
+        }
+      }
+      // Fall back to company name if no personal name
+      if (!name) {
+        name = getValue(row, ...CONTACT_COLUMN_MAP.company)
+      }
       const email = getValue(row, ...CONTACT_COLUMN_MAP.email)
 
       if (!name) {
-        results.errors.push({ line: lineNum, error: 'Name is required' })
+        results.errors.push({ line: lineNum, error: 'Name is required (provide name, first_name + last_name, or company_name)' })
         results.skipped++
         continue
       }
