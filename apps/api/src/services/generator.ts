@@ -453,6 +453,7 @@ function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<strin
 
 
 function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest: any) {
+  // Build the set of needed files from the manifest
   const neededRoutes = new Set<string>()
   const neededServices = new Set<string>()
 
@@ -468,14 +469,57 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
     ;(feature.backend.services || []).forEach((f: string) => neededServices.add(f))
   }
 
-  const routesDir = path.join(crmDir, 'backend', 'src', 'routes')
-  if (fs.existsSync(routesDir)) {
-    for (const file of fs.readdirSync(routesDir)) {
-      if (file === 'auth.ts' || file === 'factory.ts') continue
-      if (!neededRoutes.has(file)) fs.unlinkSync(path.join(routesDir, file))
+  // ALSO parse index.ts to find every file it actually imports — these must be kept
+  // regardless of whether they're in the manifest. This prevents the manifest from
+  // going out of sync and breaking deploys.
+  const indexPath = path.join(crmDir, 'backend', 'src', 'index.ts')
+  if (fs.existsSync(indexPath)) {
+    const indexContent = fs.readFileSync(indexPath, 'utf8')
+
+    // Find all route imports: import xxx from './routes/foo.ts'
+    const routeImports = indexContent.match(/from '\.\/routes\/([^']+)'/g) || []
+    for (const m of routeImports) {
+      const file = m.match(/\/([^/]+)'/)?.[1]
+      if (file) neededRoutes.add(file)
+    }
+    // Also catch dynamic imports: await import('./routes/foo.ts')
+    const dynamicImports = indexContent.match(/import\('\.\/routes\/([^']+)'\)/g) || []
+    for (const m of dynamicImports) {
+      const file = m.match(/\/([^/]+)'\)/)?.[1]
+      if (file) neededRoutes.add(file)
+    }
+
+    // Find all service imports: from '../services/foo.ts' or from './services/foo.ts'
+    const serviceImports = indexContent.match(/from '(?:\.\.\/|\.\/)services\/([^']+)'/g) || []
+    for (const m of serviceImports) {
+      const file = m.match(/\/([^/]+)'/)?.[1]
+      if (file) neededServices.add(file)
     }
   }
 
+  // Also scan each kept route file for service imports it depends on
+  const routesDir = path.join(crmDir, 'backend', 'src', 'routes')
+  if (fs.existsSync(routesDir)) {
+    for (const file of fs.readdirSync(routesDir)) {
+      if (!neededRoutes.has(file)) continue
+      try {
+        const content = fs.readFileSync(path.join(routesDir, file), 'utf8')
+        const svcImports = content.match(/from '(?:\.\.\/|\.\/)services\/([^']+)'/g) || []
+        for (const m of svcImports) {
+          const svc = m.match(/\/([^/]+)'/)?.[1]
+          if (svc) neededServices.add(svc)
+        }
+      } catch {}
+    }
+
+    // Now delete unused route files
+    for (const file of fs.readdirSync(routesDir)) {
+      if (neededRoutes.has(file)) continue
+      fs.unlinkSync(path.join(routesDir, file))
+    }
+  }
+
+  // Delete unused service files
   const servicesDir = path.join(crmDir, 'backend', 'src', 'services')
   if (fs.existsSync(servicesDir)) {
     for (const entry of fs.readdirSync(servicesDir, { withFileTypes: true })) {
@@ -484,7 +528,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
     }
   }
 
-  const indexPath = path.join(crmDir, 'backend', 'src', 'index.ts')
+  // Clean up index.ts — remove import/route lines for files that were deleted
   if (fs.existsSync(indexPath)) {
     let indexContent = fs.readFileSync(indexPath, 'utf8')
     const allRouteFiles = new Set(
@@ -493,7 +537,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
         .filter((x): x is string => !!x)
     )
     for (const routeFile of allRouteFiles) {
-      if (!routeFile || neededRoutes.has(routeFile) || routeFile === 'auth.ts' || routeFile === 'factory.ts') continue
+      if (!routeFile || neededRoutes.has(routeFile)) continue
       indexContent = indexContent.replace(new RegExp("import \\w+ from './routes/" + routeFile + "';?\\n?", 'g'), '')
       const routeName = routeFile.replace('.ts', '')
       indexContent = indexContent.replace(new RegExp("app\\.(?:use|route)\\('/api/[^']*',\\s*\\w*" + routeName + "\\w*Routes?\\);?\\n?", 'gi'), '')
