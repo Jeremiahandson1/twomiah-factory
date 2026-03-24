@@ -146,18 +146,19 @@ export async function importContacts(csvContent: string, companyId: string, opti
         continue
       }
 
-      // Check for duplicates
-      if (skipDuplicates && email) {
-        const [existing] = await db.select({ id: contact.id })
-          .from(contact)
+      // Check for existing contact — match by email OR name
+      let existingContact: any = null
+      if (email) {
+        const [found] = await db.select().from(contact)
           .where(and(eq(contact.companyId, companyId), eq(contact.email, email)))
           .limit(1)
-
-        if (existing) {
-          results.errors.push({ line: lineNum, error: `Duplicate email: ${email}` })
-          results.skipped++
-          continue
-        }
+        existingContact = found
+      }
+      if (!existingContact && name) {
+        const [found] = await db.select().from(contact)
+          .where(and(eq(contact.companyId, companyId), eq(contact.name, name)))
+          .limit(1)
+        existingContact = found
       }
 
       // Build address — prefer property address over billing if both exist (service businesses care about job site)
@@ -200,13 +201,33 @@ export async function importContacts(csvContent: string, companyId: string, opti
       }
 
       if (!dryRun) {
-        const [created] = await db.insert(contact).values(contactData).returning()
-        results.records.push({ line: lineNum, id: created.id, name: created.name })
+        if (existingContact) {
+          // Update existing contact — only fill in fields that are currently empty
+          const updates: Record<string, any> = {}
+          for (const [key, value] of Object.entries(contactData)) {
+            if (key === 'companyId') continue
+            if (value && !existingContact[key]) {
+              updates[key] = value
+            }
+          }
+          if (Object.keys(updates).length > 0) {
+            updates.updatedAt = new Date()
+            await db.update(contact).set(updates).where(eq(contact.id, existingContact.id))
+            results.records.push({ line: lineNum, id: existingContact.id, name, action: 'updated', fieldsUpdated: Object.keys(updates).filter(k => k !== 'updatedAt') })
+            results.imported++
+          } else {
+            results.records.push({ line: lineNum, id: existingContact.id, name, action: 'skipped_no_new_data' })
+            results.skipped++
+          }
+        } else {
+          const [created] = await db.insert(contact).values(contactData).returning()
+          results.records.push({ line: lineNum, id: created.id, name: created.name, action: 'created' })
+          results.imported++
+        }
       } else {
-        results.records.push({ line: lineNum, data: contactData })
+        results.records.push({ line: lineNum, data: contactData, action: existingContact ? 'would_update' : 'would_create' })
+        results.imported++
       }
-
-      results.imported++
     } catch (error: any) {
       results.errors.push({ line: lineNum, error: error.message })
       results.skipped++
