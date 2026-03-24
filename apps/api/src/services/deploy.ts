@@ -1141,7 +1141,9 @@ export async function deployCustomer(
     }
 
     // Register tenant with shared Twomiah Ads service
-    if (factoryCustomer.config?.features?.paid_ads) {
+    const crmFeatures = factoryCustomer.config?.features?.crm || []
+    const hasPaidAds = factoryCustomer.config?.features?.paid_ads || crmFeatures.includes('paid_ads') || crmFeatures.includes('ads')
+    if (hasPaidAds) {
       try {
         const adsResult = await registerAdsTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
         if (adsResult.url) {
