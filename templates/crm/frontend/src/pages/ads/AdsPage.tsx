@@ -247,15 +247,17 @@ function PerformanceTab() {
   if (error) return <ErrorState message={error} onRetry={loadData} />;
   if (!data) return null;
 
-  const { summary, daily, campaigns } = data;
+  const summary = data?.summary || { impressions: 0, clicks: 0, ctr: 0, spend: 0, leads: 0, costPerLead: 0 };
+  const daily = data?.daily || [];
+  const campaigns = data?.campaigns || [];
 
   const statCards = [
-    { label: 'Impressions', value: summary.impressions.toLocaleString(), icon: Eye, color: 'blue' },
-    { label: 'Clicks', value: summary.clicks.toLocaleString(), icon: MousePointer, color: 'purple' },
-    { label: 'CTR', value: (summary.ctr * 100).toFixed(2) + '%', icon: TrendingUp, color: 'green' },
-    { label: 'Total Spend', value: '$' + summary.spend.toLocaleString(undefined, { minimumFractionDigits: 2 }), icon: DollarSign, color: 'orange' },
-    { label: 'Leads', value: summary.leads.toLocaleString(), icon: Users, color: 'emerald' },
-    { label: 'Cost/Lead', value: '$' + summary.costPerLead.toFixed(2), icon: Target, color: 'red' },
+    { label: 'Impressions', value: (summary.impressions || 0).toLocaleString(), icon: Eye, color: 'blue' },
+    { label: 'Clicks', value: (summary.clicks || 0).toLocaleString(), icon: MousePointer, color: 'purple' },
+    { label: 'CTR', value: ((summary.ctr || 0) * 100).toFixed(2) + '%', icon: TrendingUp, color: 'green' },
+    { label: 'Total Spend', value: '$' + (summary.spend || 0).toLocaleString(undefined, { minimumFractionDigits: 2 }), icon: DollarSign, color: 'orange' },
+    { label: 'Leads', value: (summary.leads || 0).toLocaleString(), icon: Users, color: 'emerald' },
+    { label: 'Cost/Lead', value: '$' + (summary.costPerLead || 0).toFixed(2), icon: Target, color: 'red' },
   ];
 
   const colorClasses: Record<string, string> = {
@@ -342,11 +344,11 @@ function PerformanceTab() {
                   </td>
                   <td className="px-4 py-3"><PlatformBadge platform={c.platform} /></td>
                   <td className="px-4 py-3"><StatusBadge status={c.status} /></td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">{c.impressions.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">{c.clicks.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">{(c.ctr * 100).toFixed(2)}%</td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">${c.spend.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                  <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">{c.leads}</td>
+                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">{(c.impressions || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">{(c.clicks || 0).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">{((c.ctr || 0) * 100).toFixed(2)}%</td>
+                  <td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-slate-300">${(c.spend || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-gray-900 dark:text-white">{c.leads || 0}</td>
                 </tr>
               ))}
             </tbody>

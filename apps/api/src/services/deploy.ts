@@ -1584,6 +1584,9 @@ async function registerAdsTenant(slug: string, companyName: string, company?: an
     },
   }
 
+  // Wake up the ads service first (it's on free tier and may be sleeping)
+  try { await fetchWithTimeout(adsUrl + '/health', {}, 60_000) } catch {}
+
   const res = await fetchWithTimeout(adsUrl + '/factory/provision', {
     method: 'POST',
     headers: {
@@ -1591,11 +1594,18 @@ async function registerAdsTenant(slug: string, companyName: string, company?: an
       'X-Factory-Signature': webhookSecret,
     },
     body: JSON.stringify(body),
-  })
+  }, 60_000)
 
   if (res.status === 409) {
-    console.log('[Deploy] Ads tenant already exists:', slug)
-    return { url: adsUrl, apiKey: '' }
+    // Tenant exists — fetch the API key from the response body
+    try {
+      const existing = await res.json()
+      console.log('[Deploy] Ads tenant already exists:', slug, 'apiKey:', existing.apiKey ? 'present' : 'missing')
+      return { url: adsUrl, apiKey: existing.apiKey || '' }
+    } catch {
+      console.log('[Deploy] Ads tenant already exists:', slug, '(no body)')
+      return { url: adsUrl, apiKey: '' }
+    }
   }
 
   if (!res.ok) {
