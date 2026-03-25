@@ -4,7 +4,8 @@ import api from '../../services/api';
 import {
   BarChart3, Eye, MousePointer, DollarSign, Users, Target,
   TrendingUp, Pause, Play, ExternalLink, X, Send, Check,
-  AlertCircle, Filter, Clock, Settings, Link, Unlink
+  AlertCircle, Filter, Clock, Settings, Link, Unlink,
+  Plus, Image, Layout, MapPin, Calendar, Sparkles, ArrowLeft, ArrowRight, Loader2
 } from 'lucide-react';
 
 // ─── Feature gate ────────────────────────────────────────────────────────────
@@ -366,6 +367,7 @@ function CampaignsTab() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [selectedAd, setSelectedAd] = useState<any>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => { loadData(); }, [filter]);
 
@@ -392,7 +394,7 @@ function CampaignsTab() {
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Filter className="w-4 h-4 text-gray-400" />
         {['all', 'active', 'paused', 'draft'].map(f => (
           <button
@@ -408,6 +410,12 @@ function CampaignsTab() {
           </button>
         ))}
         <span className="text-xs text-gray-400 dark:text-slate-500 ml-auto">{allAds.length} ads</span>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="ml-2 flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors"
+        >
+          <Plus className="w-4 h-4" /> Create Campaign
+        </button>
       </div>
 
       {/* Ad cards grid */}
@@ -470,6 +478,645 @@ function CampaignsTab() {
 
       {/* Slide-over detail */}
       {selectedAd && <AdDetailSlideOver ad={selectedAd} onClose={() => setSelectedAd(null)} />}
+
+      {/* Create Campaign Wizard */}
+      {showCreate && <CreateCampaignWizard onClose={() => { setShowCreate(false); loadData(); }} />}
+    </div>
+  );
+}
+
+// ─── CREATE CAMPAIGN WIZARD ─────────────────────────────────────────────────
+function CreateCampaignWizard({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(1);
+  const [platform, setPlatform] = useState<'google' | 'meta' | ''>('');
+  const [objective, setObjective] = useState<'leads' | 'traffic' | 'awareness' | ''>('');
+  const [campaignName, setCampaignName] = useState('');
+  const [dailyBudget, setDailyBudget] = useState(25);
+  const [duration, setDuration] = useState<'ongoing' | 'fixed'>('ongoing');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [radiusMiles, setRadiusMiles] = useState(15);
+  const [zipCodes, setZipCodes] = useState('');
+  const [targetHomeowners, setTargetHomeowners] = useState(false);
+  const [ageMin, setAgeMin] = useState(25);
+  const [ageMax, setAgeMax] = useState(65);
+  const [photoTab, setPhotoTab] = useState<'photos' | 'templates'>('photos');
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [loadingPhotos, setLoadingPhotos] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [preview, setPreview] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [editingPreview, setEditingPreview] = useState(false);
+  const [previewHeadline, setPreviewHeadline] = useState('');
+  const [previewDescription, setPreviewDescription] = useState('');
+  const [previewCta, setPreviewCta] = useState('');
+  const [launching, setLaunching] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+
+  // Auto-generate campaign name when platform/objective change
+  useEffect(() => {
+    if (platform && objective) {
+      const platLabel = platform === 'google' ? 'Google Search' : 'Meta Social';
+      const objLabel = objective.charAt(0).toUpperCase() + objective.slice(1);
+      setCampaignName(`${platLabel} — ${objLabel}`);
+    }
+  }, [platform, objective]);
+
+  // Load photos and templates when entering step 3
+  useEffect(() => {
+    if (step === 3) {
+      loadPhotos();
+      loadTemplates();
+    }
+  }, [step]);
+
+  // Generate preview when entering step 4
+  useEffect(() => {
+    if (step === 4) generatePreview();
+  }, [step]);
+
+  const loadPhotos = async () => {
+    setLoadingPhotos(true);
+    try {
+      const res = await api.get('/api/ads/photos');
+      setPhotos(res?.photos || []);
+    } catch {} finally { setLoadingPhotos(false); }
+  };
+
+  const loadTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const res = await api.get('/api/ads/templates');
+      setTemplates(res?.templates || []);
+    } catch {} finally { setLoadingTemplates(false); }
+  };
+
+  const generatePreview = async () => {
+    setLoadingPreview(true);
+    try {
+      const res = await api.post('/api/ads/campaigns/preview', {
+        platforms: [platform],
+        objective,
+        budget: dailyBudget,
+        targeting: {
+          radiusMiles,
+          zipCodes: zipCodes ? zipCodes.split(',').map(z => z.trim()) : [],
+          homeowners: targetHomeowners,
+          ageMin,
+          ageMax,
+        },
+      });
+      const p = res?.preview || { headline: campaignName, description: 'Your AI-generated ad copy will appear here.', cta: 'Learn More' };
+      setPreview(p);
+      setPreviewHeadline(p.headline || '');
+      setPreviewDescription(p.description || '');
+      setPreviewCta(p.cta || 'Learn More');
+    } catch {
+      setPreview({ headline: campaignName, description: 'Your AI-generated ad copy will appear here.', cta: 'Learn More' });
+      setPreviewHeadline(campaignName);
+      setPreviewDescription('Your AI-generated ad copy will appear here.');
+      setPreviewCta('Learn More');
+    } finally { setLoadingPreview(false); }
+  };
+
+  const handleLaunch = async () => {
+    setLaunching(true);
+    try {
+      await api.post('/api/ads/campaigns/launch', buildPayload('active'));
+      onClose();
+    } catch {} finally { setLaunching(false); }
+  };
+
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    try {
+      await api.post('/api/ads/campaigns/launch', buildPayload('draft'));
+      onClose();
+    } catch {} finally { setSavingDraft(false); }
+  };
+
+  const buildPayload = (status: string) => ({
+    name: campaignName,
+    platform,
+    objective,
+    status,
+    budget: { daily: dailyBudget, duration, startDate: duration === 'fixed' ? startDate : undefined, endDate: duration === 'fixed' ? endDate : undefined },
+    targeting: { radiusMiles, zipCodes: zipCodes ? zipCodes.split(',').map(z => z.trim()) : [], homeowners: targetHomeowners, ageMin, ageMax },
+    creative: { photoId: selectedPhoto, templateId: selectedTemplate, headline: previewHeadline, description: previewDescription, cta: previewCta },
+  });
+
+  const canNext = () => {
+    if (step === 1) return !!platform && !!objective && !!campaignName.trim();
+    if (step === 2) return dailyBudget >= 10 && (duration === 'ongoing' || (!!startDate && !!endDate));
+    if (step === 3) return !!(selectedPhoto || selectedTemplate);
+    return true;
+  };
+
+  const stepLabels = ['Platform', 'Budget', 'Creative', 'Review'];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white dark:bg-slate-900 rounded-xl shadow-xl border dark:border-slate-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b dark:border-slate-800">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Create Campaign</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
+            <X className="w-5 h-5 text-gray-400" />
+          </button>
+        </div>
+
+        {/* Step indicators */}
+        <div className="px-5 pt-5 pb-2">
+          <div className="flex items-center justify-between">
+            {stepLabels.map((label, i) => {
+              const num = i + 1;
+              const isActive = step === num;
+              const isComplete = step > num;
+              return (
+                <div key={num} className="flex items-center flex-1 last:flex-initial">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
+                      isActive ? 'bg-orange-500 text-white' : isComplete ? 'bg-orange-500 text-white' : 'bg-gray-200 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+                    }`}>
+                      {isComplete ? <Check className="w-4 h-4" /> : num}
+                    </div>
+                    <span className={`text-xs mt-1 ${isActive ? 'text-orange-600 dark:text-orange-400 font-medium' : 'text-gray-400 dark:text-slate-500'}`}>
+                      {label}
+                    </span>
+                  </div>
+                  {i < stepLabels.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-2 mb-5 ${isComplete ? 'bg-orange-500' : 'bg-gray-200 dark:bg-slate-700'}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Step content */}
+        <div className="p-5">
+          {/* Step 1: Platform & Objective */}
+          {step === 1 && (
+            <div className="space-y-6">
+              <div>
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Select Platform</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: 'google' as const, label: 'Google Ads', desc: 'Search, display & YouTube ads', icon: '🔍' },
+                    { id: 'meta' as const, label: 'Meta', desc: 'Facebook & Instagram ads', icon: '📱' },
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => setPlatform(p.id)}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                        platform === p.id
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                          : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="text-2xl mb-2">{p.icon}</div>
+                      <div className="font-semibold text-gray-900 dark:text-white">{p.label}</div>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">{p.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-3">Campaign Objective</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'leads' as const, label: 'Leads', desc: 'Phone calls & form fills', icon: Users },
+                    { id: 'traffic' as const, label: 'Traffic', desc: 'Website visits', icon: MousePointer },
+                    { id: 'awareness' as const, label: 'Awareness', desc: 'Brand visibility', icon: Eye },
+                  ].map(o => (
+                    <button
+                      key={o.id}
+                      onClick={() => setObjective(o.id)}
+                      className={`p-4 rounded-lg border-2 text-left transition-all ${
+                        objective === o.id
+                          ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                          : 'border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      <o.icon className={`w-6 h-6 mb-2 ${objective === o.id ? 'text-orange-500' : 'text-gray-400 dark:text-slate-500'}`} />
+                      <div className="font-semibold text-gray-900 dark:text-white text-sm">{o.label}</div>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{o.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">Campaign Name</label>
+                <input
+                  type="text"
+                  value={campaignName}
+                  onChange={e => setCampaignName(e.target.value)}
+                  placeholder="e.g., Google Search — Spring Leads"
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Budget & Targeting */}
+          {step === 2 && (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                  Daily Budget: <span className="text-orange-500 font-bold">${dailyBudget}</span>/day
+                </label>
+                <input
+                  type="range"
+                  min={10}
+                  max={500}
+                  step={5}
+                  value={dailyBudget}
+                  onChange={e => setDailyBudget(Number(e.target.value))}
+                  className="w-full h-2 bg-gray-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                />
+                <div className="flex justify-between text-xs text-gray-400 dark:text-slate-500 mt-1">
+                  <span>$10/day</span>
+                  <span>~${(dailyBudget * 30).toLocaleString()}/mo</span>
+                  <span>$500/day</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Duration</label>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDuration('ongoing')}
+                    className={`flex-1 p-3 rounded-lg border-2 text-left text-sm transition-all ${
+                      duration === 'ongoing'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                        : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900 dark:text-white">Ongoing</div>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Runs until you pause</p>
+                  </button>
+                  <button
+                    onClick={() => setDuration('fixed')}
+                    className={`flex-1 p-3 rounded-lg border-2 text-left text-sm transition-all ${
+                      duration === 'fixed'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10'
+                        : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="font-semibold text-gray-900 dark:text-white flex items-center gap-1"><Calendar className="w-4 h-4" /> Fixed Dates</div>
+                    <p className="text-xs text-gray-500 dark:text-slate-400">Set start & end dates</p>
+                  </button>
+                </div>
+                {duration === 'fixed' && (
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={e => setStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={e => setEndDate(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                  <MapPin className="w-4 h-4 inline mr-1" /> Target Area
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Radius (miles)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={radiusMiles}
+                      onChange={e => setRadiusMiles(Number(e.target.value))}
+                      className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Or zip codes (comma-separated)</label>
+                    <input
+                      type="text"
+                      value={zipCodes}
+                      onChange={e => setZipCodes(e.target.value)}
+                      placeholder="e.g., 90210, 90211"
+                      className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Target Audience (optional)</label>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={targetHomeowners}
+                      onChange={e => setTargetHomeowners(e.target.checked)}
+                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                    />
+                    <span className="text-sm text-gray-700 dark:text-slate-300">Homeowners only</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Min Age</label>
+                      <input
+                        type="number"
+                        min={18}
+                        max={65}
+                        value={ageMin}
+                        onChange={e => setAgeMin(Number(e.target.value))}
+                        className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Max Age</label>
+                      <input
+                        type="number"
+                        min={18}
+                        max={80}
+                        value={ageMax}
+                        onChange={e => setAgeMax(Number(e.target.value))}
+                        className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Photos & Templates */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="flex gap-1 bg-gray-100 dark:bg-slate-800 rounded-lg p-1">
+                <button
+                  onClick={() => setPhotoTab('photos')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    photoTab === 'photos'
+                      ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                  }`}
+                >
+                  <Image className="w-4 h-4" /> My Photos
+                </button>
+                <button
+                  onClick={() => setPhotoTab('templates')}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    photoTab === 'templates'
+                      ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-slate-400 hover:text-gray-700'
+                  }`}
+                >
+                  <Layout className="w-4 h-4" /> Templates
+                </button>
+              </div>
+
+              {photoTab === 'photos' && (
+                <div>
+                  {loadingPhotos ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+                    </div>
+                  ) : photos.length === 0 ? (
+                    <div className="text-center py-12 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-lg">
+                      <Image className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-slate-400">No photos yet.</p>
+                      <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">Upload photos in the CRM first</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-3">
+                      {photos.map((photo: any) => (
+                        <button
+                          key={photo.id}
+                          onClick={() => { setSelectedPhoto(photo.id); setSelectedTemplate(null); }}
+                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                            selectedPhoto === photo.id
+                              ? 'border-green-500 ring-2 ring-green-500/30'
+                              : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                          }`}
+                        >
+                          <img src={photo.url} alt={photo.name || 'Photo'} className="w-full h-full object-cover" />
+                          {selectedPhoto === photo.id && (
+                            <div className="absolute inset-0 bg-green-500/20 flex items-center justify-center">
+                              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                                <Check className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {photoTab === 'templates' && (
+                <div>
+                  {loadingTemplates ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+                    </div>
+                  ) : templates.length === 0 ? (
+                    <div className="text-center py-12 border-2 border-dashed border-gray-200 dark:border-slate-700 rounded-lg">
+                      <Layout className="w-10 h-10 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm text-gray-500 dark:text-slate-400">No templates available.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-3">
+                      {templates.map((tpl: any) => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => { setSelectedTemplate(tpl.id); setSelectedPhoto(null); }}
+                          className={`p-4 rounded-lg border-2 text-left transition-all ${
+                            selectedTemplate === tpl.id
+                              ? 'border-green-500 bg-green-50 dark:bg-green-500/10 ring-2 ring-green-500/30'
+                              : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className="bg-gray-100 dark:bg-slate-800 rounded-lg h-24 flex items-center justify-center mb-3">
+                            <Layout className="w-8 h-8 text-gray-300 dark:text-slate-600" />
+                          </div>
+                          <div className="font-semibold text-gray-900 dark:text-white text-sm">{tpl.name}</div>
+                          <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 line-clamp-2">{tpl.description}</p>
+                          {selectedTemplate === tpl.id && (
+                            <span className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-green-600 dark:text-green-400">
+                              <Check className="w-3 h-3" /> Selected
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 4: Review & Launch */}
+          {step === 4 && (
+            <div className="space-y-5">
+              {loadingPreview ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-3" />
+                  <p className="text-sm text-gray-500 dark:text-slate-400 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-orange-500" /> AI is generating your ad preview...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Ad preview card */}
+                  <div className="bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
+                    <div className="p-1.5">
+                      <div className="flex items-center justify-between px-3 pt-2 pb-1">
+                        <PlatformBadge platform={platform} />
+                        <button
+                          onClick={() => setEditingPreview(!editingPreview)}
+                          className="text-xs font-medium text-orange-500 hover:text-orange-600"
+                        >
+                          {editingPreview ? 'Done Editing' : 'Edit'}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-gray-200 dark:bg-slate-700 h-40 flex items-center justify-center">
+                      {selectedPhoto ? (
+                        <span className="text-xs text-gray-400 dark:text-slate-500">Selected photo preview</span>
+                      ) : selectedTemplate ? (
+                        <span className="text-xs text-gray-400 dark:text-slate-500">Template preview</span>
+                      ) : (
+                        <Image className="w-10 h-10 text-gray-300 dark:text-slate-600" />
+                      )}
+                    </div>
+                    <div className="p-4">
+                      {editingPreview ? (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Headline</label>
+                            <input
+                              type="text"
+                              value={previewHeadline}
+                              onChange={e => setPreviewHeadline(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Description</label>
+                            <textarea
+                              rows={3}
+                              value={previewDescription}
+                              onChange={e => setPreviewDescription(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">CTA Button</label>
+                            <input
+                              type="text"
+                              value={previewCta}
+                              onChange={e => setPreviewCta(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-lg text-sm bg-white dark:bg-slate-900 text-gray-900 dark:text-white border-gray-200 dark:border-slate-700 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <h4 className="font-bold text-gray-900 dark:text-white text-lg">{previewHeadline}</h4>
+                          <p className="text-gray-600 dark:text-slate-300 text-sm mt-2">{previewDescription}</p>
+                          <span className="inline-block mt-3 px-4 py-1.5 text-sm font-semibold bg-blue-500 text-white rounded-lg">
+                            {previewCta}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="bg-white dark:bg-slate-900 rounded-lg border dark:border-slate-800 p-4 space-y-2">
+                    <DetailRow label="Campaign" value={campaignName} />
+                    <DetailRow label="Platform" value={<PlatformBadge platform={platform} />} />
+                    <DetailRow label="Objective" value={<span className="capitalize text-sm">{objective}</span>} />
+                    <DetailRow label="Daily Budget" value={<span className="font-semibold text-sm">${dailyBudget}/day</span>} />
+                    <DetailRow label="Duration" value={<span className="capitalize text-sm">{duration}{duration === 'fixed' ? ` (${startDate} - ${endDate})` : ''}</span>} />
+                    <DetailRow label="Target Area" value={<span className="text-sm">{zipCodes ? `Zips: ${zipCodes}` : `${radiusMiles} mi radius`}</span>} />
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSaveDraft}
+                      disabled={savingDraft || launching}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {savingDraft ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      Save as Draft
+                    </button>
+                    <button
+                      onClick={handleLaunch}
+                      disabled={launching || savingDraft}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {launching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      Launch Campaign
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer navigation (steps 1-3) */}
+        {step < 4 && (
+          <div className="flex items-center justify-between p-5 border-t dark:border-slate-800">
+            <button
+              onClick={() => step > 1 ? setStep(step - 1) : onClose()}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" /> {step === 1 ? 'Cancel' : 'Back'}
+            </button>
+            <button
+              onClick={() => setStep(step + 1)}
+              disabled={!canNext()}
+              className="flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {step === 3 ? 'Generate Preview' : 'Next'} <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Footer navigation (step 4 - back only) */}
+        {step === 4 && !loadingPreview && (
+          <div className="flex items-center p-5 border-t dark:border-slate-800">
+            <button
+              onClick={() => setStep(3)}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-gray-800 dark:hover:text-slate-200 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
