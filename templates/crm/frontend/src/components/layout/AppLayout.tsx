@@ -328,7 +328,7 @@ export default function AppLayout() {
 
         {/* Page Content */}
         <main id="main-content" className="p-4 lg:p-6" tabIndex={-1}>
-          <Outlet />
+          <Outlet context={{ instance: { primaryColor: company?.primaryColor || '#f97316', companyName: company?.name, companyId: company?.id, slug: company?.slug } }} />
         </main>
       </div>
     </div>

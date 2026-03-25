@@ -103,7 +103,8 @@ interface AISettings {
 }
 
 export function AIReceptionistPage() {
-  const { instance } = useOutletContext<OutletContextType>();
+  const outletContext = useOutletContext<OutletContextType | undefined>();
+  const instance = outletContext?.instance || {} as Record<string, unknown>;
   const { token } = useAuth();
   const [rules, setRules] = useState<Record<string, unknown>[]>([]);
   const [settings, setSettings] = useState<AISettings>({ isEnabled: false, businessHoursStart: '09:00', businessHoursEnd: '17:00', greetingText: '' });
