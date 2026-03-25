@@ -885,6 +885,8 @@ export async function deployCustomer(
         if (hasVisualizerFeature) {
           backendEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
+        // Always include ADS_URL so the ads page works from first deploy
+        backendEnvVars.push({ key: 'ADS_URL', value: process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com' })
         if (dbConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbConnectionString })
         if (supabaseProject) {
           backendEnvVars.push({ key: 'SUPABASE_URL', value: supabaseProject.supabaseUrl })
