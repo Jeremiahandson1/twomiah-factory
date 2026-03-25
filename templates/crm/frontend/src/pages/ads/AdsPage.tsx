@@ -109,10 +109,19 @@ function AdsSettingsTab() {
 
   const connectPlatform = async (platform: string) => {
     setConnectingPlatform(platform);
+    // Open popup synchronously so Safari (iOS/macOS) doesn't block it.
+    // Safari blocks window.open() calls that happen after an await.
+    const popup = window.open('about:blank', '_blank', 'width=600,height=700');
     try {
       const res = await api.get(`/api/ads/auth/connect-url/${platform}`);
-      if (res?.url) window.open(res.url, '_blank', 'width=600,height=700');
-    } catch {} finally { setConnectingPlatform(''); }
+      if (res?.url && popup) {
+        popup.location.href = res.url;
+      } else {
+        popup?.close();
+      }
+    } catch {
+      popup?.close();
+    } finally { setConnectingPlatform(''); }
   };
 
   const disconnectPlatform = async (platform: string) => {
