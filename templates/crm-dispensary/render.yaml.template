@@ -21,6 +21,8 @@ services:
         value: production
       - key: PORT
         value: 10000
+      - key: ADS_URL
+        value: https://twomiah-ads.onrender.com
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: FACTORY_SYNC_KEY
