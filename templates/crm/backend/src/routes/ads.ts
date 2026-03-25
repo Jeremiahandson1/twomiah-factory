@@ -50,14 +50,14 @@ app.get('/auth/status', async (c) => {
 app.get('/auth/connect-url/:platform', async (c) => {
   const platform = c.req.param('platform')
   const adsUrl = process.env.ADS_URL
-  if (!adsUrl) return c.json({ error: 'Ads service not configured' })
+  if (!adsUrl) return c.text('Ads service not configured', 500)
 
   // The ads service has public OAuth endpoints at /auth/{platform}?tenantId=xxx
   // These redirect to Google/Meta/TikTok OAuth — no auth needed
   const currentUser = c.get('user') as any
   const tenantId = currentUser.companyId
   const url = `${adsUrl}/auth/${platform}?tenantId=${tenantId}`
-  return c.json({ url })
+  return c.redirect(url)
 })
 
 app.delete('/auth/:platform', async (c) => {

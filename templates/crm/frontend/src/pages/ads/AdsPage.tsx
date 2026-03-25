@@ -107,21 +107,24 @@ function AdsSettingsTab() {
     } catch {} finally { setSaving(false); }
   };
 
-  const connectPlatform = async (platform: string) => {
+  const connectPlatform = (platform: string) => {
     setConnectingPlatform(platform);
-    // Open popup synchronously so Safari (iOS/macOS) doesn't block it.
-    // Safari blocks window.open() calls that happen after an await.
-    const popup = window.open('about:blank', '_blank', 'width=600,height=700');
-    try {
-      const res = await api.get(`/api/ads/auth/connect-url/${platform}`);
-      if (res?.url && popup) {
-        popup.location.href = res.url;
-      } else {
-        popup?.close();
-      }
-    } catch {
-      popup?.close();
-    } finally { setConnectingPlatform(''); }
+    // Open the backend URL directly — it redirects to the OAuth provider.
+    // No async/await needed, so Safari/iOS won't block the popup.
+    window.open(`/api/ads/auth/connect-url/${platform}`, '_blank');
+    // Poll for connection status after a delay to detect when OAuth completes
+    const poll = setInterval(async () => {
+      try {
+        const res = await api.get('/api/ads/auth/status');
+        if (res?.status?.[platform]) {
+          setStatus(res.status);
+          setConnectingPlatform('');
+          clearInterval(poll);
+        }
+      } catch {}
+    }, 3000);
+    // Stop polling after 2 minutes
+    setTimeout(() => { clearInterval(poll); setConnectingPlatform(''); }, 120000);
   };
 
   const disconnectPlatform = async (platform: string) => {
