@@ -110,8 +110,9 @@ function AdsSettingsTab() {
   const connectPlatform = (platform: string) => {
     setConnectingPlatform(platform);
     // Open the backend URL directly — it redirects to the OAuth provider.
-    // No async/await needed, so Safari/iOS won't block the popup.
-    window.open(`/api/ads/auth/connect-url/${platform}`, '_blank');
+    // Token is passed as query param since new tabs can't send Authorization headers.
+    const token = localStorage.getItem('accessToken');
+    window.open(`/api/ads/auth/connect-url/${platform}?token=${encodeURIComponent(token || '')}`, '_blank');
     // Poll for connection status after a delay to detect when OAuth completes
     const poll = setInterval(async () => {
       try {

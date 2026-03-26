@@ -1,7 +1,36 @@
 import { Hono } from 'hono'
+import jwt from 'jsonwebtoken'
 import { authenticate } from '../middleware/auth.ts'
+import { db } from '../../db/index.ts'
+import { user } from '../../db/schema.ts'
+import { eq } from 'drizzle-orm'
 
 const app = new Hono()
+
+// ─── OAuth redirect (no Bearer auth — opened via window.open) ────────────────
+// Token is passed as a query param since new tabs can't send Authorization headers.
+app.get('/auth/connect-url/:platform', async (c) => {
+  const platform = c.req.param('platform')
+  const token = c.req.query('token')
+  const adsUrl = process.env.ADS_URL
+
+  if (!adsUrl) return c.text('Ads service not configured', 500)
+  if (!token) return c.text('Missing token', 401)
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
+    const [found] = await db.select({ companyId: user.companyId, isActive: user.isActive })
+      .from(user).where(eq(user.id, decoded.userId)).limit(1)
+    if (!found || !found.isActive) return c.text('Unauthorized', 401)
+
+    const url = `${adsUrl}/auth/${platform}?tenantId=${found.companyId}`
+    return c.redirect(url)
+  } catch {
+    return c.text('Invalid token', 401)
+  }
+})
+
+// All other routes require Bearer auth
 app.use('*', authenticate)
 
 // ─── Proxy helper ───────────────────────────────────────────────────────────
@@ -45,19 +74,6 @@ app.put('/auth/mode', async (c) => {
 app.get('/auth/status', async (c) => {
   const result = await adsProxy('GET', '/auth/status')
   return c.json(result || { status: { google: false, meta: false, tiktok: false } })
-})
-
-app.get('/auth/connect-url/:platform', async (c) => {
-  const platform = c.req.param('platform')
-  const adsUrl = process.env.ADS_URL
-  if (!adsUrl) return c.text('Ads service not configured', 500)
-
-  // The ads service has public OAuth endpoints at /auth/{platform}?tenantId=xxx
-  // These redirect to Google/Meta/TikTok OAuth — no auth needed
-  const currentUser = c.get('user') as any
-  const tenantId = currentUser.companyId
-  const url = `${adsUrl}/auth/${platform}?tenantId=${tenantId}`
-  return c.redirect(url)
 })
 
 app.delete('/auth/:platform', async (c) => {
