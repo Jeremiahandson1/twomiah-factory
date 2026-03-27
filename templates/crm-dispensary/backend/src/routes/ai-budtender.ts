@@ -166,8 +166,8 @@ function buildResponseMessage(
   let response = `Great choice! Here are my top picks for ${description}:\n\n`
 
   products.slice(0, 5).forEach((p, i) => {
-    const thc = p.thc_percentage ? ` | THC: ${p.thc_percentage}%` : ''
-    const cbd = p.cbd_percentage ? ` | CBD: ${p.cbd_percentage}%` : ''
+    const thc = p.thc_percent ? ` | THC: ${p.thc_percent}%` : ''
+    const cbd = p.cbd_percent ? ` | CBD: ${p.cbd_percent}%` : ''
     const price = p.sale_price && Number(p.sale_price) < Number(p.price)
       ? `$${Number(p.sale_price).toFixed(2)} (was $${Number(p.price).toFixed(2)})`
       : `$${Number(p.price).toFixed(2)}`
@@ -230,8 +230,8 @@ function buildSystemPrompt(
     name: p.name,
     category: p.category,
     strainType: p.strain_type,
-    thcPercent: p.thc_percentage ? Number(p.thc_percentage) : null,
-    cbdPercent: p.cbd_percentage ? Number(p.cbd_percentage) : null,
+    thcPercent: p.thc_percent ? Number(p.thc_percent) : null,
+    cbdPercent: p.cbd_percent ? Number(p.cbd_percent) : null,
     price: Number(p.price),
     salePrice: p.sale_price ? Number(p.sale_price) : null,
     effects: typeof p.effects === 'string' ? JSON.parse(p.effects || '[]') : (p.effects || []),
@@ -510,7 +510,7 @@ app.post('/chat', async (c) => {
     // Fetch all in-stock products for the system prompt
     const allProductsResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
-             p.thc_percentage, p.cbd_percentage, p.price, p.sale_price,
+             p.thc_percent, p.cbd_percent, p.price, p.sale_price,
              p.description, p.effects, p.image_url, p.weight, p.unit,
              p.stock_quantity
       FROM products p
@@ -606,8 +606,8 @@ app.post('/chat', async (c) => {
         category: p.category,
         strainName: p.strain_name,
         strainType: p.strain_type,
-        thcPercentage: p.thc_percentage,
-        cbdPercentage: p.cbd_percentage,
+        thcPercentage: p.thc_percent,
+        cbdPercentage: p.cbd_percent,
         price: p.price,
         salePrice: p.sale_price,
         imageUrl: p.image_url,
@@ -668,10 +668,10 @@ async function handleKeywordFallback(
 
     let potencyFilter = sql``
     if (isHighPotency) {
-      potencyFilter = sql`AND p.thc_percentage >= 25`
+      potencyFilter = sql`AND p.thc_percent >= 25`
     }
     if (isHighCbd) {
-      potencyFilter = sql`AND p.cbd_percentage >= 10`
+      potencyFilter = sql`AND p.cbd_percent >= 10`
     }
 
     let orderClause = sql`ORDER BY p.total_sold DESC NULLS LAST`
@@ -684,7 +684,7 @@ async function handleKeywordFallback(
 
     const productsResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
-             p.thc_percentage, p.cbd_percentage, p.price, p.sale_price,
+             p.thc_percent, p.cbd_percent, p.price, p.sale_price,
              p.description, p.effects, p.image_url, p.weight, p.unit,
              COALESCE(p.total_sold, 0) as popularity,
              CASE WHEN p.sale_price IS NOT NULL AND p.sale_price < p.price THEN true ELSE false END as on_sale,
@@ -730,10 +730,10 @@ async function handleKeywordFallback(
       if (isNewArrivals && p.new_arrival) score += 3
 
       // High potency bonus
-      if (isHighPotency && Number(p.thc_percentage) >= 28) score += 2
+      if (isHighPotency && Number(p.thc_percent) >= 28) score += 2
 
       // High CBD bonus
-      if (isHighCbd && Number(p.cbd_percentage) >= 15) score += 2
+      if (isHighCbd && Number(p.cbd_percent) >= 15) score += 2
 
       return { ...p, score }
     })
@@ -746,7 +746,7 @@ async function handleKeywordFallback(
   if (!intents.length && session.contact_id) {
     const historyResult = await db.execute(sql`
       SELECT p.id, p.name, p.category, p.strain_name, p.strain_type,
-             p.thc_percentage, p.cbd_percentage, p.price, p.sale_price,
+             p.thc_percent, p.cbd_percent, p.price, p.sale_price,
              p.description, p.effects, p.image_url, p.weight, p.unit,
              COALESCE(p.total_sold, 0) as popularity
       FROM products p
@@ -790,8 +790,8 @@ async function handleKeywordFallback(
       category: p.category,
       strainName: p.strain_name,
       strainType: p.strain_type,
-      thcPercentage: p.thc_percentage,
-      cbdPercentage: p.cbd_percentage,
+      thcPercentage: p.thc_percent,
+      cbdPercentage: p.cbd_percent,
       price: p.price,
       salePrice: p.sale_price,
       imageUrl: p.image_url,

@@ -157,7 +157,7 @@ app.get('/:id/inventory', async (c) => {
   const id = c.req.param('id')
 
   const result = await db.execute(sql`
-    SELECT pl.*, p.name as product_name, p.sku, p.category, p.brand, p.thc_percentage, p.cbd_percentage, p.unit_price, p.image_url
+    SELECT pl.*, p.name as product_name, p.sku, p.category, p.brand, p.thc_percent, p.cbd_percent, p.unit_price, p.image_url
     FROM product_locations pl
     JOIN products p ON p.id = pl.product_id
     WHERE pl.location_id = ${id} AND p.company_id = ${currentUser.companyId}

@@ -18,8 +18,8 @@ function formatForWeedmaps(products: any[]) {
       name: p.name,
       category: p.category,
       strain_type: p.strain_type || p.strain || null,
-      thc: p.thc_percentage ? `${p.thc_percentage}%` : null,
-      cbd: p.cbd_percentage ? `${p.cbd_percentage}%` : null,
+      thc: p.thc_percent ? `${p.thc_percent}%` : null,
+      cbd: p.cbd_percent ? `${p.cbd_percent}%` : null,
       price: Number(p.price),
       quantity: Number(p.stock_quantity) || 0,
       image: p.image_url || null,
@@ -37,8 +37,8 @@ function formatForLeafly(products: any[]) {
       product_category: p.category,
       strain_name: p.strain || null,
       strain_type: p.strain_type || null,
-      thc_content: p.thc_percentage || null,
-      cbd_content: p.cbd_percentage || null,
+      thc_content: p.thc_percent || null,
+      cbd_content: p.cbd_percent || null,
       retail_price: Number(p.price),
       available_quantity: Number(p.stock_quantity) || 0,
       photo_url: p.image_url || null,
@@ -58,8 +58,8 @@ function formatForIHeartJane(products: any[]) {
       brand: p.brand || null,
       strain: p.strain || null,
       lineage: p.strain_type || null,
-      potency_thc: p.thc_percentage || null,
-      potency_cbd: p.cbd_percentage || null,
+      potency_thc: p.thc_percent || null,
+      potency_cbd: p.cbd_percent || null,
       price_each: Number(p.price),
       amount_in_stock: Number(p.stock_quantity) || 0,
       image_url: p.image_url || null,
@@ -77,8 +77,8 @@ function formatForDutchieMarketplace(products: any[]) {
       type: p.category,
       brandName: p.brand || null,
       strainType: p.strain_type || null,
-      potencyThc: { formatted: p.thc_percentage ? `${p.thc_percentage}%` : null, range: [p.thc_percentage || 0, p.thc_percentage || 0] },
-      potencyCbd: { formatted: p.cbd_percentage ? `${p.cbd_percentage}%` : null, range: [p.cbd_percentage || 0, p.cbd_percentage || 0] },
+      potencyThc: { formatted: p.thc_percent ? `${p.thc_percent}%` : null, range: [p.thc_percent || 0, p.thc_percent || 0] },
+      potencyCbd: { formatted: p.cbd_percent ? `${p.cbd_percent}%` : null, range: [p.cbd_percent || 0, p.cbd_percent || 0] },
       prices: [{ price: Number(p.price), weight: p.weight || null }],
       inventory: Number(p.stock_quantity) || 0,
       image: p.image_url || null,
@@ -274,7 +274,7 @@ app.post('/configs/:id/sync', async (c) => {
   const productsResult = await db.execute(sql`
     SELECT id, name, category, brand, strain, strain_type, description,
            price, stock_quantity, weight, weight_unit, sku, image_url,
-           thc_percentage, cbd_percentage, active
+           thc_percent, cbd_percent, active
     FROM products
     WHERE company_id = ${currentUser.companyId} AND active = true
     ORDER BY category, name

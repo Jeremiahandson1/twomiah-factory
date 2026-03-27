@@ -126,8 +126,8 @@ app.get('/for-customer/:contactId', async (c) => {
       category: r.category,
       strainName: r.strain_name,
       strainType: r.strain_type,
-      thcPercentage: r.thc_percentage,
-      cbdPercentage: r.cbd_percentage,
+      thcPercentage: r.thc_percent,
+      cbdPercentage: r.cbd_percent,
       price: r.price,
       salePrice: r.sale_price,
       imageUrl: r.image_url,
@@ -184,8 +184,8 @@ app.get('/similar/:productId', async (c) => {
   const source = ((sourceResult as any).rows || sourceResult)?.[0]
   if (!source) return c.json({ error: 'Product not found' }, 404)
 
-  const thcLow = (Number(source.thc_percentage) || 0) * 0.95
-  const thcHigh = (Number(source.thc_percentage) || 0) * 1.05
+  const thcLow = (Number(source.thc_percent) || 0) * 0.95
+  const thcHigh = (Number(source.thc_percent) || 0) * 1.05
   const priceLow = (Number(source.price) || 0) * 0.8
   const priceHigh = (Number(source.price) || 0) * 1.2
 
@@ -205,7 +205,7 @@ app.get('/similar/:productId', async (c) => {
       AND (
         p.strain_type = ${source.strain_type}
         OR p.category = ${source.category}
-        OR (p.thc_percentage BETWEEN ${thcLow} AND ${thcHigh})
+        OR (p.thc_percent BETWEEN ${thcLow} AND ${thcHigh})
         OR (p.price BETWEEN ${priceLow} AND ${priceHigh})
       )
     ORDER BY relevance_score DESC, p.total_sold DESC NULLS LAST

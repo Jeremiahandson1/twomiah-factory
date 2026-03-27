@@ -100,7 +100,7 @@ app.get('/menu', async (c) => {
 
   const dataResult = await db.execute(sql`
     SELECT p.id, p.name, p.description, p.category, p.strain_name, p.strain_type,
-           p.thc_percentage, p.cbd_percentage, p.weight, p.unit, p.price, p.sale_price,
+           p.thc_percent, p.cbd_percent, p.weight, p.unit, p.price, p.sale_price,
            p.image_url, p.in_stock
     FROM products p
     WHERE p.location_id = ${locationId}

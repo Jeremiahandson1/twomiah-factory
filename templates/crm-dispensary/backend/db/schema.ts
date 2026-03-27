@@ -159,9 +159,6 @@ export const product = pgTable('products', {
   weight: text('weight'),
   weightUnit: text('weight_unit'),
   strain: text('strain'),
-  // Aliases used widely across routes
-  thcPercentage: text('thc_percentage'),
-  cbdPercentage: text('cbd_percentage'),
   salePrice: text('sale_price'),
   inStock: boolean('in_stock').default(true),
   totalSold: integer('total_sold').default(0),

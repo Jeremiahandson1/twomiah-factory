@@ -210,7 +210,7 @@ app.post('/scan', async (c) => {
 
   // Look up tag
   const tagResult = await db.execute(sql`
-    SELECT t.*, p.name as product_name, p.sku, p.unit_price, p.category, p.thc_percentage, p.cbd_percentage
+    SELECT t.*, p.name as product_name, p.sku, p.unit_price, p.category, p.thc_percent, p.cbd_percent
     FROM rfid_tags t
     LEFT JOIN products p ON p.id = t.product_id
     WHERE t.epc = ${data.epc} AND t.company_id = ${currentUser.companyId}
@@ -241,8 +241,8 @@ app.post('/scan', async (c) => {
         sku: tag.sku,
         unitPrice: tag.unit_price,
         category: tag.category,
-        thcPercentage: tag.thc_percentage,
-        cbdPercentage: tag.cbd_percentage,
+        thcPercentage: tag.thc_percent,
+        cbdPercentage: tag.cbd_percent,
       },
     })
   }
