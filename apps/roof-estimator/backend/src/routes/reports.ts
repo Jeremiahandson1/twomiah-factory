@@ -3,7 +3,7 @@
 
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { roofReport, tenant } from '../../db/schema.ts'
+import { roofReport, tenant, trainingExample } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/tenantAuth.ts'
 import {
@@ -241,6 +241,9 @@ app.post('/finalize', authenticate, async (c) => {
   if (!preview || !edges) return c.json({ error: 'preview and edges required' }, 400)
 
   try {
+    const autoEdges = preview.autoEdges || []
+    const correctedEdges = edges || []
+
     const [report] = await db.insert(roofReport).values({
       tenantId: t.id,
       address: preview.address, city: preview.city, state: preview.state, zip: preview.zip,
@@ -253,12 +256,62 @@ app.post('/finalize', authenticate, async (c) => {
       imageryDate: preview.imageryDate,
       aerialImagePath: preview.aerialImagePath,
       segments: preview.autoSegments || [],
-      edges,
+      edges: correctedEdges,
       measurements: measurements || {},
+      originalEdges: autoEdges,
+      originalMeasurements: null,
       imagerySource: preview.imagerySource || 'google_solar',
       elevationSource: preview.elevationSource || 'google_dsm',
       userEdited: true,
     }).returning()
+
+    // --- Save training data (auto-detected vs user-corrected) ---
+    try {
+      // Calculate edit metrics
+      const autoSet = new Set(autoEdges.map((e: any) => `${e.startLat},${e.startLng}-${e.endLat},${e.endLng}`))
+      const correctedSet = new Set(correctedEdges.map((e: any) => `${e.startLat},${e.startLng}-${e.endLat},${e.endLng}`))
+
+      let edgesDeleted = 0, edgesAdded = 0
+      for (const key of autoSet) { if (!correctedSet.has(key)) edgesDeleted++ }
+      for (const key of correctedSet) { if (!autoSet.has(key)) edgesAdded++ }
+
+      // Edit score: 1.0 = no corrections, 0.0 = everything changed
+      const totalEdges = Math.max(autoEdges.length, correctedEdges.length, 1)
+      const editScore = Math.max(0, 1 - (edgesAdded + edgesDeleted) / totalEdges)
+
+      // Roof complexity based on segment count
+      const segCount = preview.autoSegments?.length || 0
+      const roofComplexity = segCount <= 2 ? 'simple' : segCount <= 5 ? 'moderate' : 'complex'
+
+      await db.insert(trainingExample).values({
+        reportId: report.id,
+        lat: preview.geo.lat,
+        lng: preview.geo.lng,
+        state: preview.state,
+        aerialImagePath: preview.aerialImagePath,
+        imagerySource: preview.imagerySource || 'google_solar',
+        imageryQuality: preview.quality || 'MEDIUM',
+        zoom: preview.zoom || 20,
+        imageWidth: preview.mapWidth || 800,
+        imageHeight: preview.mapHeight || 600,
+        autoEdges,
+        autoSegments: preview.autoSegments || [],
+        detectionMethod: 'ransac',
+        correctedEdges,
+        correctedMeasurements: measurements || {},
+        edgesAdded,
+        edgesDeleted,
+        edgesModified: 0,
+        editScore,
+        roofComplexity,
+        buildingCount: 1,
+      })
+
+      console.log(`[Training] Saved example: ${edgesAdded} added, ${edgesDeleted} deleted, score=${editScore.toFixed(2)}`)
+    } catch (trainErr: any) {
+      // Non-blocking — don't fail the report if training data save fails
+      console.warn('[Training] Failed to save training example:', trainErr.message)
+    }
 
     // Increment usage
     await db.update(tenant).set({
@@ -360,6 +413,75 @@ app.delete('/:id', authenticate, async (c) => {
     .where(and(eq(roofReport.id, id), eq(roofReport.tenantId, t.id)))
 
   return c.json({ success: true })
+})
+
+// ============================================
+// TRAINING DATA — export for ML model training
+// ============================================
+
+app.get('/training/stats', authenticate, async (c) => {
+  const factoryKey = c.req.header('X-Factory-Key')
+  if (factoryKey !== process.env.FACTORY_SYNC_KEY) {
+    return c.json({ error: 'Factory key required for training data access' }, 403)
+  }
+
+  const examples = await db.select({
+    total: trainingExample.id,
+  }).from(trainingExample)
+
+  const totalCount = examples.length
+
+  return c.json({
+    totalExamples: totalCount,
+    message: totalCount < 500
+      ? `${totalCount}/500 examples collected. Need ${500 - totalCount} more before training is viable.`
+      : `${totalCount} examples ready for training. Run: bun scripts/export-training-data.ts`,
+  })
+})
+
+app.get('/training/export', async (c) => {
+  const factoryKey = c.req.header('X-Factory-Key')
+  if (factoryKey !== process.env.FACTORY_SYNC_KEY) {
+    return c.json({ error: 'Factory key required' }, 403)
+  }
+
+  const { limit = '1000', offset = '0', minEditScore, maxEditScore } = c.req.query()
+
+  const examples = await db.select().from(trainingExample)
+    .orderBy(desc(trainingExample.createdAt))
+    .offset(+offset)
+    .limit(Math.min(+limit, 5000))
+
+  // Filter by edit score if requested (e.g., only examples where user made corrections)
+  let filtered = examples
+  if (minEditScore) filtered = filtered.filter(e => (e.editScore || 0) >= +minEditScore)
+  if (maxEditScore) filtered = filtered.filter(e => (e.editScore || 1) <= +maxEditScore)
+
+  return c.json({
+    count: filtered.length,
+    examples: filtered.map(e => ({
+      id: e.id,
+      lat: e.lat,
+      lng: e.lng,
+      state: e.state,
+      imagerySource: e.imagerySource,
+      imageryQuality: e.imageryQuality,
+      zoom: e.zoom,
+      imageWidth: e.imageWidth,
+      imageHeight: e.imageHeight,
+      aerialImagePath: e.aerialImagePath,
+      autoEdges: e.autoEdges,
+      autoSegments: e.autoSegments,
+      detectionMethod: e.detectionMethod,
+      correctedEdges: e.correctedEdges,
+      correctedMeasurements: e.correctedMeasurements,
+      edgesAdded: e.edgesAdded,
+      edgesDeleted: e.edgesDeleted,
+      editScore: e.editScore,
+      roofComplexity: e.roofComplexity,
+      createdAt: e.createdAt,
+    })),
+  })
 })
 
 export default app

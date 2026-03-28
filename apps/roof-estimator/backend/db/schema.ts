@@ -109,3 +109,50 @@ export const roofReport = pgTable('roof_report', {
 }, (t) => [
   index('report_tenant_idx').on(t.tenantId),
 ])
+
+// ==================== TRAINING DATA ====================
+// Every user edit = a labeled training example for ML model improvement.
+// Stores: satellite image ref + auto-detected edges (input) + user-corrected edges (label)
+
+export const trainingExample = pgTable('training_example', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  reportId: text('report_id').references(() => roofReport.id, { onDelete: 'set null' }),
+
+  // Location (for geographic diversity tracking)
+  lat: real('lat').notNull(),
+  lng: real('lng').notNull(),
+  state: text('state'),
+
+  // Image reference
+  aerialImagePath: text('aerial_image_path'),    // path to satellite PNG
+  imagerySource: text('imagery_source'),          // google_solar, nearmap
+  imageryQuality: text('imagery_quality'),
+  zoom: integer('zoom'),
+  imageWidth: integer('image_width'),
+  imageHeight: integer('image_height'),
+
+  // Auto-detected (model input — what the AI predicted)
+  autoEdges: json('auto_edges').notNull(),        // edges before user correction
+  autoSegments: json('auto_segments'),            // segments from RANSAC/SAM
+  detectionMethod: text('detection_method'),       // ransac, sam2, nearmap_ai
+
+  // User-corrected (ground truth label — what was actually correct)
+  correctedEdges: json('corrected_edges').notNull(),
+  correctedMeasurements: json('corrected_measurements'),
+
+  // Quality metrics
+  edgesAdded: integer('edges_added').default(0),      // how many the user added
+  edgesDeleted: integer('edges_deleted').default(0),   // how many the user removed
+  edgesModified: integer('edges_modified').default(0), // how many the user changed type on
+  editScore: real('edit_score'),                       // 0-1, lower = more corrections needed
+
+  // Roof characteristics (for stratified training)
+  roofComplexity: text('roof_complexity'),   // simple, moderate, complex
+  buildingCount: integer('building_count'),   // structures on parcel
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('training_report_idx').on(t.reportId),
+  index('training_state_idx').on(t.state),
+  index('training_created_idx').on(t.createdAt),
+])
