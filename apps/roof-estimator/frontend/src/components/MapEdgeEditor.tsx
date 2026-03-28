@@ -917,7 +917,24 @@ export default function MapEdgeEditor({
       }
     }
 
-    return detectedFaces
+    // Remove overlapping faces — if a face contains another face's centroid, it's
+    // an enclosing polygon, not a minimal roof face. Keep only minimal faces.
+    const minimalFaces = detectedFaces.filter(face => {
+      const otherFaces = detectedFaces.filter(f => f.id !== face.id)
+      // If this face contains any other face's centroid, it's an enclosing polygon
+      for (const other of otherFaces) {
+        const otherCenter = {
+          lat: other.vertices.reduce((s, v) => s + v.lat, 0) / other.vertices.length,
+          lng: other.vertices.reduce((s, v) => s + v.lng, 0) / other.vertices.length,
+        }
+        if (pointInPoly(otherCenter.lat, otherCenter.lng, face.vertices)) {
+          return false // This face contains another face — it's not minimal
+        }
+      }
+      return true
+    })
+
+    return minimalFaces
   }
 
   // Auto-detect faces whenever edges change
