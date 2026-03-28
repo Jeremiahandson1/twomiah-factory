@@ -264,16 +264,35 @@ export default function StepCompany({ config, updateNested, onNext, onBack }: Pr
         </div>
         <div>
           <label className="block text-xs text-gray-400 mb-1">Industry <span className="text-orange-400">*</span></label>
-          <select value={c.industry} onChange={e => set('industry', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500">
-            <option value="">Select industry...</option>
+          <input
+            list="industry-options"
+            value={c.industry}
+            onChange={e => set('industry', e.target.value)}
+            placeholder="Select or type your industry..."
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
+          />
+          <datalist id="industry-options">
             {INDUSTRY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          </datalist>
         </div>
         <Field label="Owner / Operator Name" value={c.ownerName} onChange={v => set('ownerName', v)} placeholder="John Smith" />
         <Field label="Email" required type="email" value={c.email} onChange={v => set('email', v)} placeholder="info@acme.com" />
         <Field label="Phone" required value={c.phone} onChange={v => set('phone', v)} placeholder="(555) 123-4567" />
         <Field label="Domain" value={c.domain} onChange={v => set('domain', v)} placeholder="acmeconstruction.com" />
+
+        {/* Business Description for AI content generation */}
+        <div className="col-span-2">
+          <label className="block text-xs text-gray-400 mb-1">Business Description <span className="text-gray-600">(helps AI generate better website content)</span></label>
+          <textarea
+            value={(config.content as any)?.description || ''}
+            onChange={e => {
+              updateNested('content' as any, { description: e.target.value } as any)
+            }}
+            placeholder="Tell us about your business in 1-2 sentences (e.g. 'Family-owned bakery specializing in custom cakes and pastries since 2010')"
+            rows={2}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500 resize-vertical"
+          />
+        </div>
 
         {/* Address with Google Autocomplete */}
         <div className="col-span-2">

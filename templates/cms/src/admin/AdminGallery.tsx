@@ -6,7 +6,7 @@ import ImagePicker from './ImagePicker';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
-const CATEGORIES = ['Roofing', 'Siding', 'Windows', 'Insulation', 'Remodeling', 'New Construction'];
+const DEFAULT_CATEGORIES = ['General', 'Residential', 'Commercial', 'Renovation', 'New Build', 'Repair'];
 
 function AdminGallery() {
   const [projects, setProjects] = useState([]);
@@ -14,9 +14,10 @@ function AdminGallery() {
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [customCategory, setCustomCategory] = useState('');
   const [formData, setFormData] = useState({
     title: '',
-    category: 'Roofing',
+    category: 'General',
     location: '',
     description: '',
     images: [],
@@ -269,12 +270,40 @@ function AdminGallery() {
             <div className="form-row">
               <div className="form-group">
                 <label>Category</label>
-                <select 
-                  value={formData.category}
-                  onChange={e => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                >
-                  {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                </select>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    value={formData.category}
+                    onChange={e => {
+                      if (e.target.value === '__custom__') {
+                        setCustomCategory('');
+                      } else {
+                        setFormData(prev => ({ ...prev, category: e.target.value }));
+                        setCustomCategory('');
+                      }
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    {/* Dynamic categories from existing projects + defaults */}
+                    {Array.from(new Set([
+                      ...DEFAULT_CATEGORIES,
+                      ...(projects as any[]).map((p: any) => p.category).filter(Boolean),
+                    ])).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    <option value="__custom__">+ New category...</option>
+                  </select>
+                  {formData.category === '__custom__' || customCategory ? (
+                    <input
+                      type="text"
+                      value={customCategory}
+                      onChange={e => {
+                        setCustomCategory(e.target.value);
+                        if (e.target.value) setFormData(prev => ({ ...prev, category: e.target.value }));
+                      }}
+                      placeholder="Type category name..."
+                      style={{ flex: 1 }}
+                      autoFocus
+                    />
+                  ) : null}
+                </div>
               </div>
               <div className="form-group">
                 <label>Location</label>

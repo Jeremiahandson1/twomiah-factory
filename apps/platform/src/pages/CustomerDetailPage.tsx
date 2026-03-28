@@ -20,6 +20,7 @@ type Tenant = {
   products?: string[]; features?: string[]
   stripe_customer_id?: string; stripe_subscription_id?: string
   render_frontend_url?: string; render_backend_url?: string; website_url?: string
+  domain?: string
 }
 
 type FactoryJob = {
@@ -80,6 +81,184 @@ function productIcon(type: string) {
     case 'crm':     return <Database size={14} className="text-blue-400" />
     default:        return <Package size={14} className="text-gray-400" />
   }
+}
+
+type DnsRecord = { type: string; name: string; status: 'verified' | 'pending' | 'error'; current?: string; expected?: string }
+type DomainStatus = {
+  domain: string; renderHost: string; records: DnsRecord[]; ssl: string; allVerified: boolean
+  instructions: { steps: { type: string; name: string; value: string; description: string }[]; note: string }
+}
+
+function DomainSetup({ tenantId, currentDomain, websiteUrl, showToast }: {
+  tenantId: string; currentDomain?: string; websiteUrl?: string
+  showToast: (msg: string, type?: 'success' | 'error') => void
+}) {
+  const [domain, setDomain] = useState(currentDomain || '')
+  const [saving, setSaving] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [status, setStatus] = useState<DomainStatus | null>(null)
+
+  async function saveDomain() {
+    if (!domain.trim()) return
+    setSaving(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session?.access_token },
+        body: JSON.stringify({ domain: domain.trim() }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        showToast('Domain configured on Render' + (data.renderErrors?.length ? ' (with warnings)' : ''))
+        checkDns()
+      } else {
+        showToast(data.error || 'Failed to save domain', 'error')
+      }
+    } catch { showToast('Failed to save domain', 'error') }
+    setSaving(false)
+  }
+
+  async function checkDns() {
+    setChecking(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/domain/status', {
+        headers: { 'Authorization': 'Bearer ' + session?.access_token },
+      })
+      if (res.ok) setStatus(await res.json())
+      else showToast('Failed to check DNS', 'error')
+    } catch { showToast('DNS check failed', 'error') }
+    setChecking(false)
+  }
+
+  // Auto-check on mount if domain exists
+  useEffect(() => { if (currentDomain) checkDns() }, [currentDomain])
+
+  const renderHost = websiteUrl ? (() => { try { return new URL(websiteUrl).hostname } catch { return '' } })() : ''
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+      <h2 className="text-white font-semibold mb-4 flex items-center gap-2">
+        <Globe size={16} className="text-orange-400" /> Custom Domain
+      </h2>
+
+      {/* Domain input */}
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text" value={domain} onChange={e => setDomain(e.target.value)}
+          placeholder="yourbusiness.com"
+          className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500"
+        />
+        <button onClick={saveDomain} disabled={saving || !domain.trim()}
+          className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors">
+          {saving ? 'Saving...' : currentDomain ? 'Update' : 'Connect Domain'}
+        </button>
+      </div>
+
+      {/* DNS Instructions */}
+      {(currentDomain || status) && renderHost && (
+        <div className="mb-4 p-4 bg-gray-800/60 rounded-lg border border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-200 mb-3">DNS Setup Instructions</h3>
+          <p className="text-xs text-gray-400 mb-3">
+            Add these records in your domain provider (GoDaddy, Namecheap, Cloudflare, etc.):
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-700">
+                  <th className="text-left py-2 pr-4">Type</th>
+                  <th className="text-left py-2 pr-4">Name/Host</th>
+                  <th className="text-left py-2 pr-4">Value/Points to</th>
+                  <th className="text-left py-2">Purpose</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-300">
+                <tr className="border-b border-gray-700/50">
+                  <td className="py-2 pr-4 font-mono text-blue-400">CNAME</td>
+                  <td className="py-2 pr-4 font-mono">www</td>
+                  <td className="py-2 pr-4 font-mono text-emerald-400">{renderHost}</td>
+                  <td className="py-2 text-gray-500">www.{currentDomain || domain}</td>
+                </tr>
+                <tr>
+                  <td className="py-2 pr-4 font-mono text-blue-400">CNAME</td>
+                  <td className="py-2 pr-4 font-mono">@</td>
+                  <td className="py-2 pr-4 font-mono text-emerald-400">{renderHost}</td>
+                  <td className="py-2 text-gray-500">{currentDomain || domain} (root)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-gray-500 mt-3">
+            If your DNS provider doesn't support CNAME on the root domain (@), use an ALIAS or ANAME record instead, or use Cloudflare for free CNAME flattening.
+          </p>
+        </div>
+      )}
+
+      {/* DNS Verification Status */}
+      {status && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-200">Verification Status</h3>
+            <button onClick={checkDns} disabled={checking}
+              className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200 transition-colors">
+              <RefreshCw size={12} className={checking ? 'animate-spin' : ''} />
+              {checking ? 'Checking...' : 'Re-check'}
+            </button>
+          </div>
+
+          {status.records.map((record, i) => (
+            <div key={i} className={'flex items-center justify-between p-3 rounded-lg border ' + (
+              record.status === 'verified' ? 'bg-emerald-500/5 border-emerald-500/30' :
+              record.status === 'error' ? 'bg-red-500/5 border-red-500/30' :
+              'bg-yellow-500/5 border-yellow-500/30'
+            )}>
+              <div>
+                <div className="text-sm text-white font-mono">{record.name}</div>
+                <div className="text-xs text-gray-400">{record.type} record — {record.current || 'Not found'}</div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {record.status === 'verified' ? (
+                  <><CheckCircle size={14} className="text-emerald-400" /><span className="text-xs text-emerald-400">Connected</span></>
+                ) : record.status === 'error' ? (
+                  <><XCircle size={14} className="text-red-400" /><span className="text-xs text-red-400">Error</span></>
+                ) : (
+                  <><Clock size={14} className="text-yellow-400" /><span className="text-xs text-yellow-400">Pending</span></>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {/* SSL Status */}
+          <div className={'flex items-center justify-between p-3 rounded-lg border ' + (
+            status.ssl === 'verified' ? 'bg-emerald-500/5 border-emerald-500/30' : 'bg-yellow-500/5 border-yellow-500/30'
+          )}>
+            <div>
+              <div className="text-sm text-white">SSL Certificate</div>
+              <div className="text-xs text-gray-400">Auto-provisioned by Render after DNS verification</div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {status.ssl === 'verified' ? (
+                <><CheckCircle size={14} className="text-emerald-400" /><span className="text-xs text-emerald-400">Active</span></>
+              ) : (
+                <><Clock size={14} className="text-yellow-400" /><span className="text-xs text-yellow-400">Waiting for DNS</span></>
+              )}
+            </div>
+          </div>
+
+          {status.allVerified && (
+            <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-sm text-emerald-400">
+              <CheckCircle size={16} /> Domain is fully connected! Your site is live at <a href={'https://' + status.domain} target="_blank" rel="noreferrer" className="underline font-semibold">{status.domain}</a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!currentDomain && !status && (
+        <p className="text-xs text-gray-500">Enter a domain to connect it to this customer's website. The domain will be automatically configured on Render.</p>
+      )}
+    </div>
+  )
 }
 
 export default function CustomerDetailPage() {
@@ -502,6 +681,16 @@ export default function CustomerDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Custom Domain */}
+          {(tenant.website_url || tenant.render_frontend_url) && (
+            <DomainSetup
+              tenantId={tenant.id}
+              currentDomain={tenant.domain}
+              websiteUrl={tenant.website_url || tenant.render_frontend_url}
+              showToast={showToast}
+            />
+          )}
 
           {/* Billing */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">

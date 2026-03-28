@@ -248,10 +248,27 @@ factory.post('/generate-content', requireRole('owner', 'admin', 'editor'), async
   try {
     const parsed = await parseJsonBody(c)
     if (parsed.error) return parsed.error
-    const { companyName, city, state, industry, services, serviceRegion, ownerName } = parsed.data
+    const { companyName, city, state, stateFull, industry, services, serviceRegion, ownerName, description, phone, email, domain, nearbyCities, mode } = parsed.data
     if (!companyName) return c.json({ error: 'companyName is required' }, 400)
     if (!process.env.ANTHROPIC_API_KEY) return c.json({ error: 'AI content generation not configured (missing ANTHROPIC_API_KEY)' }, 503)
 
+    // Full AI generation mode — generates all website data files
+    if (mode === 'full') {
+      const { generateWebsiteContent } = await import('../services/contentGenerator')
+      const result = await generateWebsiteContent({
+        businessName: companyName,
+        businessType: industry || 'general business',
+        location: { city: city || '', state: state || '', stateFull: stateFull || '' },
+        services: services || [],
+        description: description || '',
+        serviceRegion,
+        nearbyCities: nearbyCities || [],
+        phone, email, ownerName, domain,
+      })
+      return c.json(result)
+    }
+
+    // Legacy mode — simple hero/about/cta generation
     const isHomeCare = industry === 'home_care'
     const location = [city, state].filter(Boolean).join(', ') || 'your area'
     const region = serviceRegion || city || 'the area'
@@ -2181,6 +2198,134 @@ factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) =
     }
 
     return c.json({ success: true, domain, renderErrors: renderErrors.length ? renderErrors : undefined })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Customer Domain DNS Verification ────────────────────────────────────────
+factory.get('/customers/:id/domain/status', requireRole('owner', 'admin', 'editor'), async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+
+    const { data: tenant } = await supabase.from('tenants').select('domain, slug, website_url, render_frontend_url, render_backend_url')
+      .eq('id', tenantId).single()
+    if (!tenant?.domain) return c.json({ error: 'No domain configured' }, 400)
+
+    const domain = tenant.domain
+    // Find the actual .onrender.com hostname (not the custom domain)
+    let renderHost = ''
+    for (const url of [tenant.render_frontend_url, tenant.render_backend_url, tenant.website_url]) {
+      if (url) {
+        try {
+          const host = new URL(url).hostname
+          if (host.endsWith('.onrender.com')) { renderHost = host; break }
+        } catch {}
+      }
+    }
+    // Fallback: try to find via Render API
+    if (!renderHost && tenant.slug) {
+      try {
+        const serviceIds = await findRenderServicesBySlug(tenant.slug)
+        const primaryId = serviceIds.site || serviceIds.frontend
+        if (primaryId && process.env.RENDER_API_KEY) {
+          const svcRes = await fetch('https://api.render.com/v1/services/' + primaryId, {
+            headers: { 'Authorization': 'Bearer ' + process.env.RENDER_API_KEY },
+          })
+          if (svcRes.ok) {
+            const svcData = await svcRes.json() as any
+            const svcUrl = svcData.serviceDetails?.url || svcData.service?.serviceDetails?.url
+            if (svcUrl) renderHost = new URL(svcUrl).hostname
+          }
+        }
+      } catch {}
+    }
+    if (!renderHost) {
+      // Last resort: use website_url even if it's the custom domain
+      const fallback = tenant.website_url || tenant.render_frontend_url || ''
+      if (fallback) try { renderHost = new URL(fallback).hostname } catch {}
+    }
+
+    // Check DNS resolution via DNS-over-HTTPS (Cloudflare)
+    const results: { type: string; name: string; status: 'verified' | 'pending' | 'error'; current?: string; expected?: string }[] = []
+
+    // Check root domain A/CNAME
+    try {
+      const rootRes = await fetch('https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(domain) + '&type=A', {
+        headers: { 'Accept': 'application/dns-json' },
+      })
+      const rootData = await rootRes.json() as any
+      const rootAnswers = (rootData.Answer || []).map((a: any) => a.data)
+
+      // Also check CNAME
+      const cnameRes = await fetch('https://cloudflare-dns.com/dns-query?name=' + encodeURIComponent(domain) + '&type=CNAME', {
+        headers: { 'Accept': 'application/dns-json' },
+      })
+      const cnameData = await cnameRes.json() as any
+      const cnameAnswers = (cnameData.Answer || []).map((a: any) => a.data?.replace(/\.$/, ''))
+
+      const pointsToRender = cnameAnswers.some((c: string) => c?.includes('.onrender.com')) ||
+        rootAnswers.length > 0 // A records exist (Render IPs vary)
+
+      results.push({
+        type: 'A/CNAME',
+        name: domain,
+        status: pointsToRender ? 'verified' : 'pending',
+        current: cnameAnswers.length > 0 ? 'CNAME → ' + cnameAnswers[0] : rootAnswers.length > 0 ? 'A → ' + rootAnswers[0] : 'Not configured',
+        expected: 'CNAME → ' + renderHost,
+      })
+    } catch {
+      results.push({ type: 'A/CNAME', name: domain, status: 'error', expected: 'CNAME → ' + renderHost })
+    }
+
+    // Check www subdomain
+    try {
+      const wwwRes = await fetch('https://cloudflare-dns.com/dns-query?name=www.' + encodeURIComponent(domain) + '&type=CNAME', {
+        headers: { 'Accept': 'application/dns-json' },
+      })
+      const wwwData = await wwwRes.json() as any
+      const wwwAnswers = (wwwData.Answer || []).map((a: any) => a.data?.replace(/\.$/, ''))
+      const wwwPointsToRender = wwwAnswers.some((c: string) => c?.includes('.onrender.com'))
+
+      results.push({
+        type: 'CNAME',
+        name: 'www.' + domain,
+        status: wwwPointsToRender ? 'verified' : 'pending',
+        current: wwwAnswers.length > 0 ? 'CNAME → ' + wwwAnswers[0] : 'Not configured',
+        expected: 'CNAME → ' + renderHost,
+      })
+    } catch {
+      results.push({ type: 'CNAME', name: 'www.' + domain, status: 'error', expected: 'CNAME → ' + renderHost })
+    }
+
+    // Check SSL (try HTTPS on the domain)
+    let sslStatus: 'verified' | 'pending' | 'error' = 'pending'
+    try {
+      const sslRes = await fetch('https://' + domain, { method: 'HEAD', redirect: 'manual' })
+      if (sslRes.status < 500) sslStatus = 'verified'
+    } catch {
+      sslStatus = 'pending'
+    }
+
+    const allVerified = results.every(r => r.status === 'verified')
+
+    return c.json({
+      domain,
+      renderHost,
+      records: results,
+      ssl: sslStatus,
+      allVerified,
+      instructions: {
+        provider: 'Your DNS provider (GoDaddy, Namecheap, Cloudflare, etc.)',
+        steps: [
+          { type: 'CNAME', name: 'www', value: renderHost, description: 'Points www.' + domain + ' to your site' },
+          { type: 'CNAME', name: '@', value: renderHost, description: 'Points ' + domain + ' to your site (use CNAME flattening if supported, otherwise use A record)' },
+        ],
+        note: 'DNS changes typically take 5-30 minutes to propagate. SSL certificates are provisioned automatically by Render once DNS is verified.',
+      },
+    })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
   }
