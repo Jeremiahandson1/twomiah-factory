@@ -917,22 +917,40 @@ export default function MapEdgeEditor({
       }
     }
 
-    // Remove overlapping faces — if a face contains another face's centroid, it's
-    // an enclosing polygon, not a minimal roof face. Keep only minimal faces.
-    const minimalFaces = detectedFaces.filter(face => {
-      const otherFaces = detectedFaces.filter(f => f.id !== face.id)
-      // If this face contains any other face's centroid, it's an enclosing polygon
-      for (const other of otherFaces) {
-        const otherCenter = {
-          lat: other.vertices.reduce((s, v) => s + v.lat, 0) / other.vertices.length,
-          lng: other.vertices.reduce((s, v) => s + v.lng, 0) / other.vertices.length,
+    // Remove overlapping/enclosing faces.
+    // Sort by area ascending. A face that is larger than the sum of all smaller
+    // faces so far is likely the outer boundary enclosing them — remove it.
+    // Also check: if any face contains ANY vertex of another face, it's enclosing.
+    detectedFaces.sort((a, b) => a.areaSqft - b.areaSqft)
+
+    const minimalFaces: typeof detectedFaces = []
+    for (const face of detectedFaces) {
+      // Check if this face contains any vertex of any already-accepted face
+      let containsOther = false
+      for (const accepted of minimalFaces) {
+        // Check if ANY vertex of the accepted face is inside this face
+        let verticesInside = 0
+        for (const v of accepted.vertices) {
+          if (pointInPoly(v.lat, v.lng, face.vertices)) verticesInside++
         }
-        if (pointInPoly(otherCenter.lat, otherCenter.lng, face.vertices)) {
-          return false // This face contains another face — it's not minimal
+        // If most vertices of an accepted face are inside this face, it's enclosing
+        if (verticesInside >= Math.ceil(accepted.vertices.length * 0.5)) {
+          containsOther = true
+          break
         }
       }
-      return true
-    })
+
+      // Also reject if this face's area is bigger than 60% of the total so far + itself
+      // (a single face shouldn't be more than ~half the roof on a multi-face roof)
+      const totalSoFar = minimalFaces.reduce((s, f) => s + f.areaSqft, 0)
+      if (minimalFaces.length >= 2 && face.areaSqft > totalSoFar * 0.9) {
+        containsOther = true
+      }
+
+      if (!containsOther) {
+        minimalFaces.push(face)
+      }
+    }
 
     return minimalFaces
   }
