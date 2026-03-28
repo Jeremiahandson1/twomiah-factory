@@ -1,0 +1,10 @@
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS imagery_source text DEFAULT 'google_solar';
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS elevation_source text DEFAULT 'google_dsm';
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS nearmap_survey_id text;
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS dsm_grid_path text;
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS pdf_path text;
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS sam_segments json;
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS roof_condition integer;
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS roof_material text;
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS tree_overhang_pct real;
+ALTER TABLE roof_report ADD COLUMN IF NOT EXISTS ai_source text;

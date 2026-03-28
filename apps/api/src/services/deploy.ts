@@ -862,6 +862,11 @@ export async function deployCustomer(
     const googleMapsKey = integrations?.googleMaps?.apiKey || process.env.TWOMIAH_GOOGLE_MAPS_KEY || ''
     if (googleMapsKey) integrationEnvVars.push({ key: 'GOOGLE_MAPS_API_KEY', value: googleMapsKey })
     if (integrations?.sentry?.dsn) integrationEnvVars.push({ key: 'SENTRY_DSN', value: integrations.sentry.dsn })
+    // Roof estimator: Nearmap high-res imagery + SAM 2 AI segmentation (shared factory keys)
+    const nearmapKey = integrations?.nearmap?.apiKey || process.env.TWOMIAH_NEARMAP_KEY || ''
+    if (nearmapKey) integrationEnvVars.push({ key: 'NEARMAP_API_KEY', value: nearmapKey })
+    const replicateToken = integrations?.replicate?.apiToken || process.env.TWOMIAH_REPLICATE_TOKEN || ''
+    if (replicateToken) integrationEnvVars.push({ key: 'REPLICATE_API_TOKEN', value: replicateToken })
 
     // Pre-compute visualizer flag so we can include VISION_URL in initial env vars for both CRM and website
     const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')

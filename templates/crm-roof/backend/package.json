@@ -29,6 +29,8 @@
     "socket.io": "^4.7.4",
     "stripe": "^20.3.0",
     "twilio": "^5.3.4",
+    "puppeteer": "^23.0.0",
+    "replicate": "^1.0.0",
     "web-push": "^3.6.7",
     "winston": "^3.11.0",
     "zod": "^3.22.4"

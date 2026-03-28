@@ -4,9 +4,25 @@ import { db } from '../../db/index.ts'
 import { roofReport, contact, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
 import { generateRoofReport, generateRoofReportFromDSM } from '../services/roofReport.ts'
-import { generateReportHTML, generateReportPDF, computeOptimalZoom, fetchSatelliteImageBase64, MAP_WIDTH, MAP_HEIGHT } from '../services/roofReportRenderer.ts'
+import { generateReportHTML, generateReportPDF, generatePdfReadyHTML, computeOptimalZoom, fetchSatelliteImageBase64, MAP_WIDTH, MAP_HEIGHT } from '../services/roofReportRenderer.ts'
 import { geocodeAddress, getBuildingInsights, getDataLayers, downloadGeoTiff, formatSolarDate, isSummerImagery } from '../services/googleSolar.ts'
 import { processDsm } from '../services/dsmProcessor.ts'
+
+// --- New service imports for upgraded estimator ---
+import { checkNearmapCoverage, getNearmapTileConfig, downloadNearmapImage, fetchNearmapImageBase64 } from '../services/nearmapImagery.ts'
+import { getBestElevationData } from '../services/elevationProvider.ts'
+import { generatePdfFromHtml } from '../services/pdfGenerator.ts'
+import { getNearmapRoofAI, getNearmapRollup, type NearmapAIResult, type NearmapRollupResult } from '../services/nearmapAI.ts'
+
+// SAM 2 — fallback when Nearmap AI is unavailable
+let segmentRoof: any = null
+let processSamSegments: any = null
+try {
+  const sam2 = await import('../services/sam2Segmentation.ts')
+  segmentRoof = sam2.segmentRoof
+  const sam2pp = await import('../services/sam2PostProcessor.ts')
+  processSamSegments = sam2pp.processSamSegments
+} catch { /* SAM 2 not deployed yet */ }
 
 // OSM footprint fetching — optional, non-fatal if missing
 let fetchOsmBuildings: any = async () => []
@@ -201,6 +217,18 @@ interface PreviewData {
   totalSquares: number
   rawSolarData: any
   geometrySource: string
+  zoom: number
+  satelliteImageBase64: string
+  mapWidth: number
+  mapHeight: number
+  imagerySource: string
+  elevationSource: string
+  nearmapTileUrl: string | null
+  nearmapSurveyId: string | null
+  roofCondition: number | null
+  roofMaterial: string | null
+  treeOverhangPct: number | null
+  aiSource: string | null
 }
 
 async function generateReportPreview(
@@ -220,10 +248,35 @@ async function generateReportPreview(
   let imageryDate: string | null = null
   let dsmBuffer: Buffer | null = null
   let maskBuffer: Buffer | null = null
+  let imagerySource = 'google_solar'
+  let elevationSource = 'google_dsm'
+  let nearmapTileUrl: string | null = null
+  let nearmapSurveyId: string | null = null
+
+  // --- Check Nearmap coverage (5-7cm resolution, preferred) ---
+  try {
+    const nearmapResult = await downloadNearmapImage(geo.lat, geo.lng, MAP_WIDTH, MAP_HEIGHT, 20)
+    if (nearmapResult) {
+      imagerySource = 'nearmap'
+      nearmapSurveyId = nearmapResult.surveyId
+      imageryDate = nearmapResult.captureDate
+      const filePrefix = `${companyId.slice(0, 8)}-${Date.now()}`
+      const nearmapPath = path.join(UPLOADS_DIR, `${filePrefix}-nearmap.png`)
+      fs.writeFileSync(nearmapPath, nearmapResult.buffer)
+      aerialImagePath = nearmapPath
+      logger.info('Nearmap imagery downloaded', { address, captureDate: nearmapResult.captureDate })
+
+      // Get tile URL for MapLibre editor
+      const tileConfig = await getNearmapTileConfig(geo.lat, geo.lng, nearmapResult.surveyId)
+      if (tileConfig) nearmapTileUrl = tileConfig.tileUrl
+    }
+  } catch (nearmapErr: any) {
+    logger.info('Nearmap not available, using Google Solar', { error: nearmapErr.message, address })
+  }
 
   try {
     const dataLayers = await getDataLayers(geo.lat, geo.lng)
-    imageryDate = formatSolarDate(dataLayers.imageryDate)
+    if (!imageryDate) imageryDate = formatSolarDate(dataLayers.imageryDate)
 
     if (isSummerImagery(dataLayers.imageryDate)) {
       logger.info('Roof report imagery is from summer months — tree obstruction possible', {
@@ -233,8 +286,11 @@ async function generateReportPreview(
 
     const filePrefix = `${companyId.slice(0, 8)}-${Date.now()}`
 
-    const rgbPngPath = path.join(UPLOADS_DIR, `${filePrefix}-aerial.png`)
-    aerialImagePath = await downloadAndConvertToPng(dataLayers.rgbUrl, rgbPngPath)
+    // Only download Google aerial if Nearmap wasn't available
+    if (!aerialImagePath) {
+      const rgbPngPath = path.join(UPLOADS_DIR, `${filePrefix}-aerial.png`)
+      aerialImagePath = await downloadAndConvertToPng(dataLayers.rgbUrl, rgbPngPath)
+    }
 
     if (dataLayers.dsmUrl) {
       try {
@@ -252,7 +308,8 @@ async function generateReportPreview(
         await sharp(maskBuffer).png().toFile(maskPngPath)
         roofMaskPath = maskPngPath
 
-        if (aerialImagePath) {
+        if (aerialImagePath && imagerySource !== 'nearmap') {
+          const rgbPngPath = path.join(UPLOADS_DIR, `${filePrefix}-aerial.png`)
           const compositePath = path.join(UPLOADS_DIR, `${filePrefix}-composite.png`)
           const compositeResult = await compositeAerialWithMask(rgbPngPath, maskBuffer, compositePath)
           if (compositeResult) aerialImagePath = compositeResult
@@ -263,12 +320,27 @@ async function generateReportPreview(
     }
 
     logger.info('Solar API data layers downloaded', {
-      address, imageryDate, quality: dataLayers.imageryQuality,
+      address, imageryDate, quality: dataLayers.imageryQuality, imagerySource,
       hasAerial: !!aerialImagePath, hasMask: !!maskBuffer, hasDsm: !!dsmBuffer,
     })
   } catch (dataLayerErr: any) {
     logger.warn('DataLayers API failed — falling back to metadata-based geometry', { error: dataLayerErr.message, address })
     if (buildingInsights.imageryDate) imageryDate = formatSolarDate(buildingInsights.imageryDate)
+  }
+
+  // --- Get best elevation data (USGS 3DEP LiDAR when available) ---
+  let lidarBuffer: Buffer | null = null
+  try {
+    const elevData = await getBestElevationData(geo.lat, geo.lng, 75, dsmBuffer)
+    elevationSource = elevData.source.type
+    if (elevData.lidarGrid) {
+      // Store LiDAR grid for potential 3D viewer use
+      logger.info('USGS 3DEP LiDAR available', {
+        address, resolution: elevData.source.resolution, description: elevData.source.description,
+      })
+    }
+  } catch (elevErr: any) {
+    logger.info('LiDAR check failed (non-blocking)', { error: elevErr.message })
   }
 
   let result: any
@@ -283,11 +355,11 @@ async function generateReportPreview(
         osmLocal = osmBuildings.map(b => ({ polygon: osmPolygonToLocal(b.polygon, geo.lat, geo.lng) }))
       } catch (e) { /* non-blocking */ }
 
-      const dsmResult = await processDsm(dsmBuffer, maskBuffer, geo.lat, geo.lng, osmLocal)
+      const dsmResult = await processDsm(dsmBuffer, maskBuffer, geo.lat, geo.lng, osmLocal, lidarBuffer)
       result = generateRoofReportFromDSM(dsmResult, geo.lat, geo.lng, eaveOverhangInches)
-      geometrySource = 'dsm'
+      geometrySource = elevationSource === 'google_dsm' ? 'dsm' : `dsm+${elevationSource}`
       logger.info('Roof geometry computed from DSM elevation data', {
-        address, planes: dsmResult.planes.length, footprintVertices: dsmResult.footprint.length, segments: result.segments.length,
+        address, planes: dsmResult.planes.length, footprintVertices: dsmResult.footprint.length, segments: result.segments.length, elevationSource,
       })
     } catch (dsmErr: any) {
       logger.warn('DSM processing failed — falling back to metadata geometry', { error: dsmErr.message, address })
@@ -323,9 +395,43 @@ async function generateReportPreview(
 
   // Compute zoom and fetch satellite image for the editor overlay
   const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
-  const satelliteImageBase64 = await fetchSatelliteImageBase64(geo.lat, geo.lng, zoom)
 
-  return { geo, quality, imageryDate, aerialImagePath, roofMaskPath, edges, segments, measurements, totalAreaSqft: result.totalAreaSqft, totalSquares: result.totalSquares, rawSolarData: buildingInsights, geometrySource, zoom, satelliteImageBase64, mapWidth: MAP_WIDTH, mapHeight: MAP_HEIGHT }
+  // Use Nearmap image for report if available, otherwise Google Static Maps
+  let nearmapBase64: string | null = null
+  if (imagerySource === 'nearmap') {
+    const nmResult = await fetchNearmapImageBase64(geo.lat, geo.lng, zoom)
+    if (nmResult) nearmapBase64 = nmResult.dataUrl
+  }
+  const satelliteImageBase64 = await fetchSatelliteImageBase64(geo.lat, geo.lng, zoom, nearmapBase64)
+
+  // --- Fetch Nearmap AI property facts (condition, material, tree overhang) ---
+  let roofCondition: number | null = null
+  let roofMaterial: string | null = null
+  let treeOverhangPct: number | null = null
+  let aiSource: string | null = null
+
+  try {
+    const rollup = await getNearmapRollup(geo.lat, geo.lng)
+    if (rollup.available) {
+      roofCondition = rollup.roofCondition
+      roofMaterial = rollup.roofMaterial
+      treeOverhangPct = rollup.treeOverhangPct
+      aiSource = 'nearmap_rollup'
+      logger.info('Nearmap AI Rollup data fetched', {
+        address, condition: roofCondition, material: roofMaterial, treeOverhang: treeOverhangPct,
+      })
+    }
+  } catch { /* non-blocking */ }
+
+  return {
+    geo, quality, imageryDate, aerialImagePath, roofMaskPath, edges, segments, measurements,
+    totalAreaSqft: result.totalAreaSqft, totalSquares: result.totalSquares,
+    rawSolarData: buildingInsights, geometrySource, zoom, satelliteImageBase64,
+    mapWidth: MAP_WIDTH, mapHeight: MAP_HEIGHT,
+    // New fields for upgraded estimator
+    imagerySource, elevationSource, nearmapTileUrl, nearmapSurveyId,
+    roofCondition, roofMaterial, treeOverhangPct, aiSource,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +458,14 @@ async function saveReportToDb(
     status: 'paid', amountCharged: '9.99',
     stripePaymentIntentId: stripePaymentIntentId || null,
     contactId: contactId || null,
+    // New fields for upgraded estimator
+    imagerySource: preview.imagerySource || 'google_solar',
+    elevationSource: preview.elevationSource || 'google_dsm',
+    nearmapSurveyId: preview.nearmapSurveyId || null,
+    roofCondition: preview.roofCondition || null,
+    roofMaterial: preview.roofMaterial || null,
+    treeOverhangPct: preview.treeOverhangPct || null,
+    aiSource: preview.aiSource || null,
   }).returning()
   return report
 }
@@ -631,6 +745,11 @@ app.get('/:id/html', async (c) => {
       imageryQuality: (report.imageryQuality || 'MEDIUM') as 'HIGH' | 'MEDIUM' | 'LOW',
       imageryDate: report.imageryDate || null,
       aerialImageBase64: aerialBase64 || null,
+      roofCondition: (report as any).roofCondition || null,
+      roofMaterial: (report as any).roofMaterial || null,
+      treeOverhangPct: (report as any).treeOverhangPct || null,
+      imagerySource: (report as any).imagerySource || null,
+      elevationSource: (report as any).elevationSource || null,
     }
 
     const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
@@ -678,17 +797,37 @@ app.get('/:id/pdf', authenticate, async (c) => {
       imageryQuality: (report.imageryQuality || 'MEDIUM') as 'HIGH' | 'MEDIUM' | 'LOW',
       imageryDate: report.imageryDate || null,
       aerialImageBase64: aerialBase64 || null,
+      roofCondition: (report as any).roofCondition || null,
+      roofMaterial: (report as any).roofMaterial || null,
+      treeOverhangPct: (report as any).treeOverhangPct || null,
+      imagerySource: (report as any).imagerySource || null,
+      elevationSource: (report as any).elevationSource || null,
     }
 
     const fullAddress = `${report.address}, ${report.city}, ${report.state} ${report.zip}`
-    const html = await generateReportPDF(reportData, companyRecord, fullAddress)
 
-    return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-        'Content-Disposition': `inline; filename="roof-report-${id}.html"`,
-      },
-    })
+    // Try server-side PDF via Puppeteer first, fall back to print-ready HTML
+    try {
+      const html = await generatePdfReadyHTML(reportData, companyRecord, fullAddress)
+      const pdfBuffer = await generatePdfFromHtml(html)
+
+      return new Response(pdfBuffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="roof-report-${id}.pdf"`,
+        },
+      })
+    } catch (puppeteerErr: any) {
+      logger.warn('Puppeteer PDF failed, falling back to print-ready HTML', { error: puppeteerErr.message })
+      // Fallback: return printable HTML (legacy behavior)
+      const html = await generateReportPDF(reportData, companyRecord, fullAddress)
+      return new Response(html, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Disposition': `inline; filename="roof-report-${id}.html"`,
+        },
+      })
+    }
   } catch (err: any) {
     logger.error('Roof report PDF generation failed', { id, error: err.message })
     return c.json({ error: 'Failed to generate report PDF', details: err.message }, 500)
@@ -806,5 +945,220 @@ app.post('/:id/revert', authenticate, async (c) => {
 
   return c.json({ success: true })
 })
+
+// ============================================
+// AI ROOF DETECTION — Nearmap AI (primary) + SAM 2 (fallback)
+// ============================================
+
+app.post('/sam-segment', authenticate, async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json()
+  const { imageBase64, clickPoints, labels, imageWidth, imageHeight, centerLat, centerLng, zoom } = body
+
+  if (!centerLat || !centerLng) {
+    return c.json({ error: 'centerLat and centerLng required' }, 400)
+  }
+
+  try {
+    // --- Try Nearmap AI Feature API first (purpose-built roof detection) ---
+    const nearmapAI = await getNearmapRoofAI(centerLat, centerLng)
+
+    if (nearmapAI.available && nearmapAI.planes.length > 0) {
+      logger.info('Using Nearmap AI for roof detection', {
+        planes: nearmapAI.planes.length,
+        edges: nearmapAI.edges.length,
+        condition: nearmapAI.overallCondition,
+        material: nearmapAI.primaryMaterial,
+      })
+
+      // Convert Nearmap AI edges to our format
+      const edges = nearmapAI.edges.map(e => ({
+        type: e.type,
+        startLat: e.start.lat, startLng: e.start.lng,
+        endLat: e.end.lat, endLng: e.end.lng,
+        lengthFt: Math.round(e.lengthMeters * 3.28084 * 10) / 10,
+      }))
+
+      // Convert planes to polygons
+      const polygons = nearmapAI.planes.map(p => ({
+        vertices: p.polygon,
+        area: p.areaSqm * 10.7639, // sqm to sqft
+        pitch: p.pitchDeg,
+        azimuth: p.azimuthDeg,
+        material: p.material,
+        condition: p.conditionScore,
+      }))
+
+      // Also fetch rollup for property-level facts
+      const rollup = await getNearmapRollup(centerLat, centerLng)
+
+      return c.json({
+        source: 'nearmap_ai',
+        polygons,
+        edges,
+        roofCondition: nearmapAI.overallCondition,
+        roofMaterial: nearmapAI.primaryMaterial,
+        treeOverhangPct: nearmapAI.treeOverhangPct,
+        rollup: rollup.available ? rollup : null,
+        processingTimeMs: 0, // Nearmap AI is pre-computed
+      })
+    }
+
+    // --- Fallback to SAM 2 (generic segmentation) ---
+    if (!segmentRoof) {
+      return c.json({ error: 'AI segmentation not available (no Nearmap AI coverage and missing REPLICATE_API_TOKEN)' }, 503)
+    }
+
+    if (!imageBase64 || !clickPoints || !labels) {
+      return c.json({ error: 'imageBase64, clickPoints, and labels required for SAM 2 fallback' }, 400)
+    }
+
+    const sam2Result = await segmentRoof({
+      imageBase64,
+      points: clickPoints,
+      labels,
+      imageWidth: imageWidth || 800,
+      imageHeight: imageHeight || 600,
+    })
+
+    // Convert pixel polygons to geographic polygons
+    const polygons = sam2Result.masks.map((mask: any) => {
+      const geoVertices = mask.polygon.map((p: any) => {
+        const scale = Math.pow(2, zoom) * 256
+        const centerWorldX = (centerLng + 180) / 360 * scale
+        const centerWorldY = (1 - Math.log(Math.tan(centerLat * Math.PI / 180) + 1 / Math.cos(centerLat * Math.PI / 180)) / Math.PI) / 2 * scale
+        const worldX = centerWorldX + (p.x - imageWidth / 2)
+        const worldY = centerWorldY + (p.y - imageHeight / 2)
+        const lng = worldX / scale * 360 - 180
+        const n = Math.PI - 2 * Math.PI * worldY / scale
+        const lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)))
+        return { lat, lng }
+      })
+      return { vertices: geoVertices, confidence: mask.confidence, area: mask.area }
+    })
+
+    const edges: any[] = []
+    if (polygons.length > 0) {
+      const verts = polygons[0].vertices
+      for (let i = 0; i < verts.length; i++) {
+        const j = (i + 1) % verts.length
+        const lengthFt = haversineFeet(verts[i].lat, verts[i].lng, verts[j].lat, verts[j].lng)
+        edges.push({
+          type: 'eave',
+          startLat: verts[i].lat, startLng: verts[i].lng,
+          endLat: verts[j].lat, endLng: verts[j].lng,
+          lengthFt: Math.round(lengthFt * 10) / 10,
+        })
+      }
+    }
+
+    return c.json({
+      source: 'sam2',
+      polygons,
+      edges,
+      processingTimeMs: sam2Result.processingTimeMs,
+    })
+  } catch (err: any) {
+    logger.error('AI roof detection failed', { error: err.message })
+    return c.json({ error: 'AI detection failed', details: err.message }, 500)
+  }
+})
+
+// Haversine helper for SAM edge length calculation
+function haversineFeet(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)) * 3.28084
+}
+
+// ============================================
+// DSM GRID — elevation data for 3D viewer
+// ============================================
+
+app.get('/:id/dsm-grid', authenticate, async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+
+  try {
+    const [report] = await db.select().from(roofReport)
+      .where(and(eq(roofReport.id, id), eq(roofReport.companyId, user.companyId)))
+      .limit(1)
+
+    if (!report) return c.json({ error: 'Report not found' }, 404)
+
+    // Check if we have a cached DSM grid file
+    if (report.dsmGridPath && fs.existsSync(report.dsmGridPath)) {
+      const gridData = JSON.parse(fs.readFileSync(report.dsmGridPath, 'utf-8'))
+      return c.json(gridData)
+    }
+
+    // Try to regenerate from the raw solar data
+    // For now, return a synthetic grid based on segment geometry
+    const segments = (report.segments || []) as any[]
+    if (segments.length === 0) {
+      return c.json({ error: 'No segment data available for 3D view' }, 404)
+    }
+
+    // Build a simple elevation grid from segment pitch/azimuth data
+    const lat = Number(report.lat)
+    const lng = Number(report.lng)
+    const gridSize = 50
+    const pixelSize = 0.0001 // ~11m per pixel
+
+    const grid = {
+      data: new Array(gridSize * gridSize).fill(0),
+      width: gridSize,
+      height: gridSize,
+      originLat: lat - gridSize * pixelSize / 2,
+      originLng: lng - gridSize * pixelSize / 2,
+      pixelSizeLat: pixelSize,
+      pixelSizeLng: pixelSize,
+    }
+
+    // Assign elevation based on segment pitch angles
+    for (const seg of segments) {
+      if (!seg.polygon || seg.polygon.length < 3) continue
+      const pitchRad = (seg.pitchDegrees || 0) * Math.PI / 180
+      const azRad = (seg.azimuthDegrees || 0) * Math.PI / 180
+      const baseHeight = 8 // 8 meters base height
+
+      for (let r = 0; r < gridSize; r++) {
+        for (let col = 0; col < gridSize; col++) {
+          const pLat = grid.originLat + r * pixelSize
+          const pLng = grid.originLng + col * pixelSize
+
+          // Simple point-in-polygon check
+          if (pointInPolygonSimple(pLat, pLng, seg.polygon)) {
+            // Height varies based on pitch/azimuth
+            const dx = (pLng - lng) * 111319 * Math.cos(lat * Math.PI / 180)
+            const dy = (pLat - lat) * 111319
+            const slopeHeight = (dx * Math.sin(azRad) + dy * Math.cos(azRad)) * Math.tan(pitchRad)
+            grid.data[r * gridSize + col] = baseHeight + slopeHeight
+          }
+        }
+      }
+    }
+
+    return c.json(grid)
+  } catch (err: any) {
+    logger.error('DSM grid generation failed', { id, error: err.message })
+    return c.json({ error: 'Failed to generate DSM grid' }, 500)
+  }
+})
+
+function pointInPolygonSimple(lat: number, lng: number, polygon: any[]): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const yi = polygon[i].lat, xi = polygon[i].lng
+    const yj = polygon[j].lat, xj = polygon[j].lng
+    if ((yi > lat) !== (yj > lat) && lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
 
 export default app

@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { FileBarChart, Plus, Trash2, Eye, Download, MapPin, Calendar, DollarSign, Loader2, ArrowLeft, Check } from 'lucide-react'
 import api from '../../services/api'
 import AddressAutocomplete from '../../components/common/AddressAutocomplete'
-import RoofEdgeEditor from './RoofEdgeEditor'
+import RoofEdgeEditor from './MapEdgeEditor'
 
 interface RoofReport {
   id: string

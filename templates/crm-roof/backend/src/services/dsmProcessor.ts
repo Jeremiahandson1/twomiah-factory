@@ -719,10 +719,24 @@ export async function processDsm(
   originLat: number,
   originLng: number,
   osmBuildings?: Array<{ polygon: Array<{ x: number; y: number }> }>,
+  lidarBuffer?: Buffer | null,
 ): Promise<DsmResult> {
   // 1. Parse GeoTIFFs
   const dsm = await parseGeoTiff(dsmBuffer)
   const mask = await parseGeoTiff(maskBuffer)
+
+  // If LiDAR data is available, parse it and use for RANSAC (higher accuracy)
+  let lidarDsm: { transform: GeoTransform; data: any } | null = null
+  if (lidarBuffer && lidarBuffer.byteLength > 1000) {
+    try {
+      lidarDsm = await parseGeoTiff(lidarBuffer)
+      console.log('[DSM] Using USGS 3DEP LiDAR for enhanced RANSAC:', {
+        width: lidarDsm.transform.width, height: lidarDsm.transform.height,
+      })
+    } catch (err: any) {
+      console.warn('[DSM] LiDAR buffer parse failed, falling back to Google DSM:', err.message)
+    }
+  }
 
   console.log('[DSM] Mask GeoTIFF:', {
     width: mask.transform.width, height: mask.transform.height,
@@ -756,9 +770,17 @@ export async function processDsm(
   })
 
   // 3. Build 3D point cloud from DSM within target building footprint only
-  const points = extractRoofPoints(dsm.data, dsm.transform, mask.data, mask.transform, originLat, originLng, footprint)
+  // Use LiDAR elevation data when available (higher accuracy for RANSAC)
+  const elevSource = lidarDsm || dsm
+  const points = extractRoofPoints(elevSource.data, elevSource.transform, mask.data, mask.transform, originLat, originLng, footprint)
   if (points.length < 10) {
-    throw new Error(`Insufficient roof elevation points (${points.length}) — DSM may not cover this building`)
+    // Fallback to Google DSM if LiDAR extraction failed
+    const fallbackPoints = lidarDsm
+      ? extractRoofPoints(dsm.data, dsm.transform, mask.data, mask.transform, originLat, originLng, footprint)
+      : points
+    if (fallbackPoints.length < 10) {
+      throw new Error(`Insufficient roof elevation points (${fallbackPoints.length}) — DSM may not cover this building`)
+    }
   }
 
   // 4. RANSAC multi-plane fitting

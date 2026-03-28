@@ -36,6 +36,13 @@
       "when": 1772785271398,
       "tag": "0005_add_pricebook",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772785271399,
+      "tag": "0006_add_imagery_elevation_sources",
+      "breakpoints": true
     }
   ]
 }

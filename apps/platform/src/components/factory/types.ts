@@ -23,10 +23,20 @@ export type FactoryConfig = {
     stripe: { secretKey: string; publishableKey: string; webhookSecret: string }
     googleMaps: { apiKey: string }
     sentry: { dsn: string }
+    nearmap: { apiKey: string }
+    replicate: { apiToken: string }
   }
   content: {
     services: string[]; customServices: { id: string; name: string; desc: string }[]
     heroTagline: string; aboutText: string; ctaText: string
+    description: string
+    aiGenerated?: {
+      homepage?: any
+      services?: any[]
+      settings?: { defaultMetaTitle?: string; defaultMetaDescription?: string }
+      posts?: any[]
+      pages?: Record<string, any>
+    }
   }
 }
 
@@ -36,6 +46,6 @@ export const DEFAULT_CONFIG: FactoryConfig = {
   company: { name: '', email: '', phone: '', address: '', city: '', state: '', stateFull: '', zip: '', domain: '', ownerName: '', industry: '', serviceRegion: '', nearbyCities: ['', '', '', ''] },
   branding: { primaryColor: '#f97316', secondaryColor: '#1e3a5f', logo: null, logoFilename: null, favicon: null, faviconFilename: null, heroPhoto: null, heroPhotoFilename: null },
   features: { website: [], crm: [], paid_ads: false },
-  integrations: { twilio: { accountSid: '', authToken: '', phoneNumber: '' }, sendgrid: { apiKey: '' }, stripe: { secretKey: '', publishableKey: '', webhookSecret: '' }, googleMaps: { apiKey: '' }, sentry: { dsn: '' } },
-  content: { services: [], customServices: [], heroTagline: '', aboutText: '', ctaText: '' },
+  integrations: { twilio: { accountSid: '', authToken: '', phoneNumber: '' }, sendgrid: { apiKey: '' }, stripe: { secretKey: '', publishableKey: '', webhookSecret: '' }, googleMaps: { apiKey: '' }, sentry: { dsn: '' }, nearmap: { apiKey: '' }, replicate: { apiToken: '' } },
+  content: { services: [], customServices: [], heroTagline: '', aboutText: '', ctaText: '', description: '' },
 }

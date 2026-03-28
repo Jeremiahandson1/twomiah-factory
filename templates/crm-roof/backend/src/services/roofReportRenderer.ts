@@ -50,6 +50,12 @@ export interface RoofReportData {
   imageryQuality: 'HIGH' | 'MEDIUM' | 'LOW'
   imageryDate?: string | null
   aerialImageBase64?: string | null  // base64 data URL from stored Solar API imagery
+  // Nearmap AI-detected data
+  roofCondition?: number | null       // 0-100
+  roofMaterial?: string | null        // shingle, tile, metal, flat
+  treeOverhangPct?: number | null     // 0-100%
+  imagerySource?: string | null       // nearmap, google_solar
+  elevationSource?: string | null     // nearmap_dsm, usgs_3dep, google_dsm
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +189,17 @@ function latLngToPixel(
  * Fetch satellite image from Google Maps Static API and return as base64 data URL.
  * Used as FALLBACK when stored Solar API aerial imagery is not available.
  */
-export async function fetchSatelliteImageBase64(lat: number, lng: number, zoom: number): Promise<string> {
+export async function fetchSatelliteImageBase64(
+  lat: number,
+  lng: number,
+  zoom: number,
+  nearmapImageBase64?: string | null,
+): Promise<string> {
+  // Use Nearmap imagery if provided (higher resolution)
+  if (nearmapImageBase64) {
+    return nearmapImageBase64
+  }
+
   try {
     const url = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${MAP_WIDTH}x${MAP_HEIGHT}&maptype=satellite&key=${getApiKey()}`
     const res = await fetch(url)
@@ -342,9 +358,11 @@ function buildReportBody(
   ).join('')
 
   // Imagery source badge
-  const imagerySource = report.aerialImageBase64
-    ? 'Google Solar API — High-Resolution Aerial'
-    : 'Google Maps Satellite'
+  const imagerySource = report.imagerySource === 'nearmap'
+    ? 'Nearmap — 5-7cm Resolution Aerial'
+    : report.aerialImageBase64
+      ? 'Google Solar API — High-Resolution Aerial'
+      : 'Google Maps Satellite'
 
   return `
     <!-- Company Header -->
@@ -413,6 +431,29 @@ function buildReportBody(
       </div>
     </div>
 
+    ${(report.roofCondition != null || report.roofMaterial || report.treeOverhangPct != null) ? `
+    <!-- AI Roof Insights -->
+    <div style="background:linear-gradient(135deg,#F3E8FF,#EBF4FF);border:1px solid #D6BCFA;border-radius:8px;padding:16px 20px;margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:#553C9A;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">AI Roof Analysis</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;">
+        ${report.roofCondition != null ? `
+        <div>
+          <div style="font-size:11px;color:#718096;">Condition Score</div>
+          <div style="font-size:20px;font-weight:700;color:${report.roofCondition >= 70 ? '#22543D' : report.roofCondition >= 40 ? '#744210' : '#742A2D'};">${report.roofCondition}<span style="font-size:13px;color:#a0aec0;">/100</span></div>
+        </div>` : ''}
+        ${report.roofMaterial ? `
+        <div>
+          <div style="font-size:11px;color:#718096;">Material Detected</div>
+          <div style="font-size:16px;font-weight:600;color:#2D3748;text-transform:capitalize;">${escapeHtml(report.roofMaterial)}</div>
+        </div>` : ''}
+        ${report.treeOverhangPct != null ? `
+        <div>
+          <div style="font-size:11px;color:#718096;">Tree Overhang</div>
+          <div style="font-size:16px;font-weight:600;color:#2D3748;">${report.treeOverhangPct.toFixed(1)}%</div>
+        </div>` : ''}
+      </div>
+    </div>` : ''}
+
     <!-- Summary Table -->
     <div class="section-title">Measurement Summary</div>
     <table class="summary-table">
@@ -467,7 +508,7 @@ function buildReportBody(
     </div>
 
     <div class="footer">
-      Powered by Twomiah Factory &middot; Satellite analysis by Google Solar API
+      Powered by Twomiah Factory &middot; ${report.imagerySource === 'nearmap' ? 'Imagery by Nearmap' : 'Satellite analysis by Google Solar API'}${report.roofCondition != null ? ' &middot; AI analysis by Nearmap' : ''}
     </div>`
 }
 
@@ -644,6 +685,54 @@ export async function generateReportPDF(
     ${body}
   </div>
   <script>window.onload = () => window.print()</script>
+</body>
+</html>`
+}
+
+// ---------------------------------------------------------------------------
+// PDF-ready HTML (for Puppeteer server-side rendering — no print button/script)
+// ---------------------------------------------------------------------------
+
+export async function generatePdfReadyHTML(
+  report: RoofReportData,
+  company: any,
+  address: string,
+): Promise<string> {
+  const { center, segments, edges } = report
+
+  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
+  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+  const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
+  const body = buildReportBody(report, company, address, satelliteDataUrl, svgContent)
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roof Measurement Report — ${escapeHtml(address)}</title>
+  <style>
+    ${BASE_CSS}
+
+    @page {
+      size: letter;
+      margin: 0.5in;
+    }
+
+    body { background: #fff; }
+    .container { padding: 0; max-width: 100%; }
+    .map-container { box-shadow: none; break-inside: avoid; }
+    .metrics-grid { break-inside: avoid; }
+    .summary-table, .detail-table { break-inside: avoid; }
+    .disclaimer { break-inside: avoid; }
+    .address-bar { border-radius: 0; }
+    .season-warning { break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    ${body}
+  </div>
 </body>
 </html>`
 }

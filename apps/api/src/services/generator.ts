@@ -77,6 +77,13 @@ export interface GenerateConfig {
     aboutText?: string
     ctaText?: string
     serviceDescriptions?: Record<string, { short?: string; long?: string }>
+    aiGenerated?: {
+      homepage?: any
+      services?: any[]
+      settings?: { defaultMetaTitle?: string; defaultMetaDescription?: string }
+      posts?: any[]
+      pages?: Record<string, any>
+    }
   }
 }
 
@@ -345,6 +352,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{STRIPE_WEBHOOK_SECRET}}': (config.integrations?.stripe?.webhookSecret || '').trim(),
     '{{GOOGLE_MAPS_API_KEY}}': (config.integrations?.googleMaps?.apiKey || '').trim(),
     '{{SENTRY_DSN}}': (config.integrations?.sentry?.dsn || '').trim(),
+    '{{NEARMAP_API_KEY}}': (config.integrations?.nearmap?.apiKey || '').trim(),
+    '{{REPLICATE_API_TOKEN}}': (config.integrations?.replicate?.apiToken || '').trim(),
   }
 }
 
@@ -633,6 +642,59 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
   const dataDir = path.join(websiteDir, 'data')
   const wizardContent = config.content || {}
 
+  // If AI-generated content exists, write it directly to data files
+  if (wizardContent.aiGenerated) {
+    const ai = wizardContent.aiGenerated
+    try {
+      // Write AI-generated homepage (merge with existing for structural defaults)
+      if (ai.homepage) {
+        const homepageFile = path.join(dataDir, 'homepage.json')
+        const existing = fs.existsSync(homepageFile)
+          ? JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
+          : {}
+        const merged = { ...existing, ...ai.homepage }
+        fs.writeFileSync(homepageFile, JSON.stringify(merged, null, 2))
+      }
+
+      // Write AI-generated services
+      if (ai.services && ai.services.length > 0) {
+        fs.writeFileSync(path.join(dataDir, 'services.json'), JSON.stringify(ai.services, null, 2))
+      }
+
+      // Merge AI-generated settings (never overwrite adminPassword, analytics, etc.)
+      if (ai.settings) {
+        const settingsFile = path.join(dataDir, 'settings.json')
+        if (fs.existsSync(settingsFile)) {
+          const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+          if (ai.settings.defaultMetaTitle) settings.defaultMetaTitle = ai.settings.defaultMetaTitle
+          if (ai.settings.defaultMetaDescription) settings.defaultMetaDescription = ai.settings.defaultMetaDescription
+          fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2))
+        }
+      }
+
+      // Write AI-generated blog posts
+      if (ai.posts && ai.posts.length > 0) {
+        fs.writeFileSync(path.join(dataDir, 'posts.json'), JSON.stringify(ai.posts, null, 2))
+      }
+
+      // Write AI-generated pages (privacy policy, terms, etc.)
+      if (ai.pages && Object.keys(ai.pages).length > 0) {
+        const pagesFile = path.join(dataDir, 'pages.json')
+        const existing = fs.existsSync(pagesFile)
+          ? JSON.parse(fs.readFileSync(pagesFile, 'utf8'))
+          : {}
+        const merged = { ...existing, ...ai.pages }
+        fs.writeFileSync(pagesFile, JSON.stringify(merged, null, 2))
+      }
+
+      console.log('[Factory] AI-generated content injected successfully')
+    } catch (e: any) {
+      console.warn('[Factory] Error injecting AI content:', e.message)
+    }
+    return // Skip legacy content injection when AI content is present
+  }
+
+  // Legacy wizard content injection
   const servicesFile = path.join(dataDir, 'services.json')
   if (fs.existsSync(servicesFile) && (wizardContent.services || wizardContent.customServices)) {
     try {

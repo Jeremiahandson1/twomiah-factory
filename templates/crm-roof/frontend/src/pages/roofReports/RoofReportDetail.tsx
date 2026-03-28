@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
 import { useToast } from '../../contexts/ToastContext'
-import { ArrowLeft, Download, ExternalLink, MapPin, Edit, Eye } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink, MapPin, Eye, Box } from 'lucide-react'
 import api from '../../services/api'
-import RoofEdgeEditor from './RoofEdgeEditor'
+
+const Roof3DViewer = lazy(() => import('./Roof3DViewer'))
 
 interface RoofReport {
   id: string
@@ -31,6 +32,12 @@ interface RoofReport {
   }
   userEdited?: boolean
   createdAt: string
+  // Nearmap AI-detected data
+  roofCondition?: number | null
+  roofMaterial?: string | null
+  treeOverhangPct?: number | null
+  imagerySource?: string | null
+  elevationSource?: string | null
 }
 
 export default function RoofReportDetail() {
@@ -41,7 +48,7 @@ export default function RoofReportDetail() {
 
   const [report, setReport] = useState<RoofReport | null>(null)
   const [loading, setLoading] = useState(true)
-  const [editMode, setEditMode] = useState(false)
+  const [viewTab, setViewTab] = useState<'2d' | '3d'>('2d')
 
   useEffect(() => {
     loadReport()
@@ -163,15 +170,52 @@ export default function RoofReportDetail() {
         </div>
       </div>
 
-      {/* Satellite Visual — the main product */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-        <iframe
-          src={`${window.location.origin}/api/roof-reports/${id}/html`}
-          className="w-full border-0"
-          style={{ height: '700px' }}
-          title="Roof Report Visual"
-        />
+      {/* View tabs — 2D / 3D toggle */}
+      <div className="flex items-center gap-1 bg-white rounded-lg border shadow-sm p-1 w-fit">
+        <button
+          onClick={() => setViewTab('2d')}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '2d' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+        >
+          <Eye className="w-4 h-4" /> 2D Report
+        </button>
+        <button
+          onClick={() => setViewTab('3d')}
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors ${viewTab === '3d' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50'}`}
+        >
+          <Box className="w-4 h-4" /> 3D View
+        </button>
       </div>
+
+      {/* Satellite Visual — 2D report */}
+      {viewTab === '2d' && (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <iframe
+            src={`${window.location.origin}/api/roof-reports/${id}/html`}
+            className="w-full border-0"
+            style={{ height: '700px' }}
+            title="Roof Report Visual"
+          />
+        </div>
+      )}
+
+      {/* 3D Viewer */}
+      {viewTab === '3d' && report && (
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden p-4">
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-96">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          }>
+            <Roof3DViewer
+              segments={report.segments}
+              edges={report.edges}
+              centerLat={report.lat}
+              centerLng={report.lng}
+              reportId={id!}
+            />
+          </Suspense>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -182,6 +226,53 @@ export default function RoofReportDetail() {
           </div>
         ))}
       </div>
+
+      {/* AI Insights — Nearmap-detected roof properties */}
+      {(report.roofCondition != null || report.roofMaterial || report.treeOverhangPct != null) && (
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-100 p-4">
+          <h2 className="text-sm font-semibold text-purple-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <span className="w-2 h-2 bg-purple-500 rounded-full" />
+            AI Roof Analysis
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {report.roofCondition != null && (
+              <div>
+                <p className="text-xs text-gray-500">Roof Condition</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${
+                        report.roofCondition >= 70 ? 'bg-green-500' :
+                        report.roofCondition >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${report.roofCondition}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-bold text-gray-900">{report.roofCondition}/100</span>
+                </div>
+              </div>
+            )}
+            {report.roofMaterial && (
+              <div>
+                <p className="text-xs text-gray-500">Material Detected</p>
+                <p className="text-sm font-semibold text-gray-900 mt-1 capitalize">{report.roofMaterial}</p>
+              </div>
+            )}
+            {report.treeOverhangPct != null && (
+              <div>
+                <p className="text-xs text-gray-500">Tree Overhang</p>
+                <p className="text-sm font-semibold text-gray-900 mt-1">{report.treeOverhangPct.toFixed(1)}%</p>
+              </div>
+            )}
+          </div>
+          {report.imagerySource && (
+            <p className="text-xs text-gray-400 mt-3">
+              Imagery: {report.imagerySource === 'nearmap' ? 'Nearmap 5-7cm' : 'Google Solar'}
+              {report.elevationSource && report.elevationSource !== 'google_dsm' && ` | Elevation: ${report.elevationSource}`}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Measurements Table */}
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
