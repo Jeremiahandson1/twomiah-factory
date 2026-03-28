@@ -25,7 +25,15 @@ interface Segment {
   polygon?: Array<{ lat: number; lng: number }>
 }
 
-type Mode = 'select' | 'add' | 'delete' | 'ai_segment'
+interface RoofFace {
+  id: string
+  vertices: Array<{ lat: number; lng: number }>
+  pitch: number        // rise per 12 (e.g. 6 = 6/12)
+  areaSqft: number     // footprint area
+  slopeAreaSqft: number // area adjusted for pitch
+}
+
+type Mode = 'select' | 'add' | 'delete' | 'pitch' | 'ai_segment'
 
 interface Props {
   reportId?: string
@@ -124,14 +132,15 @@ export default function MapEdgeEditor({
   const drawingRef = useRef<{ startLat: number; startLng: number } | null>(null)
   const [drawPreview, setDrawPreview] = useState<{ endLat: number; endLng: number } | null>(null)
 
+  // Roof faces — closed polygons formed by edges, each with its own pitch
+  const [faces, setFaces] = useState<RoofFace[]>([])
+  const [selectedFaceId, setSelectedFaceId] = useState<string | null>(null)
+
   // ---------------------------------------------------------------------------
-  // Measurements (computed from edges)
+  // Measurements (computed from edges + faces)
   // ---------------------------------------------------------------------------
 
   const measurements = useMemo(() => {
-    const totalAreaSqft = segments.reduce((s, seg: any) => s + (seg.area || seg.areaSqft || 0), 0)
-    const totalSquares = Math.round(totalAreaSqft / 100 * 10) / 10
-
     const sumLF = (type: EdgeType) =>
       Math.round(edges.filter(e => e.type === type).reduce((s, e) => s + e.lengthFt, 0) * 10) / 10
 
@@ -142,6 +151,24 @@ export default function MapEdgeEditor({
     const eaveLF = sumLF('eave')
     const totalPerimeterLF = Math.round((rakeLF + eaveLF) * 10) / 10
 
+    // Calculate area from faces (each face has its own pitch)
+    let totalAreaSqft = 0
+    if (faces.length > 0) {
+      totalAreaSqft = faces.reduce((s, f) => s + f.slopeAreaSqft, 0)
+    }
+
+    // Fall back: if no faces, calculate from edge endpoints with no pitch adjustment
+    if (totalAreaSqft === 0 && edges.length >= 3) {
+      const allPoints: Array<{ lat: number; lng: number }> = []
+      for (const e of edges) {
+        allPoints.push({ lat: e.startLat, lng: e.startLng })
+        allPoints.push({ lat: e.endLat, lng: e.endLng })
+      }
+      totalAreaSqft = computeConvexAreaSqft(allPoints)
+    }
+
+    const totalSquares = Math.round(totalAreaSqft / 100 * 10) / 10
+
     const valleyCount = edges.filter(e => e.type === 'valley').length
     const hipCount = edges.filter(e => e.type === 'hip').length
     const wasteFactor = Math.max(10, Math.min(25, 10 + valleyCount * 3 + hipCount * 2))
@@ -151,8 +178,9 @@ export default function MapEdgeEditor({
     return {
       totalAreaSqft, totalSquares, ridgeLF, valleyLF, hipLF, rakeLF, eaveLF,
       totalPerimeterLF, wasteFactor, squaresWithWaste, iceWaterShieldSqft,
+      faces: faces.map(f => ({ id: f.id, pitch: `${f.pitch}/12`, areaSqft: f.slopeAreaSqft, vertices: f.vertices })),
     }
-  }, [edges, segments])
+  }, [edges, faces])
 
   // ---------------------------------------------------------------------------
   // History management
@@ -240,8 +268,13 @@ export default function MapEdgeEditor({
     if (map.getLayer('segments-fill')) map.removeLayer('segments-fill')
     if (map.getLayer('segments-outline')) map.removeLayer('segments-outline')
     if (map.getLayer('segment-labels')) map.removeLayer('segment-labels')
+    if (map.getLayer('faces-fill')) map.removeLayer('faces-fill')
+    if (map.getLayer('faces-outline')) map.removeLayer('faces-outline')
+    if (map.getLayer('faces-labels')) map.removeLayer('faces-labels')
     if (map.getSource('segments')) map.removeSource('segments')
     if (map.getSource('segment-labels-src')) map.removeSource('segment-labels-src')
+    if (map.getSource('faces')) map.removeSource('faces')
+    if (map.getSource('faces-labels-src')) map.removeSource('faces-labels-src')
     for (const type of EDGE_TYPES) {
       if (map.getSource(`edges-${type}`)) map.removeSource(`edges-${type}`)
     }
@@ -318,6 +351,81 @@ export default function MapEdgeEditor({
       })
     }
 
+    // Add detected face polygons (colored fills with pitch labels)
+    if (faces.length > 0) {
+      const FACE_COLORS = ['rgba(59,130,246,0.25)', 'rgba(16,185,129,0.25)', 'rgba(245,158,11,0.25)', 'rgba(239,68,68,0.25)', 'rgba(139,92,246,0.25)', 'rgba(236,72,153,0.25)', 'rgba(20,184,166,0.25)', 'rgba(249,115,22,0.25)']
+
+      const faceFeatures = faces.map((face, i) => {
+        const coords = face.vertices.map(v => [v.lng, v.lat])
+        coords.push(coords[0])
+        return {
+          type: 'Feature' as const,
+          properties: { label: `${face.pitch}/12`, index: i, selected: face.id === selectedFaceId },
+          geometry: { type: 'Polygon' as const, coordinates: [coords] },
+        }
+      })
+
+      const faceLabelFeatures = faces.map((face, i) => {
+        const cLat = face.vertices.reduce((s, v) => s + v.lat, 0) / face.vertices.length
+        const cLng = face.vertices.reduce((s, v) => s + v.lng, 0) / face.vertices.length
+        return {
+          type: 'Feature' as const,
+          properties: { label: `${face.pitch}/12` },
+          geometry: { type: 'Point' as const, coordinates: [cLng, cLat] },
+        }
+      })
+
+      map.addSource('faces', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: faceFeatures },
+      })
+      map.addLayer({
+        id: 'faces-fill',
+        type: 'fill',
+        source: 'faces',
+        paint: {
+          'fill-color': ['match', ['%', ['get', 'index'], 8],
+            0, 'rgba(59,130,246,0.25)', 1, 'rgba(16,185,129,0.25)',
+            2, 'rgba(245,158,11,0.25)', 3, 'rgba(239,68,68,0.25)',
+            4, 'rgba(139,92,246,0.25)', 5, 'rgba(236,72,153,0.25)',
+            6, 'rgba(20,184,166,0.25)', 7, 'rgba(249,115,22,0.25)',
+            'rgba(59,130,246,0.25)'],
+          'fill-opacity': 0.7,
+        },
+      })
+      map.addLayer({
+        id: 'faces-outline',
+        type: 'line',
+        source: 'faces',
+        paint: {
+          'line-color': ['case', ['get', 'selected'], '#f97316', '#ffffff'],
+          'line-width': ['case', ['get', 'selected'], 3, 1],
+          'line-opacity': 0.6,
+        },
+      })
+
+      map.addSource('faces-labels-src', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: faceLabelFeatures },
+      })
+      map.addLayer({
+        id: 'faces-labels',
+        type: 'symbol',
+        source: 'faces-labels-src',
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 14,
+          'text-font': ['Open Sans Bold'],
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#FFD700',
+          'text-halo-color': '#000',
+          'text-halo-width': 2,
+        },
+      })
+    }
+
     // Add edge lines grouped by type
     for (const type of EDGE_TYPES) {
       const typeEdges = edges.filter(e => e.type === type)
@@ -372,7 +480,7 @@ export default function MapEdgeEditor({
         },
       })
     }
-  }, [edges, segments, selectedId, mapReady])
+  }, [edges, segments, faces, selectedId, selectedFaceId, mapReady])
 
   // --- Live preview line while dragging in add mode ---
   useEffect(() => {
@@ -491,6 +599,8 @@ export default function MapEdgeEditor({
           pushHistory(edges)
           setEdges(prev => prev.filter(e => e.id !== hit.id))
         }
+      } else if (mode === 'pitch') {
+        handlePitchClick(lat, lng)
       } else if (mode === 'ai_segment') {
         await handleAiSegment(e)
       }
@@ -620,6 +730,204 @@ export default function MapEdgeEditor({
     return best
   }
 
+  /** Compute convex hull area in sqft from lat/lng points */
+  function computeConvexAreaSqft(points: Array<{ lat: number; lng: number }>): number {
+    if (points.length < 3) return 0
+    const cLat = points.reduce((s, p) => s + p.lat, 0) / points.length
+    const cLng = points.reduce((s, p) => s + p.lng, 0) / points.length
+    const cosLat = Math.cos(cLat * Math.PI / 180)
+    const feetPerDegLat = 364567.2
+    const feetPerDegLng = feetPerDegLat * cosLat
+
+    const sorted = points.map(p => ({
+      x: (p.lng - cLng) * feetPerDegLng,
+      y: (p.lat - cLat) * feetPerDegLat,
+    }))
+    sorted.sort((a, b) => Math.atan2(a.y, a.x) - Math.atan2(b.y, b.x))
+
+    const unique = [sorted[0]]
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = unique[unique.length - 1]
+      if (Math.abs(sorted[i].x - prev.x) > 0.5 || Math.abs(sorted[i].y - prev.y) > 0.5) {
+        unique.push(sorted[i])
+      }
+    }
+
+    let area = 0
+    for (let i = 0; i < unique.length; i++) {
+      const j = (i + 1) % unique.length
+      area += unique[i].x * unique[j].y - unique[j].x * unique[i].y
+    }
+    return Math.round(Math.abs(area) / 2)
+  }
+
+  /** Compute area of a polygon defined by lat/lng vertices, in sqft */
+  function polygonAreaSqft(vertices: Array<{ lat: number; lng: number }>): number {
+    if (vertices.length < 3) return 0
+    const cLat = vertices.reduce((s, p) => s + p.lat, 0) / vertices.length
+    const cLng = vertices.reduce((s, p) => s + p.lng, 0) / vertices.length
+    const cosLat = Math.cos(cLat * Math.PI / 180)
+    const feetPerDegLat = 364567.2
+    const feetPerDegLng = feetPerDegLat * cosLat
+
+    const pts = vertices.map(p => ({
+      x: (p.lng - cLng) * feetPerDegLng,
+      y: (p.lat - cLat) * feetPerDegLat,
+    }))
+
+    let area = 0
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i + 1) % pts.length
+      area += pts[i].x * pts[j].y - pts[j].x * pts[i].y
+    }
+    return Math.round(Math.abs(area) / 2)
+  }
+
+  /** Check if a point is inside a polygon (ray casting) */
+  function pointInPoly(lat: number, lng: number, poly: Array<{ lat: number; lng: number }>): boolean {
+    let inside = false
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      if ((poly[i].lat > lat) !== (poly[j].lat > lat) &&
+          lng < (poly[j].lng - poly[i].lng) * (lat - poly[i].lat) / (poly[j].lat - poly[i].lat) + poly[i].lng) {
+        inside = !inside
+      }
+    }
+    return inside
+  }
+
+  /** Handle click in pitch mode — find which face was clicked, prompt for pitch */
+  function handlePitchClick(lat: number, lng: number) {
+    for (const face of faces) {
+      if (pointInPoly(lat, lng, face.vertices)) {
+        setSelectedFaceId(face.id)
+        return
+      }
+    }
+    setSelectedFaceId(null)
+  }
+
+  /** Detect closed faces from the edge graph.
+   * Simple approach: find all minimal cycles in the planar graph formed by edges.
+   * For roofs, this works because edges form a planar subdivision.
+   */
+  function detectFaces(): RoofFace[] {
+    if (edges.length < 3) return []
+
+    // Build adjacency graph from edge endpoints
+    const EPSILON = 0.000005 // ~0.5m in degrees
+    const pointKey = (lat: number, lng: number) =>
+      `${Math.round(lat / EPSILON) * EPSILON},${Math.round(lng / EPSILON) * EPSILON}`
+
+    // Collect unique vertices
+    const vertexMap = new Map<string, { lat: number; lng: number }>()
+    const adjacency = new Map<string, Set<string>>()
+
+    for (const e of edges) {
+      const k1 = pointKey(e.startLat, e.startLng)
+      const k2 = pointKey(e.endLat, e.endLng)
+      if (k1 === k2) continue
+
+      if (!vertexMap.has(k1)) vertexMap.set(k1, { lat: e.startLat, lng: e.startLng })
+      if (!vertexMap.has(k2)) vertexMap.set(k2, { lat: e.endLat, lng: e.endLng })
+
+      if (!adjacency.has(k1)) adjacency.set(k1, new Set())
+      if (!adjacency.has(k2)) adjacency.set(k2, new Set())
+      adjacency.get(k1)!.add(k2)
+      adjacency.get(k2)!.add(k1)
+    }
+
+    // Find minimal cycles using right-hand wall following
+    const usedDirected = new Set<string>()
+    const detectedFaces: RoofFace[] = []
+    let faceNum = 1
+
+    for (const [startKey] of adjacency) {
+      const neighbors = adjacency.get(startKey)!
+      for (const nextKey of neighbors) {
+        const dirKey = `${startKey}->${nextKey}`
+        if (usedDirected.has(dirKey)) continue
+
+        // Follow right-hand rule to trace a face
+        const faceVerts: string[] = [startKey]
+        let prevKey = startKey
+        let currKey = nextKey
+        let steps = 0
+        const maxSteps = edges.length * 2
+
+        while (currKey !== startKey && steps < maxSteps) {
+          usedDirected.add(`${prevKey}->${currKey}`)
+          faceVerts.push(currKey)
+
+          const currNeighbors = Array.from(adjacency.get(currKey) || [])
+          if (currNeighbors.length < 2) break
+
+          // Find the next edge by turning right (smallest CCW angle from incoming direction)
+          const currPt = vertexMap.get(currKey)!
+          const prevPt = vertexMap.get(prevKey)!
+          const inAngle = Math.atan2(prevPt.lat - currPt.lat, prevPt.lng - currPt.lng)
+
+          let bestAngle = Infinity
+          let bestNext = ''
+          for (const nKey of currNeighbors) {
+            if (nKey === prevKey) continue
+            const nPt = vertexMap.get(nKey)!
+            const outAngle = Math.atan2(nPt.lat - currPt.lat, nPt.lng - currPt.lng)
+            let turn = outAngle - inAngle
+            if (turn <= 0) turn += 2 * Math.PI
+            if (turn < bestAngle) {
+              bestAngle = turn
+              bestNext = nKey
+            }
+          }
+
+          if (!bestNext) break
+          prevKey = currKey
+          currKey = bestNext
+          steps++
+        }
+
+        if (currKey === startKey && faceVerts.length >= 3 && faceVerts.length <= 20) {
+          usedDirected.add(`${prevKey}->${currKey}`)
+
+          const vertices = faceVerts.map(k => vertexMap.get(k)!)
+          const footprintArea = polygonAreaSqft(vertices)
+
+          // Skip tiny faces (< 20 sqft) and huge faces (> 10000 sqft, likely the outer boundary)
+          if (footprintArea >= 20 && footprintArea <= 10000) {
+            // Reuse existing face pitch if we have one at the same location
+            const existingFace = faces.find(f => {
+              const fCenter = { lat: f.vertices.reduce((s, v) => s + v.lat, 0) / f.vertices.length, lng: f.vertices.reduce((s, v) => s + v.lng, 0) / f.vertices.length }
+              const newCenter = { lat: vertices.reduce((s, v) => s + v.lat, 0) / vertices.length, lng: vertices.reduce((s, v) => s + v.lng, 0) / vertices.length }
+              return haversineMeters(fCenter.lat, fCenter.lng, newCenter.lat, newCenter.lng) < 3
+            })
+
+            const pitch = existingFace?.pitch || 4
+            const pitchAngle = Math.atan(pitch / 12)
+            const slopeAreaSqft = Math.round(footprintArea / Math.cos(pitchAngle))
+
+            detectedFaces.push({
+              id: existingFace?.id || `face-${faceNum++}`,
+              vertices,
+              pitch,
+              areaSqft: footprintArea,
+              slopeAreaSqft,
+            })
+          }
+        }
+      }
+    }
+
+    return detectedFaces
+  }
+
+  // Auto-detect faces whenever edges change
+  useEffect(() => {
+    if (edges.length >= 3) {
+      const detected = detectFaces()
+      if (detected.length > 0) setFaces(detected)
+    }
+  }, [edges])
+
   function pointToSegmentDistance(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
     const dx = x2 - x1, dy = y2 - y1
     const lenSq = dx * dx + dy * dy
@@ -682,7 +990,7 @@ export default function MapEdgeEditor({
     const canvas = mapRef.current?.getCanvas()
     if (!canvas) return
     const cursors: Record<Mode, string> = {
-      select: 'default', add: 'crosshair', delete: 'not-allowed', ai_segment: 'cell',
+      select: 'default', add: 'crosshair', delete: 'not-allowed', pitch: 'pointer', ai_segment: 'cell',
     }
     canvas.style.cursor = cursors[mode] || 'default'
   }, [mode, mapReady])
@@ -718,6 +1026,14 @@ export default function MapEdgeEditor({
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'delete' ? 'bg-red-50 text-red-700' : 'text-gray-600 hover:bg-gray-50'}`}
             >
               <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+            <button
+              onClick={() => { setMode('pitch'); setAddStart(null) }}
+              className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-l transition-colors ${mode === 'pitch' ? 'bg-orange-50 text-orange-700' : 'text-gray-600 hover:bg-gray-50'}`}
+              title="Set pitch — click a roof face to assign its pitch"
+            >
+              <span className="text-xs font-bold">⟋</span> Pitch
+              {faces.length > 0 && <span className="ml-1 px-1.5 py-0.5 bg-orange-100 text-orange-700 text-[10px] rounded-full font-bold">{faces.length}</span>}
             </button>
             <button
               onClick={() => { setMode('ai_segment'); setAddStart(null) }}
@@ -775,6 +1091,15 @@ export default function MapEdgeEditor({
         {mode === 'add' && (
           <div className="mb-2 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs rounded-lg">
             Click and drag to draw a {addType} line. Release to place it.
+          </div>
+        )}
+
+        {/* Pitch mode hint */}
+        {mode === 'pitch' && (
+          <div className="mb-2 px-3 py-1.5 bg-orange-50 text-orange-700 text-xs rounded-lg">
+            {faces.length === 0
+              ? 'Draw at least 3 edges to form roof faces, then click each face to set its pitch.'
+              : `${faces.length} face${faces.length > 1 ? 's' : ''} detected. Click a face to set its pitch.`}
           </div>
         )}
 
@@ -838,6 +1163,59 @@ export default function MapEdgeEditor({
             >
               <Trash2 className="w-3.5 h-3.5" /> Delete Edge
             </button>
+          </div>
+        )}
+
+        {/* Roof Faces + Pitch */}
+        {faces.length > 0 && (
+          <div className="bg-white rounded-xl border shadow-sm p-4">
+            <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wider mb-3">
+              Roof Faces ({faces.length})
+            </h3>
+            <div className="space-y-2">
+              {faces.map((face, i) => (
+                <div
+                  key={face.id}
+                  className={`p-2 rounded-lg border text-sm cursor-pointer transition-colors ${
+                    selectedFaceId === face.id ? 'border-orange-400 bg-orange-50' : 'border-gray-100 hover:bg-gray-50'
+                  }`}
+                  onClick={() => { setSelectedFaceId(face.id); setMode('pitch') }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-700">Face {i + 1}</span>
+                    <span className="text-xs text-gray-500">{face.slopeAreaSqft.toLocaleString()} sqft</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <label className="text-xs text-gray-500">Pitch:</label>
+                    <select
+                      value={face.pitch}
+                      onChange={(e) => {
+                        const newPitch = +e.target.value
+                        setFaces(prev => prev.map(f => {
+                          if (f.id !== face.id) return f
+                          const pitchAngle = Math.atan(newPitch / 12)
+                          return { ...f, pitch: newPitch, slopeAreaSqft: Math.round(f.areaSqft / Math.cos(pitchAngle)) }
+                        }))
+                        setDirty(true)
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-1.5 py-0.5 text-xs border rounded bg-white font-medium"
+                    >
+                      {[0,1,2,3,4,5,6,7,8,9,10,11,12].map(p => (
+                        <option key={p} value={p}>{p}/12</option>
+                      ))}
+                    </select>
+                    <span className="text-xs text-gray-400 ml-auto">
+                      {face.areaSqft.toLocaleString()} sqft flat
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-2 border-t flex justify-between text-sm font-semibold">
+              <span className="text-gray-700">Total Slope Area</span>
+              <span className="text-blue-600">{faces.reduce((s, f) => s + f.slopeAreaSqft, 0).toLocaleString()} sqft</span>
+            </div>
           </div>
         )}
 
