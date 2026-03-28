@@ -121,6 +121,8 @@ export default function MapEdgeEditor({
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const drawingRef = useRef<{ startLat: number; startLng: number } | null>(null)
+  const [drawPreview, setDrawPreview] = useState<{ endLat: number; endLng: number } | null>(null)
 
   // ---------------------------------------------------------------------------
   // Measurements (computed from edges)
@@ -423,10 +425,6 @@ export default function MapEdgeEditor({
   // ---------------------------------------------------------------------------
   // Map interaction handlers (click for select/delete, drag for add)
   // ---------------------------------------------------------------------------
-
-  // Drawing state ref (needs to persist across event callbacks without re-renders)
-  const drawingRef = useRef<{ startLat: number; startLng: number } | null>(null)
-  const [drawPreview, setDrawPreview] = useState<{ endLat: number; endLng: number } | null>(null)
 
   useEffect(() => {
     const map = mapRef.current
