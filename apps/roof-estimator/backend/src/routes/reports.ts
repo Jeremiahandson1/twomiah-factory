@@ -75,17 +75,11 @@ app.get('/:id', authenticate, async (c) => {
 })
 
 // ============================================
-// GENERATE REPORT (the main flow)
+// PREVIEW — fetch satellite + auto-detect (returns data for editor, does NOT save)
 // ============================================
 
-app.post('/generate', authenticate, async (c) => {
+app.post('/preview', authenticate, async (c) => {
   const t = c.get('tenant') as any
-
-  // Check report limit
-  if (t.reportsUsedThisMonth >= t.monthlyReportLimit && t.plan === 'free') {
-    return c.json({ error: 'Monthly report limit reached. Upgrade your plan for more reports.' }, 429)
-  }
-
   const { address, city, state, zip } = await c.req.json()
   if (!address || !city || !state || !zip) {
     return c.json({ error: 'address, city, state, and zip required' }, 400)
@@ -143,68 +137,127 @@ app.post('/generate', authenticate, async (c) => {
       if (elevData.dsmBuffer) dsmBuffer = elevData.dsmBuffer
     } catch {}
 
-    // Step 5: Generate geometry
-    let result: any
+    // Step 5: Auto-detect geometry (suggestion only — user will edit)
+    let autoEdges: any[] = []
+    let autoSegments: any[] = []
+    let totalAreaSqft = 0
+    let totalSquares = 0
 
     if (dsmBuffer && maskBuffer) {
       try {
         const dsmResult = await processDsm(dsmBuffer, maskBuffer, geo.lat, geo.lng)
-        result = generateRoofReportFromDSM(dsmResult, geo.lat, geo.lng)
-      } catch {
-        result = generateRoofReport(buildingInsights)
-      }
-    } else {
-      result = generateRoofReport(buildingInsights)
+        const result = generateRoofReportFromDSM(dsmResult, geo.lat, geo.lng)
+        totalAreaSqft = result.totalAreaSqft
+        totalSquares = result.totalSquares
+        autoEdges = result.edges.map((e: any) => ({
+          type: e.type, lengthFt: e.lengthFt,
+          startLat: e.start.lat, startLng: e.start.lng,
+          endLat: e.end.lat, endLng: e.end.lng,
+        }))
+        autoSegments = result.segments.map((s: any) => ({
+          name: s.name, area: s.area, pitch: s.pitch,
+          pitchDegrees: s.pitchDegrees, azimuthDegrees: s.azimuthDegrees,
+          polygon: s.polygon.vertices,
+        }))
+      } catch { /* auto-detect failed — user will draw from scratch */ }
     }
 
-    // Step 6: AI property facts
-    let roofCondition: number | null = null
-    let roofMaterial: string | null = null
-    let treeOverhangPct: number | null = null
-    try {
-      const rollup = await getNearmapRollup(geo.lat, geo.lng)
-      if (rollup.available) {
-        roofCondition = rollup.roofCondition
-        roofMaterial = rollup.roofMaterial
-        treeOverhangPct = rollup.treeOverhangPct
-      }
-    } catch {}
-
-    // Step 7: Format and save
-    const edges = result.edges.map((e: any) => ({
-      type: e.type, lengthFt: e.lengthFt,
-      startLat: e.start.lat, startLng: e.start.lng,
-      endLat: e.end.lat, endLng: e.end.lng,
-    }))
-
-    const measurements = {
-      totalAreaSqft: result.totalAreaSqft, totalSquares: result.totalSquares,
-      ridgeLF: result.measurements.totalRidgeLF, valleyLF: result.measurements.totalValleyLF,
-      hipLF: result.measurements.totalHipLF, rakeLF: result.measurements.totalRakeLF,
-      eaveLF: result.measurements.totalEaveLF, totalPerimeterLF: result.measurements.totalPerimeterLF,
-      wasteFactor: result.measurements.wasteFactorPct, squaresWithWaste: result.measurements.suggestedSquaresWithWaste,
-      iceWaterShieldSqft: result.measurements.iceWaterShieldSqft,
+    if (autoSegments.length === 0) {
+      try {
+        const result = generateRoofReport(buildingInsights)
+        totalAreaSqft = result.totalAreaSqft
+        totalSquares = result.totalSquares
+        autoSegments = result.segments.map((s: any) => ({
+          name: s.name, area: s.area, pitch: s.pitch,
+          pitchDegrees: s.pitchDegrees, azimuthDegrees: s.azimuthDegrees,
+          polygon: s.polygon?.vertices || [],
+        }))
+      } catch {}
     }
 
-    const segments = result.segments.map((s: any) => ({
-      name: s.name, area: s.area, pitch: s.pitch,
-      pitchDegrees: s.pitchDegrees, azimuthDegrees: s.azimuthDegrees,
-      polygon: s.polygon.vertices,
-    }))
+    // Step 6: Get satellite image for editor
+    const zoom = computeOptimalZoom(autoSegments, MAP_WIDTH, MAP_HEIGHT)
+    const satelliteImageBase64 = await fetchSatelliteImageBase64(geo.lat, geo.lng, zoom)
 
+    // Serve aerial image if we have one
+    let aerialUrl: string | null = null
+    if (aerialImagePath) {
+      const filename = path.basename(aerialImagePath)
+      aerialUrl = `/api/reports/aerial/${filename}`
+    }
+
+    return c.json({
+      // Address + geo
+      address, city, state, zip,
+      geo, quality, imageryDate, imagerySource, elevationSource,
+      // For the editor
+      zoom,
+      satelliteImageBase64,
+      aerialUrl,
+      mapWidth: MAP_WIDTH, mapHeight: MAP_HEIGHT,
+      // Auto-detected (editable suggestions)
+      autoEdges,
+      autoSegments,
+      totalAreaSqft, totalSquares,
+      // Internal (for finalize)
+      aerialImagePath,
+    })
+  } catch (err: any) {
+    console.error('Preview generation failed:', err)
+    return c.json({ error: 'Preview generation failed', details: err.message }, 500)
+  }
+})
+
+// ============================================
+// SERVE AERIAL IMAGES
+// ============================================
+
+app.get('/aerial/:filename', async (c) => {
+  const filename = c.req.param('filename')
+  // Prevent path traversal
+  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+    return c.json({ error: 'Invalid filename' }, 400)
+  }
+  const filePath = path.join(UPLOADS_DIR, filename)
+  if (!fs.existsSync(filePath)) return c.json({ error: 'Image not found' }, 404)
+
+  const buf = fs.readFileSync(filePath)
+  return new Response(buf, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' } })
+})
+
+// ============================================
+// FINALIZE — save user-edited report to DB
+// ============================================
+
+app.post('/finalize', authenticate, async (c) => {
+  const t = c.get('tenant') as any
+
+  // Check report limit
+  if (t.reportsUsedThisMonth >= t.monthlyReportLimit && t.plan === 'free') {
+    return c.json({ error: 'Monthly report limit reached. Upgrade your plan for more reports.' }, 429)
+  }
+
+  const { preview, edges, measurements } = await c.req.json()
+  if (!preview || !edges) return c.json({ error: 'preview and edges required' }, 400)
+
+  try {
     const [report] = await db.insert(roofReport).values({
       tenantId: t.id,
-      address, city, state, zip,
-      lat: geo.lat, lng: geo.lng,
-      formattedAddress: `${address}, ${city}, ${state} ${zip}`,
-      totalSquares: result.totalSquares, totalAreaSqft: result.totalAreaSqft,
-      segmentCount: segments.length,
-      imageryQuality: quality, imageryDate,
-      aerialImagePath,
-      segments, edges, measurements,
-      rawSolarData: buildingInsights,
-      imagerySource, elevationSource,
-      roofCondition, roofMaterial, treeOverhangPct,
+      address: preview.address, city: preview.city, state: preview.state, zip: preview.zip,
+      lat: preview.geo.lat, lng: preview.geo.lng,
+      formattedAddress: `${preview.address}, ${preview.city}, ${preview.state} ${preview.zip}`,
+      totalSquares: measurements?.totalSquares || preview.totalSquares || 0,
+      totalAreaSqft: measurements?.totalAreaSqft || preview.totalAreaSqft || 0,
+      segmentCount: preview.autoSegments?.length || 0,
+      imageryQuality: preview.quality || 'MEDIUM',
+      imageryDate: preview.imageryDate,
+      aerialImagePath: preview.aerialImagePath,
+      segments: preview.autoSegments || [],
+      edges,
+      measurements: measurements || {},
+      imagerySource: preview.imagerySource || 'google_solar',
+      elevationSource: preview.elevationSource || 'google_dsm',
+      userEdited: true,
     }).returning()
 
     // Increment usage
@@ -215,8 +268,8 @@ app.post('/generate', authenticate, async (c) => {
 
     return c.json({ report }, 201)
   } catch (err: any) {
-    console.error('Report generation failed:', err)
-    return c.json({ error: 'Report generation failed', details: err.message }, 500)
+    console.error('Report finalization failed:', err)
+    return c.json({ error: 'Failed to save report', details: err.message }, 500)
   }
 })
 
