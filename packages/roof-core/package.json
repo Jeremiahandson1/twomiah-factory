@@ -1,0 +1,13 @@
+{
+  "name": "@twomiah/roof-core",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "geotiff": "^3.0.4",
+    "sharp": "^0.33.2",
+    "puppeteer": "^23.0.0",
+    "replicate": "^1.0.0"
+  }
+}

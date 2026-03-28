@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: twomiah-roof-estimator
+    runtime: node
+    plan: standard
+    buildCommand: |
+      curl -fsSL https://bun.sh/install | bash
+      export PATH="$HOME/.bun/bin:$PATH"
+      cd apps/roof-estimator/frontend && bun install && bun run build
+      cd ../backend && bun install
+    startCommand: |
+      export PATH="$HOME/.bun/bin:$PATH"
+      cd apps/roof-estimator/backend && bun start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "10000"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: roof-estimator-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: FACTORY_SYNC_KEY
+        sync: false
+      - key: NEARMAP_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false
+
+databases:
+  - name: roof-estimator-db
+    plan: starter
+    databaseName: roof_estimator
