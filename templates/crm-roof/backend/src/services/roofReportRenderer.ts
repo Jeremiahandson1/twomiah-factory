@@ -135,7 +135,7 @@ function zoomLevel(mapPx: number, worldPx: number, fraction: number): number {
   return Math.log(mapPx / worldPx / fraction) / Math.LN2
 }
 
-export function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: number, imgHeight: number): number {
+export function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: number, imgHeight: number, edges?: RoofEdge[]): number {
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
   for (const seg of segments) {
     if (!seg.polygon) continue
@@ -146,11 +146,22 @@ export function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: numb
       maxLng = Math.max(maxLng, p.lng)
     }
   }
+  // Also use edge coordinates (for user-drawn reports)
+  if (edges) {
+    for (const e of edges) {
+      if (e.startLat && e.startLng && e.endLat && e.endLng) {
+        minLat = Math.min(minLat, e.startLat, e.endLat)
+        maxLat = Math.max(maxLat, e.startLat, e.endLat)
+        minLng = Math.min(minLng, e.startLng, e.endLng)
+        maxLng = Math.max(maxLng, e.startLng, e.endLng)
+      }
+    }
+  }
   if (minLat === Infinity) return 20 // fallback
 
   // Add 20% padding
-  const latPad = (maxLat - minLat) * 0.2
-  const lngPad = (maxLng - minLng) * 0.2
+  const latPad = (maxLat - minLat) * 0.2 || 0.0002
+  const lngPad = (maxLng - minLng) * 0.2 || 0.0002
   minLat -= latPad; maxLat += latPad
   minLng -= lngPad; maxLng += lngPad
 

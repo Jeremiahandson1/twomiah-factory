@@ -135,8 +135,15 @@ function zoomLevel(mapPx: number, worldPx: number, fraction: number): number {
   return Math.log(mapPx / worldPx / fraction) / Math.LN2
 }
 
-export function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: number, imgHeight: number): number {
+export function computeOptimalZoom(
+  segments: RoofSegmentDetail[],
+  imgWidth: number,
+  imgHeight: number,
+  edges?: RoofEdge[],
+): number {
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity
+
+  // Use segment polygons for bounds
   for (const seg of segments) {
     if (!seg.polygon) continue
     for (const p of seg.polygon) {
@@ -146,11 +153,24 @@ export function computeOptimalZoom(segments: RoofSegmentDetail[], imgWidth: numb
       maxLng = Math.max(maxLng, p.lng)
     }
   }
+
+  // Also use edge coordinates (critical for user-drawn reports with no segments)
+  if (edges) {
+    for (const e of edges) {
+      if (e.startLat && e.startLng && e.endLat && e.endLng) {
+        minLat = Math.min(minLat, e.startLat, e.endLat)
+        maxLat = Math.max(maxLat, e.startLat, e.endLat)
+        minLng = Math.min(minLng, e.startLng, e.endLng)
+        maxLng = Math.max(maxLng, e.startLng, e.endLng)
+      }
+    }
+  }
+
   if (minLat === Infinity) return 20 // fallback
 
   // Add 20% padding
-  const latPad = (maxLat - minLat) * 0.2
-  const lngPad = (maxLng - minLng) * 0.2
+  const latPad = (maxLat - minLat) * 0.2 || 0.0002
+  const lngPad = (maxLng - minLng) * 0.2 || 0.0002
   minLat -= latPad; maxLat += latPad
   minLng -= lngPad; maxLng += lngPad
 
@@ -579,16 +599,30 @@ export async function generateReportHTML(
 ): Promise<string> {
   const { center, segments, edges } = report
 
-  // Compute optimal zoom to fit all segments
-  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
+  // Compute optimal zoom to fit all segments AND edges
+  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT, edges)
 
-  // Always use Google Static Maps at the computed zoom so the SVG overlay aligns.
-  // The stored Solar API aerial image covers a 150m tile which doesn't match
-  // the zoom level needed for the building-focused overlay.
-  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+  // Compute center from edges if segments don't have polygons (user-drawn reports)
+  let reportCenter = center
+  if (edges && edges.length > 0) {
+    let sumLat = 0, sumLng = 0, count = 0
+    for (const e of edges) {
+      if (e.startLat && e.startLng) { sumLat += e.startLat; sumLng += e.startLng; count++ }
+      if (e.endLat && e.endLng) { sumLat += e.endLat; sumLng += e.endLng; count++ }
+    }
+    if (count > 0) {
+      const edgeCenter = { lat: sumLat / count, lng: sumLng / count }
+      // Use edge center if it's significantly different from the geocoded center
+      // (geocoded center might be the address point, not the roof center)
+      reportCenter = edgeCenter
+    }
+  }
 
-  // Build SVG overlay
-  const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
+  // Fetch satellite image at the computed zoom centered on the edges
+  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom)
+
+  // Build SVG overlay using the same center/zoom as the satellite image
+  const svgContent = buildSvgOverlay(segments, edges, reportCenter.lat, reportCenter.lng, zoom)
 
   // Build page body
   const body = buildReportBody(report, company, address, satelliteDataUrl, svgContent)
@@ -700,9 +734,21 @@ export async function generatePdfReadyHTML(
 ): Promise<string> {
   const { center, segments, edges } = report
 
-  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
-  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
-  const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
+  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT, edges)
+
+  // Center on edges if available (user-drawn reports)
+  let reportCenter = center
+  if (edges && edges.length > 0) {
+    let sumLat = 0, sumLng = 0, count = 0
+    for (const e of edges) {
+      if (e.startLat && e.startLng) { sumLat += e.startLat; sumLng += e.startLng; count++ }
+      if (e.endLat && e.endLng) { sumLat += e.endLat; sumLng += e.endLng; count++ }
+    }
+    if (count > 0) reportCenter = { lat: sumLat / count, lng: sumLng / count }
+  }
+
+  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom)
+  const svgContent = buildSvgOverlay(segments, edges, reportCenter.lat, reportCenter.lng, zoom)
   const body = buildReportBody(report, company, address, satelliteDataUrl, svgContent)
 
   return `<!DOCTYPE html>
