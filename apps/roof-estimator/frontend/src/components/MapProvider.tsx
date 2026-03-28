@@ -71,6 +71,7 @@ export function buildMapStyle(config: MapTileConfig) {
   // Bare style with no basemap (will use stored aerial as image source)
   return {
     version: 8 as const,
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     sources: {},
     layers: [],
   }
@@ -86,6 +87,7 @@ export function buildImageStyle(
 ) {
   return {
     version: 8 as const,
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     sources: {
       aerial: {
         type: 'image' as const,
