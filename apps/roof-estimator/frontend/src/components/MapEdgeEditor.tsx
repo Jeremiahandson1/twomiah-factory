@@ -372,41 +372,119 @@ export default function MapEdgeEditor({
     }
   }, [edges, segments, selectedId, mapReady])
 
+  // --- Live preview line while dragging in add mode ---
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+
+    const sourceId = 'draw-preview'
+    const layerId = 'draw-preview-line'
+
+    if (drawingRef.current && drawPreview) {
+      const geojson: any = {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [drawingRef.current.startLng, drawingRef.current.startLat],
+              [drawPreview.endLng, drawPreview.endLat],
+            ],
+          },
+        }],
+      }
+
+      if (map.getSource(sourceId)) {
+        (map.getSource(sourceId) as any).setData(geojson)
+      } else {
+        map.addSource(sourceId, { type: 'geojson', data: geojson })
+        map.addLayer({
+          id: layerId,
+          type: 'line',
+          source: sourceId,
+          paint: {
+            'line-color': EDGE_COLORS[addType] || '#fff',
+            'line-width': 3,
+            'line-dasharray': [4, 3],
+            'line-opacity': 0.8,
+          },
+          layout: { 'line-cap': 'round' },
+        })
+      }
+    } else {
+      // Clear preview
+      if (map.getLayer(layerId)) map.removeLayer(layerId)
+      if (map.getSource(sourceId)) map.removeSource(sourceId)
+    }
+  }, [drawPreview, mapReady, addType])
+
   // ---------------------------------------------------------------------------
-  // Map click handler
+  // Map interaction handlers (click for select/delete, drag for add)
   // ---------------------------------------------------------------------------
+
+  // Drawing state ref (needs to persist across event callbacks without re-renders)
+  const drawingRef = useRef<{ startLat: number; startLng: number } | null>(null)
+  const [drawPreview, setDrawPreview] = useState<{ endLat: number; endLng: number } | null>(null)
 
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
 
+    // --- ADD MODE: mousedown → drag preview → mouseup creates edge ---
+    const handleMouseDown = (e: maplibregl.MapMouseEvent) => {
+      if (mode !== 'add') return
+      e.preventDefault()
+
+      const { lat, lng } = e.lngLat
+      const snapped = snapToNearby(lat, lng, edges)
+      drawingRef.current = { startLat: snapped.lat, startLng: snapped.lng }
+      setDrawPreview(null)
+
+      // Disable map drag while drawing a line
+      map.dragPan.disable()
+    }
+
+    const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
+      if (mode !== 'add' || !drawingRef.current) return
+      const { lat, lng } = e.lngLat
+      setDrawPreview({ endLat: lat, endLng: lng })
+    }
+
+    const handleMouseUp = (e: maplibregl.MapMouseEvent) => {
+      if (mode !== 'add' || !drawingRef.current) {
+        map.dragPan.enable()
+        return
+      }
+
+      const { lat, lng } = e.lngLat
+      const start = drawingRef.current
+      const end = snapToNearby(lat, lng, edges)
+      const lengthFt = haversineFeet(start.startLat, start.startLng, end.lat, end.lng)
+
+      if (lengthFt > 0.5) {
+        const newEdge: Edge = {
+          id: makeEdgeId(),
+          type: addType,
+          startLat: start.startLat, startLng: start.startLng,
+          endLat: end.lat, endLng: end.lng,
+          lengthFt: Math.round(lengthFt * 10) / 10,
+        }
+        pushHistory(edges)
+        setEdges(prev => [...prev, newEdge])
+      }
+
+      drawingRef.current = null
+      setDrawPreview(null)
+      map.dragPan.enable()
+    }
+
+    // --- SELECT/DELETE MODE: click ---
     const handleClick = async (e: maplibregl.MapMouseEvent) => {
       const { lat, lng } = e.lngLat
 
-      if (mode === 'add') {
-        if (!addStart) {
-          setAddStart({ lat, lng })
-        } else {
-          // Snap to existing endpoint if close
-          const end = snapToNearby(lat, lng, edges)
-          const start = snapToNearby(addStart.lat, addStart.lng, edges)
-          const lengthFt = haversineFeet(start.lat, start.lng, end.lat, end.lng)
-
-          if (lengthFt > 0.5) { // minimum 0.5 ft
-            const newEdge: Edge = {
-              id: makeEdgeId(),
-              type: addType,
-              startLat: start.lat, startLng: start.lng,
-              endLat: end.lat, endLng: end.lng,
-              lengthFt: Math.round(lengthFt * 10) / 10,
-            }
-            pushHistory(edges)
-            setEdges(prev => [...prev, newEdge])
-          }
-          setAddStart(null)
-        }
-      } else if (mode === 'select') {
-        // Check if clicked near an edge
+      if (mode === 'select') {
         const hit = findNearestEdge(lat, lng, edges, map)
         setSelectedId(hit?.id || null)
       } else if (mode === 'delete') {
@@ -420,9 +498,18 @@ export default function MapEdgeEditor({
       }
     }
 
+    map.on('mousedown', handleMouseDown)
+    map.on('mousemove', handleMouseMove)
+    map.on('mouseup', handleMouseUp)
     map.on('click', handleClick)
-    return () => { map.off('click', handleClick) }
-  }, [mode, addStart, addType, edges, mapReady])
+
+    return () => {
+      map.off('mousedown', handleMouseDown)
+      map.off('mousemove', handleMouseMove)
+      map.off('mouseup', handleMouseUp)
+      map.off('click', handleClick)
+    }
+  }, [mode, addType, edges, mapReady])
 
   // ---------------------------------------------------------------------------
   // AI Segmentation (SAM 2)
@@ -687,9 +774,9 @@ export default function MapEdgeEditor({
         </div>
 
         {/* Add mode hint */}
-        {mode === 'add' && addStart && (
+        {mode === 'add' && (
           <div className="mb-2 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs rounded-lg">
-            Click the second point to complete the {addType} line.
+            Click and drag to draw a {addType} line. Release to place it.
           </div>
         )}
 
