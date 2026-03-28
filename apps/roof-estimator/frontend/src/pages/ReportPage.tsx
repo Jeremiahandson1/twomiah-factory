@@ -100,7 +100,7 @@ export default function ReportPage() {
       {step === 'address' && (
         <div className="max-w-2xl mx-auto px-4 py-12">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">New Roof Report</h1>
-          <p className="text-gray-500 mb-8">Enter a US address. We'll pull satellite imagery and auto-detect roof lines for you to edit.</p>
+          <p className="text-gray-500 mb-8">Enter a US address. We'll pull satellite imagery with roof segments so you can draw measurements.</p>
 
           {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{error}</div>}
 
@@ -162,7 +162,7 @@ export default function ReportPage() {
               <h1 className="text-xl font-bold text-gray-900">Draw Roof Lines</h1>
               <p className="text-sm text-gray-500 mt-1">
                 {preview.address}, {preview.city}, {preview.state} {preview.zip} —
-                Draw ridge, valley, hip, rake, and eave lines on the satellite image. Auto-detected lines are shown as a starting point — delete any that are wrong and draw your own.
+                Draw ridge, valley, hip, rake, and eave lines along the roof edges. Colored segments show detected roof planes with pitch angles.
               </p>
             </div>
             <button
@@ -176,7 +176,7 @@ export default function ReportPage() {
 
           <MapEdgeEditor
             reportId="preview"
-            edges={preview.autoEdges || []}
+            edges={[]}
             segments={preview.autoSegments || []}
             centerLat={preview.geo.lat}
             centerLng={preview.geo.lng}
@@ -184,12 +184,12 @@ export default function ReportPage() {
             aerialImageUrl={preview.satelliteImageBase64 || ''}
             mapWidth={preview.mapWidth || 800}
             mapHeight={preview.mapHeight || 600}
-            initialMode="select"
+            initialMode="add"
             onSave={handleFinalize}
           />
 
           <p className="text-xs text-gray-400 mt-4">
-            Tip: Use "Add Line" mode to draw edges. Click "Delete" mode to remove bad auto-detected lines. Press Ctrl+Z to undo.
+            Draw ridge, valley, hip, rake, and eave lines along the roof edges. The colored regions show detected roof segments with pitch angles. Press Ctrl+Z to undo.
           </p>
         </div>
       )}
