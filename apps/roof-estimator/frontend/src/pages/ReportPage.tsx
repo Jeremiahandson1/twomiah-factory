@@ -177,7 +177,7 @@ export default function ReportPage() {
           <MapEdgeEditor
             reportId="preview"
             edges={[]}
-            segments={preview.autoSegments || []}
+            segments={[]}
             centerLat={preview.geo.lat}
             centerLng={preview.geo.lng}
             zoom={preview.zoom || 20}

@@ -17,6 +17,7 @@ export function buildMapStyle(config: MapTileConfig) {
   if (nearmapTileUrl) {
     return {
       version: 8 as const,
+      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
       sources: {
         satellite: {
           type: 'raster' as const,
@@ -43,6 +44,7 @@ export function buildMapStyle(config: MapTileConfig) {
   if (googleApiKey) {
     return {
       version: 8 as const,
+      glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
       sources: {
         satellite: {
           type: 'raster' as const,

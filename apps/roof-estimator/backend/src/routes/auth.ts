@@ -142,4 +142,23 @@ app.post('/register-tenant', async (c) => {
   return c.json({ tenant: newTenant, created: true }, 201)
 })
 
+// ============================================
+// ADMIN — reset report limits (factory key required)
+// ============================================
+
+app.post('/admin/reset-limits', async (c) => {
+  const factoryKey = c.req.header('X-Factory-Key')
+  if (factoryKey !== process.env.FACTORY_SYNC_KEY) {
+    return c.json({ error: 'Factory key required' }, 403)
+  }
+
+  const result = await db.update(tenant).set({
+    reportsUsedThisMonth: 0,
+    monthlyReportLimit: 999,
+    updatedAt: new Date(),
+  })
+
+  return c.json({ success: true, message: 'All tenant limits reset' })
+})
+
 export default app

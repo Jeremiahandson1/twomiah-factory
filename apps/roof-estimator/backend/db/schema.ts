@@ -19,7 +19,7 @@ export const tenant = pgTable('tenant', {
 
   // Billing
   plan: text('plan').default('free').notNull(), // free, starter, pro
-  monthlyReportLimit: integer('monthly_report_limit').default(5).notNull(),
+  monthlyReportLimit: integer('monthly_report_limit').default(100).notNull(),
   reportsUsedThisMonth: integer('reports_used_this_month').default(0).notNull(),
   billingResetDate: timestamp('billing_reset_date'),
   stripeCustomerId: text('stripe_customer_id'),
