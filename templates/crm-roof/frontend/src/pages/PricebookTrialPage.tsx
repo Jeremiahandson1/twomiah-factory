@@ -27,8 +27,8 @@ export default function PricebookTrialPage() {
     setError('');
     try {
       await api.post('/api/support/tickets', {
-        subject: 'Pricebook — 14-Day Free Trial Request',
-        description: `${company?.name || 'Customer'} is requesting a 14-day free trial of the Pricebook add-on.`,
+        subject: 'Pricebook — 30-Day Free Trial Request',
+        description: `${company?.name || 'Customer'} is requesting a 30-day free trial of the Pricebook add-on.`,
         category: 'feature_request',
         priority: 'normal',
       });
@@ -50,7 +50,7 @@ export default function PricebookTrialPage() {
           Trial Request Submitted!
         </h2>
         <p className="text-gray-600 dark:text-slate-400 text-lg mb-2">
-          Our team will activate your 14-day free trial within 24 hours.
+          Our team will activate your 30-day free trial within 24 hours.
         </p>
         <p className="text-gray-500 dark:text-slate-500 text-sm">
           You'll receive an email at <strong>{company?.email}</strong> when it's ready.
@@ -65,7 +65,7 @@ export default function PricebookTrialPage() {
       <div className="text-center mb-12">
         <div className="inline-flex items-center gap-2 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
           <Sparkles className="w-4 h-4" />
-          14-Day Free Trial
+          30-Day Free Trial
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
           Pricebook
@@ -109,7 +109,7 @@ export default function PricebookTrialPage() {
           <div className="flex-shrink-0 text-center md:text-left">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-amber-200 dark:border-amber-500/30 p-6 shadow-sm">
               <BookOpen className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto md:mx-0 mb-3" />
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Free for 14 days</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Free for 30 days</p>
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">No credit card required</p>
               {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
               <button

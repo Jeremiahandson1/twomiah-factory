@@ -27,8 +27,8 @@ export default function EstimatorTrialPage() {
     setError('');
     try {
       await api.post('/api/support/tickets', {
-        subject: 'Instant Roof Estimator — 14-Day Free Trial Request',
-        description: `${company?.name || 'Customer'} is requesting a 14-day free trial of the Instant Roof Estimator add-on.`,
+        subject: 'Instant Roof Estimator — 30-Day Free Trial Request',
+        description: `${company?.name || 'Customer'} is requesting a 30-day free trial of the Instant Roof Estimator add-on.`,
         category: 'feature_request',
         priority: 'normal',
       });
@@ -50,7 +50,7 @@ export default function EstimatorTrialPage() {
           Trial Request Submitted!
         </h2>
         <p className="text-gray-600 dark:text-slate-400 text-lg mb-2">
-          Our team will activate your 14-day free trial within 24 hours.
+          Our team will activate your 30-day free trial within 24 hours.
         </p>
         <p className="text-gray-500 dark:text-slate-500 text-sm">
           You'll receive an email at <strong>{company?.email}</strong> when it's ready.
@@ -65,7 +65,7 @@ export default function EstimatorTrialPage() {
       <div className="text-center mb-12">
         <div className="inline-flex items-center gap-2 bg-sky-100 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 px-4 py-1.5 rounded-full text-sm font-semibold mb-4">
           <Sparkles className="w-4 h-4" />
-          14-Day Free Trial
+          30-Day Free Trial
         </div>
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
           Instant Roof Estimator
@@ -109,7 +109,7 @@ export default function EstimatorTrialPage() {
           <div className="flex-shrink-0 text-center md:text-left">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-sky-200 dark:border-sky-500/30 p-6 shadow-sm">
               <Ruler className="w-10 h-10 text-sky-600 dark:text-sky-400 mx-auto md:mx-0 mb-3" />
-              <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Free for 14 days</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Free for 30 days</p>
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">No credit card required</p>
               {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
               <button

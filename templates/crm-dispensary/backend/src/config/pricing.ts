@@ -23,7 +23,7 @@ export const SAAS_TIERS = {
     ],
     limits: { contacts: 2500, storage: 10, locations: 1 },
     highlight: false,
-    cta: 'Start 14-Day Free Trial',
+    cta: 'Start 30-Day Free Trial',
     comparison: 'More features than Cova at $200-500/mo',
   },
 
@@ -54,7 +54,7 @@ export const SAAS_TIERS = {
     ],
     limits: { contacts: 10000, storage: 50, locations: 3 },
     highlight: true,
-    cta: 'Start 14-Day Free Trial',
+    cta: 'Start 30-Day Free Trial',
     comparison: 'Same price as Dutchie with 3x the features',
   },
 
@@ -79,7 +79,7 @@ export const SAAS_TIERS = {
     ],
     limits: { contacts: 50000, storage: 250, locations: 10 },
     highlight: false,
-    cta: 'Start 14-Day Free Trial',
+    cta: 'Start 30-Day Free Trial',
     comparison: 'Replaces BLAZE + KayaPush + Alpine IQ — saves $1,000+/mo',
   },
 

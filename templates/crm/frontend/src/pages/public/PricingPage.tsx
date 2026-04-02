@@ -342,7 +342,7 @@ export default function PricingPage() {
             Ready to streamline your business?
           </h2>
           <p className="text-orange-100 mb-8">
-            Start your 14-day free trial. No credit card required.
+            Start your 30-day free trial. No credit card required.
           </p>
           <div className="flex justify-center gap-4">
             <a
@@ -639,7 +639,7 @@ function FAQ() {
   const faqs: FAQItem[] = [
     {
       q: 'Is there a free trial?',
-      a: 'Yes! All plans include a 14-day free trial with full access to all features. No credit card required to start.',
+      a: 'Yes! All plans include a 30-day free trial with full access to all features. No credit card required to start.',
     },
     {
       q: 'Can I change plans later?',

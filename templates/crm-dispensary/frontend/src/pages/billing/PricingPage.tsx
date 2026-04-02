@@ -264,7 +264,7 @@ export default function PricingPage() {
             />
             <FAQ
               question="What's included in the free trial?"
-              answer="The 14-day free trial includes full access to all features in your selected plan. No credit card required to start. We'll help you set up your inventory, connect to your state traceability system, and train your team."
+              answer="The 30-day free trial includes full access to all features in your selected plan. No credit card required to start. We'll help you set up your inventory, connect to your state traceability system, and train your team."
             />
             <FAQ
               question="Do you charge per terminal or per register?"

@@ -256,7 +256,7 @@ export default function PricingPage() {
             />
             <FAQ
               question="What's included in the free trial?"
-              answer="The 14-day free trial includes full access to all features in your selected plan. No credit card required to start."
+              answer="The 30-day free trial includes full access to all features in your selected plan. No credit card required to start."
             />
             <FAQ
               question="What's the difference between monthly and one-time?"

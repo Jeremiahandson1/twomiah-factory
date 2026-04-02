@@ -122,9 +122,9 @@ app.post('/signup', async (c) => {
   const enabledFeatures = PLAN_FEATURES[data.plan] || PLAN_FEATURES.starter
   const limits = PLAN_LIMITS[data.plan] || PLAN_LIMITS.starter
 
-  // Calculate trial end date (14 days)
+  // Calculate trial end date (30 days)
   const trialEndsAt = new Date()
-  trialEndsAt.setDate(trialEndsAt.getDate() + 14)
+  trialEndsAt.setDate(trialEndsAt.getDate() + 30)
 
   // Create company and user in transaction
   const result = await db.transaction(async (tx) => {

@@ -352,7 +352,7 @@ export default function SignupPage() {
   };
 
   const handleStartTrial = async () => {
-    // Trial is already started on signup (14-day trial built in).
+    // Trial is already started on signup (30-day trial built in).
     // Just navigate to the app — tokens are already in localStorage.
     sessionStorage.removeItem('signup_company_id');
     navigate('/?welcome=true');
@@ -536,7 +536,7 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Choose Your Plan</h2>
-      <p className="text-gray-600 mb-6">Start with a 14-day free trial. No credit card required.</p>
+      <p className="text-gray-600 mb-6">Start with a 30-day free trial. No credit card required.</p>
 
       <div className="flex justify-center items-center gap-4 mb-8">
         <span className={billingCycle === 'monthly' ? 'text-gray-900 font-medium' : 'text-gray-500'}>Monthly</span>
@@ -890,7 +890,7 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-2">Start Your Free Trial</h2>
-      <p className="text-gray-600 mb-6">Try {'{{COMPANY_NAME}}'} free for 14 days. No credit card required.</p>
+      <p className="text-gray-600 mb-6">Try {'{{COMPANY_NAME}}'} free for 30 days. No credit card required.</p>
 
       <div className="bg-gray-50 rounded-lg p-6 mb-8">
         <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
@@ -912,7 +912,7 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
           <span className="text-xl font-bold text-green-600">$0.00</span>
         </div>
         <p className="text-sm text-gray-500 mt-2">
-          Your trial ends in 14 days. You can add payment info anytime.
+          Your trial ends in 30 days. You can add payment info anytime.
         </p>
       </div>
 
@@ -929,7 +929,7 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
             </>
           ) : (
             <>
-              Start 14-Day Free Trial
+              Start 30-Day Free Trial
               <ArrowRight className="w-5 h-5" />
             </>
           )}
