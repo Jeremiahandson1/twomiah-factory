@@ -181,9 +181,9 @@ function extractFootprint(
 
   // ---------------------------------------------------------------------------
   // Connected-component labeling on mask to isolate individual buildings
-  // Uses union-find on downsampled grid for performance
+  // Uses union-find at full resolution for accurate footprint extraction
   // ---------------------------------------------------------------------------
-  const step = 2
+  const step = 1
   const cols = Math.ceil(width / step)
   const rows = Math.ceil(height / step)
   const labels = new Int32Array(rows * cols).fill(-1)
@@ -268,38 +268,69 @@ function extractFootprint(
   if (!bestCluster || bestCluster.pixels.length < 3) return []
 
   // ---------------------------------------------------------------------------
-  // Extract boundary pixels from the target building cluster only
+  // Extract boundary using Moore neighborhood contour tracing.
+  // This correctly handles concave (L/T/U-shaped) buildings unlike angular sort.
   // ---------------------------------------------------------------------------
-  const clusterSet = new Set<string>()
+  const clusterGrid = new Set<string>()
   for (const { r, c } of bestCluster.pixels) {
-    clusterSet.add(`${r},${c}`)
+    clusterGrid.add(`${r},${c}`)
   }
 
-  const boundary: Pt[] = []
+  // Moore neighborhood: 8 directions clockwise starting from right
+  //   7  0  1
+  //   6  x  2
+  //   5  4  3
+  const mooreR = [-1, -1, 0, 1, 1, 1, 0, -1]
+  const mooreC = [0, 1, 1, 1, 0, -1, -1, -1]
+
+  // Find starting pixel: topmost, then leftmost boundary pixel
+  let startR = Infinity, startC = Infinity
   for (const { r, c } of bestCluster.pixels) {
-    // Check if boundary pixel (has at least one non-cluster neighbor)
-    let isBoundary = false
-    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-      if (!clusterSet.has(`${r + dr},${c + dc}`)) {
-        isBoundary = true
+    if (r < startR || (r === startR && c < startC)) {
+      startR = r
+      startC = c
+    }
+  }
+
+  // Trace boundary using Moore neighborhood algorithm
+  const boundaryPixels: Array<{ r: number; c: number }> = []
+  let curR = startR, curC = startC
+  let enterDir = 0 // direction we entered from (start: came from above)
+  const maxIter = bestCluster.pixels.length * 4
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    // Add current pixel to boundary
+    const key = `${curR},${curC}`
+    if (boundaryPixels.length > 0 && curR === startR && curC === startC) break
+    boundaryPixels.push({ r: curR, c: curC })
+
+    // Search clockwise starting from the direction after where we entered
+    let searchStart = (enterDir + 5) % 8 // backtrack direction + 1
+    let found = false
+
+    for (let d = 0; d < 8; d++) {
+      const dir = (searchStart + d) % 8
+      const nr = curR + mooreR[dir]
+      const nc = curC + mooreC[dir]
+
+      if (clusterGrid.has(`${nr},${nc}`)) {
+        enterDir = (dir + 4) % 8 // opposite direction = where we came from
+        curR = nr
+        curC = nc
+        found = true
         break
       }
     }
 
-    if (isBoundary) {
-      boundary.push(pixelToLocal(c * step, r * step, maskTransform, originLat, originLng))
-    }
+    if (!found) break
   }
 
-  if (boundary.length < 3) return []
+  if (boundaryPixels.length < 3) return []
 
-  // Sort boundary points by angle from centroid → forms closed polygon
-  const cx = boundary.reduce((s, p) => s + p.x, 0) / boundary.length
-  const cy = boundary.reduce((s, p) => s + p.y, 0) / boundary.length
-
-  boundary.sort((a, b) => {
-    return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx)
-  })
+  // Convert boundary pixels to local meters
+  const boundary: Pt[] = boundaryPixels.map(({ r, c }) =>
+    pixelToLocal(c * step, r * step, maskTransform, originLat, originLng)
+  )
 
   // Simplify with Douglas-Peucker (0.3m tolerance)
   const simplified = douglasPeucker(boundary, 0.3)
@@ -786,9 +817,9 @@ export async function processDsm(
   // 4. RANSAC multi-plane fitting
   const planes = ransacMultiPlane(points, {
     maxPlanes: 10,
-    iterations: 500,
-    distanceThreshold: 0.2,  // 20cm tolerance
-    minInlierFraction: 0.03, // minimum 3% of points per plane
+    iterations: 2000,
+    distanceThreshold: 0.15,  // 15cm tolerance (tighter for better precision)
+    minInlierFraction: 0.015, // minimum 1.5% of points per plane (detect small segments)
   })
 
   if (planes.length === 0) {
@@ -862,7 +893,7 @@ function buildSegmentPolygons(
 
   // Collect points assigned to each plane
   const planePoints: Pt[][] = planes.map(() => [])
-  const step = 2
+  const step = 1
 
   for (let row = 0; row < mH; row += step) {
     for (let col = 0; col < mW; col += step) {
@@ -901,16 +932,94 @@ function buildSegmentPolygons(
     }
   }
 
-  // Build convex hull for each plane's assigned region
+  // Build concave boundary for each plane's assigned region.
+  // Uses grid-based boundary tracing (Moore neighborhood) on the assignment grid
+  // instead of convex hull, so L-shaped and non-convex facets get accurate outlines.
   const result: Pt[][] = planePoints.map((pts, i) => {
     if (pts.length < 3) return []
-    const hull = convexHull2D(pts)
-    if (hull.length < 3) return []
+
+    // Quantize points to a grid for boundary tracing
+    const gridRes = 0.25 // meters per cell (matches DSM pixel size)
+    let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity
+    for (const p of pts) {
+      if (p.x < gMinX) gMinX = p.x
+      if (p.y < gMinY) gMinY = p.y
+      if (p.x > gMaxX) gMaxX = p.x
+      if (p.y > gMaxY) gMaxY = p.y
+    }
+    // Add 1-cell border
+    gMinX -= gridRes; gMinY -= gridRes
+    gMaxX += gridRes; gMaxY += gridRes
+
+    const gCols = Math.ceil((gMaxX - gMinX) / gridRes) + 1
+    const gRows = Math.ceil((gMaxY - gMinY) / gridRes) + 1
+    const grid = new Uint8Array(gRows * gCols) // 0=empty, 1=filled
+
+    for (const p of pts) {
+      const gc = Math.round((p.x - gMinX) / gridRes)
+      const gr = Math.round((p.y - gMinY) / gridRes)
+      if (gc >= 0 && gc < gCols && gr >= 0 && gr < gRows) {
+        grid[gr * gCols + gc] = 1
+      }
+    }
+
+    // Moore neighborhood contour trace on the grid
+    const mooreR = [-1, -1, 0, 1, 1, 1, 0, -1]
+    const mooreC = [0, 1, 1, 1, 0, -1, -1, -1]
+
+    // Find start pixel (topmost, then leftmost)
+    let startR = -1, startC = -1
+    outer: for (let r = 0; r < gRows; r++) {
+      for (let c = 0; c < gCols; c++) {
+        if (grid[r * gCols + c] === 1) {
+          startR = r; startC = c
+          break outer
+        }
+      }
+    }
+    if (startR < 0) return []
+
+    const boundaryPts: Pt[] = []
+    let curR = startR, curC = startC, enterDir = 0
+    const maxIter = gRows * gCols * 2
+
+    for (let iter = 0; iter < maxIter; iter++) {
+      if (boundaryPts.length > 0 && curR === startR && curC === startC) break
+      boundaryPts.push({ x: gMinX + curC * gridRes, y: gMinY + curR * gridRes })
+
+      let searchStart = (enterDir + 5) % 8
+      let found = false
+      for (let d = 0; d < 8; d++) {
+        const dir = (searchStart + d) % 8
+        const nr = curR + mooreR[dir]
+        const nc = curC + mooreC[dir]
+        if (nr >= 0 && nr < gRows && nc >= 0 && nc < gCols && grid[nr * gCols + nc] === 1) {
+          enterDir = (dir + 4) % 8
+          curR = nr; curC = nc
+          found = true
+          break
+        }
+      }
+      if (!found) break
+    }
+
+    if (boundaryPts.length < 3) {
+      // Fallback to convex hull if tracing fails
+      const hull = convexHull2D(pts)
+      if (hull.length < 3) return []
+      if (polygonAreaSigned(hull) < 0) hull.reverse()
+      return hull
+    }
+
+    // Simplify boundary
+    const simplified = douglasPeucker(boundaryPts, 0.3)
+    if (simplified.length < 3) return []
+
     // Ensure CCW winding
-    if (polygonAreaSigned(hull) < 0) hull.reverse()
-    const area = Math.abs(polygonAreaSigned(hull))
-    console.log(`[DSM] Segment polygon ${i}: ${hull.length} vertices, ${pts.length} points, area=${area.toFixed(1)}m², azimuth=${planes[i].azimuthDeg.toFixed(0)}°`)
-    return hull
+    if (polygonAreaSigned(simplified) < 0) simplified.reverse()
+    const area = Math.abs(polygonAreaSigned(simplified))
+    console.log(`[DSM] Segment polygon ${i}: ${simplified.length} vertices, ${pts.length} points, area=${area.toFixed(1)}m², azimuth=${planes[i].azimuthDeg.toFixed(0)}°`)
+    return simplified
   })
 
   return result
@@ -955,7 +1064,7 @@ function extractRoofPoints(
   fMinX -= 1; fMaxX += 1; fMinY -= 1; fMaxY += 1
 
   const points: Pt3[] = []
-  const step = 2
+  const step = 1
 
   for (let row = 0; row < mH; row += step) {
     for (let col = 0; col < mW; col += step) {

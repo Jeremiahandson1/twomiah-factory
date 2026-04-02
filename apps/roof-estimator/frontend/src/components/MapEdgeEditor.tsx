@@ -50,6 +50,8 @@ interface Props {
   onSave: (edges: any[], measurements: any, reportId?: string) => Promise<void>
   onRevert?: () => Promise<void>
   userEdited?: boolean
+  /** Ref that exposes the save function so parent can trigger save with current edges/measurements */
+  saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +101,7 @@ function haversineFeet(lat1: number, lng1: number, lat2: number, lng2: number): 
 export default function MapEdgeEditor({
   reportId, edges: initialEdges, segments, centerLat, centerLng, zoom,
   aerialImageUrl, nearmapTileUrl, mapWidth = 800, mapHeight = 600,
-  initialMode = 'select', onSave, onRevert, userEdited,
+  initialMode = 'select', onSave, onRevert, userEdited, saveRef,
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -157,14 +159,25 @@ export default function MapEdgeEditor({
       totalAreaSqft = faces.reduce((s, f) => s + f.slopeAreaSqft, 0)
     }
 
-    // Fall back: if no faces, calculate from edge endpoints with no pitch adjustment
+    // Fall back: if no faces, calculate from edge endpoints with average pitch adjustment
     if (totalAreaSqft === 0 && edges.length >= 3) {
       const allPoints: Array<{ lat: number; lng: number }> = []
       for (const e of edges) {
         allPoints.push({ lat: e.startLat, lng: e.startLng })
         allPoints.push({ lat: e.endLat, lng: e.endLng })
       }
-      totalAreaSqft = computeConvexAreaSqft(allPoints)
+      let flatArea = computeConvexAreaSqft(allPoints)
+
+      // Apply pitch adjustment using segment data or default 5/12 pitch
+      // Most residential roofs are between 4/12 and 8/12
+      const avgPitch = segments.length > 0
+        ? segments.reduce((s, seg) => {
+            const p = parseInt(seg.pitch) || 5
+            return s + p
+          }, 0) / segments.length
+        : 5
+      const pitchAngle = Math.atan(avgPitch / 12)
+      totalAreaSqft = Math.round(flatArea / Math.cos(pitchAngle))
     }
 
     const totalSquares = Math.round(totalAreaSqft / 100 * 10) / 10
@@ -901,7 +914,11 @@ export default function MapEdgeEditor({
               return haversineMeters(fCenter.lat, fCenter.lng, newCenter.lat, newCenter.lng) < 3
             })
 
-            const pitch = existingFace?.pitch || 4
+            // Use existing face pitch, or derive from segment data, or default to 5/12
+            const segmentPitch = segments.length > 0
+              ? Math.round(segments.reduce((s, seg) => s + (parseInt(seg.pitch) || 5), 0) / segments.length)
+              : 5
+            const pitch = existingFace?.pitch || segmentPitch
             const pitchAngle = Math.atan(pitch / 12)
             const slopeAreaSqft = Math.round(footprintArea / Math.cos(pitchAngle))
 
@@ -995,6 +1012,11 @@ export default function MapEdgeEditor({
       setSaving(false)
     }
   }
+
+  // Expose save function to parent via ref so "Create Report" button works
+  useEffect(() => {
+    if (saveRef) saveRef.current = handleSave
+  })
 
   // ---------------------------------------------------------------------------
   // Keyboard shortcuts

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../App'
 import { MapPin, Loader2, ArrowLeft, FileText, Check } from 'lucide-react'
@@ -16,6 +16,7 @@ export default function ReportPage() {
   const [preview, setPreview] = useState<any>(null)
   const [report, setReport] = useState<any>(null)
   const [saving, setSaving] = useState(false)
+  const editorSaveRef = useRef<(() => Promise<void>) | null>(null)
 
   // Step 1: Enter address → fetch preview
   const handlePreview = async (e: React.FormEvent) => {
@@ -166,7 +167,7 @@ export default function ReportPage() {
               </p>
             </div>
             <button
-              onClick={() => handleFinalize([], {})}
+              onClick={() => editorSaveRef.current?.()}
               disabled={saving}
               className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
@@ -176,16 +177,17 @@ export default function ReportPage() {
 
           <MapEdgeEditor
             reportId="preview"
-            edges={[]}
-            segments={[]}
+            edges={preview.edges || []}
+            segments={preview.segments || []}
             centerLat={preview.geo.lat}
             centerLng={preview.geo.lng}
             zoom={preview.zoom || 20}
             aerialImageUrl={preview.satelliteImageBase64 || ''}
             mapWidth={preview.mapWidth || 800}
             mapHeight={preview.mapHeight || 600}
-            initialMode="add"
+            initialMode="select"
             onSave={handleFinalize}
+            saveRef={editorSaveRef}
           />
 
           <p className="text-xs text-gray-400 mt-4">

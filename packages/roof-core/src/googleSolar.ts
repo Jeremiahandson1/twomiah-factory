@@ -100,10 +100,20 @@ export async function getBuildingInsights(lat: number, lng: number): Promise<Bui
   const params = new URLSearchParams({
     'location.latitude': String(lat),
     'location.longitude': String(lng),
-    requiredQuality: 'LOW', // accept any quality; we'll surface it to the user
+    requiredQuality: 'HIGH',
     key: getApiKey(),
   })
-  const res = await fetch(`${SOLAR_URL}?${params}`)
+  let res = await fetch(`${SOLAR_URL}?${params}`)
+  // Fall back to MEDIUM if HIGH not available
+  if (!res.ok && res.status === 404) {
+    params.set('requiredQuality', 'MEDIUM')
+    res = await fetch(`${SOLAR_URL}?${params}`)
+  }
+  // Fall back to LOW as last resort
+  if (!res.ok && res.status === 404) {
+    params.set('requiredQuality', 'LOW')
+    res = await fetch(`${SOLAR_URL}?${params}`)
+  }
   if (!res.ok) {
     const errBody = await res.text().catch(() => '')
     throw new Error(`Solar API error ${res.status}: ${errBody}`)
@@ -202,11 +212,19 @@ export async function getDataLayers(lat: number, lng: number, radiusMeters = 75)
     'location.longitude': String(lng),
     radiusMeters: String(radiusMeters),
     view: 'IMAGERY_LAYERS',
-    requiredQuality: 'LOW', // accept any quality, surface it to user
+    requiredQuality: 'HIGH',
     pixelSizeMeters: '0.25',
     key: getApiKey(),
   })
-  const res = await fetch(`${DATA_LAYERS_URL}?${params}`)
+  let res = await fetch(`${DATA_LAYERS_URL}?${params}`)
+  if (!res.ok && res.status === 404) {
+    params.set('requiredQuality', 'MEDIUM')
+    res = await fetch(`${DATA_LAYERS_URL}?${params}`)
+  }
+  if (!res.ok && res.status === 404) {
+    params.set('requiredQuality', 'LOW')
+    res = await fetch(`${DATA_LAYERS_URL}?${params}`)
+  }
   if (!res.ok) {
     const errBody = await res.text().catch(() => '')
     throw new Error(`DataLayers API error ${res.status}: ${errBody}`)

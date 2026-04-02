@@ -657,14 +657,25 @@ export async function generateReportPDF(
 ): Promise<string> {
   const { center, segments, edges } = report
 
-  // Compute optimal zoom to fit all segments
-  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT)
+  // Compute optimal zoom to fit all segments AND edges
+  const zoom = computeOptimalZoom(segments, MAP_WIDTH, MAP_HEIGHT, edges)
+
+  // Center on edges if available (user-drawn reports)
+  let reportCenter = center
+  if (edges && edges.length > 0) {
+    let sumLat = 0, sumLng = 0, count = 0
+    for (const e of edges) {
+      if (e.startLat && e.startLng) { sumLat += e.startLat; sumLng += e.startLng; count++ }
+      if (e.endLat && e.endLng) { sumLat += e.endLat; sumLng += e.endLng; count++ }
+    }
+    if (count > 0) reportCenter = { lat: sumLat / count, lng: sumLng / count }
+  }
 
   // Always use Google Static Maps at the computed zoom for overlay alignment
-  const satelliteDataUrl = await fetchSatelliteImageBase64(center.lat, center.lng, zoom)
+  const satelliteDataUrl = await fetchSatelliteImageBase64(reportCenter.lat, reportCenter.lng, zoom)
 
   // Build SVG overlay
-  const svgContent = buildSvgOverlay(segments, edges, center.lat, center.lng, zoom)
+  const svgContent = buildSvgOverlay(segments, edges, reportCenter.lat, reportCenter.lng, zoom)
 
   // Build page body
   const body = buildReportBody(report, company, address, satelliteDataUrl, svgContent)

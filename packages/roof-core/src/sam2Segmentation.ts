@@ -235,43 +235,60 @@ async function maskUrlToPolygon(
 
 /**
  * Extract the outer contour of a binary mask as a simplified polygon.
- * Uses boundary pixel detection + Douglas-Peucker simplification.
+ * Uses Moore neighborhood contour tracing for correct handling of concave shapes.
  */
 function extractContour(
   mask: Uint8Array,
   width: number,
   height: number,
 ): Array<{ x: number; y: number }> {
-  const boundary: Array<{ x: number; y: number }> = []
+  // Moore neighborhood: 8 directions clockwise starting from right
+  const mooreX = [1, 1, 0, -1, -1, -1, 0, 1]
+  const mooreY = [0, 1, 1, 1, 0, -1, -1, -1]
 
-  // Find boundary pixels (foreground pixels adjacent to background or edge)
-  for (let y = 0; y < height; y++) {
+  // Find starting pixel: topmost row, then leftmost column
+  let startX = -1, startY = -1
+  outer: for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      const idx = y * width + x
-      if (mask[idx] === 0) continue
-
-      // Check if this is a boundary pixel
-      const isEdge = x === 0 || x === width - 1 || y === 0 || y === height - 1
-      const hasBackgroundNeighbor =
-        (x > 0 && mask[idx - 1] === 0) ||
-        (x < width - 1 && mask[idx + 1] === 0) ||
-        (y > 0 && mask[idx - width] === 0) ||
-        (y < height - 1 && mask[idx + width] === 0)
-
-      if (isEdge || hasBackgroundNeighbor) {
-        boundary.push({ x, y })
+      if (mask[y * width + x] === 1) {
+        startX = x; startY = y
+        break outer
       }
     }
   }
+  if (startX < 0) return []
+
+  // Trace boundary using Moore neighborhood algorithm
+  const boundary: Array<{ x: number; y: number }> = []
+  let curX = startX, curY = startY
+  let enterDir = 6 // came from the left (since we found leftmost in top row)
+  const maxIter = width * height
+
+  for (let iter = 0; iter < maxIter; iter++) {
+    if (boundary.length > 0 && curX === startX && curY === startY) break
+    boundary.push({ x: curX, y: curY })
+
+    // Search clockwise starting from backtrack direction + 1
+    let searchStart = (enterDir + 5) % 8
+    let found = false
+
+    for (let d = 0; d < 8; d++) {
+      const dir = (searchStart + d) % 8
+      const nx = curX + mooreX[dir]
+      const ny = curY + mooreY[dir]
+
+      if (nx >= 0 && nx < width && ny >= 0 && ny < height && mask[ny * width + nx] === 1) {
+        enterDir = (dir + 4) % 8
+        curX = nx; curY = ny
+        found = true
+        break
+      }
+    }
+
+    if (!found) break
+  }
 
   if (boundary.length < 3) return []
-
-  // Sort boundary pixels by angle from centroid to form a closed polygon
-  const cx = boundary.reduce((s, p) => s + p.x, 0) / boundary.length
-  const cy = boundary.reduce((s, p) => s + p.y, 0) / boundary.length
-  boundary.sort((a, b) =>
-    Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx)
-  )
 
   // Douglas-Peucker simplification (tolerance = 2 pixels)
   return douglasPeucker(boundary, 2.0)
