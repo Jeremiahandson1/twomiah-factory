@@ -34,6 +34,7 @@ import AdminGallery from './admin/AdminGallery';
 import AdminMenus from './admin/AdminMenus';
 import AdminBlog from './admin/AdminBlog';
 import AdminHelp from './admin/AdminHelp';
+import AdminVisualizer from './admin/AdminVisualizer';
 import ProtectedRoute from './admin/ProtectedRoute';
 import './admin/admin.css';
 
@@ -190,6 +191,11 @@ function AppContent() {
           <Route path="/help" element={
             <ProtectedRoute>
               <AdminHelp />
+            </ProtectedRoute>
+          } />
+          <Route path="/visualizer" element={
+            <ProtectedRoute>
+              <AdminVisualizer />
             </ProtectedRoute>
           } />
           <Route path="/*" element={

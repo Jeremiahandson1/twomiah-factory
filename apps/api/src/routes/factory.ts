@@ -701,8 +701,8 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
 
-    // Send email notification
-    if (result.success) {
+    // Send email notification — send credentials email even on partial success if CRM is reachable
+    if (result.success || result.deployedUrl || result.apiUrl) {
       notifyDeployComplete(tenant, { apiUrl: result.apiUrl, deployedUrl: result.deployedUrl, siteUrl: result.siteUrl, repoUrl: result.repoUrl, adsUrl: result.adsUrl }).catch(e => console.warn('[Email] Deploy complete notification failed:', e.message))
     } else {
       notifyDeployFailed(tenant, result.errors.join('; ') || 'Unknown error').catch(e => console.warn('[Email] Deploy failed notification failed:', e.message))
@@ -1602,6 +1602,67 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
 
     // Send welcome email immediately (non-blocking)
     notifyWelcome(tenant).catch(e => console.warn('[Email] Welcome email failed:', e.message))
+
+    // Auto-generate code build so triggerAutoDeploy has a factory_jobs record after Stripe checkout
+    const genConfig: GenerateConfig = {
+      tenant_id: tenant.id,
+      products: body.products || ['crm', 'website'],
+      websiteTheme: body.website_theme || undefined,
+      company: {
+        name: body.name.trim(),
+        email: body.email.trim(),
+        adminEmail: body.admin_email || body.email.trim(),
+        phone: body.phone || undefined,
+        address: body.address || undefined,
+        city: body.city || undefined,
+        state: body.state || undefined,
+        zip: body.zip || undefined,
+        domain: body.domain || undefined,
+        industry: body.industry || undefined,
+        defaultPassword: body.admin_password || undefined,
+      },
+      branding: {
+        primaryColor: body.primary_color || '#FF3D00',
+        websiteTheme: body.website_theme || undefined,
+      },
+      features: {
+        crm: body.features || [],
+      },
+    }
+
+    // Run generation in background — don't block the signup response
+    ;(async () => {
+      try {
+        console.log('[Signup] Auto-generating build for tenant:', tenant.id, tenant.slug)
+        const genResult = await generate(genConfig)
+        const storage = await uploadZip(genResult.zipPath, genResult.zipName)
+
+        const jobRecord: Record<string, any> = {
+          tenant_id: tenant.id,
+          template: genConfig.products.join('+'),
+          deployment_model: body.deployment_model || 'saas',
+          status: 'pending',
+          features: body.features || [],
+          branding: genConfig.branding,
+          build_id: genResult.buildId,
+          zip_name: genResult.zipName,
+          storage_key: storage.storageKey,
+          storage_type: storage.storageType,
+        }
+
+        const { error: jobErr } = await supabase.from('factory_jobs').insert({ ...jobRecord, config: genConfig })
+        if (jobErr) {
+          if (jobErr.code === '42703') {
+            await supabase.from('factory_jobs').insert(jobRecord)
+          } else {
+            console.error('[Signup] Job insert error:', jobErr.message)
+          }
+        }
+        console.log('[Signup] Build generated successfully for', tenant.slug, '— ready for auto-deploy')
+      } catch (genErr: any) {
+        console.error('[Signup] Auto-generate failed for', tenant.slug, ':', genErr.message)
+      }
+    })()
 
     // If Stripe is configured and this is a SaaS subscription, create a checkout session
     let checkoutUrl = null
