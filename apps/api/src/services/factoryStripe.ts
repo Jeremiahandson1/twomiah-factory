@@ -198,7 +198,7 @@ export async function createAutoSubscription(
   const subscription = await stripe.subscriptions.create({
     customer: stripeCustomerId,
     items: [{ price: priceId }],
-    trial_period_days: 14,
+    trial_period_days: 30,
     payment_behavior: 'default_incomplete',
     metadata: { factory_customer_id: factoryCustomer.id, plan_id: plan },
   })

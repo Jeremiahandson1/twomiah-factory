@@ -712,7 +712,7 @@ export default function CareSignupPage() {
         {/* Trust bar */}
         <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-gray-400 text-sm">
           <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> HIPAA-ready platform</div>
-          <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 14-day free trial</div>
+          <div className="flex items-center gap-2"><Clock className="w-4 h-4" /> 30-day free trial</div>
           <div className="flex items-center gap-2"><FileCheck className="w-4 h-4" /> EVV compliant</div>
           <div className="flex items-center gap-2"><MapPin className="w-4 h-4" /> GPS visit verification</div>
         </div>
@@ -733,7 +733,7 @@ function PlanStep({ plans, addons, selectedPlan, setSelectedPlan, billingCycle, 
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 mb-1">Choose your plan</h2>
-      <p className="text-gray-500 mb-6">All plans include a 14-day free trial. No credit card required.</p>
+      <p className="text-gray-500 mb-6">All plans include a 30-day free trial. No credit card required.</p>
 
       {/* Billing toggle */}
       <div className="flex justify-center items-center gap-4 mb-8">
@@ -1073,7 +1073,7 @@ function ReviewStep({ plan, price, billingCycle, addonsTotal, selectedAddons, ad
         {loading ? (
           <><Loader2 className="w-5 h-5 animate-spin" /> Creating your account...</>
         ) : (
-          <><Heart className="w-5 h-5" /> Start 14-Day Free Trial</>
+          <><Heart className="w-5 h-5" /> Start 30-Day Free Trial</>
         )}
       </button>
 

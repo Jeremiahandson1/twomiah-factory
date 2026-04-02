@@ -1670,7 +1670,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       try {
         const result = await factoryStripe.createSubscriptionCheckout(
           { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: null },
-          { planId: tenant.plan || 'starter', billingCycle: 'monthly', trialDays: 14 }
+          { planId: tenant.plan || 'starter', billingCycle: 'monthly', trialDays: 30 }
         )
         if (result.stripeCustomerId) {
           await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenant.id)

@@ -112,7 +112,7 @@ export async function notifyWelcome(
   if (!tenant.email) return false
 
   const product = getProductName(tenant.industry, tenant.products)
-  const trialEnd = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+  const trialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   const trialEndStr = trialEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
