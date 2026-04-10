@@ -147,7 +147,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
         updateSettingsField(path.join(workDir, 'website'), 'theme', theme)
       }
 
-      stripWebsiteFeatures(path.join(workDir, 'website'), config.features?.website || [])
+      // Default to all website features enabled when none explicitly specified
+      const ALL_WEBSITE_FEATURES = ['blog', 'gallery', 'testimonials', 'services_pages', 'contact_form', 'visualizer']
+      const websiteFeatures = config.features?.website?.length ? config.features.website : ALL_WEBSITE_FEATURES
+      stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
       writeBrandingAssets(path.join(workDir, 'website'), config.branding)
       injectWizardContent(path.join(workDir, 'website'), config)
       seedHelpArticles(path.join(workDir, 'website'))

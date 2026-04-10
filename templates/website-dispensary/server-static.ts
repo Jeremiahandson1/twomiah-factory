@@ -130,8 +130,13 @@ app.use('/*', serveStaticDir(path.join(__dirname, 'public')))
 // CMS admin panel (React SPA)
 const adminDist = path.join(__dirname, 'admin', 'dist')
 if (fs.existsSync(adminDist)) {
-  app.use('/admin/*', serveStatic({ root: path.relative(process.cwd(), adminDist), rewriteRequestPath: (p) => p.replace('/admin', '') }))
-  app.get('/admin*', async (c) => {
+  app.use('/admin/assets/*', serveStatic({ root: path.relative(process.cwd(), adminDist), rewriteRequestPath: (p) => p.replace('/admin', '') }))
+  app.use('/admin/favicon*', serveStatic({ root: path.relative(process.cwd(), adminDist), rewriteRequestPath: (p) => p.replace('/admin', '') }))
+  app.get('/admin', async (c) => {
+    const html = fs.readFileSync(path.join(adminDist, 'index.html'), 'utf8')
+    return c.html(html)
+  })
+  app.get('/admin/*', async (c) => {
     const html = fs.readFileSync(path.join(adminDist, 'index.html'), 'utf8')
     return c.html(html)
   })
