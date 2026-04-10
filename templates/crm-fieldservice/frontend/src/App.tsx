@@ -50,7 +50,7 @@ import WarrantiesPage from './pages/warranties/WarrantiesPage';
 import CallTrackingPage from './pages/calltracking/CallTrackingPage';
 import AdsPage from './pages/ads/AdsPage';
 import { AIReceptionistPage } from './components/features/AIReceptionistPage';
-import { RecurringList as RecurringListPage } from './pages/recurring';
+import { RecurringList as RecurringListPage, RecurringForm } from './pages/recurring';
 import TakeoffsPage from './pages/takeoffs/TakeoffsPage';
 import TasksPage from './pages/tasks/TasksPage';
 import MessagesPage from './pages/messages/MessagesPage';
@@ -183,6 +183,8 @@ function App() {
                     <Route path="call-tracking" element={<CallTrackingPage />} />
                     <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                     <Route path="recurring" element={<RecurringListPage />} />
+                    <Route path="recurring/new" element={<RecurringForm />} />
+                    <Route path="recurring/:id/edit" element={<RecurringForm />} />
                     <Route path="takeoffs" element={<TakeoffsPage />} />
                     <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
