@@ -20,7 +20,7 @@ const TEXT_EXTS = new Set([
   '.prisma', '.template', '.mjs', '.toml',
 ])
 
-const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', '.DS_Store']
+const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', 'bun.lock', '.DS_Store', 'dist']
 
 export interface GenerateConfig {
   tenant_id?: string
@@ -182,7 +182,15 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       const crmIndustry = config.company?.industry || ''
       const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : crmIndustry === 'roofing' ? 'crm-roof' : crmIndustry === 'dispensary' ? 'crm-dispensary' : 'crm'
       const crmOutputDir = crmTemplate
+      console.log('[Generator] CRM template:', crmTemplate, '→', path.join(workDir, crmOutputDir))
       copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), tokens)
+      // Verify critical files were copied
+      const backendIndex = path.join(workDir, crmOutputDir, 'backend', 'src', 'index.ts')
+      if (!fs.existsSync(backendIndex)) {
+        console.error('[Generator] WARNING: backend/src/index.ts missing after copy for', crmTemplate)
+      } else {
+        console.log('[Generator] CRM copy verified — backend/src/index.ts exists')
+      }
       processCRM(path.join(workDir, crmOutputDir), config, tokens)
       writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding)
     }
@@ -217,6 +225,17 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
     generateReadme(workDir, config, tokens)
     generateDeployScript(workDir, config, products)
+
+    // Log what's being zipped
+    const topLevel = fs.readdirSync(workDir)
+    console.log('[Generator] Zip contents (top-level):', topLevel.join(', '))
+    for (const dir of topLevel) {
+      const fullPath = path.join(workDir, dir)
+      if (fs.statSync(fullPath).isDirectory()) {
+        const sub = fs.readdirSync(fullPath).slice(0, 10)
+        console.log('[Generator]   ' + dir + '/', sub.join(', '))
+      }
+    }
 
     const zipName = slug + '-' + buildId.split('-')[0] + '-twomiah-build.zip'
     const zipPath = path.join(OUTPUT_DIR, zipName)
