@@ -104,7 +104,7 @@ export default function RecurringInvoiceList() {
           <p className="text-gray-500">Automated billing schedules</p>
         </div>
         <Link
-          to="/recurring/new"
+          to="/crm/recurring/new"
           className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600"
         >
           <Plus className="w-4 h-4" />
@@ -185,7 +185,7 @@ export default function RecurringInvoiceList() {
           <RefreshCw className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <p className="text-gray-500 mb-4">No recurring invoices</p>
           <Link
-            to="/recurring/new"
+            to="/crm/recurring/new"
             className="text-orange-600 hover:underline"
           >
             Create your first recurring invoice

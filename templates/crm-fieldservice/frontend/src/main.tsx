@@ -42,10 +42,14 @@ class GlobalErrorBoundary extends React.Component<any, any> {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')!;
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <GlobalErrorBoundary>
       <App />
     </GlobalErrorBoundary>
   </React.StrictMode>
 );
+
+// Clear React 18's no-op onclick trap that can block event delegation
+requestAnimationFrame(() => { if (rootEl.onclick) rootEl.onclick = null; });
