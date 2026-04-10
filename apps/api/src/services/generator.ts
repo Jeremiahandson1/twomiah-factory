@@ -111,6 +111,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
   const defaultPassword = config.company?.defaultPassword || generatePassword()
   config = { ...config, company: { ...config.company, defaultPassword } }
 
+  // Normalize industry variants to canonical values the templates expect
+  if (config.company?.industry?.startsWith('home_care')) config.company.industry = 'home_care'
+  if (config.company?.industry?.startsWith('field_service')) config.company.industry = 'field_service'
+
   const tokens = buildTokenMap(config, slug)
 
   try {
