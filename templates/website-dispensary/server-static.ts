@@ -332,6 +332,14 @@ app.post('/api/loyalty/check', async (c) => {
   }
 })
 
+app.get('/about', (c) => {
+  return renderPage(c, 'about', {
+    title: 'About Us | {{COMPANY_NAME}}',
+    description: 'Learn about {{COMPANY_NAME}} — serving {{SERVICE_REGION}}.',
+    canonicalUrl: BASE_URL + '/about',
+  })
+})
+
 app.get('/contact', (c) => {
   const services = loadJSON('services.json') || []
   return renderPage(c, 'contact', {

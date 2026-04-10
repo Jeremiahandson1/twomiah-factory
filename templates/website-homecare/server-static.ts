@@ -200,6 +200,14 @@ app.get('/services/:slug', (c) => {
   })
 })
 
+app.get('/about', (c) => {
+  return renderPage(c, 'about', {
+    title: 'About Us | {{COMPANY_NAME}}',
+    description: 'Learn about {{COMPANY_NAME}} — compassionate home care for {{SERVICE_REGION}}.',
+    canonicalUrl: BASE_URL + '/about',
+  })
+})
+
 app.get('/contact', (c) => {
   const services = loadJSON('services.json') || []
   return renderPage(c, 'contact', {
