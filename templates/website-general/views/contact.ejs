@@ -1,6 +1,6 @@
 <%
   // Pre-select service if provided in query string
-  const selectedService = locals.selectedService || '';
+  if (typeof selectedService === 'undefined') { var selectedService = ''; }
 %>
 
 <div class="contact-page">

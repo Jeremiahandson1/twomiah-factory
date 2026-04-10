@@ -116,6 +116,11 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
   try {
     const products = config.products || []
 
+    // Auto-include CMS when website is selected so the admin dashboard is always bundled
+    if (products.includes('website') && !products.includes('cms')) {
+      products.push('cms')
+    }
+
     if (products.includes('website')) {
       const industry = config.company?.industry || ''
       let websiteTemplate = 'website-general'

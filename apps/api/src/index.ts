@@ -7,6 +7,9 @@ import qbwcRoutes from './routes/qbwc.ts'
 
 const app = new Hono()
 
+// Health check before logger so it doesn't flood logs (Render pings every 5s)
+app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
+
 app.use('*', logger())
 // Limit request body to 15 MB (covers branding data URLs)
 app.use('*', bodyLimit({ maxSize: 15 * 1024 * 1024, onError: (c) => c.json({ error: 'Request body too large (max 15 MB)' }, 413) }))
@@ -27,8 +30,6 @@ app.use('*', cors({
   },
   credentials: true,
 }))
-
-app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
 
 app.route('/api/v1/factory', factoryRoutes)
 app.route('/api/v1/qbwc', qbwcRoutes)

@@ -24,7 +24,7 @@ function estimateReadTime(content) {
 }
 
 const publishedPosts = (typeof posts !== 'undefined' && Array.isArray(posts)) 
-  ? posts.filter(p => p.published).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+  ? posts.filter(p => p.published).sort((a, b) => new Date(b.publishedAt || b.createdAt || 0) - new Date(a.publishedAt || a.createdAt || 0))
   : [];
 %>
 
