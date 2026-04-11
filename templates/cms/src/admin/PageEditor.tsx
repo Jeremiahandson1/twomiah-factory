@@ -497,7 +497,7 @@ function PageEditor() {
     if (decodedPageId === 'home') {
       data = {
         type: 'home', title: 'Home Page',
-        heroTitle: '{{CITY}} Area Contractor',
+        heroTitle: '{{CITY}} {{INDUSTRY}}',
         heroSubtitle: 'Roofing • Siding • Windows • Insulation • Remodeling',
         heroTagline: 'YOUR TRUSTED LOCAL CONTRACTOR',
         heroDescription: 'Serving the {{SERVICE_REGION}} with Quality Craftsmanship'

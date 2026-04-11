@@ -240,7 +240,7 @@ function AdminHomepage() {
                 type="text" 
                 value={homepage.hero?.title || ''} 
                 onChange={e => handleChange('hero', 'title', e.target.value)}
-                placeholder="{{CITY}} Area Contractor"
+                placeholder="{{CITY}} {{INDUSTRY}}"
               />
             </div>
 

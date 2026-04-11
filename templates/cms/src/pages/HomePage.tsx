@@ -157,7 +157,7 @@ function HomePage({ onFormSuccess }: { onFormSuccess: () => void }) {
           </div>
         )}
         <div className={`hero-video-content ${hero.image ? 'hero-content' : ''}`}>
-          <h1>{hero.title || '{{CITY}} Area Contractor'}</h1>
+          <h1>{hero.title || '{{CITY}} {{INDUSTRY}}'}</h1>
           <h2>{hero.subtitle || 'Roofing • Siding • Windows • Insulation • Remodeling'}</h2>
           <div className="hero-line"></div>
           <p className="hero-tagline"><strong>{hero.tagline || 'YOUR TRUSTED LOCAL CONTRACTOR'}</strong></p>
