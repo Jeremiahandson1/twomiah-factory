@@ -47,6 +47,9 @@ import FormBuilder from './admin/FormBuilder';
 import RevenueForecast from './admin/RevenueForecast';
 import AIReceptionist from './admin/AIReceptionist';
 import AdsPage from '../pages/ads/AdsPage';
+import PayersServiceCodes from './admin/PayersServiceCodes';
+import AuthorizationsManagement from './admin/AuthorizationsManagement';
+import EVVDashboard from './admin/EVVDashboard';
 
 const NAV_SECTIONS = [
   {
@@ -91,6 +94,8 @@ const NAV_SECTIONS = [
     items: [
       { id: 'billing', label: 'Billing', icon: '🧾' },
       { id: 'claims', label: 'Claims', icon: '📑' },
+      { id: 'payers-service-codes', label: 'Payers & Codes', icon: '🏦' },
+      { id: 'authorizations', label: 'Authorizations', icon: '📋' },
       { id: 'payroll', label: 'Payroll', icon: '💵' },
       { id: 'expenses', label: 'Expenses', icon: '💳' },
       { id: 'reports', label: 'Reports & Analytics', icon: '📊' },
@@ -101,6 +106,7 @@ const NAV_SECTIONS = [
     id: 'compliance', label: 'Compliance', icon: '🛡️',
     items: [
       { id: 'compliance', label: 'Compliance', icon: '🛡️' },
+      { id: 'evv', label: 'EVV Dashboard', icon: '📍' },
       { id: 'background-checks', label: 'Background Checks', icon: '🔍' },
       { id: 'documents', label: 'Documents', icon: '📁' },
       { id: 'audit-logs', label: 'Audit Logs', icon: '📜' },
@@ -283,6 +289,9 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'revenue-forecast': return <RevenueForecast />;
       case 'ai-receptionist': return <AIReceptionist />;
       case 'ads': return <AdsPage />;
+      case 'payers-service-codes': return <PayersServiceCodes />;
+      case 'authorizations': return <AuthorizationsManagement />;
+      case 'evv': return <EVVDashboard />;
       default: return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
     }
   };
