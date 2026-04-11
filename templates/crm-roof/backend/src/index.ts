@@ -37,6 +37,7 @@ import calltrackingRoutes from './routes/calltracking.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import adsRoutes from './routes/ads.ts'
 import roofReportsRoutes from './routes/roofReports.ts'
+import importRoutes from './routes/import.ts'
 
 const app = new Hono()
 
@@ -100,6 +101,7 @@ app.route('/api/ai-receptionist', aiReceptionistRoutes)
 app.route('/api/ads', adsRoutes)
 app.route('/api/estimator', estimatorRoutes) // public — no auth
 app.route('/api/roof-reports', roofReportsRoutes)
+app.route('/api/import', importRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
@@ -222,7 +224,7 @@ if (hasFrontendBuild) {
 
 const PORT = Number(process.env.PORT) || 3001
 
-const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
+const server = serve({ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' }, (info) => {
   logger.info(`Server running on port ${info.port}`, {
     env: process.env.NODE_ENV || 'development',
     port: info.port,
