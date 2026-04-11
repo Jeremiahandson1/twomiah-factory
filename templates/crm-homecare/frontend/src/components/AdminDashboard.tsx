@@ -124,7 +124,6 @@ const NAV_SECTIONS = [
       { id: 'integrations', label: 'Integrations Hub', icon: '🔌' },
       { id: 'notifications', label: 'Notifications', icon: '📬' },
       { id: 'ai-receptionist', label: 'AI Receptionist', icon: '🤖' },
-      { id: 'ads', label: 'Ads', icon: '📣' },
     ]
   },
 ];

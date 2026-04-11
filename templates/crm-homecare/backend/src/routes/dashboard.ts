@@ -300,4 +300,31 @@ app.get('/caregiver-hours', async (c) => {
   return c.json(result)
 })
 
+// GET /api/dashboard/summary
+app.get('/summary', async (c) => {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const [
+    activeClientsResult,
+    activeCaregiversResult,
+    monthlyRevenueResult,
+    pendingInvoicesResult,
+  ] = await Promise.all([
+    db.select({ count: count() }).from(clients).where(eq(clients.isActive, true)),
+    db.select({ count: count() }).from(users).where(and(eq(users.role, 'caregiver'), eq(users.isActive, true))),
+    db.select({ sum: sql<string>`coalesce(sum(${invoices.total}), 0)` }).from(invoices)
+      .where(and(eq(invoices.paymentStatus, 'paid'), gte(invoices.createdAt, monthStart))),
+    db.select({ sum: sql<string>`coalesce(sum(${invoices.total}), 0)` }).from(invoices)
+      .where(inArray(invoices.paymentStatus, ['pending', 'sent'])),
+  ])
+
+  return c.json({
+    activeClients: activeClientsResult[0].count,
+    activeCaregivers: activeCaregiversResult[0].count,
+    monthlyRevenue: Number(monthlyRevenueResult[0].sum || 0),
+    pendingInvoices: Number(pendingInvoicesResult[0].sum || 0),
+  })
+})
+
 export default app
