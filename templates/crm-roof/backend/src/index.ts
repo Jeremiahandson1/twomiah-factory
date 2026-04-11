@@ -38,6 +38,7 @@ import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import adsRoutes from './routes/ads.ts'
 import roofReportsRoutes from './routes/roofReports.ts'
 import importRoutes from './routes/import.ts'
+import usersRoutes from './routes/users.ts'
 
 const app = new Hono()
 
@@ -102,6 +103,7 @@ app.route('/api/ads', adsRoutes)
 app.route('/api/estimator', estimatorRoutes) // public — no auth
 app.route('/api/roof-reports', roofReportsRoutes)
 app.route('/api/import', importRoutes)
+app.route('/api/users', usersRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
