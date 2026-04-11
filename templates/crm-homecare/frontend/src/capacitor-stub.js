@@ -2,6 +2,16 @@
 const noop = () => Promise.resolve()
 const noopWithValue = (val) => () => Promise.resolve(val)
 
+// @capacitor/core
+export const Capacitor = {
+  isNativePlatform: () => false,
+  getPlatform: () => 'web',
+  isPluginAvailable: () => false,
+  convertFileSrc: (path) => path,
+}
+export const registerPlugin = () => new Proxy({}, { get: () => noop })
+export const Plugins = {}
+
 export const Geolocation = {
   getCurrentPosition: noopWithValue({ coords: { latitude: 0, longitude: 0, accuracy: 0 } }),
   watchPosition: noop,
