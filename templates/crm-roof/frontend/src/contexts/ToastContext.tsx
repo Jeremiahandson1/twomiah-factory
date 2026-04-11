@@ -1,17 +1,29 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, useMemo, type ReactNode } from 'react'
 
-type ToastFn = (msg: string, type?: 'success' | 'error' | 'info') => void
-const ToastContext = createContext<ToastFn>(() => {})
+interface ToastAPI {
+  (msg: string, type?: 'success' | 'error' | 'info'): void
+  success: (msg: string) => void
+  error: (msg: string) => void
+  info: (msg: string) => void
+}
+
+const ToastContext = createContext<ToastAPI>(() => {} as any)
 export const useToast = () => useContext(ToastContext)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Array<{ id: number; msg: string; type: string }>>([])
 
-  const toast: ToastFn = (msg, type = 'info') => {
-    const id = Date.now()
-    setToasts(prev => [...prev, { id, msg, type }])
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000)
-  }
+  const toast = useMemo(() => {
+    const fn = ((msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+      const id = Date.now() + Math.random()
+      setToasts(prev => [...prev, { id, msg, type }])
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000)
+    }) as ToastAPI
+    fn.success = (msg: string) => fn(msg, 'success')
+    fn.error = (msg: string) => fn(msg, 'error')
+    fn.info = (msg: string) => fn(msg, 'info')
+    return fn
+  }, [])
 
   return (
     <ToastContext.Provider value={toast}>

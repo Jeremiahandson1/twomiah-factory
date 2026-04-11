@@ -23,6 +23,7 @@ import {
   Megaphone,
   Calculator,
   FileBarChart,
+  Upload,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -49,6 +50,7 @@ const fieldNavItems = [
 ]
 
 const bottomNavItems = [
+  { label: 'Import', icon: Upload, to: '/crm/import' },
   { label: 'Reports', icon: BarChart3, to: '/crm/reports' },
   { label: 'Settings', icon: Settings, to: '/crm/settings' },
 ]

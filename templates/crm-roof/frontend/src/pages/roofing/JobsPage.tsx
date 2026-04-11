@@ -117,10 +117,11 @@ export default function JobsPage() {
     if (!form.contactId) { toast.error('Select a contact'); return; }
     setSaving(true);
     try {
+      const { address, ...rest } = form;
       const res = await fetch('/api/jobs', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...rest, propertyAddress: address }),
       });
       if (!res.ok) throw new Error();
       const job = await res.json();
