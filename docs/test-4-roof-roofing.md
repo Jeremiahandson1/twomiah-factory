@@ -53,11 +53,26 @@ Take screenshots at every major step. Report pass/fail for each feature.
 
 ---
 
-## PHASE 2: VERIFY DEPLOYMENT
+## PHASE 2: VERIFY GITHUB REPO
+
+This is a critical check — previous roofing deploys failed because code wasn't pushed to GitHub.
+
+1. Visit **https://github.com/Jeremiahandson1/badger-roofing-qa**
+2. Verify the repo contains actual application code:
+   - [ ] `crm-roof/` directory exists with `backend/`, `frontend/`, and `landing/`
+   - [ ] `crm-roof/backend/src/index.ts` exists
+   - [ ] `crm-roof/backend/src/routes/` contains roofing-specific routes (insurance.ts, canvassing.ts, storms.ts, roofReports.ts)
+   - [ ] `crm-roof/frontend/src/` contains roofing pages (PipelineBoard.tsx, InsuranceClaimPage.tsx, CanvassingDashboard.tsx)
+   - [ ] `website/` directory exists with `views/` and `admin/`
+   - [ ] `render.yaml` exists at repo root with `rootDir: crm-roof/backend`
+3. If repo only has README.md and deploy.sh — **stop and report P0 bug** (the product name normalization fix may not have deployed)
+4. Check GitHub shows "TypeScript" as the primary language, NOT "Shell"
+
+## PHASE 3: VERIFY DEPLOYMENT
 
 Wait 5-10 minutes, then:
 
-1. Visit **https://badger-roofing-qa.onrender.com** — CRM loads?
+1. Visit **https://badger-roofing-qa-roof-api.onrender.com** — CRM loads? (note: roofing uses `-roof-api` suffix)
 2. Visit **https://badger-roofing-qa-site.onrender.com** — Website loads with amber branding?
 
 ---

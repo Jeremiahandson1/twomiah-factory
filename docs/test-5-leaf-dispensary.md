@@ -53,11 +53,22 @@ Take screenshots at every major step. Report pass/fail for each feature.
 
 ---
 
-## PHASE 2: VERIFY DEPLOYMENT
+## PHASE 2: VERIFY GITHUB REPO
+
+1. Visit **https://github.com/Jeremiahandson1/green-valley-dispensary-qa**
+2. Verify the repo contains actual application code:
+   - [ ] `crm-dispensary/` directory exists with `backend/` and `frontend/`
+   - [ ] `crm-dispensary/backend/src/index.ts` exists
+   - [ ] `website/` directory exists with `views/` and `admin/`
+   - [ ] `render.yaml` exists at repo root
+3. If repo only has README.md and deploy.sh — **stop and report P0 bug**
+4. Verify `website/data/services.json` contains dispensary services, NOT contractor services
+
+## PHASE 3: VERIFY DEPLOYMENT
 
 Wait 5-10 minutes, then:
 
-1. Visit **https://green-valley-dispensary-qa.onrender.com** — CRM loads?
+1. Visit **https://green-valley-dispensary-qa-leaf-api.onrender.com** — CRM loads? (note: dispensary uses `-leaf-api` suffix)
 2. Visit **https://green-valley-dispensary-qa-site.onrender.com** — Website loads with green branding?
 
 ---

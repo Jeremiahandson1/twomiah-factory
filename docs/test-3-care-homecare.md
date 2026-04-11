@@ -53,11 +53,23 @@ Take screenshots at every major step. Report pass/fail for each feature.
 
 ---
 
-## PHASE 2: VERIFY DEPLOYMENT
+## PHASE 2: VERIFY GITHUB REPO
+
+1. Visit **https://github.com/Jeremiahandson1/chippewa-home-care-qa**
+2. Verify the repo contains actual application code:
+   - [ ] `crm-homecare/` directory exists with `backend/` and `frontend/`
+   - [ ] `crm-homecare/backend/src/index.ts` exists
+   - [ ] `crm-homecare/frontend/src/capacitor-stub.js` exists (required for web builds)
+   - [ ] `website/` directory exists with `views/` (home care EJS templates) and `admin/` (CMS)
+   - [ ] `render.yaml` exists at repo root
+3. If repo only has README.md and deploy.sh — **stop and report P0 bug**
+4. Verify the website template is home care specific — check `website/data/services.json` contains care services (Personal Care, Companion Care), NOT contractor services (Roofing, Siding)
+
+## PHASE 3: VERIFY DEPLOYMENT
 
 Wait 5-10 minutes, then:
 
-1. Visit **https://chippewa-home-care-qa.onrender.com** — CRM loads?
+1. Visit **https://chippewa-home-care-qa-care-api.onrender.com** — CRM loads? (note: home care uses `-care-api` suffix)
 2. Visit **https://chippewa-home-care-qa-site.onrender.com** — Website loads with green branding?
 
 ---

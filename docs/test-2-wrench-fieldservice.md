@@ -54,14 +54,25 @@ Take screenshots at every major step. Report pass/fail for each feature. If some
 
 ---
 
-## PHASE 2: VERIFY DEPLOYMENT
+## PHASE 2: VERIFY GITHUB REPO
+
+1. Visit **https://github.com/Jeremiahandson1/valley-hvac-qa**
+2. Verify the repo contains actual application code:
+   - [ ] `crm-fieldservice/` directory exists with `backend/` and `frontend/`
+   - [ ] `crm-fieldservice/backend/src/index.ts` exists
+   - [ ] `crm-fieldservice/frontend/package.json` exists
+   - [ ] `website/` directory exists with `views/` (EJS templates) and `admin/` (CMS)
+   - [ ] `render.yaml` exists at repo root
+3. If repo only has README.md and deploy.sh — **stop and report P0 bug** (code generation failed)
+
+## PHASE 3: VERIFY DEPLOYMENT
 
 Wait 5-10 minutes, then:
 
 1. Visit **https://valley-hvac-qa.onrender.com** — CRM login page loads?
 2. Visit **https://valley-hvac-qa-site.onrender.com** — Website loads with red branding?
 
-If URLs don't work, try: `valley-hvac-qa-api.onrender.com`, or check the Factory platform at https://twomiah-factory-platform.onrender.com
+If URLs don't work, try: `valley-hvac-qa-wrench-api.onrender.com`, or check the Factory platform at https://twomiah-factory-platform.onrender.com
 
 ---
 

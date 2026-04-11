@@ -57,7 +57,25 @@ Take screenshots at every major step. Report pass/fail for each feature. If some
 
 ---
 
-## PHASE 2: VERIFY DEPLOYMENT
+## PHASE 2: VERIFY GITHUB REPO
+
+Each tenant gets their own private GitHub repo. Verify the code was pushed correctly:
+
+1. Visit **https://github.com/Jeremiahandson1/andson-builders-qa** (or whatever the slug is)
+2. Verify the repo contains these directories and files — NOT just README.md and deploy.sh:
+   - [ ] `crm/` directory exists (or `crm-fieldservice/`, `crm-homecare/`, `crm-roof/`, `crm-dispensary/` depending on vertical)
+   - [ ] `crm/backend/` exists with `src/index.ts`, `db/`, `package.json`
+   - [ ] `crm/frontend/` exists with `src/`, `package.json`, `vite.config.js`
+   - [ ] `website/` directory exists (if website product selected)
+   - [ ] `website/views/` exists with EJS templates (home.ejs, blog.ejs, contact.ejs, about.ejs)
+   - [ ] `website/admin/` exists (CMS dashboard source)
+   - [ ] `render.yaml` exists at repo root (Render Blueprint config)
+   - [ ] `README.md` exists
+   - [ ] `deploy.sh` exists
+3. If the repo only has README.md and deploy.sh (no crm/ or website/ directories), the code generation failed — **stop testing and report this as a P0 bug**
+4. Check the most recent commit message — should say "Initial Twomiah Factory deployment" or "Code update from Twomiah Factory"
+
+## PHASE 3: VERIFY DEPLOYMENT
 
 Wait 5-10 minutes after signup/payment for Render to deploy, then:
 
