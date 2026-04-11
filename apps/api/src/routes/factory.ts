@@ -520,7 +520,7 @@ factory.post('/customers/:id/deploy', requireRole('owner', 'admin'), async (c) =
 function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
   return {
     tenant_id: tenant.id,
-    products: job.template?.split('+') || tenant.products || ['crm'],
+    products: (job.template?.split('+') || tenant.products || ['crm']).map((p: string) => p.toLowerCase()),
     company: {
       name: tenant.name,
       email: tenant.email || undefined,
