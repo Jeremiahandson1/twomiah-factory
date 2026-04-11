@@ -347,7 +347,7 @@ const NotificationCenter = () => {
                           fontSize: '0.85rem'
                         }}
                       >
-                        {notif.status.toUpperCase()}
+                        {(notif.status ?? '').toUpperCase()}
                       </span>
                       <span className="badge badge-secondary" style={{ fontSize: '0.85rem' }}>
                         {getNotificationTypeLabel(notif.notification_type)}

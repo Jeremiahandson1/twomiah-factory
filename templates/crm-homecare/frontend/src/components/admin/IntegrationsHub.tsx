@@ -126,8 +126,8 @@ const IntegrationsHub = () => {
       await delay(400);
       // Batch 4: integration-specific (graceful fail until migration_v4.sql runs)
       get('/api/sandata/status').then(d => d && setEvvData(d)).catch(() => {});
-      get('/api/failsafe/issues').then(d => d && setOpenIssues(d)).catch(() => {});
-      get('/api/edi/service-codes').then(d => d && setServiceCodes(d)).catch(() => {});
+      get('/api/failsafe/issues').then(d => d && setOpenIssues(Array.isArray(d) ? d : d.issues || d.data || [])).catch(() => {});
+      get('/api/edi/service-codes').then(d => d && setServiceCodes(Array.isArray(d) ? d : d.codes || d.data || [])).catch(() => {});
     };
     loadCore();
   }, []);

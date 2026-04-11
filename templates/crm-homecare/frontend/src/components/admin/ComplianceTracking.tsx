@@ -321,7 +321,7 @@ const ComplianceTracking = () => {
                   {overview.status === 'compliant' ? '✓' : '⚠'}
                 </div>
                 <div>
-                  <strong>{overview.status.toUpperCase()}</strong>
+                  <strong>{(overview.status ?? '').toUpperCase()}</strong>
                   {overview.issues.length > 0 && (
                     <ul style={{ margin: '0.5rem 0 0 0', paddingLeft: '1.5rem' }}>
                       {overview.issues.map((issue, idx) => (
@@ -449,7 +449,7 @@ const ComplianceTracking = () => {
                       <strong>Status:</strong>
                       <p>
                         <span className="badge" style={{ background: getStatusColor(backgroundCheck.status), color: 'white' }}>
-                          {backgroundCheck.status.toUpperCase()}
+                          {(backgroundCheck.status ?? '').toUpperCase()}
                         </span>
                       </p>
                     </div>

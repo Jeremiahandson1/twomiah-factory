@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 const MedicationsManagement = () => {
   const { token } = useAuth();
+  const [isDirty, setIsDirty] = useState(false);
   const [clients, setClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState('');
   const [medications, setMedications] = useState([]);

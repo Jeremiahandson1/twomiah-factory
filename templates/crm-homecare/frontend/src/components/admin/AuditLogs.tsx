@@ -398,7 +398,7 @@ const AuditLogs = () => {
 
                       <div style={{ fontSize: '0.9rem', color: '#666' }}>
                         <p style={{ margin: '0.25rem 0' }}>
-                          <strong>{log.entity_type.replace('_', ' ').toUpperCase()}</strong>
+                          <strong>{(log.entity_type ?? '').replace('_', ' ').toUpperCase()}</strong>
                           {' '} (ID: {log.entity_id})
                         </p>
                         <p style={{ margin: '0.25rem 0' }}>
