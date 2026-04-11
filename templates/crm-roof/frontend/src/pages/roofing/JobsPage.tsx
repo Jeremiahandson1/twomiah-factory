@@ -121,7 +121,7 @@ export default function JobsPage() {
       const res = await fetch('/api/jobs', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...rest, propertyAddress: address, stories: stories ? Number(stories) : null, roofType: roofType || null }),
+        body: JSON.stringify({ ...rest, propertyAddress: address, stories: stories ? Number(stories) : null, ...(roofType && { roofType }) }),
       });
       if (!res.ok) throw new Error();
       const job = await res.json();
