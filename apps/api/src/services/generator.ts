@@ -178,7 +178,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       writeBrandingAssets(path.join(workDir, 'cms'), config.branding)
     }
 
-    if (products.includes('crm')) {
+    if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
       const crmIndustry = config.company?.industry || ''
       const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : crmIndustry === 'roofing' ? 'crm-roof' : crmIndustry === 'dispensary' ? 'crm-dispensary' : 'crm'
       const crmOutputDir = crmTemplate

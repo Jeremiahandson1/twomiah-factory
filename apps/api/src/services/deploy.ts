@@ -756,7 +756,7 @@ export async function deployCustomer(
     // Prefer dedicated Supabase project per customer; fall back to Render Postgres
     let dbConnectionString: string | null = null
     let supabaseProject: SupabaseProjectResult | null = null
-    if (products.includes('crm')) {
+    if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
       const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isDispensary ? slug + '-leaf' : slug
 
       if (isSupabaseManagementConfigured()) {
@@ -876,7 +876,7 @@ export async function deployCustomer(
     const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
 
     // Step 5 & 6: CRM backend + frontend
-    if (products.includes('crm')) {
+    if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
       try {
         const tenantPlan = factoryCustomer.planId || factoryCustomer.config?.company?.plan || factoryCustomer.config?.plan || 'starter'
         const backendEnvVars = [
