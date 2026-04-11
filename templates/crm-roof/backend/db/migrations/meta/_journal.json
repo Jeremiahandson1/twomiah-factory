@@ -5,40 +5,47 @@
     {
       "idx": 0,
       "version": "7",
+      "when": 1772785271393,
+      "tag": "0000_initial_schema",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
       "when": 1772785271394,
       "tag": "0001_add_lead_inbox",
       "breakpoints": true
     },
     {
-      "idx": 1,
+      "idx": 2,
       "version": "7",
       "when": 1772785271395,
       "tag": "0002_add_calltracking_ai_receptionist",
       "breakpoints": true
     },
     {
-      "idx": 2,
+      "idx": 3,
       "version": "7",
       "when": 1772785271396,
       "tag": "0003_add_roof_reports",
       "breakpoints": true
     },
     {
-      "idx": 3,
+      "idx": 4,
       "version": "7",
       "when": 1772785271397,
       "tag": "0004_add_roof_report_editing",
       "breakpoints": true
     },
     {
-      "idx": 4,
+      "idx": 5,
       "version": "7",
       "when": 1772785271398,
       "tag": "0005_add_pricebook",
       "breakpoints": true
     },
     {
-      "idx": 5,
+      "idx": 6,
       "version": "7",
       "when": 1772785271399,
       "tag": "0006_add_imagery_elevation_sources",
