@@ -60,7 +60,9 @@ CREATE TABLE IF NOT EXISTS "claim_status_history" (
 );
 CREATE INDEX IF NOT EXISTS "claim_status_history_claim_id_idx" ON "claim_status_history" ("claim_id");
 
-CREATE TABLE IF NOT EXISTS "denial_code_lookup" (
+-- Drop legacy denial_code_lookup from 0005 (had code as PK, no id column) and recreate with proper schema
+DROP TABLE IF EXISTS "denial_code_lookup";
+CREATE TABLE "denial_code_lookup" (
   "id" text PRIMARY KEY NOT NULL,
   "code" text NOT NULL UNIQUE,
   "description" text NOT NULL,
