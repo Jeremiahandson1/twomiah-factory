@@ -288,7 +288,16 @@ if (hasFrontendBuild) {
   })
 
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
+  // SPA catch-all: serve index.html for all non-API GET requests
+  app.get('/login', (c) => c.html(indexHtml))
+  app.get('/portal/*', (c) => c.html(indexHtml))
+  app.get('/pay/*', (c) => c.html(indexHtml))
   app.get('*', (c) => c.html(indexHtml))
+  // Catch non-GET SPA routes too
+  app.notFound((c) => {
+    if (c.req.method === 'GET') return c.html(indexHtml)
+    return c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
+  })
   logger.info('Serving frontend from ' + FRONTEND_DIST)
 } else {
   app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
