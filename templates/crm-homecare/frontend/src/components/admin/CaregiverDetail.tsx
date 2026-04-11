@@ -270,7 +270,7 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
     setRateHistoryLoading(true);
     try {
       const r = await fetch(`${API_BASE_URL}/api/caregiver-rates/${caregiverId}/history`, { headers: hdr });
-      if (r.ok) setRateHistory(await r.json());
+      if (r.ok) { const rhData = await r.json(); setRateHistory(Array.isArray(rhData) ? rhData : (rhData.data || [])); }
       else setRateHistory([]);
     } catch (e) { setRateHistory([]); }
     setRateHistoryLoading(false);
@@ -663,7 +663,7 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
     if (shiftFilter.end) params.set('endDate', shiftFilter.end + 'T23:59:59');
     params.set('limit', '100');
     const r = await fetch(`${API_BASE_URL}/api/time-entries/caregiver-history/${caregiverId}?${params}`, { headers: hdr });
-    if (r.ok) setAllShifts(await r.json());
+    if (r.ok) { const shData = await r.json(); setAllShifts(Array.isArray(shData) ? shData : (shData.data || [])); }
   };
 
   const renderShifts = () => {
@@ -714,7 +714,7 @@ export default function CaregiverDetail({ caregiverId, onBack, onHireComplete })
     setGpsLoading(true);
     try {
       const r = await fetch(`${API_BASE_URL}/api/time-entries/caregiver-gps/${caregiverId}?limit=30`, { headers: hdr });
-      if (r.ok) { const d = await r.json(); setGpsData(d); if (d.length > 0) setSelectedShift(d[0]); }
+      if (r.ok) { const d = await r.json(); const gpsList = Array.isArray(d) ? d : (d.data || []); setGpsData(gpsList); if (gpsList.length > 0) setSelectedShift(gpsList[0]); }
     } catch(e) { console.error(e); }
     setGpsLoading(false);
   };

@@ -60,13 +60,14 @@ const PerformanceRatings = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      
+      const reviewsList = Array.isArray(data) ? data : (data.reviews || data.data || []);
+
       const reviewsByCaregiver = {};
       caregiversList.forEach(cg => {
         reviewsByCaregiver[cg.id] = [];
       });
-      
-      data.forEach(review => {
+
+      reviewsList.forEach(review => {
         if (reviewsByCaregiver[review.caregiver_id]) {
           reviewsByCaregiver[review.caregiver_id].push(review);
         }

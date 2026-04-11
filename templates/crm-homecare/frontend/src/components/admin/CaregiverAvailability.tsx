@@ -78,7 +78,7 @@ const CaregiverAvailability = () => {
       });
       if (!response.ok) throw new Error('Failed to load caregivers');
       const data = await response.json();
-      setCaregivers(data);
+      setCaregivers(Array.isArray(data) ? data : (data.caregivers || []));
       setLoading(false);
     } catch (error) {
       console.error('Failed to load caregivers:', error);

@@ -150,11 +150,16 @@ const BillingDashboard = () => {
         fetch(`${API_BASE_URL}/api/users?role=caregiver`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
 
-      setInvoices(await invoiceRes.json());
-      setClients(await clientRes.json());
-      setReferralSources(await rsRes.json());
-      setCareTypes(await ctRes.json());
-      setRates(await ratesRes.json());
+      const invoiceData = await invoiceRes.json();
+      setInvoices(Array.isArray(invoiceData) ? invoiceData : (invoiceData.invoices || invoiceData.data || []));
+      const clientData = await clientRes.json();
+      setClients(Array.isArray(clientData) ? clientData : (clientData.clients || []));
+      const rsData = await rsRes.json();
+      setReferralSources(Array.isArray(rsData) ? rsData : (rsData.data || []));
+      const ctData = await ctRes.json();
+      setCareTypes(Array.isArray(ctData) ? ctData : (ctData.data || []));
+      const ratesData = await ratesRes.json();
+      setRates(Array.isArray(ratesData) ? ratesData : (ratesData.data || []));
       
       try {
         const caregiversData = await caregiversRes.json();
@@ -164,12 +169,12 @@ const BillingDashboard = () => {
       // Try loading optional endpoints
       try {
         const authRes = await fetch(`${API_BASE_URL}/api/authorizations`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (authRes.ok) setAuthorizations(await authRes.json());
+        if (authRes.ok) { const authData = await authRes.json(); setAuthorizations(Array.isArray(authData) ? authData : (authData.data || [])); }
       } catch (e) { console.log('Authorizations endpoint not available'); }
 
       try {
         const payRes = await fetch(`${API_BASE_URL}/api/billing/invoice-payments`, { headers: { 'Authorization': `Bearer ${token}` } });
-        if (payRes.ok) setPayments(await payRes.json());
+        if (payRes.ok) { const payData = await payRes.json(); setPayments(Array.isArray(payData) ? payData : (payData.data || [])); }
       } catch (e) { console.log('Payments endpoint not available'); }
 
     } catch (error) {

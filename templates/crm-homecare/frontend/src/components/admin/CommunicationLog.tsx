@@ -41,7 +41,8 @@ export default function CommunicationLog({ entityType, entityId, entityName, com
       const params = new URLSearchParams({ limit: 100 });
       if (filterType) params.set('type', filterType);
       const r = await fetch(`${API}/api/communication-log/${entityType}/${entityId}?${params}`, { headers });
-      setLogs(await r.json());
+      const logsData = await r.json();
+      setLogs(Array.isArray(logsData) ? logsData : (logsData.entries || logsData.data || []));
     } catch (e) { console.error(e); }
     setLoading(false);
   };
@@ -50,7 +51,8 @@ export default function CommunicationLog({ entityType, entityId, entityName, com
     try {
       const r = await fetch(`${API}/api/communication-log/follow-ups/pending`, { headers });
       const data = await r.json();
-      setFollowUps(data.filter(f => f.entity_id === entityId));
+      const followUpList = Array.isArray(data) ? data : (data.data || []);
+      setFollowUps(followUpList.filter(f => f.entity_id === entityId));
     } catch (e) {}
   };
 

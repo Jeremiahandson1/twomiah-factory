@@ -26,7 +26,7 @@ const MessageBoard = () => {
   const loadInbox = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/messages/inbox`, { headers });
-      if (res.ok) setThreads(await res.json());
+      if (res.ok) { const tData = await res.json(); setThreads(Array.isArray(tData) ? tData : (tData.threads || tData.data || [])); }
     } catch (e) { /* silent */ }
     finally { setLoading(false); }
   }, [token]);
@@ -34,7 +34,7 @@ const MessageBoard = () => {
   const loadUsers = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/messages/users`, { headers });
-      if (res.ok) setUsers(await res.json());
+      if (res.ok) { const uData = await res.json(); setUsers(Array.isArray(uData) ? uData : (uData.users || uData.data || [])); }
     } catch (e) { /* silent */ }
   }, [token]);
 

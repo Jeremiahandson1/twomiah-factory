@@ -19,8 +19,8 @@ const DashboardOverview = ({ summary, onNavigate }) => {
         getDashboardReferrals(token),
         getDashboardHours(token)
       ]);
-      setReferrals(refData);
-      setCaregiverHours(hourData);
+      setReferrals(Array.isArray(refData) ? refData : (refData?.data || []));
+      setCaregiverHours(Array.isArray(hourData) ? hourData : (hourData?.data || []));
     } catch (error) {
       console.error('Failed to load analytics:', error);
     } finally {

@@ -111,7 +111,8 @@ const CaregiverManagement = ({ onViewProfile, onViewHistory }) => {
       ]);
       const cgData = await cgRes.json();
       setCaregivers(Array.isArray(cgData) ? cgData : (cgData.caregivers || []));
-      setCareTypes(await ctRes.json());
+      const ctData = await ctRes.json();
+      setCareTypes(Array.isArray(ctData) ? ctData : (ctData.data || []));
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -192,7 +193,8 @@ const CaregiverManagement = ({ onViewProfile, onViewHistory }) => {
       const response = await fetch(`${API_BASE_URL}/api/caregiver-care-type-rates?caregiverId=${caregiver.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      setCaregiverRates(await response.json());
+      const ratesData = await response.json();
+      setCaregiverRates(Array.isArray(ratesData) ? ratesData : (ratesData.data || []));
       setShowRatesModal(true);
     } catch (error) {
       toast('Failed to load rates: ' + error.message, 'error');
@@ -218,11 +220,12 @@ const CaregiverManagement = ({ onViewProfile, onViewHistory }) => {
       if (!response.ok) throw new Error('Failed to add rate');
 
       setRateFormData({ careTypeId: '', hourlyRate: '' });
-      
+
       const ratesRes = await fetch(`${API_BASE_URL}/api/caregiver-care-type-rates?caregiverId=${selectedCaregiver.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      setCaregiverRates(await ratesRes.json());
+      const addRatesData = await ratesRes.json();
+      setCaregiverRates(Array.isArray(addRatesData) ? addRatesData : (addRatesData.data || []));
     } catch (error) {
       toast('Failed to add rate: ' + error.message, 'error');
     }
@@ -240,7 +243,8 @@ const CaregiverManagement = ({ onViewProfile, onViewHistory }) => {
       const ratesRes = await fetch(`${API_BASE_URL}/api/caregiver-care-type-rates?caregiverId=${selectedCaregiver.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      setCaregiverRates(await ratesRes.json());
+      const delRatesData = await ratesRes.json();
+      setCaregiverRates(Array.isArray(delRatesData) ? delRatesData : (delRatesData.data || []));
     } catch (error) {
       toast('Failed to delete rate: ' + error.message, 'error');
     }

@@ -22,10 +22,11 @@ const ClientOnboarding = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      setClients(data);
-      
+      const clientsList = Array.isArray(data) ? data : (data.clients || []);
+      setClients(clientsList);
+
       // Load onboarding data for each client
-      data.forEach(client => {
+      clientsList.forEach(client => {
         loadClientData(client.id);
       });
     } catch (error) {

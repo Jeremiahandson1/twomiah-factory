@@ -30,7 +30,8 @@ export default function NoShowAlerts() {
         fetch(`${API}/api/no-show/stats`, { headers: h }),
         fetch(`${API}/api/no-show/config`, { headers: h }),
       ]);
-      setAlerts(await aR.json());
+      const alertsData = await aR.json();
+      setAlerts(Array.isArray(alertsData) ? alertsData : (alertsData.alerts || alertsData.data || []));
       setStats(await sR.json());
       const cfg = await cR.json();
       if (cfg && cfg.grace_minutes) setConfig(cfg);

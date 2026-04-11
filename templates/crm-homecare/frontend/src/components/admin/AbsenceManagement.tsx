@@ -36,7 +36,7 @@ const AbsenceManagement = () => {
       const absencesData = await absencesRes.json();
       const caregiversData = await caregiversRes.json();
 
-      setAbsences(absencesData);
+      setAbsences(Array.isArray(absencesData) ? absencesData : (absencesData.absences || absencesData.data || []));
       setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
     } catch (error) {
       console.error('Failed to load data:', error);

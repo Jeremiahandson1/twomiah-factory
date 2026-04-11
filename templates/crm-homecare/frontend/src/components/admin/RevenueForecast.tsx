@@ -26,7 +26,8 @@ export default function RevenueForecast() {
         fetch(`${API}/api/forecast/caregiver-utilization`, { headers: h }),
       ]);
       setData(await fR.json());
-      setUtilData(await uR.json());
+      const uData = await uR.json();
+      setUtilData(Array.isArray(uData) ? uData : (uData.data || []));
     } catch (e) {}
     setLoading(false);
   };
