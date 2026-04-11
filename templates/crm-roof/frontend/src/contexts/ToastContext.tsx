@@ -7,7 +7,8 @@ interface ToastAPI {
   info: (msg: string) => void
 }
 
-const ToastContext = createContext<ToastAPI>(() => {} as any)
+const noop: ToastAPI = (() => {}) as any
+const ToastContext = createContext<ToastAPI>(noop)
 export const useToast = () => useContext(ToastContext)
 
 export function ToastProvider({ children }: { children: ReactNode }) {
