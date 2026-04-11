@@ -172,9 +172,9 @@ export default function QuotesPage() {
                       >
                         {q.quoteNumber || `Q-${String(q.id).padStart(4, '0')}`}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{q.contactName || '—'}</td>
+                      <td className="px-4 py-3 text-gray-900">{q.contact ? `${q.contact.firstName || ''} ${q.contact.lastName || ''}`.trim() : q.contactName || '—'}</td>
                       <td className="px-4 py-3 text-gray-600 text-xs font-mono">
-                        {q.jobNumber || (q.jobId ? `ROOF-${String(q.jobId).padStart(4, '0')}` : '—')}
+                        {q.job?.jobNumber || q.jobNumber || (q.jobId ? q.jobId.slice(0, 12) + '...' : '—')}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[q.status] || 'bg-gray-100 text-gray-600'}`}>

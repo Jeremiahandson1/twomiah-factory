@@ -215,9 +215,9 @@ export default function InvoicesPage() {
                         >
                           {inv.invoiceNumber || `INV-${String(inv.id).padStart(4, '0')}`}
                         </td>
-                        <td className="px-4 py-3 text-gray-900">{inv.contactName || '—'}</td>
+                        <td className="px-4 py-3 text-gray-900">{inv.contact ? `${inv.contact.firstName || ''} ${inv.contact.lastName || ''}`.trim() : inv.contactName || '—'}</td>
                         <td className="px-4 py-3 text-gray-600 text-xs font-mono">
-                          {inv.jobNumber || (inv.jobId ? `ROOF-${String(inv.jobId).padStart(4, '0')}` : '—')}
+                          {inv.job?.jobNumber || inv.jobNumber || (inv.jobId ? inv.jobId.slice(0, 12) + '...' : '—')}
                         </td>
                         <td className="px-4 py-3">
                           <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[inv.status] || 'bg-gray-100 text-gray-600'}`}>

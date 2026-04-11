@@ -55,9 +55,17 @@ app.get('/', async (c) => {
     : []
   const contactMap = Object.fromEntries(contacts.map(ct => [ct.id, ct]))
 
+  // Fetch jobs for job number display
+  const jobIds = [...new Set(data.filter(q => q.jobId).map(q => q.jobId))]
+  const jobs = jobIds.length
+    ? await db.select({ id: job.id, jobNumber: job.jobNumber }).from(job).where(eq(job.companyId, currentUser.companyId))
+    : []
+  const jobMap = Object.fromEntries(jobs.map(j => [j.id, j]))
+
   const dataWithRelations = data.map(q => ({
     ...q,
     contact: q.contactId ? contactMap[q.contactId] || null : null,
+    job: q.jobId ? jobMap[q.jobId] || null : null,
   }))
 
   return c.json({ data: dataWithRelations, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })

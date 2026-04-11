@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { invoice, contact } from '../../db/schema.ts'
+import { invoice, contact, job } from '../../db/schema.ts'
 import { eq, and, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -56,9 +56,17 @@ app.get('/', async (c) => {
     : []
   const contactMap = Object.fromEntries(contacts.map(ct => [ct.id, ct]))
 
+  // Fetch jobs for job number display
+  const jobIds = [...new Set(data.filter(i => i.jobId).map(i => i.jobId))]
+  const jobs = jobIds.length
+    ? await db.select({ id: job.id, jobNumber: job.jobNumber }).from(job).where(eq(job.companyId, currentUser.companyId))
+    : []
+  const jobMap = Object.fromEntries(jobs.map(j => [j.id, j]))
+
   const dataWithRelations = data.map(inv => ({
     ...inv,
     contact: inv.contactId ? contactMap[inv.contactId] || null : null,
+    job: inv.jobId ? jobMap[inv.jobId] || null : null,
   }))
 
   return c.json({ data: dataWithRelations, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
