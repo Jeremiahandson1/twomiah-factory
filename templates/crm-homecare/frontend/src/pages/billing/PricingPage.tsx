@@ -64,8 +64,8 @@ interface AddonCardProps {
 }
 
 interface FeatureComparisonProps {
-  packages: Record<string, PackageData>;
-  features: Record<string, { name?: string }>;
+  plans: Record<string, PlanData>;
+  orderedPlanIds: string[];
 }
 
 interface FAQProps {
@@ -307,7 +307,7 @@ export default function PricingPage() {
           </div>
 
           {expandedFeatures && (
-            <FeatureComparison packages={packages} features={features} />
+            <FeatureComparison plans={plans} orderedPlanIds={orderedPlanIds} />
           )}
         </div>
 
@@ -464,53 +464,46 @@ function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly 
   );
 }
 
-function FeatureComparison({ packages, features }: FeatureComparisonProps) {
-  const packageList: string[] = ['starter', 'servicePro', 'construction', 'enterprise'];
-  const categories: Record<string, string[]> = {
-    'Core': ['contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team'],
-    'Service Trade': ['timeTracking', 'gpsTracking', 'routing', 'equipment', 'agreements', 'pricebook', 'fleet'],
-    'Construction': ['projects', 'changeOrders', 'rfis', 'dailyLogs', 'punchLists', 'gantt', 'selections', 'takeoffs', 'lienWaivers', 'drawSchedules'],
-    'Communication': ['sms', 'emailCampaigns', 'reviews', 'callTracking', 'customerPortal', 'onlineBooking'],
-    'Financial': ['payments', 'financing', 'quickbooks', 'expenses', 'jobCosting'],
-    'Advanced': ['customForms', 'documents', 'reporting', 'inventory'],
-  };
+function FeatureComparison({ plans, orderedPlanIds }: FeatureComparisonProps) {
+  // Aggregate every unique hero feature across all plans, then for each one
+  // show a checkmark in the columns where that plan includes it. Fully
+  // data-driven so this works correctly for every vertical's tier names
+  // (Build/Wrench/Care/Roof) without hardcoded category lists.
+  const allFeatures = new Set<string>();
+  for (const id of orderedPlanIds) {
+    for (const f of plans[id]?.heroFeatures || []) {
+      allFeatures.add(f);
+    }
+  }
+  const featureList = Array.from(allFeatures);
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b">
-            <th className="text-left py-4 px-4 font-medium text-gray-500">Features</th>
-            {packageList.map((pkg: string) => (
-              <th key={pkg} className="text-center py-4 px-4 font-bold text-gray-900">
-                {packages[pkg]?.name}
+            <th className="text-left py-4 px-4 font-medium text-gray-500">Feature</th>
+            {orderedPlanIds.map((id: string) => (
+              <th key={id} className="text-center py-4 px-4 font-bold text-gray-900">
+                {plans[id]?.displayName}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {Object.entries(categories).map(([category, featureIds]: [string, string[]]) => (
-            <>
-              <tr key={category} className="bg-gray-50">
-                <td colSpan={5} className="py-3 px-4 font-bold text-gray-700">{category}</td>
-              </tr>
-              {featureIds.map((featureId: string) => (
-                <tr key={featureId} className="border-b">
-                  <td className="py-3 px-4 text-gray-600">
-                    {features[featureId]?.name || featureId}
-                  </td>
-                  {packageList.map((pkg: string) => (
-                    <td key={pkg} className="text-center py-3 px-4">
-                      {packages[pkg]?.features?.includes(featureId) ? (
-                        <Check className="w-5 h-5 text-green-600 mx-auto" />
-                      ) : (
-                        <X className="w-5 h-5 text-gray-300 mx-auto" />
-                      )}
-                    </td>
-                  ))}
-                </tr>
+          {featureList.map((feature: string) => (
+            <tr key={feature} className="border-b">
+              <td className="py-3 px-4 text-gray-600">{feature}</td>
+              {orderedPlanIds.map((id: string) => (
+                <td key={id} className="text-center py-3 px-4">
+                  {plans[id]?.heroFeatures?.includes(feature) ? (
+                    <Check className="w-5 h-5 text-green-600 mx-auto" />
+                  ) : (
+                    <X className="w-5 h-5 text-gray-300 mx-auto" />
+                  )}
+                </td>
               ))}
-            </>
+            </tr>
           ))}
         </tbody>
       </table>

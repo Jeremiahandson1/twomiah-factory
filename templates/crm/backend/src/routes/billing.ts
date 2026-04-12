@@ -15,7 +15,7 @@ import { company } from '../../db/schema.ts'
 import { eq, and, or, gt, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import billing from '../services/billing.ts'
-import { SAAS_TIERS, WEBSITE_TIERS } from '../config/pricing.ts'
+import { SAAS_TIERS, WEBSITE_TIERS, FEATURE_BUNDLES } from '../config/pricing.ts'
 import Stripe from 'stripe'
 
 const app = new Hono()
@@ -56,19 +56,20 @@ const WEBSITE_PRICING: Record<string, { monthly: number; annual: number; name: s
   ])
 )
 
-// Add-on pricing in cents (monthly)
-const ADDON_PRICING: Record<string, any> = {
-  sms: { price: 3900, name: 'SMS Communication', features: ['sms', 'sms_templates', 'scheduled_sms'] },
-  gps_field: { price: 4900, name: 'GPS & Field', features: ['gps_tracking', 'geofencing', 'route_optimization', 'auto_clock'] },
-  inventory: { price: 4900, name: 'Inventory', features: ['inventory', 'inventory_locations', 'stock_levels', 'inventory_transfers', 'purchase_orders'] },
-  fleet: { price: 3900, name: 'Fleet Management', features: ['fleet_vehicles', 'fleet_maintenance', 'fleet_fuel'] },
-  equipment: { price: 2900, name: 'Equipment Tracking', features: ['equipment_tracking', 'equipment_maintenance'] },
-  marketing: { price: 5900, name: 'Marketing Suite', features: ['review_requests', 'email_campaigns', 'call_tracking'] },
-  construction_pm: { price: 14900, name: 'Construction PM', features: ['projects', 'change_orders', 'rfis', 'submittals', 'daily_logs', 'punch_lists', 'inspections'] },
-  compliance: { price: 7900, name: 'Compliance & Draws', features: ['lien_waivers', 'draw_schedules', 'draw_requests', 'aia_forms'] },
-  forms: { price: 2900, name: 'Custom Forms', features: ['custom_forms'] },
-  integrations: { price: 4900, name: 'Integrations', features: ['quickbooks_sync', 'consumer_financing'] },
-}
+// Built dynamically from canonical FEATURE_BUNDLES in pricing.ts so per-vertical
+// bundles flow through automatically (Care has different bundles than Roof, etc).
+const ADDON_PRICING: Record<string, any> = Object.fromEntries(
+  Object.entries(FEATURE_BUNDLES).map(([id, bundle]: [string, any]) => [
+    id,
+    {
+      price: bundle.price,
+      name: bundle.name,
+      description: bundle.description,
+      features: bundle.features ?? [],
+      subFeatures: bundle.subFeatures ?? null,
+    },
+  ])
+)
 
 // Self-hosted license pricing in cents (one-time)
 const SELF_HOSTED_PRICING: Record<string, any> = {
