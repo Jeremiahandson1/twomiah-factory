@@ -50,6 +50,8 @@ import AdsPage from '../pages/ads/AdsPage';
 import PayersServiceCodes from './admin/PayersServiceCodes';
 import AuthorizationsManagement from './admin/AuthorizationsManagement';
 import EVVDashboard from './admin/EVVDashboard';
+import LeadInboxPage from '../pages/leads/LeadInboxPage';
+import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
 
 const NAV_SECTIONS = [
   {
@@ -60,6 +62,8 @@ const NAV_SECTIONS = [
       { id: 'onboarding', label: 'Onboarding', icon: '📋' },
       { id: 'referrals', label: 'Referral Sources', icon: '🏥' },
       { id: 'care-plans', label: 'Care Plans', icon: '❤️' },
+      { id: 'lead-inbox', label: 'Lead Inbox', icon: '📥' },
+      { id: 'lead-sources', label: 'Lead Sources', icon: '🔗' },
     ]
   },
   {
@@ -288,6 +292,8 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'revenue-forecast': return <RevenueForecast />;
       case 'ai-receptionist': return <AIReceptionist />;
       case 'ads': return <AdsPage />;
+      case 'lead-inbox': return <LeadInboxPage />;
+      case 'lead-sources': return <LeadSourcesPage />;
       case 'payers-service-codes': return <PayersServiceCodes />;
       case 'authorizations': return <AuthorizationsManagement />;
       case 'evv': return <EVVDashboard />;
