@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import {
   Inbox, Phone, MessageSquare, UserPlus, XCircle, Filter,
   Search, RefreshCw, ExternalLink, Clock, TrendingUp, ChevronDown
 } from 'lucide-react';
+import api from '../../services/api';
 
 interface Lead {
   id: string;
@@ -43,7 +43,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export default function LeadInboxPage() {
-  const { token } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,45 +56,47 @@ export default function LeadInboxPage() {
 
   const fetchLeads = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: '25' });
-    if (statusFilter) params.set('status', statusFilter);
-    if (sourceFilter) params.set('source', sourceFilter);
-    if (search) params.set('search', search);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '25' });
+      if (statusFilter) params.set('status', statusFilter);
+      if (sourceFilter) params.set('source', sourceFilter);
+      if (search) params.set('search', search);
 
-    const res = await fetch(`/api/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    setLeads(json.data || []);
-    setTotalPages(json.pagination?.pages || 1);
-    setLoading(false);
-  }, [token, page, statusFilter, sourceFilter, search]);
+      const json = await api.get(`/api/leads?${params}`);
+      setLeads(json.data || []);
+      setTotalPages(json.pagination?.pages || 1);
+    } catch (error) {
+      console.error('Failed to load leads:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, statusFilter, sourceFilter, search]);
 
   const fetchStats = useCallback(async () => {
-    const res = await fetch('/api/leads/stats', { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    setStats(json);
-  }, [token]);
+    try {
+      const json = await api.get('/api/leads/stats');
+      setStats(json);
+    } catch (error) {
+      console.error('Failed to load lead stats:', error);
+    }
+  }, []);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const updateStatus = async (id: string, status: string) => {
-    await fetch(`/api/leads/${id}/status`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
+    await api.put(`/api/leads/${id}/status`, { status });
     fetchLeads();
     fetchStats();
   };
 
   const convertToContact = async (id: string) => {
-    const res = await fetch(`/api/leads/${id}/convert`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
+    try {
+      await api.post(`/api/leads/${id}/convert`);
       fetchLeads();
       fetchStats();
+    } catch (error) {
+      console.error('Failed to convert lead:', error);
     }
   };
 

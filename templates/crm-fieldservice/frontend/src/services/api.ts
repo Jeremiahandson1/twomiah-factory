@@ -187,7 +187,7 @@ class ApiClient {
   // SMS
   sms = {
     conversations: (params) => this.get('/api/sms/conversations', params),
-    messages: (conversationId) => this.get(`/api/sms/conversations/${conversationId}/messages`),
+    messages: (conversationId) => this.get(`/api/sms/conversations/${conversationId}`).then(data => data?.messages || []),
     send: (data) => this.post('/api/sms/send', data),
     jobUpdate: (jobId, data) => this.post(`/api/sms/job-update/${jobId}`, data),
   };

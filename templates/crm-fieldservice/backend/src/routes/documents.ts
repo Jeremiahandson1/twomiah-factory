@@ -85,7 +85,13 @@ app.get('/:id', async (c) => {
 // Upload document
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
-  const body = await c.req.parseBody()
+
+  let body: Record<string, any>
+  try {
+    body = await c.req.parseBody()
+  } catch (err: any) {
+    return c.json({ error: 'Invalid request body. Expected multipart/form-data with a file.' }, 400)
+  }
 
   const file = body['file'] as File | undefined
   if (!file || !(file instanceof File)) {
@@ -119,31 +125,36 @@ app.post('/', async (c) => {
   const jobId = body['jobId'] as string | undefined
   const invoiceId = body['invoiceId'] as string | undefined
 
-  const [doc] = await db.insert(document).values({
-    companyId: currentUser.companyId,
-    name,
-    description,
-    type,
-    filename: path.basename(filePath),
-    originalName: uploaded.originalname,
-    mimeType: uploaded.mimetype,
-    size: uploaded.size,
-    path: filePath,
-    url: fileService.getFileUrl(filePath, currentUser.companyId),
-    thumbnailUrl: thumbnailPath ? fileService.getFileUrl(thumbnailPath, currentUser.companyId) : null,
-    projectId: projectId || null,
-    contactId: contactId || null,
-    jobId: jobId || null,
-    invoiceId: invoiceId || null,
-    uploadedById: currentUser.userId,
-  }).returning()
+  try {
+    const [doc] = await db.insert(document).values({
+      companyId: currentUser.companyId,
+      name,
+      description,
+      type,
+      filename: path.basename(filePath),
+      originalName: uploaded.originalname,
+      mimeType: uploaded.mimetype,
+      size: uploaded.size,
+      path: filePath,
+      url: fileService.getFileUrl(filePath, currentUser.companyId),
+      thumbnailUrl: thumbnailPath ? fileService.getFileUrl(thumbnailPath, currentUser.companyId) : null,
+      projectId: projectId || null,
+      contactId: contactId || null,
+      jobId: jobId || null,
+      invoiceId: invoiceId || null,
+      uploadedById: currentUser.userId,
+    }).returning()
 
-  logger.audit('document_upload', currentUser.userId, currentUser.companyId, {
-    documentId: doc.id,
-    filename: doc.originalName,
-  })
+    logger.audit('document_upload', currentUser.userId, currentUser.companyId, {
+      documentId: doc.id,
+      filename: doc.originalName,
+    })
 
-  return c.json(doc, 201)
+    return c.json(doc, 201)
+  } catch (err: any) {
+    logger.logError(err, null, { action: 'document_insert' })
+    return c.json({ error: 'Failed to save document record', details: err.message }, 400)
+  }
 })
 
 // Upload multiple documents

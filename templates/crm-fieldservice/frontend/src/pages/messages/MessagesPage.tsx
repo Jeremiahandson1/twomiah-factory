@@ -41,11 +41,10 @@ export default function MessagesPage() {
     setSelectedConversation(conv);
     setLoadingMessages(true);
     try {
-      const data = await api.get(`/api/sms/conversations/${conv.id}/messages`);
-      setMessages(data || []);
-      // Mark as read
+      const data = await api.get(`/api/sms/conversations/${conv.id}`);
+      setMessages(data?.messages || []);
+      // The backend marks as read when fetching, so just refresh the list
       if (conv.unreadCount > 0) {
-        await api.post(`/api/sms/conversations/${conv.id}/read`);
         loadConversations();
       }
     } catch (error) {
@@ -245,8 +244,8 @@ function MessageThread({ messages, loading, conversationId, onMessageSent }) {
 
     setSending(true);
     try {
-      await api.post(`/api/sms/conversations/${conversationId}/messages`, {
-        body: newMessage,
+      await api.post(`/api/sms/conversations/${conversationId}/reply`, {
+        message: newMessage,
       });
       setNewMessage('');
       onMessageSent();
@@ -384,8 +383,8 @@ function NewMessageModal({ onSend, onClose }) {
     setSending(true);
     try {
       const result = await api.post('/api/sms/send', {
-        to: phone,
-        body: message,
+        toPhone: phone,
+        message,
       });
       onSend(result.conversation);
     } catch (error) {
