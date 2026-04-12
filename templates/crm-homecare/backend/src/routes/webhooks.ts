@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { clients } from '../../db/schema.ts'
+import { lead, agencies } from '../../db/schema.ts'
 import logger from '../services/logger.ts'
 
 const app = new Hono()
@@ -19,33 +19,33 @@ app.post('/leads', async (c) => {
   }
 
   const body = await c.req.json()
-  const { name, email, phone, service, message, source, address, city, state, zip } = body
+  const { name, email, phone, service, message, source, address } = body
 
   if (!name) {
     return c.json({ error: 'Name is required' }, 400)
   }
 
-  // Split name into first/last
-  const parts = name.trim().split(/\s+/)
-  const firstName = parts[0] || name
-  const lastName = parts.slice(1).join(' ') || ''
+  // Get the company ID (single-tenant DB — first agency)
+  const [company] = await db.select({ id: agencies.id }).from(agencies).limit(1)
+  if (!company) {
+    return c.json({ error: 'No company configured' }, 500)
+  }
 
-  const [newClient] = await db.insert(clients).values({
-    firstName,
-    lastName,
+  const [newLead] = await db.insert(lead).values({
+    companyId: company.id,
+    homeownerName: name,
     email: email || undefined,
     phone: phone || undefined,
-    address: address || undefined,
-    city: city || undefined,
-    state: state || undefined,
-    zip: zip || undefined,
-    serviceType: service || undefined,
-    isActive: true,
+    jobType: service || undefined,
+    location: address || undefined,
+    description: message || undefined,
+    sourcePlatform: source || 'website',
+    status: 'new',
   }).returning()
 
-  logger.info('Webhook: Lead created as client', { id: newClient.id, name, source: source || 'website' })
+  logger.info('Webhook: Lead created from website', { id: newLead.id, name, source: source || 'website' })
 
-  return c.json({ success: true, id: newClient.id }, 201)
+  return c.json({ success: true, id: newLead.id }, 201)
 })
 
 export default app
