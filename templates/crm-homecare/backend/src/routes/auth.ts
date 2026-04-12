@@ -8,8 +8,8 @@ import { authenticate, logAuthEvent } from '../middleware/auth.ts'
 
 const app = new Hono()
 
-const generateTokens = (userId: string, email: string, role: string) => {
-  const accessToken = jwt.sign({ userId, email, role }, process.env.JWT_SECRET!, { expiresIn: '15m' })
+const generateTokens = (userId: string, email: string, role: string, companyId?: string) => {
+  const accessToken = jwt.sign({ userId, email, role, companyId }, process.env.JWT_SECRET!, { expiresIn: '15m' })
   const refreshToken = jwt.sign({ userId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!, { expiresIn: '7d' })
   return { accessToken, refreshToken }
 }
@@ -39,13 +39,13 @@ app.post('/login', async (c) => {
     return c.json({ error: 'Invalid credentials' }, 401)
   }
 
-  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role)
+  // Fetch agency for company info + include in JWT for companyId-scoped queries
+  const [agency] = await db.select().from(agencies).limit(1)
+
+  const { accessToken, refreshToken } = generateTokens(user.id, user.email, user.role, agency?.id)
 
   await db.update(users).set({ lastLogin: new Date(), refreshToken, updatedAt: new Date() }).where(eq(users.id, user.id))
   await logAuthEvent({ email, userId: user.id, success: true, ipAddress: ip, userAgent: ua })
-
-  // Fetch agency for company info
-  const [agency] = await db.select().from(agencies).limit(1)
 
   return c.json({
     accessToken,
@@ -68,7 +68,8 @@ app.post('/refresh', async (c) => {
       return c.json({ error: 'Invalid refresh token' }, 401)
     }
 
-    const tokens = generateTokens(user.id, user.email, user.role)
+    const [agency] = await db.select({ id: agencies.id }).from(agencies).limit(1)
+    const tokens = generateTokens(user.id, user.email, user.role, agency?.id)
     await db.update(users).set({ refreshToken: tokens.refreshToken, updatedAt: new Date() }).where(eq(users.id, user.id))
 
     return c.json(tokens)
