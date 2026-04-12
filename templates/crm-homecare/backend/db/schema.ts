@@ -23,6 +23,8 @@ export const agencies = pgTable('agencies', {
   settings: json('settings').default({}).notNull(),
   stripeCustomerId: text('stripe_customer_id').unique(),
   subscriptionTier: text('subscription_tier'),
+  enabledFeatures: json('enabled_features').default([]).notNull(),
+  lifetimeAccess: boolean('lifetime_access').default(false).notNull(),
   twilioPhoneNumber: text('twilio_phone_number'),
   twilioAccountSid: text('twilio_account_sid'),
   twilioAuthToken: text('twilio_auth_token'),

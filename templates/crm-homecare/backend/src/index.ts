@@ -25,6 +25,7 @@ import caregiversRoutes from './routes/caregivers.ts'
 import schedulingRoutes from './routes/scheduling.ts'
 import timeTrackingRoutes from './routes/timeTracking.ts'
 import billingRoutes from './routes/billing.ts'
+import saasBillingRoutes from './routes/saasBilling.ts'
 let payrollRoutes: any = null
 try { payrollRoutes = (await import('./routes/payroll.ts')).default } catch {}
 import complianceRoutes from './routes/compliance.ts'
@@ -160,6 +161,7 @@ app.route('/api/caregivers', caregiversRoutes)
 app.route('/api/scheduling', schedulingRoutes)
 app.route('/api/time-tracking', timeTrackingRoutes)
 app.route('/api/billing', billingRoutes)
+app.route('/api/subscription', saasBillingRoutes)
 if (payrollRoutes) app.route('/api/payroll', payrollRoutes)
 app.route('/api/compliance', complianceRoutes)
 app.route('/api/communication', communicationRoutes)

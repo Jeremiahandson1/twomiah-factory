@@ -10,6 +10,7 @@ import MessageBoard from './admin/MessageBoard';
 import IntegrationsHub from './admin/IntegrationsHub';
 
 // Admin pages
+import SubscriptionPricingPage from '../pages/billing/PricingPage';
 import DashboardOverview from './admin/DashboardOverview';
 import ReferralSources from './admin/ReferralSources';
 import ClientsManagement from './admin/ClientsManagement';
@@ -253,6 +254,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'clients': return <ClientsManagement />;
       case 'caregivers': return <CaregiverManagement onViewProfile={handleViewCaregiverProfile} onViewHistory={handleViewCaregiverHistory} />;
       case 'billing': return <BillingDashboard />;
+      case 'subscription-pricing': return <SubscriptionPricingPage />;
       case 'scheduling': return <SchedulingHub />;
       case 'emergency-coverage': return <EmergencyCoverage />;
       case 'route-optimizer': return <RouteOptimizer />;

@@ -15,6 +15,7 @@ export const company = pgTable('company', {
   zip: text('zip'),
   primaryColor: text('primary_color').default('{{PRIMARY_COLOR}}').notNull(),
   enabledFeatures: json('enabled_features').default([]).notNull(),
+  lifetimeAccess: boolean('lifetime_access').default(false).notNull(),
   settings: json('settings').default({}).notNull(),
   integrations: json('integrations').default({}).notNull(),
 

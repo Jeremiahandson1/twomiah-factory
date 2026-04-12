@@ -20,7 +20,9 @@
 
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { company } from '../../db/schema.ts'
+// Care's tenant table is `agencies` — aliased to `company` so the rest of
+// this ported file reads unchanged.
+import { agencies as company } from '../../db/schema.ts'
 import { eq, and, or, gt, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import billing from '../services/billing.ts'

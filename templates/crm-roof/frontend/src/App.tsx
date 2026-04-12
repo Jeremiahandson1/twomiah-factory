@@ -30,6 +30,7 @@ import RoofReportDetail from './pages/roofReports/RoofReportDetail'
 import VisualizerTrialPage from './pages/VisualizerTrialPage'
 import PricebookTrialPage from './pages/PricebookTrialPage'
 import EstimatorTrialPage from './pages/EstimatorTrialPage'
+import BillingPricingPage from './pages/billing/PricingPage'
 import EstimatorPage from './pages/EstimatorPage'
 import CustomerPortal from './pages/CustomerPortal'
 import LoginPage from './pages/LoginPage'
@@ -100,6 +101,7 @@ export default function App() {
                 <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                 <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />
+                <Route path="billing/pricing" element={<BillingPricingPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" />} />
