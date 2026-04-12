@@ -1,17 +1,21 @@
 /**
- * {{COMPANY_NAME}} Pricing Configuration
+ * {{COMPANY_NAME}} Pricing Configuration — Roofing (Roof)
  *
  * Single source of truth for all pricing:
  * - Website subscription tiers (standalone)
  * - SaaS CRM subscription tiers (with bundled websites at Pro+)
  * - Self-hosted license packages
  * - À la carte feature bundles
- * - Individual sub-features
+ *
+ * Roof-specific tier naming:
+ * - Top tier is "Storm" (built for storm chasers — unlimited reports, canvassing,
+ *   full insurance workflow with supplements) not "Construction"
  *
  * Pricing philosophy:
  * - Annual = exactly 2 months free (monthly × 10)
- * - Pro CRM and higher include a matching website tier at no extra cost
- *   (Pro = Showcase, Business = Book Jobs, Construction = Book Jobs + Portfolio)
+ * - Pro+ tiers include a matching website tier at no extra cost
+ * - Business tier includes the instant estimator ON the website — the killer
+ *   roofing feature that turns web visitors into booked inspections
  */
 
 // ============================================
@@ -110,15 +114,15 @@ export const SAAS_TIERS = {
   starter: {
     id: 'starter',
     name: 'Starter',
-    description: 'Everything you need to run a contracting business',
+    description: 'Leads, jobs, quotes, and invoicing',
     tagline: 'CRM only — pair with any website tier',
-    price: 4900, // cents
-    priceAnnual: 49000, // $490/yr (2 months free)
+    price: 4900,
+    priceAnnual: 49000,
     interval: 'month',
-    bundledWebsite: null, // No website included at Starter
+    bundledWebsite: null,
     heroFeatures: [
-      'Contacts & jobs',
-      'Scheduling & dispatch',
+      'Lead intake',
+      'Job tracking',
       'Quotes & invoices',
       'Payments',
       'Customer portal',
@@ -157,17 +161,17 @@ export const SAAS_TIERS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    description: 'Scale your crew — website included',
+    description: 'Good-Better-Best pricing + website',
     tagline: 'CRM + Showcase website',
     price: 14900,
-    priceAnnual: 149000, // $1,490/yr (2 months free)
+    priceAnnual: 149000,
     interval: 'month',
-    bundledWebsite: 'showcase', // Showcase site ($49 value) included
+    bundledWebsite: 'showcase',
     heroFeatures: [
-      'Team management',
-      'Job costing & pricebook',
-      'QuickBooks sync',
-      'Recurring jobs',
+      'Good-Better-Best pricing',
+      'Pricebook',
+      'Measurement reports (3/mo)',
+      'Review requests',
       'Showcase website included',
     ],
     users: {
@@ -220,17 +224,17 @@ export const SAAS_TIERS = {
   business: {
     id: 'business',
     name: 'Business',
-    description: 'Run your entire operation',
-    tagline: 'CRM + Book Jobs website',
+    description: 'Instant estimator + insurance workflow',
+    tagline: 'CRM + Book Jobs website with estimator',
     price: 29900,
-    priceAnnual: 299000, // $2,990/yr (2 months free)
+    priceAnnual: 299000,
     interval: 'month',
-    bundledWebsite: 'book_jobs', // Book Jobs site ($99 value) included
+    bundledWebsite: 'book_jobs',
     heroFeatures: [
-      'Inventory management',
-      'Change orders',
+      'Instant estimator on website ($350–$550/sq)',
+      '10 measurement reports/mo',
+      'Insurance workflow',
       'Consumer financing',
-      'Advanced reporting',
       'Book Jobs website included',
     ],
     users: {
@@ -300,21 +304,23 @@ export const SAAS_TIERS = {
     cta: 'Start Free Trial',
   },
 
-  construction: {
-    id: 'construction',
-    name: 'Construction',
-    description: 'Complete construction management',
-    tagline: 'Full construction platform + portfolio website',
+  // Top tier for Roof is "Storm" — built for storm chasers.
+  // Unlimited reports, canvassing, full insurance workflow with supplements.
+  storm: {
+    id: 'storm',
+    name: 'Storm',
+    description: 'Built for storm chasers and busy seasons',
+    tagline: 'Unlimited reports + canvassing + full insurance workflow',
     price: 59900,
-    priceAnnual: 599000, // $5,990/yr (2 months free)
+    priceAnnual: 599000,
     interval: 'month',
-    bundledWebsite: 'book_jobs', // Book Jobs + portfolio features
+    bundledWebsite: 'book_jobs',
     heroFeatures: [
-      'Projects, RFIs & submittals',
-      'Draw schedules & lien waivers',
-      'AIA G702/G703 forms',
-      'Takeoffs & selections',
-      'Portfolio website with gallery',
+      'Unlimited measurement reports',
+      'Storm lead generation',
+      'Full insurance workflow + supplements',
+      'Door-knock canvassing tool',
+      'Estimator + service area pages',
     ],
     users: {
       included: 20,
@@ -503,12 +509,12 @@ export const SELF_HOSTED_PACKAGES = {
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_BUSINESS,
   },
 
-  construction: {
-    id: 'construction',
-    name: 'Construction License',
-    description: 'Full construction management for self-hosting',
+  storm: {
+    id: 'storm',
+    name: 'Storm License',
+    description: 'Full roofing platform for self-hosting',
     price: 999700, // $9,997
-    features: SAAS_TIERS.construction.features,
+    features: SAAS_TIERS.storm.features,
     includes: [
       'Full source code',
       'Database schema',
@@ -828,7 +834,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'remodeler',
     name: 'Remodeler',
     description: 'Home remodeling contractor',
-    recommendedTier: 'construction',
+    recommendedTier: 'storm',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'selections', 'daily_logs', 'punch_lists',
@@ -839,7 +845,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'general_contractor',
     name: 'General Contractor',
     description: 'Commercial or residential GC',
-    recommendedTier: 'construction',
+    recommendedTier: 'storm',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'rfis', 'submittals', 'daily_logs',
@@ -851,7 +857,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'home_builder',
     name: 'Home Builder',
     description: 'New home construction',
-    recommendedTier: 'construction',
+    recommendedTier: 'storm',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'selections', 'selection_portal',
@@ -937,7 +943,7 @@ export function tierHasFeature(tierId: string, featureId: string) {
  * Get the minimum tier that includes a feature
  */
 export function getMinTierForFeature(featureId: string) {
-  const tierOrder = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+  const tierOrder = ['starter', 'pro', 'business', 'storm', 'enterprise'];
   for (const tierId of tierOrder) {
     if (tierHasFeature(tierId, featureId)) {
       return tierId;
@@ -1011,7 +1017,7 @@ export function getRecommendedTier(userCount: number) {
   if (userCount <= 2) return 'starter';
   if (userCount <= 5) return 'pro';
   if (userCount <= 15) return 'business';
-  if (userCount <= 20) return 'construction';
+  if (userCount <= 20) return 'storm';
   return 'enterprise';
 }
 
@@ -1022,7 +1028,7 @@ export function shouldPromptUpgrade(currentTier: string, addons: string[] = [], 
   const tier = SAAS_TIERS[currentTier];
   if (!tier) return null;
 
-  const tierOrder = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+  const tierOrder = ['starter', 'pro', 'business', 'storm', 'enterprise'];
   const currentIndex = tierOrder.indexOf(currentTier);
   if (currentIndex >= tierOrder.length - 1) return null;
 

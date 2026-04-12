@@ -1,17 +1,18 @@
 /**
- * {{COMPANY_NAME}} Pricing Configuration
+ * {{COMPANY_NAME}} Pricing Configuration — Home Care (Care)
  *
  * Single source of truth for all pricing:
  * - Website subscription tiers (standalone)
  * - SaaS CRM subscription tiers (with bundled websites at Pro+)
  * - Self-hosted license packages
  * - À la carte feature bundles
- * - Individual sub-features
+ *
+ * Care-specific tier naming:
+ * - Top tier is "Agency" (full claims + reconciliation + multi-branch) not "Construction"
  *
  * Pricing philosophy:
  * - Annual = exactly 2 months free (monthly × 10)
- * - Pro CRM and higher include a matching website tier at no extra cost
- *   (Pro = Showcase, Business = Book Jobs, Construction = Book Jobs + Portfolio)
+ * - Pro+ tiers include a matching website tier at no extra cost
  */
 
 // ============================================
@@ -110,18 +111,18 @@ export const SAAS_TIERS = {
   starter: {
     id: 'starter',
     name: 'Starter',
-    description: 'Everything you need to run a contracting business',
+    description: 'Client records, schedules, and time tracking',
     tagline: 'CRM only — pair with any website tier',
-    price: 4900, // cents
-    priceAnnual: 49000, // $490/yr (2 months free)
+    price: 4900,
+    priceAnnual: 49000,
     interval: 'month',
-    bundledWebsite: null, // No website included at Starter
+    bundledWebsite: null,
     heroFeatures: [
-      'Contacts & jobs',
-      'Scheduling & dispatch',
-      'Quotes & invoices',
-      'Payments',
-      'Customer portal',
+      'Client & caregiver records',
+      'Visit scheduling',
+      'Time tracking & EVV',
+      'Basic invoicing',
+      'Caregiver mobile app',
     ],
     users: {
       included: 2,
@@ -157,17 +158,17 @@ export const SAAS_TIERS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    description: 'Scale your crew — website included',
+    description: 'Private-pay billing engine + website',
     tagline: 'CRM + Showcase website',
     price: 14900,
-    priceAnnual: 149000, // $1,490/yr (2 months free)
+    priceAnnual: 149000,
     interval: 'month',
-    bundledWebsite: 'showcase', // Showcase site ($49 value) included
+    bundledWebsite: 'showcase',
     heroFeatures: [
-      'Team management',
-      'Job costing & pricebook',
-      'QuickBooks sync',
-      'Recurring jobs',
+      'Private-pay rate engine',
+      'Care types & rates',
+      'Caregiver bio pages',
+      'Referral tracking',
       'Showcase website included',
     ],
     users: {
@@ -220,17 +221,17 @@ export const SAAS_TIERS = {
   business: {
     id: 'business',
     name: 'Business',
-    description: 'Run your entire operation',
+    description: 'Medicare & Medicaid claims',
     tagline: 'CRM + Book Jobs website',
     price: 29900,
-    priceAnnual: 299000, // $2,990/yr (2 months free)
+    priceAnnual: 299000,
     interval: 'month',
-    bundledWebsite: 'book_jobs', // Book Jobs site ($99 value) included
+    bundledWebsite: 'book_jobs',
     heroFeatures: [
-      'Inventory management',
-      'Change orders',
-      'Consumer financing',
-      'Advanced reporting',
+      'Medicare / Medicaid billing',
+      'Referral source rates',
+      'Authorized units tracking',
+      'Claim generation',
       'Book Jobs website included',
     ],
     users: {
@@ -300,21 +301,22 @@ export const SAAS_TIERS = {
     cta: 'Start Free Trial',
   },
 
-  construction: {
-    id: 'construction',
-    name: 'Construction',
-    description: 'Complete construction management',
-    tagline: 'Full construction platform + portfolio website',
+  // Top tier for Care is "Agency" — full claims processing, reconciliation, multi-branch.
+  agency: {
+    id: 'agency',
+    name: 'Agency',
+    description: 'Full agency operations platform',
+    tagline: 'Full claims + multi-branch + caregiver portal website',
     price: 59900,
-    priceAnnual: 599000, // $5,990/yr (2 months free)
+    priceAnnual: 599000,
     interval: 'month',
-    bundledWebsite: 'book_jobs', // Book Jobs + portfolio features
+    bundledWebsite: 'book_jobs',
     heroFeatures: [
-      'Projects, RFIs & submittals',
-      'Draw schedules & lien waivers',
-      'AIA G702/G703 forms',
-      'Takeoffs & selections',
-      'Portfolio website with gallery',
+      'Full claims processing',
+      'Check scanning & reconciliation',
+      'Multi-branch operations',
+      'HIPAA-grade audit logs',
+      'Caregiver portal website included',
     ],
     users: {
       included: 20,
@@ -503,12 +505,12 @@ export const SELF_HOSTED_PACKAGES = {
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_BUSINESS,
   },
 
-  construction: {
-    id: 'construction',
-    name: 'Construction License',
-    description: 'Full construction management for self-hosting',
+  agency: {
+    id: 'agency',
+    name: 'Agency License',
+    description: 'Full home care agency platform for self-hosting',
     price: 999700, // $9,997
-    features: SAAS_TIERS.construction.features,
+    features: SAAS_TIERS.agency.features,
     includes: [
       'Full source code',
       'Database schema',
@@ -828,7 +830,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'remodeler',
     name: 'Remodeler',
     description: 'Home remodeling contractor',
-    recommendedTier: 'construction',
+    recommendedTier: 'agency',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'selections', 'daily_logs', 'punch_lists',
@@ -839,7 +841,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'general_contractor',
     name: 'General Contractor',
     description: 'Commercial or residential GC',
-    recommendedTier: 'construction',
+    recommendedTier: 'agency',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'rfis', 'submittals', 'daily_logs',
@@ -851,7 +853,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'home_builder',
     name: 'Home Builder',
     description: 'New home construction',
-    recommendedTier: 'construction',
+    recommendedTier: 'agency',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'selections', 'selection_portal',
@@ -937,7 +939,7 @@ export function tierHasFeature(tierId: string, featureId: string) {
  * Get the minimum tier that includes a feature
  */
 export function getMinTierForFeature(featureId: string) {
-  const tierOrder = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+  const tierOrder = ['starter', 'pro', 'business', 'agency', 'enterprise'];
   for (const tierId of tierOrder) {
     if (tierHasFeature(tierId, featureId)) {
       return tierId;
@@ -1011,7 +1013,7 @@ export function getRecommendedTier(userCount: number) {
   if (userCount <= 2) return 'starter';
   if (userCount <= 5) return 'pro';
   if (userCount <= 15) return 'business';
-  if (userCount <= 20) return 'construction';
+  if (userCount <= 20) return 'agency';
   return 'enterprise';
 }
 
@@ -1022,7 +1024,7 @@ export function shouldPromptUpgrade(currentTier: string, addons: string[] = [], 
   const tier = SAAS_TIERS[currentTier];
   if (!tier) return null;
 
-  const tierOrder = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+  const tierOrder = ['starter', 'pro', 'business', 'agency', 'enterprise'];
   const currentIndex = tierOrder.indexOf(currentTier);
   if (currentIndex >= tierOrder.length - 1) return null;
 

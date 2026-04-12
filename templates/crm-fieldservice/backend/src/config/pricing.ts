@@ -1,25 +1,96 @@
 /**
- * {{COMPANY_NAME}} Pricing Configuration
- * 
+ * {{COMPANY_NAME}} Pricing Configuration — Field Service (Wrench)
+ *
  * Single source of truth for all pricing:
- * - SaaS subscription tiers
+ * - Website subscription tiers (standalone)
+ * - SaaS CRM subscription tiers (with bundled websites at Pro+)
  * - Self-hosted license packages
  * - À la carte feature bundles
  * - Individual sub-features
+ *
+ * Wrench-specific tier naming:
+ * - Top tier is "Fleet" (multi-location dispatch) not "Construction"
+ *
+ * Pricing philosophy:
+ * - Annual = exactly 2 months free (monthly × 10)
+ * - Pro+ tiers include a matching website tier at no extra cost
  */
+
+// ============================================
+// WEBSITE SUBSCRIPTION TIERS (standalone)
+// ============================================
+
+export const WEBSITE_TIERS = {
+  presence: {
+    id: 'presence',
+    name: 'Presence',
+    tagline: 'Get found online',
+    description: 'One-page lead capture site with CMS — your phone number, service area, and a form, online and professional.',
+    price: 1900,
+    priceAnnual: 19000,
+    interval: 'month',
+    features: ['one_page_site', 'cms', 'lead_form', 'custom_domain_byo', 'mobile_responsive', 'ssl'],
+    stripePriceId: process.env.STRIPE_PRICE_WEBSITE_PRESENCE,
+    stripePriceIdAnnual: process.env.STRIPE_PRICE_WEBSITE_PRESENCE_ANNUAL,
+    highlight: false,
+    cta: 'Start Free Trial',
+  },
+
+  showcase: {
+    id: 'showcase',
+    name: 'Showcase',
+    tagline: 'Show off your work',
+    description: 'Full multi-page site with CMS, blog, and SEO — trust signals, service pages, and before/after galleries.',
+    price: 4900,
+    priceAnnual: 49000,
+    interval: 'month',
+    features: ['multi_page_site', 'cms', 'blog', 'seo_basics', 'photo_galleries', 'contact_forms', 'google_maps', 'reviews_widget', 'custom_domain_byo', 'mobile_responsive', 'ssl'],
+    stripePriceId: process.env.STRIPE_PRICE_WEBSITE_SHOWCASE,
+    stripePriceIdAnnual: process.env.STRIPE_PRICE_WEBSITE_SHOWCASE_ANNUAL,
+    highlight: true,
+    cta: 'Start Free Trial',
+  },
+
+  book_jobs: {
+    id: 'book_jobs',
+    name: 'Book Jobs',
+    tagline: 'Turn visitors into booked jobs',
+    description: 'Full site with online booking, quote requests, and service area pages — remove the phone tag that costs you jobs.',
+    price: 9900,
+    priceAnnual: 99000,
+    interval: 'month',
+    features: ['multi_page_site', 'cms', 'blog', 'seo_basics', 'photo_galleries', 'online_booking', 'quote_requests', 'service_area_pages', 'google_analytics', 'custom_domain_byo', 'mobile_responsive', 'ssl'],
+    stripePriceId: process.env.STRIPE_PRICE_WEBSITE_BOOK_JOBS,
+    stripePriceIdAnnual: process.env.STRIPE_PRICE_WEBSITE_BOOK_JOBS_ANNUAL,
+    highlight: false,
+    cta: 'Start Free Trial',
+  },
+};
+
 
 // ============================================
 // SAAS SUBSCRIPTION TIERS
 // ============================================
+// Annual pricing = monthly × 10 (exactly 2 months free).
+// Pro+ tiers include a bundled website tier automatically.
 
 export const SAAS_TIERS = {
   starter: {
     id: 'starter',
     name: 'Starter',
-    description: 'Everything you need to run a service business',
-    price: 4900, // cents
-    priceAnnual: 47000, // cents ($470/yr = ~20% savings)
+    description: 'Everything you need to run a field service business',
+    tagline: 'CRM only — pair with any website tier',
+    price: 4900,
+    priceAnnual: 49000, // $490/yr (2 months free)
     interval: 'month',
+    bundledWebsite: null,
+    heroFeatures: [
+      'Jobs & scheduling',
+      'Quotes & invoices',
+      'Payments',
+      'Customer portal',
+      'Mobile tech app',
+    ],
     users: {
       included: 2,
       max: 2,
@@ -54,10 +125,19 @@ export const SAAS_TIERS = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    description: 'Scale your field operations',
+    description: 'GPS, routing, and a website — all included',
+    tagline: 'CRM + Showcase website',
     price: 14900,
-    priceAnnual: 143000, // ~20% savings
+    priceAnnual: 149000, // $1,490/yr (2 months free)
     interval: 'month',
+    bundledWebsite: 'showcase',
+    heroFeatures: [
+      'GPS tracking & geofencing',
+      'Route optimization',
+      'Flat-rate pricebook',
+      'Service agreements',
+      'Showcase website included',
+    ],
     users: {
       included: 5,
       max: 10,
@@ -108,10 +188,19 @@ export const SAAS_TIERS = {
   business: {
     id: 'business',
     name: 'Business',
-    description: 'Run your entire operation',
+    description: 'Equipment, inventory, and fleet management',
+    tagline: 'CRM + Book Jobs website',
     price: 29900,
-    priceAnnual: 287000,
+    priceAnnual: 299000, // $2,990/yr (2 months free)
     interval: 'month',
+    bundledWebsite: 'book_jobs',
+    heroFeatures: [
+      'Customer equipment tracking',
+      'Parts inventory',
+      'Fleet management',
+      'Maintenance contracts',
+      'Book Jobs website included',
+    ],
     users: {
       included: 15,
       max: 25,
@@ -179,13 +268,23 @@ export const SAAS_TIERS = {
     cta: 'Start Free Trial',
   },
 
-  construction: {
-    id: 'construction',
-    name: 'Construction',
-    description: 'Complete construction management',
+  // Top tier for Wrench is "Fleet" — multi-location dispatch, not construction.
+  fleet: {
+    id: 'fleet',
+    name: 'Fleet',
+    description: 'Multi-location dispatch at scale',
+    tagline: 'Multi-location operations + full website',
     price: 59900,
-    priceAnnual: 575000,
+    priceAnnual: 599000, // $5,990/yr (2 months free)
     interval: 'month',
+    bundledWebsite: 'book_jobs',
+    heroFeatures: [
+      'Multi-location dispatch',
+      'Advanced scheduling & routing',
+      'Call tracking & recording',
+      'Commission tracking',
+      'Service area pages on website',
+    ],
     users: {
       included: 20,
       max: 50,
@@ -241,25 +340,19 @@ export const SAAS_TIERS = {
       'custom_forms',
       'consumer_financing',
       'advanced_reporting',
-      // Construction additions
-      'projects',
-      'project_budgets',
-      'project_phases',
-      'change_orders',
-      'rfis',
-      'submittals',
-      'daily_logs',
-      'punch_lists',
-      'inspections',
-      'bids',
-      'gantt_charts',
-      'selections',
-      'selection_portal',
-      'takeoffs',
-      'lien_waivers',
-      'draw_schedules',
-      'draw_requests',
-      'aia_forms',
+      // Fleet additions (multi-location dispatch focus)
+      'multi_location',
+      'advanced_dispatch',
+      'call_recording',
+      'commission_tracking',
+      'territory_management',
+      'technician_assignment_rules',
+      'shift_scheduling',
+      'on_call_rotation',
+      'dispatch_board',
+      'revenue_by_location',
+      'revenue_by_technician',
+      'service_area_pages',
     ],
     limits: {
       contacts: 25000,
@@ -275,9 +368,18 @@ export const SAAS_TIERS = {
     id: 'enterprise',
     name: 'Enterprise',
     description: 'Unlimited scale, white-glove support',
+    tagline: 'Everything, unlimited, white-label',
     price: 19900, // per user
-    priceAnnual: 191000, // per user
+    priceAnnual: 199000, // $1,990/user/yr (2 months free)
     interval: 'month',
+    bundledWebsite: 'book_jobs',
+    heroFeatures: [
+      'Unlimited techs & locations',
+      'White-label + custom domain',
+      'SSO',
+      'API access',
+      'Dedicated account manager',
+    ],
     perUser: true,
     users: {
       included: 0,
@@ -364,12 +466,12 @@ export const SELF_HOSTED_PACKAGES = {
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_BUSINESS,
   },
 
-  construction: {
-    id: 'construction',
-    name: 'Construction License',
-    description: 'Full construction management for self-hosting',
+  fleet: {
+    id: 'fleet',
+    name: 'Fleet License',
+    description: 'Multi-location field service dispatch for self-hosting',
     price: 999700, // $9,997
-    features: SAAS_TIERS.construction.features,
+    features: SAAS_TIERS.fleet.features,
     includes: [
       'Full source code',
       'Database schema',
@@ -689,7 +791,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'remodeler',
     name: 'Remodeler',
     description: 'Home remodeling contractor',
-    recommendedTier: 'construction',
+    recommendedTier: 'fleet',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'selections', 'daily_logs', 'punch_lists',
@@ -700,7 +802,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'general_contractor',
     name: 'General Contractor',
     description: 'Commercial or residential GC',
-    recommendedTier: 'construction',
+    recommendedTier: 'fleet',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'rfis', 'submittals', 'daily_logs',
@@ -712,7 +814,7 @@ export const INDUSTRY_TEMPLATES = {
     id: 'home_builder',
     name: 'Home Builder',
     description: 'New home construction',
-    recommendedTier: 'construction',
+    recommendedTier: 'fleet',
     features: [
       'contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'payments',
       'projects', 'change_orders', 'selections', 'selection_portal',
@@ -798,7 +900,7 @@ export function tierHasFeature(tierId, featureId) {
  * Get the minimum tier that includes a feature
  */
 export function getMinTierForFeature(featureId) {
-  const tierOrder = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+  const tierOrder = ['starter', 'pro', 'business', 'fleet', 'enterprise'];
   for (const tierId of tierOrder) {
     if (tierHasFeature(tierId, featureId)) {
       return tierId;
@@ -872,7 +974,7 @@ export function getRecommendedTier(userCount) {
   if (userCount <= 2) return 'starter';
   if (userCount <= 5) return 'pro';
   if (userCount <= 15) return 'business';
-  if (userCount <= 20) return 'construction';
+  if (userCount <= 20) return 'fleet';
   return 'enterprise';
 }
 
@@ -883,7 +985,7 @@ export function shouldPromptUpgrade(currentTier, addons = [], totalSpend) {
   const tier = SAAS_TIERS[currentTier];
   if (!tier) return null;
 
-  const tierOrder = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+  const tierOrder = ['starter', 'pro', 'business', 'fleet', 'enterprise'];
   const currentIndex = tierOrder.indexOf(currentTier);
   if (currentIndex >= tierOrder.length - 1) return null;
 
@@ -903,7 +1005,31 @@ export function shouldPromptUpgrade(currentTier, addons = [], totalSpend) {
 }
 
 
+/**
+ * Get a website tier by ID
+ */
+export function getWebsiteTier(tierId: string) {
+  return WEBSITE_TIERS[tierId] || null;
+}
+
+/**
+ * Get all website tiers as array
+ */
+export function getAllWebsiteTiers() {
+  return Object.values(WEBSITE_TIERS);
+}
+
+/**
+ * Get the website tier bundled with a given CRM tier (null if none)
+ */
+export function getBundledWebsiteForCrmTier(crmTierId: string) {
+  const tier = SAAS_TIERS[crmTierId];
+  if (!tier || !tier.bundledWebsite) return null;
+  return WEBSITE_TIERS[tier.bundledWebsite] || null;
+}
+
 export default {
+  WEBSITE_TIERS,
   SAAS_TIERS,
   SELF_HOSTED_PACKAGES,
   SELF_HOSTED_ADDONS,
@@ -911,6 +1037,9 @@ export default {
   INDUSTRY_TEMPLATES,
   getTier,
   getAllTiers,
+  getWebsiteTier,
+  getAllWebsiteTiers,
+  getBundledWebsiteForCrmTier,
   tierHasFeature,
   getMinTierForFeature,
   calculateUserPrice,

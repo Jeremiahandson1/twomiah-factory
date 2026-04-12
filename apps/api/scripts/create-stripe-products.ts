@@ -78,12 +78,13 @@ async function main() {
   // ═══════════════════════════════════════════════════
   console.log('═══ SaaS Subscription Tiers ═══')
 
+  // Annual = exactly 2 months free (monthly × 10)
   const tiers = [
-    { id: 'starter', name: 'Starter', monthly: 4900, annual: 47000, desc: 'Everything you need to run a service business — 2 users included' },
-    { id: 'pro', name: 'Pro', monthly: 14900, annual: 143000, desc: 'Scale your field operations — 5 users included, up to 10' },
-    { id: 'business', name: 'Business', monthly: 29900, annual: 287000, desc: 'Run your entire operation — 15 users included, up to 25' },
-    { id: 'construction', name: 'Construction', monthly: 59900, annual: 575000, desc: 'Complete construction management — 20 users included, up to 50' },
-    { id: 'enterprise', name: 'Enterprise', monthly: 19900, annual: 191000, desc: 'Unlimited scale, white-glove support — per user pricing, min 10 users' },
+    { id: 'starter', name: 'Starter', monthly: 4900, annual: 49000, desc: 'CRM only — 2 users included. Pair with any website tier.' },
+    { id: 'pro', name: 'Pro', monthly: 14900, annual: 149000, desc: 'CRM + Showcase website included — 5 users, up to 10' },
+    { id: 'business', name: 'Business', monthly: 29900, annual: 299000, desc: 'CRM + Book Jobs website included — 15 users, up to 25' },
+    { id: 'construction', name: 'Construction', monthly: 59900, annual: 599000, desc: 'Full construction management + Book Jobs website — 20 users, up to 50' },
+    { id: 'enterprise', name: 'Enterprise', monthly: 19900, annual: 199000, desc: 'Unlimited scale, white-label — per user, min 10 users' },
   ]
 
   for (const tier of tiers) {
@@ -94,6 +95,30 @@ async function main() {
     )
     await createPrice(productId, `STRIPE_PRICE_${tier.id.toUpperCase()}`, tier.monthly, { recurring: { interval: 'month' } })
     await createPrice(productId, `STRIPE_PRICE_${tier.id.toUpperCase()}_ANNUAL`, tier.annual, { recurring: { interval: 'year' } })
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 1b. WEBSITE SUBSCRIPTION TIERS (standalone)
+  // ═══════════════════════════════════════════════════
+  // Outcome-named ladder for customers who want a site but not a full CRM.
+  // These are ALSO bundled into the CRM tiers above (Pro=Showcase, Business=Book Jobs).
+  // Annual = exactly 2 months free (monthly × 10).
+  console.log('\n═══ Website Subscription Tiers ═══')
+
+  const websiteTiers = [
+    { id: 'presence', name: 'Presence', monthly: 1900, annual: 19000, desc: 'One-page lead capture site + CMS — get found, capture leads' },
+    { id: 'showcase', name: 'Showcase', monthly: 4900, annual: 49000, desc: 'Full multi-page site + CMS + blog + SEO basics — show off your work' },
+    { id: 'book_jobs', name: 'Book Jobs', monthly: 9900, annual: 99000, desc: 'Full site + online booking + quote/estimator forms — turn visitors into booked jobs' },
+  ]
+
+  for (const tier of websiteTiers) {
+    const productId = await createProduct(
+      `Twomiah Website — ${tier.name}`,
+      tier.desc,
+      { twomiah_website_tier: tier.id }
+    )
+    await createPrice(productId, `STRIPE_PRICE_WEBSITE_${tier.id.toUpperCase()}`, tier.monthly, { recurring: { interval: 'month' } })
+    await createPrice(productId, `STRIPE_PRICE_WEBSITE_${tier.id.toUpperCase()}_ANNUAL`, tier.annual, { recurring: { interval: 'year' } })
   }
 
   // Additional user prices

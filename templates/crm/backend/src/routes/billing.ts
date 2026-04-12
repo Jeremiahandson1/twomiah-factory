@@ -22,13 +22,22 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null
 
-// Plan pricing in cents
-const PLAN_PRICING: Record<string, Record<string, number>> = {
-  starter: { monthly: 4900, annual: 3900 },
-  pro: { monthly: 14900, annual: 11900 },
-  business: { monthly: 29900, annual: 23900 },
-  construction: { monthly: 59900, annual: 47900 },
-  enterprise: { monthly: 19900, annual: 15900 },
+// Plan pricing in cents. Annual = exactly 2 months free (monthly × 10).
+// These values mirror pricing.ts — keep in sync.
+const PLAN_PRICING: Record<string, { monthly: number; annual: number; bundledWebsite: string | null }> = {
+  starter: { monthly: 4900, annual: 49000, bundledWebsite: null },
+  pro: { monthly: 14900, annual: 149000, bundledWebsite: 'showcase' },
+  business: { monthly: 29900, annual: 299000, bundledWebsite: 'book_jobs' },
+  construction: { monthly: 59900, annual: 599000, bundledWebsite: 'book_jobs' },
+  enterprise: { monthly: 19900, annual: 199000, bundledWebsite: 'book_jobs' }, // per user
+}
+
+// Standalone website tiers (outcome-named).
+// Also bundled into higher CRM tiers automatically — see PLAN_PRICING.bundledWebsite.
+const WEBSITE_PRICING: Record<string, { monthly: number; annual: number; name: string; tagline: string }> = {
+  presence: { monthly: 1900, annual: 19000, name: 'Presence', tagline: 'Get found online' },
+  showcase: { monthly: 4900, annual: 49000, name: 'Showcase', tagline: 'Show off your work' },
+  book_jobs: { monthly: 9900, annual: 99000, name: 'Book Jobs', tagline: 'Turn visitors into booked jobs' },
 }
 
 // Add-on pricing in cents (monthly)
@@ -71,7 +80,9 @@ const PLAN_HIERARCHY = ['starter', 'pro', 'business', 'construction', 'enterpris
 app.get('/pricing', (c) => {
   return c.json({
     plans: PLAN_PRICING,
-    trialDays: 14,
+    websiteTiers: WEBSITE_PRICING,
+    trialDays: 30,
+    moneyBackGuaranteeDays: 60,
   })
 })
 
@@ -97,7 +108,7 @@ app.post('/start-trial', authenticate, async (c) => {
   }
 
   const trialEnd = new Date()
-  trialEnd.setDate(trialEnd.getDate() + 14)
+  trialEnd.setDate(trialEnd.getDate() + 30)
 
   // Check for existing subscription
   const existingSubRow = await db.execute(sql`SELECT id FROM subscription WHERE company_id = ${user.companyId} LIMIT 1`)

@@ -1,12 +1,21 @@
 /**
- * Billing Routes
+ * SaaS Billing Routes — Roofing (Roof)
  *
- * API endpoints for:
- * - View pricing/packages
- * - Subscribe/cancel
- * - One-time purchase
- * - Usage & invoices
- * - Stripe webhooks
+ * API endpoints for contractor-level subscription management. Separate from
+ * routes/invoices.ts which handles per-customer invoice billing.
+ *
+ * - GET  /pricing          — Public pricing for the pricing page
+ * - POST /start-trial      — 30-day free trial
+ * - POST /create-checkout  — Stripe checkout for subscription
+ * - GET  /subscription     — Current subscription status
+ * - POST /subscription/*   — Change/cancel/reactivate
+ * - POST /webhook          — Stripe subscription webhooks
+ *
+ * NOTE: This file was copied from crm/backend/src/routes/billing.ts and
+ * renamed top-tier "construction" → "storm". It references a billing
+ * service at ../services/billing.ts which may need to be ported from crm/
+ * and adapted to the roof schema (subscription/addon_purchase/
+ * usage_record/billing_invoice tables may not exist yet).
  */
 
 import { Hono } from 'hono'
@@ -23,18 +32,20 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null
 
 // Plan pricing in cents. Annual = exactly 2 months free (monthly × 10).
-// Wrench top tier is "fleet" (multi-location dispatch) — the plan key in Stripe
-// is still STRIPE_PRICE_CONSTRUCTION for backwards compatibility; the display
-// name in the app UI reads "Fleet".
+// These values mirror pricing.ts — keep in sync.
+// Roof top tier key is "storm" — matches config/pricing.ts.
+// Stripe price env var is still STRIPE_PRICE_CONSTRUCTION (shared price point
+// across verticals) but the plan is stored as "storm".
 const PLAN_PRICING: Record<string, { monthly: number; annual: number; bundledWebsite: string | null; displayName: string }> = {
   starter: { monthly: 4900, annual: 49000, bundledWebsite: null, displayName: 'Starter' },
   pro: { monthly: 14900, annual: 149000, bundledWebsite: 'showcase', displayName: 'Pro' },
   business: { monthly: 29900, annual: 299000, bundledWebsite: 'book_jobs', displayName: 'Business' },
-  fleet: { monthly: 59900, annual: 599000, bundledWebsite: 'book_jobs', displayName: 'Fleet' },
+  storm: { monthly: 59900, annual: 599000, bundledWebsite: 'book_jobs', displayName: 'Storm' },
   enterprise: { monthly: 19900, annual: 199000, bundledWebsite: 'book_jobs', displayName: 'Enterprise' },
 }
 
-// Standalone website tiers.
+// Standalone website tiers (outcome-named).
+// Also bundled into higher CRM tiers automatically — see PLAN_PRICING.bundledWebsite.
 const WEBSITE_PRICING: Record<string, { monthly: number; annual: number; name: string; tagline: string }> = {
   presence: { monthly: 1900, annual: 19000, name: 'Presence', tagline: 'Get found online' },
   showcase: { monthly: 4900, annual: 49000, name: 'Showcase', tagline: 'Show off your work' },
@@ -60,7 +71,7 @@ const SELF_HOSTED_PRICING: Record<string, any> = {
   starter: { price: 99700, name: 'Starter License' },
   pro: { price: 249700, name: 'Pro License' },
   business: { price: 499700, name: 'Business License' },
-  construction: { price: 999700, name: 'Construction License' },
+  storm: { price: 999700, name: 'Storm License' },
   full: { price: 1499700, name: 'Full Platform License' },
 }
 
@@ -72,7 +83,7 @@ const SELF_HOSTED_ADDONS: Record<string, any> = {
   whitelabel: { price: 50000, name: 'White-Label Setup' },
 }
 
-const PLAN_HIERARCHY = ['starter', 'pro', 'business', 'fleet', 'enterprise']
+const PLAN_HIERARCHY = ['starter', 'pro', 'business', 'storm', 'enterprise']
 
 // ============================================
 // PUBLIC - Pricing Info
