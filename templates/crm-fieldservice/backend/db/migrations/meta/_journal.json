@@ -22,6 +22,20 @@
       "when": 1772785271395,
       "tag": "0002_add_lead_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772785271396,
+      "tag": "0003_add_ai_receptionist",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772785271397,
+      "tag": "0004_add_missing_columns",
+      "breakpoints": true
     }
   ]
 }
