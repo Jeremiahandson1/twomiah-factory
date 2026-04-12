@@ -89,7 +89,12 @@ app.get('/summary', async (c) => {
 
 app.post('/', async (c) => {
   const currentUser = c.get('user') as any
-  const data = expenseSchema.parse(await c.req.json())
+  const body = await c.req.json()
+  // Coerce amount to number if string
+  if (typeof body.amount === 'string') body.amount = Number(body.amount) || 0
+  const result = expenseSchema.safeParse(body)
+  if (!result.success) return c.json({ error: 'Validation failed', details: result.error.flatten().fieldErrors }, 400)
+  const data = result.data
 
   const [newExpense] = await db.insert(expense).values({
     ...data,

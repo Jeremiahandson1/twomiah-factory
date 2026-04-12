@@ -706,11 +706,11 @@ export async function deployCustomer(
   const { region = 'ohio', plan = 'starter', dbPlan = 'basic_256mb', products = factoryCustomer.products || ['crm'] } = options
   const slug = factoryCustomer.slug
   let ind = factoryCustomer.industry || factoryCustomer.config?.company?.industry || ''
-  // Normalize industry variants (e.g., home_care_nonmedical → home_care)
+  // Normalize industry variants (e.g., home_care_nonmedical → home_care, hvac → field_service)
   if (ind.startsWith('home_care')) ind = 'home_care'
-  if (ind.startsWith('field_service')) ind = 'field_service'
+  if (['hvac', 'plumbing', 'electrical'].includes(ind) || ind.startsWith('field_service')) ind = 'field_service'
   const isHomeCare = ind === 'home_care'
-  const isFieldService = ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind)
+  const isFieldService = ind === 'field_service'
   const isAutomotive = ind === 'automotive'
   const isRoofing = ind === 'roofing'
   const isDispensary = ind === 'dispensary'
