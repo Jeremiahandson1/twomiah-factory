@@ -1,14 +1,81 @@
 import { useState, useEffect } from 'react';
-import { 
-  Check, X, Zap, Building2, Wrench, Crown, 
+import {
+  Check, X, Zap, Building2, Wrench, Crown, Globe, Sparkles, Shield,
   CreditCard, Calendar, Users, HelpCircle,
   ChevronDown, ChevronUp, Loader2
 } from 'lucide-react';
 import api from '../../services/api';
+import { LucideIcon } from 'lucide-react';
+
+// Backend serves these from config/pricing.ts via /api/billing/pricing.
+// All four verticals use the same shape — only displayName / heroFeatures
+// differ per vertical, so this component renders correctly for each.
+interface PlanData {
+  monthly: number;
+  annual: number;
+  bundledWebsite: string | null;
+  displayName: string;
+  description: string;
+  heroFeatures: string[];
+  users: { included?: number; max?: number | null; min?: number; additionalPrice?: number | null };
+}
+
+interface WebsiteTierData {
+  monthly: number;
+  annual: number;
+  name: string;
+  tagline: string;
+  description: string;
+  features: string[];
+}
+
+interface PricingData {
+  plans?: Record<string, PlanData>;
+  websiteTiers?: Record<string, WebsiteTierData>;
+  trialDays?: number;
+  moneyBackGuaranteeDays?: number;
+  // Legacy fields for backwards compatibility with older /pricing responses
+  packages?: Record<string, any>;
+  features?: Record<string, { name?: string }>;
+}
+
+interface PricingCardProps {
+  name: string;
+  description: string;
+  icon: LucideIcon;
+  price: number;
+  billingCycle: string;
+  yearlyTotal?: number;
+  users?: number;
+  features: string[];
+  cta: string;
+  popular?: boolean;
+  dark?: boolean;
+  bundledWebsiteName?: string | null;
+  perUser?: boolean;
+}
+
+interface AddonCardProps {
+  name: string;
+  description: string;
+  monthlyPrice?: number;
+  oneTimePrice?: number;
+  oneTimeOnly?: boolean;
+}
+
+interface FeatureComparisonProps {
+  packages: Record<string, PackageData>;
+  features: Record<string, { name?: string }>;
+}
+
+interface FAQProps {
+  question: string;
+  answer: string;
+}
 
 /**
  * Pricing Page
- * 
+ *
  * Shows all pricing options:
  * - Package comparison
  * - Monthly vs yearly toggle
@@ -16,10 +83,10 @@ import api from '../../services/api';
  * - Feature breakdown
  */
 export default function PricingPage() {
-  const [billingCycle, setBillingCycle] = useState('monthly');
-  const [pricing, setPricing] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [expandedFeatures, setExpandedFeatures] = useState(false);
+  const [billingCycle, setBillingCycle] = useState<string>('monthly');
+  const [pricing, setPricing] = useState<PricingData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [expandedFeatures, setExpandedFeatures] = useState<boolean>(false);
 
   useEffect(() => {
     loadPricing();
@@ -46,6 +113,20 @@ export default function PricingPage() {
 
   const packages = pricing?.packages || {};
   const features = pricing?.features || {};
+  const plans = pricing?.plans || {};
+  const websiteTiers = pricing?.websiteTiers || {};
+  const trialDays = pricing?.trialDays || 30;
+  const moneyBackDays = pricing?.moneyBackGuaranteeDays || 60;
+
+  // Order plans by hierarchy. Top-tier key varies per vertical (construction
+  // for Build, fleet for Wrench, agency for Care, storm for Roof) — we accept
+  // any of those.
+  const tierOrder = ['starter', 'pro', 'business', 'construction', 'fleet', 'agency', 'storm', 'enterprise'];
+  const orderedPlanIds = tierOrder.filter((id) => plans[id]);
+
+  // Order website tiers by depth.
+  const websiteOrder: Array<'presence' | 'showcase' | 'book_jobs'> = ['presence', 'showcase', 'book_jobs'];
+  const orderedWebsiteIds = websiteOrder.filter((id) => websiteTiers[id]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -56,8 +137,25 @@ export default function PricingPage() {
             Simple, Transparent Pricing
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Choose the plan that fits your business. No hidden fees, no surprises.
+            Built for your trade — not retrofitted from a generic CRM.
+            Choose the plan that fits where you are today.
           </p>
+
+          {/* Trust signals */}
+          <div className="mt-6 flex items-center justify-center gap-6 text-sm text-gray-600">
+            <div className="flex items-center gap-1.5">
+              <Shield className="w-4 h-4 text-green-600" />
+              <span>{trialDays}-day free trial</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Shield className="w-4 h-4 text-green-600" />
+              <span>{moneyBackDays}-day money-back guarantee</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Shield className="w-4 h-4 text-green-600" />
+              <span>Cancel anytime</span>
+            </div>
+          </div>
 
           {/* Billing Toggle */}
           <div className="mt-8 inline-flex items-center bg-gray-100 rounded-full p-1">
@@ -80,106 +178,98 @@ export default function PricingPage() {
               }`}
             >
               Yearly
-              <span className="ml-2 text-green-600 text-xs font-bold">Save 17%</span>
+              <span className="ml-2 text-green-600 text-xs font-bold">2 months free</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Pricing Cards */}
+      {/* Standalone Website Tiers — for customers who just need a site */}
+      {orderedWebsiteIds.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 pt-12">
+          <div className="text-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 inline-flex items-center gap-2">
+              <Globe className="w-6 h-6 text-orange-500" />
+              Just need a website?
+            </h2>
+            <p className="text-gray-600 mt-2">
+              Start with a site today. Add the CRM whenever you're ready.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {orderedWebsiteIds.map((id) => {
+              const tier = websiteTiers[id];
+              const isYearly = billingCycle === 'yearly';
+              const monthlyDisplay = isYearly ? Math.round(tier.annual / 12 / 100) : tier.monthly / 100;
+              return (
+                <div key={id} className={`bg-white rounded-2xl p-6 border-2 ${id === 'showcase' ? 'border-orange-500 shadow-xl' : 'border-gray-200'}`}>
+                  {id === 'showcase' && (
+                    <div className="inline-block px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full mb-2">
+                      MOST POPULAR
+                    </div>
+                  )}
+                  <h3 className="text-xl font-bold text-gray-900">{tier.name}</h3>
+                  <p className="text-sm text-gray-500 italic">{tier.tagline}</p>
+                  <div className="mt-4 mb-4">
+                    <span className="text-3xl font-bold">${monthlyDisplay}</span>
+                    <span className="text-gray-500">/mo</span>
+                    {isYearly && (
+                      <div className="text-xs text-gray-500">${tier.annual / 100} billed annually</div>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">{tier.description}</p>
+                  <button className="w-full py-2 rounded-lg font-medium bg-gray-100 text-gray-900 hover:bg-gray-200">
+                    Start Free Trial
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div className="text-center mt-6 text-sm text-gray-500">
+            Need a CRM too? Pro and higher plans below include a website at no extra cost.
+          </div>
+        </div>
+      )}
+
+      {/* CRM Pricing Cards — fully data-driven from /api/billing/pricing */}
       <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-900">CRM Plans</h2>
+          <p className="text-gray-600 mt-2">
+            Pro and higher include a website at no extra cost.
+          </p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Starter */}
-          <PricingCard
-            name="Starter"
-            description="Core CRM for small teams"
-            icon={Zap}
-            price={billingCycle === 'yearly' ? packages.starter?.yearlyPrice / 12 : packages.starter?.monthlyPrice}
-            billingCycle={billingCycle}
-            yearlyTotal={packages.starter?.yearlyPrice}
-            users={packages.starter?.usersIncluded}
-            features={[
-              'Contacts & CRM',
-              'Service Calls & Scheduling',
-              'Quotes & Invoices',
-              'Time Tracking',
-              'Document Storage',
-              '500 contacts limit',
-            ]}
-            cta="Start Free Trial"
-          />
-
-          {/* Service Pro */}
-          <PricingCard
-            name="Service Pro"
-            description="Complete service trade solution"
-            icon={Wrench}
-            price={billingCycle === 'yearly' ? packages.servicePro?.yearlyPrice / 12 : packages.servicePro?.monthlyPrice}
-            billingCycle={billingCycle}
-            yearlyTotal={packages.servicePro?.yearlyPrice}
-            users={packages.servicePro?.usersIncluded}
-            popular
-            features={[
-              'Everything in Starter',
-              'GPS Time Tracking',
-              'Route Optimization',
-              'Equipment Tracking',
-              'Service Agreements',
-              'Pricebook & Flat Rate',
-              'Two-Way SMS',
-              'Customer Portal',
-              'Online Booking',
-              'QuickBooks Sync',
-            ]}
-            cta="Start Free Trial"
-          />
-
-          {/* Construction */}
-          <PricingCard
-            name="Construction"
-            description="Complete construction management"
-            icon={Building2}
-            price={billingCycle === 'yearly' ? packages.construction?.yearlyPrice / 12 : packages.construction?.monthlyPrice}
-            billingCycle={billingCycle}
-            yearlyTotal={packages.construction?.yearlyPrice}
-            users={packages.construction?.usersIncluded}
-            features={[
-              'Everything in Starter',
-              'Project Management',
-              'Change Orders',
-              'RFIs & Daily Logs',
-              'Punch Lists',
-              'Gantt Charts',
-              'Selections Management',
-              'Material Takeoffs',
-              'Lien Waivers',
-              'Draw Schedules',
-            ]}
-            cta="Start Free Trial"
-          />
-
-          {/* Enterprise */}
-          <PricingCard
-            name="Enterprise"
-            description="Everything, unlimited"
-            icon={Crown}
-            price={billingCycle === 'yearly' ? packages.enterprise?.yearlyPrice / 12 : packages.enterprise?.monthlyPrice}
-            billingCycle={billingCycle}
-            yearlyTotal={packages.enterprise?.yearlyPrice}
-            users={packages.enterprise?.usersIncluded}
-            features={[
-              'All features included',
-              'Unlimited contacts',
-              'Unlimited jobs',
-              'Priority support',
-              'Custom integrations',
-              'Dedicated account manager',
-              'Custom training',
-              'SLA guarantee',
-            ]}
-            cta="Contact Sales"
-            dark
-          />
+          {orderedPlanIds.map((id) => {
+            const plan = plans[id];
+            const isYearly = billingCycle === 'yearly';
+            const monthlyDisplay = isYearly ? plan.annual / 12 / 100 : plan.monthly / 100;
+            const yearlyTotal = plan.annual / 100;
+            const isPopular = id === 'pro';
+            const isDark = id === 'enterprise';
+            const isPerUser = id === 'enterprise';
+            const bundledTier = plan.bundledWebsite ? websiteTiers[plan.bundledWebsite] : null;
+            // Pick an icon by position in the ladder
+            const icon: LucideIcon = id === 'starter' ? Zap : id === 'pro' ? Wrench : id === 'enterprise' ? Crown : Building2;
+            return (
+              <PricingCard
+                key={id}
+                name={plan.displayName}
+                description={plan.description}
+                icon={icon}
+                price={monthlyDisplay}
+                billingCycle={billingCycle}
+                yearlyTotal={yearlyTotal}
+                users={plan.users?.included}
+                features={plan.heroFeatures}
+                bundledWebsiteName={bundledTier?.name}
+                perUser={isPerUser}
+                popular={isPopular}
+                dark={isDark}
+                cta={isDark ? 'Contact Sales' : 'Start Free Trial'}
+              />
+            );
+          })}
         </div>
 
         {/* One-Time Purchase Option */}
@@ -188,7 +278,7 @@ export default function PricingPage() {
             <div>
               <h3 className="text-2xl font-bold mb-2">Prefer a One-Time Purchase?</h3>
               <p className="text-orange-100">
-                Own {{COMPANY_NAME}} forever with our lifetime license. No monthly fees, self-hosted option available.
+                Own {'{{COMPANY_NAME}}'} forever with our lifetime license. No monthly fees, self-hosted option available.
               </p>
             </div>
             <div className="text-right">
@@ -277,16 +367,16 @@ export default function PricingPage() {
   );
 }
 
-function PricingCard({ 
+function PricingCard({
   name, description, icon: Icon, price, billingCycle, yearlyTotal,
-  users, features, cta, popular, dark 
-}) {
+  users, features, cta, popular, dark, bundledWebsiteName, perUser
+}: PricingCardProps) {
   return (
     <div className={`relative rounded-2xl p-6 ${
-      dark 
-        ? 'bg-gray-900 text-white' 
-        : popular 
-          ? 'bg-white border-2 border-orange-500 shadow-xl' 
+      dark
+        ? 'bg-gray-900 text-white'
+        : popular
+          ? 'bg-white border-2 border-orange-500 shadow-xl'
           : 'bg-white border shadow-sm'
     }`}>
       {popular && (
@@ -304,23 +394,33 @@ function PricingCard({
       <h3 className="text-xl font-bold">{name}</h3>
       <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{description}</p>
 
-      <div className="mt-4 mb-6">
+      <div className="mt-4 mb-3">
         <span className="text-4xl font-bold">${Math.round(price)}</span>
-        <span className={dark ? 'text-gray-400' : 'text-gray-500'}>/mo</span>
+        <span className={dark ? 'text-gray-400' : 'text-gray-500'}>{perUser ? '/user/mo' : '/mo'}</span>
         {billingCycle === 'yearly' && (
           <div className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>
-            ${yearlyTotal} billed annually
+            ${yearlyTotal} billed annually {!perUser && '(2 months free)'}
           </div>
         )}
       </div>
 
+      {/* Bundled website badge */}
+      {bundledWebsiteName && (
+        <div className={`mb-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+          dark ? 'bg-orange-900/40 text-orange-300' : 'bg-orange-100 text-orange-700'
+        }`}>
+          <Sparkles className="w-3 h-3" />
+          {bundledWebsiteName} website included
+        </div>
+      )}
+
       <div className={`flex items-center gap-2 text-sm mb-6 ${dark ? 'text-gray-300' : 'text-gray-600'}`}>
         <Users className="w-4 h-4" />
-        {users} users included
+        {perUser ? `Min ${users || 10} users` : `${users || 1} users included`}
       </div>
 
       <ul className="space-y-3 mb-6">
-        {features.map((feature, i) => (
+        {features.map((feature: string, i: number) => (
           <li key={i} className="flex items-start gap-2 text-sm">
             <Check className={`w-4 h-4 mt-0.5 flex-shrink-0 ${dark ? 'text-green-400' : 'text-green-600'}`} />
             <span>{feature}</span>
@@ -341,7 +441,7 @@ function PricingCard({
   );
 }
 
-function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly }) {
+function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly }: AddonCardProps) {
   return (
     <div className="bg-white rounded-xl border p-6">
       <h4 className="font-bold text-gray-900">{name}</h4>
@@ -362,9 +462,9 @@ function AddonCard({ name, description, monthlyPrice, oneTimePrice, oneTimeOnly 
   );
 }
 
-function FeatureComparison({ packages, features }) {
-  const packageList = ['starter', 'servicePro', 'construction', 'enterprise'];
-  const categories = {
+function FeatureComparison({ packages, features }: FeatureComparisonProps) {
+  const packageList: string[] = ['starter', 'servicePro', 'construction', 'enterprise'];
+  const categories: Record<string, string[]> = {
     'Core': ['contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team'],
     'Service Trade': ['timeTracking', 'gpsTracking', 'routing', 'equipment', 'agreements', 'pricebook', 'fleet'],
     'Construction': ['projects', 'changeOrders', 'rfis', 'dailyLogs', 'punchLists', 'gantt', 'selections', 'takeoffs', 'lienWaivers', 'drawSchedules'],
@@ -379,7 +479,7 @@ function FeatureComparison({ packages, features }) {
         <thead>
           <tr className="border-b">
             <th className="text-left py-4 px-4 font-medium text-gray-500">Features</th>
-            {packageList.map(pkg => (
+            {packageList.map((pkg: string) => (
               <th key={pkg} className="text-center py-4 px-4 font-bold text-gray-900">
                 {packages[pkg]?.name}
               </th>
@@ -387,17 +487,17 @@ function FeatureComparison({ packages, features }) {
           </tr>
         </thead>
         <tbody>
-          {Object.entries(categories).map(([category, featureIds]) => (
+          {Object.entries(categories).map(([category, featureIds]: [string, string[]]) => (
             <>
               <tr key={category} className="bg-gray-50">
                 <td colSpan={5} className="py-3 px-4 font-bold text-gray-700">{category}</td>
               </tr>
-              {featureIds.map(featureId => (
+              {featureIds.map((featureId: string) => (
                 <tr key={featureId} className="border-b">
                   <td className="py-3 px-4 text-gray-600">
                     {features[featureId]?.name || featureId}
                   </td>
-                  {packageList.map(pkg => (
+                  {packageList.map((pkg: string) => (
                     <td key={pkg} className="text-center py-3 px-4">
                       {packages[pkg]?.features?.includes(featureId) ? (
                         <Check className="w-5 h-5 text-green-600 mx-auto" />
@@ -416,8 +516,8 @@ function FeatureComparison({ packages, features }) {
   );
 }
 
-function FAQ({ question, answer }) {
-  const [open, setOpen] = useState(false);
+function FAQ({ question, answer }: FAQProps) {
+  const [open, setOpen] = useState<boolean>(false);
 
   return (
     <div className="border rounded-lg">

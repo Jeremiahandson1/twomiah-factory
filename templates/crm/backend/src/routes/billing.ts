@@ -15,6 +15,7 @@ import { company } from '../../db/schema.ts'
 import { eq, and, or, gt, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import billing from '../services/billing.ts'
+import { SAAS_TIERS, WEBSITE_TIERS } from '../config/pricing.ts'
 import Stripe from 'stripe'
 
 const app = new Hono()
@@ -22,23 +23,38 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null
 
-// Plan pricing in cents. Annual = exactly 2 months free (monthly × 10).
-// These values mirror pricing.ts — keep in sync.
-const PLAN_PRICING: Record<string, { monthly: number; annual: number; bundledWebsite: string | null }> = {
-  starter: { monthly: 4900, annual: 49000, bundledWebsite: null },
-  pro: { monthly: 14900, annual: 149000, bundledWebsite: 'showcase' },
-  business: { monthly: 29900, annual: 299000, bundledWebsite: 'book_jobs' },
-  construction: { monthly: 59900, annual: 599000, bundledWebsite: 'book_jobs' },
-  enterprise: { monthly: 19900, annual: 199000, bundledWebsite: 'book_jobs' }, // per user
-}
+// Build PLAN_PRICING from the canonical config in pricing.ts so this file can't
+// drift. The rest of billing.ts looks up plans by id (PLAN_PRICING[plan]) so we
+// preserve that interface.
+const PLAN_PRICING: Record<string, { monthly: number; annual: number; bundledWebsite: string | null; displayName: string; description: string; heroFeatures: string[]; users: any }> = Object.fromEntries(
+  Object.entries(SAAS_TIERS).map(([id, tier]: [string, any]) => [
+    id,
+    {
+      monthly: tier.price,
+      annual: tier.priceAnnual,
+      bundledWebsite: tier.bundledWebsite ?? null,
+      displayName: tier.name,
+      description: tier.description,
+      heroFeatures: tier.heroFeatures ?? [],
+      users: tier.users,
+    },
+  ])
+)
 
-// Standalone website tiers (outcome-named).
-// Also bundled into higher CRM tiers automatically — see PLAN_PRICING.bundledWebsite.
-const WEBSITE_PRICING: Record<string, { monthly: number; annual: number; name: string; tagline: string }> = {
-  presence: { monthly: 1900, annual: 19000, name: 'Presence', tagline: 'Get found online' },
-  showcase: { monthly: 4900, annual: 49000, name: 'Showcase', tagline: 'Show off your work' },
-  book_jobs: { monthly: 9900, annual: 99000, name: 'Book Jobs', tagline: 'Turn visitors into booked jobs' },
-}
+// Build website tier serving structure from canonical WEBSITE_TIERS.
+const WEBSITE_PRICING: Record<string, { monthly: number; annual: number; name: string; tagline: string; description: string; features: string[] }> = Object.fromEntries(
+  Object.entries(WEBSITE_TIERS).map(([id, tier]: [string, any]) => [
+    id,
+    {
+      monthly: tier.price,
+      annual: tier.priceAnnual,
+      name: tier.name,
+      tagline: tier.tagline,
+      description: tier.description,
+      features: tier.features ?? [],
+    },
+  ])
+)
 
 // Add-on pricing in cents (monthly)
 const ADDON_PRICING: Record<string, any> = {

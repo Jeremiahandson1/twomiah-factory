@@ -24,6 +24,7 @@ import { company } from '../../db/schema.ts'
 import { eq, and, or, gt, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import billing from '../services/billing.ts'
+import { SAAS_TIERS, WEBSITE_TIERS } from '../config/pricing.ts'
 import Stripe from 'stripe'
 
 const app = new Hono()
@@ -33,24 +34,36 @@ const stripe = process.env.STRIPE_SECRET_KEY
 
 // Plan pricing in cents. Annual = exactly 2 months free (monthly × 10).
 // These values mirror pricing.ts — keep in sync.
-// Roof top tier key is "storm" — matches config/pricing.ts.
-// Stripe price env var is still STRIPE_PRICE_CONSTRUCTION (shared price point
-// across verticals) but the plan is stored as "storm".
-const PLAN_PRICING: Record<string, { monthly: number; annual: number; bundledWebsite: string | null; displayName: string }> = {
-  starter: { monthly: 4900, annual: 49000, bundledWebsite: null, displayName: 'Starter' },
-  pro: { monthly: 14900, annual: 149000, bundledWebsite: 'showcase', displayName: 'Pro' },
-  business: { monthly: 29900, annual: 299000, bundledWebsite: 'book_jobs', displayName: 'Business' },
-  storm: { monthly: 59900, annual: 599000, bundledWebsite: 'book_jobs', displayName: 'Storm' },
-  enterprise: { monthly: 19900, annual: 199000, bundledWebsite: 'book_jobs', displayName: 'Enterprise' },
-}
+// Built dynamically from canonical config in pricing.ts so values can't drift.
+// Roof's top tier is "storm".
+const PLAN_PRICING: Record<string, { monthly: number; annual: number; bundledWebsite: string | null; displayName: string; description: string; heroFeatures: string[]; users: any }> = Object.fromEntries(
+  Object.entries(SAAS_TIERS).map(([id, tier]: [string, any]) => [
+    id,
+    {
+      monthly: tier.price,
+      annual: tier.priceAnnual,
+      bundledWebsite: tier.bundledWebsite ?? null,
+      displayName: tier.name,
+      description: tier.description,
+      heroFeatures: tier.heroFeatures ?? [],
+      users: tier.users,
+    },
+  ])
+)
 
-// Standalone website tiers (outcome-named).
-// Also bundled into higher CRM tiers automatically — see PLAN_PRICING.bundledWebsite.
-const WEBSITE_PRICING: Record<string, { monthly: number; annual: number; name: string; tagline: string }> = {
-  presence: { monthly: 1900, annual: 19000, name: 'Presence', tagline: 'Get found online' },
-  showcase: { monthly: 4900, annual: 49000, name: 'Showcase', tagline: 'Show off your work' },
-  book_jobs: { monthly: 9900, annual: 99000, name: 'Book Jobs', tagline: 'Turn visitors into booked jobs' },
-}
+const WEBSITE_PRICING: Record<string, { monthly: number; annual: number; name: string; tagline: string; description: string; features: string[] }> = Object.fromEntries(
+  Object.entries(WEBSITE_TIERS).map(([id, tier]: [string, any]) => [
+    id,
+    {
+      monthly: tier.price,
+      annual: tier.priceAnnual,
+      name: tier.name,
+      tagline: tier.tagline,
+      description: tier.description,
+      features: tier.features ?? [],
+    },
+  ])
+)
 
 // Add-on pricing in cents (monthly)
 const ADDON_PRICING: Record<string, any> = {
