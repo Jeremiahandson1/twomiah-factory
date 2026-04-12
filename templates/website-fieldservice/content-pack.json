@@ -1,0 +1,440 @@
+{
+  "vertical": "field_service",
+  "tone": "Technical but accessible. These are emergency-first businesses that homeowners call on the worst day of their year. The voice is direct, competent, and available. Think: a senior tech who explains the problem in plain English, never talks down to you, and shows up when he says he will. 'Your furnace doesn't care that it's 2 AM — and neither do we.'",
+  "trustBadges": [
+    {
+      "id": "nate-certified",
+      "label": "NATE Certified Technicians",
+      "description": "Every tech on our team holds current NATE certification — the gold standard in HVAC. It means they've passed rigorous testing on installation, service, and system diagnostics.",
+      "icon": "shield-check"
+    },
+    {
+      "id": "epa-608",
+      "label": "EPA Section 608 Licensed",
+      "description": "Fully licensed to handle all refrigerant types under EPA Section 608 — including R-410A, R-32, and legacy R-22 recovery. We follow proper reclamation protocols on every job.",
+      "icon": "certificate"
+    },
+    {
+      "id": "24-7-emergency",
+      "label": "24/7 Emergency Service",
+      "description": "Pipes burst at midnight. Furnaces die on the coldest night of the year. We answer the phone and dispatch a tech — evenings, weekends, and holidays included.",
+      "icon": "clock"
+    },
+    {
+      "id": "satisfaction-guarantee",
+      "label": "100% Satisfaction Guarantee",
+      "description": "If the repair doesn't hold or the install isn't right, we come back and make it right at no additional charge. No runaround, no fine print.",
+      "icon": "thumbs-up"
+    }
+  ],
+  "services": [
+    {
+      "id": "ac-repair",
+      "name": "AC Repair & Maintenance",
+      "slug": "ac-repair-maintenance",
+      "shortDescription": "Cool air by tonight — or the diagnostic is free.",
+      "description": "When your AC stops blowing cold on a 95-degree day, you don't need a sales pitch. You need a tech with a manifold gauge set and the experience to read what it's telling him. Most residential AC failures come down to a handful of common issues: low refrigerant charge from a slow leak, a failed capacitor on the compressor or condenser fan motor, a locked-out compressor, or a frozen evaporator coil caused by restricted airflow. We diagnose the actual problem before we quote a repair.\n\nOur technicians carry the most common replacement parts on the truck — capacitors, contactors, fan motors, and hard-start kits — so the majority of repairs are completed in a single visit. For refrigerant issues, we perform a proper leak search using nitrogen pressure testing and electronic leak detection before simply topping off the charge. Adding refrigerant without fixing the leak is like pouring money into a hole, and we won't do that to you.\n\nRegular maintenance prevents most of these failures. Our annual AC tune-up includes coil cleaning, refrigerant charge verification, electrical component testing, condensate drain clearing, and thermostat calibration. Systems that get annual maintenance last 3-5 years longer on average and run 15-20% more efficiently than neglected units.",
+      "features": [
+        "Same-day service for most AC repairs",
+        "R-410A and R-32 refrigerant handling (EPA 608 certified)",
+        "Nitrogen pressure testing for leak detection",
+        "Capacitor, contactor, and fan motor replacement on-truck",
+        "Annual maintenance plans with priority scheduling",
+        "All repairs backed by a 1-year parts and labor warranty"
+      ],
+      "faq": [
+        {
+          "question": "Why is my AC running but not cooling the house?",
+          "answer": "The most common causes are low refrigerant from a leak, a dirty or frozen evaporator coil, a failed compressor capacitor, or a clogged air filter restricting airflow. Start by checking your filter — if it's clean and the outdoor unit's fan is spinning but the air coming from your vents isn't cold, you likely need a tech to check refrigerant charge and electrical components."
+        },
+        {
+          "question": "How often does my AC need maintenance?",
+          "answer": "Once a year, ideally in spring before you need it. A proper tune-up catches small problems — a weak capacitor, a slow refrigerant leak, a building condensate blockage — before they turn into a no-cool call on the hottest day of summer."
+        },
+        {
+          "question": "How long should an AC repair take?",
+          "answer": "Most common repairs — capacitor replacement, contactor swap, fan motor, adding refrigerant after a leak repair — take 1-2 hours. Compressor replacement or evaporator coil replacement is a bigger job, typically 4-6 hours. We'll give you a clear timeline before any work starts."
+        }
+      ],
+      "seoTitle": "AC Repair & Maintenance in {{city}} | Same-Day Service | {{company}}",
+      "seoDescription": "Fast, reliable AC repair in {{city}}. NATE-certified technicians, same-day service, and upfront pricing. Call {{company}} — we'll get your cool air back today."
+    },
+    {
+      "id": "furnace-repair",
+      "name": "Furnace & Heating Repair",
+      "slug": "furnace-heating-repair",
+      "shortDescription": "Heat restored fast — because your family can't wait until Monday.",
+      "description": "A furnace failure in January isn't an inconvenience — it's an emergency. Pipes can freeze in hours, and your family's comfort and safety depend on getting heat restored quickly. That's why we treat every no-heat call with urgency, whether it comes in at noon or midnight.\n\nModern gas furnaces are reliable, but they have safety systems that shut them down at the first sign of trouble. A cracked flame sensor won't ignite. A blocked flue triggers the pressure switch lockout. A failing inducer motor can't prove draft, so the gas valve never opens. These are all designed to keep you safe — and they're all things our technicians diagnose and repair daily. We'll check the ignition sequence, verify gas pressure at the manifold, test safety switches, and inspect the heat exchanger for cracks before we clear any lockout code.\n\nIf your furnace is cycling on and off, blowing lukewarm air, or making unusual noises, don't ignore it. A $150 repair today can prevent a $4,000 replacement next month. We'll tell you honestly whether a repair makes sense or whether your 18-year-old unit has reached the point where replacement is the smarter investment.",
+      "features": [
+        "Emergency no-heat service — nights, weekends, holidays",
+        "Flame sensor, igniter, and inducer motor replacement",
+        "Heat exchanger inspection with combustion analysis",
+        "Gas pressure verification and gas valve testing",
+        "Carbon monoxide safety testing on every furnace call",
+        "Honest repair-vs-replace guidance based on unit age and condition"
+      ],
+      "faq": [
+        {
+          "question": "My furnace keeps shutting off after a few minutes. What's wrong?",
+          "answer": "Short cycling is usually caused by a dirty flame sensor (the most common furnace repair — about $150-200), a failing inducer motor, a tripped pressure switch from a blocked flue or condensate drain, or an overheating issue from restricted airflow. A dirty flame sensor is a 15-minute fix. The other causes need proper diagnosis."
+        },
+        {
+          "question": "When should I replace my furnace instead of repairing it?",
+          "answer": "General rule: if your furnace is over 15 years old and the repair costs more than a third of a new unit, replacement usually makes more sense. Also consider that furnaces built before 2000 are typically 80% AFUE efficiency. A new 96% AFUE two-stage furnace will cut your heating fuel consumption by roughly 15-20%, which adds up fast."
+        },
+        {
+          "question": "Is it dangerous to run my furnace if the heat exchanger is cracked?",
+          "answer": "Yes. A cracked heat exchanger can leak carbon monoxide into your home's air supply. If a technician identifies a crack, the furnace should be shut down until it's replaced. This is one reason we include combustion analysis and CO testing on every heating call — it's not optional safety."
+        }
+      ],
+      "seoTitle": "Furnace Repair in {{city}} | 24/7 Emergency Heating Service | {{company}}",
+      "seoDescription": "No heat? {{company}} provides emergency furnace repair in {{city}} — day or night. NATE-certified techs, upfront pricing, same-day restoration. Call now."
+    },
+    {
+      "id": "hvac-installation",
+      "name": "HVAC Installation & Replacement",
+      "slug": "hvac-installation-replacement",
+      "shortDescription": "Properly sized. Properly installed. No shortcuts.",
+      "description": "A new HVAC system is a $8,000-$15,000 investment, and the difference between a system that runs efficiently for 20 years and one that fails in 7 comes down to two things: proper sizing and proper installation. We take both seriously.\n\nSizing isn't guesswork. We perform a Manual J load calculation on every installation — measuring your home's square footage, insulation levels, window area and orientation, duct layout, and local climate data to determine the exact heating and cooling capacity your home needs. An oversized system short-cycles, wastes energy, and fails to dehumidify. An undersized system runs constantly and never reaches setpoint. Both cost you money. We size it right.\n\nWe install high-efficiency equipment from Carrier, Lennox, Trane, Daikin, and other major manufacturers. Our standard residential installations include 16+ SEER2 air conditioners, 96%+ AFUE two-stage gas furnaces, and variable-speed blower motors for consistent comfort and lower operating costs. Every installation includes a post-install commissioning: we verify refrigerant charge by subcooling/superheat, measure static pressure across the system, test airflow at every register, and confirm the thermostat is programmed correctly. You get a system that's dialed in from day one.",
+      "features": [
+        "Manual J load calculation on every install — no guesswork sizing",
+        "16+ SEER2 air conditioners and 96%+ AFUE furnaces standard",
+        "Variable-speed and two-stage equipment for quiet, even comfort",
+        "Post-install commissioning: refrigerant charge, static pressure, airflow verification",
+        "Manufacturer warranty registration handled for you",
+        "Financing options available with approved credit"
+      ],
+      "faq": [
+        {
+          "question": "How long does a full HVAC system installation take?",
+          "answer": "A standard furnace and AC replacement in a home with existing ductwork typically takes 1 day — about 6-8 hours of on-site work. If we're adding or modifying ductwork, converting from one fuel type to another, or installing a completely new system where none existed, it may take 2 days."
+        },
+        {
+          "question": "What SEER rating should I look for in a new AC?",
+          "answer": "As of January 2023, the minimum federal standard is 14 SEER2 in northern states and 15 SEER2 in southern states (under the new SEER2 testing standard). We typically recommend 16-18 SEER2 for most homeowners — it hits the sweet spot between upfront cost and long-term energy savings. Going above 20 SEER2 can make sense if you plan to stay in the home 10+ years and your electricity rates are high."
+        },
+        {
+          "question": "Do I really need a Manual J calculation?",
+          "answer": "Yes. A surprising number of HVAC systems are oversized because the installer used a rule-of-thumb estimate instead of running the numbers. An oversized AC cools too fast, shuts off before it dehumidifies, and short-cycles — leading to a clammy house, higher bills, and premature compressor wear. The load calc takes about an hour and it's included in every installation we quote."
+        }
+      ],
+      "seoTitle": "HVAC Installation & Replacement in {{city}} | Free Estimates | {{company}}",
+      "seoDescription": "New HVAC system installation in {{city}} with Manual J sizing, high-efficiency equipment, and post-install commissioning. Get a free estimate from {{company}}."
+    },
+    {
+      "id": "duct-cleaning",
+      "name": "Duct Cleaning & Sealing",
+      "slug": "duct-cleaning-sealing",
+      "shortDescription": "Your ducts are leaking 20-30% of the air you're paying to heat and cool. Let's fix that.",
+      "description": "Most homeowners never think about their ductwork — it's hidden in attics, crawlspaces, and between walls. But the average home loses 20-30% of its conditioned air through leaky ducts before it ever reaches a register. That's like paying your utility company for air that heats your attic instead of your living room.\n\nDuct sealing addresses the leaks. We pressurize your duct system and use a combination of mastic sealant and UL-listed foil tape (never cloth \"duct tape\" — despite the name, it fails within a year) to seal joints, connections, and small breaches. On homes with accessible ductwork, we typically reduce leakage by 60-80%, which translates directly to lower energy bills and more even temperatures room to room.\n\nDuct cleaning removes the accumulated dust, debris, pet dander, and sometimes mold that builds up inside your duct system over years. We use truck-mounted vacuum equipment with HEPA filtration — not the $99 special from a company running coupon ads. A proper whole-home duct cleaning takes 3-5 hours and makes a real difference for allergy sufferers and homes with pets. We'll also inspect for disconnected ducts, crushed flex runs, and missing insulation while we're in there.",
+      "features": [
+        "Truck-mounted vacuum system with HEPA filtration",
+        "Duct leakage testing before and after sealing",
+        "Mastic sealant and UL-listed foil tape on all connections",
+        "Inspection for disconnected, crushed, or uninsulated runs",
+        "Before-and-after photos of duct interior",
+        "Dryer vent cleaning available as add-on"
+      ],
+      "faq": [
+        {
+          "question": "How often should ducts be cleaned?",
+          "answer": "For most homes, every 5-7 years. Homes with pets, smokers, recent construction or renovation, or family members with respiratory issues may benefit from cleaning every 3-4 years. If you can see dust buildup on your register grilles or notice musty odors when the system starts up, it's time."
+        },
+        {
+          "question": "Is duct sealing worth the cost?",
+          "answer": "Almost always. The average duct sealing job costs $1,500-$2,500 and typically reduces heating and cooling costs by 15-25%. Most homeowners see payback within 2-3 years, plus you get more even temperatures throughout the house. It's one of the highest-ROI home improvements you can make."
+        },
+        {
+          "question": "What about those $99 duct cleaning deals I see advertised?",
+          "answer": "Those are almost always bait-and-switch operations. They'll clean one or two vents, then tell you they found mold and try to upsell you into a $2,000 treatment. A legitimate whole-home duct cleaning with truck-mounted equipment takes 3-5 hours and typically costs $400-$700 depending on the size of your home and number of vents."
+        }
+      ],
+      "seoTitle": "Duct Cleaning & Sealing in {{city}} | Reduce Energy Loss | {{company}}",
+      "seoDescription": "Professional duct cleaning and sealing in {{city}}. Stop losing 20-30% of your heated and cooled air. Truck-mounted HEPA equipment. Call {{company}} for a quote."
+    },
+    {
+      "id": "heat-pumps",
+      "name": "Heat Pump Systems",
+      "slug": "heat-pump-systems",
+      "shortDescription": "One system. Heating and cooling. No gas line required.",
+      "description": "Heat pumps have come a long way from the units that struggled below 40 degrees. Modern cold-climate heat pumps from Mitsubishi, Daikin, Fujitsu, and Bosch maintain full heating capacity down to 5°F and continue operating (at reduced capacity) well below zero. If you're building new, replacing an aging system, or looking to move away from fossil fuels, a heat pump deserves serious consideration.\n\nThe concept is straightforward: a heat pump moves heat instead of generating it. In summer it works exactly like an air conditioner, moving heat from inside to outside. In winter, it reverses — extracting heat from outdoor air (even cold air contains heat energy) and moving it inside. Because it's moving heat rather than creating it by burning fuel, a heat pump can deliver 2-4 times more energy than it consumes. That ratio — called the coefficient of performance (COP) — is why heat pumps cut heating costs by 30-50% compared to gas furnaces in moderate climates.\n\nWe install ducted and ductless (mini-split) heat pump systems. Ductless mini-splits are ideal for room additions, converted garages, sunrooms, and older homes without ductwork. Ducted heat pumps replace your existing furnace and AC with a single unit. We'll walk you through the options, run the load calculations, and help you understand the real-world operating costs for your specific home and climate.",
+      "features": [
+        "Cold-climate models rated to 5°F at full capacity",
+        "Ducted and ductless (mini-split) configurations",
+        "Inverter-driven compressors for variable-speed efficiency",
+        "COP of 2.0-4.0 depending on outdoor temperature",
+        "Eligible for federal tax credits (up to $2,000 under current IRA provisions)",
+        "Hybrid dual-fuel setups paired with existing gas furnace"
+      ],
+      "faq": [
+        {
+          "question": "Will a heat pump work in cold climates?",
+          "answer": "Modern cold-climate heat pumps — specifically inverter-driven models from Mitsubishi (Hyper-Heat), Daikin (Aurora), and Bosch — maintain rated heating capacity down to 5°F and continue operating below -15°F. In very cold climates, a dual-fuel setup (heat pump + gas furnace backup for the coldest days) gives you the best of both worlds."
+        },
+        {
+          "question": "How much can I save switching from a gas furnace to a heat pump?",
+          "answer": "It depends on your gas and electricity rates. In areas where electricity is under $0.15/kWh and gas is over $1.50/therm, a heat pump typically saves 30-50% on annual heating costs. We can run the numbers for your specific situation using your utility rates and our load calculation data."
+        },
+        {
+          "question": "What's the difference between a mini-split and a ducted heat pump?",
+          "answer": "A mini-split has an indoor wall-mounted or ceiling-mounted unit in each zone — no ductwork needed. A ducted heat pump connects to your existing duct system and works like a traditional furnace/AC combo. Mini-splits are more efficient (no duct losses) and allow room-by-room temperature control, but some homeowners prefer the clean look of a ducted system with no visible indoor units."
+        }
+      ],
+      "seoTitle": "Heat Pump Installation in {{city}} | Mini-Splits & Ducted Systems | {{company}}",
+      "seoDescription": "Heat pump installation and service in {{city}}. Cold-climate rated systems, mini-splits, and ducted options. Federal tax credits available. Call {{company}}."
+    },
+    {
+      "id": "water-heaters",
+      "name": "Water Heater Services",
+      "slug": "water-heater-services",
+      "shortDescription": "Hot water restored today. Tank or tankless — we install and repair both.",
+      "description": "You don't appreciate your water heater until you're standing in a cold shower. Or worse, standing in a puddle because the tank rusted through and dumped 50 gallons onto your basement floor. Water heaters have a finite life — typically 8-12 years for a standard tank unit — and the smart move is replacing before failure rather than dealing with the water damage after.\n\nWe service and install both tank and tankless water heaters. Standard tank heaters (40-50 gallon for most homes) are affordable and straightforward. Tankless (on-demand) units from Rinnai, Navien, and Noritz cost more upfront but last 20+ years, never run out of hot water, and use 30-40% less energy since they're not keeping 50 gallons hot around the clock. The right choice depends on your household size, hot water usage patterns, and whether your gas line and venting can support a tankless unit's higher BTU demand.\n\nCommon water heater repairs include thermocouple and thermopile replacement (when the pilot won't stay lit), element replacement on electric units, anode rod replacement (the sacrificial rod that prevents tank corrosion), and T&P valve replacement. If your water heater is making rumbling or popping noises, that's sediment buildup on the bottom of the tank — a flush can help, but heavy sediment in an older unit usually means it's time to start shopping.",
+      "features": [
+        "Tank and tankless installation and repair",
+        "Same-day water heater replacement (most models in stock)",
+        "Tankless brands: Rinnin, Navien, Noritz",
+        "Anode rod inspection and replacement to extend tank life",
+        "Gas line and venting upgrades for tankless conversions",
+        "Expansion tank installation for closed-loop systems"
+      ],
+      "faq": [
+        {
+          "question": "Should I go tankless or stick with a regular water heater?",
+          "answer": "For a household of 1-3 people who don't run multiple hot water fixtures simultaneously, a standard 50-gallon tank ($1,200-$1,800 installed) is usually the most cost-effective choice. For larger families, homes with high simultaneous demand, or homeowners planning to stay long-term, a tankless unit ($3,000-$4,500 installed) pays for itself over its 20+ year lifespan through energy savings and never running out of hot water."
+        },
+        {
+          "question": "My water heater is making popping or rumbling noises. Is that dangerous?",
+          "answer": "It's not immediately dangerous, but it's a sign of sediment buildup on the bottom of the tank. The noise is water boiling under the sediment layer. A tank flush can help if the unit is relatively new. If the heater is over 8 years old and heavily sediment-laden, flushing sometimes dislodges debris that clogs the drain valve. At that age, you're usually better off planning for replacement."
+        },
+        {
+          "question": "How long does a water heater installation take?",
+          "answer": "A tank-to-tank swap typically takes 2-3 hours. A tank-to-tankless conversion takes 4-6 hours because it usually requires upgrading the gas line size, installing new venting (tankless units require stainless steel or PVC venting depending on the model), and sometimes adding an electrical outlet for the unit's control board."
+        }
+      ],
+      "seoTitle": "Water Heater Installation & Repair in {{city}} | Tank & Tankless | {{company}}",
+      "seoDescription": "Water heater repair and installation in {{city}}. Tank and tankless options, same-day service available. NATE-certified techs. Call {{company}} today."
+    },
+    {
+      "id": "indoor-air-quality",
+      "name": "Indoor Air Quality",
+      "slug": "indoor-air-quality",
+      "shortDescription": "The air inside your home is 2-5x more polluted than outside. We fix that.",
+      "description": "The EPA estimates indoor air is 2-5 times more polluted than outdoor air. Your HVAC system circulates that air — dust, pet dander, pollen, mold spores, VOCs from cleaning products and building materials, and whatever else is floating around — through every room in your house, 5-7 times per day. If anyone in your home deals with allergies, asthma, or respiratory issues, improving your indoor air quality can make a measurable difference.\n\nWe install and service whole-home air quality solutions that integrate directly with your existing HVAC system. Media air cleaners (like the Honeywell F100 or Aprilaire 2410) use 4-5 inch pleated filters with a MERV 11-16 rating — far more effective than the 1-inch filters most homeowners swap at the hardware store. UV germicidal lights installed in the air handler kill mold, bacteria, and viruses as air passes over the evaporator coil. Whole-home humidifiers prevent the dry winter air that causes static electricity, cracked woodwork, and respiratory irritation.\n\nFor homes with specific concerns, we also install ERV (Energy Recovery Ventilator) and HRV (Heat Recovery Ventilator) systems that bring in fresh outdoor air while recovering 70-80% of the energy from the exhaust air. These are especially important in newer, tightly sealed homes that don't get enough natural air exchange.",
+      "features": [
+        "Whole-home media air cleaners (MERV 11-16)",
+        "UV germicidal light installation in air handler",
+        "Whole-home humidifier and dehumidifier systems",
+        "ERV/HRV fresh air ventilation systems",
+        "Indoor air quality testing and assessment",
+        "Filter subscription service — right filter, delivered on schedule"
+      ],
+      "faq": [
+        {
+          "question": "Are those 1-inch filters from the hardware store good enough?",
+          "answer": "They catch large dust particles, but that's about it. A standard 1-inch filter rated MERV 8 catches roughly 20% of particles in the 1-3 micron range (the size that reaches deep into your lungs). A 4-inch media filter rated MERV 13 catches 85%+ of those same particles. The upgrade costs $300-$500 for the cabinet and filter, and replacement filters run about $30-$40 every 6-12 months."
+        },
+        {
+          "question": "Do UV lights in the HVAC system actually work?",
+          "answer": "Yes — specifically for killing mold growth on the evaporator coil and in the drain pan, which is a common source of musty odors. UV-C light at 254nm wavelength is proven to neutralize mold, bacteria, and many viruses with sufficient exposure time. A coil-mounted UV light runs $400-$700 installed and the bulb lasts about 2 years."
+        },
+        {
+          "question": "What's the difference between an ERV and an HRV?",
+          "answer": "Both bring fresh outdoor air in and exhaust stale indoor air out while recovering energy. An HRV (Heat Recovery Ventilator) transfers heat only. An ERV (Energy Recovery Ventilator) transfers both heat and moisture. In humid climates, an ERV is usually better because it prevents excess humidity from entering with the fresh air. In dry climates, an HRV is typically preferred."
+        }
+      ],
+      "seoTitle": "Indoor Air Quality Solutions in {{city}} | Air Purifiers & Ventilation | {{company}}",
+      "seoDescription": "Improve your home's air quality with whole-home air cleaners, UV lights, humidifiers, and ERV systems. Serving {{city}}. Call {{company}} for a consultation."
+    },
+    {
+      "id": "emergency-service",
+      "name": "24/7 Emergency Service",
+      "slug": "emergency-service",
+      "shortDescription": "Real emergencies don't wait for business hours. Neither do we.",
+      "description": "A broken furnace at 2 AM in January. A gas leak smell on a Sunday morning. A flooded basement from a burst water heater on Thanksgiving. These aren't situations where you can leave a voicemail and wait until Monday. When you call our emergency line, a real person answers — not a recording, not an answering service that takes a message. We dispatch a technician to your home, typically within 60-90 minutes.\n\nOur emergency trucks are fully stocked with the parts needed for the most common urgent repairs: ignition components, flame sensors, capacitors, contactors, fan motors, gas valves, water heater thermocouples, and basic plumbing supplies for water heater failures. We resolve the majority of emergency calls in a single visit without needing to order parts or schedule a return trip.\n\nEmergency service rates are straightforward. There's a dispatch fee for after-hours calls (evenings, weekends, and holidays), and then standard repair pricing from there. No surge pricing, no \"emergency multiplier\" on parts. We'll tell you the cost before we start any work, and you'll never be pressured into approving a repair at 3 AM that could safely wait until morning. If the situation is stable enough to wait, we'll tell you that too.",
+      "features": [
+        "Live answer — real person, not an answering service",
+        "60-90 minute typical dispatch time",
+        "Fully stocked emergency trucks for single-visit resolution",
+        "Flat dispatch fee — no surge pricing on parts or labor",
+        "Upfront pricing before any work begins",
+        "If it can safely wait until morning, we'll tell you"
+      ],
+      "faq": [
+        {
+          "question": "How much does an emergency service call cost?",
+          "answer": "We charge a flat after-hours dispatch fee of $89-$149 (varies by area), which covers the trip to your home and the diagnostic. Repair costs are then quoted at our standard rates — same price you'd pay during business hours. You'll know the total before we touch anything."
+        },
+        {
+          "question": "What qualifies as an HVAC emergency?",
+          "answer": "No heat when temperatures are below freezing (risk of frozen pipes), suspected gas leaks (smell of rotten eggs or hissing near gas line), carbon monoxide alarm sounding, active water leak from a failed water heater or boiler, and complete AC failure when occupants include elderly, infants, or people with medical conditions. If you're unsure, call — we'll help you determine if it needs immediate attention."
+        },
+        {
+          "question": "How fast can you get a technician to my house?",
+          "answer": "In our primary service area, typical dispatch time is 60-90 minutes from when you call. During extreme weather events (polar vortex, heat waves), demand spikes and wait times may be longer — but we prioritize by severity. No heat with vulnerable occupants or a gas leak always goes to the top of the list."
+        }
+      ],
+      "seoTitle": "24/7 Emergency HVAC Service in {{city}} | Fast Response | {{company}}",
+      "seoDescription": "HVAC emergency? {{company}} dispatches a tech to your {{city}} home within 60-90 minutes — day or night. No surge pricing. Call our emergency line now."
+    }
+  ],
+  "blogTopics": [
+    {
+      "title": "When Should You Replace Your Furnace? 7 Signs It's Time",
+      "slug": "when-to-replace-your-furnace-7-signs",
+      "outline": [
+        "Introduction: Average furnace lifespan (15-20 years) and why waiting for total failure costs more",
+        "Sign 1: Age — units over 15 years old, especially those with standing pilot lights (pre-2000)",
+        "Sign 2: Rising heating bills — declining efficiency from worn heat exchangers and burners",
+        "Sign 3: Frequent repairs — the 50% rule (if repair costs 50%+ of a new unit, replace)",
+        "Sign 4: Uneven heating — rooms that are too hot or too cold despite working system",
+        "Sign 5: Yellow or flickering burner flame — indicates incomplete combustion, potential CO issue",
+        "Sign 6: Unusual noises — banging, rattling, or squealing beyond normal startup sounds",
+        "Sign 7: Visible rust, cracks, or soot around the furnace or flue connections",
+        "What to expect cost-wise: $4,000-$8,000 for a standard replacement, variables that affect price",
+        "Conclusion: How to get an honest assessment and avoid being oversold"
+      ],
+      "targetWords": 1500,
+      "audience": "Homeowners with aging furnaces trying to decide between repair and replacement"
+    },
+    {
+      "title": "AC Not Cooling? 5 Things to Check Before Calling a Tech",
+      "slug": "ac-not-cooling-5-things-to-check",
+      "outline": [
+        "Introduction: Not every AC problem needs a service call — some fixes are free",
+        "Check 1: Thermostat settings — confirm it's set to COOL (not AUTO or HEAT) and the fan is set to AUTO",
+        "Check 2: Air filter — hold it up to light; if you can't see through it, it's restricting airflow",
+        "Check 3: Circuit breaker — the outdoor unit has its own breaker; reset it once (if it trips again, call)",
+        "Check 4: Outdoor unit — clear any debris, vegetation, or buildup within 2 feet of the condenser",
+        "Check 5: Condensate drain — a clogged drain triggers a safety float switch that shuts down the system",
+        "When to call a professional: low refrigerant signs (ice on lines, warm air), electrical smells, unusual sounds",
+        "Conclusion: What information to have ready when you call (model number, symptoms, what you've tried)"
+      ],
+      "targetWords": 1200,
+      "audience": "Homeowners dealing with an AC that stopped working, searching for quick fixes"
+    },
+    {
+      "title": "Heat Pump vs. Furnace: Which Is Right for Your Home?",
+      "slug": "heat-pump-vs-furnace-which-is-right",
+      "outline": [
+        "Introduction: The heat pump market is exploding — but it's not the right fit for every home",
+        "How a furnace works: combustion basics, AFUE ratings, 80% vs 96% efficiency explained",
+        "How a heat pump works: refrigerant cycle in reverse, COP explained in plain terms",
+        "Climate considerations: where heat pumps excel (moderate climates) vs. where dual-fuel makes sense",
+        "Cost comparison: upfront costs, monthly operating costs at different utility rate scenarios",
+        "The dual-fuel option: heat pump for 80% of heating hours, gas furnace backup below 20-25°F",
+        "Federal tax credits: current IRA incentives ($2,000 for heat pumps, income-based rebates)",
+        "Decision framework: 4 questions to ask yourself before choosing",
+        "Conclusion: Why there's no universal right answer — it depends on your home, climate, and utility rates"
+      ],
+      "targetWords": 1800,
+      "audience": "Homeowners researching new HVAC systems, environmentally conscious buyers, people with high gas bills"
+    },
+    {
+      "title": "Why Your Energy Bills Are High (And How to Fix It)",
+      "slug": "why-energy-bills-are-high-how-to-fix",
+      "outline": [
+        "Introduction: If your bills jumped 20%+ and rates didn't change, your HVAC system is the likely culprit",
+        "Cause 1: Dirty or clogged air filters forcing the system to work harder",
+        "Cause 2: Leaky ductwork — losing 20-30% of conditioned air in the attic or crawlspace",
+        "Cause 3: Aging equipment running at declining efficiency (SEER/AFUE degradation over time)",
+        "Cause 4: Refrigerant leak — system runs constantly but never reaches setpoint",
+        "Cause 5: Poor insulation and air sealing — the HVAC system compensates for the building envelope",
+        "Cause 6: Thermostat issues — bad location (near heat source), wrong settings, dead batteries",
+        "Quick wins: $0-$200 fixes that make an immediate impact",
+        "Medium investment: $500-$3,000 improvements (duct sealing, insulation, smart thermostat)",
+        "Conclusion: Getting an energy audit to identify your biggest opportunity"
+      ],
+      "targetWords": 1400,
+      "audience": "Homeowners who noticed a spike in utility bills, budget-conscious households"
+    },
+    {
+      "title": "What to Expect During an HVAC Inspection",
+      "slug": "what-to-expect-during-hvac-inspection",
+      "outline": [
+        "Introduction: What a real HVAC inspection includes (vs. a 15-minute 'check' from a coupon ad)",
+        "Pre-inspection: What the tech should ask you — any comfort complaints, unusual noises, odors",
+        "Heating system inspection: burner condition, flame sensor, heat exchanger, ignition sequence, gas pressure",
+        "Cooling system inspection: refrigerant charge (superheat/subcooling), coil condition, capacitor testing",
+        "Electrical inspection: contactor condition, wiring connections, amp draw on motors and compressor",
+        "Airflow inspection: static pressure measurement, filter condition, ductwork visible issues",
+        "Safety checks: CO testing, gas leak detection, proper flue draft verification",
+        "The report: what you should receive — findings, photos, repair recommendations prioritized by urgency",
+        "Red flags: upselling tactics to watch for, unnecessary recommendations",
+        "Conclusion: How to find a company that inspects honestly"
+      ],
+      "targetWords": 1300,
+      "audience": "Homeowners scheduling their first maintenance visit, people who want to verify their tech is thorough"
+    }
+  ],
+  "faq": [
+    {
+      "question": "How often should I change my air filter?",
+      "answer": "Standard 1-inch filters should be checked monthly and replaced every 1-3 months depending on conditions. Homes with pets, allergy sufferers, or nearby construction should replace monthly. If you have a 4-inch or 5-inch media filter, those typically last 6-12 months. Hold the filter up to a light — if you can't see through it, it's done."
+    },
+    {
+      "question": "How much does a new HVAC system cost?",
+      "answer": "For a standard home (1,500-2,500 sq ft), a new furnace and air conditioner typically runs $8,000-$14,000 installed, depending on equipment efficiency, brand, and any ductwork modifications needed. A heat pump system runs $7,000-$13,000. Tankless water heaters add $3,000-$4,500. We provide detailed written estimates with equipment specs so you can make an apples-to-apples comparison."
+    },
+    {
+      "question": "What does SEER mean and why does it matter?",
+      "answer": "SEER stands for Seasonal Energy Efficiency Ratio — it measures how much cooling output an AC produces per unit of electricity over a typical cooling season. Higher SEER means lower electric bills. The current minimum standard is 14-15 SEER2 (depending on region). A 16 SEER2 unit uses roughly 12% less electricity than a 14 SEER2 unit. Going from an old 10-SEER system to a new 16 SEER2 unit cuts your cooling energy use by about 40%."
+    },
+    {
+      "question": "How long do HVAC systems typically last?",
+      "answer": "A well-maintained gas furnace lasts 15-20 years. Central air conditioners and heat pumps last 12-17 years. Water heaters last 8-12 years (tank) or 20+ years (tankless). Ductwork can last 25-30 years but often needs sealing or replacement of flex runs sooner. Regular maintenance is the single biggest factor — maintained systems last 3-5 years longer than neglected ones."
+    },
+    {
+      "question": "Do you offer financing for new equipment?",
+      "answer": "Yes. We offer financing through Wells Fargo and Synchrony with approved credit. Common options include 0% interest for 12-18 months (if paid in full) and low fixed-rate plans for 36-72 months. A $10,000 system on a 60-month plan at 7.99% runs about $200/month. We also accept all major credit cards. Our technicians never pressure financing — we present the options and let you decide."
+    },
+    {
+      "question": "Is a maintenance plan worth it?",
+      "answer": "For most homeowners, yes. Our maintenance plans typically include two annual visits (one for heating, one for cooling), 15% off repairs, priority scheduling (you go to the front of the line during peak season), and no overtime charges on emergency calls. The plan pays for itself if you need even one repair during the year. More importantly, annual maintenance catches small problems before they become expensive failures."
+    },
+    {
+      "question": "What refrigerant does my AC use and does it matter?",
+      "answer": "Systems installed before 2010 likely use R-22 (Freon), which has been phased out under the Clean Air Act. R-22 now costs $80-$150 per pound because it can only come from reclaimed stock. Systems installed 2010-2024 use R-410A (Puron), which is currently standard. Newer systems are transitioning to R-32 and R-454B (lower global warming potential). If your R-22 system needs a major refrigerant charge, it's usually more cost-effective to replace the system than to keep buying expensive refrigerant."
+    },
+    {
+      "question": "How can I tell if my ducts are leaking?",
+      "answer": "Common signs include: rooms that are consistently too hot or too cold, visible dust around register grilles, higher-than-expected energy bills, and ducts in the attic or crawlspace that are visibly disconnected or have gaps at joints. You can do a quick check by turning on the system and feeling along accessible duct joints for air escaping. A professional duct leakage test (using a duct blaster) gives you an exact measurement and typically costs $150-$250."
+    }
+  ],
+  "testimonialTemplates": [
+    {
+      "id": "emergency-repair-night",
+      "scenario": "Emergency furnace repair on a cold winter night",
+      "template": "Our furnace quit at 11 PM on the coldest night in January. Temp inside was already dropping fast and I had two kids under five. Called {{company}} expecting to leave a voicemail — an actual person answered, and a tech was at our door by midnight. Turned out the inducer motor had failed. He had the part on his truck and had us back to heat by 1:30 AM. No price gouging, no drama. Just a competent guy who fixed the problem when we needed it most.",
+      "rating": 5,
+      "service": "emergency-service"
+    },
+    {
+      "id": "new-system-install",
+      "scenario": "Full HVAC system replacement in an older home",
+      "template": "We got three quotes for replacing the original 1998 furnace and AC in our home. {{company}} was the only company that actually ran a load calculation instead of just looking at the old unit and quoting the same size. Turned out our old system was a full ton oversized — which explained why the house always felt clammy in summer. They installed a properly sized 16 SEER2 system with a variable-speed blower, and the difference is night and day. Even temps in every room, lower humidity, and our electric bill dropped about $40 a month in summer.",
+      "rating": 5,
+      "service": "hvac-installation"
+    },
+    {
+      "id": "maintenance-plan-signup",
+      "scenario": "Homeowner signs up for a maintenance plan after a positive tune-up experience",
+      "template": "Had {{company}} out for an AC tune-up before summer. The tech spent a solid 90 minutes — checked refrigerant charge, tested capacitors, cleaned the coil, cleared the drain, the whole deal. Found a weak contactor that would have failed mid-summer and replaced it on the spot for $85. Signed up for their maintenance plan right then. Two visits a year, priority scheduling, and a discount on repairs. After years of neglecting our system and paying for emergency calls, this just makes more sense.",
+      "rating": 5,
+      "service": "ac-repair"
+    },
+    {
+      "id": "honest-diagnosis",
+      "scenario": "Technician gives honest advice instead of upselling",
+      "template": "The previous company we used told us we needed a whole new system — quoted us $12,000. I called {{company}} for a second opinion. Their tech found a $180 flame sensor issue and a clogged condensate drain. Total bill was under $300 and the system has been running fine for eight months now. I asked about the 'needed replacement' the other company recommended — he said our furnace has a good 5-6 years left with proper maintenance. Honesty like that earns a customer for life.",
+      "rating": 5,
+      "service": "furnace-repair"
+    },
+    {
+      "id": "ductwork-improvement",
+      "scenario": "Duct sealing resolves long-standing comfort and energy issues",
+      "template": "Our upstairs bedrooms were always 5-8 degrees warmer than downstairs. I assumed it was just how two-story houses worked. {{company}} tested our ductwork and found massive leaks at the trunk line connections in the attic — we were losing about 30% of our airflow before it ever reached the second floor. After sealing, the temperature difference dropped to about 2 degrees and our summer electric bill went down around $50 a month. Should have done this years ago.",
+      "rating": 5,
+      "service": "duct-cleaning"
+    }
+  ]
+}

@@ -131,6 +131,36 @@ const ICON_OPTIONS = [
   'users', 'target', 'trending-up', 'globe', 'leaf', 'flower', 'palette'
 ]
 
+// ─── Content Pack Loader ──────────────────────────────────────────────────────
+
+function loadContentPack(industry: string): any | null {
+  const fs = require('fs')
+  const path = require('path')
+  const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
+
+  // Map industry to template + pack file
+  const packPaths: Record<string, string> = {
+    general_contractor: path.join(TEMPLATES_ROOT, 'website-contractor', 'content-pack.json'),
+    roofing: path.join(TEMPLATES_ROOT, 'website-contractor', 'content-pack-roofing.json'),
+    field_service: path.join(TEMPLATES_ROOT, 'website-fieldservice', 'content-pack.json'),
+    hvac: path.join(TEMPLATES_ROOT, 'website-fieldservice', 'content-pack.json'),
+    plumbing: path.join(TEMPLATES_ROOT, 'website-fieldservice', 'content-pack.json'),
+    electrical: path.join(TEMPLATES_ROOT, 'website-fieldservice', 'content-pack.json'),
+    home_care: path.join(TEMPLATES_ROOT, 'website-homecare', 'content-pack.json'),
+    dispensary: path.join(TEMPLATES_ROOT, 'website-dispensary', 'content-pack.json'),
+  }
+
+  const packPath = packPaths[industry] || packPaths['general_contractor']
+  try {
+    if (fs.existsSync(packPath)) {
+      return JSON.parse(fs.readFileSync(packPath, 'utf8'))
+    }
+  } catch (e: any) {
+    console.warn('[ContentGenerator] Failed to load content pack:', e.message)
+  }
+  return null
+}
+
 export async function generateWebsiteContent(input: ContentGenerationInput): Promise<GeneratedContent> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -142,7 +172,36 @@ export async function generateWebsiteContent(input: ContentGenerationInput): Pro
   const serviceAreas = [input.location.city, ...nearbyCities].filter(Boolean)
   const now = new Date().toISOString()
 
-  const prompt = `You are generating complete website content for a business. Generate unique, professional, SEO-optimized content tailored to this specific business.
+  // Load industry content pack
+  const pack = loadContentPack(input.businessType)
+  if (pack) {
+    console.log('[ContentGenerator] Using content pack for:', pack.vertical || input.businessType)
+  }
+
+  // Build the prompt — use content pack if available, otherwise generate from scratch
+  const packContext = pack ? `
+You have a pre-written content pack for this industry. Use it as the foundation — customize it for this specific business. DO NOT rewrite from scratch. Adapt the existing content by:
+- Replacing generic references with "${input.businessName}" and "${region}"
+- Adjusting the tone to match a ${input.description || 'local business'} in ${location}
+- Using the service descriptions from the pack but localizing them
+- Writing blog posts based on the pack's topic outlines
+
+CONTENT PACK TONE: ${pack.tone?.summary || pack.tone || 'Professional and trustworthy'}
+
+TRUST BADGES FROM PACK:
+${JSON.stringify(pack.trustBadges || [], null, 2)}
+
+SERVICES FROM PACK (customize these, don't invent new ones):
+${JSON.stringify((pack.services || []).map((s: any) => ({ name: s.name, shortDescription: s.shortDescription, description: s.description, features: s.features || s.keyPoints?.map((k: any) => k.point) || [] })), null, 2)}
+
+BLOG TOPICS FROM PACK (write full articles based on these outlines):
+${JSON.stringify((pack.blogTopics || []).slice(0, 3).map((b: any) => ({ title: b.title, slug: b.slug, outline: b.outline, targetWords: b.targetWords })), null, 2)}
+
+FAQ FROM PACK (use these as-is, just customize company name/location):
+${JSON.stringify((pack.faq || []).slice(0, 6), null, 2)}
+` : ''
+
+  const prompt = `You are customizing website content for a specific business.${pack ? ' You have industry-specific content to work from — adapt it, don\'t start from scratch.' : ' Generate unique, professional, SEO-optimized content.'}
 
 BUSINESS DETAILS:
 - Name: ${input.businessName}
@@ -154,109 +213,29 @@ BUSINESS DETAILS:
 ${input.ownerName ? '- Owner: ' + input.ownerName : ''}
 ${input.phone ? '- Phone: ' + input.phone : ''}
 ${input.email ? '- Email: ' + input.email : ''}
-
-Generate a JSON object with these exact keys. All content should be specific to this business type and location.
-
-IMPORTANT RULES:
+${packContext}
+RULES:
 - Write compelling, natural copy — not generic filler
-- Include the city/region name naturally in content for local SEO
-- Use the company name where appropriate
-- Each service must have unique, detailed content
-- Blog posts should be genuinely useful to the target audience
-- Privacy policy and terms should reference the actual company name and location
+- Include "${input.location.city}" and "${region}" naturally for local SEO
+- Use "${input.businessName}" where appropriate
+- Blog posts must be 400-800 words, genuinely useful, with markdown headings (##) and bullet points
 - Icon values must be one of: ${ICON_OPTIONS.join(', ')}
+${pack ? '- Stay true to the content pack\'s tone and technical accuracy' : '- Each service must have unique, detailed content'}
 
-Return ONLY valid JSON (no markdown, no explanation) with this structure:
-
+Return ONLY valid JSON with this structure:
 {
   "homepage": {
-    "hero": {
-      "tagline": "SHORT 3-6 WORD BADGE (e.g. 'Award-Winning Dental Care')",
-      "title": "COMPELLING HEADLINE (use city name)",
-      "subtitle": "SUPPORTING TAGLINE",
-      "description": "2-3 SENTENCE DESCRIPTION of the business",
-      "primaryButtonText": "CTA BUTTON TEXT",
-      "primaryButtonLink": "#contact",
-      "secondaryButtonText": "SECONDARY BUTTON",
-      "secondaryButtonLink": "/services"
-    },
-    "trustBadges": [
-      { "id": "badge1", "type": "custom", "label": "BADGE LABEL", "sublabel": "SUPPORTING TEXT", "icon": "ICON_NAME", "enabled": true },
-      { "id": "badge2", "type": "custom", "label": "BADGE LABEL", "sublabel": "SUPPORTING TEXT", "icon": "ICON_NAME", "enabled": true },
-      { "id": "badge3", "type": "custom", "label": "BADGE LABEL", "sublabel": "SUPPORTING TEXT", "icon": "ICON_NAME", "enabled": true }
-    ],
-    "ctaSection": {
-      "title": "CTA SECTION TITLE (can use newlines)",
-      "description": "CTA DESCRIPTION",
-      "primaryButtonText": "CTA BUTTON",
-      "primaryButtonLink": "#contact",
-      "headline": "ONE SENTENCE CALL TO ACTION",
-      "subtext": "SUPPORTING LINE with phone number if available"
-    },
-    "aboutSection": {
-      "title": "WHY CHOOSE [COMPANY] TITLE",
-      "text": "2-3 PARAGRAPH ABOUT TEXT - compelling and specific to this business"
-    }
+    "hero": { "tagline": "3-6 WORD BADGE", "title": "HEADLINE with city", "subtitle": "TAGLINE", "description": "2-3 sentences", "primaryButtonText": "CTA", "primaryButtonLink": "#contact", "secondaryButtonText": "SECONDARY", "secondaryButtonLink": "/services" },
+    "trustBadges": [{ "id": "id", "type": "custom", "label": "LABEL", "sublabel": "SUBLABEL", "icon": "ICON", "enabled": true }],
+    "ctaSection": { "title": "CTA TITLE", "description": "CTA DESC", "primaryButtonText": "CTA", "primaryButtonLink": "#contact", "headline": "ONE LINE", "subtext": "WITH PHONE" },
+    "aboutSection": { "title": "ABOUT TITLE", "text": "2-3 PARAGRAPHS about this specific business" }
   },
-  "services": [
-    FOR EACH SERVICE, generate:
-    {
-      "id": "kebab-case-id",
-      "name": "Service Name",
-      "title": "Service Title",
-      "slug": "kebab-case-slug",
-      "shortDescription": "One sentence summary",
-      "description": "2-3 sentence detailed description mentioning ${input.businessName} and ${region}",
-      "icon": "ICON_FROM_LIST",
-      "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
-      "links": [{"label": "Sub-topic", "href": "/services/SLUG"}],
-      "seoTitle": "Service Name in ${input.location.city}, ${input.location.state} | ${input.businessName}",
-      "seoDescription": "SEO description mentioning location and company",
-      "visible": true,
-      "order": NUMBER
-    }
-  ],
-  "settings": {
-    "defaultMetaTitle": "${input.businessName} - ${input.location.city} ${input.businessType}",
-    "defaultMetaDescription": "150-160 char SEO description for the whole site"
-  },
-  "posts": [
-    Generate exactly 3 SEO-optimized blog posts relevant to this business type and location:
-    {
-      "id": "blog1",
-      "title": "ARTICLE TITLE",
-      "slug": "kebab-case-slug",
-      "excerpt": "2 sentence summary",
-      "content": "FULL ARTICLE with markdown headings (##), bold text, and bullet points. 400-600 words. Educational and useful.",
-      "published": true,
-      "category": "RELEVANT CATEGORY",
-      "tags": ["tag1", "tag2", "tag3"],
-      "seoTitle": "SEO TITLE | ${input.businessName}",
-      "seoDescription": "SEO description for this post",
-      "author": "${input.ownerName || input.businessName}"
-    }
-  ],
+  "services": [{ "id": "slug", "name": "Name", "title": "Title", "slug": "slug", "shortDescription": "One sentence", "description": "2-3 sentences with ${input.businessName} and ${region}", "icon": "ICON", "features": ["f1","f2","f3","f4","f5"], "links": [], "seoTitle": "Service | ${input.businessName}", "seoDescription": "SEO desc", "visible": true, "order": 1 }],
+  "settings": { "defaultMetaTitle": "${input.businessName} - ${input.location.city} ${input.businessType}", "defaultMetaDescription": "150 char SEO desc" },
+  "posts": [{ "id": "blog1", "title": "TITLE", "slug": "slug", "excerpt": "2 sentences", "content": "FULL 400-800 WORD ARTICLE with ## headings", "published": true, "category": "CAT", "tags": ["t1","t2"], "seoTitle": "Title | ${input.businessName}", "seoDescription": "SEO desc", "author": "${input.ownerName || input.businessName}" }],
   "pages": {
-    "privacy-policy": {
-      "id": "privacy-policy",
-      "title": "Privacy Policy",
-      "slug": "privacy-policy",
-      "content": "FULL PRIVACY POLICY in HTML. Reference ${input.businessName}, ${location}. Cover: data collection, cookies, third parties, contact info, CCPA/GDPR basics. Use <h2>, <p>, <ul> tags.",
-      "description": "Privacy policy for ${input.businessName}",
-      "seoTitle": "Privacy Policy | ${input.businessName}",
-      "seoDescription": "Privacy policy for ${input.businessName} in ${location}.",
-      "published": true
-    },
-    "terms-of-service": {
-      "id": "terms-of-service",
-      "title": "Terms of Service",
-      "slug": "terms-of-service",
-      "content": "FULL TERMS OF SERVICE in HTML. Reference ${input.businessName}, ${location}. Cover: service terms, liability, payments, cancellation, governing law (${input.location.stateFull || input.location.state}). Use <h2>, <p>, <ul> tags.",
-      "description": "Terms of service for ${input.businessName}",
-      "seoTitle": "Terms of Service | ${input.businessName}",
-      "seoDescription": "Terms of service for ${input.businessName} in ${location}.",
-      "published": true
-    }
+    "privacy-policy": { "id": "privacy-policy", "title": "Privacy Policy", "slug": "privacy-policy", "content": "FULL PRIVACY POLICY HTML for ${input.businessName} in ${location}", "seoTitle": "Privacy Policy | ${input.businessName}", "published": true },
+    "terms-of-service": { "id": "terms-of-service", "title": "Terms of Service", "slug": "terms-of-service", "content": "FULL TERMS HTML for ${input.businessName} in ${location}, governed by ${input.location.stateFull || input.location.state} law", "seoTitle": "Terms | ${input.businessName}", "published": true }
   }
 }`
 

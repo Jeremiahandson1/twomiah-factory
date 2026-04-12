@@ -1,0 +1,272 @@
+{
+  "vertical": "roofing",
+  "tone": "Direct, confident, and insurance-claim fluent. Speak to homeowners who are stressed after a storm — they need someone who knows roofing AND the claims process inside out. Lead with clarity, not sales pressure. Example: 'We'll handle the inspection, the insurance paperwork, and the install — you just pick the shingle color.' Use plain language for technical concepts. Mention specific materials, warranty years, and realistic timelines. Be the knowledgeable neighbor who happens to run a roofing company.",
+  "trustBadges": [
+    {
+      "label": "GAF Certified Installer",
+      "description": "Factory-certified to install GAF roofing systems with full manufacturer warranty coverage, including the Golden Pledge limited warranty."
+    },
+    {
+      "label": "Owens Corning Preferred Contractor",
+      "description": "Part of the Owens Corning Roofing Contractor Network, qualified to offer the Preferred Protection Roofing System limited warranty."
+    },
+    {
+      "label": "Free Storm Damage Inspections",
+      "description": "No-cost, no-obligation roof inspections after hail, wind, or severe weather events. We document everything with photos and drone imagery for your records."
+    },
+    {
+      "label": "Insurance Claim Specialists",
+      "description": "Experienced in working directly with insurance adjusters, filing supplements in Xactimate, and making sure your claim covers the full scope of work."
+    }
+  ],
+  "services": [
+    {
+      "title": "Roof Replacement",
+      "slug": "roof-replacement",
+      "shortDescription": "Complete tear-off and professional installation of your new roof system.",
+      "fullDescription": "A full roof replacement starts with stripping the old shingles down to the decking so we can inspect every square foot for rot, sagging, or water damage. We replace any compromised decking boards, install synthetic underlayment, ice and water shield in valleys and along eaves, new drip edge, and proper ridge vent ventilation before laying your chosen shingles. Most residential replacements on a standard 2,000–3,000 sq ft home are completed in 1–3 days, weather permitting. We offer asphalt architectural shingles, impact-resistant shingles (Class 3 and Class 4), and standing seam metal. Pricing typically ranges from $8,000 to $18,000 depending on roof size, pitch, material choice, and the number of layers being removed. All installations include a workmanship warranty and the manufacturer's material warranty — 30-year, 50-year, or lifetime depending on the product line.",
+      "keyPoints": [
+        "Full tear-off to inspect and replace damaged decking",
+        "Synthetic underlayment and ice & water shield in critical areas",
+        "Ridge vent and soffit ventilation for proper airflow",
+        "New drip edge, flashing, and pipe boot replacements",
+        "1–3 day typical completion for standard residential homes",
+        "$8,000–$18,000 range depending on size and materials",
+        "30-year to lifetime manufacturer warranties available"
+      ]
+    },
+    {
+      "title": "Storm Damage Repair",
+      "slug": "storm-damage-repair",
+      "shortDescription": "Fast response for hail, wind, and severe weather damage — including emergency tarping and insurance coordination.",
+      "fullDescription": "After a major storm, your roof may have damage you can't see from the ground — cracked shingles, lifted tabs, granule loss from hail, or punctures from debris. We offer same-day or next-day inspections after severe weather events and can deploy emergency tarping within hours to prevent interior water damage. Our team documents every point of impact with close-up photography and drone imagery, then prepares a detailed scope of damage report that aligns with what your insurance company needs to approve the claim. We handle hail damage (even cosmetic damage that qualifies under your policy), wind uplift repair, fallen tree damage, and flashing failures. If your roof needs a partial repair, we match existing shingles as closely as possible. If the damage warrants a full replacement, we walk you through the insurance process from first call to final payment.",
+      "keyPoints": [
+        "Same-day or next-day storm damage inspections",
+        "Emergency tarping available within hours",
+        "Detailed photo and drone documentation for insurance",
+        "Hail, wind, fallen tree, and debris damage repair",
+        "Shingle matching for partial repairs",
+        "Full insurance claim coordination included",
+        "No out-of-pocket cost on approved insurance claims (minus deductible)"
+      ]
+    },
+    {
+      "title": "Roof Inspections",
+      "slug": "roof-inspections",
+      "shortDescription": "Comprehensive roof assessments using on-site evaluation, drone imagery, and satellite analysis.",
+      "fullDescription": "A professional roof inspection catches small problems before they become expensive ones. We offer three levels of inspection: satellite pre-assessment to evaluate roof age and visible wear remotely, on-site walk-around inspections that check shingles, flashing, gutters, soffit, fascia, and attic ventilation, and drone-assisted inspections that capture high-resolution imagery of hard-to-reach areas — steep pitches, multi-story homes, and commercial flat roofs. We check for granule loss, cracked or curling shingles, exposed nail heads, damaged pipe boots, failing sealant, and signs of moisture intrusion in the attic. Every inspection includes a written report with photos and a prioritized list of recommendations. We recommend annual inspections, especially after hail season. Inspection is free when combined with storm damage assessment; standalone inspections are typically $150–$300.",
+      "keyPoints": [
+        "Satellite pre-assessment for quick initial evaluation",
+        "On-site inspection of shingles, flashing, ventilation, and attic",
+        "Drone imagery for steep or hard-to-access roofs",
+        "Written report with photos and prioritized recommendations",
+        "Annual inspections recommended, especially after storm season",
+        "Free inspection with storm damage assessment",
+        "Standalone inspections: $150–$300"
+      ]
+    },
+    {
+      "title": "Shingle Roofing",
+      "slug": "shingle-roofing",
+      "shortDescription": "Asphalt shingle installation — from standard 3-tab to premium architectural and impact-resistant options.",
+      "fullDescription": "Asphalt shingles remain the most popular roofing material in the U.S. for good reason — they're affordable, durable, and available in a wide range of colors and profiles. We install three tiers: standard 3-tab shingles (budget-friendly, 20–25 year warranty), architectural/dimensional shingles (thicker, more wind-resistant, 30–50 year warranty), and impact-resistant shingles rated Class 3 or Class 4 (designed to withstand hail up to 2 inches in diameter, often qualifying you for insurance premium discounts of 10–28%). We carry products from GAF (Timberline HDZ, Timberline AS II), Owens Corning (Duration, Duration STORM), and CertainTeed (Landmark, Landmark PRO). Pricing ranges from $3.50 to $7.00 per square foot installed, depending on the product line. All installations include proper starter strip, synthetic underlayment, and hip and ridge cap shingles for a finished, warranty-compliant system.",
+      "keyPoints": [
+        "3-tab, architectural, and impact-resistant options",
+        "Class 4 impact-rated shingles can reduce insurance premiums 10–28%",
+        "GAF Timberline, Owens Corning Duration, CertainTeed Landmark lines",
+        "20-year to lifetime warranty depending on product",
+        "$3.50–$7.00 per square foot installed",
+        "Wide color and profile selection",
+        "Proper starter strip, underlayment, and ridge caps included"
+      ]
+    },
+    {
+      "title": "Metal Roofing",
+      "slug": "metal-roofing",
+      "shortDescription": "Standing seam and corrugated metal roofing for maximum longevity, energy efficiency, and weather resistance.",
+      "fullDescription": "Metal roofing is a long-term investment that pays off in durability, energy savings, and curb appeal. We install standing seam panels (concealed fastener system for a clean, modern look and superior weather resistance) and exposed-fastener corrugated or ribbed panels (cost-effective for agricultural buildings, shops, and budget-conscious homeowners). Standing seam metal roofs last 40–70 years with virtually zero maintenance, reflect solar heat to reduce cooling costs by 10–25%, and carry Class A fire ratings and Class 4 impact resistance. Materials include 24-gauge and 26-gauge steel with Kynar 500 paint finish, as well as aluminum options for coastal environments. Pricing for standing seam runs $9.00–$14.00 per square foot installed; corrugated panels run $5.00–$8.00 per square foot. Installation takes 3–7 days for a typical residential home. Metal roofing can often be installed over one existing layer of asphalt shingles, saving on tear-off costs.",
+      "keyPoints": [
+        "Standing seam (concealed fastener) and corrugated (exposed fastener) options",
+        "40–70 year lifespan with minimal maintenance",
+        "Reduces cooling costs by 10–25% through solar reflectance",
+        "Class A fire rated and Class 4 impact resistant",
+        "24-gauge and 26-gauge steel with Kynar 500 finish",
+        "Standing seam: $9.00–$14.00/sq ft; corrugated: $5.00–$8.00/sq ft",
+        "Can sometimes be installed over existing shingle layer"
+      ]
+    },
+    {
+      "title": "Gutter Installation",
+      "slug": "gutter-installation",
+      "shortDescription": "Seamless aluminum gutters, gutter guards, and complete drainage solutions to protect your roof investment.",
+      "fullDescription": "A new roof without proper drainage is only half the job. We install seamless aluminum gutters custom-fabricated on-site to the exact dimensions of your roofline — no seams means fewer leak points and a cleaner appearance. Standard 5-inch K-style gutters handle most residential homes; 6-inch oversized gutters are recommended for steep-pitch roofs or heavy rainfall areas. We also install half-round gutters for historic or architectural homes. Downspouts are sized and positioned to direct water away from your foundation, and we can add downspout extensions or underground drainage tie-ins where needed. Gutter guard options include micro-mesh (best for keeping out pine needles and small debris), reverse-curve, and foam inserts. Seamless gutter installation typically runs $6–$12 per linear foot; gutter guards add $3–$8 per linear foot. Most homes are completed in one day.",
+      "keyPoints": [
+        "Seamless aluminum gutters fabricated on-site",
+        "5-inch standard and 6-inch oversized options",
+        "Half-round gutters available for architectural homes",
+        "Micro-mesh, reverse-curve, and foam gutter guard options",
+        "Downspout extensions and underground drainage tie-ins",
+        "$6–$12 per linear foot for gutters; $3–$8 for guards",
+        "Most installations completed in a single day"
+      ]
+    },
+    {
+      "title": "Insurance Claims Assistance",
+      "slug": "insurance-claims-assistance",
+      "shortDescription": "We work directly with your insurance company — from the initial inspection to supplement filing and final payment.",
+      "fullDescription": "Navigating a roof insurance claim can be overwhelming, especially when you're dealing with storm damage and an adjuster who may undervalue the scope of work. We've handled hundreds of insurance claims and know the process inside and out. After our inspection, we prepare a detailed damage report with measurements, photos, and a line-item scope written in Xactimate — the same software your insurance company uses to estimate repairs. We meet your adjuster on-site to walk the roof together and make sure nothing gets missed. If the initial estimate comes back short, we file supplements with additional documentation to get the claim where it needs to be. We also help with RCV (Replacement Cost Value) vs. ACV (Actual Cash Value) policy questions, recoverable depreciation, and deductible obligations. Our goal is to make sure your policy pays for what it's supposed to — a complete, code-compliant roof system, not a patchwork repair.",
+      "keyPoints": [
+        "Damage reports written in Xactimate format",
+        "On-site adjuster meetings to ensure full scope is documented",
+        "Supplement filing when initial estimates fall short",
+        "Help with RCV vs. ACV and recoverable depreciation",
+        "Hundreds of claims handled across major carriers",
+        "No upfront cost — work begins after claim approval",
+        "Goal: full code-compliant replacement, not just a patch"
+      ]
+    }
+  ],
+  "blogTopics": [
+    {
+      "title": "Hail Damage: How to Spot It and What to Do Next",
+      "slug": "hail-damage-how-to-spot-it",
+      "excerpt": "Hail damage isn't always obvious from the ground. Learn how to identify the signs on your shingles, gutters, and siding — and the steps to take before filing a claim.",
+      "outline": [
+        "What hail damage actually looks like on asphalt shingles (bruising, granule loss, cracked matting)",
+        "Checking gutters, downspouts, and soft metals for dents as secondary indicators",
+        "Why you should never climb on a wet or damaged roof yourself",
+        "How to document damage with photos and a timeline of the storm",
+        "When to call a roofer vs. when to call your insurance company first",
+        "The inspection process: what a professional roofer looks for that you can't see from the ground",
+        "Filing your claim: deadlines, documentation, and what to expect"
+      ]
+    },
+    {
+      "title": "Asphalt vs. Metal Roofing: Cost, Lifespan, and ROI Compared",
+      "slug": "asphalt-vs-metal-roofing-compared",
+      "excerpt": "Torn between asphalt shingles and metal? We break down the real numbers — upfront cost, lifespan, energy savings, insurance discounts, and resale value.",
+      "outline": [
+        "Upfront cost comparison: $3.50–$7.00/sq ft (asphalt) vs. $9.00–$14.00/sq ft (standing seam metal)",
+        "Lifespan: 20–30 years for asphalt vs. 40–70 years for metal",
+        "Energy efficiency: metal reflects solar heat, reducing cooling bills 10–25%",
+        "Insurance premium discounts for impact-resistant materials",
+        "Maintenance requirements: asphalt needs periodic inspections; metal is nearly maintenance-free",
+        "Resale value: how each material affects home appraisal",
+        "Which makes sense for your climate, budget, and how long you plan to stay"
+      ]
+    },
+    {
+      "title": "Your Guide to Filing a Roof Insurance Claim",
+      "slug": "guide-to-filing-roof-insurance-claim",
+      "excerpt": "The insurance claims process doesn't have to be a headache. Here's a step-by-step guide to filing a roof claim, what to expect from your adjuster, and how to avoid common mistakes.",
+      "outline": [
+        "Step 1: Document the damage (photos, video, written notes) before any temporary repairs",
+        "Step 2: Call your insurance company to open a claim — what to say and what not to say",
+        "Step 3: Get a professional roof inspection with a detailed scope of damage",
+        "Step 4: The adjuster visit — what happens and why your contractor should be there",
+        "Understanding your estimate: RCV, ACV, recoverable depreciation, and deductible",
+        "What to do if your claim is underpaid or denied: supplements and re-inspections",
+        "Red flags to avoid: contractors who waive your deductible (it's insurance fraud)"
+      ]
+    },
+    {
+      "title": "How Long Does a Roof Replacement Take? A Realistic Timeline",
+      "slug": "how-long-does-roof-replacement-take",
+      "excerpt": "From the first inspection to the final cleanup, here's what a roof replacement timeline actually looks like — including insurance delays, material lead times, and weather holds.",
+      "outline": [
+        "Phase 1: Inspection and estimate (1–3 days)",
+        "Phase 2: Insurance approval and material ordering (1–3 weeks, sometimes longer)",
+        "Phase 3: The actual installation (1–3 days for most residential roofs)",
+        "Phase 4: Final inspection, cleanup, and warranty registration",
+        "Factors that extend the timeline: roof complexity, steep pitch, multiple layers, weather",
+        "What happens if it rains mid-install (spoiler: we plan around it)",
+        "How to prepare your home and yard for installation day"
+      ]
+    },
+    {
+      "title": "5 Things Your Roofing Contractor Should Never Skip",
+      "slug": "5-things-roofing-contractor-should-never-skip",
+      "excerpt": "Not all roofing jobs are done right. Here are five critical steps that separate a quality installation from one that will cost you in five years.",
+      "outline": [
+        "1. Ice and water shield in valleys, eaves, and around penetrations",
+        "2. Replacing damaged decking — not just shingling over it",
+        "3. Proper attic ventilation: balanced intake (soffit) and exhaust (ridge vent)",
+        "4. Drip edge on all roof edges — it's code in most jurisdictions",
+        "5. Replacing pipe boots and flashing instead of caulking over old ones",
+        "How to verify these were done: what to look for and what to ask your contractor",
+        "Why the cheapest bid often skips these steps"
+      ]
+    }
+  ],
+  "faq": [
+    {
+      "question": "How much does a new roof cost?",
+      "answer": "For a typical residential home (1,500–3,000 sq ft of roof area), a full asphalt shingle replacement runs $8,000–$18,000. The final price depends on roof size, pitch (steeper = more labor), number of existing layers to tear off, material choice (3-tab, architectural, or impact-resistant), and any decking repairs needed. Metal roofing runs higher at $15,000–$35,000 for the same home. If your roof was damaged by a storm, your homeowner's insurance may cover most or all of the replacement cost minus your deductible."
+    },
+    {
+      "question": "Does my insurance cover roof replacement?",
+      "answer": "If the damage was caused by a covered peril — hail, wind, fallen trees, or other sudden events — most homeowner's policies will cover a full replacement minus your deductible. Cosmetic-only damage policies may limit coverage, so it's important to know your policy type. We inspect your roof for free, document the damage with photos and measurements, and help you file the claim. We also meet with your insurance adjuster on-site to make sure the full scope of damage is captured."
+    },
+    {
+      "question": "How long does a roof replacement take?",
+      "answer": "The installation itself takes 1–3 days for most residential homes. A simple single-story ranch with a walkable pitch might be done in a single day. A larger or steeper home with multiple layers to tear off could take 2–3 days. The full timeline from inspection to completion is usually 2–4 weeks when insurance is involved, due to adjuster scheduling and claim processing. We keep you updated at every step."
+    },
+    {
+      "question": "What are the signs that my roof needs to be replaced?",
+      "answer": "Common signs include shingles that are curling, cracking, or missing; excessive granule loss (check your gutters for grit buildup); visible daylight or water stains in your attic; sagging areas on the roof deck; and a roof that's 20–25 years old. After a hailstorm, look for dents on gutters, downspouts, or AC units — if those are dented, your shingles likely took hits too. We offer free inspections so you don't have to guess."
+    },
+    {
+      "question": "Can you work with my insurance company directly?",
+      "answer": "Yes — this is one of the biggest things we do. We prepare your damage documentation in Xactimate (the industry-standard estimating software that insurance companies use), meet your adjuster on-site for the inspection, and file supplements if the initial payout doesn't cover the full scope of work. We've worked with every major carrier — State Farm, Allstate, USAA, Liberty Mutual, Farmers, and more. You don't need to be an insurance expert; that's our job."
+    },
+    {
+      "question": "What's the difference between architectural and 3-tab shingles?",
+      "answer": "3-tab shingles are flat, uniform, and budget-friendly — they typically carry a 20–25 year warranty and cost $3.50–$4.50 per square foot installed. Architectural shingles (also called dimensional or laminate) are thicker, more textured, and more wind-resistant (rated for 110–130 mph winds vs. 60–70 mph for 3-tab). They carry 30-year to lifetime warranties and cost $4.50–$7.00 per square foot installed. Most homeowners and insurance companies now default to architectural shingles for new installations."
+    },
+    {
+      "question": "Do you offer emergency roof repair or tarping?",
+      "answer": "Yes. If a storm damages your roof and you have an active leak or exposed decking, we can deploy emergency tarping within hours to prevent further interior damage. Emergency tarps typically cost $200–$500 depending on the area that needs to be covered, and that cost is usually reimbursable through your insurance claim. Call us as soon as the storm passes — don't wait for business hours."
+    },
+    {
+      "question": "What warranty do I get on a new roof?",
+      "answer": "You get two warranties: a manufacturer's material warranty and our workmanship warranty. Material warranties range from 30 years to lifetime depending on the shingle line — for example, GAF Timberline HDZ carries a limited lifetime warranty with 15 years of 130 mph wind coverage. As a GAF Certified installer, we can also offer the Golden Pledge warranty, which adds 25 years of workmanship coverage backed by GAF (not just us). Our standard workmanship warranty covers labor and installation for 10 years. Metal roofing carries 40-year paint warranties and a material warranty that often exceeds 50 years."
+    }
+  ],
+  "testimonialTemplates": [
+    {
+      "scenario": "Storm Damage Insurance Claim",
+      "template": "We had no idea our roof was damaged until {company} knocked on our door after the hailstorm. They did a free inspection, found damage everywhere, and handled our entire insurance claim with {insurance_carrier}. The adjuster approved a full replacement, and the crew had our new roof on in {days} days. We only paid our deductible. Could not have been easier.",
+      "suggestedRating": 5,
+      "suggestedName": "The {last_name} Family",
+      "tags": ["storm-damage", "insurance-claim", "hail"]
+    },
+    {
+      "scenario": "New Construction / Full Replacement",
+      "template": "We went with {company} for our new build and chose the {shingle_product} in {color}. The install crew was professional — showed up on time, cleaned up every nail, and finished ahead of schedule. {owner_name} walked us through all the material options and helped us pick the right ventilation setup for our attic. The roof looks incredible and the warranty gives us total peace of mind.",
+      "suggestedRating": 5,
+      "suggestedName": "{first_name} {last_initial}.",
+      "tags": ["new-construction", "replacement", "shingles"]
+    },
+    {
+      "scenario": "Leak Repair",
+      "template": "We had a leak around our chimney that two other companies couldn't fix. {company} came out, pulled back the shingles, and found the step flashing had never been installed correctly in the first place. They redid the flashing, replaced the damaged decking underneath, and re-shingled the area. That was {months} months ago and we haven't had a single drop since. Finally.",
+      "suggestedRating": 5,
+      "suggestedName": "{first_name} and {spouse_name}",
+      "tags": ["leak-repair", "flashing", "chimney"]
+    },
+    {
+      "scenario": "Insurance Claim Fight Won",
+      "template": "Our insurance company initially denied our claim, saying the damage was 'cosmetic.' {company} filed a supplement with additional photos and Xactimate documentation, met with the adjuster a second time, and got the decision reversed. We ended up getting a full roof replacement covered. I don't know what we would have done without them — they literally fought for us.",
+      "suggestedRating": 5,
+      "suggestedName": "{first_name} {last_name}",
+      "tags": ["insurance-dispute", "supplement", "claim-reversal"]
+    },
+    {
+      "scenario": "Neighbor Referral",
+      "template": "Our neighbor got their roof done by {company} last year and it looked great, so when the storm came through our neighborhood we called them first. They were out the next morning, found hail damage on our roof and both AC units, and had our claim filed by the end of the week. Three weeks later we had a brand new roof. Now I've referred them to two more neighbors on our street.",
+      "suggestedRating": 5,
+      "suggestedName": "{first_name} {last_initial}.",
+      "tags": ["referral", "neighbor", "storm-damage"]
+    }
+  ]
+}
