@@ -1231,18 +1231,25 @@ app.post('/leads', async (c) => {
     // Forward lead to CRM if configured
     const CRM_API_URL = process.env.CRM_API_URL;
     const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET;
+    console.log('[Leads] CRM sync check:', { hasCrmUrl: !!CRM_API_URL, hasSecret: !!WEBHOOK_SECRET, url: CRM_API_URL })
     if (CRM_API_URL && WEBHOOK_SECRET) {
       try {
-        const webhookRes = await fetch(`${CRM_API_URL}/api/webhooks/leads`, {
+        const webhookUrl = `${CRM_API_URL.replace(/\/$/, '')}/api/webhooks/leads`
+        console.log('[Leads] Forwarding to CRM:', webhookUrl)
+        const webhookRes = await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
           body: JSON.stringify({ name, email, phone, service, message, source: source || 'website', address }),
           signal: AbortSignal.timeout(10_000),
         });
-        if (!webhookRes.ok) console.error('[Webhook] CRM forward failed:', webhookRes.status);
+        const webhookBody = await webhookRes.text()
+        console.log('[Leads] CRM response:', webhookRes.status, webhookBody)
+        if (!webhookRes.ok) console.error('[Webhook] CRM forward failed:', webhookRes.status, webhookBody);
       } catch (e) {
         console.warn('[Leads] Failed to forward lead to CRM:', (e as any).message);
       }
+    } else {
+      console.warn('[Leads] CRM sync skipped — missing env vars:', { CRM_API_URL, hasSecret: !!WEBHOOK_SECRET })
     }
 
     return c.json({ message: 'Form submitted successfully', id: newLead.id });
