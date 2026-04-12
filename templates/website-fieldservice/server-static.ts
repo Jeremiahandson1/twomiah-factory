@@ -195,6 +195,16 @@ app.get('/', (c) => {
   })
 })
 
+app.get('/services', (c) => {
+  const services = loadJSON('services.json') || []
+  return renderPage(c, 'services-index', {
+    services: services.filter((s: any) => s.visible !== false),
+    title: 'Our Services | {{COMPANY_NAME}}',
+    description: 'Professional HVAC, plumbing, and electrical services in {{SERVICE_REGION}}.',
+    canonicalUrl: BASE_URL + '/services',
+  })
+})
+
 app.get('/services/:slug', (c) => {
   const slug = c.req.param('slug')
   const services = loadJSON('services.json') || []

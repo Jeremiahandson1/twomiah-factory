@@ -12,11 +12,16 @@ app.use('*', authenticate)
 
 app.get('/plans', async (c) => {
   const user = c.get('user') as any
-  const active = c.req.query('active')
-  const plans = await agreements.getPlans(user.companyId, {
-    active: active === 'false' ? false : active === 'all' ? null : true,
-  })
-  return c.json(plans)
+  try {
+    const active = c.req.query('active')
+    const plans = await agreements.getPlans(user.companyId, {
+      active: active === 'false' ? false : active === 'all' ? null : true,
+    })
+    return c.json(plans)
+  } catch (e: any) {
+    console.error('[Agreements] GET /plans error:', e.message)
+    return c.json({ error: 'Failed to load plans', detail: e.message }, 500)
+  }
 })
 
 app.post('/plans', requirePermission('agreements:create'), async (c) => {
@@ -40,15 +45,20 @@ app.put('/plans/:id', requirePermission('agreements:update'), async (c) => {
 
 app.get('/', async (c) => {
   const user = c.get('user') as any
-  const { status, contactId, expiringSoon, page, limit } = c.req.query() as any
-  const data = await agreements.getAgreements(user.companyId, {
-    status,
-    contactId,
-    expiringSoon: expiringSoon === 'true',
-    page: parseInt(page) || 1,
-    limit: parseInt(limit) || 50,
-  })
-  return c.json(data)
+  try {
+    const { status, contactId, expiringSoon, page, limit } = c.req.query() as any
+    const data = await agreements.getAgreements(user.companyId, {
+      status,
+      contactId,
+      expiringSoon: expiringSoon === 'true',
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 50,
+    })
+    return c.json(data)
+  } catch (e: any) {
+    console.error('[Agreements] GET / error:', e.message, e.stack?.split('\n').slice(0, 3).join('\n'))
+    return c.json({ error: 'Failed to load agreements', detail: e.message }, 500)
+  }
 })
 
 app.get('/:id', async (c) => {
