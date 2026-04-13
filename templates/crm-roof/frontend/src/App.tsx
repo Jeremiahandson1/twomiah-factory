@@ -20,6 +20,8 @@ import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
 import CanvassingDashboard from './pages/roofing/CanvassingDashboard'
 import StormLeadsPage from './pages/roofing/StormLeadsPage'
+import ReviewsPage from './pages/roofing/ReviewsPage'
+import FinancingPage from './pages/roofing/FinancingPage'
 import LeadInboxPage from './pages/leads/LeadInboxPage'
 import LeadSourcesPage from './pages/leads/LeadSourcesPage'
 import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
@@ -102,6 +104,8 @@ export default function App() {
                 <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />
                 <Route path="billing/pricing" element={<BillingPricingPage />} />
+                <Route path="reviews" element={<ReviewsPage />} />
+                <Route path="financing" element={<FinancingPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" />} />

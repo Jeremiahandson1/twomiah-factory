@@ -7,7 +7,7 @@ import {
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
-  Radio, FileSignature, Box, BookMarked, Inbox, ExternalLink, Bot, Calculator
+  Radio, FileSignature, Box, BookMarked, Inbox, ExternalLink, Bot, Calculator, MapPin
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -37,6 +37,8 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/inspections', icon: ClipboardCheck, label: 'Inspections', features: ['inspections'] },
   { to: '/crm/bids', icon: Target, label: 'Bids', features: ['bid_management'] },
   { to: '/crm/fleet', icon: Truck, label: 'Fleet', features: ['fleet'] },
+  { to: '/crm/locations', icon: MapPin, label: 'Locations', features: ['multi_location'] },
+  { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'] },
   { to: '/crm/inventory', icon: Warehouse, label: 'Inventory', features: ['inventory'] },
   { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },

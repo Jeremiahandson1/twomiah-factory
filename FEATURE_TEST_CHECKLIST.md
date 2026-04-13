@@ -125,28 +125,40 @@ and confirm you can access Change Orders.
 |---|---|---|---|
 | Projects | `projects` | `ProjectsPage` | ✅ |
 | RFIs | `rfis` | `RFIsPage` | ✅ |
-| Submittals | (in `projects`?) | (none found) | ⚠️ **GAP** |
+| Submittals | `submittals` | `SubmittalsPage` | ✅ **BUILT 2026-04-13** |
 | Daily logs | `dailyLogs` | `DailyLogsPage` | ✅ |
 | Punch lists | `punchLists` | `PunchListsPage` | ✅ |
 | Inspections | `inspections` | `InspectionsPage` | ✅ |
 | Bids | `bids` | `BidsPage` | ✅ |
-| Gantt charts | (none found) | (none found) | ⚠️ **GAP** |
+| Gantt charts | `ganttCharts` | `GanttChartsPage` | ✅ **BUILT 2026-04-13** |
 | Selections | `selections`, `portal-selections` | `SelectionsPage` | ✅ |
 | Takeoffs | `takeoffs` | `TakeoffsPage` | ✅ |
-| Lien waivers | (none found) | (none found) | ⚠️ **GAP** |
-| Draw schedules | (none found) | (none found) | ⚠️ **GAP** |
-| AIA G702/G703 forms | (none found) | (none found) | ⚠️ **GAP** |
+| Lien waivers | `lienWaivers` | `LienWaiversPage` | ✅ **BUILT 2026-04-13** |
+| Draw schedules | `drawSchedules` | `DrawSchedulesPage` | ✅ **BUILT 2026-04-13** |
+| AIA G702/G703 forms | `aiaForms` | `AiaFormsPage` | ✅ **BUILT 2026-04-13** |
 
-**⚠️ Construction tier has real gaps.** `pricing.ts` advertises *lien
-waivers, draw schedules, AIA forms, submittals, gantt charts* but I see
-no routes or pages for them. Either:
-1. They're embedded inside `projects` and just not visible as standalone nav
-2. They're genuinely not built yet and we're advertising vaporware
+**✅ Construction tier gaps CLOSED 2026-04-13.** All five previously-missing
+features now have routes + pages + (for new tables) migrations. See commit
+`1919f01`. Migration `0010_add_construction_compliance.sql` creates
+`draw_schedule`, `draw_request`, and `aia_form` tables. `submittal` and
+`lien_waiver` tables already existed in schema — now exposed via API.
 
-**Live test priority:** Open Build on Construction tier, try to create a
-lien waiver, a draw schedule request, an AIA form, a Gantt chart. If any
-of those produces a 404 or blank page, those features come out of the
-marketing copy OR get built before launch.
+**Live test priority:** Open Build on Construction tier, create one of
+each:
+- `/crm/submittals` — create a product data submittal → run approval
+  workflow (submit → approve / revise / reject)
+- `/crm/lien-waivers` — create a conditional progress waiver → workflow
+  (draft → request → receive → approve)
+- `/crm/draw-schedules` — create a construction loan schedule → add a
+  draw request → workflow (pending → submit → approve → mark paid)
+- `/crm/aia-forms` — create a G702 with G703 line items → verify the
+  auto-calculated totals (completed+stored, retainage, payment due,
+  balance to finish) all compute correctly
+- `/crm/gantt` — verify all projects render on a timeline with correct
+  date ranges, status colors, and percent-complete fills
+
+If any of these 404 or render blank, the migration may not have been
+applied — check the DB for the new tables first.
 
 ### Enterprise tier — $199/user/mo (10+ users)
 
@@ -241,15 +253,25 @@ and the route doesn't exist, that's a gap.
 
 | Feature | Route | Page | Status |
 |---|---|---|---|
-| Multi-location dispatch | (none found as standalone) | (none found) | ⚠️ **GAP** |
+| Multi-location dispatch | `locations` | `LocationsPage` | ✅ **BUILT 2026-04-13** |
 | Advanced scheduling | (in `scheduling`) | `DispatchBoard`, `SchedulePage` | 🔹 |
-| Call tracking & recording | `calltracking` | `CallTrackingPage` | ✅ |
-| Commission tracking | (none found) | (none found) | ⚠️ **GAP** |
+| Call tracking & recording | `calltracking` (+ recording cols) | `CallTrackingPage` | ✅ **SCHEMA EXTENDED 2026-04-13** |
+| Commission tracking | `commissions` | `CommissionsPage` | ✅ **BUILT 2026-04-13** |
 | Service area pages | (website template feature) | (in website-fieldservice) | 🔹 |
 
-**⚠️ Fleet tier gaps:** Multi-location dispatch and commission tracking
-are advertised but I see no matching routes or pages. Verify on a live
-tenant whether these are hidden in `DispatchBoard` or genuinely missing.
+**✅ Fleet tier gaps CLOSED 2026-04-13.** Commit `afd4a32`. Migration
+`0005_add_fleet_tier_features.sql` creates `location`, `commission_plan`,
+`commission` tables and extends `call_tracking` with `recording_url`,
+`transcription`, `transcription_status`, `recording_consent` columns.
+
+**Live test priority:**
+- `/crm/locations` — create a branch (e.g., Chicago, code CHI), assign
+  a manager, verify it shows on the locations card grid
+- `/crm/commissions` → Plans tab — create a commission plan (try
+  percent_of_invoice type, 10% rate, applies to technician role)
+- `/crm/commissions` → Earnings tab — create a commission record (pick
+  a user, base amount, commission amount), then run the workflow
+  (pending → approve → mark paid)
 
 ---
 
@@ -418,11 +440,13 @@ open a client or caregiver).
 | Good-Better-Best pricing | (in `pricebook`) | `PricebookTrialPage` | 🔹 *(verify GBB tiering in pricebook UI)* |
 | Pricebook | `pricebook` | `PricebookTrialPage` | ✅ |
 | Measurement reports | `measurements`, `roofReports` | `MeasurementsPage`, `RoofReportsPage`, `RoofReportDetail` | ✅ |
-| Review requests | (no dedicated route) | (none found) | ⚠️ **GAP** |
+| Review requests | `reviews` | `ReviewsPage` | ✅ **BUILT 2026-04-13** |
 
-**⚠️ Roof Pro tier gap:** *Review requests* are in the marketed hero
-features but there's no `reviews` route in Roof's list. Either drop it
-from Pro's heroFeatures or add a reviews route.
+**✅ Roof Pro tier gap CLOSED 2026-04-13.** Commit `89ba46c`. Migration
+`0008_add_reviews_and_financing.sql` creates `review_request` and `review`
+tables. Note: GMB API sync (auto-pull Google reviews) is a follow-up —
+for now reviews can be manually entered or submitted by customers via
+the public tracking endpoint.
 
 ### Business tier — $299/mo
 
@@ -438,12 +462,14 @@ from Pro's heroFeatures or add a reviews route.
 | Instant estimator | `estimator` | `EstimatorPage`, `EstimatorSettingsPage`, `EstimatorTrialPage` | ✅ |
 | Insurance workflow | `insurance` | `InsuranceClaimPage`, `AdjusterDirectoryPage` | ✅ |
 | Adjuster directory | (in `insurance`?) | `AdjusterDirectoryPage` | ✅ |
-| Consumer financing | (none found as standalone) | (none found) | ⚠️ *(verify — may be embedded in quotes)* |
+| Consumer financing | `financing` | `FinancingPage` | ✅ **BUILT 2026-04-13** |
 
-**Verdict:** Roof Business tier is clean on estimator and insurance —
-both genuinely built with dedicated pages. **Consumer financing** should
-be verified — Build has a `wisetack` route but Roof's route list doesn't
-show one.
+**✅ Roof Business tier gap CLOSED 2026-04-13.** Commit `89ba46c`.
+Migration adds `financing_application` table. Multi-lender aware
+(wisetack, greensky, sunlight, other) with full workflow: pending →
+sent → approved/declined → funded. Actual Wisetack API integration is
+a follow-up — the route's `mark-sent` and `approve` endpoints are
+designed to be called by a future services/wisetack.ts client.
 
 ### Storm tier — $599/mo
 

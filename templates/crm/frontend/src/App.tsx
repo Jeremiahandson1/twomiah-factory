@@ -36,6 +36,11 @@ import PunchListsPage from './pages/PunchListsPage';
 import DailyLogsPage from './pages/DailyLogsPage';
 import InspectionsPage from './pages/InspectionsPage';
 import BidsPage from './pages/BidsPage';
+import SubmittalsPage from './pages/SubmittalsPage';
+import LienWaiversPage from './pages/LienWaiversPage';
+import DrawSchedulesPage from './pages/DrawSchedulesPage';
+import AiaFormsPage from './pages/AiaFormsPage';
+import GanttChartsPage from './pages/GanttChartsPage';
 import SettingsPage from './pages/SettingsPage';
 import DocumentsPage from './pages/DocumentsPage';
 
@@ -152,6 +157,11 @@ function App() {
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="rfis" element={<RFIsPage />} />
+                    <Route path="submittals" element={<SubmittalsPage />} />
+                    <Route path="lien-waivers" element={<LienWaiversPage />} />
+                    <Route path="draw-schedules" element={<DrawSchedulesPage />} />
+                    <Route path="aia-forms" element={<AiaFormsPage />} />
+                    <Route path="gantt" element={<GanttChartsPage />} />
                     <Route path="change-orders" element={<ChangeOrdersPage />} />
                     <Route path="punch-lists" element={<PunchListsPage />} />
                     <Route path="daily-logs" element={<DailyLogsPage />} />

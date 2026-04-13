@@ -24,6 +24,8 @@ import {
   Calculator,
   FileBarChart,
   Upload,
+  Star,
+  CreditCard,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -47,6 +49,8 @@ const fieldNavItems = [
   { label: 'Canvassing', icon: MapPin, to: '/crm/canvassing', feature: 'canvassing_tool' },
   { label: 'Storm Leads', icon: Zap, to: '/crm/storm-leads', feature: 'storm_lead_gen' },
   { label: 'Ads', icon: Megaphone, to: '/crm/ads', feature: 'paid_ads' },
+  { label: 'Reviews', icon: Star, to: '/crm/reviews', feature: 'review_requests' },
+  { label: 'Financing', icon: CreditCard, to: '/crm/financing', feature: 'consumer_financing' },
 ]
 
 const bottomNavItems = [

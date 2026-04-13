@@ -41,6 +41,8 @@ import DocumentsPage from './pages/DocumentsPage';
 
 // Feature pages
 import FleetPage from './pages/fleet/FleetPage';
+import LocationsPage from './pages/LocationsPage';
+import CommissionsPage from './pages/CommissionsPage';
 import InventoryPage from './pages/inventory/InventoryPage';
 import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
@@ -174,6 +176,8 @@ function App() {
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="fleet" element={<FleetPage />} />
+                    <Route path="locations" element={<LocationsPage />} />
+                    <Route path="commissions" element={<CommissionsPage />} />
                     <Route path="inventory" element={<InventoryPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
