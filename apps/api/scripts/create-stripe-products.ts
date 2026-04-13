@@ -17,7 +17,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const envPath = path.join(__dirname, '..', '.env')
 const envContent = fs.readFileSync(envPath, 'utf8')
 const envVars: Record<string, string> = {}
-for (const line of envContent.split('\n')) {
+for (const rawLine of envContent.split('\n')) {
+  const line = rawLine.replace(/\r$/, '')  // strip CRLF carriage return
   const match = line.match(/^([^#=]+)=(.*)$/)
   if (match) envVars[match[1].trim()] = match[2].trim()
 }
