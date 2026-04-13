@@ -431,6 +431,7 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
     ],
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_STARTER,
@@ -446,6 +447,7 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
       'Docker configuration',
     ],
@@ -462,6 +464,7 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
       'Docker configuration',
       'CI/CD templates',
@@ -472,13 +475,14 @@ export const SELF_HOSTED_PACKAGES = {
   fleet: {
     id: 'fleet',
     name: 'Fleet License',
-    description: 'Multi-location dispatch platform for self-hosting',
+    description: 'Multi-location dispatch platform for self-hosting — all features',
     price: 2156400, // $21,564 = $599 × 36
     features: SAAS_TIERS.fleet.features,
     includes: [
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
       'Docker configuration',
       'CI/CD templates',
@@ -487,19 +491,22 @@ export const SELF_HOSTED_PACKAGES = {
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   },
 
+  // Enterprise self-hosted: flat $71,640, unlimited users, lifetime updates.
+  // Anchor math: $199 × 36 × 10 users, but we drop the per-user cap.
   enterprise: {
     id: 'enterprise',
     name: 'Enterprise License',
-    description: 'Enterprise field service for self-hosting — per user, 10 user minimum',
-    price: 716400, // $7,164/user = $199 × 36
-    perUser: true,
-    minUsers: 10, // $71,640 minimum
+    description: 'Full field service platform for self-hosting — unlimited users, lifetime updates',
+    price: 7164000, // $71,640 flat = $199 × 36 × 10 users (anchor math, no cap)
+    unlimitedUsers: true,
     features: ['all'],
     includes: [
       'Full source code',
       'Database schema',
       'Deployment documentation',
-      '90 days email support',
+      'Unlimited users forever',
+      'Lifetime updates included',
+      'Lifetime email + phone support',
       'Docker configuration',
       'CI/CD templates',
       '2 hour setup call',

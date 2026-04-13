@@ -132,20 +132,21 @@ async function main() {
   console.log('\n═══ Self-Hosted Licenses ═══')
 
   // One-time license = monthly SaaS × 36 (3 years equivalent), uniform across tiers.
-  // The legacy "Full Platform" SKU was removed in favor of a properly-priced
-  // per-user Enterprise license ($7,164/user, 10 user minimum = $71,640+).
+  // Every license includes 3 years of free updates (since it's "3 years of SaaS
+  // paid once" — updates during those 3 years are part of the deal). Enterprise
+  // is a flat $71,640 with unlimited users + lifetime updates + lifetime support.
   const licenses = [
     { id: 'starter', name: 'Starter License', price: 176400 }, // $1,764 = $49 × 36
     { id: 'pro', name: 'Pro License', price: 536400 }, // $5,364 = $149 × 36
     { id: 'business', name: 'Business License', price: 1076400 }, // $10,764 = $299 × 36
-    { id: 'construction', name: 'Construction License', price: 2156400 }, // $21,564 = $599 × 36 (top vertical tier — also used for Fleet/Agency/Storm)
-    { id: 'enterprise', name: 'Enterprise License', price: 716400 }, // $7,164/user = $199 × 36 (per-user, 10 user min)
+    { id: 'construction', name: 'Construction License', price: 2156400 }, // $21,564 = $599 × 36 (top vertical tier — Fleet/Agency/Storm all map here)
+    { id: 'enterprise', name: 'Enterprise License', price: 7164000 }, // $71,640 flat (= $199 × 36 × 10 users anchor, no cap) — unlimited users + lifetime updates
   ]
 
   for (const lic of licenses) {
     const productId = await createProduct(
       `Twomiah ${lic.name}`,
-      `Self-hosted ${lic.name} — full source code, perpetual${lic.id === 'enterprise' ? ' (per user, 10 user minimum)' : ''}`,
+      `Self-hosted ${lic.name} — full source code, perpetual, ${lic.id === 'enterprise' ? 'unlimited users, lifetime updates' : '3 years of free updates'}`,
       { twomiah_license: lic.id }
     )
     await createPrice(productId, `STRIPE_PRICE_LICENSE_${lic.id.toUpperCase()}`, lic.price)

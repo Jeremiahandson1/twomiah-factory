@@ -469,6 +469,7 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
     ],
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_STARTER,
@@ -484,6 +485,7 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
       'Docker configuration',
     ],
@@ -500,6 +502,7 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
       'Docker configuration',
       'CI/CD templates',
@@ -510,13 +513,14 @@ export const SELF_HOSTED_PACKAGES = {
   construction: {
     id: 'construction',
     name: 'Construction License',
-    description: 'Full construction platform for self-hosting',
+    description: 'Full construction platform for self-hosting — all features',
     price: 2156400, // $21,564 = $599 × 36
     features: SAAS_TIERS.construction.features,
     includes: [
       'Full source code',
       'Database schema',
       'Deployment documentation',
+      '3 years of free updates',
       '90 days email support',
       'Docker configuration',
       'CI/CD templates',
@@ -525,19 +529,24 @@ export const SELF_HOSTED_PACKAGES = {
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   },
 
+  // Enterprise self-hosted: flat $71,640, unlimited users forever. Anchored at
+  // 10 users × 3 years of SaaS ($199 × 36 × 10) but we drop the per-user cap
+  // because once they've paid $71k for a perpetual license, caring how many
+  // users they spin up costs us nothing and signals scarcity theatre.
   enterprise: {
     id: 'enterprise',
     name: 'Enterprise License',
-    description: 'Enterprise platform for self-hosting — per user, 10 user minimum',
-    price: 716400, // $7,164/user = $199 × 36
-    perUser: true,
-    minUsers: 10, // $71,640 minimum
+    description: 'Full platform for self-hosting — unlimited users, lifetime updates',
+    price: 7164000, // $71,640 flat = $199 × 36 × 10 users (anchor math, no cap)
+    unlimitedUsers: true,
     features: ['all'],
     includes: [
       'Full source code',
       'Database schema',
       'Deployment documentation',
-      '90 days email support',
+      'Unlimited users forever',
+      'Lifetime updates included',
+      'Lifetime email + phone support',
       'Docker configuration',
       'CI/CD templates',
       '2 hour setup call',
