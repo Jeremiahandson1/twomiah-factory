@@ -75,17 +75,25 @@ const CRM_TIERS = [
   { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
 ]
 
+// Must match templates/crm-fieldservice/backend/src/config/pricing.ts tier IDs.
+// The template uses `starter`/`pro`/`business`/`fleet`/`enterprise` for feature
+// gating — if these IDs drift, purchased tiers won't unlock the right features.
 const FIELDSERVICE_TIERS = [
-  { id: 'solo', name: 'Solo', monthlyPrice: 59, annualPrice: 50, users: { included: 1, max: 1 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', 'Time & Expense Tracking', 'Documents', 'Customer Portal', 'Website + CMS', 'Mobile App'] },
-  { id: 'small-shop', name: 'Small Shop', monthlyPrice: 149, annualPrice: 127, users: { included: 5, max: 5 }, highlight: true, features: ['Everything in Solo', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Route Optimization', 'Dispatch Board', 'Online Booking', 'Review Requests', 'Pricebook', 'QuickBooks Sync'] },
-  { id: 'growing', name: 'Growing Op', monthlyPrice: 279, annualPrice: 237, users: { included: 10, max: 25, additionalPrice: 29 }, features: ['Everything in Small Shop', 'Inventory Management', 'Fleet Management', 'Equipment Tracking', 'Service Agreements', 'Recurring Jobs', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
+  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Jobs & scheduling', 'Quotes & invoices', 'Payments', 'Customer portal', 'Mobile tech app', 'Documents', 'Time tracking'] },
+  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'GPS tracking & geofencing', 'Route optimization', 'Flat-rate pricebook', 'Service agreements', 'Review requests', 'Online booking', 'Two-way SMS', 'QuickBooks sync', 'Showcase website included'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Customer equipment tracking', 'Parts inventory', 'Fleet management', 'Maintenance contracts', 'Warranties', 'Email campaigns', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
+  { id: 'fleet', name: 'Fleet', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Multi-location dispatch', 'Advanced scheduling & routing', 'Call tracking & recording', 'Commission tracking', 'Territory management', 'Revenue by location / technician', 'Service area pages on website'] },
+  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Unlimited techs & locations', 'White-label + custom domain', 'SSO', 'API access', 'Priority support', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
 ]
 
+// Must match templates/crm-roof/backend/src/config/pricing.ts tier IDs.
+// Template uses `starter`/`pro`/`business`/`storm`/`enterprise` for feature gating.
 const ROOF_TIERS = [
-  { id: 'solo', name: 'Solo', monthlyPrice: 49, annualPrice: 42, users: { included: 1, max: 1 }, features: ['Contacts / CRM', 'Jobs & Work Orders', 'Quotes & Invoicing', 'Payment Processing', '$9 Measurement Reports', 'Documents', 'Customer Portal', 'Mobile App'] },
-  { id: 'starter', name: 'Starter', monthlyPrice: 129, annualPrice: 110, users: { included: 5, max: 5 }, highlight: true, features: ['Everything in Solo', 'Team Management', 'Two-Way SMS', 'GPS & Geofencing', 'Insurance Workflow', 'Storm Lead Gen', 'Canvassing Tool', 'Pricebook', 'QuickBooks Sync', 'Job Costing Reports'] },
-  { id: 'pro', name: 'Pro', monthlyPrice: 299, annualPrice: 254, users: { included: 10, max: 25, additionalPrice: 29 }, features: ['Everything in Starter', 'Instant Roof Estimator', 'Exterior Visualizer', 'Inventory Management', 'Fleet Management', 'Email Campaigns', 'Call Tracking', 'Automations', 'Custom Forms', 'Advanced Reporting'] },
-  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 85, annualPrice: 72, perUser: true, users: { min: 10, max: null }, features: ['Everything Included', 'Unlimited Users', 'API Access', 'White-Label Options', 'Custom Domain', 'SSO Integration', 'Priority Support', 'Dedicated Account Manager', 'Custom Integrations', 'SLA & Uptime Guarantee'] },
+  { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Lead intake', 'Job tracking', 'Quotes & invoices', 'Payments', 'Customer portal', 'Documents', 'Mobile app'] },
+  { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Good-Better-Best pricing', 'Pricebook', 'Measurement reports (3/mo)', 'Review requests', 'Two-way SMS', 'Photos & before/after galleries', 'QuickBooks sync', 'Showcase website included'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Instant estimator on website', '10 measurement reports/mo', 'Insurance workflow + adjuster directory', 'Consumer financing', 'Materials management', 'Crews', 'Job costing', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
+  { id: 'storm', name: 'Storm', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Unlimited measurement reports', 'Storm lead generation', 'Full insurance workflow + supplements', 'Depreciation recovery tracking', 'Door-knock canvassing tool', 'Multi-crew dispatch', 'AI receptionist', 'Estimator + service area pages on website'] },
+  { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Unlimited everything', 'White-label + custom domain', 'SSO', 'API access', 'Priority support', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
 ]
 
 const HOMECARE_TIERS = [
@@ -159,15 +167,19 @@ const CRM_SELF_HOSTED = [
 ]
 
 const FIELDSERVICE_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 997 },
-  { id: 'pro', name: 'Pro License', price: 2497 },
-  { id: 'business', name: 'Business License', price: 4997 },
+  { id: 'starter', name: 'Starter License', price: 1764 },
+  { id: 'pro', name: 'Pro License', price: 5364 },
+  { id: 'business', name: 'Business License', price: 10764 },
+  { id: 'fleet', name: 'Fleet License', price: 21564 },
+  { id: 'full', name: 'Full Platform License', price: 14997 },
 ]
 
 const ROOF_SELF_HOSTED = [
-  { id: 'starter', name: 'Starter License', price: 997 },
-  { id: 'pro', name: 'Pro License', price: 2497 },
-  { id: 'business', name: 'Business License', price: 4997 },
+  { id: 'starter', name: 'Starter License', price: 1764 },
+  { id: 'pro', name: 'Pro License', price: 5364 },
+  { id: 'business', name: 'Business License', price: 10764 },
+  { id: 'storm', name: 'Storm License', price: 21564 },
+  { id: 'full', name: 'Full Platform License', price: 14997 },
 ]
 
 const HOMECARE_SELF_HOSTED = [
