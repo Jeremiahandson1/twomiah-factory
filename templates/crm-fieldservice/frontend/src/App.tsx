@@ -65,6 +65,7 @@ import HelpPage from './pages/help/HelpPage';
 import EstimatorPage from './pages/EstimatorPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import PricebookTrialPage from './pages/PricebookTrialPage';
+import ReviewsPage from './pages/reviews/ReviewsPage';
 
 // Field Service Pages
 import DispatchBoard from './pages/fieldservice/DispatchBoard';
@@ -185,6 +186,7 @@ function App() {
                     <Route path="agreements" element={<AgreementsPage />} />
                     <Route path="warranties" element={<WarrantiesPage />} />
                     <Route path="call-tracking" element={<CallTrackingPage />} />
+                    <Route path="reviews" element={<ReviewsPage />} />
                     <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                     <Route path="recurring" element={<RecurringListPage />} />
                     <Route path="recurring/new" element={<RecurringForm />} />

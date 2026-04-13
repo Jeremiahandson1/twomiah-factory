@@ -8,7 +8,7 @@
  * - À la carte feature bundles
  *
  * Care-specific tier naming:
- * - Top tier is "Agency" (full claims + reconciliation + multi-branch) not "Construction"
+ * - Top tier is "Agency" (full claims + reconciliation + HIPAA audit) not "Construction"
  *
  * Pricing philosophy:
  * - Annual = exactly 2 months free (monthly × 10)
@@ -199,8 +199,6 @@ export const SAAS_TIERS = {
       'caregiver_availability',
       'shift_swaps',
       'open_shifts',
-      'gps_tracking',
-      'geofencing',
       'auto_clock',
       'incidents',
       'care_plans',
@@ -261,8 +259,6 @@ export const SAAS_TIERS = {
       'caregiver_availability',
       'shift_swaps',
       'open_shifts',
-      'gps_tracking',
-      'geofencing',
       'auto_clock',
       'incidents',
       'care_plans',
@@ -296,12 +292,13 @@ export const SAAS_TIERS = {
     cta: 'Start Free Trial',
   },
 
-  // Top tier for Care is "Agency" — full claims processing, reconciliation, multi-branch.
+  // Top tier for Care is "Agency" — full claims processing, reconciliation,
+  // HIPAA audit logs, caregiver portal. (Multi-branch de-scoped — no schema support.)
   agency: {
     id: 'agency',
     name: 'Agency',
     description: 'Full agency operations platform',
-    tagline: 'Full claims + multi-branch + caregiver portal website',
+    tagline: 'Full claims + HIPAA audit + caregiver portal website',
     price: 59900,
     priceAnnual: 599000,
     interval: 'month',
@@ -309,8 +306,8 @@ export const SAAS_TIERS = {
     heroFeatures: [
       'Full claims processing',
       'Check scanning & reconciliation',
-      'Multi-branch operations',
       'HIPAA-grade audit logs',
+      'Sandata integration',
       'Caregiver portal website included',
     ],
     users: {
@@ -342,8 +339,6 @@ export const SAAS_TIERS = {
       'caregiver_availability',
       'shift_swaps',
       'open_shifts',
-      'gps_tracking',
-      'geofencing',
       'auto_clock',
       'incidents',
       'care_plans',
@@ -368,7 +363,6 @@ export const SAAS_TIERS = {
       'full_claims_processing',
       'check_scanning',
       'check_reconciliation',
-      'multi_branch',
       'hipaa_audit_logs',
       'sandata_integration',
       'caregiver_portal',

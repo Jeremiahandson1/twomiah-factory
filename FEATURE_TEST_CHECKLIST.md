@@ -103,12 +103,11 @@ frontend surface is shared — verify the UI actually shows route optimization.
 | Call tracking | `calltracking` | `CallTrackingPage` | ✅ |
 | Consumer financing (Wisetack) | `wisetack`, `financing` | (in `QuotesPage`) | ✅ |
 | Advanced reporting | `reporting` | `ReportsDashboard` | ✅ |
-| Change orders | `changeOrders` | `ChangeOrdersPage` | ⚠️ *(this is in Construction tier per pricing.ts — verify which tier gates it)* |
+| Change orders | `changeOrders` | `ChangeOrdersPage` | ✅ **GATING FIXED 2026-04-13** |
 
-**⚠️ GAP to verify:** `changeOrders` is marketed in Business tier but the
-construction-tier feature array also includes it. Either the gating in
-feature-check code is correct or it's not — open the tenant on Business
-and confirm you can access Change Orders.
+**✅ Gap closed 2026-04-13.** `change_orders` added to Business tier
+feature array in `crm/backend/src/config/pricing.ts`. Business customers
+now unlock Change Orders alongside the marketed hero feature.
 
 ### Construction tier — $599/mo (20 users) + Book Jobs website + portfolio
 
@@ -214,13 +213,14 @@ token page? Is there SSO config?
 | Flat-rate pricebook | `pricebook` | `FlatRatePricebook`, `PricebookPage` | ✅ |
 | Service agreements | `agreements` | `AgreementsPage` | ✅ |
 | Two-way SMS | `sms` | (in various) | ✅ |
-| Review requests | (route: `reviews`?) | (none found) | ⚠️ *(route exists in Build but I don't see `reviews` in Wrench's list)* |
+| Review requests | `reviews` | `ReviewsPage` | ✅ **BUILT 2026-04-13** |
 | Online booking | `booking` | (customer-facing) | ✅ |
 | QuickBooks sync | `quickbooks` | `IntegrationsPage` | ✅ |
 
-**⚠️ Verify:** does Wrench have a `reviews` route? Search says no — might
-be missing `reviews.ts` vs Build. If review requests are marketed on Pro
-and the route doesn't exist, that's a gap.
+**✅ Wrench Pro gap closed 2026-04-13.** `ReviewsPage.tsx` ported from
+Build to `crm-fieldservice/frontend/src/pages/reviews/`. Imported and
+routed at `/crm/reviews` in `App.tsx`. Backend `reviews.ts` route was
+already mounted at `/api/reviews`.
 
 ### Business tier — $299/mo
 
@@ -321,21 +321,19 @@ important — it's the main compliance hook for home care.
 | Caregiver availability | `caregiverAvailability`, `blackoutDates` | (in `SchedulingPage`?) | 🔹 |
 | Shift swaps | (route not in list) | (none found) | ⚠️ *(check if `openShifts` covers it)* |
 | Open shifts | `openShifts` | (in `SchedulingPage`?) | 🔹 |
-| GPS tracking | (`mileage` route? not explicit gps) | (none found) | ⚠️ **GAP** *(configured in pricing.ts but no dedicated route)* |
-| Geofencing | (none found) | (none found) | ⚠️ **GAP** |
 | Auto clock | (in `timeTracking`) | (in `TimeTrackingPage`) | 🔹 |
 | Incidents | `incidents`, `emergency` | (in pages?) | ✅ |
 | Care plans | `carePlans` | (in pages?) | ✅ |
 
-**⚠️ Care Pro tier gaps:**
-1. **GPS tracking / geofencing** — pricing.ts features array includes them
-   but Care has no dedicated `gps_tracking`, `geofencing` routes. There's a
-   `mileage` route but that's not the same. **Possible action:** either
-   remove gps/geofencing from Care's Pro features or add the routes.
-2. **Review requests** marketed in other verticals, not in Care's features
-   (good — don't market what you don't have).
-3. **Caregiver bio pages** — there's a profile page but verify it has a
-   public-facing bio rendered on the Showcase website.
+**✅ Care Pro gaps closed 2026-04-13.** `gps_tracking` and `geofencing`
+removed from Pro/Business/Agency feature arrays in
+`crm-homecare/backend/src/config/pricing.ts` — honest de-scope since no
+routes back them. If GPS becomes a Care requirement later (EVV check-in
+location verification), add it then with real implementation.
+
+**⚠️ Still to verify:**
+- **Caregiver bio pages** — profile page exists but verify it renders a
+  public-facing bio on the Showcase website.
 
 ### Business tier — $299/mo
 
@@ -381,25 +379,28 @@ open a client or caregiver).
 | Full claims processing | `claims`, `edi`, `remittance` | `ClaimsPage` | ✅ |
 | Check scanning | (in `payments`) | (see `chippewa-home-care-crm/paymentsRoutes.js`) | ✅ |
 | Check reconciliation | (in `payments`) | (see same) | ✅ |
-| Multi-branch operations | (none found as standalone) | (none found) | ⚠️ **GAP** |
 | HIPAA audit logs | `auditLogs`, `audit` | `AuditPage` | ✅ |
 | Sandata integration | `sandata` | (in `IntegrationsPage`?) | ✅ |
 | Caregiver portal | `portal` | (separate portal pages) | ✅ |
 | Route optimizer | `optimizer`, `rosterOptimizer`, `scheduleOptimizer` | (in `SchedulingPage`?) | ✅ |
-| Forecast | `forecast` | (none found) | ⚠️ *(route exists, no page?)* |
-| AI receptionist | `aiReceptionist` | (none found) | ⚠️ *(route exists, no page?)* |
+| Forecast | `forecast` | `ForecastPage` | ✅ |
+| AI receptionist | `aiReceptionist` | `AiReceptionistPage` | ✅ |
 | Gusto integration | `gusto` | `IntegrationsPage` | ✅ |
-| Performance reviews | `performanceReviews` | (none found) | ⚠️ *(route exists, no page?)* |
-| No-show tracking | `noShow` | (none found) | ⚠️ *(route exists, no page?)* |
-| PTO management | `pto` | (none found) | ⚠️ *(route exists, no page?)* |
+| Performance reviews | `performanceReviews` | `PerformanceReviewsPage` | ✅ |
+| No-show tracking | `noShow` | `NoShowPage` | ✅ |
+| PTO management | `pto` | `PtoPage` | ✅ |
 
-**⚠️ Agency tier gaps:**
-1. **Multi-branch operations** marketed but no dedicated route. Does Care
-   support multiple branches under one agency in the schema? If yes, it's
-   hidden; if no, remove from marketing.
-2. Several routes exist (`forecast`, `aiReceptionist`, `performanceReviews`,
-   `noShow`, `pto`) but I don't see matching frontend pages. Either they're
-   backend-only APIs or the pages exist in components I didn't scan. Verify.
+**✅ Agency tier gaps closed 2026-04-13.**
+1. **Multi-branch** — no schema support, removed from marketing
+   (heroFeatures, tagline, feature array) in
+   `crm-homecare/backend/src/config/pricing.ts`. Rebuild later as a real
+   feature if an agency customer actually asks for it.
+2. **Forecast, AI receptionist, performance reviews, no-show, PTO pages**
+   all exist in `crm-homecare/frontend/src/pages/` and are wired into
+   `AdminDashboard.tsx` switch (cases: `forecast`, `ai-receptionist`,
+   `performance-reviews`, `no-show`, `pto`). Previous checklist scan
+   missed them because they're routed via the dashboard switch, not a
+   top-level `App.tsx` `<Route>`.
 
 ---
 
@@ -487,18 +488,25 @@ designed to be called by a future services/wisetack.ts client.
 | Storm radar overlay | (in `storms`?) | (none found as standalone) | 🔹 |
 | Door-knock canvassing | `canvassing` | `CanvassingDashboard`, `CanvassingView` | ✅ |
 | Canvassing routes | (in `canvassing`) | (in `CanvassingDashboard`) | ✅ |
-| Insurance supplements | (in `insurance`?) | (none found as standalone) | ⚠️ *(verify — is "supplement" a tab in `InsuranceClaimPage`?)* |
-| Depreciation recovery | (none found) | (none found) | ⚠️ **GAP** |
+| Insurance supplements | `insurance` (nested) | `InsuranceClaimPage` (supplements section + modal) | ✅ |
+| Depreciation recovery | `insurance` (nested) | `InsuranceClaimPage` (`depreciationHeld` field) | ✅ |
 | AI receptionist | `aiReceptionist` | `AIReceptionistPage` | ✅ |
 | Service area pages | (website-fieldservice / website-contractor feature) | — | 🔹 |
 | Multi-crew dispatch | `crews` | `CrewsPage` | ✅ |
 
-**⚠️ Roof Storm tier gaps:**
-1. **Insurance supplements** and **depreciation recovery** are advertised
-   as key storm-chaser features but I see no dedicated UI. Verify these
-   are actual workflows in the insurance claim page, not just checkboxes.
-2. **Storm radar overlay** — marketing implies a live weather layer. Is
-   this a map feature in `StormLeadsPage` or just a claim?
+**✅ Roof Storm gaps closed (already shipped; checklist was stale).**
+Both features live inside `InsuranceClaimPage.tsx`, not as standalone
+routes:
+- **Supplements**: full workflow — `supplement` table in schema, create
+  modal, `/api/insurance/claims/:id/supplements` endpoints, submit
+  action, supplements list on claim detail.
+- **Depreciation recovery**: `depreciationHeld` decimal column on
+  `insurance_claim`, editable in claim detail. Use this field to track
+  held/released recoverable depreciation.
+
+**⚠️ Still open:**
+- **Storm radar overlay** — marketing implies a live weather layer. Is
+  this a map feature in `StormLeadsPage` or just a claim?
 
 ---
 

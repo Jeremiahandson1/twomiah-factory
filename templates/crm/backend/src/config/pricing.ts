@@ -289,6 +289,7 @@ export const SAAS_TIERS = {
       'custom_forms',
       'consumer_financing',
       'advanced_reporting',
+      'change_orders',
     ],
     limits: {
       contacts: 10000,
