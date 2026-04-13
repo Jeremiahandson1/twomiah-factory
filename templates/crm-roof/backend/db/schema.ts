@@ -823,3 +823,72 @@ export const pricebookMaterial = pgTable('pricebook_material', {
 }, (t) => [
   index('pricebook_material_pricebook_item_id_idx').on(t.pricebookItemId),
 ])
+
+// ==================== REVIEW REQUESTS & REVIEWS ====================
+
+export const reviewRequest = pgTable('review_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull(),
+  jobId: text('job_id'),
+  status: text('status').default('pending').notNull(), // pending, sent, clicked, completed, failed
+  channel: text('channel').default('both').notNull(), // sms, email, both
+  reviewLink: text('review_link'),
+  message: text('message'),
+  sentAt: timestamp('sent_at'),
+  clickedAt: timestamp('clicked_at'),
+  followUpSentAt: timestamp('follow_up_sent_at'),
+  openedAt: timestamp('opened_at'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('review_request_company_id_idx').on(t.companyId),
+  index('review_request_status_idx').on(t.status),
+])
+
+export const review = pgTable('review', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  requestId: text('request_id'),
+  contactId: text('contact_id'),
+  jobId: text('job_id'),
+  rating: integer('rating').notNull(),
+  comment: text('comment'),
+  platform: text('platform').default('google').notNull(),
+  reviewerName: text('reviewer_name'),
+  verified: boolean('verified').default(false).notNull(),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('review_company_id_idx').on(t.companyId),
+])
+
+// ==================== CONSUMER FINANCING APPLICATIONS ====================
+
+export const financingApplication = pgTable('financing_application', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull(),
+  jobId: text('job_id'),
+  quoteId: text('quote_id'),
+  lender: text('lender').default('wisetack').notNull(), // wisetack, greensky, sunlight, other
+  amountRequested: decimal('amount_requested', { precision: 12, scale: 2 }).notNull(),
+  amountApproved: decimal('amount_approved', { precision: 12, scale: 2 }),
+  termMonths: integer('term_months'),
+  apr: decimal('apr', { precision: 5, scale: 2 }),
+  monthlyPayment: decimal('monthly_payment', { precision: 10, scale: 2 }),
+  status: text('status').default('pending').notNull(), // pending, sent, approved, declined, funded, expired
+  applicationUrl: text('application_url'),
+  lenderReference: text('lender_reference'),
+  sentAt: timestamp('sent_at'),
+  approvedAt: timestamp('approved_at'),
+  fundedAt: timestamp('funded_at'),
+  expiresAt: timestamp('expires_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('financing_application_company_id_idx').on(t.companyId),
+  index('financing_application_contact_id_idx').on(t.contactId),
+  index('financing_application_status_idx').on(t.status),
+])
