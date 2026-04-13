@@ -30,6 +30,11 @@ import invoicesRoutes from './routes/invoices.ts'
 import timeRoutes from './routes/time.ts'
 import expensesRoutes from './routes/expenses.ts'
 import rfisRoutes from './routes/rfis.ts'
+import submittalsRoutes from './routes/submittals.ts'
+import lienWaiversRoutes from './routes/lienWaivers.ts'
+import drawSchedulesRoutes from './routes/drawSchedules.ts'
+import aiaFormsRoutes from './routes/aiaForms.ts'
+import ganttChartsRoutes from './routes/ganttCharts.ts'
 import changeOrdersRoutes from './routes/changeOrders.ts'
 import punchListsRoutes from './routes/punchLists.ts'
 import dailyLogsRoutes from './routes/dailyLogs.ts'
@@ -150,6 +155,11 @@ app.route('/api/invoices', invoicesRoutes)
 app.route('/api/time', timeRoutes)
 app.route('/api/expenses', expensesRoutes)
 app.route('/api/rfis', rfisRoutes)
+app.route('/api/submittals', submittalsRoutes)
+app.route('/api/lien-waivers', lienWaiversRoutes)
+app.route('/api/draw-schedules', drawSchedulesRoutes)
+app.route('/api/aia-forms', aiaFormsRoutes)
+app.route('/api/gantt-charts', ganttChartsRoutes)
 app.route('/api/change-orders', changeOrdersRoutes)
 app.route('/api/punch-lists', punchListsRoutes)
 app.route('/api/daily-logs', dailyLogsRoutes)

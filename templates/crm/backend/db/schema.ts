@@ -2876,6 +2876,77 @@ export const dailyLogRelations = relations(dailyLog, ({ one }) => ({
   user: one(user, { fields: [dailyLog.userId], references: [user.id] }),
 }))
 
+// ==================== DRAW SCHEDULES (construction loan draws) ====================
+export const drawSchedule = pgTable('draw_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  totalAmount: decimal('total_amount', { precision: 12, scale: 2 }).notNull(),
+  lenderName: text('lender_name'),
+  lenderContact: text('lender_contact'),
+  status: text('status').default('active').notNull(), // active, completed, cancelled
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  companyIdx: index('draw_schedule_company_id_idx').on(t.companyId),
+  projectIdx: index('draw_schedule_project_id_idx').on(t.projectId),
+}))
+
+export const drawRequest = pgTable('draw_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  drawScheduleId: text('draw_schedule_id').notNull().references(() => drawSchedule.id, { onDelete: 'cascade' }),
+  drawNumber: integer('draw_number').notNull(),
+  amountRequested: decimal('amount_requested', { precision: 12, scale: 2 }).notNull(),
+  amountApproved: decimal('amount_approved', { precision: 12, scale: 2 }),
+  percentComplete: decimal('percent_complete', { precision: 5, scale: 2 }),
+  status: text('status').default('pending').notNull(), // pending, submitted, approved, paid, rejected
+  requestedAt: timestamp('requested_at').defaultNow().notNull(),
+  submittedAt: timestamp('submitted_at'),
+  approvedAt: timestamp('approved_at'),
+  paidAt: timestamp('paid_at'),
+  notes: text('notes'),
+  inspectionPhotos: json('inspection_photos'),
+  supportingDocs: json('supporting_docs'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  companyIdx: index('draw_request_company_id_idx').on(t.companyId),
+  scheduleIdx: index('draw_request_schedule_id_idx').on(t.drawScheduleId),
+}))
+
+// ==================== AIA FORMS (G702/G703) ====================
+export const aiaForm = pgTable('aia_form', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  formType: text('form_type').notNull(), // 'G702' or 'G703'
+  applicationNumber: integer('application_number').notNull(),
+  periodTo: timestamp('period_to').notNull(),
+  contractSum: decimal('contract_sum', { precision: 12, scale: 2 }).notNull(),
+  netChangeByChangeOrders: decimal('net_change_by_change_orders', { precision: 12, scale: 2 }).default('0').notNull(),
+  contractSumToDate: decimal('contract_sum_to_date', { precision: 12, scale: 2 }).notNull(),
+  totalCompletedAndStored: decimal('total_completed_and_stored', { precision: 12, scale: 2 }).notNull(),
+  retainagePercent: decimal('retainage_percent', { precision: 5, scale: 2 }).default('10').notNull(),
+  retainageAmount: decimal('retainage_amount', { precision: 12, scale: 2 }).notNull(),
+  totalEarnedLessRetainage: decimal('total_earned_less_retainage', { precision: 12, scale: 2 }).notNull(),
+  lessPreviousCertificates: decimal('less_previous_certificates', { precision: 12, scale: 2 }).default('0').notNull(),
+  currentPaymentDue: decimal('current_payment_due', { precision: 12, scale: 2 }).notNull(),
+  balanceToFinish: decimal('balance_to_finish', { precision: 12, scale: 2 }).notNull(),
+  lineItems: json('line_items').notNull(), // G703 continuation rows
+  status: text('status').default('draft').notNull(), // draft, signed, submitted, paid
+  signedBy: text('signed_by'),
+  signedAt: timestamp('signed_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  companyIdx: index('aia_form_company_id_idx').on(t.companyId),
+  projectIdx: index('aia_form_project_id_idx').on(t.projectId),
+}))
+
 export const rfiRelations = relations(rfi, ({ one }) => ({
   company: one(company, { fields: [rfi.companyId], references: [company.id] }),
   project: one(project, { fields: [rfi.projectId], references: [project.id] }),

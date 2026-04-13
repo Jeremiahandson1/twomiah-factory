@@ -706,7 +706,7 @@ export const FEATURE_BUNDLES = {
   construction_pm: {
     id: 'construction_pm',
     name: 'Construction PM',
-    description: 'Projects, change orders, RFIs, and more',
+    description: 'Projects, change orders, RFIs, submittals, and more',
     price: 14900,
     interval: 'month',
     features: ['projects', 'change_orders', 'rfis', 'submittals', 'daily_logs', 'punch_lists', 'inspections', 'bids', 'gantt_charts'],
