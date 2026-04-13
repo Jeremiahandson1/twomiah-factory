@@ -290,8 +290,8 @@ export const SAAS_TIERS = {
       max: 50,
       additionalPrice: 2900,
     },
-    stripePriceId: process.env.STRIPE_PRICE_CONSTRUCTION,
-    stripePriceIdAnnual: process.env.STRIPE_PRICE_CONSTRUCTION_ANNUAL,
+    stripePriceId: process.env.STRIPE_PRICE_FLEET,
+    stripePriceIdAnnual: process.env.STRIPE_PRICE_FLEET_ANNUAL,
     features: [
       // All Business features
       'contacts',

@@ -79,11 +79,20 @@ async function main() {
   console.log('═══ SaaS Subscription Tiers ═══')
 
   // Annual = exactly 2 months free (monthly × 10)
+  // Each vertical has its own top-tier SKU so receipts/analytics are clean,
+  // even though they're all priced the same $599/mo:
+  //   Build      → construction
+  //   Wrench     → fleet
+  //   Roof       → storm
+  //   Care       → agency
   const tiers = [
     { id: 'starter', name: 'Starter', monthly: 4900, annual: 49000, desc: 'CRM only — 2 users included. Pair with any website tier.' },
     { id: 'pro', name: 'Pro', monthly: 14900, annual: 149000, desc: 'CRM + Showcase website included — 5 users, up to 10' },
     { id: 'business', name: 'Business', monthly: 29900, annual: 299000, desc: 'CRM + Book Jobs website included — 15 users, up to 25' },
-    { id: 'construction', name: 'Construction', monthly: 59900, annual: 599000, desc: 'Full construction management + Book Jobs website — 20 users, up to 50' },
+    { id: 'construction', name: 'Construction', monthly: 59900, annual: 599000, desc: 'Build top tier — full construction management + Book Jobs website — 20 users, up to 50' },
+    { id: 'fleet', name: 'Fleet', monthly: 59900, annual: 599000, desc: 'Wrench top tier — multi-location dispatch, call recording, commission tracking — 20 users, up to 50' },
+    { id: 'storm', name: 'Storm', monthly: 59900, annual: 599000, desc: 'Roof top tier — unlimited measurement reports, canvassing, full insurance workflow with supplements — 20 users, up to 50' },
+    { id: 'agency', name: 'Agency', monthly: 59900, annual: 599000, desc: 'Care top tier — full claims processing, HIPAA audit, caregiver portal website — 20 users, up to 50' },
     { id: 'enterprise', name: 'Enterprise', monthly: 19900, annual: 199000, desc: 'Unlimited scale, white-label — per user, min 10 users' },
   ]
 
