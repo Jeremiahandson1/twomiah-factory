@@ -26,6 +26,7 @@ import {
   Upload,
   Star,
   CreditCard,
+  Radio,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -51,6 +52,7 @@ const fieldNavItems = [
   { label: 'Ads', icon: Megaphone, to: '/crm/ads', feature: 'paid_ads' },
   { label: 'Reviews', icon: Star, to: '/crm/reviews', feature: 'review_requests' },
   { label: 'Financing', icon: CreditCard, to: '/crm/financing', feature: 'consumer_financing' },
+  { label: 'Storm Radar', icon: Radio, to: '/crm/storm-radar', feature: 'storm_radar_overlay' },
 ]
 
 const bottomNavItems = [

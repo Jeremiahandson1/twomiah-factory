@@ -22,6 +22,7 @@ import CanvassingDashboard from './pages/roofing/CanvassingDashboard'
 import StormLeadsPage from './pages/roofing/StormLeadsPage'
 import ReviewsPage from './pages/roofing/ReviewsPage'
 import FinancingPage from './pages/roofing/FinancingPage'
+import StormRadarPage from './pages/roofing/StormRadarPage'
 import LeadInboxPage from './pages/leads/LeadInboxPage'
 import LeadSourcesPage from './pages/leads/LeadSourcesPage'
 import AIReceptionistPage from './pages/roofing/AIReceptionistPage'
@@ -106,6 +107,7 @@ export default function App() {
                 <Route path="billing/pricing" element={<BillingPricingPage />} />
                 <Route path="reviews" element={<ReviewsPage />} />
                 <Route path="financing" element={<FinancingPage />} />
+                <Route path="storm-radar" element={<StormRadarPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" />} />

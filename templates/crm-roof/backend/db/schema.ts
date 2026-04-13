@@ -865,6 +865,53 @@ export const review = pgTable('review', {
 
 // ==================== CONSUMER FINANCING APPLICATIONS ====================
 
+// ==================== STORM RADAR ====================
+
+export const stormEvent = pgTable('storm_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  provider: text('provider').default('noaa').notNull(), // noaa, tomorrow_io, accuweather
+  providerEventId: text('provider_event_id'),
+  eventType: text('event_type').notNull(), // hail, wind, tornado, severe_thunderstorm, other
+  severity: text('severity'), // minor, moderate, severe, extreme
+  hailSizeInches: decimal('hail_size_inches', { precision: 4, scale: 2 }),
+  windSpeedMph: integer('wind_speed_mph'),
+  description: text('description'),
+  lat: real('lat'),
+  lng: real('lng'),
+  radiusMiles: decimal('radius_miles', { precision: 6, scale: 2 }),
+  state: text('state'),
+  city: text('city'),
+  zip: text('zip'),
+  startedAt: timestamp('started_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  rawPayload: json('raw_payload'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('storm_event_company_id_idx').on(t.companyId),
+  index('storm_event_state_idx').on(t.state),
+  index('storm_event_zip_idx').on(t.zip),
+  index('storm_event_started_at_idx').on(t.startedAt),
+])
+
+export const stormEventMatch = pgTable('storm_event_match', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  stormEventId: text('storm_event_id').notNull().references(() => stormEvent.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull(),
+  distanceMiles: decimal('distance_miles', { precision: 6, scale: 2 }),
+  status: text('status').default('new').notNull(), // new, contacted, quoted, booked, not_interested
+  contactedAt: timestamp('contacted_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('storm_event_match_company_id_idx').on(t.companyId),
+  index('storm_event_match_storm_event_id_idx').on(t.stormEventId),
+  index('storm_event_match_status_idx').on(t.status),
+])
+
 export const financingApplication = pgTable('financing_application', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),

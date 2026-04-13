@@ -16,6 +16,7 @@ import { db } from '../../db/index.ts'
 import { reviewRequest, review } from '../../db/schema.ts'
 import { eq, and, desc, avg, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import gmb, { GmbNotConfiguredError } from '../services/gmb.ts'
 
 const app = new Hono()
 
@@ -133,6 +134,26 @@ app.get('/summary', async (c) => {
     averageRating: stats?.avgRating ? Number(stats.avgRating) : 0,
     totalReviews: Number(stats?.total || 0),
   })
+})
+
+// Google My Business sync — pulls reviews from GMB into the local review table.
+// Stubbed service — returns "not configured" until env vars are set. See
+// services/gmb.ts header for setup instructions.
+app.get('/sync/gmb/status', (c) => {
+  return c.json({ configured: gmb.isConfigured() })
+})
+
+app.post('/sync/gmb', async (c) => {
+  const currentUser = c.get('user') as any
+  try {
+    const result = await gmb.syncReviews(currentUser.companyId)
+    return c.json({ success: true, ...result })
+  } catch (e: any) {
+    if (e instanceof GmbNotConfiguredError) {
+      return c.json({ error: 'not_configured', message: e.message }, 503)
+    }
+    return c.json({ error: 'sync_failed', message: e.message }, 500)
+  }
 })
 
 export default app

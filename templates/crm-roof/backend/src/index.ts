@@ -42,6 +42,7 @@ import usersRoutes from './routes/users.ts'
 import billingRoutes from './routes/billing.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import financingRoutes from './routes/financing.ts'
+import stormRadarRoutes from './routes/stormRadar.ts'
 
 const app = new Hono()
 
@@ -110,6 +111,7 @@ app.route('/api/users', usersRoutes)
 app.route('/api/billing', billingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 app.route('/api/financing', financingRoutes)
+app.route('/api/storm-radar', stormRadarRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
