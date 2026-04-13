@@ -524,7 +524,7 @@ export const SELF_HOSTED_PACKAGES = {
   enterprise: {
     id: 'enterprise',
     name: 'Enterprise License',
-    description: 'Full home care platform for self-hosting — unlimited caregivers, lifetime updates',
+    description: 'Full home care platform for self-hosting — unlimited caregivers, 3 years updates + support',
     price: 7164000, // $71,640 flat = $199 × 36 × 10 users (anchor math, no cap)
     unlimitedUsers: true,
     features: ['all'],
@@ -532,9 +532,9 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
-      'Unlimited caregivers forever',
-      'Lifetime updates included',
-      'Lifetime email + phone support',
+      'Unlimited caregivers (no per-seat cap)',
+      '3 years of free updates',
+      '3 years of email + phone support',
       'Docker configuration',
       'CI/CD templates',
       '2 hour setup call',

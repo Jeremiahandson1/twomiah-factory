@@ -504,7 +504,7 @@ export const SELF_HOSTED_PACKAGES = {
   enterprise: {
     id: 'enterprise',
     name: 'Enterprise License',
-    description: 'Full roofing platform for self-hosting — unlimited users, lifetime updates',
+    description: 'Full roofing platform for self-hosting — unlimited users, 3 years updates + support',
     price: 7164000, // $71,640 flat = $199 × 36 × 10 users (anchor math, no cap)
     unlimitedUsers: true,
     features: ['all'],
@@ -512,9 +512,9 @@ export const SELF_HOSTED_PACKAGES = {
       'Full source code',
       'Database schema',
       'Deployment documentation',
-      'Unlimited users forever',
-      'Lifetime updates included',
-      'Lifetime email + phone support',
+      'Unlimited users (no per-seat cap)',
+      '3 years of free updates',
+      '3 years of email + phone support',
       'Docker configuration',
       'CI/CD templates',
       '2 hour setup call',

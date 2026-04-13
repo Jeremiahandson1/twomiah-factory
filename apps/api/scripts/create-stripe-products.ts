@@ -134,7 +134,9 @@ async function main() {
   // One-time license = monthly SaaS × 36 (3 years equivalent), uniform across tiers.
   // Every license includes 3 years of free updates (since it's "3 years of SaaS
   // paid once" — updates during those 3 years are part of the deal). Enterprise
-  // is a flat $71,640 with unlimited users + lifetime updates + lifetime support.
+  // is a flat $71,640 with unlimited users + 3 years of updates + 3 years of
+  // email/phone support. All terms are bounded at 3 years so we're not making
+  // open-ended commitments we can't guarantee a decade from now.
   const licenses = [
     { id: 'starter', name: 'Starter License', price: 176400 }, // $1,764 = $49 × 36
     { id: 'pro', name: 'Pro License', price: 536400 }, // $5,364 = $149 × 36
@@ -146,7 +148,7 @@ async function main() {
   for (const lic of licenses) {
     const productId = await createProduct(
       `Twomiah ${lic.name}`,
-      `Self-hosted ${lic.name} — full source code, perpetual, ${lic.id === 'enterprise' ? 'unlimited users, lifetime updates' : '3 years of free updates'}`,
+      `Self-hosted ${lic.name} — full source code, perpetual, 3 years of free updates${lic.id === 'enterprise' ? ', unlimited users, 3 years of email + phone support' : ''}`,
       { twomiah_license: lic.id }
     )
     await createPrice(productId, `STRIPE_PRICE_LICENSE_${lic.id.toUpperCase()}`, lic.price)
