@@ -417,12 +417,15 @@ export const SAAS_TIERS = {
 // SELF-HOSTED LICENSE PACKAGES
 // ============================================
 
+// One-time license = monthly SaaS × 36 (3 years equivalent), uniform across tiers.
+// "Full Platform" SKU removed — Enterprise self-hosted now uses proper per-user math.
+
 export const SELF_HOSTED_PACKAGES = {
   starter: {
     id: 'starter',
     name: 'Starter License',
-    description: 'Core CRM functionality for self-hosting',
-    price: 99700, // $997
+    description: 'Core field service CRM for self-hosting',
+    price: 176400, // $1,764 = $49 × 36
     features: SAAS_TIERS.starter.features,
     includes: [
       'Full source code',
@@ -436,8 +439,8 @@ export const SELF_HOSTED_PACKAGES = {
   pro: {
     id: 'pro',
     name: 'Pro License',
-    description: 'Field service features for self-hosting',
-    price: 249700, // $2,497
+    description: 'GPS, routing, pricebook + Showcase website for self-hosting',
+    price: 536400, // $5,364 = $149 × 36
     features: SAAS_TIERS.pro.features,
     includes: [
       'Full source code',
@@ -452,8 +455,8 @@ export const SELF_HOSTED_PACKAGES = {
   business: {
     id: 'business',
     name: 'Business License',
-    description: 'Complete operations platform for self-hosting',
-    price: 499700, // $4,997
+    description: 'Equipment + inventory + fleet management for self-hosting',
+    price: 1076400, // $10,764 = $299 × 36
     features: SAAS_TIERS.business.features,
     includes: [
       'Full source code',
@@ -469,8 +472,8 @@ export const SELF_HOSTED_PACKAGES = {
   fleet: {
     id: 'fleet',
     name: 'Fleet License',
-    description: 'Multi-location field service dispatch for self-hosting',
-    price: 999700, // $9,997
+    description: 'Multi-location dispatch platform for self-hosting',
+    price: 2156400, // $21,564 = $599 × 36
     features: SAAS_TIERS.fleet.features,
     includes: [
       'Full source code',
@@ -484,11 +487,13 @@ export const SELF_HOSTED_PACKAGES = {
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   },
 
-  full: {
-    id: 'full',
-    name: 'Full Platform License',
-    description: 'Everything - complete source code',
-    price: 1499700, // $14,997
+  enterprise: {
+    id: 'enterprise',
+    name: 'Enterprise License',
+    description: 'Enterprise field service for self-hosting — per user, 10 user minimum',
+    price: 716400, // $7,164/user = $199 × 36
+    perUser: true,
+    minUsers: 10, // $71,640 minimum
     features: ['all'],
     includes: [
       'Full source code',
@@ -500,8 +505,9 @@ export const SELF_HOSTED_PACKAGES = {
       '2 hour setup call',
       'White-label ready',
       'Multi-tenant support',
+      'SSO + SAML setup',
     ],
-    stripePriceId: process.env.STRIPE_PRICE_LICENSE_FULL,
+    stripePriceId: process.env.STRIPE_PRICE_LICENSE_ENTERPRISE,
   },
 };
 

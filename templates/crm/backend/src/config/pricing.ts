@@ -453,13 +453,17 @@ export const SAAS_TIERS = {
 // ============================================
 // SELF-HOSTED LICENSE PACKAGES
 // ============================================
+// Pricing rule: one-time license = monthly SaaS × 36 (3 years equivalent).
+// Applied uniformly across every tier so customers can do the math themselves.
+// The "Full Platform" SKU was removed — Enterprise self-hosted now uses the
+// proper per-user 36× math instead of being mispriced as a flat $14,997.
 
 export const SELF_HOSTED_PACKAGES = {
   starter: {
     id: 'starter',
     name: 'Starter License',
-    description: 'Core CRM functionality for self-hosting',
-    price: 99700, // $997
+    description: 'Core CRM for self-hosting',
+    price: 176400, // $1,764 = $49 × 36
     features: SAAS_TIERS.starter.features,
     includes: [
       'Full source code',
@@ -473,8 +477,8 @@ export const SELF_HOSTED_PACKAGES = {
   pro: {
     id: 'pro',
     name: 'Pro License',
-    description: 'Field service features for self-hosting',
-    price: 249700, // $2,497
+    description: 'Pro CRM for self-hosting (includes Showcase website)',
+    price: 536400, // $5,364 = $149 × 36
     features: SAAS_TIERS.pro.features,
     includes: [
       'Full source code',
@@ -489,8 +493,8 @@ export const SELF_HOSTED_PACKAGES = {
   business: {
     id: 'business',
     name: 'Business License',
-    description: 'Complete operations platform for self-hosting',
-    price: 499700, // $4,997
+    description: 'Business CRM for self-hosting (includes Book Jobs website)',
+    price: 1076400, // $10,764 = $299 × 36
     features: SAAS_TIERS.business.features,
     includes: [
       'Full source code',
@@ -506,8 +510,8 @@ export const SELF_HOSTED_PACKAGES = {
   construction: {
     id: 'construction',
     name: 'Construction License',
-    description: 'Full construction management for self-hosting',
-    price: 999700, // $9,997
+    description: 'Full construction platform for self-hosting',
+    price: 2156400, // $21,564 = $599 × 36
     features: SAAS_TIERS.construction.features,
     includes: [
       'Full source code',
@@ -521,11 +525,13 @@ export const SELF_HOSTED_PACKAGES = {
     stripePriceId: process.env.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   },
 
-  full: {
-    id: 'full',
-    name: 'Full Platform License',
-    description: 'Everything - complete source code',
-    price: 1499700, // $14,997
+  enterprise: {
+    id: 'enterprise',
+    name: 'Enterprise License',
+    description: 'Enterprise platform for self-hosting — per user, 10 user minimum',
+    price: 716400, // $7,164/user = $199 × 36
+    perUser: true,
+    minUsers: 10, // $71,640 minimum
     features: ['all'],
     includes: [
       'Full source code',
@@ -537,8 +543,9 @@ export const SELF_HOSTED_PACKAGES = {
       '2 hour setup call',
       'White-label ready',
       'Multi-tenant support',
+      'SSO + SAML setup',
     ],
-    stripePriceId: process.env.STRIPE_PRICE_LICENSE_FULL,
+    stripePriceId: process.env.STRIPE_PRICE_LICENSE_ENTERPRISE,
   },
 };
 
