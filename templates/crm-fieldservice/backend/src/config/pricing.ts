@@ -290,8 +290,10 @@ export const SAAS_TIERS = {
       max: 50,
       additionalPrice: 2900,
     },
-    stripePriceId: process.env.STRIPE_PRICE_FLEET,
-    stripePriceIdAnnual: process.env.STRIPE_PRICE_FLEET_ANNUAL,
+    // Falls back to Construction SKU until create-stripe-products.ts is re-run
+    // to mint the dedicated Fleet SKU. Both are $599/mo so price is unchanged.
+    stripePriceId: process.env.STRIPE_PRICE_FLEET || process.env.STRIPE_PRICE_CONSTRUCTION,
+    stripePriceIdAnnual: process.env.STRIPE_PRICE_FLEET_ANNUAL || process.env.STRIPE_PRICE_CONSTRUCTION_ANNUAL,
     features: [
       // All Business features
       'contacts',

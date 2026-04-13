@@ -22,11 +22,23 @@ if (process.env.STRIPE_SECRET_KEY) {
 
 // ── Price ID lookups ─────────────────────────────────────────────────────────
 
+// Each vertical has its own top tier. Build=construction, Wrench=fleet,
+// Roof=storm, Care=agency. They are all priced the same ($599/mo). Fleet/
+// Storm/Agency Stripe SKUs are minted by create-stripe-products.ts. Until
+// that script has been re-run on production, the env vars won't exist yet,
+// so each top tier falls back to the Construction SKU so checkout keeps
+// working. Once the new SKUs are minted, they'll take over automatically.
+const CONSTRUCTION_PRICE    = STRIPE_PRICES.STRIPE_PRICE_CONSTRUCTION
+const CONSTRUCTION_PRICE_A  = STRIPE_PRICES.STRIPE_PRICE_CONSTRUCTION_ANNUAL
+
 const PLAN_PRICE_MAP: Record<string, { monthly: string; annual: string }> = {
   starter:      { monthly: STRIPE_PRICES.STRIPE_PRICE_STARTER,      annual: STRIPE_PRICES.STRIPE_PRICE_STARTER_ANNUAL },
   pro:          { monthly: STRIPE_PRICES.STRIPE_PRICE_PRO,          annual: STRIPE_PRICES.STRIPE_PRICE_PRO_ANNUAL },
   business:     { monthly: STRIPE_PRICES.STRIPE_PRICE_BUSINESS,     annual: STRIPE_PRICES.STRIPE_PRICE_BUSINESS_ANNUAL },
-  construction: { monthly: STRIPE_PRICES.STRIPE_PRICE_CONSTRUCTION, annual: STRIPE_PRICES.STRIPE_PRICE_CONSTRUCTION_ANNUAL },
+  construction: { monthly: CONSTRUCTION_PRICE,                      annual: CONSTRUCTION_PRICE_A },
+  fleet:        { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_FLEET        || CONSTRUCTION_PRICE,   annual: (STRIPE_PRICES as any).STRIPE_PRICE_FLEET_ANNUAL  || CONSTRUCTION_PRICE_A },
+  storm:        { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_STORM        || CONSTRUCTION_PRICE,   annual: (STRIPE_PRICES as any).STRIPE_PRICE_STORM_ANNUAL  || CONSTRUCTION_PRICE_A },
+  agency:       { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_AGENCY       || CONSTRUCTION_PRICE,   annual: (STRIPE_PRICES as any).STRIPE_PRICE_AGENCY_ANNUAL || CONSTRUCTION_PRICE_A },
   enterprise:   { monthly: STRIPE_PRICES.STRIPE_PRICE_ENTERPRISE,   annual: STRIPE_PRICES.STRIPE_PRICE_ENTERPRISE_ANNUAL },
 }
 
@@ -35,6 +47,11 @@ const LICENSE_PRICE_MAP: Record<string, string> = {
   pro:          STRIPE_PRICES.STRIPE_PRICE_LICENSE_PRO,
   business:     STRIPE_PRICES.STRIPE_PRICE_LICENSE_BUSINESS,
   construction: STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
+  // Vertical top-tier licenses share the Construction license until their own
+  // SKUs are minted. Same $21,564 price point.
+  fleet:        (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_FLEET  || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
+  storm:        (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_STORM  || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
+  agency:       (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_AGENCY || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   full:         STRIPE_PRICES.STRIPE_PRICE_LICENSE_FULL,
 }
 

@@ -309,8 +309,10 @@ export const SAAS_TIERS = {
       max: 50,
       additionalPrice: 2900,
     },
-    stripePriceId: process.env.STRIPE_PRICE_STORM,
-    stripePriceIdAnnual: process.env.STRIPE_PRICE_STORM_ANNUAL,
+    // Falls back to Construction SKU until create-stripe-products.ts is re-run
+    // to mint the dedicated Storm SKU. Both are $599/mo so price is unchanged.
+    stripePriceId: process.env.STRIPE_PRICE_STORM || process.env.STRIPE_PRICE_CONSTRUCTION,
+    stripePriceIdAnnual: process.env.STRIPE_PRICE_STORM_ANNUAL || process.env.STRIPE_PRICE_CONSTRUCTION_ANNUAL,
     features: [
       // All Business features
       'contacts',
