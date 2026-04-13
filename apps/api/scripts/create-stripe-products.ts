@@ -213,6 +213,7 @@ async function main() {
     { id: 'service', name: 'Service Contracts', price: 3900, desc: 'Agreements, warranties, warranty claims' },
     { id: 'forms', name: 'Custom Forms', price: 2900, desc: 'Form builder, submissions, e-signatures' },
     { id: 'integrations', name: 'Integrations', price: 4900, desc: 'QuickBooks sync, Wisetack financing' },
+    { id: 'twomiah_ads', name: 'Twomiah Ads', price: 9900, desc: 'Cross-vertical Google + Meta ads automation — available on every vertical' },
   ]
 
   for (const bundle of bundles) {

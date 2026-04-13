@@ -798,6 +798,25 @@ export const FEATURE_BUNDLES = {
     },
     stripePriceId: process.env.STRIPE_PRICE_BUNDLE_INTEGRATIONS,
   },
+
+  // Twomiah Ads — cross-vertical marketing add-on. Available on every tier
+  // across every vertical. Handles Google + Meta ads automation, creative
+  // generation, and campaign ROI tracking. Route already exists at /api/ads.
+  twomiah_ads: {
+    id: 'twomiah_ads',
+    name: 'Twomiah Ads',
+    description: 'Automated Google + Meta ads — creative, targeting, spend management',
+    price: 9900, // $99/mo
+    interval: 'month',
+    features: ['paid_ads', 'ad_creative_generation', 'campaign_management', 'ad_roi_tracking'],
+    subFeatures: {
+      paid_ads: { name: 'Google + Meta ad management', price: 4900 },
+      ad_creative_generation: { name: 'AI creative generation', price: 2500 },
+      campaign_management: { name: 'Automated campaign optimization', price: 1500 },
+      ad_roi_tracking: { name: 'ROI + attribution tracking', price: 1000 },
+    },
+    stripePriceId: process.env.STRIPE_PRICE_BUNDLE_TWOMIAH_ADS,
+  },
 };
 
 
