@@ -73,11 +73,43 @@ async function main() {
       { 'Authorization': 'token ' + GH_TOKEN, 'Accept': 'application/vnd.github+json' }
     )
   }
-  if (GH_TOKEN && GH_ORG) {
+
+  // Supabase management
+  const supaMgmt = envVars.SUPABASE_MANAGEMENT_API_KEY || process.env.SUPABASE_MANAGEMENT_API_KEY
+  const supaOrg = envVars.SUPABASE_ORG_ID || process.env.SUPABASE_ORG_ID
+  console.log('\n── Supabase Management ──')
+  console.log('SUPABASE_MANAGEMENT_API_KEY :', supaMgmt ? '✓ ' + supaMgmt.substring(0, 10) + '…' : '✗ MISSING')
+  console.log('SUPABASE_ORG_ID             :', supaOrg ? '✓ ' + supaOrg : '✗ MISSING')
+  if (supaMgmt) {
     await probe(
-      `GitHub API (org ${GH_ORG})`,
-      `https://api.github.com/orgs/${GH_ORG}`,
-      { 'Authorization': 'token ' + GH_TOKEN, 'Accept': 'application/vnd.github+json' }
+      'Supabase Management API (list projects)',
+      'https://api.supabase.com/v1/projects',
+      { 'Authorization': 'Bearer ' + supaMgmt, 'Accept': 'application/json' }
+    )
+  }
+
+  // Cloudflare
+  const cfToken = envVars.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN
+  const r2Account = envVars.R2_ACCOUNT_ID || process.env.R2_ACCOUNT_ID
+  const r2Key = envVars.R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID
+  const r2Secret = envVars.R2_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY
+  console.log('\n── Cloudflare / R2 ──')
+  console.log('CLOUDFLARE_API_TOKEN  :', cfToken ? '✓ ' + cfToken.substring(0, 8) + '…' : '✗ MISSING')
+  console.log('R2_ACCOUNT_ID         :', r2Account ? '✓ ' + r2Account : '✗ MISSING')
+  console.log('R2_ACCESS_KEY_ID      :', r2Key ? '✓ ' + r2Key.substring(0, 8) + '…' : '✗ MISSING')
+  console.log('R2_SECRET_ACCESS_KEY  :', r2Secret ? '✓ (set)' : '✗ MISSING')
+  if (cfToken) {
+    await probe(
+      'Cloudflare API (token verify)',
+      'https://api.cloudflare.com/client/v4/user/tokens/verify',
+      { 'Authorization': 'Bearer ' + cfToken, 'Accept': 'application/json' }
+    )
+  }
+  if (cfToken && r2Account) {
+    await probe(
+      'Cloudflare API (R2 buckets list)',
+      `https://api.cloudflare.com/client/v4/accounts/${r2Account}/r2/buckets`,
+      { 'Authorization': 'Bearer ' + cfToken, 'Accept': 'application/json' }
     )
   }
 }

@@ -50,6 +50,13 @@ create table if not exists tenants (
   stripe_customer_id     text,
   stripe_subscription_id text,
 
+  -- Trial tracking (30-day free trial, no credit card required)
+  trial_ends_at            timestamptz,
+  trial_warning_7d_sent_at timestamptz,
+  trial_warning_3d_sent_at timestamptz,
+  trial_warning_0d_sent_at timestamptz,
+  trial_expired_at         timestamptz,
+
   -- Products & Features
   products        text[],
   features        text[],
@@ -86,6 +93,7 @@ create index if not exists idx_tenants_billing_status on tenants(billing_status)
 create index if not exists idx_tenants_billing_type on tenants(billing_type);
 create index if not exists idx_tenants_billing_composite on tenants(billing_type, billing_status);
 create index if not exists idx_tenants_stripe_subscription on tenants(stripe_subscription_id);
+create index if not exists idx_tenants_trial_ends_at on tenants(trial_ends_at) where trial_ends_at is not null;
 
 
 -- ─── Factory Jobs ────────────────────────────────────────────────────────────

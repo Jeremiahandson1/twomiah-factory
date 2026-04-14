@@ -1567,6 +1567,12 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       return c.json({ error: 'A company with a similar name already exists. Please contact support or use a different name.' }, 409)
     }
 
+    // Start the 30-day free trial clock at signup. No credit card required — the
+    // tenant's CRM is provisioned immediately and they get 30 days to try it.
+    // Warning emails fire at day 23 (7 left), day 27 (3 left), and day 30.
+    // At day 30 the CRM locks to a paywall until they upgrade.
+    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
     const tenantRecord: Record<string, any> = {
       name: body.name.trim(),
       slug,
@@ -1582,7 +1588,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       primary_color: body.primary_color || '#FF3D00',
       plan: body.plan || 'starter',
       deployment_model: body.deployment_model || 'saas',
-      billing_type: body.billing_type || 'subscription',
+      billing_type: body.billing_type || 'trial',
       monthly_amount: body.monthly_amount || null,
       status: 'pending',
       products: body.products || ['crm', 'website'],
@@ -1590,20 +1596,30 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       notes: body.notes || null,
       admin_password: body.admin_password || null,
       website_theme: body.website_theme || null,
+      trial_ends_at: trialEndsAt.toISOString(),
     }
 
-    const { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
-    if (insertErr) {
-      console.error('[Signup] Insert error:', insertErr.message)
+    let { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
+    // If trial_ends_at column hasn't been added to the live DB yet, retry without it.
+    // This lets the code ship before the schema migration is applied.
+    if (insertErr && insertErr.code === '42703') {
+      console.warn('[Signup] trial_ends_at column missing, retrying without it. Run apps/api/schema.sql migration.')
+      const { trial_ends_at: _, ...fallback } = tenantRecord
+      const retry = await supabase.from('tenants').insert(fallback).select().single()
+      tenant = retry.data
+      insertErr = retry.error
+    }
+    if (insertErr || !tenant) {
+      console.error('[Signup] Insert error:', insertErr?.message)
       return c.json({ error: 'Failed to create account. Please try again.' }, 500)
     }
 
-    console.log('[Signup] New tenant created:', tenant.id, tenant.name, tenant.plan)
+    console.log('[Signup] New tenant created:', tenant.id, tenant.name, tenant.plan, '(trial ends ' + trialEndsAt.toISOString() + ')')
 
     // Send welcome email immediately (non-blocking)
     notifyWelcome(tenant).catch(e => console.warn('[Email] Welcome email failed:', e.message))
 
-    // Auto-generate code build so triggerAutoDeploy has a factory_jobs record after Stripe checkout
+    // Auto-generate code build so triggerAutoDeploy has a factory_jobs record to deploy
     const genConfig: GenerateConfig = {
       tenant_id: tenant.id,
       products: body.products || ['crm', 'website'],
@@ -1630,7 +1646,10 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       },
     }
 
-    // Run generation in background — don't block the signup response
+    // Run generation + auto-deploy in background — don't block the signup response.
+    // "No credit card required" flow: deploy fires immediately on signup, customer
+    // gets a live CRM within ~5 min, trial starts at tenant.trial_ends_at.
+    // Stripe is touched only later when they upgrade from inside the CRM.
     ;(async () => {
       try {
         console.log('[Signup] Auto-generating build for tenant:', tenant.id, tenant.slug)
@@ -1658,35 +1677,28 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
             console.error('[Signup] Job insert error:', jobErr.message)
           }
         }
-        console.log('[Signup] Build generated successfully for', tenant.slug, '— ready for auto-deploy')
+        console.log('[Signup] Build generated successfully for', tenant.slug, '— firing immediate auto-deploy')
+
+        // Immediate auto-deploy — no Stripe checkout gating. triggerAutoDeploy
+        // looks up the latest factory_jobs row for this tenant and kicks off
+        // runDeploy in the background. Idempotent — safe to call even if a
+        // deploy is already in progress.
+        if (tenantRecord.deployment_model === 'saas') {
+          await triggerAutoDeploy(tenant.id).catch(err =>
+            console.error('[Signup] triggerAutoDeploy error:', err?.message || err)
+          )
+        }
       } catch (genErr: any) {
         console.error('[Signup] Auto-generate failed for', tenant.slug, ':', genErr.message)
       }
     })()
 
-    // If Stripe is configured and this is a SaaS subscription, create a checkout session
-    let checkoutUrl = null
-    if (factoryStripe.isConfigured() && tenantRecord.deployment_model === 'saas') {
-      try {
-        const result = await factoryStripe.createSubscriptionCheckout(
-          { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: null },
-          { planId: tenant.plan || 'starter', billingCycle: 'monthly', trialDays: 30 }
-        )
-        if (result.stripeCustomerId) {
-          await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', tenant.id)
-        }
-        checkoutUrl = result.url
-      } catch (stripeErr: any) {
-        console.error('[Signup] Stripe checkout creation failed (non-blocking):', stripeErr.message)
-      }
-    }
-
     return c.json({
       success: true,
       tenantId: tenant.id,
       slug: tenant.slug,
-      checkoutUrl,
-      message: 'Account created successfully',
+      trialEndsAt: trialEndsAt.toISOString(),
+      message: 'Account created successfully — your CRM is being provisioned. You will receive an email when it is ready.',
     })
   } catch (err: any) {
     console.error('[Signup] Error:', err.message)
