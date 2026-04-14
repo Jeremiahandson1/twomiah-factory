@@ -14,6 +14,7 @@ import { useSocket } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
 import { useIsMobile } from '../../hooks/useMediaQuery';
 import { useTheme } from '../../hooks/useTheme';
+import { TrialBanner } from '../trial/TrialBanner';
 
 // Nav items with optional feature gating.
 // Items without `features` are always visible (core).
@@ -340,6 +341,9 @@ export default function AppLayout() {
             </div>
           </div>
         </header>
+
+        {/* Trial countdown banner — only renders when within 7 days of expiry */}
+        <TrialBanner />
 
         {/* Page Content */}
         <main id="main-content" className="p-4 lg:p-6" tabIndex={-1}>

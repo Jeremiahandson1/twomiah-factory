@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { TrialBanner } from '../trial/TrialBanner'
 import {
   LayoutDashboard,
   Briefcase,
@@ -181,6 +182,9 @@ export default function AppLayout() {
             {company?.name || 'Roofing CRM'}
           </h1>
         </header>
+
+        {/* Trial countdown banner — only renders when within 7 days of expiry */}
+        <TrialBanner />
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">

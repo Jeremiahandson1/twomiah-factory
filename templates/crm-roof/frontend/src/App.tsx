@@ -1,7 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import AppLayout from './components/layout/AppLayout'
+import PaywallPage from './pages/PaywallPage'
+import { isTrialExpired, isTrialBypassPath } from './components/auth/trialStatus'
 // Import all pages
 import PipelineBoard from './pages/roofing/PipelineBoard'
 import JobDetailPage from './pages/roofing/JobDetailPage'
@@ -46,8 +48,14 @@ import PortalInvoices from './pages/portal/PortalInvoices'
 import PortalServiceRequest from './pages/portal/PortalServiceRequest'
 
 function ProtectedRoute() {
-  const { token } = useAuth()
-  return token ? <Outlet /> : <Navigate to="/login" />
+  const { token, company } = useAuth()
+  const location = useLocation()
+  if (!token) return <Navigate to="/login" />
+  // Hard-lock on trial expiry — bypass allowed for paywall + upgrade path + logout
+  if (isTrialExpired(company as any) && !isTrialBypassPath(location.pathname)) {
+    return <Navigate to="/crm/paywall" replace />
+  }
+  return <Outlet />
 }
 
 export default function App() {
@@ -108,6 +116,7 @@ export default function App() {
                 <Route path="reviews" element={<ReviewsPage />} />
                 <Route path="financing" element={<FinancingPage />} />
                 <Route path="storm-radar" element={<StormRadarPage />} />
+                <Route path="paywall" element={<PaywallPage />} />
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" />} />

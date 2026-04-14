@@ -37,6 +37,7 @@ import DailyLogsPage from './pages/DailyLogsPage';
 import InspectionsPage from './pages/InspectionsPage';
 import BidsPage from './pages/BidsPage';
 import SettingsPage from './pages/SettingsPage';
+import PaywallPage from './pages/PaywallPage';
 import DocumentsPage from './pages/DocumentsPage';
 
 // Feature pages
@@ -173,6 +174,7 @@ function App() {
                     <Route path="inspections" element={<InspectionsPage />} />
                     <Route path="bids" element={<BidsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="paywall" element={<PaywallPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />

@@ -1,8 +1,9 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from "../../contexts/AuthContext";
+import { isTrialExpired, isTrialBypassPath } from './trialStatus';
 
 export function ProtectedRoute({ children, requiredRole }) {
-  const { isAuthenticated, loading, user } = useAuth();
+  const { isAuthenticated, loading, user, company } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -18,6 +19,12 @@ export function ProtectedRoute({ children, requiredRole }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Hard-lock on trial expiry — redirect to paywall for every route except
+  // the upgrade path, the paywall itself, and logout.
+  if (isTrialExpired(company) && !isTrialBypassPath(location.pathname)) {
+    return <Navigate to="/crm/paywall" replace />;
   }
 
   if (requiredRole) {

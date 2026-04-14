@@ -3,6 +3,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { getDashboardSummary } from '../config';
 import { useAuth } from '../contexts/AuthContext';
+import { TrialBanner } from './trial/TrialBanner';
+import { isTrialExpired } from './auth/trialStatus';
+import PaywallPage from '../pages/PaywallPage';
 import { toast } from './Toast';
 import HelpPanel from './HelpPanel';
 import ImpersonationModal from './ImpersonationModal';
@@ -142,8 +145,9 @@ const NAV_SECTIONS = [
 const ALL_ITEMS = NAV_SECTIONS.flatMap(s => s.items);
 
 const AdminDashboard = ({ onLogout, onImpersonate }) => {
-  const { user, token } = useAuth();
+  const { user, token, company } = useAuth();
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const trialExpired = isTrialExpired(company);
   const [showHelp, setShowHelp] = useState(false);
   const [showImpersonation, setShowImpersonation] = useState(false);
   const [selectedCaregiverId, setSelectedCaregiverId] = useState(null);
@@ -253,6 +257,13 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
   };
 
   const renderPage = () => {
+    // Hard-lock on trial expiry — every page except subscription-pricing
+    // (upgrade path) shows the paywall. Agency admin can still click into
+    // billing/subscription-pricing to add a payment method and unlock.
+    if (trialExpired && currentPage !== 'subscription-pricing') {
+      return <PaywallPage onUpgrade={() => setCurrentPage('subscription-pricing')} />;
+    }
+
     switch (currentPage) {
       case 'dashboard': return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
       case 'referrals': return <ReferralSources />;
@@ -503,6 +514,9 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
         </div>
 
         <HelpPanel isOpen={showHelp} onClose={() => setShowHelp(false)} currentPage={currentPage} />
+
+        {/* Trial countdown banner — only renders when within 7 days of trial expiry */}
+        <TrialBanner onUpgrade={() => setCurrentPage('subscription-pricing')} />
 
         {/* Impersonation modal */}
         {showImpersonation && (
