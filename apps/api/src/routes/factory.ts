@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -105,7 +105,7 @@ async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } |
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/health', '/plans']
   const isPublicFeatures = c.req.path.endsWith('/features') && !c.req.path.includes('/customers/')
-  if (pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb')) || c.req.path.includes('/integrations/qbo/callback')) return next()
+  if (pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/internal/trial-check') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb')) || c.req.path.includes('/integrations/qbo/callback')) return next()
   return authenticate(c, next)
 })
 
@@ -1546,6 +1546,118 @@ factory.post('/public/inbound-email', async (c) => {
 
 // ─── Public Signup (no auth required — path contains /public/) ──────────────
 // Rate limit: 5 signups per IP per hour
+// ─── Trial lifecycle cron ────────────────────────────────────────────────────
+// Runs daily (via Render cron or external scheduler). Authenticated by a
+// shared secret (CRON_SECRET) so it can be called without a user JWT.
+//
+// Logic:
+//   - tenants with trial_ends_at between NOW+6d and NOW+8d → send 7-day warning
+//   - tenants with trial_ends_at between NOW+2d and NOW+4d → send 3-day warning
+//   - tenants with trial_ends_at in the last 24h             → send day-of warning
+//   - tenants with trial_ends_at < NOW and no subscription    → set trial_expired_at,
+//     status='trial_expired' (triggers the paywall lock in each template)
+//
+// Uses trial_warning_{7d,3d,0d}_sent_at sentinels so each email is sent once.
+// Safe to run multiple times per day — idempotent.
+factory.post('/internal/trial-check', async (c) => {
+  const expectedSecret = process.env.CRON_SECRET
+  const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!expectedSecret || gotSecret !== expectedSecret) {
+    return c.json({ error: 'Unauthorized' }, 401)
+  }
+
+  const now = new Date()
+  const results = { warn7d: 0, warn3d: 0, warn0d: 0, expired: 0, errors: [] as string[] }
+
+  // Helper to query a trial window and send a warning email
+  const processWindow = async (
+    windowStart: Date,
+    windowEnd: Date,
+    sentCol: 'trial_warning_7d_sent_at' | 'trial_warning_3d_sent_at' | 'trial_warning_0d_sent_at',
+    daysRemaining: number,
+    counter: 'warn7d' | 'warn3d' | 'warn0d'
+  ) => {
+    const { data: tenants, error } = await supabase
+      .from('tenants')
+      .select('id, name, email, slug, industry, products, plan, render_frontend_url, trial_ends_at')
+      .is('trial_expired_at', null)
+      .is('stripe_subscription_id', null)
+      .gte('trial_ends_at', windowStart.toISOString())
+      .lt('trial_ends_at', windowEnd.toISOString())
+      .is(sentCol, null)
+    if (error) {
+      results.errors.push(`${counter}: ${error.message}`)
+      return
+    }
+    for (const t of tenants || []) {
+      try {
+        const ok = await notifyTrialWarning(t as any, daysRemaining)
+        if (ok) {
+          await supabase.from('tenants').update({ [sentCol]: now.toISOString() }).eq('id', t.id)
+          results[counter]++
+        }
+      } catch (e: any) {
+        results.errors.push(`${counter} ${t.slug}: ${e.message}`)
+      }
+    }
+  }
+
+  // 7-day warning window: trial ends between NOW+6d and NOW+8d
+  await processWindow(
+    new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000),
+    new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000),
+    'trial_warning_7d_sent_at',
+    7,
+    'warn7d'
+  )
+
+  // 3-day warning window: trial ends between NOW+2d and NOW+4d
+  await processWindow(
+    new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+    new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),
+    'trial_warning_3d_sent_at',
+    3,
+    'warn3d'
+  )
+
+  // Day-of warning window: trial ends between NOW and NOW+1d
+  await processWindow(
+    now,
+    new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000),
+    'trial_warning_0d_sent_at',
+    1,
+    'warn0d'
+  )
+
+  // Expire tenants whose trial ended >= now, haven't been expired yet, no sub
+  const { data: expiredTenants, error: expireErr } = await supabase
+    .from('tenants')
+    .select('id, name, email, slug, industry, products, plan, render_frontend_url')
+    .is('trial_expired_at', null)
+    .is('stripe_subscription_id', null)
+    .lt('trial_ends_at', now.toISOString())
+
+  if (expireErr) {
+    results.errors.push('expire: ' + expireErr.message)
+  } else {
+    for (const t of expiredTenants || []) {
+      try {
+        await supabase.from('tenants').update({
+          trial_expired_at: now.toISOString(),
+          status: 'trial_expired',
+        }).eq('id', t.id)
+        await notifyTrialExpired(t as any).catch(() => {})
+        results.expired++
+      } catch (e: any) {
+        results.errors.push(`expire ${t.slug}: ${e.message}`)
+      }
+    }
+  }
+
+  console.log('[TrialCheck]', JSON.stringify(results))
+  return c.json({ ok: true, timestamp: now.toISOString(), ...results })
+})
+
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
     const parsed = await parseJsonBody(c)

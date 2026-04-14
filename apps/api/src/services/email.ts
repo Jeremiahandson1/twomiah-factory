@@ -236,6 +236,78 @@ export async function notifyTicketReply(
   return sendEmail(to, 'Reply on ' + ticket.number + ': ' + ticket.subject, wrap('Ticket Reply', body))
 }
 
+// ─── Trial lifecycle notifications ───────────────────────────────────────────
+
+/**
+ * Generic trial warning — sends a "your trial is ending" email with days
+ * remaining. Used for 7-day, 3-day, and 1-day warnings with escalating
+ * urgency copy.
+ */
+export async function notifyTrialWarning(
+  tenant: { name: string; email?: string; slug?: string; render_frontend_url?: string; industry?: string; products?: string[]; plan?: string },
+  daysRemaining: number
+): Promise<boolean> {
+  if (!tenant.email) return false
+
+  const product = getProductName(tenant.industry, tenant.products)
+  const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const loginUrl = tenant.render_frontend_url || `https://${tenant.slug}.onrender.com`
+  const upgradeUrl = loginUrl.replace(/\/$/, '') + '/crm/settings/billing'
+
+  // Escalating urgency
+  const urgent = daysRemaining <= 3
+  const banner = urgent
+    ? `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
+         <p style="margin:0 0 4px;color:#991b1b;font-weight:600;font-size:16px;">${daysRemaining === 1 ? '\u26A0 Last day of your free trial' : `\u26A0 Only ${daysRemaining} days left in your free trial`}</p>
+         <p style="margin:0;color:#991b1b;">After your trial ends, your CRM will lock until you upgrade.</p>
+       </div>`
+    : `<div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
+         <p style="margin:0 0 4px;color:#92400e;font-weight:600;font-size:16px;">${daysRemaining} days left in your free trial</p>
+         <p style="margin:0;color:#92400e;">Upgrade before your trial ends to keep uninterrupted access.</p>
+       </div>`
+
+  const subject = urgent
+    ? (daysRemaining === 1 ? `Last day of your Twomiah ${product} trial` : `${daysRemaining} days left — upgrade your Twomiah ${product}`)
+    : `${daysRemaining} days left in your Twomiah ${product} trial`
+
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${banner}
+    <p style="color:#333;line-height:1.6;">Your <strong>Twomiah ${product}</strong> free trial has been up and running for ${30 - daysRemaining} days. You still have full access to every feature on the <strong>${planLabel}</strong> plan.</p>
+    <p style="color:#333;line-height:1.6;">When your trial ends, your CRM will enter a read-only paywall state until you add a payment method. Your data stays safe — upgrade any time to unlock it.</p>
+    ${btn(upgradeUrl, 'Upgrade Now')}
+    <p style="color:#666;font-size:14px;margin-top:24px;">Questions? Just reply to this email and we will help.</p>`
+
+  return sendEmail(tenant.email, subject, wrap(urgent ? 'Trial Ending Soon' : 'Your Trial Is Ending', body))
+}
+
+export async function notifyTrialExpired(
+  tenant: { name: string; email?: string; slug?: string; render_frontend_url?: string; industry?: string; products?: string[]; plan?: string }
+): Promise<boolean> {
+  if (!tenant.email) return false
+
+  const product = getProductName(tenant.industry, tenant.products)
+  const loginUrl = tenant.render_frontend_url || `https://${tenant.slug}.onrender.com`
+  const upgradeUrl = loginUrl.replace(/\/$/, '') + '/crm/settings/billing'
+
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0 0 8px;color:#991b1b;font-weight:600;font-size:16px;">\u26A0 Your free trial has ended</p>
+      <p style="margin:0;color:#991b1b;">Your Twomiah ${product} CRM is now locked. Upgrade to restore access.</p>
+    </div>
+    <p style="color:#333;line-height:1.6;">Don't worry &mdash; every contact, job, quote, invoice, and file you created during your trial is <strong>still there</strong>. It's safe and unchanged. The moment you add a payment method, everything unlocks exactly as you left it.</p>
+    ${btn(upgradeUrl, 'Upgrade to Unlock')}
+    <p style="color:#333;line-height:1.6;margin-top:24px;">Not sure what plan fits? Reply to this email and we will help you pick.</p>
+    <p style="color:#999;font-size:12px;margin-top:32px;">If you don't upgrade within 30 days, we'll send one more reminder before archiving your account.</p>`
+
+  return sendEmail(
+    tenant.email,
+    `Your Twomiah ${product} trial has ended — upgrade to unlock your CRM`,
+    wrap('Trial Ended', body)
+  )
+}
+
 export async function notifyBillingPastDue(
   tenant: { name: string; email?: string; stripe_subscription_id?: string }
 ): Promise<boolean> {
