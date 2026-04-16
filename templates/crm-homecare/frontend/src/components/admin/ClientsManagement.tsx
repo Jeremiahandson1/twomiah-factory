@@ -30,10 +30,10 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) 
   <div className="card" style={{ marginBottom: '0.75rem', padding: '1rem' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
       <div>
-        <strong style={{ fontSize: '1.1rem' }}>{client.first_name} {client.last_name}</strong>
-        {client.date_of_birth && (
+        <strong style={{ fontSize: '1.1rem' }}>{client.firstName} {client.lastName}</strong>
+        {client.dateOfBirth && (
           <div style={{ color: '#666', fontSize: '0.85rem' }}>
-            DOB: {new Date(client.date_of_birth).toLocaleDateString()}
+            DOB: {new Date(client.dateOfBirth).toLocaleDateString()}
           </div>
         )}
       </div>
@@ -66,19 +66,19 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) 
     </div>
     
     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
-      {client.is_private_pay ? (
+      {client.isPrivatePay ? (
         <span className="badge badge-info">Private Pay</span>
       ) : (
         <>
           <span className="badge badge-success">Referred</span>
           <span className="badge" style={{ backgroundColor: '#e0e0e0', color: '#333' }}>
-            {getReferralSourceName(client.referral_source_id)}
+            {getReferralSourceName(client.referredById)}
           </span>
         </>
       )}
-      {client.care_type_id && (
+      {client.careTypeId && (
         <span className="badge" style={{ backgroundColor: '#fff3cd', color: '#856404' }}>
-          {getCareTypeName(client.care_type_id)}
+          {getCareTypeName(client.careTypeId)}
         </span>
       )}
     </div>
@@ -219,12 +219,12 @@ const ClientsManagement = () => {
 
   const filteredClients = clients.filter(client => {
     const matchesSearch = !searchTerm || 
-      `${client.first_name} ${client.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      `${client.firstName} ${client.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (client.phone && client.phone.includes(searchTerm)) ||
       (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const matchesReferral = !filterReferral || client.referral_source_id === filterReferral;
-    const matchesCareType = !filterCareType || client.care_type_id === filterCareType;
+    const matchesReferral = !filterReferral || client.referredById === filterReferral;
+    const matchesCareType = !filterCareType || client.careTypeId === filterCareType;
     
     return matchesSearch && matchesReferral && matchesCareType;
   });
@@ -453,14 +453,14 @@ const ClientsManagement = () => {
               {filteredClients.map(client => (
                 <tr key={client.id}>
                   <td>
-                    <strong>{client.first_name} {client.last_name}</strong>
-                    {client.date_of_birth && (<small style={{ display: 'block', color: '#666' }}>DOB: {new Date(client.date_of_birth).toLocaleDateString()}</small>)}
+                    <strong>{client.firstName} {client.lastName}</strong>
+                    {client.dateOfBirth && (<small style={{ display: 'block', color: '#666' }}>DOB: {new Date(client.dateOfBirth).toLocaleDateString()}</small>)}
                   </td>
                   <td><a href={`tel:${client.phone}`}>{client.phone || 'N/A'}</a></td>
                   <td><AddressLink address={client.address} city={client.city} state={client.state} zip={client.zip} /></td>
-                  <td>{client.is_private_pay ? (<span className="text-muted">-</span>) : (getReferralSourceName(client.referral_source_id))}</td>
-                  <td>{getCareTypeName(client.care_type_id)}</td>
-                  <td>{client.is_private_pay ? (<span className="badge badge-info">Private Pay</span>) : (<span className="badge badge-success">Referred</span>)}</td>
+                  <td>{client.isPrivatePay ? (<span className="text-muted">-</span>) : (getReferralSourceName(client.referredById))}</td>
+                  <td>{getCareTypeName(client.careTypeId)}</td>
+                  <td>{client.isPrivatePay ? (<span className="badge badge-info">Private Pay</span>) : (<span className="badge badge-success">Referred</span>)}</td>
                   <td><button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button></td>
                 </tr>
               ))}

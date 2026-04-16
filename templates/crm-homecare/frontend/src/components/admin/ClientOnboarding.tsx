@@ -287,9 +287,9 @@ const ClientOnboarding = () => {
                   style={{ cursor: 'pointer', paddingBottom: '1rem', borderBottom: '1px solid #ddd' }}
                 >
                   <div className="onboarding-info">
-                    <h3 style={{ margin: '0 0 0.25rem 0' }}>{client.first_name} {client.last_name}</h3>
+                    <h3 style={{ margin: '0 0 0.25rem 0' }}>{client.firstName} {client.lastName}</h3>
                     <p style={{ margin: 0, fontSize: '0.9rem', color: '#666' }}>
-                      {client.service_type?.replace('_', ' ').toUpperCase()} - {client.city || 'No city'}
+                      {(client.serviceType || client.service_type)?.replace('_', ' ').toUpperCase()} - {client.city || 'No city'}
                     </p>
                   </div>
 
