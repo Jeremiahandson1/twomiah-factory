@@ -117,8 +117,8 @@ export async function getOptions(
  */
 export async function createProjectSelection(companyId: string, data: any) {
   const [row] = rows(await db.execute(sql`
-    INSERT INTO project_selection (id, company_id, project_id, category_id, name, description, location, allowance, quantity, unit, due_date, status, available_options)
-    VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, ${data.quantity || 1}, ${data.unit || 'each'}, ${data.dueDate ? new Date(data.dueDate) : null}, 'pending', ${JSON.stringify(data.optionIds || [])})
+    INSERT INTO project_selection (id, company_id, project_id, category_id, name, description, location, allowance, status, notes)
+    VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.categoryId || null}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, 'pending', ${data.notes || null})
     RETURNING *
   `))
   return row
