@@ -1,16 +1,16 @@
 /**
  * Draw Schedules — Construction tier feature.
  *
- * A draw schedule is the plan for how construction loan funds get drawn
- * down against project milestones. Each draw request is submitted to the
- * lender for approval, usually tied to % complete + inspection photos.
+ * A draw schedule (schedule of values) is the plan for how construction
+ * loan funds get drawn down against project milestones. Each draw request
+ * is submitted to the lender for approval.
  *
- * Tables created in migration 0010_add_construction_compliance.sql.
+ * Uses the schedule_of_values + draw_request tables from migration 0000.
  */
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { drawSchedule, drawRequest, project } from '../../db/schema.ts'
+import { scheduleOfValues, drawRequest, project } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -18,15 +18,13 @@ const app = new Hono()
 app.use('*', authenticate)
 
 // ─────────────────────────────────────────────────────────────
-// DRAW SCHEDULES
+// DRAW SCHEDULES (schedule of values)
 // ─────────────────────────────────────────────────────────────
 
 const drawScheduleSchema = z.object({
   projectId: z.string(),
-  name: z.string().min(1),
-  totalAmount: z.number().positive(),
-  lenderName: z.string().optional(),
-  lenderContact: z.string().optional(),
+  contractAmount: z.number().positive(),
+  retainagePercent: z.number().min(0).max(100).default(10),
   notes: z.string().optional(),
 })
 
@@ -34,19 +32,18 @@ app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const projectId = c.req.query('projectId')
 
-  const conditions = [eq(drawSchedule.companyId, currentUser.companyId)]
-  if (projectId) conditions.push(eq(drawSchedule.projectId, projectId))
+  const conditions = [eq(scheduleOfValues.companyId, currentUser.companyId)]
+  if (projectId) conditions.push(eq(scheduleOfValues.projectId, projectId))
 
-  const schedules = await db.select().from(drawSchedule).where(and(...conditions)).orderBy(desc(drawSchedule.createdAt))
+  const schedules = await db.select().from(scheduleOfValues).where(and(...conditions)).orderBy(desc(scheduleOfValues.createdAt))
 
-  // Attach project + draw count/totals
   const scheduleIds = schedules.map((s) => s.id)
   const requests = scheduleIds.length
     ? await db.select().from(drawRequest).where(eq(drawRequest.companyId, currentUser.companyId))
     : []
   const requestsBySchedule = requests.reduce((acc, r) => {
-    if (!acc[r.drawScheduleId]) acc[r.drawScheduleId] = []
-    acc[r.drawScheduleId].push(r)
+    if (!acc[r.scheduleOfValuesId]) acc[r.scheduleOfValuesId] = []
+    acc[r.scheduleOfValuesId].push(r)
     return acc
   }, {} as Record<string, any[]>)
 
@@ -54,12 +51,12 @@ app.get('/', async (c) => {
     const reqs = requestsBySchedule[s.id] || []
     const drawnAmount = reqs
       .filter((r) => ['approved', 'paid'].includes(r.status))
-      .reduce((sum, r) => sum + Number(r.amountApproved || r.amountRequested), 0)
+      .reduce((sum, r) => sum + Number(r.netAmount || r.grossAmount || 0), 0)
     return {
       ...s,
       drawCount: reqs.length,
       drawnAmount,
-      remainingAmount: Number(s.totalAmount) - drawnAmount,
+      remainingAmount: Number(s.contractAmount) - drawnAmount,
     }
   })
 
@@ -71,12 +68,12 @@ app.get('/:id', async (c) => {
   const id = c.req.param('id')
   const [found] = await db
     .select()
-    .from(drawSchedule)
-    .where(and(eq(drawSchedule.id, id), eq(drawSchedule.companyId, currentUser.companyId)))
+    .from(scheduleOfValues)
+    .where(and(eq(scheduleOfValues.id, id), eq(scheduleOfValues.companyId, currentUser.companyId)))
     .limit(1)
   if (!found) return c.json({ error: 'Draw schedule not found' }, 404)
 
-  const requests = await db.select().from(drawRequest).where(eq(drawRequest.drawScheduleId, id)).orderBy(drawRequest.drawNumber)
+  const requests = await db.select().from(drawRequest).where(eq(drawRequest.scheduleOfValuesId, id)).orderBy(drawRequest.drawNumber)
   const [proj] = await db.select().from(project).where(eq(project.id, found.projectId)).limit(1)
 
   return c.json({ ...found, project: proj || null, requests })
@@ -87,10 +84,12 @@ app.post('/', async (c) => {
   const data = drawScheduleSchema.parse(await c.req.json())
 
   const [created] = await db
-    .insert(drawSchedule)
+    .insert(scheduleOfValues)
     .values({
-      ...data,
-      totalAmount: String(data.totalAmount),
+      projectId: data.projectId,
+      contractAmount: String(data.contractAmount),
+      retainagePercent: String(data.retainagePercent),
+      status: 'draft',
       companyId: currentUser.companyId,
     } as any)
     .returning()
@@ -101,30 +100,29 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const id = c.req.param('id')
   const data = drawScheduleSchema.partial().parse(await c.req.json())
-  const updateData: Record<string, any> = { ...data, updatedAt: new Date() }
-  if (data.totalAmount !== undefined) updateData.totalAmount = String(data.totalAmount)
+  const updateData: Record<string, any> = { updatedAt: new Date() }
+  if (data.contractAmount !== undefined) updateData.contractAmount = String(data.contractAmount)
+  if (data.retainagePercent !== undefined) updateData.retainagePercent = String(data.retainagePercent)
+  if (data.projectId) updateData.projectId = data.projectId
 
-  const [updated] = await db.update(drawSchedule).set(updateData).where(eq(drawSchedule.id, id)).returning()
+  const [updated] = await db.update(scheduleOfValues).set(updateData).where(eq(scheduleOfValues.id, id)).returning()
   return c.json(updated)
 })
 
 app.delete('/:id', async (c) => {
   const id = c.req.param('id')
-  await db.delete(drawSchedule).where(eq(drawSchedule.id, id))
+  await db.delete(scheduleOfValues).where(eq(scheduleOfValues.id, id))
   return c.body(null, 204)
 })
 
 // ─────────────────────────────────────────────────────────────
-// DRAW REQUESTS (nested under a schedule)
+// DRAW REQUESTS (nested under a schedule of values)
 // ─────────────────────────────────────────────────────────────
 
 const drawRequestSchema = z.object({
-  drawScheduleId: z.string(),
-  amountRequested: z.number().positive(),
-  percentComplete: z.number().min(0).max(100).optional(),
+  scheduleOfValuesId: z.string(),
+  grossAmount: z.number().positive().optional(),
   notes: z.string().optional(),
-  inspectionPhotos: z.array(z.string()).optional(),
-  supportingDocs: z.array(z.string()).optional(),
 })
 
 app.get('/requests/list', async (c) => {
@@ -133,10 +131,10 @@ app.get('/requests/list', async (c) => {
   const status = c.req.query('status')
 
   const conditions = [eq(drawRequest.companyId, currentUser.companyId)]
-  if (scheduleId) conditions.push(eq(drawRequest.drawScheduleId, scheduleId))
+  if (scheduleId) conditions.push(eq(drawRequest.scheduleOfValuesId, scheduleId))
   if (status) conditions.push(eq(drawRequest.status, status))
 
-  const requests = await db.select().from(drawRequest).where(and(...conditions)).orderBy(desc(drawRequest.requestedAt))
+  const requests = await db.select().from(drawRequest).where(and(...conditions)).orderBy(desc(drawRequest.createdAt))
   return c.json({ data: requests })
 })
 
@@ -144,19 +142,21 @@ app.post('/requests', async (c) => {
   const currentUser = c.get('user') as any
   const data = drawRequestSchema.parse(await c.req.json())
 
-  // Auto-assign draw number
   const [{ value: cnt }] = await db
     .select({ value: count() })
     .from(drawRequest)
-    .where(and(eq(drawRequest.companyId, currentUser.companyId), eq(drawRequest.drawScheduleId, data.drawScheduleId)))
+    .where(and(eq(drawRequest.companyId, currentUser.companyId), eq(drawRequest.scheduleOfValuesId, data.scheduleOfValuesId)))
 
   const [created] = await db
     .insert(drawRequest)
     .values({
-      ...data,
+      scheduleOfValuesId: data.scheduleOfValuesId,
+      projectId: '', // Will be set from SOV
       drawNumber: Number(cnt) + 1,
-      amountRequested: String(data.amountRequested),
-      percentComplete: data.percentComplete !== undefined ? String(data.percentComplete) : null,
+      grossAmount: data.grossAmount ? String(data.grossAmount) : '0',
+      retainageAmount: '0',
+      netAmount: data.grossAmount ? String(data.grossAmount) : '0',
+      status: 'draft',
       companyId: currentUser.companyId,
     } as any)
     .returning()
@@ -176,14 +176,13 @@ app.post('/requests/:id/submit', async (c) => {
 
 app.post('/requests/:id/approve', async (c) => {
   const id = c.req.param('id')
-  const { amountApproved, notes } = await c.req.json().catch(() => ({}))
+  const body = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(drawRequest)
     .set({
       status: 'approved',
-      amountApproved: amountApproved ? String(amountApproved) : undefined,
-      notes,
       approvedAt: new Date(),
+      approvalNotes: body.notes,
       updatedAt: new Date(),
     } as any)
     .where(eq(drawRequest.id, id))
@@ -195,7 +194,7 @@ app.post('/requests/:id/mark-paid', async (c) => {
   const id = c.req.param('id')
   const [updated] = await db
     .update(drawRequest)
-    .set({ status: 'paid', paidAt: new Date(), updatedAt: new Date() } as any)
+    .set({ status: 'paid', updatedAt: new Date() } as any)
     .where(eq(drawRequest.id, id))
     .returning()
   return c.json(updated)
@@ -203,10 +202,10 @@ app.post('/requests/:id/mark-paid', async (c) => {
 
 app.post('/requests/:id/reject', async (c) => {
   const id = c.req.param('id')
-  const { notes } = await c.req.json().catch(() => ({}))
+  const body = await c.req.json().catch(() => ({}))
   const [updated] = await db
     .update(drawRequest)
-    .set({ status: 'rejected', notes, updatedAt: new Date() } as any)
+    .set({ status: 'rejected', rejectionReason: body.notes, rejectedAt: new Date(), updatedAt: new Date() } as any)
     .where(eq(drawRequest.id, id))
     .returning()
   return c.json(updated)
