@@ -1,54 +1,8 @@
--- Construction tier compliance features: draw schedules, draw requests,
--- AIA G702/G703 forms. Also indexes for existing lien_waiver and submittal
--- tables (the schemas were defined but never had routes until now).
+-- Construction tier compliance features: AIA G702/G703 forms.
 --
--- Paired with: routes/drawSchedules.ts, routes/aiaForms.ts,
--- routes/submittals.ts, routes/lienWaivers.ts (new in this session).
-
--- ═══════════════════════════════════════════════════
--- DRAW SCHEDULES — construction loan draw schedule tracking
--- ═══════════════════════════════════════════════════
-
-CREATE TABLE IF NOT EXISTS "draw_schedule" (
-	"id" text PRIMARY KEY NOT NULL,
-	"company_id" text NOT NULL,
-	"project_id" text NOT NULL,
-	"name" text NOT NULL,
-	"total_amount" numeric(12, 2) NOT NULL,
-	"lender_name" text,
-	"lender_contact" text,
-	"status" text DEFAULT 'active' NOT NULL, -- active, completed, cancelled
-	"notes" text,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS "draw_schedule_company_id_idx" ON "draw_schedule" ("company_id");
-CREATE INDEX IF NOT EXISTS "draw_schedule_project_id_idx" ON "draw_schedule" ("project_id");
-
--- Individual draw request against a draw schedule
-CREATE TABLE IF NOT EXISTS "draw_request" (
-	"id" text PRIMARY KEY NOT NULL,
-	"company_id" text NOT NULL,
-	"draw_schedule_id" text NOT NULL,
-	"draw_number" integer NOT NULL,
-	"amount_requested" numeric(12, 2) NOT NULL,
-	"amount_approved" numeric(12, 2),
-	"percent_complete" numeric(5, 2),
-	"status" text DEFAULT 'pending' NOT NULL, -- pending, submitted, approved, paid, rejected
-	"requested_at" timestamp DEFAULT now() NOT NULL,
-	"submitted_at" timestamp,
-	"approved_at" timestamp,
-	"paid_at" timestamp,
-	"notes" text,
-	"inspection_photos" json,
-	"supporting_docs" json,
-	"created_at" timestamp DEFAULT now() NOT NULL,
-	"updated_at" timestamp DEFAULT now() NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS "draw_request_company_id_idx" ON "draw_request" ("company_id");
-CREATE INDEX IF NOT EXISTS "draw_request_schedule_id_idx" ON "draw_request" ("draw_schedule_id");
+-- NOTE: draw_schedule and draw_request tables already exist from migration
+-- 0000 (as schedule_of_values + draw_request with schedule_of_values_id).
+-- Do NOT recreate them here — the original schema is correct.
 
 -- ═══════════════════════════════════════════════════
 -- AIA FORMS — G702 (Application for Payment) and G703 (Continuation Sheet)
