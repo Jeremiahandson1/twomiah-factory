@@ -39,7 +39,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { stormEvent, stormEventMatch, contact } from '../../db/schema.ts'
+import { stormRadarEvent, stormRadarEventMatch, contact } from '../../db/schema.ts'
 import { and, eq, sql } from 'drizzle-orm'
 
 type Provider = 'noaa' | 'tomorrow_io' | 'accuweather'
@@ -151,7 +151,7 @@ export async function syncStormEvents(companyId: string, opts: { state?: string;
   const inserted: any[] = []
   for (const e of events) {
     const [row] = await db
-      .insert(stormEvent)
+      .insert(stormRadarEvent)
       .values({
         companyId,
         provider: PROVIDER,
@@ -183,7 +183,7 @@ export async function syncStormEvents(companyId: string, opts: { state?: string;
  * addresses fall within the event's affected area. Populates storm_event_match.
  */
 export async function matchEventsToContacts(companyId: string, eventId: string) {
-  const [evt] = await db.select().from(stormEvent).where(and(eq(stormEvent.id, eventId), eq(stormEvent.companyId, companyId))).limit(1)
+  const [evt] = await db.select().from(stormRadarEvent).where(and(eq(stormRadarEvent.id, eventId), eq(stormRadarEvent.companyId, companyId))).limit(1)
   if (!evt) throw new Error('Storm event not found')
 
   // Simple zip-code match for now. Upgrade to lat/lng radius with PostGIS later.
@@ -197,10 +197,10 @@ export async function matchEventsToContacts(companyId: string, eventId: string) 
   let matched = 0
   for (const c of contacts) {
     await db
-      .insert(stormEventMatch)
+      .insert(stormRadarEventMatch)
       .values({
         companyId,
-        stormEventId: eventId,
+        stormRadarEventId: eventId,
         contactId: c.id,
         distanceMiles: null,
         status: 'new',

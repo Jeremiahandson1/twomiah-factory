@@ -7,7 +7,7 @@
  */
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { stormEvent, stormEventMatch, contact } from '../../db/schema.ts'
+import { stormRadarEvent, stormRadarEventMatch, contact } from '../../db/schema.ts'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import stormRadar, { StormRadarNotConfiguredError } from '../services/stormRadar.ts'
@@ -33,11 +33,11 @@ app.get('/events', async (c) => {
   const eventType = c.req.query('eventType')
   const limit = Number(c.req.query('limit') || '100')
 
-  const conditions = [eq(stormEvent.companyId, currentUser.companyId)]
-  if (state) conditions.push(eq(stormEvent.state, state))
-  if (eventType) conditions.push(eq(stormEvent.eventType, eventType))
+  const conditions = [eq(stormRadarEvent.companyId, currentUser.companyId)]
+  if (state) conditions.push(eq(stormRadarEvent.state, state))
+  if (eventType) conditions.push(eq(stormRadarEvent.eventType, eventType))
 
-  const events = await db.select().from(stormEvent).where(and(...conditions)).orderBy(desc(stormEvent.startedAt)).limit(limit)
+  const events = await db.select().from(stormRadarEvent).where(and(...conditions)).orderBy(desc(stormRadarEvent.startedAt)).limit(limit)
   return c.json({ data: events })
 })
 
@@ -68,9 +68,9 @@ app.post('/events/:id/match', async (c) => {
 app.get('/matches', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
-  const conditions = [eq(stormEventMatch.companyId, currentUser.companyId)]
-  if (status) conditions.push(eq(stormEventMatch.status, status))
-  const matches = await db.select().from(stormEventMatch).where(and(...conditions)).orderBy(desc(stormEventMatch.createdAt))
+  const conditions = [eq(stormRadarEventMatch.companyId, currentUser.companyId)]
+  if (status) conditions.push(eq(stormRadarEventMatch.status, status))
+  const matches = await db.select().from(stormRadarEventMatch).where(and(...conditions)).orderBy(desc(stormRadarEventMatch.createdAt))
   return c.json({ data: matches })
 })
 
@@ -81,7 +81,7 @@ app.post('/matches/:id/status', async (c) => {
   const updateData: any = { status, updatedAt: new Date() }
   if (status === 'contacted') updateData.contactedAt = new Date()
   if (notes !== undefined) updateData.notes = notes
-  const [updated] = await db.update(stormEventMatch).set(updateData).where(eq(stormEventMatch.id, id)).returning()
+  const [updated] = await db.update(stormRadarEventMatch).set(updateData).where(eq(stormRadarEventMatch.id, id)).returning()
   return c.json(updated)
 })
 

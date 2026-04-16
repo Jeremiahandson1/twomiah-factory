@@ -50,6 +50,34 @@
       "when": 1772785271399,
       "tag": "0006_add_imagery_elevation_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772785271400,
+      "tag": "0007_add_saas_subscription_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772785271401,
+      "tag": "0008_add_reviews_and_financing",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772785271402,
+      "tag": "0009_add_storm_radar",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1772785271403,
+      "tag": "0010_add_provider_integrations",
+      "breakpoints": true
     }
   ]
 }

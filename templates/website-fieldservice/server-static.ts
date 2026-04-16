@@ -231,6 +231,40 @@ app.get('/services/:slug', (c) => {
   })
 })
 
+function slugify(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+}
+
+function loadAreas() {
+  const areas = loadJSON('service-areas.json') || []
+  return areas.map((a: any) => ({ ...a, slug: a.slug || slugify(a.name) }))
+}
+
+app.get('/service-areas', (c) => {
+  const areas = loadAreas()
+  const services = loadJSON('services.json') || []
+  return renderPage(c, 'service-areas-index', {
+    areas, services,
+    title: 'Areas We Serve | {{COMPANY_NAME}}',
+    description: '{{COMPANY_NAME}} provides professional services throughout {{SERVICE_REGION}} and surrounding communities.',
+    canonicalUrl: BASE_URL + '/service-areas',
+  })
+})
+
+app.get('/service-area/:slug', (c) => {
+  const slug = slugify(decodeURIComponent(c.req.param('slug')))
+  const areas = loadAreas()
+  const area = areas.find((a: any) => a.slug === slug)
+  if (!area) return c.text('Area not found', 404)
+  const services = loadJSON('services.json') || []
+  return renderPage(c, 'service-area', {
+    area, allAreas: areas, services,
+    title: `${area.name}, ${area.state} Services | {{COMPANY_NAME}}`,
+    description: area.description || `Professional services in ${area.name}, ${area.state} by {{COMPANY_NAME}}.`,
+    canonicalUrl: BASE_URL + '/service-area/' + area.slug,
+  })
+})
+
 app.get('/about', (c) => {
   return renderPage(c, 'about', {
     title: 'About Us | {{COMPANY_NAME}}',

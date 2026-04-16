@@ -1,0 +1,32 @@
+[
+  {
+    "name": "{{CITY}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} provides professional HVAC, plumbing, and electrical services throughout {{CITY}}, {{STATE}}. Our licensed technicians are available for emergency repairs, routine maintenance, and new installations.",
+    "isPrimary": true
+  },
+  {
+    "name": "{{NEARBY_CITY_1}}",
+    "state": "{{STATE}}",
+    "description": "Serving {{NEARBY_CITY_1}} and the surrounding area with reliable HVAC, plumbing, and electrical services. Same-day service available for emergency calls.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_2}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} proudly serves {{NEARBY_CITY_2}} residents and businesses. Call us for heating, cooling, plumbing, and electrical needs.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_3}}",
+    "state": "{{STATE}}",
+    "description": "Professional home services in {{NEARBY_CITY_3}}, {{STATE}}. Licensed, insured, and trusted by your neighbors.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_4}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with expert HVAC, plumbing, and electrical work. Free estimates on all projects.",
+    "isPrimary": false
+  }
+]

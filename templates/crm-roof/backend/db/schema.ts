@@ -191,6 +191,9 @@ export const measurementReport = pgTable('measurement_report', {
   reportPdfUrl: text('report_pdf_url'),
   rawData: json('raw_data'),
   cost: decimal('cost', { precision: 10, scale: 2 }).default('9.00').notNull(),
+  externalProvider: text('external_provider'),
+  externalOrderId: text('external_order_id'),
+  externalStatus: text('external_status'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [
   index('measurement_report_company_id_idx').on(t.companyId),
@@ -511,6 +514,28 @@ export const lead = pgTable('lead', {
   index('lead_status_idx').on(t.status),
   index('lead_platform_idx').on(t.sourcePlatform),
   index('lead_received_at_idx').on(t.receivedAt),
+])
+
+// ==================== PROVIDER INTEGRATIONS (EagleView / HOVER) ====================
+
+export const providerIntegration = pgTable('provider_integration', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  clientId: text('client_id'),
+  clientSecret: text('client_secret'),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  tokenExpiresAt: timestamp('token_expires_at'),
+  realmId: text('realm_id'),
+  webhookSecret: text('webhook_secret'),
+  connected: boolean('connected').default(false).notNull(),
+  lastSyncedAt: timestamp('last_synced_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('provider_integration_company_id_idx').on(t.companyId),
+  uniqueIndex('provider_integration_company_provider_uniq').on(t.companyId, t.provider),
 ])
 
 // ==================== QUICKBOOKS ====================
@@ -867,7 +892,7 @@ export const review = pgTable('review', {
 
 // ==================== STORM RADAR ====================
 
-export const stormEvent = pgTable('storm_event', {
+export const stormRadarEvent = pgTable('storm_radar_event', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
   provider: text('provider').default('noaa').notNull(), // noaa, tomorrow_io, accuweather
@@ -889,16 +914,16 @@ export const stormEvent = pgTable('storm_event', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
-  index('storm_event_company_id_idx').on(t.companyId),
-  index('storm_event_state_idx').on(t.state),
-  index('storm_event_zip_idx').on(t.zip),
-  index('storm_event_started_at_idx').on(t.startedAt),
+  index('storm_radar_event_company_id_idx').on(t.companyId),
+  index('storm_radar_event_state_idx').on(t.state),
+  index('storm_radar_event_zip_idx').on(t.zip),
+  index('storm_radar_event_started_at_idx').on(t.startedAt),
 ])
 
-export const stormEventMatch = pgTable('storm_event_match', {
+export const stormRadarEventMatch = pgTable('storm_event_match', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  stormEventId: text('storm_event_id').notNull().references(() => stormEvent.id, { onDelete: 'cascade' }),
+  stormRadarEventId: text('storm_radar_event_id').notNull().references(() => stormRadarEvent.id, { onDelete: 'cascade' }),
   contactId: text('contact_id').notNull(),
   distanceMiles: decimal('distance_miles', { precision: 6, scale: 2 }),
   status: text('status').default('new').notNull(), // new, contacted, quoted, booked, not_interested
@@ -908,7 +933,7 @@ export const stormEventMatch = pgTable('storm_event_match', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (t) => [
   index('storm_event_match_company_id_idx').on(t.companyId),
-  index('storm_event_match_storm_event_id_idx').on(t.stormEventId),
+  index('storm_event_match_storm_radar_event_id_idx').on(t.stormRadarEventId),
   index('storm_event_match_status_idx').on(t.status),
 ])
 

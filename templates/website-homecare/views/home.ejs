@@ -141,7 +141,7 @@ function getImageUrl(p) {
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <% } %>
               </div>
-              <h3><%= service.title %></h3>
+              <h3><%= service.title || service.name %></h3>
               <p><%= service.shortDescription || service.tagline || service.description %></p>
             </div>
           <% }); %>
@@ -228,6 +228,9 @@ function getImageUrl(p) {
         <div class="hc-contact-form-wrap">
           <h3>Request a Free Consultation</h3>
           <p class="form-subhead">Tell us a little about your situation and we'll be in touch soon.</p>
+          <div id="form-success" style="display:none;padding:2rem;background:#059669;color:#fff;border-radius:12px;text-align:center;margin-bottom:1rem;">
+            <strong>Thank you!</strong> We've received your request and will be in touch soon.
+          </div>
           <form id="contact-form" method="POST" action="/api/admin/leads">
             <div class="hc-form-group">
               <label>Your Name</label>
@@ -361,7 +364,8 @@ function getImageUrl(p) {
       
       if (response.ok) {
         form.reset();
-        alert('Thank you! We\'ll be in touch soon.');
+        form.style.display = 'none';
+        document.getElementById('form-success').style.display = 'block';
       } else {
         throw new Error('Submission failed');
       }

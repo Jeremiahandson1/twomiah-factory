@@ -3,7 +3,7 @@ import AdminLayout from './AdminLayout';
 import ImagePicker from './ImagePicker';
 import { useToast } from './Toast';
 import {
-  getPosts, getPost, createPost, updatePost, deletePost
+  getPosts, getPost, createPost, updatePost, deletePost, getAllPages
 } from './api';
 
 function AdminBlog() {
@@ -14,10 +14,31 @@ function AdminBlog() {
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('all'); // all, published, draft
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const [serviceOptions, setServiceOptions] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(['tips', 'news']);
 
   useEffect(() => {
     loadPosts();
+    loadServiceOptions();
   }, []);
+
+  const loadServiceOptions = async () => {
+    try {
+      const pages = await getAllPages();
+      if (Array.isArray(pages)) {
+        const slugs = pages
+          .filter((p: any) => p.type === 'service' || p.parentId === null)
+          .map((p: any) => p.slug || p.id)
+          .filter(Boolean);
+        if (slugs.length > 0) {
+          setServiceOptions(slugs);
+          setCategoryOptions([...slugs, 'tips', 'news']);
+        }
+      }
+    } catch {
+      // fall back to defaults already set in state
+    }
+  };
 
   const loadPosts = async () => {
     try {
@@ -37,7 +58,7 @@ function AdminBlog() {
       excerpt: '',
       content: '',
       author: '{{COMPANY_NAME}}',
-      category: 'roofing',
+      category: categoryOptions[0] || 'tips',
       tags: [],
       image: '',
       relatedServices: [],
@@ -153,8 +174,7 @@ function AdminBlog() {
     updateField('tags', editing.tags.filter(t => t !== tag));
   };
 
-  const serviceOptions = ['roofing', 'siding', 'windows', 'insulation', 'remodeling', 'new-construction'];
-  const categoryOptions = ['roofing', 'siding', 'windows', 'insulation', 'remodeling', 'tips', 'news'];
+  // serviceOptions and categoryOptions are loaded dynamically from pages API
 
   const toggleService = (svc: string) => {
     const current = editing.relatedServices || [];

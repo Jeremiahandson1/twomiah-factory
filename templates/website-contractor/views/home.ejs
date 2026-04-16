@@ -71,7 +71,7 @@ function getImageUrl(p) {
                 <% if (service.image) { %>
                   <img 
                     src="<%= getImageUrl(service.image) %>" 
-                    alt="<%= service.title %> services in {{CITY}}, {{STATE}} - {{COMPANY_NAME}}"
+                    alt="<%= service.title || service.name %> services in {{CITY}}, {{STATE}} - {{COMPANY_NAME}}"
                     loading="lazy"
                     width="800"
                     height="600"
@@ -81,7 +81,7 @@ function getImageUrl(p) {
                 <% } %>
               </div>
               <div class="service-content">
-                <h3><%= service.title %></h3>
+                <h3><%= service.title || service.name %></h3>
                 <p><%= service.shortDescription || service.tagline || service.description %></p>
                 <% if (service.links && service.links.length > 0) { %>
                   <hr>
@@ -502,8 +502,8 @@ function getImageUrl(p) {
                 <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
                   <% services.slice(0, 6).forEach(function(service) { %>
                     <label class="checkbox-item">
-                      <input type="checkbox" name="services[]" value="<%= service.title %>">
-                      <span><%= service.title %></span>
+                      <input type="checkbox" name="services[]" value="<%= service.title || service.name %>">
+                      <span><%= service.title || service.name %></span>
                     </label>
                   <% }); %>
                 <% } %>

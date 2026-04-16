@@ -1,0 +1,32 @@
+[
+  {
+    "name": "{{CITY}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} provides professional roofing, siding, and renovation services throughout {{CITY}}, {{STATE}}. Our licensed contractors are available for repairs, remodeling, and new construction.",
+    "isPrimary": true
+  },
+  {
+    "name": "{{NEARBY_CITY_1}}",
+    "state": "{{STATE}}",
+    "description": "Serving {{NEARBY_CITY_1}} and the surrounding area with reliable roofing, siding, and renovation services. Same-day service available for emergency calls.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_2}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} proudly serves {{NEARBY_CITY_2}} residents and businesses. Call us for roofing, siding, windows, and remodeling needs.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_3}}",
+    "state": "{{STATE}}",
+    "description": "Professional home services in {{NEARBY_CITY_3}}, {{STATE}}. Licensed, insured, and trusted by your neighbors.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_4}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with expert roofing, siding, and renovation work. Free estimates on all projects.",
+    "isPrimary": false
+  }
+]

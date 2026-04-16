@@ -4,7 +4,7 @@
 
 services:
   - type: web
-    name: {{COMPANY_SLUG}}-api
+    name: {{COMPANY_SLUG}}-wrench-api
     runtime: node
     plan: starter
     rootDir: crm-fieldservice/backend
@@ -13,7 +13,7 @@ services:
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: {{COMPANY_SLUG}}-db
+          name: {{COMPANY_SLUG}}-wrench-db
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
@@ -27,6 +27,6 @@ services:
       sizeGB: 1
 
 databases:
-  - name: {{COMPANY_SLUG}}-db
+  - name: {{COMPANY_SLUG}}-wrench-db
     plan: starter
     databaseName: {{COMPANY_SLUG_UNDERSCORE}}_crm
