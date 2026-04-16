@@ -22,7 +22,7 @@ const AddCaregiverModal = ({ isOpen, onClose, onSuccess }) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/register-caregiver`, {
+      const response = await fetch(`${API_BASE_URL}/api/caregivers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

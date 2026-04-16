@@ -213,7 +213,14 @@ app.post('/', requireAdmin, async (c) => {
     'assistanceNeeds', 'billingNotes', 'latitude', 'longitude', 'medicaidId', 'ivrCode',
   ]
   for (const key of allowedClientFields) {
-    if (body[key] !== undefined) data[key] = body[key]
+    if (body[key] !== undefined) {
+      // Convert empty strings to null for date/numeric fields
+      if (['dateOfBirth', 'referralDate', 'startDate'].includes(key) && body[key] === '') {
+        data[key] = null
+      } else {
+        data[key] = body[key]
+      }
+    }
   }
   // Accept frontend alias: referralSourceId -> referredById
   if (body.referralSourceId !== undefined && data.referredById === undefined) {
@@ -263,7 +270,13 @@ app.put('/:id', requireAdmin, async (c) => {
     'portalEnabled', 'portalEmail',
   ]
   for (const key of allowedClientUpdateFields) {
-    if (body[key] !== undefined) data[key] = body[key]
+    if (body[key] !== undefined) {
+      if (['dateOfBirth', 'referralDate', 'startDate'].includes(key) && body[key] === '') {
+        data[key] = null
+      } else {
+        data[key] = body[key]
+      }
+    }
   }
   // Accept frontend alias: referralSourceId -> referredById
   if (body.referralSourceId !== undefined && data.referredById === undefined) {

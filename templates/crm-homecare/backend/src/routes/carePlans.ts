@@ -50,6 +50,10 @@ app.post('/', async (c) => {
   try {
     const user = c.get('user' as any)
     const body = await c.req.json()
+    // Convert empty date strings to null to avoid Postgres date parse errors
+    for (const key of ['startDate', 'endDate', 'reviewDate']) {
+      if (body[key] === '') body[key] = null
+    }
     const [row] = await db
       .insert(carePlans)
       .values({ ...body, createdById: user.userId })
