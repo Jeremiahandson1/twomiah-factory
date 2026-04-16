@@ -56,7 +56,7 @@ const LoginActivity = () => {
       if (filt.email) params.set('email', filt.email);
       if (filt.success !== '') params.set('success', filt.success);
 
-      const res = await fetch(`${API_BASE_URL}/api/auth/login-activity?${params}`, {
+      const res = await fetch(`${API_BASE_URL}/api/compliance/login-activity?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();

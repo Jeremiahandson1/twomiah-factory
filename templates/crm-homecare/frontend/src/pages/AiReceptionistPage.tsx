@@ -24,7 +24,7 @@ export default function AiReceptionistPage() {
         fetch(`${API_BASE_URL}/api/ai-receptionist/calls`, { headers: h }).then((r) => r.json()).catch(() => ({ data: [] })),
       ]);
       if (cfgRes) { setConfig(cfgRes); setEnabled(!!cfgRes.enabled); setGreeting(cfgRes.greeting || ''); }
-      setCalls(callsRes.data || callsRes || []);
+      setCalls(Array.isArray(callsRes?.data) ? callsRes.data : Array.isArray(callsRes) ? callsRes : []);
     } catch (e) { console.error(e); } finally { setLoading(false); }
   };
 
