@@ -904,7 +904,7 @@ export const purchaseOrder = pgTable('purchase_order', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
   companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
-  locationId: text('location_id').notNull().references(() => inventoryLocation.id, { onDelete: 'cascade' }),
+  locationId: text('location_id').references(() => inventoryLocation.id, { onDelete: 'set null' }),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
 }, (t) => [
   uniqueIndex('purchase_order_company_id_number_key').on(t.companyId, t.number),

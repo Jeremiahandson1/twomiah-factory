@@ -11,6 +11,7 @@
 import { db } from '../../db/index.ts'
 import { project, changeOrder } from '../../db/schema.ts'
 import { eq, and, lte, asc, sql } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
@@ -26,8 +27,8 @@ function rows(result: any): any[] {
  */
 export async function createCategory(companyId: string, data: any) {
   const [row] = rows(await db.execute(sql`
-    INSERT INTO selection_category (company_id, name, description, sort_order, icon, default_allowance, active)
-    VALUES (${companyId}, ${data.name}, ${data.description || null}, ${data.sortOrder || 0}, ${data.icon || null}, ${data.defaultAllowance || 0}, true)
+    INSERT INTO selection_category (id, company_id, name, description, sort_order, icon, default_allowance, active)
+    VALUES (${createId()}, ${companyId}, ${data.name}, ${data.description || null}, ${data.sortOrder || 0}, ${data.icon || null}, ${data.defaultAllowance || 0}, true)
     RETURNING *
   `))
   return row
@@ -61,8 +62,8 @@ export async function seedDefaultCategories(companyId: string) {
 
   for (const cat of defaults) {
     await db.execute(sql`
-      INSERT INTO selection_category (company_id, name, icon, sort_order, active)
-      VALUES (${companyId}, ${cat.name}, ${cat.icon}, ${cat.sortOrder}, true)
+      INSERT INTO selection_category (id, company_id, name, icon, sort_order, active)
+      VALUES (${createId()}, ${companyId}, ${cat.name}, ${cat.icon}, ${cat.sortOrder}, true)
       ON CONFLICT (company_id, name) DO NOTHING
     `)
   }
@@ -77,8 +78,8 @@ export async function seedDefaultCategories(companyId: string) {
  */
 export async function createOption(companyId: string, data: any) {
   const [row] = rows(await db.execute(sql`
-    INSERT INTO selection_option (company_id, category_id, name, description, manufacturer, model, sku, price, cost, unit, image_url, images, spec_sheet, lead_time_days, in_stock, active)
-    VALUES (${companyId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.manufacturer || null}, ${data.model || null}, ${data.sku || null}, ${data.price || 0}, ${data.cost || 0}, ${data.unit || 'each'}, ${data.imageUrl || null}, ${JSON.stringify(data.images || [])}, ${data.specSheet || null}, ${data.leadTimeDays || 0}, ${data.inStock ?? true}, true)
+    INSERT INTO selection_option (id, company_id, category_id, name, description, manufacturer, model, sku, price, cost, unit, image_url, images, spec_sheet, lead_time_days, in_stock, active)
+    VALUES (${createId()}, ${companyId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.manufacturer || null}, ${data.model || null}, ${data.sku || null}, ${data.price || 0}, ${data.cost || 0}, ${data.unit || 'each'}, ${data.imageUrl || null}, ${JSON.stringify(data.images || [])}, ${data.specSheet || null}, ${data.leadTimeDays || 0}, ${data.inStock ?? true}, true)
     RETURNING *
   `))
   return row
@@ -116,8 +117,8 @@ export async function getOptions(
  */
 export async function createProjectSelection(companyId: string, data: any) {
   const [row] = rows(await db.execute(sql`
-    INSERT INTO project_selection (company_id, project_id, category_id, name, description, location, allowance, quantity, unit, due_date, status, available_options)
-    VALUES (${companyId}, ${data.projectId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, ${data.quantity || 1}, ${data.unit || 'each'}, ${data.dueDate ? new Date(data.dueDate) : null}, 'pending', ${JSON.stringify(data.optionIds || [])})
+    INSERT INTO project_selection (id, company_id, project_id, category_id, name, description, location, allowance, quantity, unit, due_date, status, available_options)
+    VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.categoryId}, ${data.name}, ${data.description || null}, ${data.location || null}, ${data.allowance || 0}, ${data.quantity || 1}, ${data.unit || 'each'}, ${data.dueDate ? new Date(data.dueDate) : null}, 'pending', ${JSON.stringify(data.optionIds || [])})
     RETURNING *
   `))
   return row

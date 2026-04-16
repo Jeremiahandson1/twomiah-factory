@@ -89,9 +89,13 @@ app.post('/', async (c) => {
   const [created] = await db
     .insert(submittal)
     .values({
-      ...data,
+      title: data.subject,
+      projectId: data.projectId,
+      specSection: data.specSection,
+      description: data.description,
       number: `SUB-${String(Number(cnt) + 1).padStart(3, '0')}`,
       dueDate: data.dueDate ? new Date(data.dueDate) : null,
+      notes: [data.submittalType, data.priority, data.assignedTo].filter(Boolean).join(' | ') || null,
       companyId: currentUser.companyId,
     } as any)
     .returning()

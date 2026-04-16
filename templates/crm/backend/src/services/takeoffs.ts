@@ -11,6 +11,7 @@
 import { db } from '../../db/index.ts'
 import { purchaseOrder, purchaseOrderItem } from '../../db/schema.ts'
 import { eq, sql } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
@@ -35,16 +36,16 @@ export const MEASUREMENT_TYPES = {
  */
 export async function createAssembly(companyId: string, data: any) {
   const [assembly] = rows(await db.execute(sql`
-    INSERT INTO takeoff_assembly (company_id, name, description, category, measurement_type, waste_factor, active)
-    VALUES (${companyId}, ${data.name}, ${data.description || null}, ${data.category || null}, ${data.measurementType || 'area'}, ${data.wasteFactor || 10}, true)
+    INSERT INTO takeoff_assembly (id, company_id, name, description, category, measurement_type, waste_factor, active)
+    VALUES (${createId()}, ${companyId}, ${data.name}, ${data.description || null}, ${data.category || null}, ${data.measurementType || 'area'}, ${data.wasteFactor || 10}, true)
     RETURNING *
   `))
 
   if (data.materials?.length) {
     for (const mat of data.materials) {
       await db.execute(sql`
-        INSERT INTO assembly_material (assembly_id, name, description, quantity_per, unit, unit_cost, unit_price, inventory_item_id)
-        VALUES (${assembly.id}, ${mat.name}, ${mat.description || null}, ${mat.quantityPer || 1}, ${mat.unit || 'each'}, ${mat.unitCost || 0}, ${mat.unitPrice || 0}, ${mat.inventoryItemId || null})
+        INSERT INTO assembly_material (id, assembly_id, name, description, quantity_per, unit, unit_cost, unit_price, inventory_item_id)
+        VALUES (${createId()}, ${assembly.id}, ${mat.name}, ${mat.description || null}, ${mat.quantityPer || 1}, ${mat.unit || 'each'}, ${mat.unitCost || 0}, ${mat.unitPrice || 0}, ${mat.inventoryItemId || null})
       `)
     }
   }
@@ -161,8 +162,8 @@ export async function seedDefaultAssemblies(companyId: string) {
  */
 export async function createTakeoffSheet(companyId: string, data: any) {
   const [sheet] = rows(await db.execute(sql`
-    INSERT INTO takeoff_sheet (company_id, project_id, name, description, plan_reference, plan_url, status)
-    VALUES (${companyId}, ${data.projectId}, ${data.name}, ${data.description || null}, ${data.planReference || null}, ${data.planUrl || null}, 'draft')
+    INSERT INTO takeoff_sheet (id, company_id, project_id, name, description, plan_reference, plan_url, status)
+    VALUES (${createId()}, ${companyId}, ${data.projectId}, ${data.name}, ${data.description || null}, ${data.planReference || null}, ${data.planUrl || null}, 'draft')
     RETURNING *
   `))
   return sheet
@@ -224,8 +225,8 @@ export async function addTakeoffItem(sheetId: string, companyId: string, data: a
   const measurementValue = calculateMeasurement(data, assembly.measurement_type)
 
   const [item] = rows(await db.execute(sql`
-    INSERT INTO takeoff_item (sheet_id, assembly_id, name, location, measurement_type, length, width, height, quantity, measurement_value, waste_factor, notes, sort_order)
-    VALUES (${sheetId}, ${data.assemblyId}, ${data.name || assembly.name}, ${data.location || null}, ${assembly.measurement_type}, ${data.length || 0}, ${data.width || 0}, ${data.height || 0}, ${data.quantity || 1}, ${measurementValue}, ${data.wasteFactor ?? assembly.waste_factor}, ${data.notes || null}, ${data.sortOrder || 0})
+    INSERT INTO takeoff_item (id, sheet_id, assembly_id, name, location, measurement_type, length, width, height, quantity, measurement_value, waste_factor, notes, sort_order)
+    VALUES (${createId()}, ${sheetId}, ${data.assemblyId}, ${data.name || assembly.name}, ${data.location || null}, ${assembly.measurement_type}, ${data.length || 0}, ${data.width || 0}, ${data.height || 0}, ${data.quantity || 1}, ${measurementValue}, ${data.wasteFactor ?? assembly.waste_factor}, ${data.notes || null}, ${data.sortOrder || 0})
     RETURNING *
   `))
 
@@ -282,8 +283,8 @@ async function calculateItemMaterials(itemId: string, companyId: string) {
     const totalPrice = roundedQuantity * Number(mat.unit_price || 0)
 
     await db.execute(sql`
-      INSERT INTO takeoff_calculated_material (item_id, material_name, unit, base_quantity, waste_quantity, total_quantity, unit_cost, unit_price, total_cost, total_price, inventory_item_id)
-      VALUES (${itemId}, ${mat.name}, ${mat.unit}, ${baseQuantity}, ${quantityWithWaste - baseQuantity}, ${roundedQuantity}, ${mat.unit_cost}, ${mat.unit_price}, ${totalCost}, ${totalPrice}, ${mat.inventory_item_id})
+      INSERT INTO takeoff_calculated_material (id, item_id, material_name, unit, base_quantity, waste_quantity, total_quantity, unit_cost, unit_price, total_cost, total_price, inventory_item_id)
+      VALUES (${createId()}, ${itemId}, ${mat.name}, ${mat.unit}, ${baseQuantity}, ${quantityWithWaste - baseQuantity}, ${roundedQuantity}, ${mat.unit_cost}, ${mat.unit_price}, ${totalCost}, ${totalPrice}, ${mat.inventory_item_id})
     `)
   }
 }
