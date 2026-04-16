@@ -37,3 +37,15 @@ ALTER TABLE "company" ADD COLUMN IF NOT EXISTS "lifetime_access" boolean DEFAULT
 ALTER TABLE "company" ADD COLUMN IF NOT EXISTS "twilio_phone_number" text;
 ALTER TABLE "company" ADD COLUMN IF NOT EXISTS "twilio_account_sid" text;
 ALTER TABLE "company" ADD COLUMN IF NOT EXISTS "twilio_auth_token" text;
+
+-- PORTAL_SESSION table (required for customer portal OTP login)
+CREATE TABLE IF NOT EXISTS "portal_session" (
+  "id" text PRIMARY KEY NOT NULL,
+  "token" text NOT NULL UNIQUE,
+  "contact_id" text NOT NULL REFERENCES "contact"("id") ON DELETE CASCADE,
+  "company_id" text NOT NULL REFERENCES "company"("id") ON DELETE CASCADE,
+  "expires_at" timestamp NOT NULL,
+  "created_at" timestamp DEFAULT now() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS "portal_session_token_idx" ON "portal_session" ("token");
+CREATE INDEX IF NOT EXISTS "portal_session_contact_id_idx" ON "portal_session" ("contact_id");

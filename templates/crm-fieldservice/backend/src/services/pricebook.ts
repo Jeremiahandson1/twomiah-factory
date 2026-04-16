@@ -13,6 +13,7 @@
 import { db } from '../../db/index.ts'
 import { pricebookCategory, pricebookItem, inventoryItem } from '../../db/schema.ts'
 import { eq, and, or, ilike, asc, desc, count, sql, inArray, max } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 
 // ============================================
 // PRICEBOOK CATEGORIES
@@ -284,8 +285,8 @@ export async function setGoodBetterBest(itemId: string, companyId: string, optio
   // Create new options
   for (const opt of options) {
     await db.execute(sql`
-      INSERT INTO pricebook_good_better_best (pricebook_item_id, tier, name, description, price, features, recommended)
-      VALUES (${itemId}, ${opt.tier}, ${opt.name}, ${opt.description}, ${opt.price}, ${JSON.stringify(opt.features)}, ${opt.recommended || false})
+      INSERT INTO pricebook_good_better_best (id, pricebook_item_id, tier, name, description, price, features, recommended)
+      VALUES (${createId()}, ${itemId}, ${opt.tier}, ${opt.name}, ${opt.description}, ${opt.price}, ${JSON.stringify(opt.features)}, ${opt.recommended || false})
     `)
   }
 }
