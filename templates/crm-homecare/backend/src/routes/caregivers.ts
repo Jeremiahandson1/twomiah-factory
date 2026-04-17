@@ -120,6 +120,43 @@ app.get('/', async (c) => {
   return c.json({ caregivers: toSnake(caregivers), total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
 })
 
+// GET /api/users/caregivers — list users with role=caregiver
+// MUST be before /:id to avoid being caught by the wildcard param
+app.get('/caregivers', async (c) => {
+  const { search, isActive = 'true' } = c.req.query()
+  const conditions: any[] = [eq(users.role, 'caregiver')]
+  if (isActive !== 'all') conditions.push(eq(users.isActive, isActive === 'true'))
+  if (search) {
+    conditions.push(or(
+      ilike(users.firstName, '%' + search + '%'),
+      ilike(users.lastName, '%' + search + '%'),
+      ilike(users.email, '%' + search + '%'),
+    ))
+  }
+  const rows = await db.select({
+    id: users.id, firstName: users.firstName, lastName: users.lastName,
+    email: users.email, phone: users.phone, isActive: users.isActive, role: users.role,
+  }).from(users).where(and(...conditions)).orderBy(asc(users.lastName))
+  return c.json(rows.map((r) => ({
+    id: r.id, first_name: r.firstName, last_name: r.lastName,
+    email: r.email, phone: r.phone, role: r.role, is_active: r.isActive,
+  })))
+})
+
+// GET /api/users/admins — list users with role=admin
+// MUST be before /:id
+app.get('/admins', async (c) => {
+  const { page = '1', limit = '50' } = c.req.query()
+  const skip = (parseInt(page) - 1) * parseInt(limit)
+  const whereClause = or(eq(users.role, 'admin'), eq(users.role, 'owner'))
+  const [rows, [{ value: total }]] = await Promise.all([
+    db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email, phone: users.phone, isActive: users.isActive, role: users.role })
+      .from(users).where(whereClause).orderBy(asc(users.lastName)).offset(skip).limit(parseInt(limit)),
+    db.select({ value: count() }).from(users).where(whereClause),
+  ])
+  return c.json({ users: rows, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+})
+
 // GET /api/caregivers/:id
 app.get('/:id', async (c) => {
   const id = c.req.param('id')
@@ -242,7 +279,11 @@ app.post('/', requireAdmin, async (c) => {
 // PUT /api/caregivers/:id
 app.put('/:id', requireAdmin, async (c) => {
   const id = c.req.param('id')
-  const { profile, availability, password, ...data } = await c.req.json()
+  const { profile, availability, password, payRate, ...data } = await c.req.json()
+  // Map frontend alias payRate → defaultPayRate
+  if (payRate !== undefined && data.defaultPayRate === undefined) {
+    data.defaultPayRate = String(payRate)
+  }
 
   const updates: Promise<any>[] = [
     db.update(users).set({ ...data, updatedAt: new Date() }).where(eq(users.id, id)),
@@ -353,60 +394,7 @@ app.post('/:id/background-checks', requireAdmin, async (c) => {
   return c.json(safe, 201)
 })
 
-// GET /api/users/caregivers — list users with role=caregiver (alias-only route)
-// Returns a bare snake_case array to match the shape the Care frontend expects.
-app.get('/caregivers', async (c) => {
-  const { search, isActive = 'true' } = c.req.query()
-  const conditions: any[] = [eq(users.role, 'caregiver')]
-  if (isActive !== 'all') conditions.push(eq(users.isActive, isActive === 'true'))
-  if (search) {
-    conditions.push(
-      or(
-        ilike(users.firstName, '%' + search + '%'),
-        ilike(users.lastName, '%' + search + '%'),
-        ilike(users.email, '%' + search + '%'),
-      )
-    )
-  }
-  const rows = await db
-    .select({
-      id: users.id,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      email: users.email,
-      phone: users.phone,
-      isActive: users.isActive,
-      role: users.role,
-    })
-    .from(users)
-    .where(and(...conditions))
-    .orderBy(asc(users.lastName))
-
-  return c.json(
-    rows.map((r) => ({
-      id: r.id,
-      first_name: r.firstName,
-      last_name: r.lastName,
-      email: r.email,
-      phone: r.phone,
-      role: r.role,
-      is_active: r.isActive,
-    }))
-  )
-})
-
-// GET /api/users/admins — list users with role=admin
-app.get('/admins', async (c) => {
-  const { page = '1', limit = '50' } = c.req.query()
-  const skip = (parseInt(page) - 1) * parseInt(limit)
-  const whereClause = or(eq(users.role, 'admin'), eq(users.role, 'owner'))
-  const [rows, [{ value: total }]] = await Promise.all([
-    db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email, phone: users.phone, isActive: users.isActive, role: users.role })
-      .from(users).where(whereClause).orderBy(asc(users.lastName)).offset(skip).limit(parseInt(limit)),
-    db.select({ value: count() }).from(users).where(whereClause),
-  ])
-  return c.json({ users: rows, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
-})
+// /caregivers and /admins routes moved above /:id to prevent wildcard param conflict
 
 // PUT /api/users/:id/reset-password
 app.put('/:id/reset-password', requireAdmin, async (c) => {

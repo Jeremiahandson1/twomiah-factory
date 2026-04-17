@@ -125,7 +125,7 @@ app.get('/', async (c) => {
     assignments: assignmentsMap[cl.id] || [],
   }))
 
-  return c.json({ clients: toSnake(safeClients), total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+  return c.json({ clients: safeClients, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
 })
 
 // GET /api/clients/:id/onboarding (must be before /:id catch-all)
@@ -187,7 +187,7 @@ app.get('/:id', async (c) => {
   }))
 
   const { ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, ...safeClient } = client
-  return c.json(toSnake({
+  return c.json({
     ...safeClient,
     emergencyContacts: ecRows,
     onboarding: obRows[0] || null,
@@ -195,7 +195,7 @@ app.get('/:id', async (c) => {
     referredBy: refRows[0] || null,
     geofence: geoRows[0] || null,
     authorizations: authRows,
-  }))
+  })
 })
 
 // POST /api/clients
@@ -261,7 +261,7 @@ app.post('/', requireAdmin, async (c) => {
   }
 
   const { ssnEncrypted: _, portalPasswordHash: _ph, portalToken: _pt, ...safeClient } = client
-  return c.json(toSnake({ ...safeClient, emergencyContacts: ecRows, onboarding: onboardingRecord }), 201)
+  return c.json({ ...safeClient, emergencyContacts: ecRows, onboarding: onboardingRecord }, 201)
 })
 
 // PUT /api/clients/:id
@@ -309,7 +309,7 @@ app.put('/:id', requireAdmin, async (c) => {
   ])
 
   const { ssnEncrypted: _s, portalPasswordHash: _ph2, portalToken: _pt2, ...safeUpdatedClient } = client
-  return c.json(toSnake({ ...safeUpdatedClient, emergencyContacts: ecRows, onboarding: obRows[0] || null }))
+  return c.json({ ...safeUpdatedClient, emergencyContacts: ecRows, onboarding: obRows[0] || null })
 })
 
 // PATCH /api/clients/:id/onboarding
