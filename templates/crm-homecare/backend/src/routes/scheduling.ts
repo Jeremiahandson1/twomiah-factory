@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { eq, and, gte, lte, asc, desc } from 'drizzle-orm'
+import { eq, and, gte, lte, asc, desc, or, isNull } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import {
   schedules,
@@ -378,6 +378,133 @@ app.put('/noshow-config', requireAdmin, async (c) => {
     [config] = await db.insert(noshowAlertConfig).values(body).returning()
   }
   return c.json(config)
+})
+
+// ── COVERAGE OVERVIEW ─────────────────────────────────────────────
+// GET /coverage-overview?weekOf=YYYY-MM-DD
+// Summarizes shift coverage for a 7-day window starting at weekOf.
+app.get('/coverage-overview', async (c) => {
+  const weekOfParam = c.req.query('weekOf')
+  const weekStart = weekOfParam ? new Date(weekOfParam + 'T00:00:00Z') : new Date()
+  if (Number.isNaN(weekStart.getTime())) {
+    return c.json({ error: 'Invalid weekOf date' }, 400)
+  }
+  const weekEnd = new Date(weekStart)
+  weekEnd.setUTCDate(weekEnd.getUTCDate() + 7)
+
+  const weekStartStr = weekStart.toISOString().slice(0, 10)
+  const weekEndStr = weekEnd.toISOString().slice(0, 10)
+
+  // Load schedules that could apply during the week:
+  //  - one-off date schedules with `date` in [weekStart, weekEnd)
+  //  - recurring schedules with effectiveDate on/before weekEnd and endDate null or after weekStart
+  const rows = await db
+    .select({
+      id: schedules.id,
+      caregiverId: schedules.caregiverId,
+      startTime: schedules.startTime,
+      endTime: schedules.endTime,
+      dayOfWeek: schedules.dayOfWeek,
+      date: schedules.date,
+      effectiveDate: schedules.effectiveDate,
+      endDate: schedules.endDate,
+      scheduleType: schedules.scheduleType,
+      isActive: schedules.isActive,
+    })
+    .from(schedules)
+    .where(
+      and(
+        eq(schedules.isActive, true),
+        or(
+          and(gte(schedules.date, weekStartStr), lte(schedules.date, weekEndStr)),
+          and(
+            lte(schedules.effectiveDate, weekEndStr),
+            or(isNull(schedules.endDate), gte(schedules.endDate, weekStartStr)),
+          ),
+        ),
+      ),
+    )
+
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart)
+    d.setUTCDate(d.getUTCDate() + i)
+    return {
+      date: d.toISOString().slice(0, 10),
+      dayOfWeek: DAYS[d.getUTCDay()],
+      jsDay: d.getUTCDay(),
+      totalShifts: 0,
+      filledShifts: 0,
+      openShifts: 0,
+      totalHours: 0,
+      filledHours: 0,
+      coveragePercent: 0,
+    }
+  })
+
+  const shiftHours = (start: Date | null, end: Date | null) => {
+    if (!start || !end) return 0
+    const ms = end.getTime() - start.getTime()
+    return ms > 0 ? ms / (1000 * 60 * 60) : 0
+  }
+
+  for (const s of rows) {
+    const hours = shiftHours(s.startTime as any, s.endTime as any)
+    const filled = !!s.caregiverId
+
+    // Determine which day(s) this schedule applies to this week
+    let targetIndexes: number[] = []
+    if (s.date) {
+      const idx = days.findIndex((d) => d.date === s.date)
+      if (idx >= 0) targetIndexes = [idx]
+    } else if (s.dayOfWeek !== null && s.dayOfWeek !== undefined) {
+      const idx = days.findIndex((d) => d.jsDay === s.dayOfWeek)
+      if (idx >= 0) targetIndexes = [idx]
+    }
+
+    for (const idx of targetIndexes) {
+      days[idx].totalShifts += 1
+      days[idx].totalHours += hours
+      if (filled) {
+        days[idx].filledShifts += 1
+        days[idx].filledHours += hours
+      } else {
+        days[idx].openShifts += 1
+      }
+    }
+  }
+
+  for (const d of days) {
+    d.totalHours = Math.round(d.totalHours * 100) / 100
+    d.filledHours = Math.round(d.filledHours * 100) / 100
+    d.coveragePercent = d.totalShifts > 0 ? Math.round((d.filledShifts / d.totalShifts) * 100) : 0
+  }
+
+  const summary = days.reduce(
+    (acc, d) => ({
+      totalShifts: acc.totalShifts + d.totalShifts,
+      filledShifts: acc.filledShifts + d.filledShifts,
+      openShifts: acc.openShifts + d.openShifts,
+      totalHours: acc.totalHours + d.totalHours,
+      filledHours: acc.filledHours + d.filledHours,
+    }),
+    { totalShifts: 0, filledShifts: 0, openShifts: 0, totalHours: 0, filledHours: 0 },
+  )
+  const coveragePercent =
+    summary.totalShifts > 0 ? Math.round((summary.filledShifts / summary.totalShifts) * 100) : 0
+
+  return c.json({
+    weekOf: weekStartStr,
+    days: days.map(({ jsDay, ...d }) => d),
+    summary: {
+      totalShifts: summary.totalShifts,
+      filledShifts: summary.filledShifts,
+      openShifts: summary.openShifts,
+      totalHours: Math.round(summary.totalHours * 100) / 100,
+      filledHours: Math.round(summary.filledHours * 100) / 100,
+      coveragePercent,
+    },
+  })
 })
 
 export default app

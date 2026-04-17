@@ -57,6 +57,13 @@
       "when": 1774310400000,
       "tag": "0009_add_saas_subscription_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776816000000,
+      "tag": "0010_invoice_payments",
+      "breakpoints": true
     }
   ]
 }

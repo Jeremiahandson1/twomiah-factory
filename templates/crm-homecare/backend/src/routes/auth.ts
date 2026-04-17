@@ -9,7 +9,7 @@ import { authenticate, logAuthEvent } from '../middleware/auth.ts'
 const app = new Hono()
 
 const generateTokens = (userId: string, email: string, role: string, companyId?: string) => {
-  const accessToken = jwt.sign({ userId, email, role, companyId }, process.env.JWT_SECRET!, { expiresIn: '15m' })
+  const accessToken = jwt.sign({ userId, email, role, companyId }, process.env.JWT_SECRET!, { expiresIn: '1h' })
   const refreshToken = jwt.sign({ userId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET!, { expiresIn: '7d' })
   return { accessToken, refreshToken }
 }

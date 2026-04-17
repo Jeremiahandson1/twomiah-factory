@@ -700,6 +700,25 @@ export const paymentClaimMatches = pgTable('payment_claim_matches', {
   index('pcm_claim_idx').on(t.claimId),
 ])
 
+// ==================== INVOICE PAYMENTS ====================
+// Per-invoice payment records (distinct from the `payments` table which
+// captures payer-level check receipts and reconciles to claims).
+export const invoicePayments = pgTable('invoice_payments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  invoiceId: text('invoice_id').notNull().references(() => invoices.id, { onDelete: 'cascade' }),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: text('payment_method').default('check').notNull(),
+  referenceNumber: text('reference_number'),
+  paymentDate: date('payment_date'),
+  notes: text('notes'),
+  createdById: text('created_by_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('invoice_payments_invoice_id_idx').on(t.invoiceId),
+  index('invoice_payments_payment_date_idx').on(t.paymentDate),
+])
+
 // ==================== REMITTANCE BATCHES ====================
 export const remittanceBatches = pgTable('remittance_batches', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

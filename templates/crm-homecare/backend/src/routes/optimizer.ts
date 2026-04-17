@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
-import { eq, and, gte, sql, sum } from 'drizzle-orm'
+import { eq, and, gte, lte, or, isNull, sql, sum } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { clients, clientAssignments, users, timeEntries } from '../../db/schema.ts'
+import { clients, clientAssignments, users, timeEntries, schedules } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -87,6 +87,114 @@ app.get('/routes', async (c) => {
     ))
 
   return c.json({ caregiverId, date: dateObj.toISOString().split('T')[0], stops: assignments })
+})
+
+// ── ROUTE OPTIMIZER — CONFIG STATUS ───────────────────────────────
+// GET /config-status — reports whether Google Maps is configured
+app.get('/config-status', async (c) => {
+  const key = process.env.GOOGLE_MAPS_API_KEY
+  if (key) {
+    return c.json({
+      configured: true,
+      provider: 'google-maps',
+      message: 'Route optimization is enabled.',
+    })
+  }
+  return c.json({
+    configured: false,
+    provider: null,
+    message:
+      'Route optimization requires a Google Maps API key. Set GOOGLE_MAPS_API_KEY in environment variables.',
+  })
+})
+
+// ── ROUTE OPTIMIZER — DAILY VIEW ──────────────────────────────────
+// GET /daily/:date — shifts grouped by caregiver for a given date
+app.get('/daily/:date', async (c) => {
+  const dateParam = c.req.param('date')
+  const d = new Date(dateParam + 'T00:00:00Z')
+  if (Number.isNaN(d.getTime())) return c.json({ error: 'Invalid date' }, 400)
+  const jsDay = d.getUTCDay()
+
+  // Shifts for the date: one-off (schedules.date === dateParam) or recurring
+  // where effectiveDate <= dateParam, (endDate IS NULL OR endDate >= dateParam),
+  // and dayOfWeek matches.
+  const rows = await db
+    .select({
+      scheduleId: schedules.id,
+      caregiverId: schedules.caregiverId,
+      clientId: schedules.clientId,
+      startTime: schedules.startTime,
+      endTime: schedules.endTime,
+      scheduleDate: schedules.date,
+      caregiverFirstName: users.firstName,
+      caregiverLastName: users.lastName,
+      clientFirstName: clients.firstName,
+      clientLastName: clients.lastName,
+      clientAddress: clients.address,
+      clientCity: clients.city,
+      clientState: clients.state,
+      clientZip: clients.zip,
+      clientLat: clients.latitude,
+      clientLng: clients.longitude,
+    })
+    .from(schedules)
+    .leftJoin(users, eq(schedules.caregiverId, users.id))
+    .leftJoin(clients, eq(schedules.clientId, clients.id))
+    .where(
+      and(
+        eq(schedules.isActive, true),
+        or(
+          eq(schedules.date, dateParam),
+          and(
+            lte(schedules.effectiveDate, dateParam),
+            or(isNull(schedules.endDate), gte(schedules.endDate, dateParam)),
+            eq(schedules.dayOfWeek, jsDay),
+          ),
+        ),
+      ),
+    )
+
+  const toTimeStr = (t: any) =>
+    t instanceof Date
+      ? t.toISOString().slice(11, 16)
+      : typeof t === 'string'
+      ? t.slice(11, 16)
+      : null
+
+  const byCaregiver = new Map<string, any>()
+  for (const r of rows) {
+    if (!r.caregiverId) continue
+    if (!byCaregiver.has(r.caregiverId)) {
+      byCaregiver.set(r.caregiverId, {
+        id: r.caregiverId,
+        name: [r.caregiverFirstName, r.caregiverLastName].filter(Boolean).join(' ').trim(),
+        shifts: [],
+        totalMiles: null,
+        optimizedOrder: null,
+      })
+    }
+    byCaregiver.get(r.caregiverId).shifts.push({
+      scheduleId: r.scheduleId,
+      clientId: r.clientId,
+      clientName: [r.clientFirstName, r.clientLastName].filter(Boolean).join(' ').trim(),
+      address: [r.clientAddress, r.clientCity, r.clientState, r.clientZip].filter(Boolean).join(', '),
+      startTime: toTimeStr(r.startTime),
+      endTime: toTimeStr(r.endTime),
+      lat: r.clientLat ? Number(r.clientLat) : null,
+      lng: r.clientLng ? Number(r.clientLng) : null,
+    })
+  }
+
+  // Sort each caregiver's shifts by startTime
+  for (const cg of byCaregiver.values()) {
+    cg.shifts.sort((a: any, b: any) => String(a.startTime || '').localeCompare(String(b.startTime || '')))
+  }
+
+  return c.json({
+    date: dateParam,
+    caregivers: Array.from(byCaregiver.values()),
+  })
 })
 
 export default app

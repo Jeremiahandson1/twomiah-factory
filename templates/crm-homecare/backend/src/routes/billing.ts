@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
-import { invoices, invoiceLineItems, invoiceAdjustments, clients, timeEntries, clientAssignments, users, referralSources, referralSourceRates } from '../../db/schema.ts'
+import { invoices, invoiceLineItems, invoiceAdjustments, invoicePayments, clients, timeEntries, clientAssignments, users, referralSources, referralSourceRates } from '../../db/schema.ts'
 import { eq, and, gte, lte, count, desc, inArray, isNull } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { createId } from '@paralleldrive/cuid2'
@@ -573,6 +573,160 @@ app.put('/rates/:id', async (c) => {
     .returning()
 
   return c.json(rate)
+})
+
+// GET /referral-source-rates — same shape as /rates, alias path the frontend uses
+app.get('/referral-source-rates', async (c) => {
+  const rows = await db.select({
+    rate: referralSourceRates,
+    referralSourceName: referralSources.name,
+  })
+    .from(referralSourceRates)
+    .leftJoin(referralSources, eq(referralSourceRates.referralSourceId, referralSources.id))
+    .orderBy(desc(referralSourceRates.createdAt))
+
+  return c.json(rows.map(r => ({
+    id: r.rate.id,
+    referral_source_id: r.rate.referralSourceId,
+    referral_source_name: r.referralSourceName,
+    care_type_id: r.rate.careTypeId,
+    rate_amount: r.rate.rateAmount,
+    rate_type: r.rate.rateType,
+    effective_date: r.rate.effectiveDate,
+    end_date: r.rate.endDate,
+    is_active: r.rate.isActive,
+  })))
+})
+
+app.post('/referral-source-rates', async (c) => {
+  const body = await c.req.json()
+  const [rate] = await db.insert(referralSourceRates).values({
+    referralSourceId: body.referralSourceId || body.referral_source_id,
+    careTypeId: body.careTypeId || body.care_type_id || null,
+    rateAmount: body.rateAmount || body.rate_amount,
+    rateType: body.rateType || body.rate_type || 'hourly',
+    effectiveDate: body.effectiveDate || body.effective_date || null,
+    endDate: body.endDate || body.end_date || null,
+  }).returning()
+  return c.json(rate, 201)
+})
+
+app.put('/referral-source-rates/:id', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  const [rate] = await db.update(referralSourceRates)
+    .set({ ...body, updatedAt: new Date() })
+    .where(eq(referralSourceRates.id, id))
+    .returning()
+  return c.json(rate)
+})
+
+app.delete('/referral-source-rates/:id', async (c) => {
+  const id = c.req.param('id')
+  await db.delete(referralSourceRates).where(eq(referralSourceRates.id, id))
+  return c.json({ success: true })
+})
+
+// ── INVOICE PAYMENTS ──────────────────────────────────────────────
+
+// GET /invoice-payments — list payments, optionally filtered by invoice/date
+app.get('/invoice-payments', async (c) => {
+  const { invoiceId, startDate, endDate } = c.req.query()
+
+  const conditions: any[] = []
+  if (invoiceId) conditions.push(eq(invoicePayments.invoiceId, invoiceId))
+  if (startDate) conditions.push(gte(invoicePayments.paymentDate, startDate))
+  if (endDate) conditions.push(lte(invoicePayments.paymentDate, endDate))
+
+  const rows = await db
+    .select()
+    .from(invoicePayments)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(invoicePayments.paymentDate), desc(invoicePayments.createdAt))
+
+  return c.json(rows.map((p) => ({
+    id: p.id,
+    invoice_id: p.invoiceId,
+    amount: p.amount,
+    payment_method: p.paymentMethod,
+    method: p.paymentMethod,
+    reference_number: p.referenceNumber,
+    reference: p.referenceNumber,
+    payment_date: p.paymentDate,
+    received_at: p.paymentDate,
+    notes: p.notes,
+    created_at: p.createdAt,
+  })))
+})
+
+// POST /invoice-payments — record a payment against an invoice
+app.post('/invoice-payments', async (c) => {
+  const user = c.get('user') as any
+  const body = await c.req.json()
+  const invoiceId = body.invoiceId || body.invoice_id
+  const amount = body.amount
+  if (!invoiceId || amount === undefined || amount === null) {
+    return c.json({ error: 'invoiceId and amount are required' }, 400)
+  }
+
+  const [payment] = await db.insert(invoicePayments).values({
+    invoiceId,
+    amount: String(amount),
+    paymentMethod: body.paymentMethod || body.payment_method || 'check',
+    referenceNumber: body.referenceNumber || body.reference_number || null,
+    paymentDate: body.paymentDate || body.payment_date || new Date().toISOString().slice(0, 10),
+    notes: body.notes || null,
+    createdById: user?.userId || null,
+  }).returning()
+
+  // Roll up to invoice: sum all payments for this invoice and update amountPaid / status.
+  const allPayments = await db
+    .select({ amount: invoicePayments.amount })
+    .from(invoicePayments)
+    .where(eq(invoicePayments.invoiceId, invoiceId))
+  const totalPaid = allPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+
+  const [invoice] = await db.select({ total: invoices.total }).from(invoices).where(eq(invoices.id, invoiceId)).limit(1)
+  if (invoice) {
+    const invoiceTotal = Number(invoice.total || 0)
+    const status = totalPaid >= invoiceTotal ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
+    await db.update(invoices).set({
+      amountPaid: String(totalPaid),
+      paymentStatus: status,
+      paidAt: status === 'paid' ? new Date() : null,
+      paymentMethod: payment.paymentMethod,
+      paymentDate: payment.paymentDate,
+      updatedAt: new Date(),
+    }).where(eq(invoices.id, invoiceId))
+  }
+
+  return c.json(payment, 201)
+})
+
+app.delete('/invoice-payments/:id', async (c) => {
+  const id = c.req.param('id')
+  const [existing] = await db.select().from(invoicePayments).where(eq(invoicePayments.id, id)).limit(1)
+  if (!existing) return c.json({ error: 'Payment not found' }, 404)
+  await db.delete(invoicePayments).where(eq(invoicePayments.id, id))
+
+  // Recompute invoice payment status
+  const remaining = await db
+    .select({ amount: invoicePayments.amount })
+    .from(invoicePayments)
+    .where(eq(invoicePayments.invoiceId, existing.invoiceId))
+  const totalPaid = remaining.reduce((sum, p) => sum + Number(p.amount || 0), 0)
+  const [invoice] = await db.select({ total: invoices.total }).from(invoices).where(eq(invoices.id, existing.invoiceId)).limit(1)
+  if (invoice) {
+    const invoiceTotal = Number(invoice.total || 0)
+    const status = totalPaid >= invoiceTotal ? 'paid' : totalPaid > 0 ? 'partial' : 'pending'
+    await db.update(invoices).set({
+      amountPaid: String(totalPaid),
+      paymentStatus: status,
+      paidAt: status === 'paid' ? new Date() : null,
+      updatedAt: new Date(),
+    }).where(eq(invoices.id, existing.invoiceId))
+  }
+  return c.json({ success: true })
 })
 
 export default app
