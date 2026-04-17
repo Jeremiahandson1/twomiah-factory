@@ -17,6 +17,17 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+function toSnake(obj: any): any {
+  if (Array.isArray(obj)) return obj.map(toSnake)
+  if (obj === null || obj === undefined || typeof obj !== 'object' || obj instanceof Date) return obj
+  const result: any = {}
+  for (const [key, val] of Object.entries(obj)) {
+    const snakeKey = key.replace(/([A-Z])/g, '_$1').toLowerCase()
+    result[snakeKey] = toSnake(val)
+  }
+  return result
+}
+
 // GET /api/caregivers
 app.get('/', async (c) => {
   const { search, isActive = 'true', page = '1', limit = '50' } = c.req.query()
@@ -106,7 +117,7 @@ app.get('/', async (c) => {
     availability: availabilityMap[u.id] || null,
   }))
 
-  return c.json({ caregivers, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+  return c.json({ caregivers: toSnake(caregivers), total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
 })
 
 // GET /api/caregivers/:id
@@ -177,13 +188,13 @@ app.get('/:id', async (c) => {
     client: { firstName: clientFirstName, lastName: clientLastName, address: clientAddress, city: clientCity },
   }))
 
-  return c.json({
+  return c.json(toSnake({
     ...user,
     profile: profileRows[0] || null,
     availability: availabilityRows[0] || null,
     assignments,
     backgroundChecks: bgRows,
-  })
+  }))
 })
 
 // POST /api/caregivers
@@ -214,8 +225,7 @@ app.post('/', requireAdmin, async (c) => {
 
   await db.insert(notificationPreferences).values({ userId: caregiver.id })
 
-  return c.json(
-    {
+  return c.json(toSnake({
       id: caregiver.id,
       email: caregiver.email,
       firstName: caregiver.firstName,
@@ -223,11 +233,10 @@ app.post('/', requireAdmin, async (c) => {
       phone: caregiver.phone,
       isActive: caregiver.isActive,
       role: caregiver.role,
+      defaultPayRate: String(profile?.defaultPayRate || data.defaultPayRate || '0'),
       profile: profileRecord,
       availability: availabilityRecord,
-    },
-    201
-  )
+    }), 201)
 })
 
 // PUT /api/caregivers/:id
@@ -311,7 +320,7 @@ app.put('/:id', requireAdmin, async (c) => {
     .where(eq(caregiverAvailability.caregiverId, id))
     .limit(1)
 
-  return c.json({ ...updated, profile: profileRow || null, availability: availabilityRow || null })
+  return c.json(toSnake({ ...updated, profile: profileRow || null, availability: availabilityRow || null }))
 })
 
 // GET /api/caregivers/:id/background-checks
@@ -345,9 +354,9 @@ app.post('/:id/background-checks', requireAdmin, async (c) => {
 })
 
 // GET /api/users/caregivers — list users with role=caregiver (alias-only route)
+// Returns a bare snake_case array to match the shape the Care frontend expects.
 app.get('/caregivers', async (c) => {
-  const { search, isActive = 'true', page = '1', limit = '50' } = c.req.query()
-  const skip = (parseInt(page) - 1) * parseInt(limit)
+  const { search, isActive = 'true' } = c.req.query()
   const conditions: any[] = [eq(users.role, 'caregiver')]
   if (isActive !== 'all') conditions.push(eq(users.isActive, isActive === 'true'))
   if (search) {
@@ -359,13 +368,31 @@ app.get('/caregivers', async (c) => {
       )
     )
   }
-  const whereClause = and(...conditions)
-  const [rows, [{ value: total }]] = await Promise.all([
-    db.select({ id: users.id, firstName: users.firstName, lastName: users.lastName, email: users.email, phone: users.phone, isActive: users.isActive, role: users.role })
-      .from(users).where(whereClause).orderBy(asc(users.lastName)).offset(skip).limit(parseInt(limit)),
-    db.select({ value: count() }).from(users).where(whereClause),
-  ])
-  return c.json({ users: rows, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
+  const rows = await db
+    .select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+      phone: users.phone,
+      isActive: users.isActive,
+      role: users.role,
+    })
+    .from(users)
+    .where(and(...conditions))
+    .orderBy(asc(users.lastName))
+
+  return c.json(
+    rows.map((r) => ({
+      id: r.id,
+      first_name: r.firstName,
+      last_name: r.lastName,
+      email: r.email,
+      phone: r.phone,
+      role: r.role,
+      is_active: r.isActive,
+    }))
+  )
 })
 
 // GET /api/users/admins — list users with role=admin

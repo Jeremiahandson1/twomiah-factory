@@ -34,7 +34,7 @@ const AddCaregiverModal = ({ isOpen, onClose, onSuccess }) => {
           firstName: formData.firstName,
           lastName: formData.lastName,
           phone: formData.phone,
-          payRate: parseFloat(formData.payRate) || 15.00
+          defaultPayRate: String(parseFloat(formData.payRate) || 15.00)
         })
       });
 
