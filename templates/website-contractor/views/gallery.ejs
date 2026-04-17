@@ -1,6 +1,6 @@
 <%
   // Extract data from locals
-  const projects = locals.projects || [];
+  const projects = locals.gallery || locals.projects || [];
   const categories = [...new Set(projects.map(p => p.category))].filter(Boolean);
   
   // Helper to get cover image

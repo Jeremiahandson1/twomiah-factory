@@ -15,6 +15,26 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+// Simple markdown to HTML converter for blog posts
+function renderMarkdown(text) {
+  if (!text) return '';
+  // If content already has HTML tags, return as-is
+  if (/<[a-z][\s\S]*>/i.test(text)) return text;
+  return text
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^\- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/^(?!<[hulo])/gm, function(m) { return m ? '<p>' + m : m; })
+    .replace(/<p><\/p>/g, '')
+    .replace(/<p>(<[hulo])/g, '$1')
+    .replace(/(<\/[hulo][^>]*>)<\/p>/g, '$1');
+}
+
 function estimateReadTime(content) {
   if (!content) return '3 min read';
   const text = content.replace(/<[^>]+>/g, '');
@@ -90,7 +110,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
             </div>
           <% } %>
           <div class="prose">
-            <%- post.content %>
+            <%- renderMarkdown(post.content) %>
           </div>
 
           <% if (post.tags && post.tags.length > 0) { %>
