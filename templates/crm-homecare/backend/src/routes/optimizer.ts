@@ -197,4 +197,23 @@ app.get('/daily/:date', async (c) => {
   })
 })
 
+// GET /stats — summary stats for the route optimizer dashboard
+app.get('/stats', async (c) => {
+  const today = new Date().toISOString().slice(0, 10)
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10)
+
+  const [activeClients] = await db.select({ count: sql<number>`count(*)` }).from(clients).where(eq(clients.isActive, true))
+  const [activeCaregivers] = await db.select({ count: sql<number>`count(*)` }).from(users).where(and(eq(users.role, 'caregiver'), eq(users.isActive, true)))
+  const [todayShifts] = await db.select({ count: sql<number>`count(*)` }).from(schedules).where(and(eq(schedules.date, today), eq(schedules.isActive, true)))
+  const [weekShifts] = await db.select({ count: sql<number>`count(*)` }).from(schedules).where(and(gte(schedules.date, weekAgo), lte(schedules.date, today), eq(schedules.isActive, true)))
+
+  return c.json({
+    activeClients: Number(activeClients?.count || 0),
+    activeCaregivers: Number(activeCaregivers?.count || 0),
+    todayShifts: Number(todayShifts?.count || 0),
+    weekShifts: Number(weekShifts?.count || 0),
+    optimizerConfigured: !!process.env.GOOGLE_MAPS_API_KEY,
+  })
+})
+
 export default app
