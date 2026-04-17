@@ -1230,7 +1230,7 @@ app.post('/leads', async (c) => {
 
     // Forward lead to CRM if configured
     const CRM_API_URL = process.env.CRM_API_URL;
-    const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET;
+    const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || process.env.FACTORY_SYNC_KEY || process.env.JWT_SECRET;
     console.log('[Leads] CRM sync check:', { hasCrmUrl: !!CRM_API_URL, hasSecret: !!WEBHOOK_SECRET, url: CRM_API_URL })
     if (CRM_API_URL && WEBHOOK_SECRET) {
       try {
