@@ -10,7 +10,7 @@
 import { db } from '../../db/index.ts'
 import { user, project, job, contact } from '../../db/schema.ts'
 import { eq, and, sql, count, lte, gte, not, desc, asc } from 'drizzle-orm'
-
+import { createId } from '@paralleldrive/cuid2'
 /** Extract rows array from db.execute() result (node-postgres returns { rows } object) */
 function rows(result: any): any[] {
   return Array.isArray(result) ? result : (result?.rows || [])
@@ -23,7 +23,7 @@ export async function createTask({
   companyId,
   createdById,
   title,
-  description,
+  dINSERT INTO task (id, company_id,escription,
   dueDate,
   priority = 'medium',
   assignedToId,
@@ -51,8 +51,8 @@ export async function createTask({
   }))
 
   const [task] = rows(await db.execute(sql`
-    INSERT INTO task (company_id, created_by_id, title, description, due_date, priority, assigned_to_id, project_id, job_id, contact_id, checklist, status)
-    VALUES (${companyId}, ${createdById}, ${title}, ${description || null}, ${dueDate ? new Date(dueDate) : null}, ${priority}, ${assignedToId || null}, ${projectId || null}, ${jobId || null}, ${contactId || null}, ${JSON.stringify(checklistJson)}, 'pending')
+    INSERT INTO task (id, company_id, created_by_id, title, description, due_date, priority, assigned_to_id, project_id, job_id, contact_id, checklist, status)
+    VALUES (${createId()}, ${companyId}, ${createdById}, ${title}, ${description || null}, ${dueDate ? new Date(dueDate) : null}, ${priority}, ${assignedToId || null}, ${projectId || null}, ${jobId || null}, ${contactId || null}, ${JSON.stringify(checklistJson)}, 'pending')
     RETURNING *
   `))
 
