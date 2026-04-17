@@ -90,10 +90,10 @@ export default function InventoryPage() {
           value={items.filter(i => i.isLowStock).length}
           color="red"
         />
-        <StatCard 
-          icon={BarChart3} 
-          label="Total Value" 
-          value="$--"
+        <StatCard
+          icon={BarChart3}
+          label="Total Value"
+          value={`$${items.reduce((sum, i) => sum + (Number(i.totalStock) || 0) * (Number(i.unitCost) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
           color="green"
         />
       </div>

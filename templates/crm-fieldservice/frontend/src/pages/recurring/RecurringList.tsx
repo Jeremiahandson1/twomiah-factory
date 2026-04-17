@@ -81,7 +81,7 @@ export default function RecurringInvoiceList() {
   const handleGenerateNow = async (id) => {
     try {
       const invoice = await api.post(`/api/recurring/${id}/generate`);
-      navigate(`/invoices/${invoice.id}`);
+      navigate(`/crm/invoices/${invoice.id}`);
     } catch (error) {
       alert('Failed to generate invoice');
     }

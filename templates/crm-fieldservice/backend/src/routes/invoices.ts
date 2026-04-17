@@ -114,7 +114,8 @@ app.get('/:id', requirePermission('invoices:read'), async (c) => {
     db.select().from(payment).where(eq(payment.invoiceId, id)).orderBy(desc(payment.paidAt)),
   ])
 
-  return c.json({ ...foundInvoice, contact: invoiceContact[0] || null, project: invoiceProject[0] || null, quote: invoiceQuote[0] || null, lineItems, payments })
+  const balance = Number(foundInvoice.total) - Number(foundInvoice.amountPaid || 0)
+  return c.json({ ...foundInvoice, balance, contact: invoiceContact[0] || null, project: invoiceProject[0] || null, quote: invoiceQuote[0] || null, lineItems, payments })
 })
 
 app.post('/', requirePermission('invoices:create'), async (c) => {

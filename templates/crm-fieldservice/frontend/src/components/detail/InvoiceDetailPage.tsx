@@ -40,7 +40,7 @@ export default function InvoiceDetailPage() {
     try {
       await api.invoices.delete(id);
       toast.success('Invoice deleted');
-      navigate('/invoices');
+      navigate('/crm/invoices');
     } catch (err) {
       toast.error(err.message);
     }
@@ -91,13 +91,14 @@ export default function InvoiceDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadInvoice} actionLabel="Retry" />;
   if (!invoice) return <EmptyState title="Invoice not found" />;
 
-  const balanceColor = Number(invoice.balance) > 0 ? 'text-red-600' : 'text-green-600';
+  const computedBalance = Number(invoice.balance) || (Number(invoice.total || 0) - Number(invoice.amountPaid || 0));
+  const balanceColor = computedBalance > 0 ? 'text-red-600' : 'text-green-600';
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/invoices')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/invoices')} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -112,12 +113,12 @@ export default function InvoiceDetailPage() {
               <Send className="w-4 h-4" /> Send
             </button>
           )}
-          {Number(invoice.balance) > 0 && invoice.status !== 'draft' && (
+          {computedBalance > 0 && invoice.status !== 'draft' && (
             <button onClick={() => setPaymentOpen(true)} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
               <DollarSign className="w-4 h-4" /> Record Payment
             </button>
           )}
-          <Link to={`/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
@@ -154,7 +155,7 @@ export default function InvoiceDetailPage() {
                 {Number(invoice.taxAmount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
                 <tr className="font-bold"><td colSpan="3" className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
                 <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>
-                <tr className="font-bold text-lg"><td colSpan="3" className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${Number(invoice.balance).toFixed(2)}</td></tr>
+                <tr className="font-bold text-lg"><td colSpan="3" className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${computedBalance.toFixed(2)}</td></tr>
               </tfoot>
             </table>
           </div>
@@ -193,13 +194,13 @@ export default function InvoiceDetailPage() {
               {invoice.contact && (
                 <div>
                   <p className="text-gray-500">Client</p>
-                  <Link to={`/contacts/${invoice.contact.id}`} className="text-orange-500 hover:underline">{invoice.contact.name}</Link>
+                  <Link to={`/crm/contacts/${invoice.contact.id}`} className="text-orange-500 hover:underline">{invoice.contact.name}</Link>
                 </div>
               )}
               {invoice.dueDate && (
                 <div>
                   <p className="text-gray-500">Due Date</p>
-                  <p className={new Date(invoice.dueDate) < new Date() && Number(invoice.balance) > 0 ? 'text-red-600 font-medium' : ''}>{new Date(invoice.dueDate).toLocaleDateString()}</p>
+                  <p className={new Date(invoice.dueDate) < new Date() && computedBalance > 0 ? 'text-red-600 font-medium' : ''}>{new Date(invoice.dueDate).toLocaleDateString()}</p>
                 </div>
               )}
               <div>
@@ -226,9 +227,9 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
 
-          <div className={`rounded-lg p-6 text-center ${Number(invoice.balance) > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-            <p className={`text-3xl font-bold ${balanceColor}`}>${Number(invoice.balance).toLocaleString()}</p>
-            <p className="text-gray-600">{Number(invoice.balance) > 0 ? 'Balance Due' : 'Paid in Full'}</p>
+          <div className={`rounded-lg p-6 text-center ${computedBalance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+            <p className={`text-3xl font-bold ${balanceColor}`}>${computedBalance.toLocaleString()}</p>
+            <p className="text-gray-600">{computedBalance > 0 ? 'Balance Due' : 'Paid in Full'}</p>
           </div>
         </div>
       </div>

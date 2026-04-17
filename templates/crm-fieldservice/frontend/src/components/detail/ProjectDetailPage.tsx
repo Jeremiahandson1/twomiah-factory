@@ -44,7 +44,7 @@ export default function ProjectDetailPage() {
     try {
       await api.projects.delete(id);
       toast.success('Project deleted');
-      navigate('/projects');
+      navigate('/crm/projects');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -70,7 +70,7 @@ export default function ProjectDetailPage() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/crm/projects')}
             className="p-2 hover:bg-gray-100 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -84,7 +84,7 @@ export default function ProjectDetailPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
             {project.contact && (
-              <Link to={`/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500">
+              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500">
                 {project.contact.name}
               </Link>
             )}
@@ -92,7 +92,7 @@ export default function ProjectDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to={`/projects?edit=${id}`}
+            to={`/crm/projects?edit=${id}`}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
           >
             <Edit className="w-4 h-4" />
@@ -195,7 +195,7 @@ export default function ProjectDetailPage() {
             <div className="bg-white rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Service Calls</h2>
-                <Link to={`/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
               </div>
@@ -203,7 +203,7 @@ export default function ProjectDetailPage() {
                 {project.jobs.slice(0, 5).map(job => (
                   <Link
                     key={job.id}
-                    to={`/jobs/${job.id}`}
+                    to={`/crm/jobs/${job.id}`}
                     className="p-4 flex items-center justify-between hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
@@ -327,7 +327,7 @@ export default function ProjectDetailPage() {
             <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
             <div className="space-y-2">
               <Link
-                to={`/jobs?projectId=${id}&new=true`}
+                to={`/crm/jobs?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <Briefcase className="w-4 h-4 text-gray-500" />

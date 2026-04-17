@@ -35,7 +35,7 @@ export default function QuoteDetailPage() {
     try {
       await api.quotes.delete(id);
       toast.success('Quote deleted');
-      navigate('/quotes');
+      navigate('/crm/quotes');
     } catch (err) {
       toast.error(err.message);
     }
@@ -75,7 +75,7 @@ export default function QuoteDetailPage() {
     try {
       const newJob = await api.quotes.convertToJob(id);
       toast.success('Job created from quote');
-      navigate(`/jobs/${newJob.id}`);
+      navigate(`/crm/jobs/${newJob.id}`);
     } catch (err) {
       toast.error(err.message);
     }
@@ -85,7 +85,7 @@ export default function QuoteDetailPage() {
     try {
       const invoice = await api.quotes.convertToInvoice(id);
       toast.success('Invoice created');
-      navigate(`/invoices/${invoice.id}`);
+      navigate(`/crm/invoices/${invoice.id}`);
     } catch (err) {
       toast.error(err.message);
     }
@@ -99,7 +99,7 @@ export default function QuoteDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/quotes')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/quotes')} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -138,7 +138,7 @@ export default function QuoteDetailPage() {
             <Download className="w-4 h-4" /> PDF
           </a>
           {['draft', 'sent'].includes(quote.status) && (
-            <Link to={`/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+            <Link to={`/crm/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
               <Edit className="w-4 h-4" /> Edit
             </Link>
           )}
@@ -153,7 +153,7 @@ export default function QuoteDetailPage() {
       {quote.convertedToJobId && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
           <p className="text-green-800">This quote has been converted to a job.</p>
-          <Link to={`/jobs/${quote.convertedToJobId}`} className="text-green-700 font-medium hover:underline flex items-center gap-1">
+          <Link to={`/crm/jobs/${quote.convertedToJobId}`} className="text-green-700 font-medium hover:underline flex items-center gap-1">
             <Briefcase className="w-4 h-4" /> View Job
           </Link>
         </div>
@@ -261,13 +261,13 @@ export default function QuoteDetailPage() {
               {quote.contact && (
                 <div>
                   <p className="text-gray-500">Client</p>
-                  <Link to={`/contacts/${quote.contact.id}`} className="text-orange-500 hover:underline">{quote.contact.name}</Link>
+                  <Link to={`/crm/contacts/${quote.contact.id}`} className="text-orange-500 hover:underline">{quote.contact.name}</Link>
                 </div>
               )}
               {quote.project && (
                 <div>
                   <p className="text-gray-500">Project</p>
-                  <Link to={`/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
+                  <Link to={`/crm/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
                 </div>
               )}
               {quote.equipment && (

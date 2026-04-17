@@ -92,7 +92,7 @@ export default function QuotesPage() {
   const handleReject = async (q) => { try { await api.quotes.reject(q.id); toast.success('Quote rejected'); load(); } catch (err) { toast.error(err.message); } };
   const handleDecline = async (q) => { try { await api.quotes.decline(q.id); toast.success('Quote declined'); load(); } catch (err) { toast.error(err.message); } };
   const handleConvert = async (q) => { try { await api.quotes.convertToInvoice(q.id); toast.success('Invoice created'); load(); } catch (err) { toast.error(err.message); } };
-  const handleConvertToJob = async (q) => { try { const newJob = await api.quotes.convertToJob(q.id); toast.success('Job created from quote'); navigate(`/jobs/${newJob.id}`); } catch (err) { toast.error(err.message); } };
+  const handleConvertToJob = async (q) => { try { const newJob = await api.quotes.convertToJob(q.id); toast.success('Job created from quote'); navigate(`/crm/jobs/${newJob.id}`); } catch (err) { toast.error(err.message); } };
 
   const addLineItem = () => setForm({ ...form, lineItems: [...form.lineItems, { description: '', quantity: 1, unitPrice: 0 }] });
   const updateLineItem = (idx, field, val) => { const items = [...form.lineItems]; items[idx][field] = val; setForm({ ...form, lineItems: items }); };
@@ -112,7 +112,7 @@ export default function QuotesPage() {
     <div>
       <PageHeader title="Quotes" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Quote</Button>} />
       <div className="mb-4"><select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-4 py-2 border rounded-lg"><option value="">All Status</option>{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/quotes/${row.id}`)} actions={[
+      <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/crm/quotes/${row.id}`)} actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit },
         { label: 'Send', icon: Send, onClick: handleSend },
         { label: 'Approve', icon: Check, onClick: handleApprove },

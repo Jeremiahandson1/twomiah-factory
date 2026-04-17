@@ -112,7 +112,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow-sm">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Recent Service Calls</h2>
-            <Link to="/jobs" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
+            <Link to="/crm/jobs" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {activity?.recentJobs?.length > 0 ? activity.recentJobs.map((job) => (
@@ -137,7 +137,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow-sm">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Recent Quotes</h2>
-            <Link to="/quotes" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
+            <Link to="/crm/quotes" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {activity?.recentQuotes?.length > 0 ? activity.recentQuotes.map((quote) => (
@@ -163,7 +163,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow-sm">
           <div className="p-4 border-b flex items-center justify-between">
             <h2 className="font-semibold text-gray-900">Recent Invoices</h2>
-            <Link to="/invoices" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
+            <Link to="/crm/invoices" className="text-sm text-orange-500 hover:text-orange-600">View all</Link>
           </div>
           <div className="divide-y">
             {activity?.recentInvoices?.length > 0 ? activity.recentInvoices.map((invoice) => (

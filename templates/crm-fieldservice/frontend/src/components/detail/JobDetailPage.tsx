@@ -49,7 +49,7 @@ export default function JobDetailPage() {
     try {
       await api.jobs.delete(id);
       toast.success('Service call deleted');
-      navigate('/jobs');
+      navigate('/crm/jobs');
     } catch (err) {
       toast.error(err.message);
     }
@@ -96,7 +96,7 @@ export default function JobDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/jobs')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/jobs')} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -119,7 +119,7 @@ export default function JobDetailPage() {
               <CheckCircle className="w-4 h-4" /> Complete
             </button>
           )}
-          <Link to={`/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2">
@@ -200,19 +200,19 @@ export default function JobDetailPage() {
             <h2 className="font-semibold mb-4">Related</h2>
             <div className="space-y-3">
               {job.project && (
-                <Link to={`/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <Link to={`/crm/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
                   <p className="text-sm text-gray-500">Project</p>
                   <p className="font-medium">{job.project.name}</p>
                 </Link>
               )}
               {job.contact && (
-                <Link to={`/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <Link to={`/crm/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
                   <p className="text-sm text-gray-500">Contact</p>
                   <p className="font-medium">{job.contact.name}</p>
                 </Link>
               )}
               {job.equipment && (
-                <Link to={`/equipment`} className="block p-3 bg-orange-50 rounded-lg hover:bg-orange-100">
+                <Link to={`/crm/equipment`} className="block p-3 bg-orange-50 rounded-lg hover:bg-orange-100">
                   <p className="text-sm text-gray-500 flex items-center gap-1"><Wrench className="w-3.5 h-3.5" /> Equipment</p>
                   <p className="font-medium">{job.equipment.name}</p>
                   <p className="text-sm text-gray-500">

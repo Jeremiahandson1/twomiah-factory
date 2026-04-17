@@ -162,7 +162,7 @@ export default function ContactDetailPage() {
     try {
       await api.contacts.delete(id);
       toast.success('Contact deleted');
-      navigate('/contacts');
+      navigate('/crm/contacts');
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -197,7 +197,7 @@ export default function ContactDetailPage() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/contacts')}
+            onClick={() => navigate('/crm/contacts')}
             className="p-2 hover:bg-gray-100 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -227,7 +227,7 @@ export default function ContactDetailPage() {
             </button>
           )}
           <Link
-            to={`/contacts?edit=${id}`}
+            to={`/crm/contacts?edit=${id}`}
             className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
           >
             <Edit className="w-4 h-4" />
@@ -326,7 +326,7 @@ export default function ContactDetailPage() {
                 {contact.projects.map(project => (
                   <Link
                     key={project.id}
-                    to={`/projects/${project.id}`}
+                    to={`/crm/projects/${project.id}`}
                     className="p-4 flex items-center justify-between hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
@@ -354,7 +354,7 @@ export default function ContactDetailPage() {
                 {contact.quotes.map(quote => (
                   <Link
                     key={quote.id}
-                    to={`/quotes/${quote.id}`}
+                    to={`/crm/quotes/${quote.id}`}
                     className="p-4 flex items-center justify-between hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
@@ -381,7 +381,7 @@ export default function ContactDetailPage() {
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">{contact.equipment?.length || 0}</span>
                 <Link
-                  to={`/equipment?contactId=${id}`}
+                  to={`/crm/equipment?contactId=${id}`}
                   className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 flex items-center gap-1"
                 >
                   <Plus className="w-3 h-3" />
@@ -394,7 +394,7 @@ export default function ContactDetailPage() {
                 {contact.equipment.map(eq => (
                   <Link
                     key={eq.id}
-                    to={`/equipment`}
+                    to={`/crm/equipment`}
                     className="p-4 flex items-center justify-between hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
@@ -581,21 +581,21 @@ export default function ContactDetailPage() {
             <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
             <div className="space-y-2">
               <Link
-                to={`/quotes?contactId=${id}`}
+                to={`/crm/quotes?contactId=${id}`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <FileText className="w-4 h-4 text-gray-500" />
                 Create Quote
               </Link>
               <Link
-                to={`/jobs?contactId=${id}`}
+                to={`/crm/jobs?contactId=${id}`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <Briefcase className="w-4 h-4 text-gray-500" />
                 Schedule Job
               </Link>
               <Link
-                to={`/invoices?contactId=${id}`}
+                to={`/crm/invoices?contactId=${id}`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <Receipt className="w-4 h-4 text-gray-500" />
@@ -740,7 +740,7 @@ export default function ContactDetailPage() {
                   {siteDetail.jobs?.length > 0 ? (
                     <div className="divide-y border rounded-lg">
                       {siteDetail.jobs.map((j: any) => (
-                        <Link key={j.id} to={`/jobs/${j.id}`} className="p-3 flex items-center justify-between hover:bg-gray-50">
+                        <Link key={j.id} to={`/crm/jobs/${j.id}`} className="p-3 flex items-center justify-between hover:bg-gray-50">
                           <div>
                             <p className="font-medium text-gray-900 text-sm">{j.title}</p>
                             <p className="text-xs text-gray-500">{j.number} — {j.scheduledDate ? new Date(j.scheduledDate).toLocaleDateString() : ''}</p>

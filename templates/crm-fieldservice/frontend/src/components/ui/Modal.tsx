@@ -57,7 +57,7 @@ export function Modal({
               )}
             </div>
           )}
-          <div className="p-6">{children}</div>
+          <div className="p-6 text-slate-200 [&_label]:text-slate-200 [&_select]:text-gray-900 [&_input]:text-gray-900 [&_textarea]:text-gray-900">{children}</div>
         </div>
       </div>
     </div>
