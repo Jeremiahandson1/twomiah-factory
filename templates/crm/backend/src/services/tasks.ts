@@ -23,7 +23,7 @@ export async function createTask({
   companyId,
   createdById,
   title,
-  dINSERT INTO task (id, company_id,escription,
+  description,
   dueDate,
   priority = 'medium',
   assignedToId,
