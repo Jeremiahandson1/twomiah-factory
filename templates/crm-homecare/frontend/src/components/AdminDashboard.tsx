@@ -313,7 +313,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'no-show-alerts': return <NoShowAlerts />;
       case 'form-builder': return <FormBuilder />;
       case 'revenue-forecast': return <RevenueForecast />;
-      case 'ai-receptionist': return <AIReceptionist />;
+      // ai-receptionist handled above (line 275)
       case 'ads': return <AdsPage />;
       case 'lead-inbox': return <LeadInboxPage />;
       case 'lead-sources': return <LeadSourcesPage />;
