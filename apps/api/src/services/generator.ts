@@ -314,8 +314,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
     '{{SITE_URL}}': c.siteUrl || ('https://' + (c.domain || slug + '.com')),
     '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
-    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf.onrender.com' : 'https://' + slug + '-crm.onrender.com',
     '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
+    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
     '{{INDUSTRY}}': industryLabel,
     '{{META_DESCRIPTION}}': industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'
