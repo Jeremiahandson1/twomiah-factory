@@ -467,8 +467,11 @@ function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<strin
   if (fs.existsSync(seedTemplatePath)) {
     let seedContent = fs.readFileSync(seedTemplatePath, 'utf8')
     const featuresJson = JSON.stringify(features, null, 6).replace(/\n/g, '\n      ')
-    seedContent = seedContent.replace('{{ENABLED_FEATURES_JSON}}', featuresJson)
-    seedContent = seedContent.replace('{{ENABLED_FEATURES_COUNT}}', features.length + ' features')
+    // Use split/join for global replacement — String.prototype.replace with a
+    // string needle only replaces the FIRST match, which silently broke tenants
+    // whose templates referenced the placeholder in two places.
+    seedContent = seedContent.split('{{ENABLED_FEATURES_JSON}}').join(featuresJson)
+    seedContent = seedContent.split('{{ENABLED_FEATURES_COUNT}}').join(features.length + ' features')
     seedContent = injectTokens(seedContent, tokens)
     fs.writeFileSync(seedOutputPath, seedContent, 'utf8')
     fs.unlinkSync(seedTemplatePath)
