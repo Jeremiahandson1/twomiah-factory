@@ -177,3 +177,58 @@ export function getCategories(): string[] {
 export function getFeaturesForTemplate(template: string): FeatureDef[] {
   return FEATURE_REGISTRY.filter(f => f.templates.includes(template))
 }
+
+// Plan tier → feature IDs. Each tier includes all features from lower tiers.
+const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
+  crm: {
+    starter: ['contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'expense_tracking', 'documents', 'online_payments', 'client_portal'],
+    pro: ['two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking', 'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs', 'service_dispatch', 'drag_drop_calendar', 'lead_inbox'],
+    business: ['inventory', 'equipment_tracking', 'fleet', 'email_marketing', 'call_tracking', 'consumer_financing', 'reports', 'job_costing', 'photo_capture', 'referral_program', 'paid_ads', 'ai_receptionist'],
+    construction: ['projects', 'rfis', 'change_orders', 'punch_lists', 'daily_logs', 'inspections', 'bid_management', 'takeoff_tools', 'selections', 'custom_dashboards', 'map_view'],
+    enterprise: ['visualizer', 'instant_estimator'],
+  },
+  'crm-fieldservice': {
+    starter: ['contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'online_payments', 'client_portal', 'documents'],
+    pro: ['two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking', 'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs', 'service_dispatch', 'drag_drop_calendar', 'lead_inbox', 'dispatch_board', 'flat_rate_pricebook', 'service_agreements'],
+    business: ['equipment_tracking', 'fleet', 'parts_tracking', 'maintenance_contracts', 'warranties', 'expense_tracking', 'reports', 'job_costing', 'photo_capture', 'call_tracking', 'email_marketing', 'referral_program', 'paid_ads', 'ai_receptionist', 'inventory'],
+    fleet: ['map_view'],
+    enterprise: ['visualizer'],
+  },
+  'crm-roof': {
+    starter: ['contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard', 'documents', 'client_portal', 'lead_inbox', 'crews'],
+    pro: ['pricebook', 'measurement_reports', 'google_reviews', 'two_way_texting', 'quickbooks'],
+    business: ['insurance_workflow', 'materials', 'call_tracking', 'reports', 'photo_capture', 'instant_estimator'],
+    storm: ['storm_lead_gen', 'canvassing_tool', 'ai_receptionist', 'paid_ads'],
+    enterprise: ['visualizer'],
+  },
+  'crm-homecare': {
+    starter: ['contacts', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'documents'],
+    pro: ['two_way_texting', 'pricebook', 'lead_inbox', 'gps_tracking'],
+    business: ['quickbooks', 'reports', 'call_tracking'],
+    agency: ['ai_receptionist'],
+    enterprise: [],
+  },
+}
+
+/**
+ * Get all feature IDs a plan tier unlocks for a given template.
+ * Each tier includes all lower-tier features (cumulative).
+ */
+export function getFeaturesForPlan(template: string, plan: string): string[] {
+  const tiers = PLAN_FEATURES[template]
+  if (!tiers) return getFeaturesForTemplate(template).map(f => f.id)
+
+  const tierOrder = Object.keys(tiers)
+  const planIndex = tierOrder.indexOf(plan)
+
+  if (planIndex === -1) {
+    // Unknown plan — give all features for the template
+    return getFeaturesForTemplate(template).map(f => f.id)
+  }
+
+  const features: string[] = []
+  for (let i = 0; i <= planIndex; i++) {
+    features.push(...tiers[tierOrder[i]])
+  }
+  return features
+}

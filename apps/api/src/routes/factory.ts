@@ -532,6 +532,7 @@ function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
       zip: tenant.zip || undefined,
       domain: tenant.domain || undefined,
       industry: tenant.industry || undefined,
+      plan: tenant.plan || 'starter',
       defaultPassword: tenant.admin_password || undefined,
       siteUrl: tenant.website_url || undefined,
     },
@@ -1818,6 +1819,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         zip: body.zip || undefined,
         domain: body.domain || undefined,
         industry: body.industry || undefined,
+        plan: body.plan || 'starter',
         defaultPassword: body.admin_password || undefined,
       },
       branding: {

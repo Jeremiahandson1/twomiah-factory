@@ -9,7 +9,7 @@ import crypto from 'crypto'
 import { spawnSync } from 'child_process'
 import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
-import { getFeaturesForTemplate } from '../config/featureRegistry'
+import { getFeaturesForPlan } from '../config/featureRegistry'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
 const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
@@ -445,15 +445,15 @@ function injectTokens(content: string, tokens: Record<string, string>): string {
 
 
 function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<string, string>) {
-  // Derive full feature list from the template if signup only sent add-on checkboxes.
-  // The signup form sends features like ['sms', 'gps', 'inventory'] — just the add-ons.
-  // The CRM needs ALL features for its tier (e.g., Construction gets 40+ features).
-  const templateName = path.basename(crmDir) // e.g., 'crm', 'crm-fieldservice', 'crm-roof'
+  // Derive features from the plan tier + template.
+  // The signup form sends add-on checkboxes (sms, gps, etc.) but NOT the
+  // full feature list for the tier. We resolve: plan → tier features → merge with add-ons.
+  const templateName = path.basename(crmDir)
   const signupFeatures = config.features?.crm || []
-  const templateFeatures = getFeaturesForTemplate(templateName).map(f => f.id)
-  // Merge: all template features + any add-ons from signup that aren't already included
-  const features = templateFeatures.length > 0
-    ? [...new Set([...templateFeatures, ...signupFeatures])]
+  const plan = config.company?.plan || 'starter'
+  const planFeatures = getFeaturesForPlan(templateName, plan)
+  const features = planFeatures.length > 0
+    ? [...new Set([...planFeatures, ...signupFeatures])]
     : signupFeatures
   const manifest = loadManifest(crmDir)
 
