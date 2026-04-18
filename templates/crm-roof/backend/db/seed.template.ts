@@ -4,6 +4,12 @@ import { company, user, contact, job, crew, measurementReport, material, invoice
 
 const db = drizzle(process.env.DATABASE_URL!)
 
+// Factory replaces this placeholder at generate time. Keeping it inside a
+// backtick string guarantees the file is valid JS even if substitution fails —
+// the runtime guard below falls back to [] so the seed still completes.
+const __FEATURES_RAW = `{{ENABLED_FEATURES_JSON}}`
+const enabledFeatures: string[] = __FEATURES_RAW.trim().startsWith('{{') ? [] : JSON.parse(__FEATURES_RAW)
+
 async function main() {
   console.log('Setting up your Roofing CRM...')
 
@@ -20,7 +26,7 @@ async function main() {
       state: '{{STATE}}',
       zip: '{{ZIP}}',
       primaryColor: '{{PRIMARY_COLOR}}',
-      enabledFeatures: {{ENABLED_FEATURES_JSON}},
+      enabledFeatures,
       settings: {
         siteUrl: '{{SITE_URL}}',
         generatedBy: '{{COMPANY_NAME}} Factory',
@@ -37,10 +43,9 @@ async function main() {
     console.log('Created company:', comp.name)
   } else {
     console.log('Company already exists:', comp.name)
-    const latestFeatures = {{ENABLED_FEATURES_JSON}}
-    if (latestFeatures.length > 0) {
-      await db.update(company).set({ enabledFeatures: latestFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
-      console.log(`Updated enabledFeatures: ${latestFeatures.length} features`)
+    if (enabledFeatures.length > 0) {
+      await db.update(company).set({ enabledFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
+      console.log(`Updated enabledFeatures: ${enabledFeatures.length} features`)
     }
   }
 

@@ -5,6 +5,12 @@ import { company, user, product, productCategory, loyaltyReward, deliveryZone, s
 
 const db = drizzle(process.env.DATABASE_URL!)
 
+// Factory replaces this placeholder at generate time. Keeping it inside a
+// backtick string guarantees the file is valid JS even if substitution fails —
+// the runtime guard below falls back to [] so the seed still completes.
+const __FEATURES_RAW = `{{ENABLED_FEATURES_JSON}}`
+const enabledFeatures: string[] = __FEATURES_RAW.trim().startsWith('{{') ? [] : JSON.parse(__FEATURES_RAW)
+
 async function main() {
   console.log('Setting up your dispensary CRM...')
 
@@ -23,7 +29,7 @@ async function main() {
       primaryColor: '{{PRIMARY_COLOR}}',
       secondaryColor: '{{SECONDARY_COLOR}}',
       website: '{{SITE_URL}}',
-      enabledFeatures: {{ENABLED_FEATURES_JSON}},
+      enabledFeatures,
       taxRate: '10',
       loyaltyPointsPerDollar: 1,
       purchaseLimitOz: '2.5',

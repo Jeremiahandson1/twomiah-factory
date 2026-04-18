@@ -5,6 +5,14 @@ import { company, user, supportKnowledgeBase, pricebookCategory, pricebookItem }
 
 const db = drizzle(process.env.DATABASE_URL!)
 
+// Factory replaces these placeholders at generate time. Keeping them inside
+// backtick strings guarantees the file is valid JS even if substitution fails —
+// the runtime guard below falls back to [] so the seed still completes.
+const __FEATURES_RAW = `{{ENABLED_FEATURES_JSON}}`
+const __PRODUCTS_RAW = `{{PRODUCTS_JSON}}`
+const enabledFeatures: string[] = __FEATURES_RAW.trim().startsWith('{{') ? [] : JSON.parse(__FEATURES_RAW)
+const enabledProducts: string[] = __PRODUCTS_RAW.trim().startsWith('{{') ? [] : JSON.parse(__PRODUCTS_RAW)
+
 async function main() {
   console.log('Setting up your CRM...')
 
@@ -23,9 +31,9 @@ async function main() {
       primaryColor: '{{PRIMARY_COLOR}}',
       secondaryColor: '{{SECONDARY_COLOR}}',
       website: '{{SITE_URL}}',
-      enabledFeatures: {{ENABLED_FEATURES_JSON}},
+      enabledFeatures,
       settings: {
-        products: {{PRODUCTS_JSON}},
+        products: enabledProducts,
         siteUrl: '{{SITE_URL}}',
         cmsUrl: '{{CMS_URL}}',
         generatedBy: '{{COMPANY_NAME}} Factory',
@@ -35,18 +43,16 @@ async function main() {
     console.log('Created company:', comp.name)
 
     // Auto-enable estimator if feature was selected
-    const features = (comp.enabledFeatures as string[]) || []
-    if (features.includes('instant_estimator')) {
+    if (enabledFeatures.includes('instant_estimator')) {
       await db.update(company).set({ estimatorEnabled: true }).where(eq(company.id, comp.id))
       console.log('Estimator auto-enabled')
     }
   } else {
     console.log('Company already exists:', comp.name)
     // Always sync enabledFeatures on redeploy — the Factory may have updated them
-    const latestFeatures = {{ENABLED_FEATURES_JSON}}
-    if (latestFeatures.length > 0) {
-      await db.update(company).set({ enabledFeatures: latestFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
-      console.log(`Updated enabledFeatures: ${latestFeatures.length} features`)
+    if (enabledFeatures.length > 0) {
+      await db.update(company).set({ enabledFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
+      console.log(`Updated enabledFeatures: ${enabledFeatures.length} features`)
     }
   }
 
