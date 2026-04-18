@@ -179,33 +179,89 @@ export function getFeaturesForTemplate(template: string): FeatureDef[] {
 }
 
 // Plan tier → feature IDs. Each tier includes all features from lower tiers.
+// Feature IDs MUST match what the sidebar checks in AppLayout.tsx.
+// Each tier is cumulative — includes all lower tier features.
 const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
   crm: {
-    starter: ['contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'expense_tracking', 'documents', 'online_payments', 'client_portal'],
-    pro: ['two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking', 'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs', 'service_dispatch', 'drag_drop_calendar', 'lead_inbox'],
-    business: ['inventory', 'equipment_tracking', 'fleet', 'email_marketing', 'call_tracking', 'consumer_financing', 'reports', 'job_costing', 'photo_capture', 'referral_program', 'paid_ads', 'ai_receptionist'],
-    construction: ['projects', 'rfis', 'change_orders', 'punch_lists', 'daily_logs', 'inspections', 'bid_management', 'takeoff_tools', 'selections', 'custom_dashboards', 'map_view'],
+    starter: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
+      'time_tracking', 'expense_tracking', 'documents', 'online_payments', 'client_portal',
+    ],
+    pro: [
+      'two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking',
+      'google_reviews', 'review_requests', 'pricebook', 'quickbooks', 'recurring_jobs',
+      'service_dispatch', 'drag_drop_calendar', 'lead_inbox',
+      'service_agreements', // agreements page
+    ],
+    business: [
+      'inventory', 'equipment_tracking', 'fleet', 'warranties',
+      'email_marketing', 'call_tracking', 'consumer_financing',
+      'reports', 'job_costing', 'photo_capture', 'referral_program',
+      'paid_ads', 'ai_receptionist',
+    ],
+    construction: [
+      'projects', 'rfis', 'change_orders', 'punch_lists', 'daily_logs', 'inspections',
+      'bid_management', 'takeoff_tools', 'selections',
+      'submittals', 'lien_waivers', 'draw_schedules', 'aia_forms', 'gantt_charts',
+      'custom_dashboards', 'map_view',
+    ],
     enterprise: ['visualizer', 'instant_estimator'],
   },
   'crm-fieldservice': {
-    starter: ['contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'online_payments', 'client_portal', 'documents'],
-    pro: ['two_way_texting', 'gps_tracking', 'route_optimization', 'online_booking', 'google_reviews', 'pricebook', 'quickbooks', 'recurring_jobs', 'service_dispatch', 'drag_drop_calendar', 'lead_inbox', 'dispatch_board', 'flat_rate_pricebook', 'service_agreements'],
-    business: ['equipment_tracking', 'fleet', 'parts_tracking', 'maintenance_contracts', 'warranties', 'expense_tracking', 'reports', 'job_costing', 'photo_capture', 'call_tracking', 'email_marketing', 'referral_program', 'paid_ads', 'ai_receptionist', 'inventory'],
-    fleet: ['map_view'],
+    starter: [
+      'contacts', 'jobs', 'quotes', 'invoices', 'scheduling', 'team', 'dashboard',
+      'time_tracking', 'online_payments', 'client_portal', 'documents',
+    ],
+    pro: [
+      'two_way_texting', 'gps_tracking', 'geofencing', 'route_optimization', 'online_booking',
+      'google_reviews', 'review_requests', 'pricebook', 'quickbooks', 'recurring_jobs',
+      'service_dispatch', 'drag_drop_calendar', 'lead_inbox',
+      'dispatch_board', 'flat_rate_pricebook', 'service_agreements',
+      'tech_mobile_view',
+    ],
+    business: [
+      'equipment_tracking', 'fleet', 'parts_tracking', 'parts_inventory',
+      'maintenance_contracts', 'warranties', 'inventory',
+      'expense_tracking', 'reports', 'job_costing', 'photo_capture',
+      'call_tracking', 'email_marketing', 'referral_program',
+      'paid_ads', 'ai_receptionist',
+    ],
+    fleet: [
+      'multi_location', 'commission_tracking', 'map_view',
+    ],
     enterprise: ['visualizer'],
   },
   'crm-roof': {
-    starter: ['contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard', 'documents', 'client_portal', 'lead_inbox', 'crews'],
-    pro: ['pricebook', 'measurement_reports', 'google_reviews', 'two_way_texting', 'quickbooks'],
-    business: ['insurance_workflow', 'materials', 'call_tracking', 'reports', 'photo_capture', 'instant_estimator'],
-    storm: ['storm_lead_gen', 'canvassing_tool', 'ai_receptionist', 'paid_ads'],
+    starter: [
+      'contacts', 'pipeline_board', 'quotes', 'invoices', 'scheduling', 'dashboard',
+      'documents', 'client_portal', 'lead_inbox', 'crews',
+    ],
+    pro: [
+      'pricebook', 'measurement_reports', 'google_reviews', 'review_requests',
+      'two_way_texting', 'quickbooks',
+    ],
+    business: [
+      'insurance_workflow', 'materials', 'call_tracking', 'reports',
+      'photo_capture', 'instant_estimator', 'consumer_financing',
+    ],
+    storm: [
+      'storm_lead_gen', 'canvassing_tool', 'ai_receptionist', 'paid_ads',
+    ],
     enterprise: ['visualizer'],
   },
   'crm-homecare': {
-    starter: ['contacts', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'documents'],
-    pro: ['two_way_texting', 'pricebook', 'lead_inbox', 'gps_tracking'],
-    business: ['quickbooks', 'reports', 'call_tracking'],
-    agency: ['ai_receptionist'],
+    starter: [
+      'contacts', 'invoices', 'scheduling', 'team', 'dashboard', 'time_tracking', 'documents',
+    ],
+    pro: [
+      'two_way_texting', 'pricebook', 'lead_inbox', 'gps_tracking',
+    ],
+    business: [
+      'quickbooks', 'reports', 'call_tracking',
+    ],
+    agency: [
+      'ai_receptionist',
+    ],
     enterprise: [],
   },
 }
