@@ -12,7 +12,12 @@ app.use('*', authenticate)
 
 app.get('/categories', async (c) => {
   const user = c.get('user') as any
-  const categories = await selections.getCategories(user.companyId)
+  let categories = await selections.getCategories(user.companyId)
+  // Auto-seed default categories on first access if none exist
+  if (categories.length === 0) {
+    await selections.seedDefaultCategories(user.companyId)
+    categories = await selections.getCategories(user.companyId)
+  }
   return c.json(categories)
 })
 
