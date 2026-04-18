@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { timeEntry, user, project, job } from '../../db/schema.ts'
 import { eq, and, gte, lte, count, desc } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -91,9 +92,13 @@ app.post('/', async (c) => {
   const data = timeSchema.parse(await c.req.json())
 
   const [entry] = await db.insert(timeEntry).values({
-    ...data,
+    id: createId(),
     hours: data.hours.toString(),
     hourlyRate: data.hourlyRate?.toString(),
+    description: data.description,
+    billable: data.billable,
+    projectId: data.projectId,
+    jobId: data.jobId,
     date: data.date ? new Date(data.date) : new Date(),
     companyId: currentUser.companyId,
     userId: currentUser.userId,

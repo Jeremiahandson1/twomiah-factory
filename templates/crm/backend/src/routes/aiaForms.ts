@@ -16,6 +16,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { aiaForm, project } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -115,6 +116,7 @@ app.post('/', async (c) => {
   const [created] = await db
     .insert(aiaForm)
     .values({
+      id: createId(),
       companyId: currentUser.companyId,
       projectId: data.projectId,
       formType: data.formType,
@@ -133,7 +135,7 @@ app.post('/', async (c) => {
       lineItems: data.lineItems,
       notes: data.notes,
       status: 'draft',
-    } as any)
+    })
     .returning()
 
   return c.json(created, 201)

@@ -12,6 +12,7 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { scheduleOfValues, drawRequest, project } from '../../db/schema.ts'
 import { eq, and, count, desc } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -25,7 +26,6 @@ const drawScheduleSchema = z.object({
   projectId: z.string(),
   contractAmount: z.number().positive(),
   retainagePercent: z.number().min(0).max(100).default(10),
-  notes: z.string().optional(),
 })
 
 app.get('/', async (c) => {
@@ -86,12 +86,13 @@ app.post('/', async (c) => {
   const [created] = await db
     .insert(scheduleOfValues)
     .values({
+      id: createId(),
       projectId: data.projectId,
       contractAmount: String(data.contractAmount),
       retainagePercent: String(data.retainagePercent),
       status: 'draft',
       companyId: currentUser.companyId,
-    } as any)
+    })
     .returning()
 
   return c.json(created, 201)
@@ -147,18 +148,24 @@ app.post('/requests', async (c) => {
     .from(drawRequest)
     .where(and(eq(drawRequest.companyId, currentUser.companyId), eq(drawRequest.scheduleOfValuesId, data.scheduleOfValuesId)))
 
+  // Look up the SOV to get the projectId
+  const [sov] = await db.select({ projectId: scheduleOfValues.projectId }).from(scheduleOfValues)
+    .where(eq(scheduleOfValues.id, data.scheduleOfValuesId)).limit(1)
+  if (!sov) return c.json({ error: 'Schedule of values not found' }, 404)
+
   const [created] = await db
     .insert(drawRequest)
     .values({
+      id: createId(),
       scheduleOfValuesId: data.scheduleOfValuesId,
-      projectId: '', // Will be set from SOV
+      projectId: sov.projectId,
       drawNumber: Number(cnt) + 1,
       grossAmount: data.grossAmount ? String(data.grossAmount) : '0',
       retainageAmount: '0',
       netAmount: data.grossAmount ? String(data.grossAmount) : '0',
       status: 'draft',
       companyId: currentUser.companyId,
-    } as any)
+    })
     .returning()
 
   return c.json(created, 201)

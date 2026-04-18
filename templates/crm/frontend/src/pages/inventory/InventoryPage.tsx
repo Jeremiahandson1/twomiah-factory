@@ -176,7 +176,7 @@ export default function InventoryPage() {
         <StatCard
           icon={BarChart3}
           label="Total Value"
-          value="$--"
+          value={`$${items.reduce((sum: number, i: InventoryItem) => sum + (Number(i.unitCost) || 0) * (Number(i.totalStock) || 0), 0).toFixed(2)}`}
           color="green"
         />
       </div>
