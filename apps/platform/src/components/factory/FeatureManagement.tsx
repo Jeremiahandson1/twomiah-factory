@@ -327,6 +327,20 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
         </div>
       )}
 
+      {/* Sync Now — always visible, pushes current features to CRM without requiring changes */}
+      {!hasChanges && hasDatabaseUrl && (
+        <div className="mt-4 pt-4 border-t border-gray-800">
+          <button
+            onClick={saveFeatures}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Syncing...' : `Sync ${enabled.length} Features to CRM`}
+          </button>
+          <p className="text-xs text-gray-600 mt-1.5 text-center">Push current feature config to the live CRM database</p>
+        </div>
+      )}
+
       {/* Audit log */}
       {auditLog.length > 0 && (
         <div className="mt-4 pt-4 border-t border-gray-800">
