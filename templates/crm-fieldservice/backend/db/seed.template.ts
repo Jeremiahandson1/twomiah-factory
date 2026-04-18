@@ -35,6 +35,11 @@ async function main() {
     console.log('Created company:', comp.name)
   } else {
     console.log('Company already exists:', comp.name)
+    const latestFeatures = {{ENABLED_FEATURES_JSON}}
+    if (latestFeatures.length > 0) {
+      await db.update(company).set({ enabledFeatures: latestFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
+      console.log(`Updated enabledFeatures: ${latestFeatures.length} features`)
+    }
   }
 
   // Create admin user only if not already present — never overwrite existing password

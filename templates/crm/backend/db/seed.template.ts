@@ -42,6 +42,12 @@ async function main() {
     }
   } else {
     console.log('Company already exists:', comp.name)
+    // Always sync enabledFeatures on redeploy — the Factory may have updated them
+    const latestFeatures = {{ENABLED_FEATURES_JSON}}
+    if (latestFeatures.length > 0) {
+      await db.update(company).set({ enabledFeatures: latestFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
+      console.log(`Updated enabledFeatures: ${latestFeatures.length} features`)
+    }
   }
 
   // Create admin user only if not already present — never overwrite existing password
