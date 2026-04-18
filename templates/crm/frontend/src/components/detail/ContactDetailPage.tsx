@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, Trash2, Mail, Phone, MapPin, Building2,
-  Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare, FileBarChart
+  Calendar, Tag, FileText, Briefcase, Receipt, MessageSquare, FileBarChart,
+  Globe, ToggleLeft, ToggleRight, Send, Loader2
 } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../contexts/ToastContext';
@@ -55,11 +56,51 @@ export default function ContactDetailPage() {
   const [deleting, setDeleting] = useState<boolean>(false);
   const [roofReports, setRoofReports] = useState<RoofReport[]>([]);
   const [generatingReport, setGeneratingReport] = useState<boolean>(false);
+  const [portalStatus, setPortalStatus] = useState<any>(null);
+  const [portalLoading, setPortalLoading] = useState<boolean>(false);
 
   useEffect(() => {
     loadContact();
     if (hasFeature('instant_estimator')) loadRoofReports();
+    if (hasFeature('client_portal')) loadPortalStatus();
   }, [id]);
+
+  const loadPortalStatus = async () => {
+    try {
+      const data = await api.get(`/api/portal/contacts/${id}/status`);
+      setPortalStatus(data);
+    } catch { /* portal not configured */ }
+  };
+
+  const togglePortal = async () => {
+    setPortalLoading(true);
+    try {
+      if (portalStatus?.enabled) {
+        await api.post(`/api/portal/contacts/${id}/disable`);
+        toast.success('Portal access disabled');
+      } else {
+        await api.post(`/api/portal/contacts/${id}/enable`);
+        toast.success('Portal access enabled — invite sent');
+      }
+      await loadPortalStatus();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update portal access');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const resendPortalInvite = async () => {
+    setPortalLoading(true);
+    try {
+      await api.post(`/api/portal/contacts/${id}/send-link`);
+      toast.success('Portal invite sent');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send invite');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   const loadContact = async () => {
     setLoading(true);
@@ -433,6 +474,48 @@ export default function ContactDetailPage() {
                     }`}>{report.imageryQuality}</span>
                   </Link>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Portal Access */}
+          {hasFeature('client_portal') && contact.email && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-blue-500" />
+                Customer Portal
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">Status</span>
+                  <button onClick={togglePortal} disabled={portalLoading} className="flex items-center gap-1.5">
+                    {portalStatus?.enabled ? (
+                      <ToggleRight className="w-6 h-6 text-green-500" />
+                    ) : (
+                      <ToggleLeft className="w-6 h-6 text-gray-400" />
+                    )}
+                    <span className={`text-sm font-medium ${portalStatus?.enabled ? 'text-green-600' : 'text-gray-400'}`}>
+                      {portalStatus?.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </button>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Email</span>
+                  <span className="text-gray-900">{contact.email}</span>
+                </div>
+                {portalStatus?.lastVisit && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Last Login</span>
+                    <span className="text-gray-900">{new Date(portalStatus.lastVisit).toLocaleDateString()}</span>
+                  </div>
+                )}
+                {portalStatus?.enabled && (
+                  <button onClick={resendPortalInvite} disabled={portalLoading}
+                    className="w-full mt-2 px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 flex items-center justify-center gap-2">
+                    {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Resend Portal Invite
+                  </button>
+                )}
               </div>
             </div>
           )}
