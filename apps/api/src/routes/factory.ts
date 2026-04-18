@@ -1232,6 +1232,77 @@ factory.post('/customers/:id/billing-portal', requireRole('owner', 'admin'), asy
 })
 
 
+// ─── Reset Stripe Customer ──────────────────────────────────────────────────
+// Creates a new Stripe customer (or verifies existing), updates the tenant record.
+// Use when stripe_customer_id is stale/invalid (e.g., test mode ID in live mode).
+factory.post('/customers/:id/reset-stripe', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, 404)
+
+    const newCustomer = await factoryStripe.createCustomer({
+      email: tenant.email, name: tenant.name, phone: tenant.phone,
+      metadata: { tenantId: tenant.id, slug: tenant.slug },
+    })
+
+    await supabase.from('tenants').update({
+      stripe_customer_id: newCustomer.id,
+    }).eq('id', tenantId)
+
+    return c.json({ success: true, stripeCustomerId: newCustomer.id, message: 'Stripe customer created/reset' })
+  } catch (err: any) {
+    console.error('[Stripe] Reset customer error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// ─── Switch Billing Mode ────────────────────────────────────────────────────
+// Quick-switch between subscription, owned (one-time), and free
+factory.post('/customers/:id/switch-billing', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { mode, amount, plan } = await c.req.json()
+    if (!['subscription', 'one_time', 'free'].includes(mode)) return c.json({ error: 'mode must be subscription, one_time, or free' }, 400)
+
+    const updates: Record<string, any> = { billing_type: mode }
+
+    if (mode === 'one_time') {
+      updates.billing_status = 'active'
+      updates.one_time_amount = amount || null
+      updates.paid_at = new Date().toISOString()
+      updates.monthly_amount = null
+      // Cancel Stripe subscription if exists
+      const { data: tenant } = await supabase.from('tenants').select('stripe_subscription_id').eq('id', tenantId).single()
+      if (tenant?.stripe_subscription_id) {
+        try { await factoryStripe.cancelSubscription(tenant.stripe_subscription_id) } catch (e: any) { console.warn('[Stripe] Cancel sub failed:', e.message) }
+        updates.stripe_subscription_id = null
+      }
+    } else if (mode === 'subscription') {
+      updates.billing_status = 'pending'
+      updates.monthly_amount = amount || null
+      updates.one_time_amount = null
+      updates.paid_at = null
+    } else if (mode === 'free') {
+      updates.billing_status = 'active'
+      updates.monthly_amount = null
+      updates.one_time_amount = null
+    }
+
+    if (plan) updates.plan = plan
+
+    const { error } = await supabase.from('tenants').update(updates).eq('id', tenantId)
+    if (error) return c.json({ error: error.message }, 500)
+
+    return c.json({ success: true, mode, message: `Billing switched to ${mode}` })
+  } catch (err: any) {
+    console.error('[Billing] Switch error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 // ─── Billing Summary ────────────────────────────────────────────────────────
 factory.get('/billing/summary', async (c) => {
   try {

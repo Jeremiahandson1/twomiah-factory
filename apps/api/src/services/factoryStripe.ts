@@ -337,12 +337,29 @@ export async function createBillingPortalSession(
   return { url: session.url }
 }
 
+async function createCustomer(opts: { email: string; name: string; phone?: string; metadata?: Record<string, string> }): Promise<Stripe.Customer> {
+  if (!stripe) throw new Error('Stripe not configured')
+  return stripe.customers.create({
+    email: opts.email,
+    name: opts.name,
+    phone: opts.phone || undefined,
+    metadata: opts.metadata || {},
+  })
+}
+
+async function cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
+  if (!stripe) throw new Error('Stripe not configured')
+  return stripe.subscriptions.cancel(subscriptionId)
+}
+
 export default {
   createSubscriptionCheckout,
   createLicenseCheckout,
   createDeployCheckout,
   createBillingPortalSession,
   createAutoSubscription,
+  createCustomer,
+  cancelSubscription,
   handleFactoryWebhook,
   verifyWebhookSignature,
   isConfigured,

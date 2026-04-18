@@ -474,6 +474,44 @@ export default function CustomerDetailPage() {
     finally { setCheckoutLoading(null) }
   }
 
+  async function resetStripeCustomer() {
+    setCheckoutLoading('reset')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setCheckoutLoading(null); return }
+      const res = await fetch(API + '/api/v1/factory/customers/' + id + '/reset-stripe', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      const data = await res.json()
+      if (res.ok && data.success) { showToast('Stripe customer reset: ' + data.stripeCustomerId); load() }
+      else { showToast(data.error || 'Failed to reset Stripe customer', 'error') }
+    } catch { showToast('Failed to reset Stripe customer', 'error') }
+    finally { setCheckoutLoading(null) }
+  }
+
+  async function switchBilling(mode: string) {
+    setCheckoutLoading('switch-' + mode)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setCheckoutLoading(null); return }
+      const body: any = { mode }
+      if (mode === 'one_time') body.amount = Number(form.one_time_amount) || Number(form.monthly_amount) * 12 || 2497
+      if (mode === 'subscription') body.amount = Number(form.monthly_amount) || 149
+      if (form.plan) body.plan = form.plan
+      const res = await fetch(API + '/api/v1/factory/customers/' + id + '/switch-billing', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (res.ok && data.success) { showToast('Billing switched to ' + mode); load() }
+      else { showToast(data.error || 'Failed to switch billing', 'error') }
+    } catch { showToast('Failed to switch billing', 'error') }
+    finally { setCheckoutLoading(null) }
+  }
+
   async function openBillingPortal() {
     setCheckoutLoading('portal')
     try {
@@ -811,6 +849,33 @@ export default function CustomerDetailPage() {
                     </button>
                   )}
                 </div>
+
+                {/* Quick billing switches */}
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {tenant.billing_type !== 'one_time' && (
+                    <button onClick={() => switchBilling('one_time')} disabled={!!checkoutLoading}
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-amber-600 hover:bg-amber-500 text-white rounded-lg disabled:opacity-50 transition-colors">
+                      {checkoutLoading === 'switch-one_time' ? 'Switching...' : 'Switch to Owned (one-time)'}
+                    </button>
+                  )}
+                  {tenant.billing_type !== 'subscription' && (
+                    <button onClick={() => switchBilling('subscription')} disabled={!!checkoutLoading}
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 transition-colors">
+                      {checkoutLoading === 'switch-subscription' ? 'Switching...' : 'Switch to Monthly'}
+                    </button>
+                  )}
+                  {tenant.billing_type !== 'free' && (
+                    <button onClick={() => switchBilling('free')} disabled={!!checkoutLoading}
+                      className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-gray-600 hover:bg-gray-500 text-white rounded-lg disabled:opacity-50 transition-colors">
+                      {checkoutLoading === 'switch-free' ? 'Switching...' : 'Switch to Free'}
+                    </button>
+                  )}
+                  <button onClick={resetStripeCustomer} disabled={!!checkoutLoading}
+                    className="flex items-center gap-2 px-3 py-2 text-xs font-medium bg-red-700 hover:bg-red-600 text-white rounded-lg disabled:opacity-50 transition-colors">
+                    {checkoutLoading === 'reset' ? 'Resetting...' : 'Fix/Reset Stripe Customer'}
+                  </button>
+                </div>
+
                 <p className="text-xs text-gray-600 mt-2">
                   {tenant.stripe_customer_id
                     ? 'Billing portal lets the customer self-manage payments, invoices, and subscriptions.'
