@@ -104,7 +104,12 @@ export function PortalProjectDetail() {
 
   return (
     <div>
-      <Link to={`/portal/${token}/projects`} className="text-orange-600 hover:underline text-sm mb-4 inline-block">{'<-'} Back to Projects</Link>
+      <div className="flex items-center justify-between mb-4">
+        <Link to={`/portal/${token}/projects`} className="text-orange-600 hover:underline text-sm">{'<-'} Back to Projects</Link>
+        <Link to={`/portal/${token}/projects/${projectId}/files`} className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+          Project Files
+        </Link>
+      </div>
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="p-6 border-b"><div className="flex items-start justify-between"><div><h1 className="text-2xl font-bold text-gray-900">{project.name}</h1><p className="text-gray-500">{project.number}</p></div><span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[project.status] || STATUS_STYLES.planning}`}>{project.status?.replace('_', ' ')}</span></div></div>
         {project.progress !== null && (

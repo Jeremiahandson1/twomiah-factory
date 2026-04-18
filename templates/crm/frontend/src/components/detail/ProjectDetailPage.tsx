@@ -47,6 +47,16 @@ interface ProjectDetailData {
   [key: string]: unknown;
 }
 
+interface ActivityEntry {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  description?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export default function ProjectDetailPage() {
   const { id: rawId } = useParams<{ id: string }>();
   const id = rawId!;
@@ -57,9 +67,14 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<boolean>(false);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
 
   useEffect(() => {
     loadProject();
+    api.projects
+      .activity(id)
+      .then((data: ActivityEntry[]) => setActivity(Array.isArray(data) ? data : []))
+      .catch(() => setActivity([]));
   }, [id]);
 
   const loadProject = async () => {
@@ -427,6 +442,31 @@ export default function ProjectDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Activity feed */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
+            <h2 className="font-semibold text-gray-900 mb-4">Recent Activity</h2>
+            {activity.length === 0 ? (
+              <p className="text-sm text-gray-500">No activity yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {activity.slice(0, 20).map((a) => {
+                  const actor = (a.metadata?.actorName as string) || 'Someone';
+                  const role = (a.metadata?.actorRole as string) || '';
+                  return (
+                    <li key={a.id} className="text-sm border-l-2 border-orange-300 pl-3">
+                      <p className="text-gray-900">
+                        <span className="font-medium">{actor}</span>
+                        {role && <span className="text-gray-500"> ({role})</span>}{' '}
+                        {a.description || `${a.action} ${a.entityType}`}
+                      </p>
+                      <p className="text-xs text-gray-500">{new Date(a.createdAt).toLocaleString()}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </div>

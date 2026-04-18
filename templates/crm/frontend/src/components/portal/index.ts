@@ -6,3 +6,9 @@ export { default as PortalInvoices, PortalInvoiceDetail } from './PortalInvoices
 export { default as PortalChangeOrders, PortalChangeOrderDetail } from './PortalChangeOrders';
 export { default as PortalSelections } from './PortalSelections';
 export { default as PortalMessages } from './PortalMessages';
+export { default as PortalMyJobs } from './PortalMyJobs';
+export { default as PortalLienWaivers } from './PortalLienWaivers';
+export { default as PortalSubmittalReview } from './PortalSubmittalReview';
+export { default as PortalSharedDocuments } from './PortalSharedDocuments';
+export { default as PortalAssignedRfis } from './PortalAssignedRfis';
+export { default as PortalProjectFiles } from './PortalProjectFiles';

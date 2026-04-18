@@ -479,11 +479,16 @@ export default function ContactDetailPage() {
           )}
 
           {/* Portal Access */}
-          {hasFeature('client_portal') && contact.email && (
+          {hasFeature('client_portal') && contact.email && (() => {
+            const roleRaw = String(contact.type || 'client').toLowerCase();
+            const isSub = roleRaw === 'subcontractor' || roleRaw === 'vendor' || roleRaw === 'supplier';
+            const isArch = roleRaw === 'architect' || roleRaw === 'consultant' || roleRaw === 'inspector';
+            const portalKind = isSub ? 'Subcontractor Portal' : isArch ? `${roleRaw.charAt(0).toUpperCase()}${roleRaw.slice(1)} Portal` : 'Customer Portal';
+            return (
             <div className="bg-white rounded-lg shadow-sm p-6">
               <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <Globe className="w-4 h-4 text-blue-500" />
-                Customer Portal
+                {portalKind}
               </h2>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -518,7 +523,8 @@ export default function ContactDetailPage() {
                 )}
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
       </div>
 

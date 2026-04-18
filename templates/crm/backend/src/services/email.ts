@@ -396,24 +396,46 @@ const templates: Record<string, (data: any) => TemplateResult> = {
     text: `${data.inviterName} invited you to join ${data.companyName} on {{COMPANY_NAME}}.\n\nAccept: ${data.inviteLink}`,
   }),
 
-  portalInvite: (data) => ({
-    subject: `Access your account with ${data.companyName}`,
-    html: `
+  portalInvite: (data) => {
+    const role = (data.role || 'client').toLowerCase()
+    const isSub = role === 'subcontractor' || role === 'vendor' || role === 'supplier'
+    const isArchitect = role === 'architect' || role === 'consultant' || role === 'inspector'
+    const portalLabel = isSub
+      ? 'Subcontractor Portal'
+      : isArchitect
+        ? `${role.charAt(0).toUpperCase()}${role.slice(1)} Portal`
+        : 'Customer Portal'
+    const headline = isSub
+      ? 'Your Subcontractor Portal'
+      : isArchitect
+        ? 'Your Collaborator Portal'
+        : 'Your Customer Portal'
+    const intro = isSub
+      ? 'View your assigned jobs, sign lien waivers, and download shared documents.'
+      : isArchitect
+        ? 'Review submittals, respond to RFIs, and access project documents.'
+        : 'You can now view your projects, quotes, and invoices online.'
+    const bullets = isSub
+      ? ['View jobs assigned to you', 'Sign lien waivers', 'Download shared documents', 'Message the project team']
+      : isArchitect
+        ? ['Respond to RFIs assigned to you', 'Approve or request revisions on submittals', 'Review change orders', 'Access shared project documents']
+        : ['View project progress', 'Review and approve quotes', 'View and download invoices', 'Track payment history']
+
+    return {
+      subject: `${portalLabel}: ${data.companyName}`,
+      html: `
       <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
       <body><div class="container">
         <div class="header"><h1 style="margin:0;">${data.companyName}</h1></div>
         <div class="content">
-          <h2>Your Customer Portal</h2>
+          <h2>${headline}</h2>
           <p>Hi ${data.contactName},</p>
-          <p>You can now view your projects, quotes, and invoices online.</p>
+          <p>${intro}</p>
           <p style="text-align:center;"><a href="${data.portalUrl}" class="button">Access Your Portal</a></p>
           <div class="highlight">
             <p>With your portal you can:</p>
             <ul style="margin:0;padding-left:20px;">
-              <li>View project progress</li>
-              <li>Review and approve quotes</li>
-              <li>View and download invoices</li>
-              <li>Track payment history</li>
+              ${bullets.map((b) => `<li>${b}</li>`).join('')}
             </ul>
           </div>
           <p><small>This link is unique to you. Do not share it with others.</small></p>
@@ -421,7 +443,26 @@ const templates: Record<string, (data: any) => TemplateResult> = {
         <div class="footer">${data.companyName}</div>
       </div></body></html>
     `,
-    text: `Hi ${data.contactName}, access your customer portal for ${data.companyName}: ${data.portalUrl}`,
+      text: `Hi ${data.contactName}, access your ${portalLabel.toLowerCase()} for ${data.companyName}: ${data.portalUrl}`,
+    }
+  },
+
+  collaboratorAction: (data) => ({
+    subject: `${data.actorName} ${data.summary.toLowerCase().startsWith(data.actorName.toLowerCase()) ? '' : '— '}${data.summary}`.slice(0, 120),
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1></div>
+        <div class="content">
+          <h2>Collaborator Activity</h2>
+          <p>${data.adminName ? `Hi ${data.adminName},` : 'Hi,'}</p>
+          <p><strong>${data.actorName}</strong> (${data.actorRole}) ${data.summary}${data.projectName ? ` on project <strong>${data.projectName}</strong>` : ''}.</p>
+          <p style="text-align:center;"><a href="${APP_URL}/crm" class="button">Open CRM</a></p>
+        </div>
+        <div class="footer">&copy; ${new Date().getFullYear()} ${data.companyName}</div>
+      </div></body></html>
+    `,
+    text: `${data.actorName} (${data.actorRole}) ${data.summary}${data.projectName ? ` on ${data.projectName}` : ''}.`,
   }),
 
   lowStockAlert: (data) => ({

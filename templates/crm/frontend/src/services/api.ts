@@ -193,6 +193,7 @@ class ApiClient {
     create: (data: unknown) => this.create('/api/projects', data),
     update: (id: string, data: unknown) => this.update('/api/projects', id, data),
     delete: (id: string) => this.delete('/api/projects', id),
+    activity: (id: string) => this.request(`/api/projects/${id}/activity`),
   };
 
   // Jobs

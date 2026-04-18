@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { project, contact, job, rfi, changeOrder, punchListItem } from '../../db/schema.ts'
-import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
+import { project, contact, job, rfi, changeOrder, punchListItem, activity } from '../../db/schema.ts'
+import { eq, and, or, ilike, count, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -122,6 +122,37 @@ app.put('/:id', async (c) => {
   }).where(eq(project.id, id)).returning()
 
   return c.json(updated)
+})
+
+// Activity timeline — rows either linked to this project directly
+// (entityType='project') or via metadata.projectId (portal collaborator actions).
+app.get('/:id/activity', async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const [existing] = await db
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.id, id), eq(project.companyId, currentUser.companyId)))
+    .limit(1)
+  if (!existing) return c.json({ error: 'Project not found' }, 404)
+
+  const rows = await db
+    .select()
+    .from(activity)
+    .where(
+      and(
+        eq(activity.companyId, currentUser.companyId),
+        or(
+          and(eq(activity.entityType, 'project'), eq(activity.entityId, id)),
+          sql`${activity.metadata}->>'projectId' = ${id}`
+        )
+      )
+    )
+    .orderBy(desc(activity.createdAt))
+    .limit(200)
+
+  return c.json(rows)
 })
 
 app.delete('/:id', async (c) => {

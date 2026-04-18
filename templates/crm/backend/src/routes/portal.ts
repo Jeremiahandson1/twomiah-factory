@@ -7,13 +7,95 @@
 
 import { Hono } from 'hono'
 import crypto from 'crypto'
+import path from 'path'
 import { eq, and, inArray, count, sum, sql, desc, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job, message } from '../../db/schema.ts'
+import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job, message, lienWaiver, rfi, submittal, document, documentShare, user, activity } from '../../db/schema.ts'
 import selections from '../services/selections.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import emailService from '../services/email.ts'
+import fileService from '../services/fileUpload.ts'
+
+// =============================================
+// COLLABORATOR ACTION NOTIFY HELPER
+// Emails company admins/managers and records an activity row. Non-blocking.
+// =============================================
+async function notifyCollaboratorAction(params: {
+  companyId: string
+  projectId?: string | null
+  entityType: string
+  entityId: string
+  action: string
+  actorName: string
+  actorRole: string
+  summary: string
+  details?: Record<string, unknown>
+}) {
+  const { companyId, projectId, entityType, entityId, action, actorName, actorRole, summary, details } = params
+
+  // Activity row (best-effort; never fail the caller)
+  try {
+    await db.insert(activity).values({
+      companyId,
+      entityType,
+      entityId,
+      action,
+      description: summary,
+      metadata: { projectId: projectId || null, actorName, actorRole, ...(details || {}) },
+    } as any)
+  } catch (err) {
+    console.warn('[portal] activity insert failed:', (err as Error).message)
+  }
+
+  // Email admins (best-effort)
+  try {
+    const admins = await db
+      .select({ email: user.email, name: user.name, role: user.role })
+      .from(user)
+      .where(
+        and(
+          eq(user.companyId, companyId),
+          eq(user.isActive, true),
+          inArray(user.role, ['owner', 'admin', 'manager'])
+        )
+      )
+
+    if (admins.length === 0) return
+
+    const [companyInfo] = await db
+      .select({ name: company.name })
+      .from(company)
+      .where(eq(company.id, companyId))
+      .limit(1)
+
+    let projectName: string | null = null
+    if (projectId) {
+      const [p] = await db
+        .select({ name: project.name, number: project.number })
+        .from(project)
+        .where(eq(project.id, projectId))
+        .limit(1)
+      projectName = p ? `${p.number ? p.number + ' · ' : ''}${p.name}` : null
+    }
+
+    for (const admin of admins) {
+      if (!admin.email) continue
+      emailService
+        .send(admin.email, 'collaboratorAction', {
+          companyName: companyInfo?.name || 'Your Company',
+          adminName: admin.name,
+          actorName,
+          actorRole,
+          summary,
+          projectName,
+        })
+        .catch(() => {})
+    }
+  } catch (err) {
+    console.warn('[portal] notify admins failed:', (err as Error).message)
+  }
+}
 
 const app = new Hono()
 
@@ -153,6 +235,7 @@ app.post('/contacts/:contactId/send-link', authenticate, requirePermission('cont
     contactName: foundContact.name,
     companyName: companyInfo?.name,
     portalUrl,
+    role: (foundContact as any).type || 'client',
   })
 
   return c.json({ success: true, sentTo: foundContact.email })
@@ -199,6 +282,7 @@ async function portalAuth(c: any, next: any) {
   const [foundContact] = await db
     .select({
       id: contact.id,
+      type: contact.type,
       name: contact.name,
       email: contact.email,
       companyId: contact.companyId,
@@ -293,6 +377,7 @@ app.get('/p/:token', portalAuth, async (c) => {
     contact: {
       name: portalContact.name,
       email: portalContact.email,
+      type: portalContact.type || 'client',
     },
     company: {
       name: portalCompany.name,
@@ -477,6 +562,18 @@ app.post('/p/:token/quotes/:quoteId/approve', portalAuth, async (c) => {
     .where(eq(quote.id, quoteId))
     .returning()
 
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: foundQuote.projectId,
+    entityType: 'quote',
+    entityId: quoteId,
+    action: 'approved',
+    actorName: signedBy || portalContact.name,
+    actorRole: portalContact.type || 'client',
+    summary: `approved quote ${foundQuote.number} "${foundQuote.name}"`,
+    details: { notes: notes || null },
+  })
+
   return c.json({ success: true, quote: updated })
 })
 
@@ -505,6 +602,18 @@ app.post('/p/:token/quotes/:quoteId/reject', portalAuth, async (c) => {
     })
     .where(eq(quote.id, quoteId))
     .returning()
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: foundQuote.projectId,
+    entityType: 'quote',
+    entityId: quoteId,
+    action: 'rejected',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'client',
+    summary: `rejected quote ${foundQuote.number} "${foundQuote.name}"`,
+    details: { reason: reason || null },
+  })
 
   return c.json({ success: true, quote: updated })
 })
@@ -822,6 +931,18 @@ app.post('/p/:token/change-orders/:changeOrderId/approve', portalAuth, async (c)
     .where(eq(changeOrder.id, changeOrderId))
     .returning()
 
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: foundChangeOrder.projectId,
+    entityType: 'change_order',
+    entityId: changeOrderId,
+    action: 'approved',
+    actorName: signedBy || portalContact.name,
+    actorRole: portalContact.type || 'client',
+    summary: `approved change order ${foundChangeOrder.number} "${foundChangeOrder.title}" ($${Number(foundChangeOrder.amount || 0).toLocaleString()})`,
+    details: { notes: notes || null },
+  })
+
   return c.json({ success: true, changeOrder: updated })
 })
 
@@ -867,6 +988,18 @@ app.post('/p/:token/change-orders/:changeOrderId/reject', portalAuth, async (c) 
     })
     .where(eq(changeOrder.id, changeOrderId))
     .returning()
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: foundChangeOrder.projectId,
+    entityType: 'change_order',
+    entityId: changeOrderId,
+    action: 'rejected',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'client',
+    summary: `rejected change order ${foundChangeOrder.number} "${foundChangeOrder.title}"`,
+    details: { reason: reason || null },
+  })
 
   return c.json({ success: true, changeOrder: updated })
 })
@@ -1021,6 +1154,602 @@ app.post('/p/:token/messages/:messageId/read', portalAuth, async (c) => {
     .where(eq(message.id, messageId))
 
   return c.json({ success: true })
+})
+
+// =============================================
+// COLLABORATOR ENDPOINTS (subcontractors, architects, consultants)
+// Role-scoped data for non-client portal users.
+// =============================================
+
+// --- SUBCONTRACTOR: Jobs assigned to this contact ---
+app.get('/p/:token/my-jobs', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+
+  const jobs = await db
+    .select({
+      id: job.id,
+      number: job.number,
+      title: job.title,
+      description: job.description,
+      status: job.status,
+      priority: job.priority,
+      scheduledDate: job.scheduledDate,
+      scheduledEndDate: job.scheduledEndDate,
+      scheduledTime: job.scheduledTime,
+      address: job.address,
+      city: job.city,
+      state: job.state,
+      zip: job.zip,
+      notes: job.notes,
+      estimatedHours: job.estimatedHours,
+      estimatedValue: job.estimatedValue,
+      completedAt: job.completedAt,
+      projectId: job.projectId,
+      projectName: project.name,
+      projectNumber: project.number,
+    })
+    .from(job)
+    .leftJoin(project, eq(job.projectId, project.id))
+    .where(
+      and(
+        eq(job.companyId, portalContact.companyId),
+        eq(job.subcontractorId, portalContact.id)
+      )
+    )
+    .orderBy(desc(job.scheduledDate))
+
+  return c.json(jobs)
+})
+
+// Sub marks their job as completed
+app.post('/p/:token/my-jobs/:jobId/complete', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const jobId = c.req.param('jobId')
+
+  const [foundJob] = await db
+    .select()
+    .from(job)
+    .where(and(eq(job.id, jobId), eq(job.subcontractorId, portalContact.id)))
+    .limit(1)
+
+  if (!foundJob) {
+    return c.json({ error: 'Job not found' }, 404)
+  }
+
+  const [updated] = await db
+    .update(job)
+    .set({ status: 'completed', completedAt: new Date(), updatedAt: new Date() })
+    .where(eq(job.id, jobId))
+    .returning()
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: foundJob.projectId,
+    entityType: 'job',
+    entityId: jobId,
+    action: 'completed',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'subcontractor',
+    summary: `marked job ${foundJob.number} "${foundJob.title}" complete`,
+  })
+
+  return c.json({ success: true, job: updated })
+})
+
+// --- SUBCONTRACTOR / VENDOR: Lien waivers for this contact ---
+app.get('/p/:token/lien-waivers', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+
+  const waivers = await db
+    .select({
+      id: lienWaiver.id,
+      projectId: lienWaiver.projectId,
+      projectName: project.name,
+      projectNumber: project.number,
+      vendorName: lienWaiver.vendorName,
+      vendorType: lienWaiver.vendorType,
+      waiverType: lienWaiver.waiverType,
+      throughDate: lienWaiver.throughDate,
+      amountPrevious: lienWaiver.amountPrevious,
+      amountCurrent: lienWaiver.amountCurrent,
+      amountTotal: lienWaiver.amountTotal,
+      status: lienWaiver.status,
+      requestedAt: lienWaiver.requestedAt,
+      dueDate: lienWaiver.dueDate,
+      signedDate: lienWaiver.signedDate,
+      documentUrl: lienWaiver.documentUrl,
+      notes: lienWaiver.notes,
+      createdAt: lienWaiver.createdAt,
+    })
+    .from(lienWaiver)
+    .leftJoin(project, eq(lienWaiver.projectId, project.id))
+    .where(
+      and(
+        eq(lienWaiver.companyId, portalContact.companyId),
+        eq(lienWaiver.vendorId, portalContact.id)
+      )
+    )
+    .orderBy(desc(lienWaiver.createdAt))
+
+  return c.json(waivers)
+})
+
+// Sub signs a lien waiver from the portal
+app.post('/p/:token/lien-waivers/:waiverId/sign', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const waiverId = c.req.param('waiverId')
+  const body = await c.req.json().catch(() => ({}))
+
+  const [found] = await db
+    .select()
+    .from(lienWaiver)
+    .where(and(eq(lienWaiver.id, waiverId), eq(lienWaiver.vendorId, portalContact.id)))
+    .limit(1)
+
+  if (!found) {
+    return c.json({ error: 'Lien waiver not found' }, 404)
+  }
+  if (found.status === 'approved' || found.status === 'received') {
+    return c.json({ error: 'Lien waiver already signed' }, 400)
+  }
+
+  const [updated] = await db
+    .update(lienWaiver)
+    .set({
+      status: 'received',
+      receivedAt: new Date(),
+      signedDate: new Date(),
+      documentUrl: body.documentUrl || found.documentUrl,
+      notes: body.notes || found.notes,
+      updatedAt: new Date(),
+    } as any)
+    .where(eq(lienWaiver.id, waiverId))
+    .returning()
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: found.projectId,
+    entityType: 'lien_waiver',
+    entityId: waiverId,
+    action: 'signed',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'subcontractor',
+    summary: `signed a ${found.waiverType.replace(/_/g, ' ')} lien waiver for $${Number(found.amountTotal || 0).toLocaleString()}`,
+  })
+
+  return c.json({ success: true, lienWaiver: updated })
+})
+
+// --- ARCHITECT / CONSULTANT: Submittals to review ---
+app.get('/p/:token/submittals', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+
+  // Architects see submittals for all projects in this company (scoped by companyId).
+  // In a future iteration we can narrow by architect↔project assignment.
+  const submittals = await db
+    .select({
+      id: submittal.id,
+      number: submittal.number,
+      title: submittal.title,
+      description: submittal.description,
+      status: submittal.status,
+      specSection: submittal.specSection,
+      dueDate: submittal.dueDate,
+      submittedDate: submittal.submittedDate,
+      approvedDate: submittal.approvedDate,
+      approvedBy: submittal.approvedBy,
+      notes: submittal.notes,
+      createdAt: submittal.createdAt,
+      projectId: submittal.projectId,
+      projectName: project.name,
+      projectNumber: project.number,
+    })
+    .from(submittal)
+    .leftJoin(project, eq(submittal.projectId, project.id))
+    .where(eq(submittal.companyId, portalContact.companyId))
+    .orderBy(desc(submittal.createdAt))
+
+  return c.json(submittals)
+})
+
+app.post('/p/:token/submittals/:submittalId/approve', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const submittalId = c.req.param('submittalId')
+  const body = await c.req.json().catch(() => ({}))
+
+  const [found] = await db
+    .select()
+    .from(submittal)
+    .where(and(eq(submittal.id, submittalId), eq(submittal.companyId, portalContact.companyId)))
+    .limit(1)
+
+  if (!found) {
+    return c.json({ error: 'Submittal not found' }, 404)
+  }
+
+  const [updated] = await db
+    .update(submittal)
+    .set({
+      status: 'approved',
+      approvedDate: new Date(),
+      approvedBy: body.signedBy || portalContact.name,
+      notes: body.notes || found.notes,
+      updatedAt: new Date(),
+    })
+    .where(eq(submittal.id, submittalId))
+    .returning()
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: found.projectId,
+    entityType: 'submittal',
+    entityId: submittalId,
+    action: 'approved',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'architect',
+    summary: `approved submittal ${found.number} "${found.title}"`,
+  })
+
+  return c.json({ success: true, submittal: updated })
+})
+
+app.post('/p/:token/submittals/:submittalId/revise', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const submittalId = c.req.param('submittalId')
+  const { reason } = await c.req.json().catch(() => ({}))
+
+  const [found] = await db
+    .select()
+    .from(submittal)
+    .where(and(eq(submittal.id, submittalId), eq(submittal.companyId, portalContact.companyId)))
+    .limit(1)
+
+  if (!found) {
+    return c.json({ error: 'Submittal not found' }, 404)
+  }
+
+  const existingNotes = found.notes ? `${found.notes}\n\n` : ''
+  const revisionNote = `[Revision requested by ${portalContact.name} on ${new Date().toLocaleDateString()}] ${reason || ''}`
+
+  const [updated] = await db
+    .update(submittal)
+    .set({
+      status: 'revise',
+      notes: existingNotes + revisionNote,
+      updatedAt: new Date(),
+    })
+    .where(eq(submittal.id, submittalId))
+    .returning()
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: found.projectId,
+    entityType: 'submittal',
+    entityId: submittalId,
+    action: 'revision_requested',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'architect',
+    summary: `requested revision on submittal ${found.number} "${found.title}"`,
+    details: { reason: reason || null },
+  })
+
+  return c.json({ success: true, submittal: updated })
+})
+
+// --- ARCHITECT: RFIs assigned to this contact (by name match) ---
+app.get('/p/:token/rfis-assigned', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+
+  const rfis = await db
+    .select({
+      id: rfi.id,
+      number: rfi.number,
+      subject: rfi.subject,
+      question: rfi.question,
+      status: rfi.status,
+      priority: rfi.priority,
+      assignedTo: rfi.assignedTo,
+      dueDate: rfi.dueDate,
+      response: rfi.response,
+      respondedAt: rfi.respondedAt,
+      createdAt: rfi.createdAt,
+      projectId: rfi.projectId,
+      projectName: project.name,
+      projectNumber: project.number,
+    })
+    .from(rfi)
+    .leftJoin(project, eq(rfi.projectId, project.id))
+    .where(
+      and(
+        eq(rfi.companyId, portalContact.companyId),
+        eq(rfi.assignedTo, portalContact.name)
+      )
+    )
+    .orderBy(desc(rfi.createdAt))
+
+  return c.json(rfis)
+})
+
+app.post('/p/:token/rfis-assigned/:rfiId/respond', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const rfiId = c.req.param('rfiId')
+  const { response } = await c.req.json().catch(() => ({}))
+
+  if (!response || !String(response).trim()) {
+    return c.json({ error: 'Response is required' }, 400)
+  }
+
+  const [found] = await db
+    .select()
+    .from(rfi)
+    .where(
+      and(
+        eq(rfi.id, rfiId),
+        eq(rfi.companyId, portalContact.companyId),
+        eq(rfi.assignedTo, portalContact.name)
+      )
+    )
+    .limit(1)
+
+  if (!found) {
+    return c.json({ error: 'RFI not found' }, 404)
+  }
+
+  const [updated] = await db
+    .update(rfi)
+    .set({
+      status: 'answered',
+      response: String(response).trim(),
+      respondedAt: new Date(),
+      respondedBy: portalContact.name,
+      updatedAt: new Date(),
+    })
+    .where(eq(rfi.id, rfiId))
+    .returning()
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId: found.projectId,
+    entityType: 'rfi',
+    entityId: rfiId,
+    action: 'responded',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'architect',
+    summary: `responded to RFI ${found.number} "${found.subject}"`,
+  })
+
+  return c.json({ success: true, rfi: updated })
+})
+
+// --- DOCUMENTS: Role-scoped shared documents ---
+// Clients see all company-wide documents attached to their projects.
+// Subs/architects see documents explicitly shared with them via document_share.
+app.get('/p/:token/shared-documents', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+
+  const shared = await db
+    .select({
+      id: document.id,
+      name: document.name,
+      type: document.type,
+      originalName: document.originalName,
+      mimeType: document.mimeType,
+      size: document.size,
+      url: document.url,
+      thumbnailUrl: document.thumbnailUrl,
+      description: document.description,
+      createdAt: document.createdAt,
+      projectId: document.projectId,
+      projectName: project.name,
+      sharedAt: documentShare.sharedAt,
+    })
+    .from(documentShare)
+    .innerJoin(document, eq(documentShare.documentId, document.id))
+    .leftJoin(project, eq(document.projectId, project.id))
+    .where(
+      and(
+        eq(documentShare.contactId, portalContact.id),
+        eq(document.companyId, portalContact.companyId)
+      )
+    )
+    .orderBy(desc(documentShare.sharedAt))
+
+  return c.json(shared)
+})
+
+// =============================================
+// PROJECT FILE ROOM
+// Scopes: client (project owner) sees all project docs; sub/architect sees
+// only docs shared with them for this project. Any portal user with project
+// access can upload a document into the room.
+// =============================================
+
+async function contactHasProjectAccess(contactId: string, companyId: string, projectId: string): Promise<'owner' | 'collaborator' | null> {
+  const [owned] = await db
+    .select({ id: project.id })
+    .from(project)
+    .where(and(eq(project.id, projectId), eq(project.contactId, contactId), eq(project.companyId, companyId)))
+    .limit(1)
+  if (owned) return 'owner'
+
+  const [assignedJob] = await db
+    .select({ id: job.id })
+    .from(job)
+    .where(and(eq(job.projectId, projectId), eq(job.subcontractorId, contactId), eq(job.companyId, companyId)))
+    .limit(1)
+  if (assignedJob) return 'collaborator'
+
+  const [shared] = await db
+    .select({ id: documentShare.id })
+    .from(documentShare)
+    .innerJoin(document, eq(documentShare.documentId, document.id))
+    .where(
+      and(
+        eq(documentShare.contactId, contactId),
+        eq(document.projectId, projectId),
+        eq(document.companyId, companyId)
+      )
+    )
+    .limit(1)
+  if (shared) return 'collaborator'
+
+  return null
+}
+
+// GET all files in the project file room (role-scoped)
+app.get('/p/:token/projects/:projectId/files', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const projectId = c.req.param('projectId')
+
+  const access = await contactHasProjectAccess(portalContact.id, portalContact.companyId, projectId)
+  if (!access) {
+    return c.json({ error: 'Project not found' }, 404)
+  }
+
+  if (access === 'owner') {
+    const docs = await db
+      .select({
+        id: document.id,
+        name: document.name,
+        type: document.type,
+        originalName: document.originalName,
+        mimeType: document.mimeType,
+        size: document.size,
+        url: document.url,
+        thumbnailUrl: document.thumbnailUrl,
+        description: document.description,
+        createdAt: document.createdAt,
+        uploadedById: document.uploadedById,
+      })
+      .from(document)
+      .where(and(eq(document.companyId, portalContact.companyId), eq(document.projectId, projectId)))
+      .orderBy(desc(document.createdAt))
+    return c.json(docs)
+  }
+
+  // Collaborator — only shared docs for this project
+  const docs = await db
+    .select({
+      id: document.id,
+      name: document.name,
+      type: document.type,
+      originalName: document.originalName,
+      mimeType: document.mimeType,
+      size: document.size,
+      url: document.url,
+      thumbnailUrl: document.thumbnailUrl,
+      description: document.description,
+      createdAt: document.createdAt,
+      uploadedById: document.uploadedById,
+      sharedAt: documentShare.sharedAt,
+    })
+    .from(documentShare)
+    .innerJoin(document, eq(documentShare.documentId, document.id))
+    .where(
+      and(
+        eq(documentShare.contactId, portalContact.id),
+        eq(document.projectId, projectId),
+        eq(document.companyId, portalContact.companyId)
+      )
+    )
+    .orderBy(desc(documentShare.sharedAt))
+  return c.json(docs)
+})
+
+// POST upload a file to the project file room (multipart/form-data)
+app.post('/p/:token/projects/:projectId/files', portalAuth, async (c) => {
+  const portal = c.get('portal') as any
+  const portalContact = portal.contact
+  const projectId = c.req.param('projectId')
+
+  const access = await contactHasProjectAccess(portalContact.id, portalContact.companyId, projectId)
+  if (!access) {
+    return c.json({ error: 'Project not found' }, 404)
+  }
+
+  const body = await c.req.parseBody()
+  const file = body['file'] as File | undefined
+  if (!file || !(file instanceof File)) {
+    return c.json({ error: 'No file uploaded' }, 400)
+  }
+
+  let uploaded
+  try {
+    uploaded = await fileService.saveFile(file, portalContact.companyId, 'documents')
+  } catch (err: any) {
+    return c.json({ error: err.message }, 400)
+  }
+
+  let filePath = uploaded.path
+  let thumbnailPath: string | null = null
+  if (uploaded.mimetype?.startsWith('image/')) {
+    try {
+      filePath = await fileService.processImage(filePath, { width: 2000, height: 2000 })
+      thumbnailPath = await fileService.generateThumbnail(filePath, 200)
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  const name = (body['name'] as string) || uploaded.originalname
+  const description = (body['description'] as string) || null
+  const type = (body['type'] as string) || 'general'
+
+  const [doc] = await db
+    .insert(document)
+    .values({
+      companyId: portalContact.companyId,
+      name,
+      description,
+      type,
+      filename: path.basename(filePath),
+      originalName: uploaded.originalname,
+      mimeType: uploaded.mimetype,
+      size: uploaded.size,
+      path: filePath,
+      url: fileService.getFileUrl(filePath, portalContact.companyId),
+      thumbnailUrl: thumbnailPath ? fileService.getFileUrl(thumbnailPath, portalContact.companyId) : null,
+      projectId,
+      contactId: portalContact.id,
+      uploadedById: null,
+    } as any)
+    .returning()
+
+  // Auto-share back to the uploader (so they can see their own file under collaborator view)
+  if (access === 'collaborator') {
+    try {
+      await db.insert(documentShare).values({
+        documentId: doc.id,
+        contactId: portalContact.id,
+      } as any)
+    } catch {
+      // Ignore unique conflict
+    }
+  }
+
+  notifyCollaboratorAction({
+    companyId: portalContact.companyId,
+    projectId,
+    entityType: 'document',
+    entityId: doc.id,
+    action: 'uploaded',
+    actorName: portalContact.name,
+    actorRole: portalContact.type || 'collaborator',
+    summary: `uploaded "${name}" to the project file room`,
+  })
+
+  return c.json(doc, 201)
 })
 
 export default app

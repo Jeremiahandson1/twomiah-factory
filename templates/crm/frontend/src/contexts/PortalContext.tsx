@@ -2,9 +2,12 @@ import React from 'react';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 
+export type PortalContactType = 'client' | 'lead' | 'vendor' | 'subcontractor' | 'architect' | 'consultant' | 'inspector' | 'supplier' | string;
+
 interface PortalContextValue {
   token: string | undefined;
   contact: Record<string, unknown> | undefined;
+  contactType: PortalContactType;
   company: Record<string, unknown> | undefined;
   summary: Record<string, unknown> | undefined;
   loading: boolean;
@@ -64,9 +67,13 @@ export function PortalProvider({ children }: { children: React.ReactNode }) {
     return response.json();
   };
 
+  const contact = data?.contact as Record<string, unknown> | undefined;
+  const contactType = ((contact?.type as string) || 'client') as PortalContactType;
+
   const value: PortalContextValue = {
     token,
-    contact: data?.contact as Record<string, unknown> | undefined,
+    contact,
+    contactType,
     company: data?.company as Record<string, unknown> | undefined,
     summary: data?.summary as Record<string, unknown> | undefined,
     loading,

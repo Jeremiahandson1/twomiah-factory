@@ -172,11 +172,13 @@ export const job = pgTable('job', {
   assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
   createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
   quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
+  subcontractorId: text('subcontractor_id').references(() => contact.id, { onDelete: 'set null' }),
 }, (t) => [
   index('job_company_id_idx').on(t.companyId),
   index('job_status_idx').on(t.status),
   index('job_scheduled_date_idx').on(t.scheduledDate),
   index('job_assigned_to_id_idx').on(t.assignedToId),
+  index('job_subcontractor_id_idx').on(t.subcontractorId),
 ])
 
 // ==================== QUOTES ====================
@@ -592,6 +594,17 @@ export const document = pgTable('document', {
   index('document_project_id_idx').on(t.projectId),
   index('document_contact_id_idx').on(t.contactId),
   index('document_type_idx').on(t.type),
+])
+
+export const documentShare = pgTable('document_share', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  sharedById: text('shared_by_id').references(() => user.id, { onDelete: 'set null' }),
+  sharedAt: timestamp('shared_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('document_share_unique').on(t.documentId, t.contactId),
+  index('document_share_contact_idx').on(t.contactId),
 ])
 
 // ==================== TEAM ====================
