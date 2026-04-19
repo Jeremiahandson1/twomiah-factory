@@ -111,6 +111,12 @@ app.post('/', async (c) => {
   const currentUser = c.get('user') as any
   const data = aiaFormSchema.parse(await c.req.json())
 
+  // Auto-increment application number if not provided or if it conflicts
+  let appNum = data.applicationNumber
+  const [existing] = await db.select({ value: count() }).from(aiaForm)
+    .where(and(eq(aiaForm.companyId, currentUser.companyId), eq(aiaForm.projectId, data.projectId), eq(aiaForm.formType, data.formType)))
+  appNum = Math.max(appNum, Number(existing.value) + 1)
+
   const summary = computeSummary(data)
 
   const [created] = await db
@@ -120,7 +126,7 @@ app.post('/', async (c) => {
       companyId: currentUser.companyId,
       projectId: data.projectId,
       formType: data.formType,
-      applicationNumber: data.applicationNumber,
+      applicationNumber: appNum,
       periodTo: new Date(data.periodTo),
       contractSum: String(data.contractSum),
       netChangeByChangeOrders: String(data.netChangeByChangeOrders),

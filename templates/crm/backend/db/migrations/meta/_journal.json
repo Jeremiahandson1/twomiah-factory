@@ -92,6 +92,13 @@
       "when": 1772785271405,
       "tag": "0012_collaborator_portal",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1772785271406,
+      "tag": "0013_add_missing_columns",
+      "breakpoints": true
     }
   ]
 }

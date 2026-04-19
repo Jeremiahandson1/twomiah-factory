@@ -24,9 +24,15 @@ app.use('*', authenticate)
 
 const drawScheduleSchema = z.object({
   projectId: z.string(),
-  contractAmount: z.number().positive(),
+  // Accept both contractAmount (backend name) and totalAmount (frontend name)
+  contractAmount: z.number().positive().optional(),
+  totalAmount: z.number().positive().optional(),
   retainagePercent: z.number().min(0).max(100).default(10),
-})
+  name: z.string().optional(),
+  lenderName: z.string().optional(),
+  lenderContact: z.string().optional(),
+  notes: z.string().optional(),
+}).refine(d => d.contractAmount || d.totalAmount, { message: 'contractAmount or totalAmount required' })
 
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
@@ -88,7 +94,7 @@ app.post('/', async (c) => {
     .values({
       id: createId(),
       projectId: data.projectId,
-      contractAmount: String(data.contractAmount),
+      contractAmount: String(data.contractAmount || data.totalAmount),
       retainagePercent: String(data.retainagePercent),
       status: 'draft',
       companyId: currentUser.companyId,
