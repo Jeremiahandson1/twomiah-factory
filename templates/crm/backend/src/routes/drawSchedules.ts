@@ -25,8 +25,8 @@ app.use('*', authenticate)
 const drawScheduleSchema = z.object({
   projectId: z.string(),
   // Accept both contractAmount (backend name) and totalAmount (frontend name)
-  contractAmount: z.number().positive().optional(),
-  totalAmount: z.number().positive().optional(),
+  contractAmount: z.number().min(0).optional(),
+  totalAmount: z.number().min(0).optional(),
   retainagePercent: z.number().min(0).max(100).default(10),
   name: z.string().optional(),
   lenderName: z.string().optional(),
@@ -60,9 +60,10 @@ app.get('/', async (c) => {
       .reduce((sum, r) => sum + Number(r.netAmount || r.grossAmount || 0), 0)
     return {
       ...s,
+      totalAmount: Number(s.contractAmount) || 0, // alias for frontend
       drawCount: reqs.length,
       drawnAmount,
-      remainingAmount: Number(s.contractAmount) - drawnAmount,
+      remainingAmount: (Number(s.contractAmount) || 0) - drawnAmount,
     }
   })
 

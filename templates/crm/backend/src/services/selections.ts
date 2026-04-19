@@ -61,11 +61,20 @@ export async function seedDefaultCategories(companyId: string) {
   ]
 
   for (const cat of defaults) {
-    await db.execute(sql`
-      INSERT INTO selection_category (id, company_id, name, icon, sort_order, active)
-      VALUES (${createId()}, ${companyId}, ${cat.name}, ${cat.icon}, ${cat.sortOrder}, true)
-      ON CONFLICT (company_id, name) DO NOTHING
-    `)
+    try {
+      // Check if category already exists (no unique constraint, so check manually)
+      const [existing] = rows(await db.execute(sql`
+        SELECT id FROM selection_category WHERE company_id = ${companyId} AND name = ${cat.name} LIMIT 1
+      `))
+      if (!existing) {
+        await db.execute(sql`
+          INSERT INTO selection_category (id, company_id, name, sort_order, active)
+          VALUES (${createId()}, ${companyId}, ${cat.name}, ${cat.sortOrder}, true)
+        `)
+      }
+    } catch (e) {
+      // Skip duplicates silently
+    }
   }
 }
 
