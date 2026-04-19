@@ -23,16 +23,15 @@ app.use('*', authenticate)
 // ─────────────────────────────────────────────────────────────
 
 const drawScheduleSchema = z.object({
-  projectId: z.string(),
-  // Accept both contractAmount (backend name) and totalAmount (frontend name)
+  projectId: z.string().min(1, 'Project is required'),
   contractAmount: z.number().min(0).optional(),
-  totalAmount: z.number().min(0).optional(),
+  totalAmount: z.number().min(0).optional().default(0),
   retainagePercent: z.number().min(0).max(100).default(10),
   name: z.string().optional(),
   lenderName: z.string().optional(),
   lenderContact: z.string().optional(),
   notes: z.string().optional(),
-}).refine(d => d.contractAmount || d.totalAmount, { message: 'contractAmount or totalAmount required' })
+})
 
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
@@ -90,19 +89,29 @@ app.post('/', async (c) => {
   const currentUser = c.get('user') as any
   const data = drawScheduleSchema.parse(await c.req.json())
 
+  const amount = data.contractAmount || data.totalAmount || 0
+
+  // Check for existing schedule on this project (unique constraint on project_id)
+  const [existing] = await db.select().from(scheduleOfValues)
+    .where(and(eq(scheduleOfValues.projectId, data.projectId), eq(scheduleOfValues.companyId, currentUser.companyId)))
+    .limit(1)
+  if (existing) {
+    return c.json({ error: 'A draw schedule already exists for this project. Edit the existing one instead.', existingId: existing.id }, 409)
+  }
+
   const [created] = await db
     .insert(scheduleOfValues)
     .values({
       id: createId(),
       projectId: data.projectId,
-      contractAmount: String(data.contractAmount || data.totalAmount),
+      contractAmount: String(amount),
       retainagePercent: String(data.retainagePercent),
       status: 'draft',
       companyId: currentUser.companyId,
     })
     .returning()
 
-  return c.json(created, 201)
+  return c.json({ ...created, totalAmount: Number(created.contractAmount) || 0 }, 201)
 })
 
 app.put('/:id', async (c) => {
