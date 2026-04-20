@@ -420,3 +420,28 @@ create policy "Service role full access on roof_review_queue"
   on roof_review_queue for all
   using (true)
   with check (true);
+
+
+-- ─── V1 Domain / Renewal / Offboard Columns ─────────────────────────────────
+-- Added in Phase 1. Safe to re-run via IF NOT EXISTS.
+
+alter table tenants add column if not exists domain_registrar text;          -- 'namecheap' | 'byod' | null
+alter table tenants add column if not exists domain_expires_at timestamptz;  -- Only set when registrar='namecheap' (we only know expiry for domains we bought)
+alter table tenants add column if not exists cloudflare_zone_id text;        -- Cloudflare zone created for this tenant's domain
+alter table tenants add column if not exists sendgrid_domain_auth_id bigint; -- SendGrid whitelabel domain id for this tenant
+
+-- Renewal warning sentinels (idempotent per-warning: set to now() when sent)
+alter table tenants add column if not exists domain_renewal_warned_60d_at timestamptz;
+alter table tenants add column if not exists domain_renewal_warned_30d_at timestamptz;
+alter table tenants add column if not exists domain_renewal_warned_7d_at timestamptz;
+alter table tenants add column if not exists sub_renewal_warned_60d_at timestamptz;
+alter table tenants add column if not exists sub_renewal_warned_30d_at timestamptz;
+alter table tenants add column if not exists sub_renewal_warned_7d_at timestamptz;
+
+-- Offboard lifecycle
+alter table tenants add column if not exists offboard_started_at timestamptz;
+alter table tenants add column if not exists offboard_grace_ends_at timestamptz;
+alter table tenants add column if not exists epp_code_sent_at timestamptz;
+
+create index if not exists tenants_domain_expires_idx on tenants(domain_expires_at) where domain_expires_at is not null;
+create index if not exists tenants_offboard_grace_idx on tenants(offboard_grace_ends_at) where offboard_grace_ends_at is not null;
