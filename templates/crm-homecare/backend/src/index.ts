@@ -108,6 +108,9 @@ import calltrackingRoutes from './routes/calltracking.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import adsRoutes from './routes/ads.ts'
 import pricingRoutes from './routes/pricing.ts'
+import emailAliasesRoutes from './routes/emailAliases.ts'
+import emailDomainRoutes from './routes/emailDomain.ts'
+import accountRoutes from './routes/account.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -181,6 +184,9 @@ app.route('/api/service-codes', serviceCodesRoutes)
 app.route('/api/payers', payersRoutes)
 app.route('/api/audit', auditRoutes)
 app.route('/api/company', companyRoutes)
+app.route('/api/email-aliases', emailAliasesRoutes)
+app.route('/api/email-domain', emailDomainRoutes)
+app.route('/api/account', accountRoutes)
 app.route('/api/stripe', stripeRoutes)
 app.route('/api/help', helpRoutes)
 app.route('/api/optimizer', optimizerRoutes)

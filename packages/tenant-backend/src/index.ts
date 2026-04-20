@@ -9,6 +9,7 @@ export { createEmailAliasesRoutes } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'
 export { createEmailDomainRoutes } from './emailDomain'
 export { createAccountRoutes } from './account'
+export { createFactoryApiClient } from './factoryClient'
 export type {
   EmailAliasesDeps,
   InboundParseDeps,

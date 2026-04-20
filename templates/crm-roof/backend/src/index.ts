@@ -43,6 +43,11 @@ import billingRoutes from './routes/billing.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import financingRoutes from './routes/financing.ts'
 import stormRadarRoutes from './routes/stormRadar.ts'
+import providerIntegrationRoutes from './routes/providerIntegrations.ts'
+import webhookRoutes from './routes/webhooks.ts'
+import emailAliasesRoutes from './routes/emailAliases.ts'
+import emailDomainRoutes from './routes/emailDomain.ts'
+import accountRoutes from './routes/account.ts'
 
 const app = new Hono()
 
@@ -86,6 +91,9 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // API routes
 app.route('/api/auth', authRoutes)
+app.route('/api/email-aliases', emailAliasesRoutes)
+app.route('/api/email-domain', emailDomainRoutes)
+app.route('/api/account', accountRoutes)
 app.route('/api/contacts', contactsRoutes)
 app.route('/api/jobs', jobsRoutes)
 app.route('/api/crews', crewsRoutes)
@@ -112,6 +120,8 @@ app.route('/api/billing', billingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 app.route('/api/financing', financingRoutes)
 app.route('/api/storm-radar', stormRadarRoutes)
+app.route('/api/integrations', providerIntegrationRoutes)
+app.route('/api/webhooks', webhookRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY

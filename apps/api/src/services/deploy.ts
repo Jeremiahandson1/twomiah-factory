@@ -925,6 +925,8 @@ export async function deployCustomer(
           { key: 'PORT', value: '10000' },
           { key: 'FEATURE_PACKAGE', value: tenantPlan },
           { key: 'FACTORY_SYNC_KEY', value: factorySyncKey },
+          { key: 'TENANT_ID', value: factoryCustomer.id },
+          { key: 'FACTORY_URL', value: process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || 'https://twomiah-factory.onrender.com' },
           ...integrationEnvVars,
           ...r2EnvVars,
         ]
