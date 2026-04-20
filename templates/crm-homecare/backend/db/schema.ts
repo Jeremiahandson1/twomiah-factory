@@ -28,9 +28,26 @@ export const agencies = pgTable('agencies', {
   twilioPhoneNumber: text('twilio_phone_number'),
   twilioAccountSid: text('twilio_account_sid'),
   twilioAuthToken: text('twilio_auth_token'),
+  // Onboarding (V1 domain + email setup wizard)
+  onboardingCompletedAt: timestamp('onboarding_completed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// ==================== EMAIL ALIASES ====================
+// Per-tenant email addresses on their connected domain. See base crm template for full docs.
+
+export const emailAlias = pgTable('email_alias', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  localPart: text('local_part').notNull(),
+  routingMode: text('routing_mode').notNull().default('forward'),
+  forwardTo: text('forward_to'),
+  enabled: boolean('enabled').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  localPartIdx: uniqueIndex('email_alias_local_part_idx').on(t.localPart),
+}))
 
 // ==================== USERS (ADMINS & CAREGIVERS) ====================
 export const users = pgTable('users', {

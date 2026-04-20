@@ -64,6 +64,13 @@
       "when": 1776816000000,
       "tag": "0010_invoice_payments",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776902400000,
+      "tag": "0011_add_email_alias",
+      "breakpoints": true
     }
   ]
 }

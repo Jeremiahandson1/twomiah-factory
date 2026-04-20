@@ -1106,6 +1106,77 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
 })
 
 
+// ─── Offboard status (tenant → factory, X-Factory-Key auth) ────────────────
+factory.get('/customers/:id/offboard/status', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const suppliedKey = c.req.header('X-Factory-Key') || ''
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, status, offboard_started_at, offboard_grace_ends_at, domain, domain_registrar').eq('id', tenantId).single()
+    if (!tenant || tenant.factory_sync_key !== suppliedKey) return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({
+      status: tenant.status,
+      offboardStartedAt: tenant.offboard_started_at,
+      offboardGraceEndsAt: tenant.offboard_grace_ends_at,
+      domain: tenant.domain,
+      domainRegistrar: tenant.domain_registrar,
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Email domain status + verify (tenant → factory) ───────────────────────
+// The tenant backend proxies UI requests here so tenant frontends don't need
+// SendGrid credentials. X-Factory-Key auth matches the email-alias-sync pattern.
+
+factory.get('/customers/:id/email-domain/status', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const suppliedKey = c.req.header('X-Factory-Key') || ''
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, domain, sendgrid_domain_auth_id').eq('id', tenantId).single()
+    if (!tenant || tenant.factory_sync_key !== suppliedKey) return c.json({ error: 'Unauthorized' }, 401)
+    if (!tenant.domain) return c.json({ status: 'unconfigured', records: [] })
+    if (!tenant.sendgrid_domain_auth_id) return c.json({ status: 'pending', records: [], detail: 'SendGrid domain authentication not yet initiated. Deploy logs may have more info.' })
+
+    const sg = await import('../services/sendgrid')
+    if (!sg.isSendGridConfigured()) return c.json({ error: 'SendGrid not configured' }, 503)
+
+    const auth = await sg.pollDomainAuth(tenant.sendgrid_domain_auth_id)
+    return c.json({
+      status: auth.valid ? 'verified' : 'pending',
+      domain: auth.domain,
+      records: auth.records,
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.post('/customers/:id/email-domain/verify', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const suppliedKey = c.req.header('X-Factory-Key') || ''
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, sendgrid_domain_auth_id').eq('id', tenantId).single()
+    if (!tenant || tenant.factory_sync_key !== suppliedKey) return c.json({ error: 'Unauthorized' }, 401)
+    if (!tenant.sendgrid_domain_auth_id) return c.json({ error: 'No SendGrid domain auth to verify' }, 400)
+
+    const sg = await import('../services/sendgrid')
+    const auth = await sg.validateDomainAuth(tenant.sendgrid_domain_auth_id)
+    return c.json({
+      status: auth.valid ? 'verified' : 'pending',
+      domain: auth.domain,
+      records: auth.records,
+    })
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
 // ─── Renewal check cron (domain + sub renewals + teardown pickup) ──────────
 // Runs daily via external scheduler (same x-cron-secret pattern as /internal/trial-check).
 // Idempotent — sentinel columns prevent duplicate warnings.

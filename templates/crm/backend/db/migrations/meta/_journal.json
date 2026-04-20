@@ -99,6 +99,13 @@
       "when": 1772785271406,
       "tag": "0013_add_missing_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1772785271407,
+      "tag": "0014_add_email_alias",
+      "breakpoints": true
     }
   ]
 }
