@@ -1,7 +1,7 @@
 import { execSync } from 'child_process'
 
-const MAX_RETRIES = 10
-const RETRY_DELAY_MS = 5000
+const MAX_RETRIES = 20
+const RETRY_DELAY_MS = 10000
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   try {

@@ -10,6 +10,7 @@ import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
+import { Client as PgClient } from 'pg'
 
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
@@ -803,16 +804,45 @@ export async function deployCustomer(
             results.services.database = db
             if (db.id) deployedResourceIds.push(db.id)
 
-            console.log('[Deploy] Waiting for DB to be ready...')
+            console.log('[Deploy] Waiting for DB to be ready (connection string + TCP probe)...')
             let dbReady = false
+            let candidateConnStr: string | undefined
+            // Render returns an internalConnectionString (10.x.x.x private-network host)
+            // BEFORE the DB actually accepts TCP on :5432. A returned conn string is
+            // necessary but NOT sufficient — we must also probe with a real SELECT 1.
+            // Without this probe the backend deploys against a DB that isn't listening
+            // and migrations burn their entire retry window on ECONNREFUSED.
             for (let attempt = 0; attempt < 20; attempt++) {
               await sleep(15000)
               try {
-                const connInfo = await getDatabaseConnectionInfo(db.id)
-                if (connInfo?.internalConnectionString) { dbConnectionString = connInfo.internalConnectionString; dbReady = true; break }
-              } catch (_e) { /* not ready yet */ }
+                if (!candidateConnStr) {
+                  const connInfo = await getDatabaseConnectionInfo(db.id)
+                  if (connInfo?.internalConnectionString) candidateConnStr = connInfo.internalConnectionString
+                  if (!candidateConnStr) continue
+                }
+                // Render internal hostnames only resolve inside Render. When this factory
+                // runs on Render (production) the internal string is reachable. When it
+                // runs locally, fall back to externalConnectionString for the probe.
+                let probeUrl = candidateConnStr
+                if (!process.env.RENDER_SERVICE_ID) {
+                  try {
+                    const connInfo = await getDatabaseConnectionInfo(db.id)
+                    if (connInfo?.externalConnectionString) probeUrl = connInfo.externalConnectionString
+                  } catch { /* use internal */ }
+                }
+                const client = new PgClient({ connectionString: probeUrl, connectionTimeoutMillis: 5000 })
+                await client.connect()
+                await client.query('SELECT 1')
+                await client.end()
+                dbConnectionString = candidateConnStr
+                dbReady = true
+                console.log('[Deploy] DB is accepting connections (attempt ' + (attempt + 1) + ')')
+                break
+              } catch (e: any) {
+                console.log('[Deploy] DB not ready yet (attempt ' + (attempt + 1) + '/20):', e?.code || e?.message)
+              }
             }
-            if (!dbReady) throw new Error('DB did not become ready in time')
+            if (!dbReady) throw new Error('DB did not become ready in time (TCP probe never succeeded)')
           }
         } catch (dbErr: any) {
           results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
@@ -848,15 +878,21 @@ export async function deployCustomer(
       }
     }
 
-    // Build integration env vars from config
+    // Build integration env vars from config.
+    // Pattern: tenant-provided key wins; fall back to a shared factory key when set.
+    // Stripe is intentionally NOT fallback'd — tenant Stripe collects payments from
+    // the tenant's customers into the tenant's bank. Factory Stripe bills the tenant
+    // their $599/mo. Mixing them would route customer payments to us.
     const integrationEnvVars: Array<{ key: string; value: string }> = []
     const integrations = factoryCustomer.config?.integrations
-    if (integrations?.twilio?.accountSid) {
-      integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: integrations.twilio.accountSid })
-      if (integrations.twilio.authToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: integrations.twilio.authToken })
-      if (integrations.twilio.phoneNumber) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: integrations.twilio.phoneNumber })
-    }
-    if (integrations?.sendgrid?.apiKey) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: integrations.sendgrid.apiKey })
+    const twilioSid = integrations?.twilio?.accountSid || process.env.TWOMIAH_TWILIO_ACCOUNT_SID || ''
+    const twilioToken = integrations?.twilio?.authToken || process.env.TWOMIAH_TWILIO_AUTH_TOKEN || ''
+    const twilioPhone = integrations?.twilio?.phoneNumber || process.env.TWOMIAH_TWILIO_PHONE || ''
+    if (twilioSid) integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: twilioSid })
+    if (twilioToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: twilioToken })
+    if (twilioPhone) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: twilioPhone })
+    const sendgridKey = integrations?.sendgrid?.apiKey || process.env.TWOMIAH_SENDGRID_API_KEY || ''
+    if (sendgridKey) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: sendgridKey })
     if (integrations?.stripe?.secretKey) {
       integrationEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripe.secretKey })
       if (integrations.stripe.publishableKey) integrationEnvVars.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: integrations.stripe.publishableKey })

@@ -1,8 +1,8 @@
 import { execSync } from 'child_process'
 import pg from 'pg'
 
-const MAX_RETRIES = 10
-const RETRY_DELAY_MS = 5000
+const MAX_RETRIES = 20
+const RETRY_DELAY_MS = 10000
 
 for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   try {

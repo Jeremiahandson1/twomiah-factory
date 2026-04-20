@@ -123,7 +123,7 @@ export async function notifyWelcome(
       ${kv('Plan', planLabel)}
       ${kv('Free trial ends', trialEndStr)}
     </div>
-    <p style="color:#333;line-height:1.6;">We&rsquo;re building your system now. This typically takes a few minutes. You&rsquo;ll receive a second email with your login URL and temporary password as soon as everything is ready.</p>
+    <p style="color:#333;line-height:1.6;">We&rsquo;re building your system now. This typically takes about <strong>10 minutes</strong>. You&rsquo;ll receive a second email with your login URL and temporary password as soon as everything is ready.</p>
     <p style="color:#666;font-size:14px;">If you have questions in the meantime, just reply to this email.</p>`
 
   return sendEmail(
@@ -172,6 +172,28 @@ export async function notifyDeployComplete(
     tenant.email,
     `Your Twomiah ${product} CRM is ready`,
     wrap(`Your ${product} CRM is Ready`, body)
+  )
+}
+
+export async function notifyStillWorking(
+  tenant: { name: string; email?: string; industry?: string; products?: string[] }
+): Promise<boolean> {
+  if (!tenant.email) return false
+
+  const product = getProductName(tenant.industry, tenant.products)
+
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    <p style="color:#333;line-height:1.6;">Your <strong>Twomiah ${product}</strong> build is taking a little longer than usual — we&rsquo;re still working on it. No action needed on your end.</p>
+    <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0;color:#92400e;">This sometimes happens on first deploys while cloud infrastructure provisions. You&rsquo;ll get another email as soon as your CRM is live.</p>
+    </div>
+    <p style="color:#666;font-size:14px;">If you don&rsquo;t hear from us within another 30 minutes, just reply to this email and we&rsquo;ll look into it.</p>`
+
+  return sendEmail(
+    tenant.email,
+    `Still working on your Twomiah ${product} build`,
+    wrap('Your Build Is Taking a Bit Longer', body)
   )
 }
 

@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -547,6 +547,11 @@ function buildConfigFromTenantAndJob(tenant: any, job: any): GenerateConfig {
 }
 
 async function runDeploy(tenant: any, job: any, options: { region?: string; plan?: string; dbPlan?: string } = {}) {
+  // Fire a "still working" email if the deploy hasn't completed in 15 minutes.
+  // Cleared on every exit path so we never double-send.
+  const stillWorkingTimer = setTimeout(() => {
+    notifyStillWorking(tenant).catch(e => console.warn('[Email] Still-working notification failed:', e.message))
+  }, 15 * 60 * 1000)
   try {
     // Use stored config if available, otherwise reconstruct from tenant + job
     const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
@@ -703,12 +708,14 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
 
     // Send email notification — send credentials email even on partial success if CRM is reachable
+    clearTimeout(stillWorkingTimer)
     if (result.success || result.deployedUrl || result.apiUrl) {
       notifyDeployComplete(tenant, { apiUrl: result.apiUrl, deployedUrl: result.deployedUrl, siteUrl: result.siteUrl, repoUrl: result.repoUrl, adsUrl: result.adsUrl }).catch(e => console.warn('[Email] Deploy complete notification failed:', e.message))
     } else {
       notifyDeployFailed(tenant, result.errors.join('; ') || 'Unknown error').catch(e => console.warn('[Email] Deploy failed notification failed:', e.message))
     }
   } catch (err: any) {
+    clearTimeout(stillWorkingTimer)
     console.error('[Deploy] Background deploy failed:', err.message)
     const { error: failErr } = await supabase.from('factory_jobs').update({ status: 'failed' }).eq('id', job.id)
     if (failErr) console.error('[Deploy] Failed to set failed status:', failErr.message)
