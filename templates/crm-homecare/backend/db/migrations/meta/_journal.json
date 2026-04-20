@@ -71,6 +71,13 @@
       "when": 1776902400000,
       "tag": "0011_add_email_alias",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776988800000,
+      "tag": "0012_add_inbound_message",
+      "breakpoints": true
     }
   ]
 }

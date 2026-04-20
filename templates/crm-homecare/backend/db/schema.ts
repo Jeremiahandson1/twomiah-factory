@@ -49,6 +49,23 @@ export const emailAlias = pgTable('email_alias', {
   localPartIdx: uniqueIndex('email_alias_local_part_idx').on(t.localPart),
 }))
 
+export const inboundMessage = pgTable('inbound_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  toLocalPart: text('to_local_part').notNull(),
+  fromEmail: text('from_email').notNull(),
+  fromName: text('from_name'),
+  subject: text('subject'),
+  textBody: text('text_body'),
+  htmlBody: text('html_body'),
+  spfVerdict: text('spf_verdict'),
+  dkimVerdict: text('dkim_verdict'),
+  rawHeaders: text('raw_headers'),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+}, (t) => ({
+  receivedAtIdx: index('inbound_message_received_at_idx').on(t.receivedAt),
+  fromEmailIdx: index('inbound_message_from_email_idx').on(t.fromEmail),
+}))
+
 // ==================== USERS (ADMINS & CAREGIVERS) ====================
 export const users = pgTable('users', {
   id: text('id').primaryKey().$defaultFn(() => createId()),

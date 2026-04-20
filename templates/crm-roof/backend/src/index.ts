@@ -48,6 +48,7 @@ import webhookRoutes from './routes/webhooks.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
+import inboundParseRoutes from './routes/inboundParse.ts'
 
 const app = new Hono()
 
@@ -94,6 +95,7 @@ app.route('/api/auth', authRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
 app.route('/api/email-domain', emailDomainRoutes)
 app.route('/api/account', accountRoutes)
+app.route('/api/internal/inbound-email', inboundParseRoutes)
 app.route('/api/contacts', contactsRoutes)
 app.route('/api/jobs', jobsRoutes)
 app.route('/api/crews', crewsRoutes)
