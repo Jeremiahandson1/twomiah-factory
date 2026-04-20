@@ -7,6 +7,8 @@ export type FactoryConfig = {
   company: {
     name: string; email: string; phone: string; address: string
     city: string; state: string; stateFull: string; zip: string; domain: string
+    domainMode?: 'skip' | 'byod' | 'buy'
+    purchaseYears?: number
     ownerName: string; industry: string; serviceRegion: string
     nearbyCities: string[]
   }
@@ -43,7 +45,7 @@ export type FactoryConfig = {
 export const DEFAULT_CONFIG: FactoryConfig = {
   tenant_id: '', tenant_name: '', tenant_slug: '',
   products: [],
-  company: { name: '', email: '', phone: '', address: '', city: '', state: '', stateFull: '', zip: '', domain: '', ownerName: '', industry: '', serviceRegion: '', nearbyCities: ['', '', '', ''] },
+  company: { name: '', email: '', phone: '', address: '', city: '', state: '', stateFull: '', zip: '', domain: '', domainMode: 'skip', purchaseYears: 1, ownerName: '', industry: '', serviceRegion: '', nearbyCities: ['', '', '', ''] },
   branding: { primaryColor: '#f97316', secondaryColor: '#1e3a5f', logo: null, logoFilename: null, favicon: null, faviconFilename: null, heroPhoto: null, heroPhotoFilename: null },
   features: { website: [], crm: [], paid_ads: false },
   integrations: { twilio: { accountSid: '', authToken: '', phoneNumber: '' }, sendgrid: { apiKey: '' }, stripe: { secretKey: '', publishableKey: '', webhookSecret: '' }, googleMaps: { apiKey: '' }, sentry: { dsn: '' }, nearmap: { apiKey: '' }, replicate: { apiToken: '' } },

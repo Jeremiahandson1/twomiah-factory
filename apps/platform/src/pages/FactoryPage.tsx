@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
-import { CheckCircle, Users, Package, Building2, Palette, LayoutTemplate, Settings2, Zap, Sparkles, Download, CreditCard } from 'lucide-react'
+import { CheckCircle, Users, Package, Building2, Globe, Palette, LayoutTemplate, Settings2, Zap, Sparkles, Download, CreditCard } from 'lucide-react'
 import { supabase } from '../supabase'
 import { DEFAULT_CONFIG, type FactoryConfig } from '../components/factory/types'
 import StepPlan from '../components/factory/StepPlan'
 import StepCustomer from '../components/factory/StepCustomer'
 import StepProducts from '../components/factory/StepProducts'
 import StepCompany from '../components/factory/StepCompany'
+import StepDomain from '../components/factory/StepDomain'
 import StepBranding from '../components/factory/StepBranding'
 import StepWebsiteTemplate from '../components/factory/StepWebsiteTemplate'
 import StepFeatures from '../components/factory/StepFeatures'
@@ -19,6 +20,7 @@ const WIZARD_STEPS = [
   { label: 'Customer', icon: Users },
   { label: 'Products', icon: Package },
   { label: 'Company', icon: Building2 },
+  { label: 'Domain', icon: Globe },
   { label: 'Branding', icon: Palette },
   { label: 'Template', icon: LayoutTemplate },
   { label: 'Features', icon: Settings2 },
@@ -211,12 +213,13 @@ export default function FactoryPage() {
         {step === 0 && <StepCustomer config={config} update={update} onNext={next} />}
         {step === 1 && <StepProducts config={config} update={update} onNext={next} onBack={back} />}
         {step === 2 && <StepCompany config={config} updateNested={updateNested} onNext={next} onBack={back} />}
-        {step === 3 && <StepBranding config={config} updateNested={updateNested} onNext={next} onBack={back} />}
-        {step === 4 && <StepWebsiteTemplate config={config} update={update} onNext={next} onBack={back} />}
-        {step === 5 && <StepFeatures config={config} setConfig={setConfig} plan={plan} onNext={next} onBack={back} />}
-        {step === 6 && <StepIntegrations config={config} updateNested={updateNested} onNext={next} onBack={back} />}
-        {step === 7 && <StepContent config={config} setConfig={setConfig} onNext={next} onBack={back} />}
-        {step === 8 && <StepGenerate config={config} onBack={back} onReset={reset} />}
+        {step === 3 && <StepDomain config={config} updateNested={updateNested} onNext={next} onBack={back} />}
+        {step === 4 && <StepBranding config={config} updateNested={updateNested} onNext={next} onBack={back} />}
+        {step === 5 && <StepWebsiteTemplate config={config} update={update} onNext={next} onBack={back} />}
+        {step === 6 && <StepFeatures config={config} setConfig={setConfig} plan={plan} onNext={next} onBack={back} />}
+        {step === 7 && <StepIntegrations config={config} updateNested={updateNested} onNext={next} onBack={back} />}
+        {step === 8 && <StepContent config={config} setConfig={setConfig} onNext={next} onBack={back} />}
+        {step === 9 && <StepGenerate config={config} onBack={back} onReset={reset} />}
       </div>
     </div>
   )

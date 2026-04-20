@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { authenticate, supabase, requireRole } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
-import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug } from '../services/deploy'
+import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
 import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired } from '../services/email'
@@ -11,6 +11,7 @@ import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../config/featureRegistry'
 import { PRODUCTS, getProductDefaults } from '../config/pricing'
 import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getCompanyInfo } from '../services/quickbooksOnline'
+import { getRegistrar, isRegistrarConfigured } from '../services/registrar'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
@@ -706,6 +707,38 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     }
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
+
+    // ─── Domain infrastructure wiring (non-fatal) ───────────────────────────
+    // Runs after Render services are known. Creates Cloudflare zone, writes
+    // DNS/SPF/DMARC/SendGrid auth records, enables Email Routing, attaches
+    // custom domains to Render. Failures here don't kill the deploy — admin
+    // can re-trigger via /customers/:id/domain once the issue is resolved.
+    if (tenant.domain && result.success) {
+      try {
+        const domainResult = await wireDomainInfrastructure({
+          domain: tenant.domain,
+          backendSlug: result.services.backend?.slug,
+          siteSlug: result.services.site?.slug,
+          backendServiceId: result.services.backend?.id,
+          siteServiceId: result.services.site?.id,
+          adminEmailForDmarc: tenant.admin_email || tenant.email,
+          existingCloudflareZoneId: tenant.cloudflare_zone_id || undefined,
+          existingSendgridDomainAuthId: tenant.sendgrid_domain_auth_id || undefined,
+        })
+        // Persist zone id + sendgrid auth id even on partial failure so reruns can reuse
+        const domainUpdate: Record<string, any> = {}
+        if (domainResult.cloudflareZoneId) domainUpdate.cloudflare_zone_id = domainResult.cloudflareZoneId
+        if (domainResult.sendgridDomainAuthId) domainUpdate.sendgrid_domain_auth_id = domainResult.sendgridDomainAuthId
+        if (Object.keys(domainUpdate).length > 0) {
+          const { error } = await supabase.from('tenants').update(domainUpdate).eq('id', tenant.id)
+          if (error && error.code !== '42703') console.warn('[Deploy] Domain infra id persist failed:', error.message)
+        }
+        console.log('[Deploy] Domain infra:', domainResult.success ? 'OK' : 'partial', 'steps=' + domainResult.steps.length, 'errors=' + domainResult.errors.length)
+        if (domainResult.errors.length) console.warn('[Deploy] Domain infra errors:', domainResult.errors.join('; '))
+      } catch (domErr: any) {
+        console.error('[Deploy] Domain infra wiring threw:', domErr.message)
+      }
+    }
 
     // Send email notification — send credentials email even on partial success if CRM is reachable
     clearTimeout(stillWorkingTimer)
@@ -1779,6 +1812,30 @@ factory.post('/internal/trial-check', async (c) => {
   return c.json({ ok: true, timestamp: now.toISOString(), ...results })
 })
 
+// ─── Public domain availability check ───────────────────────────────────────
+// Rate limited: 20 requests per 10 minutes per IP. Namecheap charges per call
+// and enforces its own rate caps — this protects both us and our quota.
+factory.post('/public/domain/check', rateLimit(10 * 60 * 1000, 20), async (c) => {
+  try {
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const body = parsed.data
+    const domain = typeof body.domain === 'string' ? body.domain.trim().toLowerCase() : ''
+    if (!domain || !DOMAIN_RE.test(domain)) {
+      return c.json({ error: 'Invalid domain format' }, 400)
+    }
+    if (!isRegistrarConfigured()) {
+      return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
+    }
+    const registrar = await getRegistrar()
+    const result = await registrar.checkAvailability(domain)
+    return c.json(result)
+  } catch (err: any) {
+    console.error('[Domain] Availability check failed:', err)
+    return c.json({ error: err.message || 'Availability check failed' }, 500)
+  }
+})
+
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
@@ -1800,6 +1857,61 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       return c.json({ error: 'A company with a similar name already exists. Please contact support or use a different name.' }, 409)
     }
 
+    // ─── Domain mode handling ─────────────────────────────────────────────────
+    // domainMode: 'skip' (default, no domain) | 'byod' (customer owns domain) |
+    // 'buy' (we register via Namecheap synchronously before creating tenant —
+    // fail-fast so the customer isn't charged for a domain attached to a
+    // half-created account).
+    const domainMode: 'skip' | 'byod' | 'buy' = body.domainMode === 'byod' || body.domainMode === 'buy' ? body.domainMode : 'skip'
+    let resolvedDomain: string | null = null
+    let resolvedRegistrar: string | null = null
+    let resolvedExpiresAt: Date | null = null
+
+    if (domainMode === 'byod') {
+      const d = typeof body.domain === 'string' ? body.domain.trim().toLowerCase() : ''
+      if (!d || !DOMAIN_RE.test(d)) return c.json({ error: 'Invalid domain format for BYOD' }, 400)
+      resolvedDomain = d
+      resolvedRegistrar = 'byod'
+    } else if (domainMode === 'buy') {
+      if (!isRegistrarConfigured()) {
+        return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
+      }
+      const d = typeof body.domain === 'string' ? body.domain.trim().toLowerCase() : ''
+      if (!d || !DOMAIN_RE.test(d)) return c.json({ error: 'Invalid domain format for purchase' }, 400)
+      const years = Math.max(1, Math.min(10, parseInt(body.purchaseYears, 10) || 1))
+      // Namecheap requires full registrant contact info. Fall back to company-level fields
+      // where reasonable; require the bits there's no sensible fallback for.
+      const ownerName = (body.owner_name || body.ownerName || body.name || '').trim()
+      const firstName = body.owner_first_name || body.ownerFirstName || ownerName.split(/\s+/)[0] || 'Admin'
+      const lastName = body.owner_last_name || body.ownerLastName || ownerName.split(/\s+/).slice(1).join(' ') || 'User'
+      const phone = body.phone || ''
+      if (!phone) return c.json({ error: 'Phone is required for domain registration' }, 400)
+      const country = (body.country || 'US').toUpperCase()
+      const registrar = await getRegistrar()
+      const reg = await registrar.register(d, {
+        years,
+        whoisPrivacy: true,
+        autoRenew: true,
+        registrantContact: {
+          firstName, lastName,
+          email: body.email,
+          phone,
+          address1: body.address || '',
+          city: body.city || '',
+          stateProvince: body.state || '',
+          postalCode: body.zip || '',
+          country,
+          organization: body.name,
+        },
+      })
+      if (!reg.success) {
+        return c.json({ error: 'Domain registration failed: ' + (reg.error || 'unknown') }, 400)
+      }
+      resolvedDomain = d
+      resolvedRegistrar = 'namecheap'
+      resolvedExpiresAt = reg.expiresAt || null
+    }
+
     // Start the 30-day free trial clock at signup. No credit card required — the
     // tenant's CRM is provisioned immediately and they get 30 days to try it.
     // Warning emails fire at day 23 (7 left), day 27 (3 left), and day 30.
@@ -1817,7 +1929,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       city: body.city || null,
       state: body.state || null,
       zip: body.zip || null,
-      domain: body.domain || null,
+      domain: resolvedDomain,
+      domain_registrar: resolvedRegistrar,
+      domain_expires_at: resolvedExpiresAt ? resolvedExpiresAt.toISOString() : null,
       primary_color: body.primary_color || '#FF3D00',
       plan: body.plan || 'starter',
       deployment_model: body.deployment_model || 'saas',
@@ -2492,15 +2606,20 @@ factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) =
         .eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
       const serviceIds = job?.render_service_ids
       if (serviceIds) {
-        // Add domain to the primary user-facing service (site or frontend)
+        // Add domain to the primary user-facing service (site or frontend) at apex + www
         const primaryServiceId = serviceIds.site || serviceIds.frontend
         if (primaryServiceId) {
           const result = await addCustomDomain(primaryServiceId, domain)
-          if (!result.success) renderErrors.push('Primary service: ' + result.error)
+          if (!result.success) renderErrors.push('Primary service (apex): ' + result.error)
+          const wwwResult = await addCustomDomain(primaryServiceId, 'www.' + domain)
+          if (!wwwResult.success && !wwwResult.error?.includes('already')) renderErrors.push('Primary service (www): ' + wwwResult.error)
         }
-        // Add www subdomain too
-        const wwwResult = await addCustomDomain(serviceIds.site || serviceIds.frontend || '', 'www.' + domain)
-        if (!wwwResult.success && !wwwResult.error?.includes('already')) renderErrors.push('www: ' + wwwResult.error)
+        // CRM backend gets app.<domain> — this is what the tenant's team logs into
+        const backendServiceId = serviceIds.backend || serviceIds.api
+        if (backendServiceId) {
+          const appResult = await addCustomDomain(backendServiceId, 'app.' + domain)
+          if (!appResult.success && !appResult.error?.includes('already')) renderErrors.push('CRM backend (app.): ' + appResult.error)
+        }
       }
     }
 

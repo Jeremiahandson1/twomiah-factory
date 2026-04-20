@@ -11,6 +11,8 @@ import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
 import { Client as PgClient } from 'pg'
+import * as cloudflare from './cloudflare'
+import * as sendgrid from './sendgrid'
 
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
@@ -1452,6 +1454,178 @@ export async function addCustomDomain(serviceId: string, domain: string): Promis
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+
+// ─── Domain Infrastructure Wiring ────────────────────────────────────────────
+// Called after a tenant's Render services exist AND tenants.domain is set.
+// Creates the Cloudflare zone, writes all DNS records (DNS-only, never
+// proxied — see cloudflare.ts header for why), enables Email Routing,
+// authenticates the domain with SendGrid for outbound DKIM/SPF, and attaches
+// the custom domain to the Render services for TLS termination.
+//
+// Safe to call repeatedly: zone creation checks for existing zone, DNS writes
+// swallow "already exists" errors, SendGrid domain auth can be re-polled.
+// On partial failure, returns steps/errors so the caller can decide whether
+// to retry or surface to the admin.
+
+export interface WireDomainOptions {
+  domain: string
+  // Render service slugs (NOT IDs) for CNAME targets (e.g. "tenant-api")
+  backendSlug?: string
+  siteSlug?: string
+  // Render service IDs for addCustomDomain attachment
+  backendServiceId?: string
+  siteServiceId?: string
+  // Admin email used for DMARC aggregate reports (rua). Falls back to dmarc@<domain>.
+  adminEmailForDmarc?: string
+  // Existing IDs so we don't re-create on retry
+  existingCloudflareZoneId?: string
+  existingSendgridDomainAuthId?: number
+}
+
+export interface WireDomainResult {
+  success: boolean
+  domain: string
+  cloudflareZoneId?: string
+  cloudflareNameServers?: string[]
+  sendgridDomainAuthId?: number
+  steps: Array<{ step: string; status: string; detail?: string }>
+  errors: string[]
+}
+
+export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise<WireDomainResult> {
+  const result: WireDomainResult = { success: false, domain: opts.domain, steps: [], errors: [] }
+
+  if (!cloudflare.isCloudflareConfigured()) {
+    result.errors.push('Cloudflare not configured')
+    return result
+  }
+  if (!sendgrid.isSendGridConfigured()) {
+    result.errors.push('SendGrid not configured')
+    return result
+  }
+
+  // ─── 1. Cloudflare zone ──────────────────────────────────────────────────
+  let zoneId = opts.existingCloudflareZoneId
+  try {
+    if (!zoneId) {
+      const zone = await cloudflare.createZone(opts.domain)
+      zoneId = zone.zoneId
+      result.cloudflareNameServers = zone.nameServers
+      result.steps.push({ step: 'cloudflare_zone', status: 'ok', detail: zoneId })
+    } else {
+      result.steps.push({ step: 'cloudflare_zone', status: 'ok', detail: 'reused ' + zoneId })
+    }
+    result.cloudflareZoneId = zoneId
+  } catch (e: any) {
+    // "Zone already exists" on Cloudflare means another account owns it, OR we've already created it but lost the ID. Surface cleanly.
+    result.steps.push({ step: 'cloudflare_zone', status: 'error', detail: e.message })
+    result.errors.push('Cloudflare zone: ' + e.message)
+    return result
+  }
+
+  // Helper: write a record and swallow "already exists" style errors
+  const writeRecord = async (spec: cloudflare.DnsRecordSpec, label: string) => {
+    try {
+      await cloudflare.addDnsRecord(zoneId!, spec)
+      result.steps.push({ step: 'dns_' + label, status: 'ok', detail: spec.type + ' ' + spec.name })
+    } catch (e: any) {
+      const msg = String(e.message || '')
+      if (msg.toLowerCase().includes('already exists') || msg.includes('identical record') || msg.includes('81057') || msg.includes('81058')) {
+        result.steps.push({ step: 'dns_' + label, status: 'ok', detail: 'already present' })
+      } else {
+        result.steps.push({ step: 'dns_' + label, status: 'error', detail: msg })
+        result.errors.push('DNS ' + label + ': ' + msg)
+      }
+    }
+  }
+
+  // ─── 2. DNS: apex + www + app (CNAME flattening) ─────────────────────────
+  // Cloudflare supports CNAME at apex via CNAME flattening — no Render IP
+  // pinning needed. Target the website slug if deployed, else the backend.
+  const apexTarget = opts.siteSlug ? opts.siteSlug + '.onrender.com' : (opts.backendSlug ? opts.backendSlug + '.onrender.com' : '')
+  if (apexTarget) {
+    await writeRecord({ type: 'CNAME', name: '@', content: apexTarget, proxied: false }, 'apex')
+    await writeRecord({ type: 'CNAME', name: 'www', content: apexTarget, proxied: false }, 'www')
+  } else {
+    result.steps.push({ step: 'dns_apex', status: 'skipped', detail: 'no website/backend slug provided' })
+  }
+
+  if (opts.backendSlug) {
+    await writeRecord({ type: 'CNAME', name: 'app', content: opts.backendSlug + '.onrender.com', proxied: false }, 'app')
+  }
+
+  // ─── 3. Cloudflare Email Routing (writes MX automatically) ───────────────
+  try {
+    await cloudflare.enableEmailRouting(zoneId)
+    result.steps.push({ step: 'email_routing_enable', status: 'ok' })
+  } catch (e: any) {
+    const msg = String(e.message || '')
+    if (msg.toLowerCase().includes('already enabled')) {
+      result.steps.push({ step: 'email_routing_enable', status: 'ok', detail: 'already enabled' })
+    } else {
+      result.steps.push({ step: 'email_routing_enable', status: 'warning', detail: msg })
+    }
+  }
+
+  // ─── 4. SendGrid domain authentication ──────────────────────────────────
+  let sgId = opts.existingSendgridDomainAuthId
+  try {
+    if (!sgId) {
+      const auth = await sendgrid.authenticateDomain(opts.domain)
+      sgId = auth.id
+      result.sendgridDomainAuthId = auth.id
+      // Write each returned CNAME to Cloudflare — these are the SPF/DKIM records SendGrid checks
+      for (const rec of auth.records) {
+        // SendGrid's host field includes the full FQDN — strip the base domain so
+        // Cloudflare treats it as a relative record under the zone.
+        const rel = rec.host.endsWith('.' + opts.domain) ? rec.host.slice(0, -(opts.domain.length + 1)) : rec.host
+        if (rec.type === 'cname') {
+          await writeRecord({ type: 'CNAME', name: rel, content: rec.data, proxied: false }, 'sendgrid_' + rel)
+        } else if (rec.type === 'txt') {
+          await writeRecord({ type: 'TXT', name: rel, content: rec.data }, 'sendgrid_txt_' + rel)
+        } else if (rec.type === 'mx') {
+          // MX is managed by Cloudflare Email Routing for the apex; SendGrid's inbound-parse MX lives on a dedicated hostname we run factory-wide. Skip per-tenant SendGrid MX.
+          result.steps.push({ step: 'sendgrid_mx_' + rel, status: 'skipped', detail: 'factory-wide parse MX handles this' })
+        }
+      }
+      result.steps.push({ step: 'sendgrid_authenticate', status: 'ok', detail: 'id=' + auth.id })
+    } else {
+      result.sendgridDomainAuthId = sgId
+      result.steps.push({ step: 'sendgrid_authenticate', status: 'ok', detail: 'reused id=' + sgId })
+    }
+  } catch (e: any) {
+    result.steps.push({ step: 'sendgrid_authenticate', status: 'error', detail: e.message })
+    result.errors.push('SendGrid: ' + e.message)
+  }
+
+  // ─── 5. SPF + DMARC ─────────────────────────────────────────────────────
+  // SPF is additive to whatever SendGrid's CNAMEs publish — this consolidated
+  // TXT at the apex advertises SendGrid as the only authorized sender.
+  await writeRecord({ type: 'TXT', name: '@', content: 'v=spf1 include:sendgrid.net -all' }, 'spf')
+
+  // DMARC p=none per plan decision: monitor-only for the first 30 days so we
+  // can tighten to quarantine/reject after clean reports come in.
+  const dmarcRua = opts.adminEmailForDmarc || ('dmarc@' + opts.domain)
+  const dmarcValue = 'v=DMARC1; p=none; rua=mailto:' + dmarcRua + '; ruf=mailto:' + dmarcRua + '; sp=none; aspf=r;'
+  await writeRecord({ type: 'TXT', name: '_dmarc', content: dmarcValue }, 'dmarc')
+
+  // ─── 6. Attach custom domains to Render services ────────────────────────
+  const siteSvc = opts.siteServiceId || opts.backendServiceId
+  if (siteSvc) {
+    const r1 = await addCustomDomain(siteSvc, opts.domain)
+    result.steps.push({ step: 'render_custom_apex', status: r1.success || r1.error?.includes('already') ? 'ok' : 'warning', detail: r1.error })
+    const r2 = await addCustomDomain(siteSvc, 'www.' + opts.domain)
+    result.steps.push({ step: 'render_custom_www', status: r2.success || r2.error?.includes('already') ? 'ok' : 'warning', detail: r2.error })
+  }
+  if (opts.backendServiceId) {
+    const r3 = await addCustomDomain(opts.backendServiceId, 'app.' + opts.domain)
+    result.steps.push({ step: 'render_custom_app', status: r3.success || r3.error?.includes('already') ? 'ok' : 'warning', detail: r3.error })
+  }
+
+  result.success = result.errors.length === 0
+  return result
 }
 
 
