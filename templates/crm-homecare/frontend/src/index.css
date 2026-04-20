@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
     --color-teal: {{PRIMARY_COLOR}};
     --color-teal-dark: {{PRIMARY_COLOR}};

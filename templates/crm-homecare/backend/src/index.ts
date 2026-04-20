@@ -112,6 +112,8 @@ import emailAliasesRoutes from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
+import inboundMessagesRoutes from './routes/inboundMessages.ts'
+import onboardingRoutes from './routes/onboarding.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -189,6 +191,8 @@ app.route('/api/email-aliases', emailAliasesRoutes)
 app.route('/api/email-domain', emailDomainRoutes)
 app.route('/api/account', accountRoutes)
 app.route('/api/internal/inbound-email', inboundParseRoutes)
+app.route('/api/inbound-messages', inboundMessagesRoutes)
+app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/stripe', stripeRoutes)
 app.route('/api/help', helpRoutes)
 app.route('/api/optimizer', optimizerRoutes)

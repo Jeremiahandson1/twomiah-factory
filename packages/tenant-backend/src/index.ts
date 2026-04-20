@@ -7,6 +7,8 @@
 
 export { createEmailAliasesRoutes } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'
+export { createInboundMessagesRoutes } from './inboundMessages'
+export { createOnboardingRoutes } from './onboarding'
 export { createEmailDomainRoutes } from './emailDomain'
 export { createAccountRoutes } from './account'
 export { createFactoryApiClient } from './factoryClient'
