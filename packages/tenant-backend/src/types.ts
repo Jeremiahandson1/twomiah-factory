@@ -32,10 +32,7 @@ export interface EmailAliasesDeps {
 
 export interface InboundParseDeps {
   db: any
-  emailAliasesTable: any
-  contactsTable: any
-  conversationsTable: any
-  attachmentsTable?: any
+  inboundMessageTable: any
 }
 
 export interface EmailDomainDeps {

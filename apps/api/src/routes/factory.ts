@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyReactivated, notifyOffboardComplete } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -1106,6 +1106,106 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
 })
 
 
+// ─── SendGrid Inbound Parse webhook ─────────────────────────────────────────
+// Registered once per factory-owned parse hostname with SendGrid. When an
+// email arrives at <tenant-id-no-dashes>-<localPart>@<parseHost>, SendGrid
+// POSTs a multipart/form-data payload here. We identify the tenant from the
+// local part and forward the parsed message to the tenant backend's
+// /api/internal/inbound-email with X-Factory-Key auth.
+//
+// Auth for this endpoint: a shared secret in the URL path segment. SendGrid
+// doesn't send auth headers, so we use path-based obscurity backed by a
+// fixed env var (SENDGRID_INBOUND_PARSE_WEBHOOK_SECRET). Only registered
+// once with SendGrid, only SendGrid knows it.
+factory.post('/inbound-parse/:secret', async (c) => {
+  try {
+    const expected = process.env.SENDGRID_INBOUND_PARSE_WEBHOOK_SECRET || ''
+    const got = c.req.param('secret') || ''
+    if (!expected || got !== expected) return c.json({ error: 'Unauthorized' }, 401)
+
+    // SendGrid sends multipart/form-data. Hono's c.req.parseBody handles it.
+    const body = await c.req.parseBody() as any
+    const toRaw = String(body.to || body.envelope_to || '')
+    const fromRaw = String(body.from || '')
+    const subject = body.subject ? String(body.subject) : undefined
+    const text = body.text ? String(body.text) : undefined
+    const html = body.html ? String(body.html) : undefined
+    const headers = body.headers ? String(body.headers) : undefined
+    const spf = body.SPF ? String(body.SPF) : undefined
+    const dkim = body.dkim ? String(body.dkim) : undefined
+
+    // Extract the primary recipient address. SendGrid may send multiple
+    // comma-separated addresses when a message is delivered to several
+    // aliases; pick the first one that's on our parse host.
+    const parseHost = (process.env.SENDGRID_INBOUND_PARSE_HOSTNAME || '').toLowerCase()
+    const toEmails = toRaw.split(/[,;\s]+/).map(e => e.trim().toLowerCase()).filter(Boolean)
+    const target = parseHost ? toEmails.find(e => e.endsWith('@' + parseHost)) || toEmails[0] : toEmails[0]
+    if (!target) return c.json({ error: 'No usable recipient address' }, 400)
+
+    // Local part is <tenantId-no-dashes>-<localPart>.
+    // We stripped dashes from the UUID when generating the destination, so
+    // 32 hex chars = tenantId compacted. The rest is the alias.
+    const localPartFull = target.split('@')[0]
+    const m = localPartFull.match(/^([a-f0-9]{32})-(.+)$/i)
+    if (!m) {
+      console.warn('[InboundParse] Unrecognized local-part format:', localPartFull)
+      return c.json({ error: 'Unrecognized recipient format' }, 400)
+    }
+    const tenantIdNoDashes = m[1].toLowerCase()
+    const localPart = m[2].toLowerCase()
+    const tenantId = tenantIdNoDashes.slice(0,8) + '-' + tenantIdNoDashes.slice(8,12) + '-' + tenantIdNoDashes.slice(12,16) + '-' + tenantIdNoDashes.slice(16,20) + '-' + tenantIdNoDashes.slice(20,32)
+
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, render_backend_url, status').eq('id', tenantId).single()
+    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (!tenant.render_backend_url || !tenant.factory_sync_key) return c.json({ error: 'Tenant not fully provisioned' }, 400)
+    if (tenant.status === 'offboarded') return c.json({ error: 'Tenant is offboarded — dropping' }, 410)
+
+    // Extract sender email + display name. "From" is typically formatted
+    // like: `Display Name <user@example.com>` or just `user@example.com`.
+    let fromEmail = fromRaw.trim()
+    let fromName: string | undefined
+    const fromMatch = fromRaw.match(/^\s*(.*)<([^>]+)>\s*$/)
+    if (fromMatch) {
+      fromName = fromMatch[1].trim().replace(/^"|"$/g, '') || undefined
+      fromEmail = fromMatch[2].trim()
+    }
+
+    // Forward to tenant backend. Fire-and-forget with timeout so a slow
+    // tenant doesn't stall SendGrid retries (SendGrid retries on non-200
+    // for ~3 days — we want a clean ack immediately).
+    const ingestUrl = tenant.render_backend_url.replace(/\/$/, '') + '/api/internal/inbound-email'
+    const ingestRes = await fetch(ingestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Factory-Key': tenant.factory_sync_key,
+      },
+      body: JSON.stringify({
+        toLocalPart: localPart,
+        fromEmail,
+        fromName,
+        subject,
+        textBody: text,
+        htmlBody: html,
+        spfVerdict: spf,
+        dkimVerdict: dkim,
+        rawHeaders: headers,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!ingestRes.ok) {
+      console.warn('[InboundParse] Tenant ingestion failed:', ingestRes.status, 'for', tenantId)
+      // Still return 200 to SendGrid — the message is in their logs; retrying won't help if the tenant is down.
+    }
+    return c.json({ success: true, tenantId, localPart })
+  } catch (err: any) {
+    console.error('[InboundParse] webhook failed:', err)
+    // Return 200 so SendGrid doesn't retry for 3 days on parsing errors.
+    return c.json({ error: err.message, ack: true }, 200)
+  }
+})
+
+
 // ─── Offboard status (tenant → factory, X-Factory-Key auth) ────────────────
 factory.get('/customers/:id/offboard/status', async (c) => {
   try {
@@ -1344,7 +1444,29 @@ factory.post('/customers/:id/offboard', requireRole('owner', 'admin'), async (c)
       epp_code_sent_at: eppCode ? now.toISOString() : null,
     }).eq('id', tenantId)
 
-    // 4. Audit log + emails (non-blocking)
+    // 4. Data export — dumps every public-schema table from the tenant DB to
+    // a JSON bundle on R2, emails a 7-day signed download link. Non-blocking
+    // so an R2 outage doesn't stop the offboard.
+    if (tenant.database_url) {
+      (async () => {
+        try {
+          const { exportTenantData } = await import('../services/dataExport')
+          const result = await exportTenantData({ tenantId: tenant.id, tenantSlug: tenant.slug, tenantDatabaseUrl: tenant.database_url })
+          if (result.success && result.signedUrl && result.expiresAt) {
+            await notifyDataExportReady(tenant, result.signedUrl, result.expiresAt).catch(e => console.warn('[Offboard] Data export email failed:', e.message))
+            steps.push({ step: 'data_export', status: 'ok', detail: result.rowCount + ' rows across ' + result.tableCount + ' tables' })
+          } else {
+            steps.push({ step: 'data_export', status: 'warning', detail: result.error })
+          }
+        } catch (e: any) {
+          steps.push({ step: 'data_export', status: 'warning', detail: e.message })
+        }
+      })()
+    } else {
+      steps.push({ step: 'data_export', status: 'skipped', detail: 'no tenant database_url stored' })
+    }
+
+    // 5. Audit log + emails (non-blocking)
     const user = c.get('user')
     await logTenantAudit(tenantId, 'offboard_start', {
       offboard_grace_ends_at: { old: null, new: graceEndsAt.toISOString() },

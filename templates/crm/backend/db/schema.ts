@@ -67,6 +67,28 @@ export const emailAlias = pgTable('email_alias', {
   localPartIdx: uniqueIndex('email_alias_local_part_idx').on(t.localPart),
 }))
 
+// Inbound messages received via SendGrid Inbound Parse for aliases in
+// routing_mode='crm'. Kept intentionally simple in V1 — no conversation
+// threading, no attachment storage. Just a timestamped inbox of what came
+// in, with enough fields for a later UI to match to contacts and thread.
+
+export const inboundMessage = pgTable('inbound_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  toLocalPart: text('to_local_part').notNull(),        // alias that received it
+  fromEmail: text('from_email').notNull(),
+  fromName: text('from_name'),
+  subject: text('subject'),
+  textBody: text('text_body'),
+  htmlBody: text('html_body'),
+  spfVerdict: text('spf_verdict'),
+  dkimVerdict: text('dkim_verdict'),
+  rawHeaders: text('raw_headers'),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+}, (t) => ({
+  receivedAtIdx: index('inbound_message_received_at_idx').on(t.receivedAt),
+  fromEmailIdx: index('inbound_message_from_email_idx').on(t.fromEmail),
+}))
+
 // ==================== USERS ====================
 
 export const user = pgTable('user', {
