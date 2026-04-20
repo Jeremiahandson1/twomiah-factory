@@ -1,0 +1,11 @@
+{
+  "name": "@twomiah/tenant-backend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "description": "Hono route factories vendored into each tenant CRM backend at generation time. Consumers inject their own Drizzle db + tables so vertical-specific schemas stay local.",
+  "peerDependencies": {
+    "hono": "^4.0.0"
+  }
+}

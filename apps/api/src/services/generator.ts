@@ -12,6 +12,7 @@ import bcrypt from 'bcryptjs'
 import { getFeaturesForPlan } from '../config/featureRegistry'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
+const PACKAGES_ROOT = process.env.FACTORY_PACKAGES_DIR || path.resolve(process.cwd(), '..', '..', 'packages')
 const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
 const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', 'electrical'])
 
@@ -193,6 +194,9 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       } else {
         console.log('[Generator] CRM copy verified — backend/src/index.ts exists')
       }
+      // Vendor shared packages into the tenant's src/shared/ so the generated
+      // repo stays fully standalone (no @twomiah/* workspace imports at runtime).
+      vendorSharedCode(path.join(workDir, crmOutputDir), tokens)
       processCRM(path.join(workDir, crmOutputDir), config, tokens)
       writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding)
     }
@@ -411,6 +415,32 @@ function copyTemplate(templateName: string, destDir: string, tokens: Record<stri
   }
   fs.mkdirSync(destDir, { recursive: true })
   copyAndInject(srcDir, destDir, tokens)
+}
+
+// Copies shared monorepo packages into the generated tenant CRM so tenant
+// repos stay standalone after the template copy. The package.json files are
+// deliberately NOT copied — tenants list their own deps (React, Hono) in
+// their own package.json, and the shared source just imports from them.
+function vendorSharedCode(crmDir: string, tokens: Record<string, string>) {
+  const uiSrc = path.join(PACKAGES_ROOT, 'tenant-ui', 'src')
+  const uiDest = path.join(crmDir, 'frontend', 'src', 'shared')
+  if (fs.existsSync(uiSrc)) {
+    fs.mkdirSync(uiDest, { recursive: true })
+    copyAndInject(uiSrc, uiDest, tokens)
+    console.log('[Generator] Vendored @twomiah/tenant-ui →', path.relative(crmDir, uiDest))
+  } else {
+    console.warn('[Generator] @twomiah/tenant-ui src not found at', uiSrc, '— skipping frontend shared vendoring')
+  }
+
+  const beSrc = path.join(PACKAGES_ROOT, 'tenant-backend', 'src')
+  const beDest = path.join(crmDir, 'backend', 'src', 'shared')
+  if (fs.existsSync(beSrc)) {
+    fs.mkdirSync(beDest, { recursive: true })
+    copyAndInject(beSrc, beDest, tokens)
+    console.log('[Generator] Vendored @twomiah/tenant-backend →', path.relative(crmDir, beDest))
+  } else {
+    console.warn('[Generator] @twomiah/tenant-backend src not found at', beSrc, '— skipping backend shared vendoring')
+  }
 }
 
 function copyAndInject(src: string, dest: string, tokens: Record<string, string>) {

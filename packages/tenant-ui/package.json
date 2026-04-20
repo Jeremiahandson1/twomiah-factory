@@ -1,0 +1,11 @@
+{
+  "name": "@twomiah/tenant-ui",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "description": "React components vendored into each tenant CRM frontend at generation time. Not consumed at runtime.",
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0"
+  }
+}

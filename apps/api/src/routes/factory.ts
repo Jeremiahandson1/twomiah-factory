@@ -1031,6 +1031,48 @@ factory.post('/customers/:id/regenerate', requireRole('owner', 'admin', 'editor'
 })
 
 
+// ─── Resync shared code (tenant-ui + tenant-backend) ────────────────────────
+// Pushes the latest packages/tenant-ui + packages/tenant-backend into an
+// existing tenant's repo so they pick up bug fixes to shared components.
+// For V1 this re-runs the full generate + push pipeline (the generator always
+// vendors shared code under src/shared/). A future optimization could diff
+// only src/shared/ to avoid churn on unchanged template files.
+factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'), async (c) => {
+  if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: tenantErr?.message || 'Tenant not found' }, tenantErr && tenantErr.code !== 'PGRST116' ? 500 : 404)
+
+    const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (!job) return c.json({ error: 'No previous build found for this tenant.' }, 400)
+
+    let serviceIds = job?.render_service_ids || {}
+    if (Object.keys(serviceIds).length === 0 && tenant.slug) {
+      serviceIds = await findRenderServicesBySlug(tenant.slug)
+    }
+
+    const config = (job.config || tenant.config || buildConfigFromTenantAndJob(tenant, job)) as GenerateConfig
+    console.log('[Factory] Resync-shared-code regenerating for', tenant.slug)
+    const { zipPath } = await generate(config)
+
+    const result = await updateCustomerCode(
+      { id: tenant.id, slug: tenant.slug, name: tenant.name, renderServiceIds: serviceIds },
+      zipPath,
+    )
+
+    try { fs.unlinkSync(zipPath) } catch {}
+
+    return c.json({ success: result.success, steps: result.steps, errors: result.errors })
+  } catch (err: any) {
+    console.error('[Factory] Resync shared code failed:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
 // ─── Delete Job ──────────────────────────────────────────────────────────────
 factory.delete('/jobs/:id', requireRole('owner', 'admin'), async (c) => {
   try {
