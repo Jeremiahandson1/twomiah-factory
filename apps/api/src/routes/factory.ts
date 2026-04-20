@@ -1106,6 +1106,74 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
 })
 
 
+// ─── Email alias sync (tenant → factory) ────────────────────────────────────
+// Called by the tenant's CRM backend whenever an email_alias is created,
+// updated, or deleted. The factory reflects the change in Cloudflare Email
+// Routing on the tenant's zone. Auth: tenant's factory_sync_key in X-Factory-Key.
+factory.post('/customers/:id/email-alias-sync', async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const suppliedKey = c.req.header('X-Factory-Key') || ''
+    if (!suppliedKey) return c.json({ error: 'Missing X-Factory-Key' }, 401)
+    const { data: tenant } = await supabase.from('tenants').select('id, domain, factory_sync_key, cloudflare_zone_id').eq('id', tenantId).single()
+    if (!tenant || tenant.factory_sync_key !== suppliedKey) return c.json({ error: 'Unauthorized' }, 401)
+    if (!tenant.domain || !tenant.cloudflare_zone_id) return c.json({ error: 'Tenant has no domain or Cloudflare zone configured' }, 400)
+
+    const body = await c.req.json().catch(() => ({}))
+    const { localPart, routingMode, forwardTo, enabled } = body
+    if (!localPart || !/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/.test(localPart)) return c.json({ error: 'Invalid localPart' }, 400)
+
+    // Load cloudflare module lazily so this file's import graph doesn't fail for
+    // environments where CF isn't configured.
+    const cf = await import('../services/cloudflare')
+    if (!cf.isCloudflareConfigured()) return c.json({ error: 'Cloudflare not configured' }, 503)
+
+    const matcherValue = localPart + '@' + tenant.domain
+    const existingRules = await cf.listEmailRoutingRules(tenant.cloudflare_zone_id)
+    const existing = existingRules.find(r => r.matcherValue.toLowerCase() === matcherValue.toLowerCase())
+
+    // Disabled or deleted alias → remove rule if present
+    if (enabled === false) {
+      if (existing) await cf.deleteEmailRoutingRule(tenant.cloudflare_zone_id, existing.tag)
+      return c.json({ success: true, action: existing ? 'removed' : 'noop' })
+    }
+
+    // Determine destination — forward mode sends to external email; crm mode
+    // sends to the factory-wide SendGrid Inbound Parse hostname (if configured).
+    let destination = ''
+    if (routingMode === 'crm') {
+      const parseHost = process.env.SENDGRID_INBOUND_PARSE_HOSTNAME || ''
+      if (!parseHost) return c.json({ error: 'Inbound Parse hostname not configured on factory (SENDGRID_INBOUND_PARSE_HOSTNAME)' }, 503)
+      // Prefix with tenant slug + local part so the webhook can route by recipient.
+      destination = tenantId.replace(/-/g, '') + '-' + localPart + '@' + parseHost
+    } else {
+      if (!forwardTo || !String(forwardTo).includes('@')) return c.json({ error: 'forwardTo required for forward mode' }, 400)
+      destination = String(forwardTo)
+      // Cloudflare requires destination addresses to be verified before use.
+      // Try to add it — noop if already exists. The verification email fires once per destination.
+      try { await cf.addEmailDestinationAddress(destination) } catch (e: any) {
+        if (!String(e.message).toLowerCase().includes('already')) {
+          console.warn('[EmailAliasSync] add destination failed (non-blocking):', e.message)
+        }
+      }
+    }
+
+    const rule = { matcherValue, forwardTo: destination, enabled: true, name: 'alias_' + localPart }
+    if (existing) {
+      await cf.updateEmailRoutingRule(tenant.cloudflare_zone_id, existing.tag, rule)
+      return c.json({ success: true, action: 'updated', ruleTag: existing.tag })
+    } else {
+      const created = await cf.addEmailRoutingRule(tenant.cloudflare_zone_id, rule)
+      return c.json({ success: true, action: 'created', ruleTag: created.tag })
+    }
+  } catch (err: any) {
+    console.error('[EmailAliasSync] failed:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
 // ─── Delete Job ──────────────────────────────────────────────────────────────
 factory.delete('/jobs/:id', requireRole('owner', 'admin'), async (c) => {
   try {

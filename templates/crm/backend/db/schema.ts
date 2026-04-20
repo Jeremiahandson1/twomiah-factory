@@ -41,9 +41,31 @@ export const company = pgTable('company', {
   twilioAccountSid: text('twilio_account_sid'),
   twilioAuthToken: text('twilio_auth_token'),
 
+  // Onboarding (V1 domain + email setup wizard)
+  onboardingCompletedAt: timestamp('onboarding_completed_at'),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+// ==================== EMAIL ALIASES ====================
+// Per-tenant email addresses on their connected domain (e.g. support@, admin@).
+// routing_mode='forward' → Cloudflare forwards to forward_to (external email).
+// routing_mode='crm'     → Cloudflare forwards to factory-wide SendGrid Inbound
+//   Parse hostname; the webhook looks up by alias + lands the message as a
+//   conversation thread on the matching contact.
+
+export const emailAlias = pgTable('email_alias', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  localPart: text('local_part').notNull(),                          // "support"
+  routingMode: text('routing_mode').notNull().default('forward'),   // 'forward' | 'crm'
+  forwardTo: text('forward_to'),                                    // set only when routing_mode='forward'
+  enabled: boolean('enabled').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  localPartIdx: uniqueIndex('email_alias_local_part_idx').on(t.localPart),
+}))
 
 // ==================== USERS ====================
 
