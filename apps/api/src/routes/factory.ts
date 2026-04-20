@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -1101,6 +1101,235 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
     return c.json({ success: result.success, steps: result.steps, errors: result.errors })
   } catch (err: any) {
     console.error('[Factory] Resync shared code failed:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+
+// ─── Renewal check cron (domain + sub renewals + teardown pickup) ──────────
+// Runs daily via external scheduler (same x-cron-secret pattern as /internal/trial-check).
+// Idempotent — sentinel columns prevent duplicate warnings.
+factory.post('/internal/renewal-check', async (c) => {
+  const expectedSecret = process.env.CRON_SECRET
+  const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!expectedSecret || gotSecret !== expectedSecret) return c.json({ error: 'Unauthorized' }, 401)
+
+  const now = new Date()
+  const results = { domain60: 0, domain30: 0, domain7: 0, sub60: 0, sub30: 0, sub7: 0, teardowns: 0, errors: [] as string[] }
+
+  async function processDomainWindow(daysLower: number, daysUpper: number, sentinelCol: string, daysRemainingForEmail: number) {
+    const lowerBound = new Date(now.getTime() + daysLower * 24 * 60 * 60 * 1000)
+    const upperBound = new Date(now.getTime() + daysUpper * 24 * 60 * 60 * 1000)
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id, name, email, admin_email, domain, render_frontend_url')
+      .is(sentinelCol, null)
+      .not('domain_expires_at', 'is', null)
+      .gte('domain_expires_at', lowerBound.toISOString())
+      .lt('domain_expires_at', upperBound.toISOString())
+    if (error) { results.errors.push(sentinelCol + ': ' + error.message); return 0 }
+    let count = 0
+    for (const t of data || []) {
+      try {
+        const billingUrl = t.render_frontend_url ? t.render_frontend_url.replace(/\/$/, '') + '/settings/billing' : undefined
+        await notifyDomainRenewal(t as any, daysRemainingForEmail, billingUrl).catch(() => {})
+        await supabase.from('tenants').update({ [sentinelCol]: now.toISOString() }).eq('id', t.id)
+        count++
+      } catch (e: any) {
+        results.errors.push(`${sentinelCol} ${t.id}: ${e.message}`)
+      }
+    }
+    return count
+  }
+
+  results.domain60 = await processDomainWindow(55, 65, 'domain_renewal_warned_60d_at', 60)
+  results.domain30 = await processDomainWindow(27, 33, 'domain_renewal_warned_30d_at', 30)
+  results.domain7  = await processDomainWindow(5, 9, 'domain_renewal_warned_7d_at', 7)
+
+  // Sub renewals: derive from tenants with active stripe_subscription_id + next_billing_date
+  async function processSubWindow(daysLower: number, daysUpper: number, sentinelCol: string, daysRemainingForEmail: number) {
+    const lowerBound = new Date(now.getTime() + daysLower * 24 * 60 * 60 * 1000)
+    const upperBound = new Date(now.getTime() + daysUpper * 24 * 60 * 60 * 1000)
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id, name, email, admin_email, plan')
+      .is(sentinelCol, null)
+      .not('stripe_subscription_id', 'is', null)
+      .not('next_billing_date', 'is', null)
+      .gte('next_billing_date', lowerBound.toISOString())
+      .lt('next_billing_date', upperBound.toISOString())
+    if (error) { results.errors.push(sentinelCol + ': ' + error.message); return 0 }
+    let count = 0
+    for (const t of data || []) {
+      try {
+        await notifySubscriptionRenewal(t as any, daysRemainingForEmail).catch(() => {})
+        await supabase.from('tenants').update({ [sentinelCol]: now.toISOString() }).eq('id', t.id)
+        count++
+      } catch (e: any) {
+        results.errors.push(`${sentinelCol} ${t.id}: ${e.message}`)
+      }
+    }
+    return count
+  }
+
+  results.sub60 = await processSubWindow(55, 65, 'sub_renewal_warned_60d_at', 60)
+  results.sub30 = await processSubWindow(27, 33, 'sub_renewal_warned_30d_at', 30)
+  results.sub7  = await processSubWindow(5, 9, 'sub_renewal_warned_7d_at', 7)
+
+  // Teardown pickup: tenants whose grace period has ended.
+  // Soft-teardown only: delete Cloudflare zone + SendGrid domain auth, mark
+  // status='offboarded'. Render services stay — destructive service deletion
+  // is left to a human admin (see /customers/:id/teardown below).
+  const { data: overdue, error: teardownErr } = await supabase
+    .from('tenants')
+    .select('id, name, email, admin_email, cloudflare_zone_id, sendgrid_domain_auth_id')
+    .not('offboard_grace_ends_at', 'is', null)
+    .lt('offboard_grace_ends_at', now.toISOString())
+    .neq('status', 'offboarded')
+  if (teardownErr) results.errors.push('teardown query: ' + teardownErr.message)
+  else for (const t of overdue || []) {
+    try {
+      if (t.cloudflare_zone_id) {
+        const cf = await import('../services/cloudflare')
+        if (cf.isCloudflareConfigured()) await cf.deleteZone(t.cloudflare_zone_id).catch(e => console.warn('[Teardown] CF zone delete:', e.message))
+      }
+      if (t.sendgrid_domain_auth_id) {
+        const sg = await import('../services/sendgrid')
+        if (sg.isSendGridConfigured()) await sg.deleteDomainAuth(t.sendgrid_domain_auth_id).catch(e => console.warn('[Teardown] SG auth delete:', e.message))
+      }
+      await supabase.from('tenants').update({ status: 'offboarded', cloudflare_zone_id: null, sendgrid_domain_auth_id: null }).eq('id', t.id)
+      await notifyOffboardComplete(t as any).catch(() => {})
+      results.teardowns++
+    } catch (e: any) {
+      results.errors.push(`teardown ${t.id}: ${e.message}`)
+    }
+  }
+
+  console.log('[RenewalCheck]', JSON.stringify(results))
+  return c.json({ ok: true, timestamp: now.toISOString(), ...results })
+})
+
+
+// ─── Offboard + reactivate ──────────────────────────────────────────────────
+factory.post('/customers/:id/offboard', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    // Require explicit confirm flag so this can't be triggered by accident
+    if (parsed.data.confirm !== true) return c.json({ error: 'Set body.confirm=true to offboard this tenant' }, 400)
+
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (tenant.offboard_started_at) return c.json({ error: 'Offboard already started at ' + tenant.offboard_started_at }, 409)
+
+    const now = new Date()
+    const graceEndsAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)  // 30-day grace per plan
+    const steps: Array<{ step: string; status: string; detail?: string }> = []
+
+    // 1. Cancel Stripe subscription at period end
+    if (tenant.stripe_subscription_id) {
+      try {
+        await factoryStripe.cancelSubscription(tenant.stripe_subscription_id, { atPeriodEnd: true })
+        steps.push({ step: 'stripe_cancel', status: 'ok' })
+      } catch (e: any) {
+        steps.push({ step: 'stripe_cancel', status: 'warning', detail: e.message })
+      }
+    } else {
+      steps.push({ step: 'stripe_cancel', status: 'skipped', detail: 'no subscription' })
+    }
+
+    // 2. Unlock domain at Namecheap + fetch EPP code (only if we registered it)
+    let eppCode: string | null = null
+    if (tenant.domain_registrar === 'namecheap' && tenant.domain) {
+      try {
+        if (isRegistrarConfigured()) {
+          const registrar = await getRegistrar()
+          const unlock = await registrar.unlock(tenant.domain)
+          if (!unlock.success) steps.push({ step: 'registrar_unlock', status: 'warning', detail: unlock.error })
+          else steps.push({ step: 'registrar_unlock', status: 'ok' })
+          const epp = await registrar.getEppCode(tenant.domain)
+          if (epp.success && epp.eppCode) {
+            eppCode = epp.eppCode
+            steps.push({ step: 'registrar_epp', status: 'ok' })
+          } else {
+            steps.push({ step: 'registrar_epp', status: 'warning', detail: epp.error })
+          }
+        } else {
+          steps.push({ step: 'registrar_unlock', status: 'skipped', detail: 'registrar not configured' })
+        }
+      } catch (e: any) {
+        steps.push({ step: 'registrar_unlock', status: 'warning', detail: e.message })
+      }
+    } else {
+      steps.push({ step: 'registrar_unlock', status: 'skipped', detail: tenant.domain_registrar === 'byod' ? 'BYOD domain — customer already owns it' : 'no domain' })
+    }
+
+    // 3. Set offboard sentinels
+    await supabase.from('tenants').update({
+      offboard_started_at: now.toISOString(),
+      offboard_grace_ends_at: graceEndsAt.toISOString(),
+      epp_code_sent_at: eppCode ? now.toISOString() : null,
+    }).eq('id', tenantId)
+
+    // 4. Audit log + emails (non-blocking)
+    const user = c.get('user')
+    await logTenantAudit(tenantId, 'offboard_start', {
+      offboard_grace_ends_at: { old: null, new: graceEndsAt.toISOString() },
+      stripe_subscription_id: { old: tenant.stripe_subscription_id, new: null },
+    }, user?.email || 'system')
+
+    const reactivationUrl = tenant.render_frontend_url ? (tenant.render_frontend_url.replace(/\/$/, '') + '/settings/account') : undefined
+    notifyOffboardStarted(tenant, graceEndsAt, reactivationUrl).catch(e => console.warn('[Offboard] email failed:', e.message))
+    if (eppCode) notifyEppCode(tenant, eppCode).catch(e => console.warn('[Offboard] EPP email failed:', e.message))
+
+    return c.json({
+      success: true,
+      offboardGraceEndsAt: graceEndsAt.toISOString(),
+      steps,
+      nextStep: 'Grace period active. Reactivate via /customers/:id/reactivate before ' + graceEndsAt.toISOString() + ' to restore.',
+    })
+  } catch (err: any) {
+    console.error('[Offboard] failed:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+factory.post('/customers/:id/reactivate', requireRole('owner', 'admin'), async (c) => {
+  try {
+    const tenantId = c.req.param('id')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (tenantErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (!tenant.offboard_started_at) return c.json({ error: 'Tenant is not in an offboarding state' }, 400)
+    const graceEnd = tenant.offboard_grace_ends_at ? new Date(tenant.offboard_grace_ends_at) : null
+    if (graceEnd && graceEnd < new Date()) return c.json({ error: 'Grace period has ended — reactivation not available' }, 410)
+
+    // Reverse Stripe cancellation (remove cancel_at_period_end)
+    if (tenant.stripe_subscription_id) {
+      try {
+        await factoryStripe.reactivateSubscription(tenant.stripe_subscription_id)
+      } catch (e: any) {
+        console.warn('[Reactivate] Stripe reactivation failed:', e.message)
+      }
+    }
+
+    await supabase.from('tenants').update({
+      offboard_started_at: null,
+      offboard_grace_ends_at: null,
+      epp_code_sent_at: null,
+    }).eq('id', tenantId)
+
+    const user = c.get('user')
+    await logTenantAudit(tenantId, 'offboard_reactivate', {
+      offboard_started_at: { old: tenant.offboard_started_at, new: null },
+    }, user?.email || 'system')
+
+    notifyReactivated(tenant).catch(e => console.warn('[Reactivate] email failed:', e.message))
+    return c.json({ success: true })
+  } catch (err: any) {
+    console.error('[Reactivate] failed:', err)
     return c.json({ error: err.message }, 500)
   }
 })

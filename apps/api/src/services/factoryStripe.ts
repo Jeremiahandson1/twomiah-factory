@@ -347,9 +347,21 @@ async function createCustomer(opts: { email: string; name: string; phone?: strin
   })
 }
 
-async function cancelSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
+async function cancelSubscription(subscriptionId: string, opts: { atPeriodEnd?: boolean } = {}): Promise<Stripe.Subscription> {
   if (!stripe) throw new Error('Stripe not configured')
+  // atPeriodEnd=true is the offboard path — customer keeps access through the
+  // end of the current billing period, no further charges. Immediate cancel
+  // is the legacy behavior (atPeriodEnd unset or false).
+  if (opts.atPeriodEnd) return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true })
   return stripe.subscriptions.cancel(subscriptionId)
+}
+
+async function reactivateSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
+  if (!stripe) throw new Error('Stripe not configured')
+  // Reverses a cancel_at_period_end — restores the subscription so it
+  // auto-renews normally. Only valid while subscription is still active
+  // (i.e. before the period-end cancel has actually taken effect).
+  return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false })
 }
 
 export default {
@@ -360,6 +372,7 @@ export default {
   createAutoSubscription,
   createCustomer,
   cancelSubscription,
+  reactivateSubscription,
   handleFactoryWebhook,
   verifyWebhookSignature,
   isConfigured,

@@ -330,6 +330,148 @@ export async function notifyTrialExpired(
   )
 }
 
+// ─── Domain + subscription renewal warnings ──────────────────────────────────
+
+function renewalBanner(daysRemaining: number, kind: 'domain' | 'subscription'): string {
+  const urgent = daysRemaining <= 7
+  const label = kind === 'domain' ? 'domain' : 'subscription'
+  if (urgent) {
+    return `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
+       <p style="margin:0 0 4px;color:#991b1b;font-weight:600;font-size:16px;">&#9888; Only ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} until your ${label} renews</p>
+       <p style="margin:0;color:#991b1b;">If your payment method fails, your ${label} will lapse.</p>
+     </div>`
+  }
+  return `<div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
+     <p style="margin:0 0 4px;color:#92400e;font-weight:600;font-size:16px;">${daysRemaining} days until your ${label} renews</p>
+     <p style="margin:0;color:#92400e;">Make sure your payment method on file is current.</p>
+   </div>`
+}
+
+export async function notifyDomainRenewal(
+  tenant: { name: string; email?: string; domain?: string | null; admin_email?: string | null },
+  daysRemaining: number,
+  billingUrl?: string
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const subject = `Your domain ${tenant.domain || ''} renews in ${daysRemaining} days`
+  const cta = billingUrl ? btn(billingUrl, 'Review Billing') : ''
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${renewalBanner(daysRemaining, 'domain')}
+    <p style="color:#333;line-height:1.6;">We're reaching out ahead of the auto-renewal so there are no surprises. Your domain <strong>${tenant.domain || '(unnamed)'}</strong> is set to renew automatically.</p>
+    <p style="color:#666;font-size:14px;">If your website, email, or CRM depend on this domain (they do), a lapsed renewal means downtime. Updating your payment method now avoids it.</p>
+    ${cta}`
+  return sendEmail(to, subject, wrap('Domain Renewal Coming Up', body))
+}
+
+export async function notifySubscriptionRenewal(
+  tenant: { name: string; email?: string; admin_email?: string | null; plan?: string | null },
+  daysRemaining: number,
+  billingUrl?: string
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  const subject = `Your Twomiah ${planLabel} subscription renews in ${daysRemaining} days`
+  const cta = billingUrl ? btn(billingUrl, 'Update Billing') : ''
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    ${renewalBanner(daysRemaining, 'subscription')}
+    <p style="color:#333;line-height:1.6;">Your <strong>${planLabel}</strong> plan is set to renew automatically. Confirm your card is current to avoid any interruption.</p>
+    ${cta}`
+  return sendEmail(to, subject, wrap('Subscription Renewal Coming Up', body))
+}
+
+// ─── Offboard lifecycle ───────────────────────────────────────────────────────
+
+export async function notifyOffboardStarted(
+  tenant: { name: string; email?: string; admin_email?: string | null; domain?: string | null; render_frontend_url?: string | null },
+  graceEndsAt: Date,
+  reactivationUrl?: string
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const graceStr = graceEndsAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    <p style="color:#333;line-height:1.6;">We've started offboarding your Twomiah account. Here's what happens next:</p>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0 0 8px;color:#1e3a8a;font-weight:600;">Your 30-day grace period</p>
+      <p style="margin:0;color:#1e3a8a;font-size:14px;">Your CRM, website, and data stay live until <strong>${graceStr}</strong>. If you change your mind, reactivate any time during this window — nothing gets deleted.</p>
+    </div>
+    <ul style="color:#333;line-height:1.8;font-size:14px;padding-left:20px;">
+      <li>Your subscription is cancelled at the end of the current billing period (no further charges).</li>
+      <li>Your domain ${tenant.domain ? '<strong>' + tenant.domain + '</strong>' : ''} has been unlocked for transfer — a separate email with the auth (EPP) code is on its way.</li>
+      <li>A data export (CSV + JSON) will be emailed to you shortly.</li>
+      <li>After ${graceStr}, your Render services and Cloudflare zone are decommissioned.</li>
+    </ul>
+    ${reactivationUrl ? btn(reactivationUrl, 'Change my mind — reactivate') : ''}
+    <p style="color:#666;font-size:14px;margin-top:16px;">Questions? Just reply to this email and we'll help.</p>`
+  return sendEmail(to, `Offboarding started — grace period through ${graceStr}`, wrap('Offboarding Started', body))
+}
+
+export async function notifyEppCode(
+  tenant: { name: string; email?: string; admin_email?: string | null; domain?: string | null },
+  eppCode: string
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    <p style="color:#333;line-height:1.6;">Here's the EPP authorization code for transferring <strong>${tenant.domain || '(your domain)'}</strong> to another registrar.</p>
+    <div style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:16px;margin:16px 0;font-family:monospace;word-break:break-all;">
+      ${eppCode}
+    </div>
+    <p style="color:#333;line-height:1.6;font-size:14px;"><strong>How to use it:</strong></p>
+    <ol style="color:#333;line-height:1.8;font-size:14px;padding-left:20px;">
+      <li>Sign up or log in at the new registrar (Namecheap, GoDaddy, Cloudflare, etc.).</li>
+      <li>Start a "transfer in" for your domain.</li>
+      <li>Paste this EPP code when asked.</li>
+      <li>Approve the transfer email that arrives at the domain's registrant email.</li>
+    </ol>
+    <p style="color:#666;font-size:14px;">The transfer usually completes within 5–7 days. Your domain is unlocked on our side so there's nothing else to do here.</p>`
+  return sendEmail(to, `Your EPP code for ${tenant.domain || 'domain transfer'}`, wrap('Domain Transfer Authorization Code', body))
+}
+
+export async function notifyDataExportReady(
+  tenant: { name: string; email?: string; admin_email?: string | null },
+  signedUrl: string,
+  expiresAt: Date
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const expStr = expiresAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    <p style="color:#333;line-height:1.6;">Your account data export is ready. It includes every contact, job, quote, invoice, document, and attachment from your account.</p>
+    ${btn(signedUrl, 'Download Export')}
+    <p style="color:#666;font-size:14px;margin-top:16px;">This download link expires on <strong>${expStr}</strong>. Save the files to your own storage before then.</p>`
+  return sendEmail(to, 'Your Twomiah data export is ready', wrap('Data Export Ready', body))
+}
+
+export async function notifyReactivated(
+  tenant: { name: string; email?: string; admin_email?: string | null }
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const body = `
+    <p style="color:#333;line-height:1.6;">Welcome back, ${tenant.name} — your account has been reactivated.</p>
+    <p style="color:#333;line-height:1.6;">Your subscription has been restored and the offboard timer has been cancelled. Nothing was deleted during the grace period, so everything picks up where you left off.</p>`
+  return sendEmail(to, 'Your Twomiah account is reactivated', wrap('Welcome Back', body))
+}
+
+export async function notifyOffboardComplete(
+  tenant: { name: string; email?: string; admin_email?: string | null }
+): Promise<boolean> {
+  const to = tenant.admin_email || tenant.email
+  if (!to) return false
+  const body = `
+    <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
+    <p style="color:#333;line-height:1.6;">Your offboarding is complete. Your Twomiah services have been decommissioned per the plan you chose. Thanks for trying us — if you ever come back, your slug is still reserved and the door is always open.</p>`
+  return sendEmail(to, 'Offboarding complete', wrap('Goodbye (for now)', body))
+}
+
 export async function notifyBillingPastDue(
   tenant: { name: string; email?: string; stripe_subscription_id?: string }
 ): Promise<boolean> {
