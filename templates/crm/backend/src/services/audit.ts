@@ -70,7 +70,7 @@ export async function log({ action, entity, entityId, entityName, changes, metad
       userId: req?.user?.userId || null,
       userName: req?.user?.email || null,
       userEmail: req?.user?.email || null,
-      companyId: req?.user?.companyId || '',
+      companyId: req?.user?.companyId || null,
       ipAddress: (req?.ip || req?.headers?.['x-forwarded-for']) as string || null,
       userAgent: req?.headers?.['user-agent'] as string || null,
     });
