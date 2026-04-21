@@ -92,8 +92,10 @@ app.post('/', async (c) => {
   const data = expenseSchema.parse(await c.req.json())
 
   const [newExpense] = await db.insert(expense).values({
-    ...data,
-    amount: data.amount.toString(),
+      ...data,
+      projectId: data.projectId || null,
+      jobId: data.jobId || null,
+      amount: data.amount.toString(),
     date: data.date ? new Date(data.date) : new Date(),
     companyId: currentUser.companyId,
   }).returning()
