@@ -814,34 +814,49 @@ export async function deployCustomer(
             // necessary but NOT sufficient — we must also probe with a real SELECT 1.
             // Without this probe the backend deploys against a DB that isn't listening
             // and migrations burn their entire retry window on ECONNREFUSED.
+            // Strip credentials from a postgres URL for safe logging, keep host:port/db.
+            const probeHost = (url: string): string => {
+              try { const u = new URL(url); return `${u.hostname}:${u.port || '5432'}` }
+              catch { return '<unparseable>' }
+            }
+            let probeKind: 'internal' | 'external' = 'internal'
             for (let attempt = 0; attempt < 20; attempt++) {
               await sleep(15000)
               try {
                 if (!candidateConnStr) {
                   const connInfo = await getDatabaseConnectionInfo(db.id)
                   if (connInfo?.internalConnectionString) candidateConnStr = connInfo.internalConnectionString
-                  if (!candidateConnStr) continue
+                  if (!candidateConnStr) {
+                    console.log('[Deploy] DB connection info not yet returned by Render API (attempt ' + (attempt + 1) + '/20)')
+                    continue
+                  }
                 }
                 // Render internal hostnames only resolve inside Render. When this factory
                 // runs on Render (production) the internal string is reachable. When it
                 // runs locally, fall back to externalConnectionString for the probe.
                 let probeUrl = candidateConnStr
+                probeKind = 'internal'
                 if (!process.env.RENDER_SERVICE_ID) {
                   try {
                     const connInfo = await getDatabaseConnectionInfo(db.id)
-                    if (connInfo?.externalConnectionString) probeUrl = connInfo.externalConnectionString
+                    if (connInfo?.externalConnectionString) {
+                      probeUrl = connInfo.externalConnectionString
+                      probeKind = 'external'
+                    }
                   } catch { /* use internal */ }
                 }
+                console.log('[Deploy] Probing DB attempt ' + (attempt + 1) + '/20 via ' + probeKind + ' host ' + probeHost(probeUrl))
                 const client = new PgClient({ connectionString: probeUrl, connectionTimeoutMillis: 5000 })
                 await client.connect()
                 await client.query('SELECT 1')
                 await client.end()
                 dbConnectionString = candidateConnStr
                 dbReady = true
-                console.log('[Deploy] DB is accepting connections (attempt ' + (attempt + 1) + ')')
+                console.log('[Deploy] DB is accepting connections (attempt ' + (attempt + 1) + ', via ' + probeKind + ')')
                 break
               } catch (e: any) {
-                console.log('[Deploy] DB not ready yet (attempt ' + (attempt + 1) + '/20):', e?.code || e?.message)
+                const host = candidateConnStr ? probeHost(candidateConnStr) : '<no-conn-str-yet>'
+                console.log('[Deploy] DB not ready yet (attempt ' + (attempt + 1) + '/20) ' + probeKind + ' ' + host + ':', e?.code || e?.message)
               }
             }
             if (!dbReady) throw new Error('DB did not become ready in time (TCP probe never succeeded)')
