@@ -10,7 +10,6 @@ import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
-import { Client as PgClient } from 'pg'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
 
@@ -806,62 +805,28 @@ export async function deployCustomer(
             results.services.database = db
             if (db.id) deployedResourceIds.push(db.id)
 
-            console.log('[Deploy] Waiting for DB to be ready (connection string + TCP probe)...')
+            console.log('[Deploy] Waiting for DB connection string from Render...')
+            // Restored to pre-Phase-0 behavior: poll Render's API until it returns a
+            // connection string, then hand it to the deployed backend service. The Phase 0
+            // pg.connect()+SELECT 1 probe was belt-and-suspenders that broke deploys when
+            // the factory couldn't reach the DB (region mismatch / SSL termination quirks).
+            // The actual race-condition fix lives in the deployed backend's db/migrate.ts,
+            // which retries connection 20× / 10s on boot — that's the real defense against
+            // "DB returned by API before it's listening".
             let dbReady = false
-            let internalConnStr: string | undefined
-            let externalConnStr: string | undefined
-            // Render returns connection strings BEFORE the DB actually accepts TCP on :5432.
-            // We must probe with a real SELECT 1. The probe must use the EXTERNAL hostname
-            // (publicly resolvable) — the factory cannot assume it shares a private network
-            // with the new DB (different region or no private DNS). The deployed services,
-            // however, run in the same region as the DB and must use the INTERNAL hostname.
-            const probeHost = (url: string): string => {
-              try { const u = new URL(url); return `${u.hostname}:${u.port || '5432'}` }
-              catch { return '<unparseable>' }
-            }
-            const MAX_ATTEMPTS = 30 // 30 × 15s = 7.5 min (was 20 × 15s = 5 min)
-            for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            for (let attempt = 0; attempt < 20; attempt++) {
               await sleep(15000)
               try {
-                if (!internalConnStr || !externalConnStr) {
-                  const connInfo = await getDatabaseConnectionInfo(db.id)
-                  if (connInfo?.internalConnectionString) internalConnStr = connInfo.internalConnectionString
-                  if (connInfo?.externalConnectionString) externalConnStr = connInfo.externalConnectionString
-                  if (!internalConnStr && !externalConnStr) {
-                    console.log('[Deploy] DB connection info not yet returned by Render API (attempt ' + (attempt + 1) + '/' + MAX_ATTEMPTS + ')')
-                    continue
-                  }
+                const connInfo = await getDatabaseConnectionInfo(db.id)
+                if (connInfo?.internalConnectionString) {
+                  dbConnectionString = connInfo.internalConnectionString
+                  dbReady = true
+                  console.log('[Deploy] DB connection string received (attempt ' + (attempt + 1) + ')')
+                  break
                 }
-                // Prefer external for the probe (publicly resolvable); fall back to internal
-                // only if Render hasn't returned the external string yet.
-                const probeUrl = externalConnStr || internalConnStr!
-                const probeKind: 'internal' | 'external' = externalConnStr ? 'external' : 'internal'
-                console.log('[Deploy] Probing DB attempt ' + (attempt + 1) + '/' + MAX_ATTEMPTS + ' via ' + probeKind + ' host ' + probeHost(probeUrl))
-                // External Render Postgres requires SSL. Internal (private network) does
-                // not, but accepts SSL fine. rejectUnauthorized: false because Render uses
-                // its own CA chain not bundled with Node by default.
-                const client = new PgClient({
-                  connectionString: probeUrl,
-                  connectionTimeoutMillis: 5000,
-                  ssl: probeKind === 'external' ? { rejectUnauthorized: false } : undefined,
-                })
-                await client.connect()
-                await client.query('SELECT 1')
-                await client.end()
-                // Hand the deployed services the INTERNAL string (private networking from
-                // their region). Fall back to external if internal somehow wasn't returned.
-                dbConnectionString = internalConnStr || externalConnStr
-                dbReady = true
-                console.log('[Deploy] DB is accepting connections (attempt ' + (attempt + 1) + ', probed via ' + probeKind + ')')
-                break
-              } catch (e: any) {
-                const probeUrl = externalConnStr || internalConnStr
-                const probeKind: 'internal' | 'external' | 'none' = externalConnStr ? 'external' : (internalConnStr ? 'internal' : 'none')
-                const host = probeUrl ? probeHost(probeUrl) : '<no-conn-str-yet>'
-                console.log('[Deploy] DB not ready yet (attempt ' + (attempt + 1) + '/' + MAX_ATTEMPTS + ') ' + probeKind + ' ' + host + ':', e?.code || e?.message)
-              }
+              } catch (_e) { /* not ready yet */ }
             }
-            if (!dbReady) throw new Error('DB did not become ready in time (TCP probe never succeeded)')
+            if (!dbReady) throw new Error('DB did not become ready in time')
           }
         } catch (dbErr: any) {
           results.steps.push({ step: 'render_db', status: 'error', error: dbErr.message })
