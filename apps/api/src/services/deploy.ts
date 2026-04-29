@@ -837,7 +837,14 @@ export async function deployCustomer(
                 const probeUrl = externalConnStr || internalConnStr!
                 const probeKind: 'internal' | 'external' = externalConnStr ? 'external' : 'internal'
                 console.log('[Deploy] Probing DB attempt ' + (attempt + 1) + '/' + MAX_ATTEMPTS + ' via ' + probeKind + ' host ' + probeHost(probeUrl))
-                const client = new PgClient({ connectionString: probeUrl, connectionTimeoutMillis: 5000 })
+                // External Render Postgres requires SSL. Internal (private network) does
+                // not, but accepts SSL fine. rejectUnauthorized: false because Render uses
+                // its own CA chain not bundled with Node by default.
+                const client = new PgClient({
+                  connectionString: probeUrl,
+                  connectionTimeoutMillis: 5000,
+                  ssl: probeKind === 'external' ? { rejectUnauthorized: false } : undefined,
+                })
                 await client.connect()
                 await client.query('SELECT 1')
                 await client.end()
