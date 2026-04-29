@@ -271,8 +271,6 @@ export default function CustomerDetailPage() {
   const [saving, setSaving] = useState(false)
   const [deploying, setDeploying] = useState(false)
   const [deletingJob, setDeletingJob] = useState<string | null>(null)
-  const [showDeployModal, setShowDeployModal] = useState(false)
-  const [deployPlan, setDeployPlan] = useState<string>('basic_256mb')
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
@@ -382,14 +380,13 @@ export default function CustomerDetailPage() {
   async function deployToRender() {
     if (!tenant) return
     setDeploying(true)
-    setShowDeployModal(false)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.access_token) { showToast('Not authenticated', 'error'); setDeploying(false); return }
       const res = await fetch(API + '/api/v1/factory/customers/' + tenant.id + '/deploy', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ region: 'ohio', plan: 'starter', dbPlan: deployPlan }),
+        body: JSON.stringify({ region: 'ohio', plan: 'starter', dbPlan: 'basic_256mb' }),
       })
       const data = await res.json()
       if (res.ok) { showToast('Deployment started! Services will be live in a few minutes.'); setTimeout(load, 15000) }
@@ -675,7 +672,7 @@ export default function CustomerDetailPage() {
               <div className="space-y-2">
                 {!latestDeployed && (
                   <div className="flex gap-2">
-                    <button onClick={() => setShowDeployModal(true)} disabled={deploying}
+                    <button onClick={deployToRender} disabled={deploying}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors">
                       <Rocket size={14} /> {deploying ? 'Deploying...' : 'Deploy to Render'}
                     </button>
@@ -1045,48 +1042,6 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      {/* Deploy Plan Modal */}
-      {showDeployModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-md">
-            <h2 className="text-white font-bold text-lg mb-1">Deploy to Render</h2>
-            <p className="text-gray-400 text-sm mb-6">Choose a database plan for this customer. This creates a GitHub repo, Postgres database, and web services.</p>
-
-            <div className="space-y-3 mb-6">
-              {[
-                { value: 'free',        label: 'Free',          price: '$0/mo',  desc: 'Testing only. DB expires after 90 days.', color: 'border-gray-500' },
-                { value: 'starter', label: 'Starter',   price: '$7/mo',  desc: 'Good for small production CRMs.', color: 'border-blue-500' },
-                { value: 'standard', label: 'Standard',     price: '$20/mo', desc: 'Recommended for active customers.', color: 'border-indigo-500' },
-                { value: 'pro',      label: 'Pro',          price: '$75/mo', desc: 'High-volume workloads.', color: 'border-purple-500' },
-              ].map(opt => (
-                <div key={opt.value}
-                  onClick={() => setDeployPlan(opt.value)}
-                  className={'flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ' + (deployPlan === opt.value ? opt.color + ' bg-white/5' : 'border-gray-700 hover:border-gray-600')}>
-                  <div>
-                    <div className="text-white font-semibold text-sm">{opt.label}</div>
-                    <div className="text-gray-400 text-xs mt-0.5">{opt.desc}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-white text-sm font-bold">{opt.price}</div>
-                    {deployPlan === opt.value && <div className="text-xs text-green-400 mt-0.5">Selected ✓</div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-3">
-              <button onClick={() => setShowDeployModal(false)}
-                className="flex-1 px-4 py-2.5 rounded-lg border border-gray-700 text-gray-400 hover:text-white text-sm font-semibold transition-colors">
-                Cancel
-              </button>
-              <button onClick={deployToRender}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-colors">
-                <Rocket size={14} /> Deploy Now
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
