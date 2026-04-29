@@ -986,19 +986,23 @@ export default function CustomerDetailPage() {
           </div>
 
           {/* Admin Login */}
-          {tenant.admin_email && (
+          {(tenant.admin_email || tenant.email) && (
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
               <h2 className="text-white font-semibold mb-3">Admin Login</h2>
               <div className="space-y-3 text-sm">
                 <div>
                   <label className="text-xs text-gray-500 block mb-1">Email</label>
                   <div className="flex items-center gap-2">
-                    <span className="text-gray-300">{tenant.admin_email}</span>
-                    <CopyButton value={tenant.admin_email} />
+                    <span className="text-gray-300">{tenant.admin_email || tenant.email}</span>
+                    <CopyButton value={tenant.admin_email || tenant.email} />
                   </div>
                 </div>
-                {tenant.admin_password && (
+                {tenant.admin_password ? (
                   <PasswordField password={tenant.admin_password} />
+                ) : (
+                  <p className="text-xs text-amber-400/80">
+                    Password not stored on tenant record. Check the GitHub repo's README.md after deploy completes — generator embeds it there.
+                  </p>
                 )}
               </div>
             </div>

@@ -613,6 +613,16 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.supabaseProjectRef) criticalUpdate.supabase_project_ref = result.supabaseProjectRef
       if (result.dbConnectionString) criticalUpdate.database_url = result.dbConnectionString
       if (result.factorySyncKey) criticalUpdate.factory_sync_key = result.factorySyncKey
+      // Persist the generator-minted admin password (the one seeded into the CRM DB) so
+      // it shows up on the customer detail page. Don't overwrite an existing one — that
+      // would clobber a password the customer may have already changed.
+      if (genResult.defaultPassword && !tenant.admin_password) {
+        criticalUpdate.admin_password = genResult.defaultPassword
+      }
+      // Same for admin_email — fall back to email if admin_email isn't already set.
+      if (!tenant.admin_email && tenant.email) {
+        criticalUpdate.admin_email = tenant.email
+      }
 
       const { error: criticalErr } = await supabase.from('tenants').update(criticalUpdate).eq('id', tenant.id)
       if (criticalErr) {
