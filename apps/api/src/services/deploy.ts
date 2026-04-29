@@ -808,55 +808,50 @@ export async function deployCustomer(
 
             console.log('[Deploy] Waiting for DB to be ready (connection string + TCP probe)...')
             let dbReady = false
-            let candidateConnStr: string | undefined
-            // Render returns an internalConnectionString (10.x.x.x private-network host)
-            // BEFORE the DB actually accepts TCP on :5432. A returned conn string is
-            // necessary but NOT sufficient — we must also probe with a real SELECT 1.
-            // Without this probe the backend deploys against a DB that isn't listening
-            // and migrations burn their entire retry window on ECONNREFUSED.
-            // Strip credentials from a postgres URL for safe logging, keep host:port/db.
+            let internalConnStr: string | undefined
+            let externalConnStr: string | undefined
+            // Render returns connection strings BEFORE the DB actually accepts TCP on :5432.
+            // We must probe with a real SELECT 1. The probe must use the EXTERNAL hostname
+            // (publicly resolvable) — the factory cannot assume it shares a private network
+            // with the new DB (different region or no private DNS). The deployed services,
+            // however, run in the same region as the DB and must use the INTERNAL hostname.
             const probeHost = (url: string): string => {
               try { const u = new URL(url); return `${u.hostname}:${u.port || '5432'}` }
               catch { return '<unparseable>' }
             }
-            let probeKind: 'internal' | 'external' = 'internal'
-            for (let attempt = 0; attempt < 20; attempt++) {
+            const MAX_ATTEMPTS = 30 // 30 × 15s = 7.5 min (was 20 × 15s = 5 min)
+            for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
               await sleep(15000)
               try {
-                if (!candidateConnStr) {
+                if (!internalConnStr || !externalConnStr) {
                   const connInfo = await getDatabaseConnectionInfo(db.id)
-                  if (connInfo?.internalConnectionString) candidateConnStr = connInfo.internalConnectionString
-                  if (!candidateConnStr) {
-                    console.log('[Deploy] DB connection info not yet returned by Render API (attempt ' + (attempt + 1) + '/20)')
+                  if (connInfo?.internalConnectionString) internalConnStr = connInfo.internalConnectionString
+                  if (connInfo?.externalConnectionString) externalConnStr = connInfo.externalConnectionString
+                  if (!internalConnStr && !externalConnStr) {
+                    console.log('[Deploy] DB connection info not yet returned by Render API (attempt ' + (attempt + 1) + '/' + MAX_ATTEMPTS + ')')
                     continue
                   }
                 }
-                // Render internal hostnames only resolve inside Render. When this factory
-                // runs on Render (production) the internal string is reachable. When it
-                // runs locally, fall back to externalConnectionString for the probe.
-                let probeUrl = candidateConnStr
-                probeKind = 'internal'
-                if (!process.env.RENDER_SERVICE_ID) {
-                  try {
-                    const connInfo = await getDatabaseConnectionInfo(db.id)
-                    if (connInfo?.externalConnectionString) {
-                      probeUrl = connInfo.externalConnectionString
-                      probeKind = 'external'
-                    }
-                  } catch { /* use internal */ }
-                }
-                console.log('[Deploy] Probing DB attempt ' + (attempt + 1) + '/20 via ' + probeKind + ' host ' + probeHost(probeUrl))
+                // Prefer external for the probe (publicly resolvable); fall back to internal
+                // only if Render hasn't returned the external string yet.
+                const probeUrl = externalConnStr || internalConnStr!
+                const probeKind: 'internal' | 'external' = externalConnStr ? 'external' : 'internal'
+                console.log('[Deploy] Probing DB attempt ' + (attempt + 1) + '/' + MAX_ATTEMPTS + ' via ' + probeKind + ' host ' + probeHost(probeUrl))
                 const client = new PgClient({ connectionString: probeUrl, connectionTimeoutMillis: 5000 })
                 await client.connect()
                 await client.query('SELECT 1')
                 await client.end()
-                dbConnectionString = candidateConnStr
+                // Hand the deployed services the INTERNAL string (private networking from
+                // their region). Fall back to external if internal somehow wasn't returned.
+                dbConnectionString = internalConnStr || externalConnStr
                 dbReady = true
-                console.log('[Deploy] DB is accepting connections (attempt ' + (attempt + 1) + ', via ' + probeKind + ')')
+                console.log('[Deploy] DB is accepting connections (attempt ' + (attempt + 1) + ', probed via ' + probeKind + ')')
                 break
               } catch (e: any) {
-                const host = candidateConnStr ? probeHost(candidateConnStr) : '<no-conn-str-yet>'
-                console.log('[Deploy] DB not ready yet (attempt ' + (attempt + 1) + '/20) ' + probeKind + ' ' + host + ':', e?.code || e?.message)
+                const probeUrl = externalConnStr || internalConnStr
+                const probeKind: 'internal' | 'external' | 'none' = externalConnStr ? 'external' : (internalConnStr ? 'internal' : 'none')
+                const host = probeUrl ? probeHost(probeUrl) : '<no-conn-str-yet>'
+                console.log('[Deploy] DB not ready yet (attempt ' + (attempt + 1) + '/' + MAX_ATTEMPTS + ') ' + probeKind + ' ' + host + ':', e?.code || e?.message)
               }
             }
             if (!dbReady) throw new Error('DB did not become ready in time (TCP probe never succeeded)')
