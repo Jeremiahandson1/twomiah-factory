@@ -485,6 +485,11 @@ function processCRM(crmDir: string, config: GenerateConfig, tokens: Record<strin
   const features = planFeatures.length > 0
     ? [...new Set([...planFeatures, ...signupFeatures])]
     : signupFeatures
+  // Write the resolved feature list back into config so the caller (runDeploy) can
+  // persist it to tenants.features in the factory DB. Without this, the seeded CRM
+  // gets the right features but the factory's tenant record stays empty, forcing
+  // the user to manually re-add features in the platform UI after every deploy.
+  config.features = { ...(config.features || {}), crm: features }
   const manifest = loadManifest(crmDir)
 
   // Support both Drizzle (db/) and legacy Prisma (prisma/) seed locations
