@@ -20,8 +20,18 @@ type AuditEntry = {
   current: string[]
   changed_by: string
   synced_to_crm: boolean
+  sync_error?: string | null
   note: string | null
 }
+
+type LastFeatureSync = {
+  at: string
+  ok: boolean
+  error: string | null
+  sent_count: number
+  received_count: number | null
+  mode: 'http' | 'db' | 'none'
+} | null
 
 type Props = {
   tenantId: string
@@ -35,6 +45,7 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
   const [available, setAvailable] = useState<FeatureDef[]>([])
   const [auditLog, setAuditLog] = useState<AuditEntry[]>([])
   const [hasDatabaseUrl, setHasDatabaseUrl] = useState(false)
+  const [lastSync, setLastSync] = useState<LastFeatureSync>(null)
   const [template, setTemplate] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -95,6 +106,7 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
       setAvailable(data.availableFeatures || [])
       setAuditLog(data.auditLog || [])
       setHasDatabaseUrl(data.hasDatabaseUrl)
+      setLastSync(data.lastFeatureSync ?? null)
       setTemplate(data.template || '')
 
       // Auto-expand categories that have enabled features
@@ -127,16 +139,30 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
       const data = await res.json()
 
       setOriginal(enabled)
-      const syncMsg = data.syncedToCrm ? 'Synced to live CRM.' : `Saved to Factory only. CRM sync failed: ${data.syncError || 'unknown error'}`
-      setSuccess(`Features updated. ${syncMsg}`)
+      setLastSync(data.lastFeatureSync ?? null)
+      if (data.syncedToCrm) {
+        setSuccess('Features updated and synced to live CRM.')
+      } else {
+        // Don't set `success` for a partial-failure — surface as error so the
+        // banner is red, not green. Factory record saved, CRM did not.
+        setError(`Saved to Factory, but CRM sync failed: ${data.syncError || 'unknown error'}`)
+      }
       onFeaturesUpdated?.(enabled)
 
-      // Reload audit log
+      // Reload audit log + last-sync state
       loadFeatures()
     } catch (err: any) {
       setError(err.message)
     }
     setSaving(false)
+  }
+
+  function formatAgo(iso: string): string {
+    const sec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
+    if (sec < 60) return `${sec}s ago`
+    if (sec < 3600) return `${Math.floor(sec / 60)}m ago`
+    if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`
+    return `${Math.floor(sec / 86400)}d ago`
   }
 
   function toggleFeature(featureId: string) {
@@ -226,6 +252,33 @@ export default function FeatureManagement({ tenantId, onFeaturesUpdated }: Props
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Persistent sync-health banner — reflects last_feature_sync from the
+          tenants row, so a failed sync stays visible across page reloads. */}
+      {lastSync && (
+        <div className={`flex items-start gap-2 px-3 py-2 rounded-lg mb-4 border ${
+          lastSync.ok
+            ? 'bg-green-900/15 border-green-800/40'
+            : 'bg-red-900/20 border-red-800/50'
+        }`}>
+          {lastSync.ok
+            ? <CheckCircle size={14} className="text-green-400 mt-0.5 shrink-0" />
+            : <AlertTriangle size={14} className="text-red-400 mt-0.5 shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <p className={`text-xs ${lastSync.ok ? 'text-green-300' : 'text-red-300'}`}>
+              {lastSync.ok
+                ? `Last sync OK — ${formatAgo(lastSync.at)} via ${lastSync.mode}` +
+                  (lastSync.received_count !== null && lastSync.received_count !== lastSync.sent_count
+                    ? ` (${lastSync.received_count}/${lastSync.sent_count} confirmed)`
+                    : '')
+                : `Last sync FAILED — ${formatAgo(lastSync.at)} via ${lastSync.mode}`}
+            </p>
+            {!lastSync.ok && lastSync.error && (
+              <p className="text-xs text-red-400/80 mt-0.5 break-all">{lastSync.error}</p>
+            )}
+          </div>
         </div>
       )}
 
