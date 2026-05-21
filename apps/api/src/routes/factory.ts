@@ -3425,7 +3425,7 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid ID' }, 400)
 
-    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, products, industry, database_url, status').eq('id', id).single()
+    const { data: tenant, error } = await supabase.from('tenants').select('id, features, plan, products, industry, database_url, status, last_feature_sync').eq('id', id).single()
     if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
 
     // Determine which template this tenant uses
@@ -3464,6 +3464,7 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
       template,
       plan: tenant.plan,
       hasDatabaseUrl: !!tenant.database_url,
+      lastFeatureSync: tenant.last_feature_sync || null,
       auditLog: auditLog || [],
       registry: FEATURE_REGISTRY,
     })
@@ -3502,12 +3503,16 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
     const { error: updateErr } = await supabase.from('tenants').update({ features: newFeatures }).eq('id', id)
     if (updateErr) throw updateErr
 
-    // Sync to deployed CRM via HTTP API (preferred) or direct DB (fallback)
+    // Sync to deployed CRM via HTTP API (preferred) or direct DB (fallback).
+    // Verify-after-push: read what the CRM returned and confirm it matches
+    // what we sent — silently dropped features would otherwise look like success.
     let syncedToCrm = false
     let syncError: string | null = null
+    let syncMode: 'http' | 'db' | 'none' = 'none'
+    let receivedCount: number | null = null
 
     if (tenant.render_backend_url && tenant.factory_sync_key) {
-      // HTTP sync via factory sync endpoint
+      syncMode = 'http'
       try {
         const syncUrl = tenant.render_backend_url.replace(/\/$/, '') + '/api/internal/sync-features'
         const syncRes = await fetch(syncUrl, {
@@ -3515,18 +3520,26 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
           headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
           body: JSON.stringify({ features: newFeatures }),
         })
-        if (syncRes.ok) {
-          syncedToCrm = true
+        const body = await syncRes.json().catch(() => ({} as any))
+        if (!syncRes.ok) {
+          syncError = body?.error || `HTTP ${syncRes.status}`
         } else {
-          const errData = await syncRes.json().catch(() => ({}))
-          syncError = errData.error || `HTTP ${syncRes.status}`
+          // Verify-after-push: CRM returns the persisted feature list.
+          const returned: string[] = Array.isArray(body?.features) ? body.features : []
+          receivedCount = returned.length
+          const missing = newFeatures.filter(f => !returned.includes(f))
+          if (missing.length > 0) {
+            syncError = `CRM returned divergent feature list (missing: ${missing.join(', ')})`
+          } else {
+            syncedToCrm = true
+          }
         }
       } catch (syncErr: any) {
         syncError = syncErr.message
         console.error('[Features] HTTP sync failed for', tenant.slug, ':', syncErr.message)
       }
     } else if (tenant.database_url) {
-      // Fallback: direct DB connection
+      syncMode = 'db'
       const ind = tenant.industry || ''
       const isHomeCare = ind === 'home_care'
       try {
@@ -3544,6 +3557,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
           )
         }
         await client.end()
+        receivedCount = newFeatures.length
         syncedToCrm = true
       } catch (syncErr: any) {
         syncError = syncErr.message
@@ -3553,32 +3567,45 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
       syncError = 'No sync method available (no backend URL or database connection)'
     }
 
+    // Persist sync attempt on tenant row so the admin UI can show
+    // current health without needing fresh history. Non-fatal on error.
+    const lastFeatureSync = {
+      at: new Date().toISOString(),
+      ok: syncedToCrm,
+      error: syncError,
+      sent_count: newFeatures.length,
+      received_count: receivedCount,
+      mode: syncMode,
+    }
+    await supabase.from('tenants').update({ last_feature_sync: lastFeatureSync }).eq('id', id)
+
     // Get admin email from auth context
     const user = c.get('user')
     const adminEmail = user?.email || 'unknown'
 
-    // Write audit log
+    // Write audit log — always, even on resync-no-diff, so failures leave a trace.
     const changedFeatures = [...added, ...removed]
-    if (changedFeatures.length > 0) {
-      await supabase.from('tenant_feature_audit').insert({
-        tenant_id: id,
-        action,
-        features: changedFeatures,
-        previous: previousFeatures,
-        current: newFeatures,
-        changed_by: adminEmail,
-        synced_to_crm: syncedToCrm,
-        note: note || null,
-      })
-    }
+    const auditAction = changedFeatures.length === 0 ? 'resync' : action
+    await supabase.from('tenant_feature_audit').insert({
+      tenant_id: id,
+      action: auditAction,
+      features: changedFeatures,
+      previous: previousFeatures,
+      current: newFeatures,
+      changed_by: adminEmail,
+      synced_to_crm: syncedToCrm,
+      sync_error: syncError,
+      note: note || null,
+    })
 
     return c.json({
-      success: true,
+      success: syncedToCrm,
       features: newFeatures,
       syncedToCrm,
       syncError,
       added,
       removed,
+      lastFeatureSync,
     })
   } catch (err: any) {
     return c.json({ error: err.message }, 500)
