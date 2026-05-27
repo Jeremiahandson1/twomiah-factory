@@ -258,6 +258,51 @@ export async function notifyTicketReply(
   return sendEmail(to, 'Reply on ' + ticket.number + ': ' + ticket.subject, wrap('Ticket Reply', body))
 }
 
+// ─── Local-business intake notifications ─────────────────────────────────────
+
+/**
+ * Fires when a visitor submits the website-intake form on /businesses.
+ * Notifies the internal team so a human can reach out within one business day.
+ * Includes signed URLs (7-day expiry) for any uploaded logo + reference photos.
+ */
+export async function notifyNewIntake(
+  data: {
+    businessName: string
+    businessType: string
+    contactEmail: string
+    contactPhone?: string | null
+    currentSite?: string | null
+    brandColors?: string | null
+    notes?: string | null
+    logoUrl?: string | null
+    photoUrls?: string[]
+    intakeId?: string
+  }
+): Promise<boolean> {
+  const to = process.env.INTAKE_NOTIFY_EMAIL || 'hello@twomiah.com'
+
+  const photoLinks = (data.photoUrls || [])
+    .map((u, i) => '<a href="' + u + '" target="_blank">Photo ' + (i + 1) + '</a>')
+    .join(' &nbsp;·&nbsp; ')
+
+  const body = `
+    <p style="color:#333;line-height:1.6;">A new local-business website intake came in via <strong>twomiah.com/businesses</strong>. Respond within one business day.</p>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:16px;margin:16px 0;">
+      ${kv('Business', data.businessName)}
+      ${kv('Type', data.businessType)}
+      ${kv('Email', '<a href="mailto:' + data.contactEmail + '">' + data.contactEmail + '</a>')}
+      ${data.contactPhone ? kv('Phone', data.contactPhone) : ''}
+      ${data.currentSite ? kv('Current site', '<a href="' + data.currentSite + '" target="_blank">' + data.currentSite + '</a>') : ''}
+      ${data.brandColors ? kv('Brand / colors', data.brandColors) : ''}
+    </div>
+    ${data.logoUrl ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Logo:</strong> <a href="${data.logoUrl}" target="_blank">Download</a> &nbsp; <span style="color:#888;font-size:12px;">(link expires in 7 days; regenerate from platform if older)</span></p>` : ''}
+    ${photoLinks ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Reference photos:</strong> ${photoLinks}</p>` : ''}
+    ${data.notes ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Notes:</strong><br>${data.notes.substring(0, 2000).replace(/\n/g, '<br>')}</p>` : ''}
+    ${data.intakeId ? btn('https://twomiah-factory-platform.onrender.com/tenants/' + data.intakeId, 'View in Factory Platform') : ''}`
+
+  return sendEmail(to, 'New website intake: ' + data.businessName, wrap('New Local-Business Intake', body))
+}
+
 // ─── Trial lifecycle notifications ───────────────────────────────────────────
 
 /**
