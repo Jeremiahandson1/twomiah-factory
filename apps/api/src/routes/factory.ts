@@ -2674,9 +2674,16 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
 
     let { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
     // Fallback for environments where the intake_data column migration hasn't
-    // been applied yet — stash the JSON in notes so we don't lose the lead.
-    if (insertErr && insertErr.code === '42703') {
-      console.warn('[Intake] intake_data column missing — applying migrations/2026-05-27_tenants_intake_data.sql will fix this. Falling back to notes-only storage.')
+    // been applied yet OR PostgREST's schema cache is stale — stash the JSON
+    // in notes so we don't lose the lead. 42703 = Postgres native undefined_column,
+    // PGRST204 = PostgREST schema cache miss, message-substring catches the rest.
+    const isMissingColumn = insertErr && (
+      insertErr.code === '42703' ||
+      insertErr.code === 'PGRST204' ||
+      (typeof insertErr.message === 'string' && insertErr.message.toLowerCase().includes('intake_data'))
+    )
+    if (isMissingColumn) {
+      console.warn('[Intake] intake_data column missing or stale in schema cache — falling back to notes-only storage. Error:', insertErr?.code, insertErr?.message)
       const fallback = { ...tenantRecord }
       delete fallback.intake_data
       fallback.notes = (intakeNotes ? intakeNotes + '\n\n' : '') + '---\nintake_data: ' + JSON.stringify(intakeData)
@@ -2685,8 +2692,13 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       insertErr = retry.error
     }
     if (insertErr || !tenant) {
-      console.error('[Intake] Insert failed:', insertErr?.message)
-      return c.json({ error: 'Failed to save your submission. Please try again or email hello@twomiah.com directly.' }, 500)
+      console.error('[Intake] Insert failed:', { code: insertErr?.code, message: insertErr?.message, details: (insertErr as any)?.details, hint: (insertErr as any)?.hint })
+      // Temporarily echo the supabase error so we can diagnose without Render logs.
+      // Revert once the cause is identified.
+      return c.json({
+        error: 'Failed to save your submission. Please try again or email hello@twomiah.com directly.',
+        debug: { code: insertErr?.code, message: insertErr?.message, details: (insertErr as any)?.details, hint: (insertErr as any)?.hint },
+      }, 500)
     }
 
     console.log('[Intake] New intake captured:', tenant.id, businessName, '(' + businessType + ')')
