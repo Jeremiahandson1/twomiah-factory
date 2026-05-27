@@ -90,6 +90,42 @@ export async function getZipDownloadUrl(storageKey: string, storageType: string,
   return null
 }
 
+// Intake assets (logos, reference photos) submitted via the public intake form.
+// Stored separately from factory-builds/ so the lifecycle is independent —
+// intake assets can stick around for the design-build process, factory zips
+// rotate frequently.
+const INTAKE_PREFIX = 'intake/'
+
+export async function uploadIntakeAsset(
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
+  slug: string
+): Promise<{ storageKey: string; storageType: 's3' | 'local' }> {
+  const safe = filename.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-100) || 'asset'
+  const ts = Date.now()
+  const key = INTAKE_PREFIX + slug + '/' + ts + '-' + safe
+
+  if (!USE_S3 || !s3Client || !S3_BUCKET) {
+    const localDir = path.join(process.cwd(), 'intake-uploads', slug)
+    if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true })
+    const localPath = path.join(localDir, ts + '-' + safe)
+    fs.writeFileSync(localPath, buffer)
+    console.log('[FactoryStorage] Wrote intake asset to local disk (ephemeral on Render):', localPath)
+    return { storageKey: localPath, storageType: 'local' }
+  }
+
+  const { PutObjectCommand } = await import('@aws-sdk/client-s3')
+  await s3Client.send(new PutObjectCommand({
+    Bucket: S3_BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  }))
+  console.log('[FactoryStorage] Uploaded intake asset to S3:', key)
+  return { storageKey: key, storageType: 's3' }
+}
+
 export async function deleteZip(storageKey: string, storageType: string): Promise<void> {
   try {
     if (storageType === 's3' && s3Client && S3_BUCKET) {

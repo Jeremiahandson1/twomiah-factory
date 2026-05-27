@@ -3,8 +3,8 @@ import { authenticate, supabase, requireRole } from '../middleware/auth'
 import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '../services/generator'
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
-import { uploadZip, getZipDownloadUrl, deleteZip } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
+import { uploadZip, getZipDownloadUrl, deleteZip, uploadIntakeAsset } from '../services/factoryStorage'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -2551,6 +2551,168 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   } catch (err: any) {
     console.error('[Signup] Error:', err.message)
     return c.json({ error: 'Something went wrong. Please try again.' }, 500)
+  }
+})
+
+
+// ─── Public local-business website intake ───────────────────────────────────
+//
+// Fired by the form on twomiah.com/businesses. Distinct flow from /public/signup:
+//   * No Stripe customer, no trial clock, no CRM provisioning.
+//   * Lead lands in tenants with status='intake' so the platform dashboard
+//     can manage everything (intakes + active tenants + churned) in one place.
+//   * Uploaded logo + reference photos go to S3/R2 under intake/<slug>/.
+//   * Internal team gets an email with signed URLs (7-day) for the files.
+//
+// Schema dependency: tenants.intake_data jsonb column. Applied via
+// migrations/2026-05-27_tenants_intake_data.sql. If the column is missing
+// the endpoint falls back to writing only to the notes column.
+factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
+  try {
+    // Multipart parse — { all: true } gives arrays for repeated fields like photos[].
+    const body = await c.req.parseBody({ all: true }) as Record<string, any>
+
+    const getStr = (key: string): string => {
+      const v = body[key]
+      return typeof v === 'string' ? v.trim() : ''
+    }
+
+    const businessName = getStr('businessName')
+    const businessType = getStr('businessType')
+    const contactEmail = getStr('contactEmail')
+
+    if (!businessName || businessName.length < 2) {
+      return c.json({ error: 'Business name is required (min 2 characters).' }, 400)
+    }
+    if (!businessType) {
+      return c.json({ error: 'Business type is required.' }, 400)
+    }
+    if (!contactEmail || !contactEmail.includes('@')) {
+      return c.json({ error: 'A valid contact email is required.' }, 400)
+    }
+
+    const contactPhone = getStr('contactPhone') || null
+    const currentSite = getStr('currentSite') || null
+    const brandColors = getStr('brandColors') || null
+    const intakeNotes = getStr('notes') || null
+
+    // ─── Slug — collision-resistant ────────────────────────────────────────
+    // Intake slugs are suffixed with '-intake' so they're visually distinct
+    // from real tenants and won't collide with a future tenant of the same
+    // business name (when an intake converts, the team renames cleanly).
+    const baseSlug = businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'lead'
+    let slug = baseSlug + '-intake'
+    const { data: collide } = await supabase.from('tenants').select('id').eq('slug', slug).maybeSingle()
+    if (collide) {
+      slug = baseSlug + '-intake-' + Math.floor(Date.now() / 1000)
+    }
+
+    // ─── File validation ──────────────────────────────────────────────────
+    const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/gif']
+    const MAX_FILE_SIZE = 8 * 1024 * 1024  // 8 MB per file; full request still capped at 15 MB by index.ts
+
+    const isFile = (x: any): x is File => x && typeof x === 'object' && typeof x.arrayBuffer === 'function' && typeof x.size === 'number'
+
+    const validateFile = (file: File, label: string): string | null => {
+      if (file.size > MAX_FILE_SIZE) return `${label} is too large (max 8 MB).`
+      if (file.type && !ALLOWED_IMAGE_TYPES.includes(file.type)) return `${label} must be a PNG, JPG, WEBP, SVG, or GIF.`
+      return null
+    }
+
+    // ─── Upload logo (single) ─────────────────────────────────────────────
+    let logoStorageKey: string | null = null
+    let logoStorageType: 's3' | 'local' | null = null
+    let logoUrl: string | null = null
+    if (isFile(body.logo)) {
+      const err = validateFile(body.logo, 'Logo')
+      if (err) return c.json({ error: err }, 400)
+      const buf = Buffer.from(await body.logo.arrayBuffer())
+      const result = await uploadIntakeAsset(buf, body.logo.name || 'logo', body.logo.type || 'application/octet-stream', slug)
+      logoStorageKey = result.storageKey
+      logoStorageType = result.storageType
+      logoUrl = await getZipDownloadUrl(result.storageKey, result.storageType, 7 * 24 * 60 * 60)
+    }
+
+    // ─── Upload photos (up to 5) ──────────────────────────────────────────
+    const rawPhotos = body.photos || body['photos[]']
+    const photoCandidates: any[] = Array.isArray(rawPhotos) ? rawPhotos : rawPhotos ? [rawPhotos] : []
+    const photoStorageKeys: { storageKey: string; storageType: 's3' | 'local' }[] = []
+    const photoUrls: string[] = []
+    for (const candidate of photoCandidates.slice(0, 5)) {
+      if (!isFile(candidate)) continue
+      const err = validateFile(candidate, 'Reference photo')
+      if (err) return c.json({ error: err }, 400)
+      const buf = Buffer.from(await candidate.arrayBuffer())
+      const result = await uploadIntakeAsset(buf, candidate.name || 'photo', candidate.type || 'application/octet-stream', slug)
+      photoStorageKeys.push({ storageKey: result.storageKey, storageType: result.storageType })
+      const url = await getZipDownloadUrl(result.storageKey, result.storageType, 7 * 24 * 60 * 60)
+      if (url) photoUrls.push(url)
+    }
+
+    // ─── Persist ──────────────────────────────────────────────────────────
+    const intakeData = {
+      source: 'businesses-intake-form',
+      submittedAt: new Date().toISOString(),
+      brandColors: brandColors || null,
+      logo: logoStorageKey ? { storageKey: logoStorageKey, storageType: logoStorageType } : null,
+      photos: photoStorageKeys,
+      freeFormNotes: intakeNotes || null,
+    }
+
+    const tenantRecord: Record<string, any> = {
+      name: businessName,
+      slug,
+      email: contactEmail,
+      admin_email: contactEmail,
+      phone: contactPhone,
+      industry: businessType,
+      website_url: currentSite,
+      status: 'intake',
+      notes: intakeNotes,  // free-form notes stay as plain text
+      intake_data: intakeData,
+    }
+
+    let { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
+    // Fallback for environments where the intake_data column migration hasn't
+    // been applied yet — stash the JSON in notes so we don't lose the lead.
+    if (insertErr && insertErr.code === '42703') {
+      console.warn('[Intake] intake_data column missing — applying migrations/2026-05-27_tenants_intake_data.sql will fix this. Falling back to notes-only storage.')
+      const fallback = { ...tenantRecord }
+      delete fallback.intake_data
+      fallback.notes = (intakeNotes ? intakeNotes + '\n\n' : '') + '---\nintake_data: ' + JSON.stringify(intakeData)
+      const retry = await supabase.from('tenants').insert(fallback).select().single()
+      tenant = retry.data
+      insertErr = retry.error
+    }
+    if (insertErr || !tenant) {
+      console.error('[Intake] Insert failed:', insertErr?.message)
+      return c.json({ error: 'Failed to save your submission. Please try again or email hello@twomiah.com directly.' }, 500)
+    }
+
+    console.log('[Intake] New intake captured:', tenant.id, businessName, '(' + businessType + ')')
+
+    // Fire-and-forget email to the internal team
+    notifyNewIntake({
+      businessName,
+      businessType,
+      contactEmail,
+      contactPhone,
+      currentSite,
+      brandColors,
+      notes: intakeNotes,
+      logoUrl,
+      photoUrls,
+      intakeId: tenant.id,
+    }).catch((e: any) => console.warn('[Email] Intake notification failed:', e.message))
+
+    return c.json({
+      success: true,
+      intakeId: tenant.id,
+      message: "Thanks! We'll respond within one business day from hello@twomiah.com.",
+    })
+  } catch (err: any) {
+    console.error('[Intake] Error:', err.message || err)
+    return c.json({ error: 'Submission failed. Please try again.' }, 500)
   }
 })
 

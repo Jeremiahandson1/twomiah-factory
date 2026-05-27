@@ -84,10 +84,18 @@ create table if not exists tenants (
   qb_desktop_synced_invoices text[] default '{}',
 
   -- Notes
-  notes           text
+  notes           text,
+
+  -- Intake submissions (logo + photo storage keys, brand notes, etc.)
+  -- Populated by POST /api/v1/factory/public/intake. See
+  -- migrations/2026-05-27_tenants_intake_data.sql.
+  intake_data     jsonb
 );
 
 create index if not exists idx_tenants_slug on tenants(slug);
+create index if not exists idx_tenants_status_intake
+  on tenants(created_at desc)
+  where status = 'intake';
 create index if not exists idx_tenants_status on tenants(status);
 create index if not exists idx_tenants_billing_status on tenants(billing_status);
 create index if not exists idx_tenants_billing_type on tenants(billing_type);
