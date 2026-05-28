@@ -2693,12 +2693,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     }
     if (insertErr || !tenant) {
       console.error('[Intake] Insert failed:', { code: insertErr?.code, message: insertErr?.message, details: (insertErr as any)?.details, hint: (insertErr as any)?.hint })
-      // Temporarily echo the supabase error so we can diagnose without Render logs.
-      // Revert once the cause is identified.
-      return c.json({
-        error: 'Failed to save your submission. Please try again or email hello@twomiah.com directly.',
-        debug: { code: insertErr?.code, message: insertErr?.message, details: (insertErr as any)?.details, hint: (insertErr as any)?.hint },
-      }, 500)
+      return c.json({ error: 'Failed to save your submission. Please try again or email hello@twomiah.com directly.' }, 500)
     }
 
     console.log('[Intake] New intake captured:', tenant.id, businessName, '(' + businessType + ')')
