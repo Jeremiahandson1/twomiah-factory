@@ -15,6 +15,51 @@ const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process
 const PACKAGES_ROOT = process.env.FACTORY_PACKAGES_DIR || path.resolve(process.cwd(), '..', '..', 'packages')
 const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
 const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', 'electrical'])
+// Showcase-tier verticals → the high-flair website-showcase template.
+// CRM intentionally NOT mapped (these fall back to default 'crm' only if a crm
+// product is explicitly requested), so the parked crm-automotive is never hit.
+const SHOWCASE_INDUSTRIES = new Set(['food', 'hospitality', 'fitness', 'beauty', 'events'])
+
+// Per-industry overlays applied to homepage.json AFTER the template defaults but
+// BEFORE wizard/AI content. Lets the showcase template stay industry-neutral while
+// each vertical still gets sensible hero CTAs, hours, and trust-badge defaults.
+// Only "food" is fleshed out — others inherit the neutral showcase template until
+// they get their own real-world stress test (see project_ramones notes).
+type IndustryDefaults = {
+  hero?: Partial<{ primaryButtonText: string; primaryButtonLink: string; secondaryButtonText: string; secondaryButtonLink: string; subtitle: string }>
+  trustBadges?: Array<{ id: string; type: string; label: string; icon: string; enabled: boolean }>
+  ctaSection?: Partial<{ title: string; description: string; primaryButtonText: string }>
+  businessHours?: Record<string, { open: string; close: string; closed: boolean }>
+  metaDescription?: string
+}
+const SHOWCASE_INDUSTRY_DEFAULTS: Record<string, IndustryDefaults> = {
+  food: {
+    hero: {
+      primaryButtonText: "See What's On The Menu",
+      primaryButtonLink: '#offerings',
+      secondaryButtonText: 'Plan Your Visit',
+      secondaryButtonLink: '#visit',
+      subtitle: 'Locally owned in {{CITY}}. Made fresh, served warm.',
+    },
+    trustBadges: [
+      { id: 'local',  type: 'custom', label: 'Locally Loved',            icon: 'heart',     enabled: true },
+      { id: 'fresh',  type: 'custom', label: 'Made Fresh Daily',         icon: 'sparkles',  enabled: true },
+      { id: 'follow', type: 'custom', label: 'Follow for Daily Updates', icon: 'instagram', enabled: true },
+    ],
+    ctaSection: {
+      title: 'Come hungry.',
+      description: "We're right in {{CITY}}. Walk-ins welcome — call ahead for big orders or to confirm today's hours.",
+      primaryButtonText: 'Get Directions',
+    },
+    // NOTE: Hours are intentionally NOT defaulted per industry. There's no sensible
+    // food-industry hour default — coffee shops open at 6am, bars open at 4pm,
+    // bakeries close at 2pm. Hours are tenant-specific data; the CMS admin panel
+    // (settings → business hours) is where the tenant configures them.
+    metaDescription: 'Locally owned in {{CITY}}, {{STATE}}. {{COMPANY_NAME}} — made fresh, served warm.',
+  },
+  // TODO: flesh out hospitality / fitness / beauty / events when those verticals
+  // get their first real prospect. Until then they inherit the neutral showcase template.
+}
 
 const TEXT_EXTS = new Set([
   '.js', '.jsx', '.ts', '.tsx', '.ejs', '.html', '.css', '.json',
@@ -134,6 +179,8 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       if (industry === 'home_care') websiteTemplate = 'website-homecare'
       else if (industry === 'field_service') websiteTemplate = 'website-fieldservice'
       else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
+      else if (industry === 'landscaping') websiteTemplate = 'website-landscaping'
+      else if (SHOWCASE_INDUSTRIES.has(industry)) websiteTemplate = 'website-showcase'
       else if (industry && industry !== 'other') websiteTemplate = 'website-contractor'
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)
@@ -158,7 +205,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       const ALL_WEBSITE_FEATURES = ['blog', 'gallery', 'testimonials', 'services_pages', 'contact_form', 'visualizer']
       const websiteFeatures = config.features?.website?.length ? config.features.website : ALL_WEBSITE_FEATURES
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
-      writeBrandingAssets(path.join(workDir, 'website'), config.branding)
+      writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
       injectWizardContent(path.join(workDir, 'website'), config)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
@@ -174,16 +221,16 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
       if (products.includes('cms')) {
         copyTemplate('cms', path.join(workDir, 'website', 'admin'), tokens)
-        writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding)
+        writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding, config.company?.name)
       }
     } else if (products.includes('cms')) {
       copyTemplate('cms', path.join(workDir, 'cms'), tokens)
-      writeBrandingAssets(path.join(workDir, 'cms'), config.branding)
+      writeBrandingAssets(path.join(workDir, 'cms'), config.branding, config.company?.name)
     }
 
     if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
       const crmIndustry = config.company?.industry || ''
-      const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : crmIndustry === 'roofing' ? 'crm-roof' : crmIndustry === 'dispensary' ? 'crm-dispensary' : 'crm'
+      const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : crmIndustry === 'roofing' ? 'crm-roof' : crmIndustry === 'landscaping' ? 'crm-landscaping' : crmIndustry === 'dispensary' ? 'crm-dispensary' : 'crm'
       const crmOutputDir = crmTemplate
       console.log('[Generator] CRM template:', crmTemplate, '→', path.join(workDir, crmOutputDir))
       copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), tokens)
@@ -198,12 +245,12 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // repo stays fully standalone (no @twomiah/* workspace imports at runtime).
       vendorSharedCode(path.join(workDir, crmOutputDir), tokens)
       processCRM(path.join(workDir, crmOutputDir), config, tokens)
-      writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding)
+      writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding, config.company?.name)
     }
 
     if (products.includes('pricing')) {
       copyTemplate('pricing', path.join(workDir, 'pricing'), tokens)
-      writeBrandingAssets(path.join(workDir, 'pricing', 'frontend', 'public'), config.branding)
+      writeBrandingAssets(path.join(workDir, 'pricing', 'frontend', 'public'), config.branding, config.company?.name)
       processEnvTemplate(path.join(workDir, 'pricing', 'backend'), tokens)
       processEnvTemplate(path.join(workDir, 'pricing', 'frontend'), tokens)
 
@@ -282,6 +329,38 @@ const INDUSTRY_LABELS: Record<string, string> = {
   dispensary: 'Cannabis Dispensary',
 }
 
+// ── Color helpers ───────────────────────────────────────────────────────────
+// SECONDARY_COLOR is the template's dark base (--navy*): it's both dark text on
+// white AND the background of footer/testimonial/hero sections with white text.
+// Both roles require it to be dark. If a brand supplies a light secondary, white
+// text on those sections becomes unreadable, so we guarantee a dark value while
+// preserving the hue. Only darkens, never lightens.
+function hexToRgb(hex: string): [number, number, number] | null {
+  const s = hex.trim().replace(/^#/, '')
+  const full = s.length === 3 ? s.split('').map((ch) => ch + ch).join('') : s
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) return null
+  return [parseInt(full.slice(0, 2), 16), parseInt(full.slice(2, 4), 16), parseInt(full.slice(4, 6), 16)]
+}
+function relLuminance([r, g, b]: [number, number, number]): number {
+  const f = (c: number) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+}
+function rgbToHex([r, g, b]: [number, number, number]): string {
+  return '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')
+}
+// Returns a color dark enough that white text on it clears WCAG AA (~4.5:1),
+// i.e. relative luminance <= ~0.16. Scales toward black to keep the brand hue.
+function ensureDark(hex: string, maxLuminance = 0.16): string {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return hex
+  if (relLuminance(rgb) <= maxLuminance) return hex
+  let [r, g, b] = rgb
+  for (let i = 0; i < 24 && relLuminance([r, g, b]) > maxLuminance; i++) {
+    r *= 0.9; g *= 0.9; b *= 0.9
+  }
+  return rgbToHex([r, g, b])
+}
+
 function buildTokenMap(config: GenerateConfig, slug: string): Record<string, string> {
   const c = config.company || ({} as GenerateConfig['company'])
   const b = config.branding || {}
@@ -311,6 +390,9 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{STATE_FULL}}': c.stateFull || c.state || 'ST',
     '{{ZIP}}': c.zip || '00000',
     '{{SERVICE_REGION}}': c.serviceRegion || c.city || 'the area',
+    // Placeholders when no real service areas were provided — paired with a
+    // disclaimer in the preview so a mockup reads as intentional, not broken.
+    // Real cities come from the manual intake field (company.nearbyCities).
     '{{NEARBY_CITY_1}}': (c.nearbyCities || [])[0] || 'Nearby City 1',
     '{{NEARBY_CITY_2}}': (c.nearbyCities || [])[1] || 'Nearby City 2',
     '{{NEARBY_CITY_3}}': (c.nearbyCities || [])[2] || 'Nearby City 3',
@@ -319,8 +401,8 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
     '{{SITE_URL}}': c.siteUrl || ('https://' + (c.domain || slug + '.com')),
     '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
-    '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
-    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
+    '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'landscaping' ? 'https://' + slug + '-landscape-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
+    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'landscaping' ? 'https://' + slug + '-landscape-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
     '{{INDUSTRY}}': industryLabel,
     '{{META_DESCRIPTION}}': industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'
@@ -361,7 +443,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{DEFAULT_PASSWORD}}': defaultPassword,
     '{{HASHED_DEFAULT_PASSWORD}}': bcrypt.hashSync(defaultPassword, 10),
     '{{PRIMARY_COLOR}}': b.primaryColor || (industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
-    '{{SECONDARY_COLOR}}': b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f'),
+    '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
     '{{ACCENT_COLOR}}': '#f59e0b',
     '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : industry === 'dispensary' ? '#f0fdf4' : '#f8f9fa',
     '{{PRODUCTS_JSON}}': JSON.stringify((() => {
@@ -370,7 +452,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       if (c.siteUrl && !prods.includes('website')) prods.push('website')
       return prods
     })()),
-    '{{CMS_URL}}': (config.products || []).includes('cms') ? 'https://' + slug + '-site.onrender.com/admin' : '',
+    '{{CMS_URL}}': ((config.products || []).includes('website') || (config.products || []).includes('cms')) ? 'https://' + slug + '-site.onrender.com/admin' : '',
     '{{JWT_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{JWT_REFRESH_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{ENCRYPTION_KEY}}': crypto.randomBytes(32).toString('hex'),
@@ -718,11 +800,116 @@ function stripWebsiteFeatures(websiteDir: string, enabledFeatures: string[]) {
   }
 }
 
+// Overlays SHOWCASE_INDUSTRY_DEFAULTS onto homepage.json. Runs BEFORE AI/wizard
+// content so anything the caller provides still wins, but unspecified fields
+// (e.g. hours when AI only returned hero copy) inherit reasonable per-industry
+// defaults instead of the contractor template's 8am–5pm M–F nonsense.
+// Tokens are needed because copyTemplate already did its token pass on the
+// template's homepage.json; our overlay strings contain {{CITY}}/{{STATE}}/etc.
+// that need substituting before we write.
+function applyIndustryDefaults(websiteDir: string, industry: string | undefined, tokens: Record<string, string>) {
+  if (!industry) return
+  const defaults = SHOWCASE_INDUSTRY_DEFAULTS[industry]
+  if (!defaults) return
+  const subst = (v: any): any => typeof v === 'string' ? injectTokens(v, tokens)
+    : Array.isArray(v) ? v.map(subst)
+    : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, val]) => [k, subst(val)]))
+    : v
+  const homepageFile = path.join(websiteDir, 'data', 'homepage.json')
+  if (!fs.existsSync(homepageFile)) return
+  try {
+    const hp = JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
+    if (defaults.hero)          hp.hero          = subst({ ...hp.hero, ...defaults.hero })
+    if (defaults.trustBadges)   hp.trustBadges   = subst(defaults.trustBadges)
+    if (defaults.ctaSection)    hp.ctaSection    = subst({ ...hp.ctaSection, ...defaults.ctaSection })
+    if (defaults.businessHours) hp.businessHours = defaults.businessHours
+    fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
+    if (defaults.metaDescription) {
+      const settingsFile = path.join(websiteDir, 'data', 'settings.json')
+      if (fs.existsSync(settingsFile)) {
+        const s = JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+        s.defaultMetaDescription = injectTokens(defaults.metaDescription, tokens)
+        fs.writeFileSync(settingsFile, JSON.stringify(s, null, 2))
+      }
+    }
+    console.log('[Factory] Applied industry defaults for:', industry)
+  } catch (e: any) {
+    console.warn('[Factory] applyIndustryDefaults failed:', e.message)
+  }
+}
+
+// Seeds services.json from wizard.services (when caller passes string names) or
+// from content-pack.json's structural services (when nothing else is provided).
+// MUTATES wizardContent.services to the slugified IDs of what we seeded so the
+// downstream filter-by-id step in injectWizardContent doesn't immediately strip
+// everything (the filter was designed for tenants whose services.json had
+// pre-defined rows the wizard picked a subset of).
+function seedServicesIfEmpty(websiteDir: string, wizardContent: any) {
+  const servicesFile = path.join(websiteDir, 'data', 'services.json')
+  if (!fs.existsSync(servicesFile)) return
+  let existing: any[] = []
+  try { existing = JSON.parse(fs.readFileSync(servicesFile, 'utf8')) } catch {}
+  if (Array.isArray(existing) && existing.length > 0) return
+
+  let toSeed: Array<{ id: string; name: string; slug: string; shortDescription: string; description: string; icon: string; visible: boolean; order: number }> = []
+
+  if (wizardContent.services?.length) {
+    toSeed = wizardContent.services.map((name: string, i: number) => ({
+      id: slugify(name),
+      name,
+      slug: slugify(name),
+      shortDescription: '',
+      description: '',
+      icon: 'star',
+      visible: true,
+      order: i + 1,
+    }))
+  } else {
+    const packFile = path.join(websiteDir, 'content-pack.json')
+    if (fs.existsSync(packFile)) {
+      try {
+        const pack = JSON.parse(fs.readFileSync(packFile, 'utf8'))
+        if (Array.isArray(pack.services)) {
+          toSeed = pack.services.map((s: any, i: number) => ({
+            id: s.id || s.slug || slugify(s.name),
+            name: s.name,
+            slug: s.slug || slugify(s.name),
+            shortDescription: s.shortDescription || '',
+            description: s.description || '',
+            icon: s.icon || 'star',
+            visible: true,
+            order: i + 1,
+          }))
+        }
+      } catch {}
+    }
+  }
+
+  if (toSeed.length > 0) {
+    fs.writeFileSync(servicesFile, JSON.stringify(toSeed, null, 2))
+    console.log('[Factory] Seeded', toSeed.length, 'services into empty services.json')
+    // Rewrite wizardContent.services to the seeded IDs so the downstream
+    // filter-by-id pass keeps them instead of stripping name strings.
+    wizardContent.services = toSeed.map(s => s.id)
+  }
+}
+
 function injectWizardContent(websiteDir: string, config: GenerateConfig) {
   const dataDir = path.join(websiteDir, 'data')
   const wizardContent = config.content || {}
 
-  // If AI-generated content exists, write it directly to data files
+  // Step 1: ALWAYS apply industry defaults first. They overlay template defaults
+  // and are themselves overridden by anything AI/wizard content provides next.
+  // Tokens needed because the template's homepage.json was already token-substituted
+  // by copyTemplate; our overlay strings contain {{CITY}}/{{STATE}}/etc.
+  const tokens = buildTokenMap(config, slugify(config.company.name))
+  applyIndustryDefaults(websiteDir, config.company?.industry, tokens)
+
+  // Step 2: seed services.json if empty (so wizard.services + content-pack
+  // services don't get silently dropped on showcase templates).
+  seedServicesIfEmpty(websiteDir, wizardContent)
+
+  // Step 3: If AI-generated content exists, write it directly to data files
   if (wizardContent.aiGenerated) {
     const ai = wizardContent.aiGenerated
     try {
@@ -831,7 +1018,7 @@ function seedHelpArticles(websiteDir: string) {
   fs.writeFileSync(helpFile, JSON.stringify(articles, null, 2))
 }
 
-function writeBrandingAssets(targetDir: string, branding: GenerateConfig['branding']) {
+function writeBrandingAssets(targetDir: string, branding: GenerateConfig['branding'], companyName?: string) {
   const imagesDir = path.join(targetDir, 'build', 'images')
   fs.mkdirSync(imagesDir, { recursive: true })
   const buildDir = path.join(targetDir, 'build')
@@ -864,6 +1051,50 @@ function writeBrandingAssets(targetDir: string, branding: GenerateConfig['brandi
       writeDataUrl(branding.favicon, path.join(crmPublicDir, 'favicon.png'))
     }
     updateSettingsField(targetDir, 'favicon', '/favicon.png')
+  }
+
+  // No uploaded favicon/logo → synthesize a clean per-tenant mark from the brand
+  // color + company initial, and DELETE any inherited client raster assets that
+  // ship in the template (build/favicon.ico, build/logo.*, public/cc-icon*) so a
+  // previous client's branding can NEVER leak into a new tenant's site.
+  {
+    const rawColor = branding.primaryColor || ''
+    const color = /^#?[0-9a-fA-F]{3,8}$/.test(rawColor)
+      ? (rawColor.startsWith('#') ? rawColor : '#' + rawColor)
+      : '#0f766e'
+    const initial = ((companyName || 'C').trim().charAt(0) || 'C').toUpperCase()
+      .replace(/[<>&"]/g, '')
+    const safeName = (companyName || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const rm = (p: string) => { try { if (fs.existsSync(p)) fs.rmSync(p) } catch { /* noop */ } }
+    const write = (p: string, s: string) => { try { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, s) } catch { /* noop */ } }
+    const distDir = path.join(targetDir, 'dist')
+    const crmPub = path.join(targetDir, 'frontend', 'public')
+    const publicDir = path.join(targetDir, 'public')
+
+    if (!branding.favicon?.startsWith('data:')) {
+      const favSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="${color}"/><text x="32" y="34" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${initial}</text></svg>`
+      for (const d of [buildDir, targetDir, distDir, crmPub]) {
+        if (d === distDir || d === crmPub ? fs.existsSync(d) : true) write(path.join(d, 'favicon.svg'), favSvg)
+      }
+      // Strip inherited client favicons so none can be served as a fallback
+      for (const d of [buildDir, targetDir, distDir, crmPub, publicDir]) {
+        for (const f of ['favicon.ico', 'favicon.png', 'favicon-32.png', 'cc-icon.png', 'cc-icon@2x.png']) rm(path.join(d, f))
+      }
+      updateSettingsField(targetDir, 'favicon', '/favicon.svg')
+    }
+
+    if (!branding.logo?.startsWith('data:')) {
+      const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 64"><rect x="4" y="4" width="56" height="56" rx="12" fill="${color}"/><text x="32" y="34" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${initial}</text><text x="74" y="34" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700" fill="${color}" dominant-baseline="central">${safeName}</text></svg>`
+      write(path.join(imagesDir, 'logo.svg'), logoSvg)
+      write(path.join(targetDir, 'logo.svg'), logoSvg)
+      if (fs.existsSync(crmPub)) write(path.join(crmPub, 'logo.svg'), logoSvg)
+      // Strip inherited client raster logos
+      for (const d of [imagesDir, buildDir, targetDir, crmPub]) {
+        for (const f of ['logo.png', 'logo.jpg', 'logo.jpeg']) rm(path.join(d, f))
+      }
+      updateSettingsField(targetDir, 'logo', '/images/logo.svg')
+    }
   }
 
   if (branding.heroPhoto?.startsWith('data:')) {
@@ -921,7 +1152,7 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
   let readme = '# ' + name + ' — Software Package\n\nGenerated by Twomiah Factory on ' + new Date().toISOString().split('T')[0] + '\n\n'
   readme += '## Admin Credentials\n\n- **Email:** `' + tokens['{{ADMIN_EMAIL}}'] + '`\n- **Password:** `' + tokens['{{DEFAULT_PASSWORD}}'] + '`\n- ⚠️ Change the default password after first login!\n\n'
   if (products.includes('crm')) {
-    const crmDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'field_service' ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
+    const crmDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'field_service' ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'landscaping' ? 'crm-landscaping' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
     readme += '## CRM (`/' + crmDir + '`)\n\n```bash\ncd ' + crmDir + '/backend && bun install\nbunx drizzle-kit migrate && bun db/seed.ts\nbun start\n```\n\n'
   }
   if (products.includes('pricing')) {
@@ -940,7 +1171,7 @@ function generateReadme(workDir: string, config: GenerateConfig, tokens: Record<
 function generateDeployScript(workDir: string, config: GenerateConfig, products: string[]) {
   let script = '#!/bin/bash\nset -e\n\n'
   if (products.includes('website')) script += 'cd website && bun install && cd ..\n'
-  const crmScriptDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'roofing' ? 'crm-roof' : FIELD_SERVICE_INDUSTRIES.has(config.company?.industry || '') ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
+  const crmScriptDir = config.company?.industry === 'home_care' ? 'crm-homecare' : config.company?.industry === 'roofing' ? 'crm-roof' : config.company?.industry === 'landscaping' ? 'crm-landscaping' : FIELD_SERVICE_INDUSTRIES.has(config.company?.industry || '') ? 'crm-fieldservice' : config.company?.industry === 'automotive' ? 'crm-automotive' : config.company?.industry === 'dispensary' ? 'crm-dispensary' : 'crm'
   if (products.includes('crm')) script += 'cd ' + crmScriptDir + '/backend && bun install && bunx drizzle-kit migrate && bun db/seed.ts && cd ../..\ncd ' + crmScriptDir + '/frontend && bun install && bun run build && cd ../..\n'
   script += '\necho "✅ Done!"\n'
   const scriptPath = path.join(workDir, 'deploy.sh')
