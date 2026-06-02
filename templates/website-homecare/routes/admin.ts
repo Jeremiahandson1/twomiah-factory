@@ -2395,7 +2395,7 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
   const optimize = (typeof body['optimize'] === 'string' ? body['optimize'] : undefined) !== 'false';
 
   try {
-    const images = await Promise.all(fileArray.map(async (file) => {
+    const fileResults = await Promise.all(fileArray.map(async (file) => {
       const ext = path.extname(file.name).toLowerCase();
       const uniqueName = `${Date.now()}-${crypto.randomUUID()}${ext}`;
 
@@ -2426,22 +2426,65 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
           .toBuffer();
       } catch {}
 
+      // WebP companion (Claflin 3.4) — same logic as single-upload route.
+      let webpBuffer: Buffer | null = null;
+      if (ext.match(/\.(jpe?g|png)$/i)) {
+        try {
+          const tryWebp = await sharp(buffer).webp({ quality: 72 }).toBuffer();
+          if (tryWebp.length < buffer.length) webpBuffer = tryWebp;
+        } catch {}
+      }
+
+      // Intrinsic dimensions for the post-render <picture> wrap (Claflin 3.5).
+      let imgDimensions: { width?: number; height?: number } = {};
+      try {
+        const m = await sharp(buffer).metadata();
+        if (m.width && m.height) imgDimensions = { width: m.width, height: m.height };
+      } catch {}
+
       const contentType = file.type || 'image/jpeg';
       const imageUrl = await uploadFile(buffer, uniqueName, contentType);
       let thumbUrl = '';
       if (thumbBuffer) {
         thumbUrl = await uploadFile(thumbBuffer, thumbName, 'image/jpeg');
       }
+      let webpUrl = '';
+      if (webpBuffer) {
+        const webpName = uniqueName.replace(/\.(jpe?g|png)$/i, '.webp');
+        webpUrl = await uploadFile(webpBuffer, webpName, 'image/webp');
+      }
 
       return {
         url: imageUrl,
         thumbnail: thumbUrl,
+        webp: webpUrl,
         filename: uniqueName,
         folder,
-        optimization: optimizationResult
+        optimization: optimizationResult,
+        dimensions: imgDimensions,
+        _meta: {
+          folder,
+          altText: '',
+          uploadedAt: new Date().toISOString(),
+          hasWebp: !!webpBuffer,
+          ...imgDimensions,
+        }
       };
     }));
 
+    // Bulk-save metadata for all uploaded files in one I/O (avoids races
+    // that per-file writes in the parallel map would cause). Without this
+    // the multi-upload would skip image-meta.json entirely and its files
+    // would be invisible to the post-render <picture> wrap.
+    try {
+      const metaFile = path.join(dataDir, 'image-meta.json');
+      let meta: any = {};
+      if (fs.existsSync(metaFile)) meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      for (const r of fileResults) meta[r.filename] = r._meta;
+      fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+    } catch {}
+
+    const images = fileResults.map(({ _meta, ...rest }) => rest);
     logActivity('images_uploaded', { count: images.length, folder });
     return c.json({ message: 'Images uploaded', images });
   } catch (err) {
