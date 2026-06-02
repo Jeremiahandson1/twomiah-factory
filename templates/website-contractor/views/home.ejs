@@ -533,6 +533,14 @@ function getImageUrl(p) {
     ></iframe>
   </section>
 
+  <%
+    // Defensive JSON-LD escape (Claflin 3.6) — admin-edited service titles,
+    // descriptions, testimonial bodies are routed through _jsonStr (and
+    // _plainDesc for HTML-bearing fields) so quotes, newlines, or HTML in
+    // the CMS can't break the structured-data block. Email guard (3.7) drops
+    // the field entirely if it doesn't parse as a real address.
+    const _emailOk = typeof email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(email);
+  %>
   <!-- Enhanced LocalBusiness Schema with Reviews -->
   <script type="application/ld+json">
   {
@@ -541,21 +549,21 @@ function getImageUrl(p) {
     "name": "{{COMPANY_NAME}}",
     "image": "{{SITE_URL}}/logo.jpg",
     "url": "{{SITE_URL}}",
-    "telephone": "+1<%= phoneRaw %>",
-    "email": "<%= email %>",
-    "address": {
+    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
+<% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
+<% } %>    "address": {
       "@type": "PostalAddress",
-      "streetAddress": "<%= address %>",
-      "addressLocality": "<%= city %>",
-      "addressRegion": "<%= state %>",
-      "postalCode": "<%= zip %>",
+      "streetAddress": <%- _jsonStr(address) %>,
+      "addressLocality": <%- _jsonStr(city) %>,
+      "addressRegion": <%- _jsonStr(state) %>,
+      "postalCode": <%- _jsonStr(zip) %>,
       "addressCountry": "US"
     },
     "areaServed": [
       <% serviceAreas.forEach(function(area, index) { %>
       {
         "@type": "City",
-        "name": "<%= area %>, {{STATE}}"
+        "name": <%- _jsonStr(String(area) + ', {{STATE}}') %>
       }<%= index < serviceAreas.length - 1 ? ',' : '' %>
       <% }); %>
     ],
@@ -578,8 +586,8 @@ function getImageUrl(p) {
           "@type": "Offer",
           "itemOffered": {
             "@type": "Service",
-            "name": "<%= s.title %>",
-            "description": "<%= s.description %>"
+            "name": <%- _jsonStr(s.title) %>,
+            "description": <%- _jsonStr(_plainDesc(s.description, 280)) %>
           }
         }<%= index < services.length - 1 ? ',' : '' %>
         <% }); %>
@@ -589,7 +597,7 @@ function getImageUrl(p) {
     <% if (typeof testimonials !== 'undefined' && testimonials && testimonials.length > 0) { %>
     ,"aggregateRating": {
       "@type": "AggregateRating",
-      "ratingValue": "<%= (testimonials.reduce(function(sum, t) { return sum + (t.rating || 5); }, 0) / testimonials.length).toFixed(1) %>",
+      "ratingValue": <%- _jsonStr((testimonials.reduce(function(sum, t) { return sum + (t.rating || 5); }, 0) / testimonials.length).toFixed(1)) %>,
       "reviewCount": <%= testimonials.length %>,
       "bestRating": "5",
       "worstRating": "1"
@@ -600,16 +608,16 @@ function getImageUrl(p) {
         "@type": "Review",
         "author": {
           "@type": "Person",
-          "name": "<%= t.author %>"
+          "name": <%- _jsonStr(t.author) %>
         },
         "reviewRating": {
           "@type": "Rating",
           "ratingValue": <%= t.rating || 5 %>,
           "bestRating": "5"
         },
-        "reviewBody": "<%= t.text %>"
+        "reviewBody": <%- _jsonStr(_plainDesc(t.text, 500)) %>
         <% if (t.createdAt) { %>
-        ,"datePublished": "<%= t.createdAt.split('T')[0] %>"
+        ,"datePublished": <%- _jsonStr(String(t.createdAt).split('T')[0]) %>
         <% } %>
       }<%= index < testimonials.length - 1 ? ',' : '' %>
       <% }); %>
