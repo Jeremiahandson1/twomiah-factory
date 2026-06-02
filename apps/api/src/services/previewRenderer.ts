@@ -84,6 +84,12 @@ async function renderWebsiteDir(websiteDir: string): Promise<string> {
     .replace(/\s+/g, ' ')
     .trim().slice(0, max)
 
+  // CSS-background helper used by service.ejs/home.ejs hero (Claflin 3.9).
+  // Previews don't carry image-meta.json so no WebP companion exists; always
+  // returns the plain url() form, matching the no-WebP branch of the real
+  // bgWithWebp in each template's server-static.ts.
+  const bgWithWebp = (imgUrl: string) => (imgUrl && typeof imgUrl === 'string') ? `url('${imgUrl}')` : ''
+
   const shared: Record<string, any> = {
     settings,
     menuItems,
@@ -92,6 +98,7 @@ async function renderWebsiteDir(websiteDir: string): Promise<string> {
     hasEstimator: false,
     _jsonStr,
     _plainDesc,
+    bgWithWebp,
     homepage: loadJSON('homepage.json', {}),
     services: loadJSON('services.json', []),
     testimonials: loadJSON('testimonials.json', []),

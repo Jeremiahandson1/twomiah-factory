@@ -165,6 +165,33 @@ const _plainDesc = (html: any, max = 300) => String(html || '')
   .replace(/\s+/g, ' ')
   .trim().slice(0, max)
 
+// Loads image-meta.json once per call. Used by both wrapImagesWithPicture
+// (post-render <img> rewrite) and bgWithWebp (EJS-time CSS background).
+function loadImageMeta(): Record<string, { hasWebp?: boolean; width?: number; height?: number }> {
+  try {
+    const metaFile = path.join(appPaths.data, 'image-meta.json')
+    if (fs.existsSync(metaFile)) return JSON.parse(fs.readFileSync(metaFile, 'utf8'))
+  } catch {}
+  return {}
+}
+
+// CSS-background image-set helper (Claflin 3.9). Given a uploaded image URL,
+// returns either an image-set() that prefers WebP and falls back to the
+// original, or a plain url() if no WebP companion exists. Use in EJS as:
+//   style="background-image: <%- bgWithWebp(getImageUrl(hero.image)) %>"
+function bgWithWebp(imgUrl: string): string {
+  if (!imgUrl || typeof imgUrl !== 'string') return ''
+  // Only rewrite locally-served raster uploads — leave external URLs and SVGs alone.
+  const m = imgUrl.match(/^\/uploads\/([^?#]+\.(?:jpe?g|png))$/i)
+  if (!m) return `url('${imgUrl}')`
+  const filename = m[1]
+  const meta = loadImageMeta()[filename]
+  if (!meta?.hasWebp) return `url('${imgUrl}')`
+  const webpUrl = imgUrl.replace(/\.(jpe?g|png)$/i, '.webp')
+  const sourceType = /\.png$/i.test(imgUrl) ? 'image/png' : 'image/jpeg'
+  return `image-set(url('${webpUrl}') type('image/webp'), url('${imgUrl}') type('${sourceType}'))`
+}
+
 // Post-render pass (Claflin 3.4 + 3.5): for every <img src="/uploads/*.jpg|png">,
 // inject width/height attrs (CLS fix) and wrap in <picture> with a WebP
 // <source> if a companion was generated at upload time. Reads dimensions +
@@ -201,7 +228,7 @@ function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, 
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, _jsonStr, _plainDesc, ...locals }
+  const shared = { settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, _jsonStr, _plainDesc, bgWithWebp, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {
