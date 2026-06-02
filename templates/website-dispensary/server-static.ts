@@ -251,6 +251,37 @@ function wrapImagesWithPicture(html: string): string {
   )
 }
 
+// Persistent-disk migration scaffold (Claflin 3.11 + 3.12). Each migration
+// is a one-shot, flag-file-gated runner — once the marker file is written
+// it never re-runs, so this is safe to leave in startup. The marker is
+// written regardless of success so a failed migration doesn't loop; manual
+// intervention is required to retry. Add new migrations as objects in the
+// `migrations` array. Use cases: sync repo content into persistent
+// pages.json, backfill WebP companions for pre-existing /uploads/ files,
+// seed binary assets, self-heal broken admin-set image refs. The 3.12
+// idempotent-sidecar pattern (drop a marker like .larger next to a file so
+// future builds skip a deterministic-no-op check) is already used in the
+// /upload route's WebP-size guard.
+async function runMigrations() {
+  const migrations: Array<{ name: string; fn: () => Promise<void> }> = [
+    // Add one-shot migrations here. Example:
+    //   { name: 'backfill-webp-v1', fn: async () => { /* scan uploads/ */ } }
+  ]
+  for (const m of migrations) {
+    const marker = path.join(appPaths.data, `.migration-${m.name}`)
+    if (fs.existsSync(marker)) continue
+    console.log(`[Migration] Running ${m.name}...`)
+    try {
+      await m.fn()
+      console.log(`[Migration] ${m.name} complete`)
+    } catch (err: any) {
+      console.error(`[Migration] ${m.name} failed:`, err?.message)
+    } finally {
+      try { fs.writeFileSync(marker, new Date().toISOString()) } catch {}
+    }
+  }
+}
+
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
@@ -524,4 +555,8 @@ Mode: Server-rendered (EJS) + CMS Admin
   `)
 
   startBackups()
+  // One-shot persistent-disk migrations (3.11) — flag-file-gated so they
+  // only fire on first boot after a deploy that adds them. Deferred so a
+  // slow migration doesn't delay the health check.
+  setTimeout(() => { runMigrations() }, 5000)
 })
