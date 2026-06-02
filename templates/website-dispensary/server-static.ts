@@ -35,6 +35,31 @@ app.use('*', cors({
   credentials: true,
 }))
 
+// ──────────────────────────────────────────────────────────────────────────
+// URL canonicalization (Claflin 3.10): strip trailing slashes with a 301,
+// EXCEPT for the root, API/admin/uploads paths, and an exception set for
+// paths Google has chosen as their canonical with-slash form. Adding a path
+// to TRAILING_SLASH_KEEP_200 makes both /path and /path/ serve 200 instead
+// of one redirecting. Sitemap entries + <link rel="canonical"> tags MUST
+// match the no-slash form. Exception rationale: if Google Search Console
+// has selected the trailing-slash variant as the canonical for a given URL,
+// redirecting it would push Google's preferred form behind a 301 and drop
+// the page from the index.
+// ──────────────────────────────────────────────────────────────────────────
+const TRAILING_SLASH_KEEP_200 = new Set<string>([
+  // Add per-deployment paths Google has chosen as canonical-with-slash.
+])
+app.use('*', async (c, next) => {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return next()
+  const url = new URL(c.req.url)
+  const p = url.pathname
+  if (p.startsWith('/api') || p.startsWith('/admin') || p.startsWith('/uploads')) return next()
+  if (p.length > 1 && p.endsWith('/') && !TRAILING_SLASH_KEEP_200.has(p)) {
+    return c.redirect(p.replace(/\/+$/, '') + url.search, 301)
+  }
+  return next()
+})
+
 // Rate limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 const contactLimitMap = new Map<string, { count: number; resetAt: number }>()
