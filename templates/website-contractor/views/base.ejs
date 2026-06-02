@@ -146,30 +146,64 @@
     const _gadsId = _a.googleAdsId         || settings?.googleAdsId         || '';
   %>
 
-  <%/* ── Google Tag Manager (head) ── */%>
-  <% if (_gtmId) { %>
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _gtmId %>');</script>
-  <% } %>
-
-  <%/* ── Google Analytics 4 + custom events ── */%>
-  <% if (_gaId) { %>
-  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId %>"></script>
+  <%/* ── GTM/GA4 deferred loader (Claflin 3.1) ─────────────────────────
+       Inline dataLayer + gtag stubs run immediately so config calls and
+       custom events queue without blocking the main thread. The heavy
+       scripts (gtag.js, gtm.js) only load on first user interaction
+       (mousemove/scroll/touch/key) with a 5s fallback for bouncers.
+       Conversion tracking still works — the queue drains when the script
+       arrives; form-submit conversions await response.ok and tel: click
+       conversions use sendBeacon internally. */%>
+  <% if (_gtmId || _gaId) { %>
+  <link rel="dns-prefetch" href="https://www.googletagmanager.com">
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
     gtag('js', new Date());
+    <% if (_gaId) { %>
     gtag('config', '<%= _gaId %>', { send_page_view: true });
+    <% } %>
     <% if (_gadsId) { %>
     gtag('config', '<%= _gadsId %>');
     window._gadsId = '<%= _gadsId %>';
     <% } %>
+    <% if (_gtmId) { %>
+    dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
+    window.__gtmId = <%- JSON.stringify(_gtmId) %>;
+    <% } %>
+    window.__gtagIds = [<%- [_gaId, _gadsId].filter(Boolean).map(id => JSON.stringify(id)).join(', ') %>];
 
-    // ── Custom event helpers ────────────────────────────────────────
+    (function() {
+      var loaded = false;
+      window.__loadAnalytics = function() {
+        if (loaded) return; loaded = true;
+        (window.__gtagIds || []).forEach(function(id) {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
+          document.head.appendChild(s);
+        });
+        if (window.__gtmId) {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtm.js?id=' + window.__gtmId;
+          document.head.appendChild(s);
+        }
+      };
+      ['mousemove','mousedown','touchstart','keydown','scroll','pointerdown']
+        .forEach(function(e){ window.addEventListener(e, window.__loadAnalytics, { once: true, passive: true }); });
+      setTimeout(window.__loadAnalytics, 5000);
+    })();
+  </script>
+  <% } %>
+
+  <%/* ── Custom event tracking — queues against the gtag stub above ── */%>
+  <% if (_gaId) { %>
+  <script>
     window._bpTrack = function(eventName, params) {
       if (typeof gtag !== 'undefined') {
         gtag('event', eventName, params || {});
       }
-      // Also push to dataLayer for GTM
       if (window.dataLayer) {
         window.dataLayer.push({ event: eventName, ...(params || {}) });
       }
