@@ -70,12 +70,28 @@ async function renderWebsiteDir(websiteDir: string): Promise<string> {
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items
     : Array.isArray(navConfig) ? navConfig : []
 
+  // JSON-LD defensive escapers — mirror the template's server-static.ts so
+  // structured-data blocks render the same way offline as they do live.
+  const _jsonStr = (v: any) => JSON.stringify(v == null ? '' : String(v))
+  const _plainDesc = (html: any, max = 300) => String(html || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&(#x27|#39|apos);/gi, "'")
+    .replace(/&(quot|#34);/gi, '"')
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim().slice(0, max)
+
   const shared: Record<string, any> = {
     settings,
     menuItems,
     BASE_URL: '',
     hasVisualizer: false,
     hasEstimator: false,
+    _jsonStr,
+    _plainDesc,
     homepage: loadJSON('homepage.json', {}),
     services: loadJSON('services.json', []),
     testimonials: loadJSON('testimonials.json', []),

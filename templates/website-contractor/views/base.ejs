@@ -40,8 +40,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   
-  <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Fonts: display=optional commits to the fallback if web font isn't ready
+       by ~100ms (zero CLS), preload+onload swap defers blocking. Sync local
+       CSS above stays sync (3.2). -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional"></noscript>
   
   <!-- Styles -->
   <link rel="stylesheet" href="/styles/main.css">
@@ -64,6 +67,12 @@
       : '/images/logo.png';
   %>
   
+  <%
+    // Only emit email if it parses as a real address. Some CMSes render
+    // Cloudflare-obfuscated HTML in the email slot; guarding here keeps
+    // garbage out of the schema entirely (3.7).
+    const _emailOk = typeof email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(email);
+  %>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -71,16 +80,16 @@
     "name": "{{COMPANY_NAME}}",
     "description": "{{META_DESCRIPTION}} in {{CITY}} and the {{SERVICE_REGION}}",
     "url": "{{SITE_URL}}",
-    "logo": "{{SITE_URL}}<%= logoUrl %>",
-    "image": "{{SITE_URL}}<%= logoUrl %>",
-    "telephone": "+1<%= phoneRaw %>",
-    "email": "<%= email %>",
-    "address": {
+    "logo": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
+    "image": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
+    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
+<% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
+<% } %>    "address": {
       "@type": "PostalAddress",
-      "streetAddress": "<%= address %>",
-      "addressLocality": "<%= city %>",
-      "addressRegion": "<%= state %>",
-      "postalCode": "<%= zip %>",
+      "streetAddress": <%- _jsonStr(address) %>,
+      "addressLocality": <%- _jsonStr(city) %>,
+      "addressRegion": <%- _jsonStr(state) %>,
+      "postalCode": <%- _jsonStr(zip) %>,
       "addressCountry": "US"
     },
     "areaServed": [
@@ -118,8 +127,8 @@
       {
         "@type": "ListItem",
         "position": <%= index + 1 %>,
-        "name": "<%= crumb.label %>",
-        "item": "{{SITE_URL}}<%= crumb.url %>"
+        "name": <%- _jsonStr(crumb.label) %>,
+        "item": <%- _jsonStr('{{SITE_URL}}' + (crumb.url || '')) %>
       }<%= index < breadcrumbs.length - 1 ? ',' : '' %>
       <% }); %>
     ]

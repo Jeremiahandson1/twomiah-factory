@@ -29,14 +29,20 @@
   <meta name="twitter:description" content="<%= description %>">
   
   <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <%
+    const faviconUrl = (typeof settings !== 'undefined' && settings && settings.favicon)
+      ? (settings.favicon.startsWith('http') ? settings.favicon : (settings.favicon.startsWith('/') ? settings.favicon : '/' + settings.favicon))
+      : '/favicon.svg';
+  %>
+  <link rel="icon" href="<%= faviconUrl %>">
   
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   
-  <!-- Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Fonts: display=optional + preload+onload swap (Claflin 3.3) -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional"></noscript>
   
   <!-- Styles -->
   <link rel="stylesheet" href="/styles/main.css">
@@ -56,7 +62,7 @@
     const phoneRaw = phone.replace(/\D/g, '');
     const logoUrl = (typeof settings !== 'undefined' && settings && settings.logo) 
       ? (settings.logo.startsWith('http') ? settings.logo : (settings.logo.startsWith('/') ? settings.logo : '/' + settings.logo)) 
-      : '/images/logo.png';
+      : '/images/logo.svg';
   %>
   
   <script type="application/ld+json">
