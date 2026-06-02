@@ -205,7 +205,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       const ALL_WEBSITE_FEATURES = ['blog', 'gallery', 'testimonials', 'services_pages', 'contact_form', 'visualizer']
       const websiteFeatures = config.features?.website?.length ? config.features.website : ALL_WEBSITE_FEATURES
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
-      writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
+      await writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
       injectWizardContent(path.join(workDir, 'website'), config)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
@@ -221,11 +221,11 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
       if (products.includes('cms')) {
         copyTemplate('cms', path.join(workDir, 'website', 'admin'), tokens)
-        writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding, config.company?.name)
+        await writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding, config.company?.name)
       }
     } else if (products.includes('cms')) {
       copyTemplate('cms', path.join(workDir, 'cms'), tokens)
-      writeBrandingAssets(path.join(workDir, 'cms'), config.branding, config.company?.name)
+      await writeBrandingAssets(path.join(workDir, 'cms'), config.branding, config.company?.name)
     }
 
     if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
@@ -245,12 +245,12 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // repo stays fully standalone (no @twomiah/* workspace imports at runtime).
       vendorSharedCode(path.join(workDir, crmOutputDir), tokens)
       processCRM(path.join(workDir, crmOutputDir), config, tokens)
-      writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding, config.company?.name)
+      await writeBrandingAssets(path.join(workDir, crmOutputDir, 'frontend', 'public'), config.branding, config.company?.name)
     }
 
     if (products.includes('pricing')) {
       copyTemplate('pricing', path.join(workDir, 'pricing'), tokens)
-      writeBrandingAssets(path.join(workDir, 'pricing', 'frontend', 'public'), config.branding, config.company?.name)
+      await writeBrandingAssets(path.join(workDir, 'pricing', 'frontend', 'public'), config.branding, config.company?.name)
       processEnvTemplate(path.join(workDir, 'pricing', 'backend'), tokens)
       processEnvTemplate(path.join(workDir, 'pricing', 'frontend'), tokens)
 
@@ -1018,17 +1018,48 @@ function seedHelpArticles(websiteDir: string) {
   fs.writeFileSync(helpFile, JSON.stringify(articles, null, 2))
 }
 
-function writeBrandingAssets(targetDir: string, branding: GenerateConfig['branding'], companyName?: string) {
+async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['branding'], companyName?: string) {
   const imagesDir = path.join(targetDir, 'build', 'images')
   fs.mkdirSync(imagesDir, { recursive: true })
   const buildDir = path.join(targetDir, 'build')
 
   if (branding.logo?.startsWith('data:')) {
     const ext = getExtFromDataUrl(branding.logo) || 'png'
-    writeDataUrl(branding.logo, path.join(imagesDir, 'logo.' + ext))
+    const logoFile = path.join(imagesDir, 'logo.' + ext)
+    const altPath = path.join(targetDir, 'logo.' + ext)
+    writeDataUrl(branding.logo, logoFile)
     // Also write to targetDir root for Vite-based projects (CRM frontend/public/)
-    writeDataUrl(branding.logo, path.join(targetDir, 'logo.' + ext))
+    writeDataUrl(branding.logo, altPath)
     updateSettingsField(targetDir, 'logo', '/images/logo.' + ext)
+
+    // Logo size discipline (Claflin 3.8) — admin-uploaded photographic logos
+    // routinely land at 100 KB+ for something that's displayed at ≤50px tall.
+    // If the written file is over 30 KB and raster, downsize to a sane natural
+    // height + quantize to a ~32-color palette PNG (the Claflin example took
+    // a 113 KB logo down to 16 KB). SVGs and small files are left alone.
+    try {
+      const sz = fs.statSync(logoFile).size
+      if (sz > 30 * 1024 && (ext === 'png' || ext === 'jpg' || ext === 'jpeg')) {
+        const sharp = (await import('sharp')).default
+        const tmpFile = logoFile + '.tmp'
+        await sharp(logoFile)
+          .resize({ height: 200, withoutEnlargement: true })
+          .png({ palette: true, colors: 32 })
+          .toFile(tmpFile)
+        // Only swap in the downsized version if it actually came out smaller —
+        // mirrors the Claflin "WebP is smaller" guard at 3.4 + 3.12.
+        const newSz = fs.statSync(tmpFile).size
+        if (newSz < sz) {
+          fs.renameSync(tmpFile, logoFile)
+          if (fs.existsSync(altPath)) fs.copyFileSync(logoFile, altPath)
+          console.log(`[Generator] Logo discipline: ${sz} → ${newSz} bytes (${ext})`)
+        } else {
+          fs.rmSync(tmpFile, { force: true })
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Generator] Logo discipline skipped:', err?.message)
+    }
   }
 
   if (branding.favicon?.startsWith('data:')) {
