@@ -2288,20 +2288,56 @@ app.post('/upload', authMiddleware, async (c) => {
       console.error('Thumbnail generation error:', err);
     }
 
-    // Upload main image + thumbnail to storage (R2 or local)
+    // Generate WebP companion (Claflin 3.4) — skip non-JPG/PNG, and skip if
+    // WebP would be larger than source (rare, happens with already-optimized
+    // palette PNGs like a 32-color logo). The post-render wrap (3.5) reads
+    // hasWebp from image-meta.json to decide whether to emit a <picture>.
+    let webpBuffer: Buffer | null = null;
+    if (ext.match(/\.(jpe?g|png)$/i)) {
+      try {
+        const tryWebp = await sharp(buffer).webp({ quality: 72 }).toBuffer();
+        if (tryWebp.length < buffer.length) webpBuffer = tryWebp;
+      } catch (err) {
+        console.error('WebP generation error:', err);
+      }
+    }
+
+    // Get intrinsic dimensions for CLS-safe rendering (Claflin 3.5) — the
+    // post-render wrap injects these as width/height attrs on the <img> so
+    // the browser reserves correct space at first paint instead of shifting
+    // content when the image loads.
+    let imgDimensions: { width?: number; height?: number } = {};
+    try {
+      const m = await sharp(buffer).metadata();
+      if (m.width && m.height) imgDimensions = { width: m.width, height: m.height };
+    } catch {}
+
+    // Upload main image + thumbnail + WebP companion to storage (R2 or local)
     const contentType = file.type || 'image/jpeg';
     const imageUrl = await uploadFile(buffer, uniqueName, contentType);
     let thumbUrl = '';
     if (thumbBuffer) {
       thumbUrl = await uploadFile(thumbBuffer, thumbName, 'image/jpeg');
     }
+    let webpUrl = '';
+    if (webpBuffer) {
+      const webpName = uniqueName.replace(/\.(jpe?g|png)$/i, '.webp');
+      webpUrl = await uploadFile(webpBuffer, webpName, 'image/webp');
+    }
 
-    // Save metadata (folder, altText, uploadedAt) for R2 image listing
+    // Save metadata — folder/altText/uploadedAt for the image listing, plus
+    // hasWebp + width/height for the post-render <picture> wrap to consume.
     try {
       const metaFile = path.join(dataDir, 'image-meta.json');
       let meta: any = {};
       if (fs.existsSync(metaFile)) meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
-      meta[uniqueName] = { folder, altText, uploadedAt: new Date().toISOString() };
+      meta[uniqueName] = {
+        folder,
+        altText,
+        uploadedAt: new Date().toISOString(),
+        hasWebp: !!webpBuffer,
+        ...imgDimensions,
+      };
       fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2));
     } catch {}
 
@@ -2309,17 +2345,20 @@ app.post('/upload', authMiddleware, async (c) => {
       filename: uniqueName,
       folder,
       optimized: optimizationResult.optimized,
-      savings: optimizationResult.savings
+      savings: optimizationResult.savings,
+      webpGenerated: !!webpBuffer
     });
 
     return c.json({
       message: 'Image uploaded',
       url: imageUrl,
       thumbnail: thumbUrl,
+      webp: webpUrl,
       filename: uniqueName,
       folder,
       altText,
-      optimization: optimizationResult
+      optimization: optimizationResult,
+      dimensions: imgDimensions
     });
   } catch (err) {
     console.error('Upload error:', err);

@@ -172,6 +172,36 @@ const _plainDesc = (html: any, max = 300) => String(html || '')
   .replace(/\s+/g, ' ')
   .trim().slice(0, max)
 
+// Post-render pass (Claflin 3.4 + 3.5): for every <img src="/uploads/*.jpg|png">,
+// inject width/height attrs (CLS fix) and wrap in <picture> with a WebP
+// <source> if a companion was generated at upload time. Reads dimensions +
+// hasWebp from image-meta.json (written by the /upload route). Idempotent —
+// it leaves <img>s already inside <picture> alone.
+function wrapImagesWithPicture(html: string): string {
+  let imageMeta: Record<string, { hasWebp?: boolean; width?: number; height?: number }> = {}
+  try {
+    const metaFile = path.join(appPaths.data, 'image-meta.json')
+    if (fs.existsSync(metaFile)) imageMeta = JSON.parse(fs.readFileSync(metaFile, 'utf8'))
+  } catch {}
+
+  return html.replace(
+    /<img\b([^>]*?\bsrc=["'](\/uploads\/([^"'\/]+\.(?:jpe?g|png)))["'][^>]*?)\s*\/?>/gi,
+    (match, attrs, fullSrc, filename) => {
+      const meta = imageMeta[filename] || {}
+      let newAttrs: string = attrs
+      if (meta.width && meta.height && !/\bwidth=/i.test(attrs)) {
+        newAttrs = ` width="${meta.width}" height="${meta.height}"${attrs}`
+      }
+      let imgTag = `<img${newAttrs}>`
+      if (meta.hasWebp) {
+        const webpSrc = fullSrc.replace(/\.(jpe?g|png)$/i, '.webp')
+        imgTag = `<picture><source srcset="${webpSrc}" type="image/webp">${imgTag}</picture>`
+      }
+      return imgTag
+    }
+  )
+}
+
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
@@ -193,7 +223,7 @@ function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, 
           resolve(c.text('Render error', 500))
           return
         }
-        resolve(c.html(html, statusCode))
+        resolve(c.html(wrapImagesWithPicture(html), statusCode))
       })
     })
   })
