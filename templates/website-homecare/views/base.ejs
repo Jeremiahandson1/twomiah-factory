@@ -111,6 +111,12 @@
       : '/images/logo.png';
   %>
   
+  <%
+    // Only emit email if it parses as a real address. Some CMSes render
+    // Cloudflare-obfuscated HTML in the email slot; guarding here keeps
+    // garbage out of the schema entirely (3.7).
+    const _emailOk = typeof email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(email);
+  %>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -118,16 +124,16 @@
     "name": "{{COMPANY_NAME}}",
     "description": "Professional in-home care services in {{CITY}} and the {{SERVICE_REGION}}",
     "url": "{{COMPANY_WEBSITE}}",
-    "logo": "{{COMPANY_WEBSITE}}<%= logoUrl %>",
-    "image": "{{COMPANY_WEBSITE}}<%= logoUrl %>",
-    "telephone": "+1<%= phoneRaw %>",
-    "email": "<%= email %>",
-    "address": {
+    "logo": <%- _jsonStr('{{COMPANY_WEBSITE}}' + logoUrl) %>,
+    "image": <%- _jsonStr('{{COMPANY_WEBSITE}}' + logoUrl) %>,
+    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
+<% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
+<% } %>    "address": {
       "@type": "PostalAddress",
-      "streetAddress": "<%= address %>",
-      "addressLocality": "<%= city %>",
-      "addressRegion": "<%= state %>",
-      "postalCode": "<%= zip %>",
+      "streetAddress": <%- _jsonStr(address) %>,
+      "addressLocality": <%- _jsonStr(city) %>,
+      "addressRegion": <%- _jsonStr(state) %>,
+      "postalCode": <%- _jsonStr(zip) %>,
       "addressCountry": "US"
     },
     "areaServed": [
@@ -165,8 +171,8 @@
       {
         "@type": "ListItem",
         "position": <%= index + 1 %>,
-        "name": "<%= crumb.label %>",
-        "item": "{{COMPANY_WEBSITE}}<%= crumb.url %>"
+        "name": <%- _jsonStr(crumb.label) %>,
+        "item": <%- _jsonStr('{{COMPANY_WEBSITE}}' + (crumb.url || '')) %>
       }<%= index < breadcrumbs.length - 1 ? ',' : '' %>
       <% }); %>
     ]

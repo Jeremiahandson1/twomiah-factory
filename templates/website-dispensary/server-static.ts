@@ -155,11 +155,28 @@ function loadJSON(filename: string) {
 const CRM_API_URL = process.env.CRM_API_URL || ''
 const TENANT_SLUG = process.env.TENANT_SLUG || '{{COMPANY_SLUG}}'
 
+// Defensive escapers for JSON-LD blocks. Admin-edited fields (titles,
+// descriptions, addresses) can contain quotes, newlines, or HTML — emit them
+// through _jsonStr inside <script type="application/ld+json"> so the structured
+// data block never breaks Google's parser. _plainDesc strips tags + decodes
+// common entities for description fields. See Claflin backport 3.6.
+const _jsonStr = (v: any) => JSON.stringify(v == null ? '' : String(v))
+const _plainDesc = (html: any, max = 300) => String(html || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/&nbsp;/gi, ' ')
+  .replace(/&amp;/gi, '&')
+  .replace(/&(#x27|#39|apos);/gi, "'")
+  .replace(/&(quot|#34);/gi, '"')
+  .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+  .replace(/&[a-z]+;/gi, ' ')
+  .replace(/\s+/g, ' ')
+  .trim().slice(0, max)
+
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { settings, menuItems, BASE_URL, CRM_API_URL, ...locals }
+  const shared = { settings, menuItems, BASE_URL, CRM_API_URL, _jsonStr, _plainDesc, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {
