@@ -33,7 +33,7 @@ function getImageUrl(p) {
     <% if (hero.image) { %>
       <div 
         class="hero-bg animation-<%= hero.animation || 'none' %>"
-        style="background-image: url(<%= getImageUrl(hero.image) %>)"
+        style="background-image: <%- bgWithWebp(getImageUrl(hero.image)) %>"
       ></div>
       <div class="hero-overlay"></div>
     <% } else { %>
@@ -282,7 +282,7 @@ function getImageUrl(p) {
   <section 
     class="cta-section"
     <% if (ctaSection.backgroundImage) { %>
-      style="background-image: url(<%= getImageUrl(ctaSection.backgroundImage) %>)"
+      style="background-image: <%- bgWithWebp(getImageUrl(ctaSection.backgroundImage)) %>"
     <% } %>
   >
     <div class="container">
