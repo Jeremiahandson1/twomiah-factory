@@ -70,11 +70,11 @@
   {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    "name": "<%= page.title.replace(/"/g, '\\"') %>",
+    "name": <%- _jsonStr(page.title) %>,
     <% if (page.tagline) { %>
-      "description": "<%= page.tagline.replace(/"/g, '\\"') %>",
+      "description": <%- _jsonStr(page.tagline) %>,
     <% } %>
-    "url": "{{SITE_URL}}/<%= page.slug %>",
+    "url": <%- _jsonStr('{{SITE_URL}}/' + (page.slug || '')) %>,
     "publisher": {
       "@type": "Store",
       "name": "{{COMPANY_NAME}}",
