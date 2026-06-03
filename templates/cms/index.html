@@ -3,18 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="{{COMPANY_NAME}} - {{CITY}}'s trusted roofing, siding, and window contractor. Quality craftsmanship, free estimates, licensed and insured.">
-  <meta name="keywords" content="roofing, siding, windows, insulation, contractor, {{CITY}}, {{STATE_FULL}}, home improvement">
+  <meta name="description" content="{{COMPANY_NAME}} content management — admin dashboard.">
+  <meta name="keywords" content="{{COMPANY_NAME}}, {{CITY}}, {{STATE_FULL}}, admin, content management">
   <meta name="author" content="{{COMPANY_NAME}}">
-  
+  <meta name="robots" content="noindex, nofollow">
+
   <title>{{CITY}} {{INDUSTRY}} | {{COMPANY_NAME}}</title>
   
-  <!-- Favicon (dynamically updated from site settings on load) -->
-  <link rel="icon" type="image/x-icon" href="/favicon.ico" id="dynamic-favicon">
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" id="dynamic-favicon-png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <!-- Favicon: the tenant's generated SVG (served by the site at /favicon.svg);
+       refined from site settings after login. No .ico/.png — those were a
+       per-client asset leak and are no longer shipped. -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" id="dynamic-favicon">
   <script>
-    // Fetch tenant favicon from site settings so the admin panel shows the correct icon
+    // After login, prefer the favicon set in site settings (if the tenant uploaded one)
     (function() {
       var token = localStorage.getItem('adminToken');
       if (!token) return;
@@ -22,12 +23,8 @@
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(s) {
           var fav = s && (s.favicon || s.logo);
-          if (fav) {
-            var el = document.getElementById('dynamic-favicon');
-            var el2 = document.getElementById('dynamic-favicon-png');
-            if (el) el.href = fav;
-            if (el2) el2.href = fav;
-          }
+          var el = document.getElementById('dynamic-favicon');
+          if (fav && el) el.href = fav;
         })
         .catch(function() {});
     })();

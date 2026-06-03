@@ -50,3 +50,9 @@ templates/**/bun.lock
 
 # Windows artifacts
 nul/
+
+# Mobile app secrets — never commit
+apps/mobile/google-services.json
+apps/mobile/google-services.*.json
+apps/mobile/google-play-service-account.json
+apps/mobile/AuthKey_*.p8
