@@ -37,6 +37,21 @@ const DEFAULT_PLAN: PlanSelection = {
   addonIds: [],
 }
 
+// Public-signup gate. Verticals listed here are reachable via /signup/:product
+// without a flag; anything else needs its own VITE_ENABLE_<NAME>_SIGNUP=true.
+// Internal Factory operators (logged in at /factory) can still pick any
+// vertical from StepProducts — the gate only blocks the public signup path.
+const PUBLIC_SIGNUP_VERTICALS = new Set<string>(['build', 'care', 'wrench', 'roof', 'leaf'])
+const GATED_VERTICALS: Record<string, { envVar: string; label: string }> = {
+  landscaping: { envVar: 'VITE_ENABLE_LANDSCAPING_SIGNUP', label: 'Landscaping' },
+}
+function isVerticalPublic(vertical: string): boolean {
+  if (PUBLIC_SIGNUP_VERTICALS.has(vertical)) return true
+  const gate = GATED_VERTICALS[vertical]
+  if (!gate) return false
+  return (import.meta.env as any)[gate.envVar] === 'true'
+}
+
 export default function FactoryPage() {
   const [searchParams] = useSearchParams()
   const { product: urlProduct } = useParams<{ product?: string }>()
@@ -45,6 +60,12 @@ export default function FactoryPage() {
   const signupProduct = (urlProduct || searchParams.get('product')) as ProductLine | null
   const hasPlanStep = !!signupProduct && ['build', 'care', 'wrench', 'roof', 'leaf', 'landscaping'].includes(signupProduct)
   const isPublicSignup = hasPlanStep // public signup = light theme, friendly language
+
+  // Public signup is gated per vertical. If the URL points at a vertical
+  // that isn't open to the public yet (e.g. landscaping pre-launch), we
+  // render a coming-soon page instead of the wizard. The actual return is
+  // below all hook calls to keep hook order stable on URL-change rerenders.
+  const isGatedSignup = !!signupProduct && isPublicSignup && !isVerticalPublic(signupProduct)
 
   const [plan, setPlan] = useState<PlanSelection>(() => {
     const p: PlanSelection = { ...DEFAULT_PLAN }
@@ -98,6 +119,29 @@ export default function FactoryPage() {
 
   const maxStep = hasPlanStep ? WIZARD_STEPS.length - 1 : WIZARD_STEPS.length - 1
   const minStep = hasPlanStep ? -1 : 0
+
+  // Gate render — placed AFTER all hook calls (useState, useEffect above)
+  // so hook order stays stable when navigating between gated and ungated
+  // verticals without a full unmount.
+  if (isGatedSignup) {
+    const label = GATED_VERTICALS[signupProduct!]?.label || signupProduct
+    return (
+      <div className="min-h-screen bg-white p-8 max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">{label} signup is coming soon</h1>
+        <p className="text-gray-600 mb-6">
+          We're putting the finishing touches on the {label} product. If you'd like to be
+          notified when it goes live, email us at{' '}
+          <a
+            href={`mailto:hello@twomiah.com?subject=Notify%20me%20when%20${encodeURIComponent(String(label))}%20launches`}
+            className="text-blue-600 underline"
+          >
+            hello@twomiah.com
+          </a>.
+        </p>
+      </div>
+    )
+  }
+
   const next = () => setStep(s => Math.min(s + 1, maxStep))
   const back = () => setStep(s => Math.max(s - 1, minStep))
   const reset = () => {
