@@ -4,5 +4,13 @@
   "phone": "608-555-0142",
   "email": "build@westridgebuilders.com",
   "seoTitle": "Westridge Builders — Custom Homes & Renovations | Madison, WI",
-  "seoDescription": "Award-winning custom-home builder serving Madison, Verona, and the Driftless region since 2008. Design-build, additions, whole-house renovations."
+  "seoDescription": "Award-winning custom-home builder serving Madison, Verona, and the Driftless region since 2008. Design-build, additions, whole-house renovations.",
+  "homeHref": "index.html",
+  "contactHref": "contact.html",
+  "contactCtaLabel": "Start a project",
+  "nav": [
+    { "label": "Services", "href": "services.html" },
+    { "label": "About", "href": "about.html" },
+    { "label": "Contact", "href": "contact.html" }
+  ]
 }

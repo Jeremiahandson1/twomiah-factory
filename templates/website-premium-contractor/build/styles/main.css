@@ -236,6 +236,47 @@ a { color: inherit; text-decoration: none; }
 .cta__phone { color: var(--ink); font-weight: 600; font-size: 17px; padding-left: 20px; border-left: 1px solid var(--line); }
 @media (max-width: 860px) { .cta__split-grid { grid-template-columns: 1fr; } .cta__split-image { min-height: 280px; } }
 
+/* ── About / Story ────────────────────────────────────────────────────── */
+.story { padding: var(--space) 0; background: var(--paper); }
+.story__grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: clamp(40px, 6vw, 80px); align-items: start; }
+.story__portrait { aspect-ratio: 4 / 5; background-size: cover; background-position: center; border-radius: 16px; background-color: #d4dcd6; box-shadow: 0 30px 60px -30px rgba(15,31,23,.35); position: sticky; top: 100px; }
+.story__eyebrow { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 14px; }
+.story__title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(36px, 4.5vw, 56px); font-weight: 600; line-height: 1.08; letter-spacing: -0.025em; margin: 0 0 32px; color: var(--ink); }
+.story__paragraph { font-size: 18px; line-height: 1.65; color: var(--ink-soft); margin: 0 0 22px; }
+.story__signature { font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 22px; color: var(--brand); margin-top: 8px; }
+.story__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--line); }
+.story__stat-num { font-family: 'Fraunces', Georgia, serif; font-size: 32px; font-weight: 600; color: var(--brand); letter-spacing: -0.01em; }
+.story__stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+@media (max-width: 860px) { .story__grid { grid-template-columns: 1fr; } .story__portrait { position: static; aspect-ratio: 4/3; } }
+
+/* ── Team grid ────────────────────────────────────────────────────────── */
+.team { padding: var(--space) 0; background: var(--white); }
+.team__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 28px; }
+.team__card { background: var(--paper); border-radius: 14px; overflow: hidden; }
+.team__portrait { aspect-ratio: 4 / 5; background-size: cover; background-position: center top; background-color: #d4dcd6; }
+.team__body { padding: 20px 22px 24px; }
+.team__name { font-family: 'Fraunces', Georgia, serif; font-size: 20px; font-weight: 600; color: var(--ink); }
+.team__role { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; margin-top: 4px; }
+.team__bio { font-size: 14px; color: var(--ink-soft); margin: 12px 0 0; line-height: 1.55; }
+
+/* ── Contact section ──────────────────────────────────────────────────── */
+.contact-section { padding: var(--space) 0; background: var(--paper); }
+.contact-section__grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(40px, 6vw, 80px); align-items: start; }
+.contact-section__title { font-family: 'Fraunces', Georgia, serif; font-size: clamp(36px, 4.5vw, 56px); font-weight: 600; line-height: 1.08; letter-spacing: -0.025em; margin: 0 0 18px; color: var(--ink); }
+.contact-section__intro { font-size: 18px; color: var(--ink-soft); margin: 0 0 32px; line-height: 1.55; max-width: 460px; }
+.contact-section__details { border-top: 1px solid var(--line); }
+.contact-section__row { display: grid; grid-template-columns: 100px 1fr; padding: 18px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.contact-section__label { font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 600; padding-top: 2px; }
+.contact-section__value { color: var(--ink); font-size: 16px; }
+.contact-section__value a { color: var(--brand); font-weight: 600; }
+.contact-section__promise { margin-top: 28px; padding: 16px 20px; background: var(--brand); color: var(--white); border-radius: 10px; font-size: 14px; line-height: 1.55; }
+.contact-form { background: var(--white); border-radius: 14px; padding: 32px; box-shadow: 0 20px 40px -20px rgba(15,31,23,.18); }
+.contact-form__row { margin-bottom: 18px; }
+.contact-form__row label { display: block; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); margin-bottom: 6px; }
+.contact-form__row input, .contact-form__row textarea { width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; font: inherit; color: var(--ink); background: var(--paper); }
+.contact-form__row input:focus, .contact-form__row textarea:focus { outline: none; border-color: var(--brand); background: var(--white); }
+@media (max-width: 860px) { .contact-section__grid { grid-template-columns: 1fr; } }
+
 /* ── Footer ──────────────────────────────────────────────────────────── */
 .site-footer { background: var(--brand-deep); color: var(--white); padding: 48px 0 32px; }
 .footer-inner { display: flex; justify-content: space-between; align-items: center; gap: 24px; flex-wrap: wrap; }

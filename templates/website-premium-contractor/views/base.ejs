@@ -13,14 +13,13 @@
 <body>
   <header class="site-header">
     <div class="container header-inner">
-      <a class="brand" href="/"><%= settings.companyName || 'Your Company' %></a>
+      <a class="brand" href="<%= settings.homeHref || '/' %>"><%= settings.companyName || 'Your Company' %></a>
       <nav class="primary-nav" aria-label="Primary">
-        <a href="#services">Services</a>
-        <a href="#about">About</a>
-        <a href="#projects">Projects</a>
-        <a href="#contact">Contact</a>
+        <% (settings.nav || []).forEach(function(item) { %>
+          <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+        <% }) %>
       </nav>
-      <a class="header-cta" href="#contact">Get a quote</a>
+      <a class="header-cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
     </div>
   </header>
 

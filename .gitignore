@@ -53,6 +53,10 @@ apps/roof-estimator/**/bun.lock
 
 # Local-render proof-of-concept artifacts (regeneratable via render scripts)
 templates/website-premium-*/composition-*.html
+templates/website-premium-*/index.html
+templates/website-premium-*/about.html
+templates/website-premium-*/services.html
+templates/website-premium-*/contact.html
 templates/website-premium-*/data/samples/composition-ai.json
 apps/api/preview-*.html
 

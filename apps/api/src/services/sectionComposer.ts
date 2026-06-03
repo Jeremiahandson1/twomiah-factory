@@ -91,6 +91,27 @@ export const SECTION_SCHEMA = {
       use_when: 'closing argument; image + bullets + action; leaves prospect with a face or job site',
     },
   },
+  about: {
+    story: {
+      required: ['title', 'portrait', 'paragraphs'],
+      optional: ['eyebrow', 'signature', 'stats'],
+      use_when: 'lead an about page — portrait + 2-4 narrative paragraphs in the founder/principal voice',
+    },
+  },
+  team: {
+    grid: {
+      required: ['members'],
+      optional: ['heading', 'intro'],
+      use_when: 'show the actual people doing the work — 3-8 members with portraits, names, roles, optional one-line bios',
+    },
+  },
+  contact: {
+    'form-info': {
+      required: [],
+      optional: ['heading', 'intro', 'phone', 'email', 'address', 'hours', 'responsePromise'],
+      use_when: 'main contact page body — form on one side, business details + hours + response promise on the other',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
@@ -253,6 +274,180 @@ export async function composeHomepageSections(input: ComposerInput): Promise<Com
 
   return {
     sections: sanitizeSections(parsed.sections),
+    rationale: typeof parsed.rationale === 'string' ? parsed.rationale : undefined,
+  }
+}
+
+// ─── Multi-page composer ─────────────────────────────────────────────────
+
+export interface SiteResult {
+  pages: {
+    home: ComposerResult
+    about: ComposerResult
+    services: ComposerResult
+    contact: ComposerResult
+  }
+  rationale?: string
+}
+
+/**
+ * Schema describing how a multi-page site composition should be shaped.
+ * Each page allows a curated subset of section types — the about page
+ * leads with about/story; the contact page is just contact/form-info
+ * possibly wrapped by an intro hero. Keeps Claude from putting a 5-stat
+ * hero on the contact page, etc.
+ */
+const PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door. Build trust fast, show what they do, close with a CTA.',
+    allowed_types: ['hero', 'services', 'cta'],
+    required_sequence: '1 hero, optional 1 second hero (e.g. hero/split flip for an about-style block), 1 services section, 1 cta',
+  },
+  about: {
+    purpose: 'Tell who they are. The voice page — read by qualified leads doing due diligence.',
+    allowed_types: ['about', 'team', 'cta'],
+    required_sequence: '1 about/story section, optional 1 team/grid, optional 1 cta to drive to contact',
+  },
+  services: {
+    purpose: 'Full menu of what they do. Read by people who already know they want to hire and are scoping fit.',
+    allowed_types: ['hero', 'services', 'cta'],
+    required_sequence: 'optional 1 hero (lighter than homepage hero), 1 services section (use the more-detailed variant), 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page. Form + business details + response promise.',
+    allowed_types: ['hero', 'contact'],
+    required_sequence: 'optional 1 hero (short, copy-only), 1 contact/form-info section',
+  },
+} as const
+
+function buildSitePrompt(input: ComposerInput): string {
+  const schemaSummary = Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
+    `  ${type}: ${Object.keys(variants).join(', ')}`
+  ).join('\n')
+
+  const recipesSummary = Object.entries(PAGE_RECIPES).map(([page, recipe]) =>
+    `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
+  ).join('\n')
+
+  return `You are composing a multi-page website for ${input.businessName} — a ${input.businessType} in ${[input.city, input.state].filter(Boolean).join(', ') || 'the region they serve'}.
+
+About the business
+${input.description ? '"' + input.description + '"' : '(no description provided)'}
+
+Services they offer
+${(input.services || []).map(s => '- ' + s).join('\n') || '(none specified)'}
+
+Their goals
+${(input.goals || []).map(g => '- ' + g).join('\n') || '(none specified)'}
+
+Owner / principal
+${input.ownerName || '(not specified)'}
+
+Phone: ${input.phone || ''}
+Email: ${input.email || ''}
+Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
+
+# Your job
+Compose FOUR pages: home, about, services, contact. Each page is its own ordered list of sections.
+
+# Available section types and variants
+
+${schemaSummary}
+
+# Page recipes (what each page is for, what it should contain)
+
+${recipesSummary}
+
+# Hard rules
+1. Use only the section types listed in each page's allowed_types.
+2. Write copy that reflects THIS specific business — pull details from the description, services, goals. No generic boilerplate.
+3. The four pages should feel like one coherent site — same voice, same level of formality, narrative continuity from home → about → services → contact.
+4. For photos, use https://images.unsplash.com/photo-<id>?w=1400&q=80 URLs. Choose ones that match the business type. If unsure, use https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1400&q=80.
+5. about/story portrait should be a person headshot, not a building or job site.
+6. team/grid members should reflect the actual scale of the business — for a 6-active-project firm, 4-6 members; for a solo operator, 1.
+7. Realistic numbers only. If the intake doesn't give specific stats, omit them. Never fabricate ratings, project counts, or years.
+8. Contact page hours: use ["Monday – Friday: 8am – 5pm", "Weekends: by appointment"] or a similarly realistic shape unless the intake says otherwise.
+9. Response promise on contact: something honest like "We reply to project inquiries within one business day."
+
+# Section data shapes (same as single-page composer)
+
+hero/full-bleed: { "image": "<url>", "eyebrow": "<short>", "title": "<headline>", "subtitle": "<1-2 sentences>", "primaryCta": { "label": "...", "href": "contact.html" }, "secondaryCta": { "label": "...", "href": "services.html" } }
+hero/split: { "flip": <bool>, "image": "<url>", "eyebrow": "<short>", "title": "<headline>", "subtitle": "<1-2 sentences>", "primaryCta": { "label": "...", "href": "..." }, "stats": [{ "value": "...", "label": "..." }] }
+hero/centered-stats: { "eyebrow": "<short>", "title": "<big headline>", "subtitle": "<support>", "primaryCta": { "label": "...", "href": "contact.html" }, "stats": [{ "value": "...", "label": "..." }] }
+services/cards-grid: { "heading": "...", "intro": "...", "items": [{ "title": "...", "description": "...", "image": "<url>", "href": "contact.html" }] }
+services/alternating: { "heading": "...", "intro": "...", "items": [{ "title": "...", "description": "...", "image": "<url>", "bullets": ["..."], "href": "contact.html" }] }
+cta/banner: { "heading": "...", "subtitle": "...", "primaryCta": { "label": "...", "href": "contact.html" } }
+cta/split: { "heading": "...", "subtitle": "...", "image": "<url>", "bullets": ["..."], "primaryCta": { "label": "...", "href": "contact.html" }, "phone": "${input.phone || ''}" }
+about/story: { "eyebrow": "...", "title": "Our story", "portrait": "<headshot url>", "paragraphs": ["...", "..."], "signature": "<name>, <role>", "stats": [{ "value": "...", "label": "..." }] }
+team/grid: { "heading": "...", "intro": "...", "members": [{ "name": "...", "role": "...", "bio": "...", "portrait": "<url>" }] }
+contact/form-info: { "heading": "...", "intro": "...", "phone": "${input.phone || ''}", "email": "${input.email || ''}", "address": "...", "hours": ["..."], "responsePromise": "..." }
+
+# Output schema (strict)
+{
+  "rationale": "1-2 sentences on the overall site narrative and what holds it together",
+  "pages": {
+    "home":     { "sections": [ ... ] },
+    "about":    { "sections": [ ... ] },
+    "services": { "sections": [ ... ] },
+    "contact":  { "sections": [ ... ] }
+  }
+}
+
+Output the JSON now — nothing else.`
+}
+
+/**
+ * Compose a full four-page website in one Claude call. Each page's
+ * sections are sanitized independently.
+ */
+export async function composeSite(input: ComposerInput): Promise<SiteResult> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY not configured')
+  }
+
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+  const prompt = buildSitePrompt(input)
+
+  const callOnce = async (extraSystem?: string) => {
+    return anthropic.messages.create({
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      system: 'You compose multi-page website schemas. Output strict JSON only. No prose, no markdown fences.' + (extraSystem ? ' ' + extraSystem : ''),
+      messages: [{ role: 'user', content: prompt }],
+    })
+  }
+
+  const tryParse = (text: string): { pages: any; rationale?: string } | null => {
+    const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
+    try {
+      const parsed = JSON.parse(cleaned)
+      if (parsed && parsed.pages && typeof parsed.pages === 'object') return parsed
+      return null
+    } catch { return null }
+  }
+
+  const res1 = await callOnce()
+  const text1 = res1.content[0]?.type === 'text' ? res1.content[0].text : ''
+  let parsed = tryParse(text1)
+
+  if (!parsed) {
+    const res2 = await callOnce('Your previous output was not valid JSON. Output ONLY the raw JSON object.')
+    const text2 = res2.content[0]?.type === 'text' ? res2.content[0].text : ''
+    parsed = tryParse(text2)
+  }
+
+  if (!parsed) throw new Error('Site composer returned un-parseable output after retry')
+
+  const pages = parsed.pages || {}
+  return {
+    pages: {
+      home:     { sections: sanitizeSections(pages.home?.sections) },
+      about:    { sections: sanitizeSections(pages.about?.sections) },
+      services: { sections: sanitizeSections(pages.services?.sections) },
+      contact:  { sections: sanitizeSections(pages.contact?.sections) },
+    },
     rationale: typeof parsed.rationale === 'string' ? parsed.rationale : undefined,
   }
 }
