@@ -37,7 +37,7 @@
   <!-- Hero Section -->
   <section class="service-hero <%= heroImage ? 'has-image' : '' %>" style="--hero-speed: <%= heroAnimationSpeed %>s;">
     <% if (heroImage) { %>
-      <div class="service-hero-bg animation-<%= heroAnimation %>" style="background-image: url('<%= getImageUrl(heroImage) %>');"></div>
+      <div class="service-hero-bg animation-<%= heroAnimation %>" style="background-image: <%- bgWithWebp(getImageUrl(heroImage)) %>;"></div>
       <div class="service-hero-overlay"></div>
     <% } %>
     <div class="service-hero-content">
