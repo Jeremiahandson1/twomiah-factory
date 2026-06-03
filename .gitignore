@@ -51,6 +51,10 @@ templates/**/bun.lock
 # Standalone-app lock files (generated on install — workspace uses root bun.lock)
 apps/roof-estimator/**/bun.lock
 
+# Local-render proof-of-concept artifacts (regeneratable via render scripts)
+templates/website-premium-*/composition-*.html
+apps/api/preview-*.html
+
 # Windows artifacts
 nul/
 
