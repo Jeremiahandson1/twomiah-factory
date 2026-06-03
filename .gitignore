@@ -53,6 +53,7 @@ apps/roof-estimator/**/bun.lock
 
 # Local-render proof-of-concept artifacts (regeneratable via render scripts)
 templates/website-premium-*/composition-*.html
+templates/website-premium-*/data/samples/composition-ai.json
 apps/api/preview-*.html
 
 # Windows artifacts
