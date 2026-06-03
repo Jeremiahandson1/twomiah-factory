@@ -4,6 +4,7 @@ import { logger } from 'hono/logger'
 import { bodyLimit } from 'hono/body-limit'
 import factoryRoutes from './routes/factory.ts'
 import qbwcRoutes from './routes/qbwc.ts'
+import briefRoutes from './routes/brief.ts'
 
 const app = new Hono()
 
@@ -33,6 +34,7 @@ app.use('*', cors({
 
 app.route('/api/v1/factory', factoryRoutes)
 app.route('/api/v1/qbwc', qbwcRoutes)
+app.route('/api/v1/brief', briefRoutes)
 
 const port = Number(process.env.PORT || '3001') || 3001
 console.log(`[API] Twomiah Factory API running on port ${port}`)
