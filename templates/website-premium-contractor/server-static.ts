@@ -128,6 +128,68 @@ app.post('/api/internal/sync-settings', async (c) => {
   return c.json({ ok: true, applied: Object.keys(allowed) })
 })
 
+// ── Factory internal: seed intake photos into the tenant's library ────────
+//
+// Called by the Factory after deploy completes, to copy photos the prospect
+// uploaded during /public/intake (which live on the Factory's signed-URL
+// storage and expire in 7 days) into the tenant's own R2 bucket + photos
+// table so they survive long-term.
+//
+// Body: { photos: [{ url, tag?, alt? }] }
+app.post('/api/internal/seed-photos', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+
+  let body: { photos?: Array<{ url?: string; tag?: string; alt?: string }> }
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const incoming = Array.isArray(body.photos) ? body.photos : []
+  if (incoming.length === 0) return c.json({ ok: true, seeded: 0 })
+
+  const [sharp, { uploadImage }, schema] = await Promise.all([
+    import('sharp').then(m => m.default),
+    import('./services/storage'),
+    import('./db/schema'),
+  ])
+  const photosTbl = schema.photos
+
+  let seeded = 0
+  const errors: Array<{ url: string; error: string }> = []
+  for (const p of incoming.slice(0, 50)) {
+    if (!p.url || typeof p.url !== 'string') continue
+    try {
+      const res = await fetch(p.url, { signal: AbortSignal.timeout(30_000) })
+      if (!res.ok) throw new Error('fetch failed: ' + res.status)
+      const raw = Buffer.from(await res.arrayBuffer())
+      const meta = await sharp(raw).metadata()
+      const isAlphaPng = meta.format === 'png' && meta.hasAlpha
+      const processedBuffer = isAlphaPng ? raw : await sharp(raw).rotate().jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+      const processedType = isAlphaPng ? 'image/png' : 'image/jpeg'
+
+      const upload = await uploadImage(processedBuffer, {
+        filename: 'intake-photo' + (isAlphaPng ? '.png' : '.jpg'),
+        contentType: processedType,
+      })
+
+      await db.insert(photosTbl).values({
+        url: upload.url,
+        storageKey: upload.storageKey,
+        alt: p.alt || null,
+        tag: p.tag || null,
+        width: meta.width || null,
+        height: meta.height || null,
+        bytes: upload.bytes,
+        contentType: upload.contentType,
+      })
+      seeded++
+    } catch (err: any) {
+      errors.push({ url: p.url, error: err.message || String(err) })
+    }
+  }
+
+  return c.json({ ok: true, seeded, errors: errors.length > 0 ? errors : undefined })
+})
+
 // ── Admin: JSON API + SPA ─────────────────────────────────────────────────
 // JSON API mounted at /api/admin/*. The React SPA build lands at
 // admin/dist/ and gets served below at /admin/*. SPA routes that don't

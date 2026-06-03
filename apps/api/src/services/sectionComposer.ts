@@ -27,6 +27,13 @@ export interface ComposerInput {
   email?: string
   nearbyCities?: string[]
   primaryColor?: string
+  /**
+   * Customer-supplied photos from the intake form, ranked by relevance
+   * if known. Composer prefers these over stock URLs when present.
+   * Tag is a free-form hint (e.g. 'hero', 'team', 'projects') if the
+   * intake collected it; otherwise undefined and the composer chooses.
+   */
+  customerPhotos?: Array<{ url: string; tag?: string; alt?: string }>
 }
 
 export interface Section {
@@ -329,6 +336,23 @@ function buildSitePrompt(input: ComposerInput): string {
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
   ).join('\n')
 
+  // Customer-supplied photos take precedence over stock URLs. We list them
+  // with their tag (if any) so Claude can pick the right photo for the
+  // right slot — a 'hero'-tagged shot for hero sections, 'team' for
+  // team/grid members, etc. If no tag, it's eligible anywhere.
+  const photoList = (input.customerPhotos || []).slice(0, 30)
+  const photosSection = photoList.length > 0
+    ? `\n# Customer-supplied photos (USE THESE FIRST — they're authentic to this business)\n` +
+      photoList.map((p, i) =>
+        `${i + 1}. ${p.url}${p.tag ? '  [tag: ' + p.tag + ']' : ''}${p.alt ? '  [alt: ' + p.alt + ']' : ''}`
+      ).join('\n') +
+      `\n\nRules for these photos:\n` +
+      `- Always prefer a customer photo over an Unsplash URL when one fits the slot.\n` +
+      `- Match tags to section context (a 'hero'-tagged photo for hero sections, 'team' for team/grid members, 'services' for service item images).\n` +
+      `- Don't reuse the same customer photo across two sections on the same page unless absolutely necessary.\n` +
+      `- If no customer photo fits, fall back to an Unsplash URL as described above.\n`
+    : ''
+
   return `You are composing a multi-page website for ${input.businessName} — a ${input.businessType} in ${[input.city, input.state].filter(Boolean).join(', ') || 'the region they serve'}.
 
 About the business
@@ -346,6 +370,7 @@ ${input.ownerName || '(not specified)'}
 Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
+${photosSection}
 
 # Your job
 Compose FOUR pages: home, about, services, contact. Each page is its own ordered list of sections.

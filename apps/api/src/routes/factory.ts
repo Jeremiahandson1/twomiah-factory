@@ -2907,6 +2907,22 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       return c.json({ error: 'Lead is missing business name or type — cannot compose preview.' }, 422)
     }
 
+    // Customer photos from the intake — these flow into the composer so
+    // the AI can place them in real section slots instead of Unsplash
+    // defaults. Intake stores them as signed URLs (7-day TTL) plus an
+    // optional logo URL. We treat the logo as a 'misc'-tagged photo so
+    // it stays in the library even if the composer doesn't use it.
+    const intakeAssets = (tenant.intake_data && tenant.intake_data.assets) || {}
+    const customerPhotos: Array<{ url: string; tag?: string; alt?: string }> = []
+    if (typeof intakeAssets.logoUrl === 'string') {
+      customerPhotos.push({ url: intakeAssets.logoUrl, tag: 'misc', alt: intake.businessName + ' logo' })
+    }
+    if (Array.isArray(intakeAssets.photoUrls)) {
+      for (const url of intakeAssets.photoUrls) {
+        if (typeof url === 'string') customerPhotos.push({ url })
+      }
+    }
+
     const composed = await composeSite({
       businessName: intake.businessName,
       businessType: intake.businessType,
@@ -2921,6 +2937,7 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       email: intake.email,
       nearbyCities: intake.nearbyCities,
       primaryColor: intake.branding?.primaryColor,
+      customerPhotos,
     })
 
     const generatedAt = new Date().toISOString()
