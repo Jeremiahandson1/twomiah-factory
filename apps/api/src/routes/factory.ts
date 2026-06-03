@@ -14,7 +14,13 @@ import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getComp
 import { getRegistrar, isRegistrarConfigured } from '../services/registrar'
 import { buildBrief, type Intake } from '../services/briefBuilder'
 import { renderHomepagePreview } from '../services/previewRenderer'
-const factory = new Hono()
+type FactoryAuthVariables = {
+  user?: { id?: string; email?: string; [k: string]: any }
+  userId?: string
+  userRole?: string
+  factoryUserId?: string
+}
+const factory = new Hono<{ Variables: FactoryAuthVariables }>()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
 // ─── Rate Limiting (in-memory, per IP) ──────────────────────────────────────
@@ -811,7 +817,7 @@ async function triggerAutoDeploy(tenantId: string) {
   runDeploy(tenant, job, {}).catch(err => {
     console.error('[AutoDeploy] Background deploy failed for', tenant.slug, ':', err.message)
     supabase.from('tenants').update({ status: 'deploy_failed' }).eq('id', tenantId)
-      .then(() => {}).catch(() => {})
+      .then(() => {}, () => {})
   })
 }
 
@@ -3643,7 +3649,7 @@ factory.post('/settings/users', requireRole('owner', 'admin'), async (c) => {
 
     // Create a placeholder entry — auth_id will be filled when they log in
     // For now use a deterministic UUID from email or generate one
-    const { data: authUser } = await supabase.auth.admin.getUserByEmail(email)
+    const { data: authUser } = await (supabase.auth.admin as any).getUserByEmail(email)
     const authId = authUser?.user?.id || null
 
     if (authId) {
@@ -4320,7 +4326,7 @@ factory.get('/roof-review/:reportId/data', authenticate, async (c) => {
   const res = await fetch(`${backendUrl}/api/internal/roof-reports/${reportId}`, {
     headers: { 'X-Factory-Key': syncKey },
   })
-  if (!res.ok) return c.json({ error: 'Failed to fetch from tenant' }, res.status)
+  if (!res.ok) return c.json({ error: 'Failed to fetch from tenant' }, res.status as any)
   const report = await res.json()
   return c.json({ report, backendUrl, syncKey })
 })
@@ -4349,7 +4355,7 @@ factory.post('/roof-review/:reportId/approve', authenticate, async (c) => {
     headers: { 'Content-Type': 'application/json', 'X-Factory-Key': syncKey },
     body: JSON.stringify({ edges, measurements }),
   })
-  if (!res.ok) return c.json({ error: 'Failed to approve on tenant' }, res.status)
+  if (!res.ok) return c.json({ error: 'Failed to approve on tenant' }, res.status as any)
 
   // Update queue status
   await supabase.from('roof_review_queue').update({ status: 'approved', approved_at: new Date().toISOString() }).eq('report_id', reportId)
