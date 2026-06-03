@@ -11,7 +11,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
 import { useVertical } from '../../../src/vertical/VerticalContext'
-import { get, del } from '../../../src/api/client'
+import { get, del, post } from '../../../src/api/client'
 import { StatusBadge } from '../../../src/components/StatusBadge'
 import { AvatarCircle } from '../../../src/components/AvatarCircle'
 import { SkeletonList } from '../../../src/components/SkeletonLoader'
@@ -58,7 +58,7 @@ export default function ContactDetailScreen() {
   }
 
   const handleConvert = async () => {
-    const res = await (await import('../../../src/api/client')).post(`/api/contacts/${id}/convert`)
+    const res = await post(`/api/contacts/${id}/convert`)
     if (res.ok) {
       haptics.success()
       toast.success('Converted to client')

@@ -93,6 +93,7 @@ export interface GenerateConfig {
     siteUrl?: string
     defaultPassword?: string
     heroTagline?: string
+    plan?: string
   }
   branding: {
     primaryColor?: string
@@ -116,6 +117,8 @@ export interface GenerateConfig {
     stripe?: { secretKey?: string; publishableKey?: string; webhookSecret?: string }
     googleMaps?: { apiKey?: string }
     sentry?: { dsn?: string }
+    nearmap?: { apiKey?: string }
+    replicate?: { apiToken?: string }
   }
   content?: {
     services?: string[]

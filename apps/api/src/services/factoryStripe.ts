@@ -52,7 +52,7 @@ const LICENSE_PRICE_MAP: Record<string, string> = {
   fleet:        (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_FLEET  || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   storm:        (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_STORM  || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   agency:       (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_AGENCY || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
-  full:         STRIPE_PRICES.STRIPE_PRICE_LICENSE_FULL,
+  full:         (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_FULL || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
 }
 
 const DEPLOY_PRICE_MAP: Record<string, string> = {
@@ -202,7 +202,7 @@ export async function createAutoSubscription(
   if (!stripe) return null
 
   const plan = factoryCustomer.plan || 'starter'
-  const cycle = (factoryCustomer.billingCycle === 'annual' ? 'annual' : 'monthly') as const
+  const cycle: 'monthly' | 'annual' = factoryCustomer.billingCycle === 'annual' ? 'annual' : 'monthly'
 
   const priceId = getPriceId(plan, cycle)
   if (!priceId) {

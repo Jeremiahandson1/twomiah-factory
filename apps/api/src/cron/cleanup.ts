@@ -15,7 +15,7 @@ async function runCleanup() {
   try {
     const res = await fetch(API_URL + '/api/v1/factory/cleanup', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-cron-secret': CRON_SECRET },
+      headers: { 'Content-Type': 'application/json', 'x-cron-secret': CRON_SECRET || '' },
       body: JSON.stringify({}),
     })
     const data = await res.json()

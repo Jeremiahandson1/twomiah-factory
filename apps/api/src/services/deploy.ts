@@ -690,6 +690,7 @@ export interface DeployResult {
   siteUrl?: string
   visionUrl?: string
   adsUrl?: string
+  pricingUrl?: string
   supabaseProjectRef?: string
   r2BucketName?: string
   dbConnectionString?: string
