@@ -178,8 +178,29 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
     if (products.includes('website')) {
       const industry = config.company?.industry || ''
+
+      // Premium tier — section-composition templates with AI-driven layout.
+      // The $19/standard tier flow below is untouched; premium tenants land
+      // in a separate template family entirely. Only contractor-family
+      // industries are supported today (#26 expands the rest).
+      const isPremium = products.includes('website-premium')
+      const PREMIUM_CONTRACTOR_INDUSTRIES = new Set([
+        'contractor', 'general_contractor', 'construction', 'remodeling',
+        'roofing', 'siding', 'home_improvement',
+      ])
+
       let websiteTemplate = 'website-general'
-      if (industry === 'home_care') websiteTemplate = 'website-homecare'
+      if (isPremium) {
+        if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
+          websiteTemplate = 'website-premium-contractor'
+        } else {
+          throw new Error(
+            `Premium website requested for industry='${industry}' but no premium template exists for this vertical yet. ` +
+            'Premium currently supports: ' + Array.from(PREMIUM_CONTRACTOR_INDUSTRIES).join(', ') + '. ' +
+            'Either change industry or drop website-premium from products.'
+          )
+        }
+      } else if (industry === 'home_care') websiteTemplate = 'website-homecare'
       else if (industry === 'field_service') websiteTemplate = 'website-fieldservice'
       else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
       else if (industry === 'landscaping') websiteTemplate = 'website-landscaping'
