@@ -303,6 +303,25 @@ export async function notifyNewIntake(
   return sendEmail(to, 'New website intake: ' + data.businessName, wrap('New Local-Business Intake', body))
 }
 
+/**
+ * Fires when staff approves a composed premium preview — sends the
+ * prospect the link to view it. Until this fires, the public preview
+ * URL returns "not ready yet" so the prospect never sees unreviewed
+ * AI output.
+ */
+export async function notifyPreviewReady(
+  data: { to: string; businessName: string; previewUrl: string }
+): Promise<boolean> {
+  const body = `
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there — your <strong>${data.businessName}</strong> website preview is ready for review.</p>
+    <p style="color:#333;line-height:1.6;">We built a 4-page draft based on what you shared. Open the link below to look it over and tell us what you'd like changed.</p>
+    ${btn(data.previewUrl, 'View your preview')}
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">There's a "Request changes" button at the bottom right of every page — use it to send us tweaks. We turn around revisions in one business day.</p>
+    <p style="color:#666;line-height:1.6;font-size:14px;">When the preview is exactly what you want, the "Approve & build my site" button on the same preview takes you to checkout. We'll deploy the live version within an hour of payment clearing.</p>`
+
+  return sendEmail(data.to, `Your ${data.businessName} website preview is ready`, wrap('Your preview is ready', body))
+}
+
 // ─── Trial lifecycle notifications ───────────────────────────────────────────
 
 /**

@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip, uploadIntakeAsset } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyPreviewReady, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -2979,11 +2979,27 @@ const PREMIUM_PAGE_TITLES: Record<string, string> = {
 async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name, email, phone, preview_premium_pages, intake_data')
+    .select('name, email, phone, preview_premium_pages, preview_premium_approved_at, intake_data')
     .eq('id', id)
     .maybeSingle()
   if (!tenant || !tenant.preview_premium_pages) {
     return c.html('<!doctype html><meta charset="utf-8"><title>Preview not ready</title><body style="font:16px system-ui;padding:40px">This preview hasn\'t been composed yet.</body>', 404)
+  }
+  // Staff approval gate. Public callers see a "pending review" page until
+  // staff approves. Staff can bypass with the X-Staff-Bypass header so
+  // the platform's review UI can preview pre-approval.
+  const expectedBypass = process.env.STAFF_BYPASS_TOKEN || ''
+  const bypassed = !!expectedBypass && c.req.header('X-Staff-Bypass') === expectedBypass
+  if (!tenant.preview_premium_approved_at && !bypassed) {
+    return c.html(
+      '<!doctype html><meta charset="utf-8"><title>Preview pending review</title>' +
+      '<body style="font:16px/1.6 system-ui;padding:60px 40px;max-width:560px;margin:auto;color:#334155">' +
+      '<h1 style="font:600 28px Georgia,serif;color:#0f172a;margin-bottom:12px">Your preview is being reviewed</h1>' +
+      '<p>We have your draft and someone is looking it over now. We\'ll email you within one business day once it\'s ready to share.</p>' +
+      '<p style="color:#64748b;font-size:14px;margin-top:24px">If you don\'t hear from us, please email <a href="mailto:hello@twomiah.com" style="color:#1e40af">hello@twomiah.com</a>.</p>' +
+      '</body>',
+      404
+    )
   }
   const composed = tenant.preview_premium_pages as { pages: Record<string, { sections: any[] }> }
   const page = composed.pages?.[slug]
@@ -3020,6 +3036,71 @@ factory.get('/public/intake/:id/preview-premium/:slug', async (c) => {
   if (!UUID_RE.test(id)) return c.text('Invalid preview link', 400)
   if (!/^[a-z0-9-]+$/.test(slug)) return c.text('Invalid page', 400)
   return renderPremiumPreviewPage(id, slug, c)
+})
+
+// Staff approval — flips the gate so the public preview link renders.
+// Optionally PATCHes the composition first (staff can fix wording, swap
+// section variants, etc. before approving). Sends the prospect the
+// "preview is ready" email with the link.
+factory.post('/intake/:id/approve-premium', requireRole('owner', 'admin', 'editor'), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+
+    const body = await c.req.json().catch(() => ({})) as { pages?: unknown }
+    const userId = c.get('userId')
+
+    const updates: Record<string, any> = {
+      preview_premium_approved_at: new Date().toISOString(),
+      preview_premium_approved_by: userId || null,
+    }
+    if (body.pages && typeof body.pages === 'object') {
+      const { data: existing } = await supabase
+        .from('tenants')
+        .select('preview_premium_pages')
+        .eq('id', id)
+        .maybeSingle()
+      if (!existing) return c.json({ error: 'Tenant not found' }, 404)
+      const composed = (existing.preview_premium_pages || {}) as any
+      composed.pages = body.pages
+      updates.preview_premium_pages = composed
+    }
+
+    const { data: tenant, error: saveErr } = await supabase
+      .from('tenants')
+      .update(updates)
+      .eq('id', id)
+      .select('id, name, email')
+      .single()
+    if (saveErr || !tenant) {
+      return c.json({ error: saveErr?.message || 'Tenant not found' }, saveErr ? 500 : 404)
+    }
+
+    const origin = new URL(c.req.url).origin
+    const previewUrl = `${origin}/api/v1/factory/public/intake/${id}/preview-premium`
+    if (tenant.email) {
+      notifyPreviewReady({ to: tenant.email, businessName: tenant.name || 'your', previewUrl })
+        .catch((e: any) => console.warn('[Email] Preview-ready notification failed:', e.message))
+    }
+
+    return c.json({ ok: true, previewUrl, emailedTo: tenant.email || null })
+  } catch (err: any) {
+    console.error('[ApprovePremium] Failed:', err?.message || err)
+    return c.json({ error: err?.message || 'Could not approve preview' }, 500)
+  }
+})
+
+// Staff: unapprove (reverts the gate). Useful if a composition was approved
+// in error and staff needs to take it offline while fixing.
+factory.post('/intake/:id/unapprove-premium', requireRole('owner', 'admin'), async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+  const { error } = await supabase
+    .from('tenants')
+    .update({ preview_premium_approved_at: null, preview_premium_approved_by: null })
+    .eq('id', id)
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json({ ok: true })
 })
 
 // Public: "Approve & buy" action on the premium preview. Creates a Stripe
