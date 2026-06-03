@@ -815,12 +815,84 @@ async function triggerAutoDeploy(tenantId: string) {
   // Set job status to deploying
   await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
 
-  // Fire-and-forget — same pattern as admin deploy button
-  runDeploy(tenant, job, {}).catch(err => {
-    console.error('[AutoDeploy] Background deploy failed for', tenant.slug, ':', err.message)
-    supabase.from('tenants').update({ status: 'deploy_failed' }).eq('id', tenantId)
-      .then(() => {}, () => {})
-  })
+  // Fire-and-forget — same pattern as admin deploy button. On success
+  // for a premium tenant, also push the intake photos into the new
+  // tenant's photo library via /api/internal/seed-photos so the photos
+  // survive past the 30-day signed-URL window.
+  runDeploy(tenant, job, {}).then(
+    () => seedIntakePhotosIfPremium(tenantId).catch((e) =>
+      console.warn('[AutoDeploy] Post-deploy seed-photos call failed for', tenant.slug, ':', e?.message || e)
+    ),
+    (err) => {
+      console.error('[AutoDeploy] Background deploy failed for', tenant.slug, ':', err.message)
+      supabase.from('tenants').update({ status: 'deploy_failed' }).eq('id', tenantId)
+        .then(() => {}, () => {})
+    }
+  )
+}
+
+// Posts every intake photo (regenerated as a 30-day signed URL) to the
+// new tenant's /api/internal/seed-photos endpoint so they're copied to
+// the tenant's own R2 bucket. Skips non-premium tenants — standard
+// tenants don't have this endpoint.
+async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('id, slug, products, render_frontend_url, factory_sync_key, intake_data')
+    .eq('id', tenantId)
+    .single()
+  if (!tenant) return
+  const products: string[] = Array.isArray(tenant.products) ? tenant.products : []
+  if (!products.includes('website-premium')) return
+  if (!tenant.render_frontend_url) {
+    console.warn('[SeedPhotos] No render_frontend_url for', tenant.slug, '— skipping')
+    return
+  }
+  if (!tenant.factory_sync_key) {
+    console.warn('[SeedPhotos] No factory_sync_key for', tenant.slug, '— skipping')
+    return
+  }
+
+  const intake = tenant.intake_data || {}
+  const TTL = 30 * 24 * 60 * 60
+  const photos: Array<{ url: string; tag?: string; alt?: string }> = []
+  if (intake.logo?.storageKey) {
+    const url = await getZipDownloadUrl(intake.logo.storageKey, intake.logo.storageType, TTL).catch(() => null)
+    if (url) photos.push({ url, tag: 'misc', alt: (tenant.intake_data?.intake?.businessName || tenant.slug) + ' logo' })
+  }
+  if (Array.isArray(intake.photos)) {
+    for (const ref of intake.photos) {
+      if (!ref?.storageKey) continue
+      const url = await getZipDownloadUrl(ref.storageKey, ref.storageType, TTL).catch(() => null)
+      if (url) photos.push({ url })
+    }
+  }
+  if (photos.length === 0) {
+    console.log('[SeedPhotos] No intake photos to seed for', tenant.slug)
+    return
+  }
+
+  const endpoint = tenant.render_frontend_url.replace(/\/$/, '') + '/api/internal/seed-photos'
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Factory-Key': tenant.factory_sync_key,
+      },
+      body: JSON.stringify({ photos }),
+      signal: AbortSignal.timeout(120_000),  // photo downloads + R2 uploads can take a while
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      console.warn('[SeedPhotos] Tenant returned', res.status, 'for', tenant.slug, ':', data?.error)
+      return
+    }
+    console.log('[SeedPhotos] Seeded', data.seeded || 0, 'photos into', tenant.slug,
+      data.errors?.length ? '(' + data.errors.length + ' failed)' : '')
+  } catch (err: any) {
+    console.warn('[SeedPhotos] Could not reach', endpoint, ':', err.message)
+  }
 }
 
 // ─── Deploy Status ────────────────────────────────────────────────────────────

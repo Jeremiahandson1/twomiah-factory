@@ -471,13 +471,56 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     console.log('[Composer] home sections length:', parsed.pages?.home?.sections?.length)
   }
 
-  const pages = parsed.pages || {}
+  let pages = parsed.pages || {}
+  let sanitized = {
+    home:     sanitizeSections(pages.home?.sections),
+    about:    sanitizeSections(pages.about?.sections),
+    services: sanitizeSections(pages.services?.sections),
+    contact:  sanitizeSections(pages.contact?.sections),
+  }
+
+  // Claude occasionally returns a parseable JSON shell where one or more
+  // pages have empty sections arrays — verified during post-fix testing.
+  // When that happens, retry once with explicit instruction to fill every
+  // page. If the retry also returns empty pages, surface a clear error
+  // instead of silently shipping a blank site.
+  const emptyPages = (Object.entries(sanitized) as Array<[string, Section[]]>)
+    .filter(([, sections]) => sections.length === 0)
+    .map(([name]) => name)
+
+  if (emptyPages.length > 0) {
+    if (process.env.COMPOSER_DEBUG) console.log('[Composer] Retrying — empty pages:', emptyPages.join(', '))
+    const res3 = await callOnce(
+      'Your previous output had pages with no sections. Every page (home, about, services, contact) MUST have at least 2 sections. ' +
+      'Empty sections arrays are not acceptable. Compose again, in full.'
+    )
+    const text3 = res3.content[0]?.type === 'text' ? res3.content[0].text : ''
+    const reparsed = tryParse(text3)
+    if (reparsed) {
+      pages = reparsed.pages || {}
+      sanitized = {
+        home:     sanitizeSections(pages.home?.sections),
+        about:    sanitizeSections(pages.about?.sections),
+        services: sanitizeSections(pages.services?.sections),
+        contact:  sanitizeSections(pages.contact?.sections),
+      }
+      if (typeof reparsed.rationale === 'string') parsed.rationale = reparsed.rationale
+    }
+
+    const stillEmpty = (Object.entries(sanitized) as Array<[string, Section[]]>)
+      .filter(([, sections]) => sections.length === 0)
+      .map(([name]) => name)
+    if (stillEmpty.length > 0) {
+      throw new Error('Site composer returned empty sections for: ' + stillEmpty.join(', ') + ' (even after retry)')
+    }
+  }
+
   return {
     pages: {
-      home:     { sections: sanitizeSections(pages.home?.sections) },
-      about:    { sections: sanitizeSections(pages.about?.sections) },
-      services: { sections: sanitizeSections(pages.services?.sections) },
-      contact:  { sections: sanitizeSections(pages.contact?.sections) },
+      home:     { sections: sanitized.home },
+      about:    { sections: sanitized.about },
+      services: { sections: sanitized.services },
+      contact:  { sections: sanitized.contact },
     },
     rationale: typeof parsed.rationale === 'string' ? parsed.rationale : undefined,
   }
