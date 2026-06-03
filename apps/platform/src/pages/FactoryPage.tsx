@@ -43,7 +43,7 @@ export default function FactoryPage() {
 
   // Determine if we entered via /signup/:product (customer-facing signup)
   const signupProduct = (urlProduct || searchParams.get('product')) as ProductLine | null
-  const hasPlanStep = !!signupProduct && ['build', 'care', 'wrench', 'roof', 'leaf'].includes(signupProduct)
+  const hasPlanStep = !!signupProduct && ['build', 'care', 'wrench', 'roof', 'leaf', 'landscaping'].includes(signupProduct)
   const isPublicSignup = hasPlanStep // public signup = light theme, friendly language
 
   const [plan, setPlan] = useState<PlanSelection>(() => {
@@ -113,6 +113,7 @@ export default function FactoryPage() {
     wrench: { label: 'Field Service', accent: '#0ea5e9', accentLight: '#e0f2fe', bg: '#0f1729', font: "'Rajdhani', sans-serif", fontUrl: 'Rajdhani:wght@400;500;600;700', tagline: 'Dispatch, invoicing, and fleet management for service companies.' },
     roof: { label: 'Roofing', accent: '#f5a623', accentLight: '#fef3c7', bg: '#111111', font: "'Oswald', sans-serif", fontUrl: 'Oswald:wght@400;600;700', tagline: 'Estimates, storm tracking, and measurement tools for roofers.' },
     leaf: { label: 'Dispensary', accent: '#a855f7', accentLight: '#f3e8ff', bg: '#0a0a0a', font: "'Outfit', sans-serif", fontUrl: 'Outfit:wght@400;500;600;700', tagline: 'POS, menu management, and compliance for dispensaries.' },
+    landscaping: { label: 'Landscaping', accent: '#22c55e', accentLight: '#dcfce7', bg: '#0f1a0f', font: "'Inter', sans-serif", fontUrl: 'Inter:wght@400;500;600;700', tagline: 'Scheduling, recurring routes, and crew management for landscapers.' },
   }
   const ps = isPublicSignup ? PRODUCT_STYLES[signupProduct!] || PRODUCT_STYLES.build : null
 

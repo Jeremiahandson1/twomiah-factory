@@ -43,6 +43,11 @@ const THEMES: Record<string, ThemeOption[]> = {
     { id: 'trade-professional', name: 'Established & Traditional', description: 'Parchment & brown, serif — looks like 30 years in business', navBg: '#44403c', heroBg: 'linear-gradient(135deg,#faf6f1,#f0e9df)', heroText: '#44403c', cardBg: '#faf6f1', cardText: '#44403c', btnRadius: '4px', fontFamily: "'Merriweather',serif" },
     { id: 'bold-contrast', name: 'Bold Contrast', description: 'Black & white, neon accent — striking and unforgettable', navBg: '#000', heroBg: 'linear-gradient(135deg,#000,#111)', heroText: '#fff', cardBg: '#fff', cardText: '#000', btnRadius: '0', fontFamily: "'Bebas Neue',sans-serif" },
   ],
+  landscaping: [
+    { id: 'bold-industrial', name: 'Natural Green', description: 'Deep forest green, earthy — grounded and dependable', navBg: '#1b4332', heroBg: 'linear-gradient(135deg,#1b4332,#2d6a4f)', heroText: '#fff', cardBg: '#d8f3dc', cardText: '#1b4332', btnRadius: '8px', fontFamily: "'Inter',sans-serif" },
+    { id: 'professional-corporate', name: 'Fresh & Friendly', description: 'Bright green & cream, rounded — the approachable local crew', navBg: '#15803d', heroBg: 'linear-gradient(135deg,#15803d,#22c55e)', heroText: '#fff', cardBg: '#fff', cardText: '#14532d', btnRadius: '14px', fontFamily: "'Nunito',sans-serif" },
+    { id: 'modern-minimal', name: 'Modern Outdoor', description: 'Clean whitespace, leaf-green accent — premium design-build feel', navBg: '#fafafa', heroBg: 'linear-gradient(135deg,#f0fdf4,#dcfce7)', heroText: '#14532d', cardBg: '#fff', cardText: '#334155', btnRadius: '12px', fontFamily: "'DM Sans',sans-serif" },
+  ],
   dispensary: [
     { id: 'glassmorphism-dark', name: 'Glassmorphism Dark', description: 'Luxury dark, glass effects, purple glow — premium cannabis', navBg: '#0a0a0a', heroBg: 'linear-gradient(135deg,#0a0a0a,#1a0a2e)', heroText: '#fff', cardBg: 'rgba(255,255,255,0.05)', cardText: '#e2e8f0', btnRadius: '12px', fontFamily: "'Outfit',sans-serif" },
     { id: 'botanical-organic', name: 'Botanical Organic', description: 'Cream & forest green, natural — wellness-focused dispensary', navBg: '#14532d', heroBg: 'linear-gradient(135deg,#fefce8,#f0fdf4)', heroText: '#14532d', cardBg: '#fefce8', cardText: '#14532d', btnRadius: '8px', fontFamily: "'Cormorant Garamond',serif" },
@@ -54,6 +59,7 @@ function getCategory(industry: string): string {
   if (industry === 'home_care' || industry === 'homecare') return 'homecare'
   if (industry === 'hvac' || industry === 'plumbing' || industry === 'electrical' || industry === 'field_service' || industry === 'fieldservice') return 'fieldservice'
   if (industry === 'cannabis' || industry === 'dispensary') return 'dispensary'
+  if (industry === 'landscaping' || industry === 'lawn_care' || industry === 'lawncare') return 'landscaping'
   if (industry === 'roofing' || industry === 'construction' || industry === 'contractor' || industry === 'siding' || industry === 'remodeling') return 'contractor'
   return 'general'
 }
