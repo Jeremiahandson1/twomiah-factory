@@ -46,7 +46,7 @@ export function ServicesAlternatingForm({ data, onChange }: { data: Data; onChan
               <div className="space-y-3 pr-8">
                 <TextField label="Title" value={item.title || ''} onChange={(e) => updateItem(i, { title: e.target.value })} />
                 <TextAreaField label="Description" rows={2} value={item.description || ''} onChange={(e) => updateItem(i, { description: e.target.value })} />
-                <ImageUrlField label="Image" value={item.image || ''} onChange={(v) => updateItem(i, { image: v })} />
+                <ImageUrlField label="Image" value={item.image || ''} onChange={(v) => updateItem(i, { image: v })} uploadTag="services" />
                 <StringListField
                   label="Bullets"
                   values={item.bullets || []}

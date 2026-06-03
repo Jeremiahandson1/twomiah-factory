@@ -20,6 +20,7 @@ export function AboutStoryForm({ data, onChange }: { data: Data; onChange: (d: D
         hint="Headshot or team photo — not a building or job site."
         value={data.portrait || ''}
         onChange={(v) => update({ portrait: v })}
+        uploadTag="about"
       />
       <StringListField
         label="Paragraphs"

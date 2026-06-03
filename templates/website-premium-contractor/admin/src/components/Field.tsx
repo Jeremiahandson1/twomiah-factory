@@ -1,5 +1,6 @@
 import { type ReactNode, type InputHTMLAttributes, type TextareaHTMLAttributes } from 'react'
-import { Plus, X, Image as ImageIcon } from 'lucide-react'
+import { Plus, X, Image as ImageIcon, FolderOpen } from 'lucide-react'
+import { usePhotoPicker } from '../contexts/PhotoPickerContext'
 
 export function Label({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
   return (
@@ -48,8 +49,15 @@ interface ImageUrlFieldProps {
   hint?: string
   value: string
   onChange: (v: string) => void
+  /** Tag passed through to the picker when uploading a new photo for this field */
+  uploadTag?: string
 }
-export function ImageUrlField({ label, hint, value, onChange }: ImageUrlFieldProps) {
+export function ImageUrlField({ label, hint, value, onChange, uploadTag }: ImageUrlFieldProps) {
+  const { pickOne } = usePhotoPicker()
+  const onBrowse = async () => {
+    const picked = await pickOne(value, uploadTag)
+    if (picked !== null) onChange(picked)
+  }
   return (
     <div>
       <Label>{label}</Label>
@@ -60,13 +68,19 @@ export function ImageUrlField({ label, hint, value, onChange }: ImageUrlFieldPro
             : <ImageIcon className="w-6 h-6 text-muted" />
           }
         </div>
-        <input
-          type="text"
-          placeholder="https://… (paste a URL; photo library picker lands in #22c)"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="input"
-        />
+        <div className="flex-1 flex flex-col gap-2">
+          <input
+            type="text"
+            placeholder="https://… paste a URL or browse the library →"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="input"
+          />
+          <button type="button" onClick={onBrowse} className="btn-secondary btn-sm self-start inline-flex items-center gap-1.5">
+            <FolderOpen className="w-3.5 h-3.5" />
+            Browse library / upload
+          </button>
+        </div>
       </div>
       {hint && <Hint>{hint}</Hint>}
     </div>

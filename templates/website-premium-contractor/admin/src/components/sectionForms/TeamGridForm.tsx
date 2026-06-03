@@ -32,7 +32,7 @@ export function TeamGridForm({ data, onChange }: { data: Data; onChange: (d: Dat
                 <TextField label="Name" value={m.name || ''} onChange={(e) => updateMember(i, { name: e.target.value })} />
                 <TextField label="Role" value={m.role || ''} onChange={(e) => updateMember(i, { role: e.target.value })} />
                 <TextAreaField label="One-line bio (optional)" rows={2} value={m.bio || ''} onChange={(e) => updateMember(i, { bio: e.target.value })} />
-                <ImageUrlField label="Portrait" value={m.portrait || ''} onChange={(v) => updateMember(i, { portrait: v })} />
+                <ImageUrlField label="Portrait" value={m.portrait || ''} onChange={(v) => updateMember(i, { portrait: v })} uploadTag="team" />
               </div>
             </div>
           ))}

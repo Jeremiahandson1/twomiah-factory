@@ -18,6 +18,7 @@ export function HeroFullBleedForm({ data, onChange }: { data: Data; onChange: (d
         hint="Full-bleed hero. Use a high-resolution shot — recent project, founder portrait, characteristic environment."
         value={data.image || ''}
         onChange={(v) => update({ image: v })}
+        uploadTag="hero"
       />
       <TextField
         label="Eyebrow (optional)"

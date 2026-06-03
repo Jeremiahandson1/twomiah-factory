@@ -15,7 +15,7 @@ export function CtaSplitForm({ data, onChange }: { data: Data; onChange: (d: Dat
     <div className="space-y-4">
       <TextField label="Heading" value={data.heading || ''} onChange={(e) => update({ heading: e.target.value })} />
       <TextAreaField label="Subtitle (optional)" rows={2} value={data.subtitle || ''} onChange={(e) => update({ subtitle: e.target.value })} />
-      <ImageUrlField label="Image" value={data.image || ''} onChange={(v) => update({ image: v })} hint="Sits next to the copy. Face, finished job, or characteristic shot." />
+      <ImageUrlField label="Image" value={data.image || ''} onChange={(v) => update({ image: v })} hint="Sits next to the copy. Face, finished job, or characteristic shot." uploadTag="contact" />
       <StringListField
         label="Bullets"
         values={data.bullets || []}

@@ -14,11 +14,13 @@
  * (Photos, settings, leads, password change land in follow-up commits.)
  */
 import { Hono, type Context } from 'hono'
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, desc } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import sharp from 'sharp'
 import { db } from '../db'
-import { users as usersTbl, pages as pagesTbl } from '../db/schema'
+import { users as usersTbl, pages as pagesTbl, photos as photosTbl } from '../db/schema'
+import { uploadImage, deleteImage } from '../services/storage'
 
 type AdminVars = {
   userId?: string
@@ -133,6 +135,103 @@ app.patch('/pages/:slug', authMiddleware, async (c) => {
   const result = await db.update(pagesTbl).set(allowed).where(eq(pagesTbl.slug, slug)).returning()
   if (result.length === 0) return c.json({ error: 'Page not found' }, 404)
   return c.json({ page: result[0] })
+})
+
+// ─── Photos ───────────────────────────────────────────────────────────────
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
+])
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024  // 8 MB
+
+app.get('/photos', authMiddleware, async (c) => {
+  const tag = c.req.query('tag')
+  const query = tag
+    ? db.select().from(photosTbl).where(eq(photosTbl.tag, tag)).orderBy(desc(photosTbl.createdAt))
+    : db.select().from(photosTbl).orderBy(desc(photosTbl.createdAt))
+  const rows = await query
+  return c.json({ photos: rows })
+})
+
+app.post('/photos', authMiddleware, async (c) => {
+  try {
+    const body = await c.req.parseBody() as Record<string, any>
+    const file = body.file as File | undefined
+    const tag = typeof body.tag === 'string' ? body.tag : null
+    const alt = typeof body.alt === 'string' ? body.alt : null
+
+    if (!file || typeof file !== 'object' || typeof (file as any).arrayBuffer !== 'function') {
+      return c.json({ error: 'File is required' }, 400)
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      return c.json({ error: 'Image is too large (max 8 MB).' }, 400)
+    }
+    if (file.type && !ALLOWED_IMAGE_TYPES.has(file.type)) {
+      return c.json({ error: 'Unsupported image type. Use JPG, PNG, WebP, or GIF.' }, 400)
+    }
+
+    const raw = Buffer.from(await file.arrayBuffer())
+
+    // Normalize: re-encode to web-friendly format + extract dimensions.
+    // Lossless conversion for PNG-with-alpha (kept as PNG); everything
+    // else flattens to JPEG at q82 for reasonable file size.
+    const meta = await sharp(raw).metadata()
+    const width = meta.width || null
+    const height = meta.height || null
+
+    let processedBuffer: Buffer = raw
+    let processedType = file.type || 'image/jpeg'
+    const isAlphaPng = meta.format === 'png' && meta.hasAlpha
+    if (!isAlphaPng) {
+      processedBuffer = await sharp(raw).rotate().jpeg({ quality: 82, mozjpeg: true }).toBuffer()
+      processedType = 'image/jpeg'
+    }
+
+    const upload = await uploadImage(processedBuffer, {
+      filename: file.name || 'photo' + (isAlphaPng ? '.png' : '.jpg'),
+      contentType: processedType,
+    })
+
+    const [row] = await db.insert(photosTbl).values({
+      url: upload.url,
+      storageKey: upload.storageKey,
+      alt: alt || null,
+      tag: tag || null,
+      width: width || null,
+      height: height || null,
+      bytes: upload.bytes,
+      contentType: upload.contentType,
+    }).returning()
+
+    return c.json({ photo: row })
+  } catch (err: any) {
+    console.error('[Photos] Upload failed:', err.message)
+    return c.json({ error: err.message || 'Upload failed' }, 500)
+  }
+})
+
+app.patch('/photos/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const patch: Record<string, any> = {}
+  if (typeof body.tag === 'string' || body.tag === null) patch.tag = body.tag
+  if (typeof body.alt === 'string' || body.alt === null) patch.alt = body.alt
+  if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields in patch' }, 400)
+  const result = await db.update(photosTbl).set(patch).where(eq(photosTbl.id, id)).returning()
+  if (result.length === 0) return c.json({ error: 'Photo not found' }, 404)
+  return c.json({ photo: result[0] })
+})
+
+app.delete('/photos/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')
+  const rows = await db.select().from(photosTbl).where(eq(photosTbl.id, id)).limit(1)
+  const photo = rows[0]
+  if (!photo) return c.json({ error: 'Photo not found' }, 404)
+  if (photo.storageKey) {
+    await deleteImage(photo.storageKey).catch(() => { /* non-fatal */ })
+  }
+  await db.delete(photosTbl).where(eq(photosTbl.id, id))
+  return c.json({ ok: true })
 })
 
 export default app

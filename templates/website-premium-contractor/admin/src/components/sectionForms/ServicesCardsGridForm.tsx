@@ -45,7 +45,7 @@ export function ServicesCardsGridForm({ data, onChange }: { data: Data; onChange
               <div className="space-y-3 pr-8">
                 <TextField label="Title" value={item.title || ''} onChange={(e) => updateItem(i, { title: e.target.value })} />
                 <TextAreaField label="Description" rows={2} value={item.description || ''} onChange={(e) => updateItem(i, { description: e.target.value })} />
-                <ImageUrlField label="Image" value={item.image || ''} onChange={(v) => updateItem(i, { image: v })} />
+                <ImageUrlField label="Image" value={item.image || ''} onChange={(v) => updateItem(i, { image: v })} uploadTag="services" />
                 <TextField label="Learn more link" placeholder="contact, services/foo, https://…" value={item.href || ''} onChange={(e) => updateItem(i, { href: e.target.value })} />
               </div>
             </div>

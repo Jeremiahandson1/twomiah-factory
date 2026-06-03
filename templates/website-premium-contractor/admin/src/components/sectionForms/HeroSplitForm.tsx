@@ -38,6 +38,7 @@ export function HeroSplitForm({ data, onChange }: { data: Data; onChange: (d: Da
         hint="Sits opposite the copy. Portrait, job site, finished project."
         value={data.image || ''}
         onChange={(v) => update({ image: v })}
+        uploadTag="hero"
       />
       <label className="flex items-center gap-2 text-sm text-ink-soft">
         <input type="checkbox" checked={!!data.flip} onChange={(e) => update({ flip: e.target.checked })} className="rounded border-line" />
