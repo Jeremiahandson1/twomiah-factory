@@ -6,18 +6,44 @@
       "distribution": "internal"
     },
     "preview": {
-      "android": {
-        "buildType": "apk"
-      },
+      "android": { "buildType": "apk" },
       "distribution": "internal"
     },
     "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
+      "android": { "buildType": "app-bundle" }
+    },
+
+    "build-preview": {
+      "extends": "preview",
+      "env": { "APP_VARIANT": "build" }
+    },
+    "build-production": {
+      "extends": "production",
+      "env": { "APP_VARIANT": "build" }
+    },
+
+    "roofer-preview": {
+      "extends": "preview",
+      "env": { "APP_VARIANT": "roofer" }
+    },
+    "roofer-production": {
+      "extends": "production",
+      "env": { "APP_VARIANT": "roofer" }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "TODO_REPLACE_WITH_APPLE_ID@twomiah.com",
+        "ascAppId": "TODO_APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "TODO_APPLE_TEAM_ID"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft",
+        "changesNotSentForReview": false
+      }
+    }
   }
 }

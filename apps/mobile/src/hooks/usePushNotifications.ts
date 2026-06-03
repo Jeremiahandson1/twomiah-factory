@@ -3,6 +3,7 @@ import { Platform } from 'react-native'
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 import Constants from 'expo-constants'
+import { router } from 'expo-router'
 import { post } from '../api/client'
 
 Notifications.setNotificationHandler({
@@ -27,9 +28,43 @@ export function usePushNotifications() {
     })
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      // Handle notification tap — navigate to relevant screen
-      const data = response.notification.request.content.data
-      console.log('[Push] Tapped notification:', data)
+      const data = response.notification.request.content.data as Record<string, any>
+      const type = data?.type as string
+      const id = data?.id as string
+
+      if (!type || !id) {
+        router.push('/(tabs)/notifications')
+        return
+      }
+
+      const ROUTE_MAP: Record<string, string> = {
+        job: '/(details)/job/',
+        job_updated: '/(details)/job/',
+        job_created: '/(details)/job/',
+        job_status_changed: '/(details)/job/',
+        contact: '/(details)/contact/',
+        contact_created: '/(details)/contact/',
+        contact_updated: '/(details)/contact/',
+        quote: '/(details)/quote/',
+        quote_sent: '/(details)/quote/',
+        quote_approved: '/(details)/quote/',
+        quote_updated: '/(details)/quote/',
+        invoice: '/(details)/invoice/',
+        invoice_sent: '/(details)/invoice/',
+        invoice_paid: '/(details)/invoice/',
+        invoice_updated: '/(details)/invoice/',
+        payment: '/(details)/invoice/',
+        order: '/(details)/order/',
+        lead: '/(details)/lead/',
+      }
+
+      const route = ROUTE_MAP[type]
+      if (route) {
+        const targetId = type === 'payment' ? (data.invoiceId || id) : id
+        router.push(`${route}${targetId}` as any)
+      } else {
+        router.push('/(tabs)/notifications')
+      }
     })
 
     return () => {

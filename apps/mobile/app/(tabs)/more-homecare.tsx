@@ -3,7 +3,7 @@
  */
 
 import React from 'react'
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
@@ -11,7 +11,15 @@ import { useAuth } from '../../src/auth/AuthContext'
 import { useHaptics } from '../../src/hooks/useHaptics'
 import { useToast } from '../../src/components/ToastProvider'
 
-const MENU_SECTIONS = [
+interface MenuItem {
+  icon: string
+  color: string
+  label: string
+  desc: string
+  action?: 'mailto' | 'tel'
+}
+
+const MENU_SECTIONS: { title: string; items: MenuItem[] }[] = [
   {
     title: 'Care',
     items: [
@@ -29,6 +37,13 @@ const MENU_SECTIONS = [
     ],
   },
   {
+    title: 'Support',
+    items: [
+      { icon: 'mail', color: '#3b82f6', label: 'Email Office', desc: 'Send a message to your agency', action: 'mailto' },
+      { icon: 'call', color: '#22c55e', label: 'Call Office', desc: 'Phone your agency directly', action: 'tel' },
+    ],
+  },
+  {
     title: 'Account',
     items: [
       { icon: 'person', color: '#64748b', label: 'Profile', desc: 'View your certifications & info' },
@@ -39,13 +54,25 @@ const MENU_SECTIONS = [
 
 export default function MoreHomecareScreen() {
   const t = useTheme()
-  const { logout } = useAuth()
+  const { logout, company } = useAuth()
   const haptics = useHaptics()
   const toast = useToast()
 
-  const handlePress = (label: string) => {
+  const handlePress = (item: MenuItem) => {
     haptics.light()
-    toast.info(`${label} — coming soon`)
+    if (item.action === 'mailto') {
+      const email = (company as any)?.email
+      if (email) Linking.openURL(`mailto:${email}`)
+      else toast.info('No agency email on file')
+      return
+    }
+    if (item.action === 'tel') {
+      const phone = (company as any)?.phone
+      if (phone) Linking.openURL(`tel:${phone}`)
+      else toast.info('No agency phone on file')
+      return
+    }
+    toast.info(`${item.label} — coming soon`)
   }
 
   return (
@@ -62,7 +89,7 @@ export default function MoreHomecareScreen() {
                     styles.menuItem,
                     idx < section.items.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.border },
                   ]}
-                  onPress={() => handlePress(item.label)}
+                  onPress={() => handlePress(item)}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.iconBg, { backgroundColor: item.color + '18' }]}>

@@ -7,6 +7,7 @@ import {
   View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get, post } from '../../src/api/client'
@@ -32,6 +33,7 @@ const FILTERS = [
 ]
 
 export default function OrdersScreen() {
+  const router = useRouter()
   const t = useTheme()
   const toast = useToast()
   const haptics = useHaptics()
@@ -77,7 +79,8 @@ export default function OrdersScreen() {
     return (
       <AnimatedCard index={index}>
         <SwipeableRow rightActions={swipeActions}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
+            onPress={() => router.push(`/(details)/order/${order.id}`)} activeOpacity={0.7}>
             <View style={styles.cardRow}>
               <View style={[styles.orderNum, { backgroundColor: t.primaryLight }]}>
                 <Text style={[styles.orderNumText, { color: t.primary }]}>
@@ -107,7 +110,7 @@ export default function OrdersScreen() {
                 </Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
         </SwipeableRow>
       </AnimatedCard>
     )

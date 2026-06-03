@@ -5,7 +5,13 @@
 
 import React, { createContext, useContext, useMemo } from 'react'
 import { useColorScheme } from 'react-native'
+import Constants from 'expo-constants'
 import { useAuth } from '../auth/AuthContext'
+
+const VARIANT_PRIMARY: string =
+  (Constants.expoConfig?.extra as any)?.primaryColor || '#1e40af'
+const VARIANT_APP_NAME: string =
+  (Constants.expoConfig?.extra as any)?.appName || 'Twomiah'
 
 interface Theme {
   primary: string
@@ -39,7 +45,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { company } = useAuth()
   const isDark = colorScheme === 'dark'
 
-  const primary = company?.primaryColor || '#1e40af'
+  const primary = company?.primaryColor || VARIANT_PRIMARY
 
   const theme = useMemo<Theme>(() => ({
     primary,
@@ -55,7 +61,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     success: '#22c55e',
     warning: '#f59e0b',
     isDark,
-    companyName: company?.name || 'Twomiah',
+    companyName: company?.name || VARIANT_APP_NAME,
     logo: company?.logo || null,
   }), [primary, isDark, company])
 
