@@ -34,6 +34,24 @@ app.use('*', cors({
   credentials: true,
 }))
 
+// ──────────────────────────────────────────────────────────────────────────
+// URL canonicalization (Claflin 3.10): strip trailing slashes with a 301,
+// EXCEPT for the root, API/admin/uploads paths, and an exception set for
+// paths Google has chosen as their canonical with-slash form. Sitemap
+// entries + <link rel="canonical"> tags MUST match the no-slash form.
+// ──────────────────────────────────────────────────────────────────────────
+const TRAILING_SLASH_KEEP_200 = new Set<string>([])
+app.use('*', async (c, next) => {
+  if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return next()
+  const url = new URL(c.req.url)
+  const p = url.pathname
+  if (p.startsWith('/api') || p.startsWith('/admin') || p.startsWith('/uploads')) return next()
+  if (p.length > 1 && p.endsWith('/') && !TRAILING_SLASH_KEEP_200.has(p)) {
+    return c.redirect(p.replace(/\/+$/, '') + url.search, 301)
+  }
+  return next()
+})
+
 // Rate limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 const contactLimitMap = new Map<string, { count: number; resetAt: number }>()
@@ -145,11 +163,80 @@ function loadJSON(filename: string) {
 
 const hasVisualizer = fs.existsSync(path.join(__dirname, 'views', 'visualize.html')) || !!(process.env.VISION_URL)
 
+// Defensive escapers for JSON-LD blocks (Claflin 3.6).
+const _jsonStr = (v: any) => JSON.stringify(v == null ? '' : String(v))
+const _plainDesc = (html: any, max = 300) => String(html || '')
+  .replace(/<[^>]*>/g, ' ')
+  .replace(/&nbsp;/gi, ' ')
+  .replace(/&amp;/gi, '&')
+  .replace(/&(#x27|#39|apos);/gi, "'")
+  .replace(/&(quot|#34);/gi, '"')
+  .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+  .replace(/&[a-z]+;/gi, ' ')
+  .replace(/\s+/g, ' ')
+  .trim().slice(0, max)
+
+// Loads image-meta.json once per call (used by wrapImagesWithPicture + bgWithWebp).
+function loadImageMeta(): Record<string, { hasWebp?: boolean; width?: number; height?: number }> {
+  try {
+    const metaFile = path.join(appPaths.data, 'image-meta.json')
+    if (fs.existsSync(metaFile)) return JSON.parse(fs.readFileSync(metaFile, 'utf8'))
+  } catch {}
+  return {}
+}
+
+// CSS-background image-set helper (Claflin 3.9).
+function bgWithWebp(imgUrl: string): string {
+  if (!imgUrl || typeof imgUrl !== 'string') return ''
+  const m = imgUrl.match(/^\/uploads\/([^?#]+\.(?:jpe?g|png))$/i)
+  if (!m) return `url('${imgUrl}')`
+  const filename = m[1]
+  const meta = loadImageMeta()[filename]
+  if (!meta?.hasWebp) return `url('${imgUrl}')`
+  const webpUrl = imgUrl.replace(/\.(jpe?g|png)$/i, '.webp')
+  const sourceType = /\.png$/i.test(imgUrl) ? 'image/png' : 'image/jpeg'
+  return `image-set(url('${webpUrl}') type('image/webp'), url('${imgUrl}') type('${sourceType}'))`
+}
+
+// Post-render pass (Claflin 3.4 + 3.5): inject width/height + wrap <img> in <picture>.
+function wrapImagesWithPicture(html: string): string {
+  const imageMeta = loadImageMeta()
+  return html.replace(
+    /<img\b([^>]*?\bsrc=["'](\/uploads\/([^"'\/]+\.(?:jpe?g|png)))["'][^>]*?)\s*\/?>/gi,
+    (match, attrs, fullSrc, filename) => {
+      const meta = imageMeta[filename] || {}
+      let newAttrs: string = attrs
+      if (meta.width && meta.height && !/\bwidth=/i.test(attrs)) {
+        newAttrs = ` width="${meta.width}" height="${meta.height}"${attrs}`
+      }
+      let imgTag = `<img${newAttrs}>`
+      if (meta.hasWebp) {
+        const webpSrc = fullSrc.replace(/\.(jpe?g|png)$/i, '.webp')
+        imgTag = `<picture><source srcset="${webpSrc}" type="image/webp">${imgTag}</picture>`
+      }
+      return imgTag
+    }
+  )
+}
+
+// Persistent-disk migration scaffold (Claflin 3.11). Flag-file-gated one-shots.
+async function runMigrations() {
+  const migrations: Array<{ name: string; fn: () => Promise<void> }> = []
+  for (const m of migrations) {
+    const marker = path.join(appPaths.data, `.migration-${m.name}`)
+    if (fs.existsSync(marker)) continue
+    console.log(`[Migration] Running ${m.name}...`)
+    try { await m.fn(); console.log(`[Migration] ${m.name} complete`) }
+    catch (err: any) { console.error(`[Migration] ${m.name} failed:`, err?.message) }
+    finally { try { fs.writeFileSync(marker, new Date().toISOString()) } catch {} }
+  }
+}
+
 function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, statusCode = 200) {
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { settings, menuItems, BASE_URL, hasVisualizer, ...locals }
+  const shared = { settings, menuItems, BASE_URL, hasVisualizer, _jsonStr, _plainDesc, bgWithWebp, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {
@@ -166,7 +253,7 @@ function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, 
           resolve(c.text('Render error', 500))
           return
         }
-        resolve(c.html(html, statusCode))
+        resolve(c.html(wrapImagesWithPicture(html), statusCode))
       })
     })
   })
@@ -382,4 +469,6 @@ Mode: Server-rendered (EJS) + CMS Admin
   `)
 
   startBackups()
+  // One-shot persistent-disk migrations (3.11) — deferred so they don't block listen.
+  setTimeout(() => { runMigrations() }, 5000)
 })
