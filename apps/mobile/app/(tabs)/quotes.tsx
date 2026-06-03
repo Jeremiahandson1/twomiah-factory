@@ -7,6 +7,7 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get, post } from '../../src/api/client'
@@ -15,6 +16,7 @@ import { FilterChips } from '../../src/components/FilterChips'
 import { SkeletonList, SkeletonLine } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { SwipeableRow } from '../../src/components/SwipeableRow'
+import { FAB } from '../../src/components/FAB'
 import { EmptyState } from '../../src/components/EmptyState'
 import { StatCard } from '../../src/components/StatCard'
 import { useToast } from '../../src/components/ToastProvider'
@@ -30,6 +32,7 @@ const FILTERS = [
 ]
 
 export default function QuotesScreen() {
+  const router = useRouter()
   const t = useTheme()
   const toast = useToast()
   const haptics = useHaptics()
@@ -99,7 +102,8 @@ export default function QuotesScreen() {
     return (
       <AnimatedCard index={index}>
         <SwipeableRow rightActions={swipeActions}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
+            onPress={() => router.push(`/(details)/quote/${quote.id}`)} activeOpacity={0.7}>
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.qName, { color: t.text }]} numberOfLines={1}>{quote.name}</Text>
@@ -117,7 +121,7 @@ export default function QuotesScreen() {
                 Expires {new Date(quote.expiryDate).toLocaleDateString()}
               </Text>
             )}
-          </View>
+          </TouchableOpacity>
         </SwipeableRow>
       </AnimatedCard>
     )
@@ -151,6 +155,8 @@ export default function QuotesScreen() {
           ListEmptyComponent={<EmptyState icon="document-text-outline" title="No quotes found" />}
         />
       )}
+
+      <FAB icon="add" onPress={() => router.push('/(details)/quote/form')} />
     </SafeAreaView>
   )
 }

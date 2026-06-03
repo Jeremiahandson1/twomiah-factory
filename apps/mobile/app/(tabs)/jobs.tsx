@@ -5,9 +5,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  View, Text, FlatList, StyleSheet, RefreshControl, Linking,
+  View, Text, FlatList, StyleSheet, RefreshControl, Linking, TouchableOpacity,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
@@ -36,6 +37,7 @@ const STATUS_FILTERS = [
 ]
 
 export default function JobsScreen() {
+  const router = useRouter()
   const t = useTheme()
   const { vertical } = useVertical()
   const toast = useToast()
@@ -127,7 +129,8 @@ export default function JobsScreen() {
     return (
       <AnimatedCard index={index}>
         <SwipeableRow rightActions={swipeActions}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
+            onPress={() => router.push(`/(details)/job/${job.id}`)} activeOpacity={0.7}>
             <View style={styles.cardHeader}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.jobTitle, { color: t.text }]} numberOfLines={1}>{job.title}</Text>
@@ -155,7 +158,7 @@ export default function JobsScreen() {
                 <Text style={styles.insuranceText}>Insurance claim</Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
         </SwipeableRow>
       </AnimatedCard>
     )
@@ -181,7 +184,7 @@ export default function JobsScreen() {
         />
       )}
 
-      <FAB icon="add" onPress={() => toast.info('Create jobs from the web dashboard')} />
+      <FAB icon="add" onPress={() => router.push('/(details)/job/form')} />
     </SafeAreaView>
   )
 }

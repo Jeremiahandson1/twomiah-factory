@@ -5,17 +5,27 @@
   "main": "expo-router/entry",
   "scripts": {
     "dev": "expo start",
+    "dev:build": "cross-env APP_VARIANT=build expo start",
+    "dev:roofer": "cross-env APP_VARIANT=roofer expo start",
     "build": "echo 'Use eas build for native builds'",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "lint": "expo lint",
     "build:apk": "eas build --platform android --profile preview",
     "build:ios": "eas build --platform ios --profile preview",
-    "build:production": "eas build --platform all --profile production"
+    "build:production": "eas build --platform all --profile production",
+    "apk:build": "eas build --platform android --profile build-preview",
+    "apk:roofer": "eas build --platform android --profile roofer-preview",
+    "ios:build": "eas build --platform ios --profile build-preview",
+    "ios:roofer": "eas build --platform ios --profile roofer-preview",
+    "prod:build": "eas build --platform all --profile build-production",
+    "prod:roofer": "eas build --platform all --profile roofer-production"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.0",
     "@gorhom/bottom-sheet": "^5.2.8",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-native-community/datetimepicker": "8.2.0",
     "@react-native-community/netinfo": "^12.0.1",
     "@react-navigation/bottom-tabs": "^7.0.0",
     "expo": "~52.0.0",
@@ -42,7 +52,9 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
+    "@types/node": "^20.11.0",
     "@types/react": "~18.3.0",
+    "cross-env": "^7.0.3",
     "typescript": "~5.3.0"
   }
 }

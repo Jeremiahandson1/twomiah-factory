@@ -115,6 +115,53 @@ export async function api<T = any>(
   return { ok: true, status: res.status, data: data as T }
 }
 
+// ── File Upload ─────────────────────────────────────────────────────────────
+
+export async function upload<T = any>(
+  path: string,
+  formData: FormData,
+): Promise<ApiResponse<T>> {
+  if (!apiUrl) return { ok: false, status: 0, data: null as any, error: 'No API URL configured' }
+
+  const url = `${apiUrl}${path}`
+  const headers: Record<string, string> = {}
+  // Do NOT set Content-Type — let RN set the multipart boundary automatically
+  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
+
+  let res = await fetch(url, { method: 'POST', headers, body: formData })
+
+  if (res.status === 401 && refreshToken) {
+    const refreshed = await refreshIfNeeded()
+    if (refreshed) {
+      headers['Authorization'] = `Bearer ${accessToken}`
+      res = await fetch(url, { method: 'POST', headers, body: formData })
+    }
+  }
+
+  const data = res.headers.get('content-type')?.includes('json')
+    ? await res.json()
+    : await res.text()
+
+  if (!res.ok) {
+    return { ok: false, status: res.status, data: data as T, error: data?.error || `HTTP ${res.status}` }
+  }
+  return { ok: true, status: res.status, data: data as T }
+}
+
+/** Upload photos for a job/lead/contact */
+export function uploadPhotos(entityId: string, entityType: 'jobId' | 'leadId' | 'contactId', photos: { uri: string; name?: string }[]) {
+  const fd = new FormData()
+  fd.append(entityType, entityId)
+  photos.forEach((photo, i) => {
+    fd.append('photos', {
+      uri: photo.uri,
+      type: 'image/jpeg',
+      name: photo.name || `photo_${Date.now()}_${i}.jpg`,
+    } as any)
+  })
+  return upload('/api/photos/bulk', fd)
+}
+
 // ── Convenience Methods ──────────────────────────────────────────────────────
 
 export const get = <T = any>(path: string) => api<T>(path)

@@ -3,27 +3,29 @@
  */
 
 import React from 'react'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { Modal, Pressable, View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { useTheme } from '../theme/ThemeContext'
 import { useHaptics } from '../hooks/useHaptics'
 
 interface ConfirmSheetProps {
+  visible: boolean
+  onClose: () => void
+  onConfirm: () => void | Promise<void>
   title: string
   description?: string
   confirmLabel?: string
   confirmColor?: string
-  onConfirm: () => void
-  onCancel: () => void
   destructive?: boolean
 }
 
 export function ConfirmSheet({
+  visible,
+  onClose,
+  onConfirm,
   title,
   description,
   confirmLabel = 'Confirm',
   confirmColor,
-  onConfirm,
-  onCancel,
   destructive,
 }: ConfirmSheetProps) {
   const t = useTheme()
@@ -31,31 +33,40 @@ export function ConfirmSheet({
   const btnColor = confirmColor || (destructive ? '#ef4444' : t.primary)
 
   return (
-    <View style={[styles.container, { backgroundColor: t.surface }]}>
-      <View style={[styles.handle, { backgroundColor: t.border }]} />
-      <Text style={[styles.title, { color: t.text }]}>{title}</Text>
-      {description && (
-        <Text style={[styles.desc, { color: t.textSecondary }]}>{description}</Text>
-      )}
-      <View style={styles.buttons}>
-        <TouchableOpacity
-          style={[styles.btn, styles.cancelBtn, { borderColor: t.border }]}
-          onPress={() => { haptics.light(); onCancel() }}
-        >
-          <Text style={[styles.btnText, { color: t.textSecondary }]}>Cancel</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.btn, { backgroundColor: btnColor }]}
-          onPress={() => { haptics.medium(); onConfirm() }}
-        >
-          <Text style={[styles.btnText, { color: '#fff' }]}>{confirmLabel}</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable onPress={(e) => e.stopPropagation()}>
+          <View style={[styles.container, { backgroundColor: t.surface }]}>
+            <View style={[styles.handle, { backgroundColor: t.border }]} />
+            <Text style={[styles.title, { color: t.text }]}>{title}</Text>
+            {description && (
+              <Text style={[styles.desc, { color: t.textSecondary }]}>{description}</Text>
+            )}
+            <View style={styles.buttons}>
+              <TouchableOpacity
+                style={[styles.btn, styles.cancelBtn, { borderColor: t.border }]}
+                onPress={() => { haptics.light(); onClose() }}
+              >
+                <Text style={[styles.btnText, { color: t.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btn, { backgroundColor: btnColor }]}
+                onPress={() => { haptics.medium(); onConfirm() }}
+              >
+                <Text style={[styles.btnText, { color: '#fff' }]}>{confirmLabel}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   )
 }
 
 const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end',
+  },
   container: {
     padding: 20, paddingTop: 12, borderTopLeftRadius: 20, borderTopRightRadius: 20,
   },

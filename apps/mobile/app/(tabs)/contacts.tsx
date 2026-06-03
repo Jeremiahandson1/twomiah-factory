@@ -8,6 +8,7 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl, Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useVertical } from '../../src/vertical/VerticalContext'
@@ -19,6 +20,7 @@ import { SkeletonList } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { SwipeableRow } from '../../src/components/SwipeableRow'
 import { AvatarCircle } from '../../src/components/AvatarCircle'
+import { FAB } from '../../src/components/FAB'
 import { EmptyState } from '../../src/components/EmptyState'
 import { useToast } from '../../src/components/ToastProvider'
 import { useDebounce } from '../../src/hooks/useDebounce'
@@ -47,6 +49,7 @@ const VERTICAL_FILTERS: Record<string, { key: string; label: string }[]> = {
 }
 
 export default function ContactsScreen() {
+  const router = useRouter()
   const t = useTheme()
   const { vertical } = useVertical()
   const toast = useToast()
@@ -108,7 +111,8 @@ export default function ContactsScreen() {
     return (
       <AnimatedCard index={index}>
         <SwipeableRow rightActions={swipeActions}>
-          <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
+            onPress={() => router.push(`/(details)/contact/${contact.id}`)} activeOpacity={0.7}>
             <View style={styles.row}>
               <AvatarCircle name={contact.name} size={40} />
               <View style={{ flex: 1 }}>
@@ -138,7 +142,7 @@ export default function ContactsScreen() {
                 </TouchableOpacity>
               )}
             </View>
-          </View>
+          </TouchableOpacity>
         </SwipeableRow>
       </AnimatedCard>
     )
@@ -169,6 +173,8 @@ export default function ContactsScreen() {
           ListEmptyComponent={<EmptyState icon="people-outline" title="No contacts found" />}
         />
       )}
+
+      <FAB icon="add" onPress={() => router.push('/(details)/contact/form')} />
     </SafeAreaView>
   )
 }

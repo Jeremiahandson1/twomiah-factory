@@ -1,11 +1,34 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView,
   Platform, ScrollView, ActivityIndicator, Image,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import Constants from 'expo-constants'
 import { useAuth } from '../../src/auth/AuthContext'
+import { getApiUrl } from '../../src/api/client'
+
+const APP_NAME: string = (Constants.expoConfig?.extra as any)?.appName || 'Twomiah'
+const VARIANT: string = (Constants.expoConfig?.extra as any)?.appVariant || ''
+const PRIMARY: string = (Constants.expoConfig?.extra as any)?.primaryColor || '#1e40af'
+const VARIANT_ICON: 'home' | 'construct' =
+  VARIANT === 'roofer' ? 'home' : 'construct'
+const TAGLINE =
+  VARIANT === 'roofer'
+    ? 'Sign in to your roofing CRM'
+    : VARIANT === 'build'
+    ? 'Sign in to your contractor CRM'
+    : 'Sign in to your CRM'
+
+/** Strip protocol, www., trailing slashes/paths/whitespace. */
+function normalizeServerUrl(input: string): string {
+  let url = input.trim().toLowerCase()
+  url = url.replace(/^https?:\/\//, '')
+  url = url.replace(/^www\./, '')
+  url = url.replace(/\/.*$/, '')
+  return 'https://' + url
+}
 
 export default function LoginScreen() {
   const { login } = useAuth()
@@ -16,14 +39,19 @@ export default function LoginScreen() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Pre-fill server URL from last successful login (stored in SecureStore).
+  useEffect(() => {
+    const last = getApiUrl()
+    if (last) setServerUrl(last.replace(/^https?:\/\//, ''))
+  }, [])
+
   const handleLogin = async () => {
     setError('')
     if (!serverUrl.trim()) { setError('Server URL is required'); return }
     if (!email.trim()) { setError('Email is required'); return }
     if (!password) { setError('Password is required'); return }
 
-    let url = serverUrl.trim()
-    if (!url.startsWith('http')) url = 'https://' + url
+    const url = normalizeServerUrl(serverUrl)
 
     setLoading(true)
     const result = await login(url, email.trim(), password)
@@ -40,11 +68,11 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           {/* Logo / Brand */}
           <View style={styles.brand}>
-            <View style={styles.logoCircle}>
-              <Ionicons name="construct" size={32} color="#fff" />
+            <View style={[styles.logoCircle, { backgroundColor: PRIMARY }]}>
+              <Ionicons name={VARIANT_ICON} size={32} color="#fff" />
             </View>
-            <Text style={styles.brandName}>Twomiah</Text>
-            <Text style={styles.brandSub}>Sign in to your CRM</Text>
+            <Text style={styles.brandName}>{APP_NAME}</Text>
+            <Text style={styles.brandSub}>{TAGLINE}</Text>
           </View>
 
           {/* Form */}
@@ -99,7 +127,7 @@ export default function LoginScreen() {
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.button, { backgroundColor: PRIMARY }]} onPress={handleLogin} disabled={loading} activeOpacity={0.8}>
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
@@ -109,7 +137,8 @@ export default function LoginScreen() {
           </View>
 
           <Text style={styles.footer}>
-            Enter the URL of your deployed Twomiah CRM instance.
+            The Server URL is the address of your CRM website (e.g. acme.onrender.com).
+            Your administrator can provide it if you don't have it.
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>

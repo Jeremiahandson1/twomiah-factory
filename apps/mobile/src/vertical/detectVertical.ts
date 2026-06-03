@@ -10,6 +10,7 @@ const FEATURE_SIGNALS: [string[], Vertical][] = [
   [['evv', 'caregivers', 'care_plans'], 'homecare'],
   [['pos', 'loyalty_rewards', 'menu'], 'dispensary'],
   [['canvassing', 'insurance_claims', 'storm_leads'], 'roofing'],
+  [['recurring_jobs', 'route_optimization', 'service_agreements'], 'landscaping'],
   [['service_dispatch', 'flat_rate_pricebook', 'maintenance_contracts'], 'fieldservice'],
 ]
 
@@ -19,7 +20,7 @@ export function detectVertical(
 ): Vertical {
   // 1. Use explicit vertical if provided and valid
   if (explicitVertical) {
-    const valid: Vertical[] = ['contractor', 'fieldservice', 'homecare', 'roofing', 'dispensary']
+    const valid: Vertical[] = ['contractor', 'fieldservice', 'homecare', 'roofing', 'landscaping', 'dispensary']
     if (valid.includes(explicitVertical as Vertical)) {
       return explicitVertical as Vertical
     }
