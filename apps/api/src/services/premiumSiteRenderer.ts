@@ -89,11 +89,54 @@ export async function renderPremiumPage(
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath }) as string
 
   // Inline /styles/main.css so the preview is self-contained.
-  const inlined = html.replace(/<link\s+rel=["']stylesheet["']\s+href=["']\/styles\/([^"']+)["']\s*\/?>/i, (_m, p) => {
+  let inlined = html.replace(/<link\s+rel=["']stylesheet["']\s+href=["']\/styles\/([^"']+)["']\s*\/?>/i, (_m, p) => {
     const cssPath = path.join(buildDir, 'styles', p)
     try { return '<style>\n' + fs.readFileSync(cssPath, 'utf8') + '\n</style>' }
     catch { return _m }
   })
+  // "Approve & buy" floating CTA so the prospect can convert without
+  // leaving the preview. The script extracts the intake id from
+  // window.location.pathname and POSTs to .../checkout-premium, then
+  // redirects to Stripe Checkout.
+  inlined = injectApproveAndBuyWidget(inlined)
 
   return { html: inlined, bytes: inlined.length }
+}
+
+function injectApproveAndBuyWidget(html: string): string {
+  const widget = `
+<style data-buy-widget>
+  #__buy_fab{position:fixed;bottom:20px;right:20px;z-index:2147483645;background:#1a2e22;color:#fff;border:none;border-radius:999px;padding:14px 22px;font:600 14px/1 'Inter',system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.3);display:flex;align-items:center;gap:10px;border:2px solid #c89a4e}
+  #__buy_fab:hover{background:#0f1f17;transform:translateY(-1px)}
+  #__buy_fab:disabled{opacity:.6;cursor:wait}
+  #__buy_dot{display:inline-block;width:7px;height:7px;border-radius:999px;background:#c89a4e;box-shadow:0 0 0 4px rgba(200,154,78,.25)}
+  #__buy_status{position:fixed;bottom:88px;right:20px;z-index:2147483645;background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;font:500 13px/1.4 system-ui;max-width:360px;display:none}
+</style>
+<button id="__buy_fab" type="button" aria-label="Approve and start checkout">
+  <span id="__buy_dot" aria-hidden="true"></span>
+  Approve & build my site — $499 launch
+</button>
+<div id="__buy_status" role="alert"></div>
+<script data-buy-widget>
+(function(){
+  var fab=document.getElementById('__buy_fab'),status=document.getElementById('__buy_status');
+  function showError(msg){status.textContent=msg;status.style.display='block';setTimeout(function(){status.style.display='none'},5000)}
+  fab.addEventListener('click',function(){
+    var m=(location.pathname||'').match(/\\/public\\/intake\\/([0-9a-f-]{36})\\/preview-premium/i);
+    if(!m){showError('Could not detect this preview\\u2019s id. Try the link your contact sent you.');return}
+    fab.disabled=true;fab.textContent='Starting checkout\\u2026';
+    fetch('/api/v1/factory/public/intake/'+m[1]+'/checkout-premium',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({billingCycle:'monthly'})
+    }).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(o){
+      if(o.ok&&o.j&&o.j.url){location.href=o.j.url}
+      else{fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError((o.j&&o.j.error)||'Could not start checkout. Try again or email hello@twomiah.com.')}
+    }).catch(function(){fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError('Network error. Try again or email hello@twomiah.com.')});
+  });
+})();
+</script>`
+  const closeBodyMatch = html.match(/<\/body>/i)
+  if (!closeBodyMatch) return html + widget
+  return html.replace(closeBodyMatch[0], widget + '\n' + closeBodyMatch[0])
 }

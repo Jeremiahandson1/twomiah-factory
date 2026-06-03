@@ -3005,6 +3005,68 @@ factory.get('/public/intake/:id/preview-premium/:slug', async (c) => {
   return renderPremiumPreviewPage(id, slug, c)
 })
 
+// Public: "Approve & buy" action on the premium preview. Creates a Stripe
+// Checkout session for the standalone $1k build + $75/mo subscription
+// (with optional $499 launch coupon applied automatically), marks the
+// tenant's products to include 'website-premium' so the eventual deploy
+// picks the right template, and returns the Stripe URL the prospect's
+// browser redirects to.
+//
+// Rate-limited because the only thing standing between the public web and
+// Stripe Checkout creation is this endpoint. Per-IP limit is intentionally
+// loose — a prospect may legitimately click buy more than once.
+factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+
+    const body = await c.req.json().catch(() => ({})) as { billingCycle?: 'monthly' | 'annual' }
+    const billingCycle: 'monthly' | 'annual' = body.billingCycle === 'annual' ? 'annual' : 'monthly'
+
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('id, name, email, phone, products, stripe_customer_id, preview_premium_pages')
+      .eq('id', id)
+      .maybeSingle()
+    if (!tenant) return c.json({ error: 'Intake not found' }, 404)
+    if (!tenant.preview_premium_pages) {
+      return c.json({ error: 'Preview must be composed before checkout.' }, 422)
+    }
+
+    // Mark products so the eventual deploy (triggered by Stripe webhook on
+    // checkout.session.completed) picks the website-premium template.
+    const currentProducts = Array.isArray(tenant.products) ? tenant.products : []
+    const products = currentProducts.includes('website-premium')
+      ? currentProducts
+      : [...currentProducts.filter((p: string) => p !== 'website'), 'website-premium', 'cms']
+    if (JSON.stringify(products) !== JSON.stringify(tenant.products || [])) {
+      await supabase.from('tenants').update({ products }).eq('id', id)
+    }
+
+    const checkout = await factoryStripe.createPremiumWebsiteCheckout(
+      {
+        id: tenant.id,
+        email: tenant.email || undefined,
+        name: tenant.name || undefined,
+        phone: tenant.phone || undefined,
+        stripeCustomerId: tenant.stripe_customer_id || undefined,
+      },
+      { billingCycle, intakeId: id }
+    )
+    if (!checkout.url) return c.json({ error: 'Stripe did not return a checkout URL' }, 502)
+
+    // Persist the Stripe customer id back to the tenant for future lookups.
+    if (!tenant.stripe_customer_id && checkout.stripeCustomerId) {
+      await supabase.from('tenants').update({ stripe_customer_id: checkout.stripeCustomerId }).eq('id', id)
+    }
+
+    return c.json({ ok: true, url: checkout.url, billingCycle })
+  } catch (err: any) {
+    console.error('[CheckoutPremium] Failed:', err?.message || err)
+    return c.json({ error: err?.message || 'Could not start checkout' }, 500)
+  }
+})
+
 
 // ─── Support Tickets (Level 1: CRM customers → Twomiah) ─────────────────────
 
