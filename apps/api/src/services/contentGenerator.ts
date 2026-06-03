@@ -148,6 +148,11 @@ function loadContentPack(industry: string): any | null {
     electrical: path.join(TEMPLATES_ROOT, 'website-fieldservice', 'content-pack.json'),
     home_care: path.join(TEMPLATES_ROOT, 'website-homecare', 'content-pack.json'),
     dispensary: path.join(TEMPLATES_ROOT, 'website-dispensary', 'content-pack.json'),
+    food: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
+    hospitality: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
+    fitness: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
+    beauty: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
+    events: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
   }
 
   const packPath = packPaths[industry] || packPaths['general_contractor']
