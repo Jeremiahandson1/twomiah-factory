@@ -19,7 +19,7 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import sharp from 'sharp'
 import { db } from '../db'
-import { users as usersTbl, pages as pagesTbl, photos as photosTbl } from '../db/schema'
+import { users as usersTbl, pages as pagesTbl, photos as photosTbl, settings as settingsTbl, leads as leadsTbl } from '../db/schema'
 import { uploadImage, deleteImage } from '../services/storage'
 
 type AdminVars = {
@@ -135,6 +135,65 @@ app.patch('/pages/:slug', authMiddleware, async (c) => {
   const result = await db.update(pagesTbl).set(allowed).where(eq(pagesTbl.slug, slug)).returning()
   if (result.length === 0) return c.json({ error: 'Page not found' }, 404)
   return c.json({ page: result[0] })
+})
+
+// ─── Settings ─────────────────────────────────────────────────────────────
+
+const SETTINGS_FIELDS = [
+  'companyName', 'tagline', 'phone', 'email', 'address',
+  'seoTitle', 'seoDescription', 'contactCtaLabel',
+  'primaryColor', 'secondaryColor', 'accentColor',
+  'logoUrl', 'faviconUrl', 'nav',
+] as const
+
+app.get('/settings', authMiddleware, async (c) => {
+  const rows = await db.select().from(settingsTbl).limit(1)
+  return c.json({ settings: rows[0] || null })
+})
+
+app.patch('/settings', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const patch: Record<string, any> = {}
+  for (const f of SETTINGS_FIELDS) {
+    if (f in body) patch[f] = body[f]
+  }
+  if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields in patch' }, 400)
+
+  const existing = await db.select().from(settingsTbl).limit(1)
+  patch.updatedAt = new Date()
+  if (existing[0]) {
+    const [updated] = await db.update(settingsTbl).set(patch).where(eq(settingsTbl.id, existing[0].id)).returning()
+    return c.json({ settings: updated })
+  }
+  // First-ever PATCH — companyName is required when no row exists
+  if (!patch.companyName) return c.json({ error: 'companyName is required on first save' }, 400)
+  const [created] = await db.insert(settingsTbl).values(patch).returning()
+  return c.json({ settings: created })
+})
+
+// ─── Leads ────────────────────────────────────────────────────────────────
+
+app.get('/leads', authMiddleware, async (c) => {
+  const status = c.req.query('status')
+  const query = status
+    ? db.select().from(leadsTbl).where(eq(leadsTbl.status, status)).orderBy(desc(leadsTbl.createdAt))
+    : db.select().from(leadsTbl).orderBy(desc(leadsTbl.createdAt))
+  const rows = await query
+  return c.json({ leads: rows })
+})
+
+app.patch('/leads/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const patch: Record<string, any> = {}
+  if (typeof body.status === 'string' && ['new', 'replied', 'closed', 'spam'].includes(body.status)) {
+    patch.status = body.status
+  }
+  if (typeof body.notes === 'string' || body.notes === null) patch.notes = body.notes
+  if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields in patch' }, 400)
+  const result = await db.update(leadsTbl).set(patch).where(eq(leadsTbl.id, id)).returning()
+  if (result.length === 0) return c.json({ error: 'Lead not found' }, 404)
+  return c.json({ lead: result[0] })
 })
 
 // ─── Photos ───────────────────────────────────────────────────────────────
