@@ -465,6 +465,12 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
 
   if (!parsed) throw new Error('Site composer returned un-parseable output after retry')
 
+  if (process.env.COMPOSER_DEBUG) {
+    console.log('[Composer] raw response head:', text1.slice(0, 300))
+    console.log('[Composer] parsed.pages keys:', Object.keys(parsed.pages || {}))
+    console.log('[Composer] home sections length:', parsed.pages?.home?.sections?.length)
+  }
+
   const pages = parsed.pages || {}
   return {
     pages: {
