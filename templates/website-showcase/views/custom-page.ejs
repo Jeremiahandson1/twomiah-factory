@@ -1,0 +1,86 @@
+<%
+  // Extract data from locals
+  const page = locals.page || {};
+  const animationSpeed = page.heroAnimationSpeed || 10;
+  const heroAnimation = page.heroAnimation || 'none';
+%>
+
+<div class="custom-page">
+  <!-- Hero Section -->
+  <% if (page.heroImage) { %>
+    <section 
+      class="custom-hero has-image animation-<%= heroAnimation %>"
+      style="--hero-speed: <%= animationSpeed %>s;"
+    >
+      <div 
+        class="custom-hero-bg"
+        style="background-image: url('<%= page.heroImage %>');"
+      ></div>
+      <div class="custom-hero-overlay"></div>
+      <div class="custom-hero-content">
+        <div class="container">
+          <% if (page.tagline) { %>
+            <span class="hero-tagline"><%= page.tagline %></span>
+          <% } %>
+          <h1><%= page.title %></h1>
+          <% if (page.heroDescription) { %>
+            <p class="hero-description"><%= page.heroDescription %></p>
+          <% } %>
+        </div>
+      </div>
+    </section>
+  <% } else { %>
+    <section class="custom-hero simple">
+      <div class="container">
+        <h1><%= page.title %></h1>
+        <% if (page.tagline) { %>
+          <p class="hero-tagline"><%= page.tagline %></p>
+        <% } %>
+      </div>
+    </section>
+  <% } %>
+
+  <!-- Main Content -->
+  <section class="custom-content">
+    <div class="container">
+      <div class="content-wrapper">
+        <% if (page.content) { %>
+          <div class="prose">
+            <%- page.content %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bottom CTA -->
+  <section class="custom-cta">
+    <div class="container">
+      <h2>Have Questions?</h2>
+      <p>Contact {{COMPANY_NAME}} today. We're here to help with all your construction needs.</p>
+      <div class="cta-buttons">
+        <a href="/#contact" class="btn btn-primary btn-lg">Contact Us</a>
+        <a href="tel:{{COMPANY_PHONE_RAW}}" class="btn btn-outline-light btn-lg">Call {{COMPANY_PHONE}}</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Page Schema -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "<%= page.title.replace(/"/g, '\\"') %>",
+    <% if (page.tagline) { %>
+      "description": "<%= page.tagline.replace(/"/g, '\\"') %>",
+    <% } %>
+    "url": "{{SITE_URL}}/<%= page.slug %>",
+    "publisher": {
+      "@type": "HomeAndConstructionBusiness",
+      "name": "{{COMPANY_NAME}}",
+      "url": "{{SITE_URL}}",
+      "telephone": "{{COMPANY_PHONE}}"
+    }
+  }
+  </script>
+</div>

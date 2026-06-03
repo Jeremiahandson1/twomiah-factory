@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "id": "services",
+      "label": "Services",
+      "href": "/services",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "gallery",
+      "label": "Gallery",
+      "href": "/gallery",
+      "visible": false,
+      "children": []
+    },
+    {
+      "id": "blog",
+      "label": "Blog",
+      "href": "/blog",
+      "visible": false,
+      "children": []
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "href": "/contact",
+      "visible": true,
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "p1",
+    "title": "Front Yard Landscape Makeover",
+    "category": "Landscape Design & Install",
+    "description": "Full front-of-house redesign — removed overgrown beds, regraded, installed new shrubs and perennials with clean edging and fresh mulch.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["landscaping", "design", "install"],
+    "createdAt": "2026-05-15T00:00:00Z"
+  },
+  {
+    "id": "p2",
+    "title": "Paver Patio & Fire Pit",
+    "category": "Hardscaping",
+    "description": "Built a paver patio with seating area and a stone fire pit on a fully compacted base, graded to drain away from the home.",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["hardscaping", "patio", "fire-pit"],
+    "createdAt": "2026-05-08T00:00:00Z"
+  },
+  {
+    "id": "p3",
+    "title": "Segmental Retaining Wall",
+    "category": "Hardscaping",
+    "description": "Engineered segmental block retaining wall to hold a sloped backyard, with drainage and a new usable flat lawn area above.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["hardscaping", "retaining-wall"],
+    "createdAt": "2026-04-28T00:00:00Z"
+  },
+  {
+    "id": "p4",
+    "title": "Mulch & Bed Refresh",
+    "category": "Mulch & Bed Care",
+    "description": "Re-cut clean bed edges around the entire property, removed weeds, and installed premium hardwood mulch at proper depth.",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["mulch", "beds", "edging"],
+    "createdAt": "2026-04-20T00:00:00Z"
+  },
+  {
+    "id": "p5",
+    "title": "House Soft Wash & Driveway Cleaning",
+    "category": "Pressure Washing",
+    "description": "Soft washed algae-covered siding without high pressure and cleaned the concrete driveway with a surface cleaner for an even finish.",
+    "location": "{{NEARBY_CITY_3}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["pressure-washing", "soft-wash"],
+    "createdAt": "2026-04-12T00:00:00Z"
+  },
+  {
+    "id": "p6",
+    "title": "Commercial Grounds & Snow Account",
+    "category": "Commercial",
+    "description": "Year-round commercial property care — weekly grounds maintenance in season and managed snow and ice removal with event documentation in winter.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["commercial", "snow", "grounds"],
+    "createdAt": "2026-03-30T00:00:00Z"
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "hero": {
+    "tagline": "",
+    "title": "{{COMPANY_NAME}}",
+    "subtitle": "Locally owned in {{CITY}}, {{STATE}}.",
+    "description": "",
+    "image": "",
+    "animation": "ken-burns",
+    "primaryButtonText": "See What We Make",
+    "primaryButtonLink": "#offerings",
+    "secondaryButtonText": "Plan Your Visit",
+    "secondaryButtonLink": "#visit"
+  },
+  "trustBadges": [
+    { "id": "local",  "type": "custom", "label": "Locally Loved",            "icon": "heart",     "enabled": true },
+    { "id": "fresh",  "type": "custom", "label": "Made With Care",           "icon": "sparkles",  "enabled": true },
+    { "id": "follow", "type": "custom", "label": "Follow for Daily Updates", "icon": "instagram", "enabled": true }
+  ],
+  "ctaSection": {
+    "title": "Stop in. We'd love to meet you.",
+    "description": "Right in {{CITY}}. Walk-ins welcome — call ahead for big orders or to confirm hours.",
+    "primaryButtonText": "Get Directions",
+    "primaryButtonLink": "#visit",
+    "secondaryButtonText": "Call {{COMPANY_PHONE}}",
+    "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
+    "backgroundImage": ""
+  },
+  "serviceAreas": [
+    "{{CITY}}",
+    "{{NEARBY_CITY_1}}",
+    "{{NEARBY_CITY_2}}",
+    "{{NEARBY_CITY_3}}"
+  ],
+  "businessHours": {
+    "monday":    { "open": "", "close": "", "closed": true },
+    "tuesday":   { "open": "", "close": "", "closed": true },
+    "wednesday": { "open": "", "close": "", "closed": true },
+    "thursday":  { "open": "", "close": "", "closed": true },
+    "friday":    { "open": "", "close": "", "closed": true },
+    "saturday":  { "open": "", "close": "", "closed": true },
+    "sunday":    { "open": "", "close": "", "closed": true }
+  }
+}

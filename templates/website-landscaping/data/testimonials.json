@@ -1,0 +1,42 @@
+[
+  {
+    "id": "t1",
+    "name": "Dave & Pam W.",
+    "role": "Homeowner",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "We've used {{COMPANY_NAME}} for weekly lawn service three seasons running and the yard has never looked better. Same crew every week, always edged and blown off clean before they leave. I haven't touched my mower since and don't miss it one bit.",
+    "rating": 5,
+    "service": "Lawn Maintenance",
+    "visible": true
+  },
+  {
+    "id": "t2",
+    "name": "Sarah K.",
+    "role": "Homeowner",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "text": "We got three quotes for a paver patio and {{COMPANY_NAME}} was the only one who actually explained the base prep instead of just talking about pavers. Two winters in and it's still dead flat — no shifting, no separating. Worth every penny.",
+    "rating": 5,
+    "service": "Hardscaping",
+    "visible": true
+  },
+  {
+    "id": "t3",
+    "name": "Mike R.",
+    "role": "Property Manager",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "I manage several commercial properties and {{COMPANY_NAME}} handles grounds and snow for all of them. Consistent, they show up when they say they will, and the documentation on snow events is exactly what we need. That reliability is rare.",
+    "rating": 5,
+    "service": "Commercial Grounds & Snow",
+    "visible": true
+  },
+  {
+    "id": "t4",
+    "name": "Tom & Linda H.",
+    "role": "Homeowners",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "text": "Our beds hadn't been touched in fifteen years. {{COMPANY_NAME}} redesigned the whole front of the house — new plantings, fresh edging, clean mulch — and the difference is unreal. Neighbors keep asking who did it.",
+    "rating": 5,
+    "service": "Landscape Design & Install",
+    "visible": true
+  }
+]

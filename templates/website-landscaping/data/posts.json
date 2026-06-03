@@ -1,0 +1,50 @@
+[
+  {
+    "id": "blog1",
+    "title": "How Often Should You Really Mow Your Lawn?",
+    "slug": "how-often-should-you-mow-your-lawn",
+    "excerpt": "Mowing every Saturday no matter what is the wrong rule. Here's how to mow by the grass, not the calendar — and why height matters more than frequency.",
+    "content": "Most people mow on a fixed day every week. But a healthy lawn is mowed based on how fast it's growing and how tall it is — not the calendar.\n\n## The One-Third Rule\nNever remove more than a third of the grass blade in a single mowing. Cutting more than that shocks the plant, weakens the roots, and opens the door to weeds and drought stress. In a fast spring flush you may need to mow more than once a week; in the heat of summer, less.\n\n## Height Matters More Than Frequency\nFor most cool-season lawns, keeping the grass around 3 to 3.5 inches shades out weeds, holds soil moisture, and grows deeper roots. Scalping a lawn short might mean fewer mowings, but you trade it for weeds, bare spots, and a lawn that browns out the first hot week.\n\n## Sharp Blades, Clean Cut\nA dull mower blade tears the grass instead of slicing it, leaving a ragged brown tip across the whole lawn and an entry point for disease. We sharpen blades regularly so every cut is clean.\n\n## The Bottom Line\nA good mowing schedule follows the grass through the season. That's exactly how we run our recurring lawn maintenance — adjusting height and timing instead of just showing up on a date. Contact us for a free quote.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Lawn Care",
+    "tags": ["mowing", "lawn-care", "maintenance"],
+    "seoTitle": "How Often Should You Mow Your Lawn? | {{COMPANY_NAME}}",
+    "seoDescription": "How to mow by the grass, not the calendar — and why height matters more than frequency. Lawn care tips from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-04-15T00:00:00Z",
+    "updatedAt": "2026-04-15T00:00:00Z"
+  },
+  {
+    "id": "blog2",
+    "title": "Why Paver Patios Sink (And How to Build One That Doesn't)",
+    "slug": "why-paver-patios-sink",
+    "excerpt": "The patio you see is only 20% of the job. The base underneath is the other 80% — and it's where almost every failed patio goes wrong.",
+    "content": "A paver patio that heaves, sinks, and separates after a couple winters almost always has the same root cause: an inadequate base. The pavers are the easy part. What you don't see is what determines whether it's still flat in fifteen years.\n\n## How Freeze-Thaw Destroys a Bad Patio\nWater gets into a poorly built base, freezes, expands, and shoves everything around. Do that a few dozen times each winter and a patio built on thin or uncompacted gravel will move, tilt, and pull apart.\n\n## What a Proper Base Looks Like\n- **Excavation to the right depth** — not just skimming off sod\n- **Compacted aggregate base built in lifts** — not one dumped layer of gravel\n- **A proper bedding layer** screeded flat\n- **Edge restraint** so the field can't spread\n- **Joint sand and final compaction** to lock it together\n- **Pitch** so water drains away from your house\n\n## Red Flags in a Low Bid\nIf a quote is dramatically cheaper than the others, ask what base depth they're building and whether they compact in lifts. The cheap patio is cheap because the part you can't see was skipped.\n\n## The Bottom Line\nWe build hardscapes from the ground down, because the base is the job. Contact us for a free on-site estimate.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Hardscaping",
+    "tags": ["patio", "hardscaping", "pavers"],
+    "seoTitle": "Why Paver Patios Sink | {{COMPANY_NAME}}",
+    "seoDescription": "The base is 80% of a paver patio. How to build one that survives freeze-thaw — from {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-03-20T00:00:00Z",
+    "updatedAt": "2026-03-20T00:00:00Z"
+  },
+  {
+    "id": "blog3",
+    "title": "Per-Push or Seasonal? Choosing the Right Snow Removal Contract",
+    "slug": "per-push-vs-seasonal-snow-removal",
+    "excerpt": "The cheapest snow contract depends on a winter you can't predict. Here's how per-push, per-event, and seasonal billing actually compare.",
+    "content": "When you set up snow removal, the billing model matters as much as the service. Here's how the common options work for {{CITY}} homes and businesses.\n\n## Per-Push\nYou're billed each time we clear the property. A light winter costs less; a brutal one costs more. Best when you want to pay only for what actually falls and can absorb a heavy month.\n\n## Per-Event / Per-Inch\nBilled per storm event or by snowfall depth. A middle ground — predictable per storm, scales with severity.\n\n## Seasonal Contract\nA flat price for the entire winter regardless of snowfall. You trade the chance of a cheap mild winter for complete budget certainty and being covered no matter how bad it gets. Most commercial properties prefer this for budgeting and liability reasons.\n\n## Trigger Depth\nWhichever model you choose, the **trigger depth** sets when we deploy — commonly 2 inches residential, lower for commercial lots where access and slip liability matter more. During big storms we make multiple passes rather than waiting for it all to fall.\n\n## The Bottom Line\nWe'll help you pick the model that fits your property and risk tolerance — and we add salt and ice control so you're not left with an ice sheet under cleared snow. Reserve your spot before the season fills up.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Snow Removal",
+    "tags": ["snow", "snow-removal", "winter"],
+    "seoTitle": "Per-Push vs Seasonal Snow Removal Contracts | {{COMPANY_NAME}}",
+    "seoDescription": "How per-push, per-event, and seasonal snow contracts compare for {{CITY}} homes and businesses. Guidance from {{COMPANY_NAME}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-02-10T00:00:00Z",
+    "updatedAt": "2026-02-10T00:00:00Z"
+  }
+]
