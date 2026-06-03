@@ -323,12 +323,12 @@
   {
     "@context": "https://schema.org",
     "@type": "CreativeWork",
-    "name": "<%= project.title.replace(/"/g, '\\"') %>",
-    "description": "<%= (project.description || '').replace(/"/g, '\\"').substring(0, 200) %>",
+    "name": <%- _jsonStr(project.title) %>,
+    "description": <%- _jsonStr(_plainDesc(project.description, 200)) %>,
     <% if (images.length > 0) { %>
       "image": [
         <% images.forEach((image, index) => { %>
-          "<%= image.url %>"<%= index < images.length - 1 ? ',' : '' %>
+          <%- _jsonStr(image.url) %><%= index < images.length - 1 ? ',' : '' %>
         <% }); %>
       ],
     <% } %>
@@ -342,13 +342,13 @@
       "@type": "Place",
       "address": {
         "@type": "PostalAddress",
-        "addressLocality": "<%= project.location ? project.location.split(',')[0].trim() : '{{CITY}}' %>",
+        "addressLocality": <%- _jsonStr(project.location ? String(project.location).split(',')[0].trim() : '{{CITY}}') %>,
         "addressRegion": "{{STATE}}"
       }
     }<% if (project.category) { %>,
     "about": {
       "@type": "Service",
-      "serviceType": "<%= project.category %>"
+      "serviceType": <%- _jsonStr(project.category) %>
     }
     <% } %>
   }

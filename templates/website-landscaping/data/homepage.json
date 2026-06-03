@@ -1,0 +1,80 @@
+{
+  "hero": {
+    "tagline": "{{HERO_TAGLINE}}",
+    "title": "{{CITY}}'s Trusted Lawn & Landscape Crew",
+    "subtitle": "Mowing, Landscaping, Hardscaping & Snow — Done Right.",
+    "description": "{{COMPANY_NAME}} keeps {{SERVICE_REGION}} properties looking their best year-round. Family-owned, fully insured, and proud of every job. Free estimates.",
+    "image": "/images/hero.jpg",
+    "animation": "ken-burns",
+    "primaryButtonText": "Get a Free Quote",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "See Our Work",
+    "secondaryButtonLink": "/gallery"
+  },
+  "trustBadges": [
+    {
+      "id": "family-owned",
+      "type": "custom",
+      "label": "Family-Owned & Operated",
+      "sublabel": "You deal with the owner, not a call center",
+      "icon": "users",
+      "enabled": true
+    },
+    {
+      "id": "insured",
+      "type": "custom",
+      "label": "Licensed & Fully Insured",
+      "sublabel": "General liability and workers' comp covered",
+      "icon": "shield",
+      "enabled": true
+    },
+    {
+      "id": "free-estimates",
+      "type": "custom",
+      "label": "Free On-Site Estimates",
+      "sublabel": "Clear written quotes, no obligation",
+      "icon": "check",
+      "enabled": true
+    },
+    {
+      "id": "satisfaction",
+      "type": "custom",
+      "label": "Satisfaction Guaranteed",
+      "sublabel": "We come back and make it right",
+      "icon": "star",
+      "enabled": true
+    }
+  ],
+  "ctaSection": {
+    "title": "Love your yard again.\nLeave the work to us.",
+    "description": "Whether it's weekly mowing, a new patio, fresh beds, or winter snow removal — {{COMPANY_NAME}} has {{SERVICE_REGION}} covered all year.",
+    "primaryButtonText": "Get a Free Quote",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Call {{COMPANY_PHONE}}",
+    "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
+    "backgroundImage": "",
+    "headline": "{{CTA_TEXT}}",
+    "subtext": "Call {{COMPANY_PHONE}} or fill out the form — we respond same day."
+  },
+  "serviceAreas": [
+    "{{CITY}}",
+    "{{NEARBY_CITY_1}}",
+    "{{NEARBY_CITY_2}}",
+    "{{NEARBY_CITY_3}}",
+    "{{NEARBY_CITY_4}}"
+  ],
+  "businessHours": {
+    "monday": { "open": "7:00 AM", "close": "5:00 PM", "closed": false },
+    "tuesday": { "open": "7:00 AM", "close": "5:00 PM", "closed": false },
+    "wednesday": { "open": "7:00 AM", "close": "5:00 PM", "closed": false },
+    "thursday": { "open": "7:00 AM", "close": "5:00 PM", "closed": false },
+    "friday": { "open": "7:00 AM", "close": "5:00 PM", "closed": false },
+    "saturday": { "open": "8:00 AM", "close": "12:00 PM", "closed": false },
+    "sunday": { "open": "Closed", "close": "Closed", "closed": true }
+  },
+  "aboutSection": {
+    "title": "Why {{SERVICE_REGION}} Trusts {{COMPANY_NAME}}",
+    "text": "{{ABOUT_TEXT}}",
+    "image": ""
+  }
+}

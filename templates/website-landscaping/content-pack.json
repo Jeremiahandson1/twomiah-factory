@@ -1,0 +1,433 @@
+{
+  "vertical": "landscaping",
+  "tone": "Down-to-earth, dependable, and proud of the work. These are owner-operated outdoor crews that homeowners trust with the thing they look at every single day — their yard. The voice is honest, hands-on, and neighborly. No corporate fluff. Think: the guy who shows up when he says he will, treats your lawn like it's his own, cleans up before he leaves, and stands behind the work. 'We don't cut corners — we cut grass.'",
+  "trustBadges": [
+    {
+      "id": "family-owned",
+      "label": "Family-Owned & Operated",
+      "description": "You deal with the owner, not a call center. The same crew that quotes your job is the crew that does it — and they take pride in their name being on the truck.",
+      "icon": "users"
+    },
+    {
+      "id": "fully-insured",
+      "label": "Licensed & Fully Insured",
+      "description": "Heavy equipment around your home, fence, and foundation means liability matters. We carry full general liability and workers' comp coverage so you're never exposed if something goes wrong.",
+      "icon": "shield-check"
+    },
+    {
+      "id": "free-estimates",
+      "label": "Free On-Site Estimates",
+      "description": "We come out, walk the property, and give you a clear written quote with no obligation. No high-pressure sales — just an honest price for honest work.",
+      "icon": "clipboard"
+    },
+    {
+      "id": "satisfaction-guarantee",
+      "label": "Satisfaction Guaranteed",
+      "description": "If something isn't right — a missed strip, an edge we didn't catch, cleanup we didn't finish — we come back and make it right. No charge, no runaround.",
+      "icon": "thumbs-up"
+    }
+  ],
+  "services": [
+    {
+      "id": "lawn-maintenance",
+      "name": "Lawn Mowing & Maintenance",
+      "slug": "lawn-mowing-maintenance",
+      "shortDescription": "A clean, sharp lawn every week — without you ever touching a mower.",
+      "description": "A well-kept lawn is the first thing anyone sees, and keeping it that way through a full growing season is more than just running a mower over it. We handle the whole job on a schedule that fits your property: mowing at the correct height for your grass type and the season, clean trimming around beds, trees, fences, and foundations, edging hard surfaces for that crisp finished line, and blowing every clipping off your walks, driveway, and patio before we leave.\n\nMowing height matters more than most people realize. Cutting too short stresses the turf, invites weeds, and dries out the soil; we adjust deck height as conditions change through spring, summer heat, and fall. We also sharpen blades regularly — a dull blade tears grass instead of cutting it, which leaves a brown, ragged tip and an open door for disease.\n\nWeekly and bi-weekly schedules are available, and we keep the same crew on your property so they learn its quirks — the soft spot by the downspout, the sprinkler heads to avoid, the gate that sticks. You get a consistent, professional cut and a yard that's done right every visit, not just the first one.",
+      "features": [
+        "Weekly or bi-weekly recurring service on a set schedule",
+        "Mowing height adjusted by grass type and season",
+        "Trimming and crisp edging on every visit",
+        "Full blow-off of walks, drives, and patios — we leave it clean",
+        "Same crew each visit, so your property is never a guessing game",
+        "Easy seasonal start/stop and skip-week handling"
+      ],
+      "faq": [
+        {
+          "question": "How short should my grass be cut?",
+          "answer": "For most cool-season lawns we keep it around 3 to 3.5 inches and never remove more than a third of the blade in one mowing. Taller grass shades out weeds, holds moisture, and develops deeper roots. We raise the deck in summer heat and bring it down for the final cuts of fall."
+        },
+        {
+          "question": "Do I need to be home for service?",
+          "answer": "No. As long as we have gate access, most clients are at work when we come through. We'll text or email if anything needs your attention — a broken sprinkler head, a gate we couldn't open, or a section we couldn't reach."
+        },
+        {
+          "question": "What happens if it rains on my scheduled day?",
+          "answer": "We don't mow a saturated lawn — it rips up the turf and leaves ruts. We'll push your visit to the next available dry day, usually within 24 to 48 hours, and let you know. You're never charged for a visit we didn't make."
+        }
+      ],
+      "seoTitle": "Lawn Mowing & Maintenance in {{city}} | Weekly Service | {{company}}",
+      "seoDescription": "Reliable weekly lawn mowing, trimming, and edging in {{city}}. Same crew every visit, clean finish, flexible scheduling. Get a free quote from {{company}}."
+    },
+    {
+      "id": "landscape-design-install",
+      "name": "Landscape Design & Installation",
+      "slug": "landscape-design-installation",
+      "shortDescription": "From bare dirt to a yard you actually want to spend time in.",
+      "description": "Whether you're starting from a blank slate on a new build or finally fixing the tired beds you've walked past for ten years, a good landscape install is about getting the bones right: proper grading so water moves away from your foundation, healthy soil, the right plants in the right place, and a layout that still looks good in five years when everything has filled in.\n\nWe handle the full job — design, plant selection, bed prep, and installation. Plant choice is where most DIY landscaping goes wrong: the wrong plant in the wrong spot either dies or outgrows its space and turns into a maintenance headache. We select hardy, climate-appropriate trees, shrubs, and perennials sized for what they'll become, not just what fits in the pot today, and we account for sun, drainage, and how much upkeep you actually want.\n\nEvery install includes proper soil preparation, quality plantings, clean bed edging, and a fresh layer of mulch to lock in moisture and keep weeds down. We'll walk you through watering and care for the first season so the investment actually takes root instead of struggling.",
+      "features": [
+        "Full design, plant selection, and installation",
+        "Proper grading and soil preparation, not just digging holes",
+        "Climate-appropriate, correctly sized trees, shrubs, and perennials",
+        "Bed shaping, edging, and finish mulch included",
+        "Foundation plantings, garden beds, and full yard makeovers",
+        "First-season care guidance so new plantings establish"
+      ],
+      "faq": [
+        {
+          "question": "What's the best time of year to install landscaping?",
+          "answer": "Spring and fall are ideal — cooler temperatures and reliable moisture let plants establish roots before stress sets in. We can install through summer too, but new plantings need closer watering attention. We'll tell you honestly if waiting a few weeks will give you a better result."
+        },
+        {
+          "question": "Will you design it or do I need a separate designer?",
+          "answer": "We handle both. For most residential projects we design the layout, recommend plantings, and install it as one job so nothing gets lost between a designer's drawing and what actually goes in the ground. For large or complex projects we can bring in a landscape architect."
+        },
+        {
+          "question": "How long until it looks 'finished'?",
+          "answer": "It looks clean and intentional the day we leave, but landscaping is a living thing. Perennials and shrubs typically fill in over one to three growing seasons. We size and space plantings for how they'll look mature so it doesn't look sparse forever or overgrown in two years."
+        }
+      ],
+      "seoTitle": "Landscape Design & Installation in {{city}} | {{company}}",
+      "seoDescription": "Professional landscape design and installation in {{city}} — beds, plantings, grading, and full yard makeovers. Free design consultation from {{company}}."
+    },
+    {
+      "id": "hardscaping",
+      "name": "Hardscaping & Paver Patios",
+      "slug": "hardscaping-paver-patios",
+      "shortDescription": "Patios, walkways, fire pits, and retaining walls built to outlast the house.",
+      "description": "Hardscaping is where a yard becomes a place you actually live — a paver patio for the grill and the table, a walkway that doesn't turn to mud, a retaining wall that holds back a slope instead of sliding into it, a fire pit that becomes the spot everyone gathers. It's also the part of landscaping that punishes shortcuts the hardest. A patio built on an inadequate base will heave, sink, and separate within a few winters.\n\nWe build hardscapes the right way, starting underground where you can't see it: proper excavation, a compacted aggregate base built to the correct depth for our freeze-thaw climate, the right bedding layer, and edge restraint so the field doesn't spread. The pavers or wall block you see are the easy part — the base is what determines whether it's still flat and tight in fifteen years.\n\nWe install paver and natural stone patios, walkways, segmental retaining walls, seating and garden walls, fire pits, and concrete landscape curbing. Every project is graded to drain away from your home and finished with proper joint sand and compaction. The result is an outdoor space that looks great on day one and stays that way.",
+      "features": [
+        "Paver and natural stone patios and walkways",
+        "Engineered, properly compacted base — built for freeze-thaw",
+        "Segmental retaining walls and seating walls",
+        "Fire pits and outdoor living spaces",
+        "Concrete landscape curbing for clean bed borders",
+        "Graded to drain away from your foundation"
+      ],
+      "faq": [
+        {
+          "question": "Why do some paver patios sink and shift?",
+          "answer": "Almost always an inadequate base. If the gravel base is too thin, not compacted in lifts, or installed over uncompacted soil, the patio will settle unevenly and pavers will separate — especially after a few freeze-thaw cycles. The visible pavers are 20% of the work; the base is the 80% that determines if it lasts."
+        },
+        {
+          "question": "Do I need a permit for a retaining wall?",
+          "answer": "It depends on the wall height and your local code — many areas require engineering and permits for walls over a certain height, often around four feet. We'll tell you upfront if your project needs a permit or engineered design and handle it correctly rather than building something that fails or gets red-tagged."
+        },
+        {
+          "question": "How long does a paver patio take to build?",
+          "answer": "A typical residential patio runs two to five days depending on size, access, and whether there's grading or wall work involved. Most of the time is in excavation and base prep — the part you don't see but that makes or breaks the job."
+        }
+      ],
+      "seoTitle": "Paver Patios & Retaining Walls in {{city}} | Hardscaping | {{company}}",
+      "seoDescription": "Custom paver patios, walkways, retaining walls, and fire pits in {{city}}. Engineered base built to last. Free hardscape estimate from {{company}}."
+    },
+    {
+      "id": "mulch-planting",
+      "name": "Mulching, Planting & Bed Care",
+      "slug": "mulching-planting-bed-care",
+      "shortDescription": "Fresh beds, healthy plants, and far fewer weekends pulling weeds.",
+      "description": "Clean, mulched beds are the single biggest visual upgrade you can make to a property in one day — and they do real work beyond looking good. A proper two-to-three-inch mulch layer holds soil moisture so plants need less water, moderates soil temperature through heat and cold, and dramatically cuts the weed pressure that otherwise eats your weekends.\n\nWe handle the full bed refresh: cutting a clean, defined edge, removing existing weeds, light cultivation where needed, installing quality hardwood or dyed mulch at the correct depth, and planting or transplanting shrubs and perennials. Depth matters in both directions — too thin and weeds push right through; too thick or piled against trunks ('mulch volcanoes') and you suffocate roots and invite rot. We do it right.\n\nWe also handle seasonal planting: annual color swaps, perennial divisions, shrub installation, and bed redesigns when something has outgrown its spot or just isn't working anymore. The goal is beds that look sharp and stay that way with less work for you.",
+      "features": [
+        "Hardwood and premium dyed mulch installation",
+        "Clean, hand-cut bed edging for a defined line",
+        "Weed removal and bed prep before mulching",
+        "Shrub, perennial, and annual planting",
+        "Correct mulch depth — no root-smothering volcanoes",
+        "Seasonal bed refreshes and redesigns"
+      ],
+      "faq": [
+        {
+          "question": "How often should mulch be replaced?",
+          "answer": "Most beds benefit from a fresh top-up once a year, typically in spring. Mulch breaks down and feeds the soil over time — which is good — but it also fades and thins, so an annual refresh keeps both the look and the weed suppression working. We'll tell you if a full removal is needed or just a top-up."
+        },
+        {
+          "question": "Is rock or mulch better for my beds?",
+          "answer": "It depends. Mulch improves soil as it breaks down, holds moisture, and looks warmer — but needs annual refreshing. Rock is essentially permanent and low-maintenance but doesn't feed the soil and can heat up plant roots. For most planted beds we recommend mulch; for low-plant utility areas, rock can make sense."
+        },
+        {
+          "question": "Can you just refresh the edge without re-mulching?",
+          "answer": "Yes. A crisp, freshly cut bed edge alone makes a property look maintained even when the mulch still has life in it. We're happy to do edging as a standalone service or bundled with your maintenance plan."
+        }
+      ],
+      "seoTitle": "Mulching, Planting & Bed Edging in {{city}} | {{company}}",
+      "seoDescription": "Mulch installation, clean bed edging, and seasonal planting in {{city}}. Sharp beds with less weeding. Free quote from {{company}}."
+    },
+    {
+      "id": "tree-shrub-care",
+      "name": "Tree, Shrub & Stump Service",
+      "slug": "tree-shrub-stump-service",
+      "shortDescription": "Trimming, pruning, and stump grinding — done safely, cleaned up completely.",
+      "description": "Trees and shrubs are the most expensive and slowest-to-replace things in your landscape, and they're also the easiest to ruin with bad pruning. Topping a tree, over-thinning it, or 'shearing' a shrub that should be hand-pruned causes damage that takes years to show and years more to recover from. We prune for the long-term health and natural form of the plant, not just to make it smaller this week.\n\nOur tree and shrub work includes structural and maintenance pruning, deadwood removal, hedge trimming and shaping, clearing branches off roofs, gutters, and power-line drops, and crown cleaning to improve light and air. We work safely around your home and never leave a hack job — every cut is made at the right place for the plant to heal.\n\nWhen a tree or stump has to go, we handle removal and stump grinding, taking the grind down well below grade so you can replant grass or a bed over it. We haul away the debris and rake the area clean — you shouldn't be finding wood chips in your lawn for the next month.",
+      "features": [
+        "Structural and maintenance pruning for tree health",
+        "Hedge trimming and shrub shaping",
+        "Deadwood, storm-damage, and clearance pruning",
+        "Stump grinding below grade for replanting",
+        "Tree and shrub removal",
+        "Full debris haul-off and cleanup"
+      ],
+      "faq": [
+        {
+          "question": "When is the best time to prune trees and shrubs?",
+          "answer": "It depends on the species. Most deciduous trees are best pruned in late winter while dormant; many spring-flowering shrubs should be pruned right after they bloom or you cut off next year's flowers. Light corrective and safety pruning can be done almost any time. We prune by what's right for the plant, not just what's convenient."
+        },
+        {
+          "question": "How deep do you grind a stump?",
+          "answer": "Typically six to twelve inches below grade — deeper if you plan to replant a tree or install a bed there. We grind out the visible stump and the surface roots flaring from it, then backfill or leave the grindings depending on what you're putting back."
+        },
+        {
+          "question": "Do you handle large or dangerous tree removals?",
+          "answer": "We handle most residential tree work and removals safely. For very large trees near structures or power lines that require a certified arborist or crane work, we'll tell you honestly and bring in or refer the right specialist rather than risk your property."
+        }
+      ],
+      "seoTitle": "Tree Trimming, Pruning & Stump Grinding in {{city}} | {{company}}",
+      "seoDescription": "Expert tree and shrub pruning, hedge trimming, and stump grinding in {{city}}. Safe work, full cleanup. Free estimate from {{company}}."
+    },
+    {
+      "id": "pressure-washing",
+      "name": "Pressure Washing & Soft Washing",
+      "slug": "pressure-washing-soft-washing",
+      "shortDescription": "Years of grime gone — without blasting the paint off your siding.",
+      "description": "Pressure washing looks simple until someone etches their concrete, strips paint off their siding, or drives water behind their boards because they used too much pressure on the wrong surface. The skill isn't in the power — it's in knowing how much pressure each surface can take and when to back off the wand entirely.\n\nWe use the right method for each surface. Hard surfaces like concrete driveways, walkways, and paver patios get true pressure washing to lift embedded dirt, oil, and tire marks, often with a surface cleaner for an even, stripe-free finish. House siding, soffits, fences, and decks get soft washing — low pressure plus the correct cleaning solution that kills the algae, mold, and mildew at the root and rinses clean without driving water into your walls or tearing up wood grain.\n\nCommon work includes house and siding washing, driveways and sidewalks, paver and concrete patios, decks and fences, and getting that green and black organic growth off the north side of everything. We protect plantings, rinse them down before and after, and leave the property clean.",
+      "features": [
+        "Surface-correct method — true pressure vs. low-pressure soft wash",
+        "House siding, soffits, and fence cleaning",
+        "Driveways, sidewalks, and patio cleaning",
+        "Deck and wood cleaning without grain damage",
+        "Algae, mold, and mildew treated at the root",
+        "Landscaping protected and rinsed before and after"
+      ],
+      "faq": [
+        {
+          "question": "Will pressure washing damage my siding?",
+          "answer": "It can, in the wrong hands. Vinyl, painted, and fiber-cement siding should almost never be hit with high pressure — it drives water behind the boards and can crack or strip the surface. We soft wash siding: low pressure plus a cleaning solution that kills the growth so it rinses off gently and stays clean longer."
+        },
+        {
+          "question": "Why does the mildew come right back after some companies wash?",
+          "answer": "Because they only blasted off the surface layer with water and never killed the organism. Soft washing with the proper solution kills the algae and mildew at the root, so it stays clean noticeably longer than a water-only blast."
+        },
+        {
+          "question": "Do you do driveways and patios too?",
+          "answer": "Yes. Concrete and pavers can take real pressure, and we use a surface cleaner attachment for an even, stripe-free result that lifts oil, tire marks, and ground-in grime instead of just wetting it."
+        }
+      ],
+      "seoTitle": "Pressure Washing & Soft Washing in {{city}} | {{company}}",
+      "seoDescription": "Professional pressure washing and soft washing in {{city}} — siding, driveways, decks, and patios. Safe, surface-correct cleaning from {{company}}."
+    },
+    {
+      "id": "seasonal-cleanups",
+      "name": "Spring & Fall Cleanups",
+      "slug": "spring-fall-cleanups",
+      "shortDescription": "Reset your property at both ends of the season — the heavy lifting we'll handle.",
+      "description": "The two cleanups that bookend the growing season are the ones that make every other service look good. A thorough spring cleanup clears out winter's damage and debris so the lawn and beds can wake up clean: dethatching matted turf, clearing leaves and fallen branches, cutting back perennials and ornamental grasses, edging and re-defining beds, and the first sharp mow of the year. It sets the tone for the whole season.\n\nThe fall cleanup is the one that protects your investment over winter. A thick mat of wet leaves left on a lawn smothers and kills it in patches by spring, and matted debris in beds invites rot and rodents. We do a full leaf removal and haul-off, cut perennials back, clear and prep beds, do the final season mow at the right height, and leave the property buttoned up for winter.\n\nWe haul everything away — you're not left with a pile of bagged leaves and brush by the curb for a month. These are available as one-time services or built into a season-long maintenance plan.",
+      "features": [
+        "Full leaf removal and haul-off — not just blown to the curb",
+        "Spring dethatching and bed reset",
+        "Perennial and ornamental grass cut-back",
+        "Bed re-edging and pre-season prep",
+        "Final-cut and winter-prep mowing",
+        "One-time or built into a maintenance plan"
+      ],
+      "faq": [
+        {
+          "question": "Do I really need a fall cleanup if I mulch my leaves?",
+          "answer": "Mulch-mowing a light leaf drop is fine and even good for the lawn. But a heavy drop — especially from maples and oaks — mats down when it gets wet and snowed on, smothering the grass underneath. By spring you'll have dead patches that cost more to repair than the cleanup would have."
+        },
+        {
+          "question": "When should spring and fall cleanups happen?",
+          "answer": "Spring cleanup is best once the ground has firmed up and the threat of heavy snow is past — timing varies by year. Fall cleanup is best after the bulk of the leaves are down but before lasting snow cover. We watch the season and schedule it at the right window, not just a date on a calendar."
+        },
+        {
+          "question": "Can the cleanup be part of my regular service?",
+          "answer": "Yes — most maintenance clients fold spring and fall cleanups into their seasonal plan so it's handled automatically and priced as part of the package. You can also book either one as a standalone job."
+        }
+      ],
+      "seoTitle": "Spring & Fall Yard Cleanup in {{city}} | Leaf Removal | {{company}}",
+      "seoDescription": "Thorough spring and fall yard cleanups in {{city}} — leaf removal, bed prep, and haul-off. Book a one-time or seasonal cleanup with {{company}}."
+    },
+    {
+      "id": "snow-removal",
+      "name": "Snow & Ice Removal",
+      "slug": "snow-ice-removal",
+      "shortDescription": "Plowed, shoveled, and salted before you back out of the garage.",
+      "description": "When the snow flies, you want to know it's handled without having to call anyone or stand in the driveway with a shovel before work. We run snow and ice removal as a managed service for both residential and commercial properties: we watch the forecast, we deploy on a defined trigger depth, and we clear your property on a route built to get everyone done fast.\n\nResidential service covers driveways, walks, and steps — plowed or shoveled and treated so you and your visitors aren't walking on a sheet of ice. Commercial service covers lots, drive lanes, sidewalks, and entrances, with the documentation and reliability that property managers and businesses need to stay open and stay liable-safe.\n\nWe offer flexible billing that fits how you actually use it — per-push, per-event, per-season contract, or per-inch — so you're not overpaying in a light winter or exposed in a brutal one. Salt and ice-melt application is available as part of the service or on call. You'll know your property is on the route before the first flake.",
+      "features": [
+        "Residential and commercial snow removal",
+        "Forecast-monitored, trigger-depth deployment",
+        "Driveways, walks, lots, and entrances",
+        "Salt and ice-melt application",
+        "Flexible billing: per-push, per-event, per-season, or per-inch",
+        "Priority routing so you're cleared before you need to leave"
+      ],
+      "faq": [
+        {
+          "question": "At what snow depth do you come out?",
+          "answer": "We deploy on a defined trigger depth — commonly two inches for residential and often lower for commercial lots where liability and access matter more. We set the trigger with you when you sign up, and during big storms we'll make multiple passes rather than waiting for it all to fall."
+        },
+        {
+          "question": "What's the difference between per-push and seasonal billing?",
+          "answer": "Per-push bills each time we clear the property, so a light winter costs less. A seasonal contract is a flat price for the whole winter regardless of snowfall — predictable budgeting and you're covered no matter how bad it gets. We'll help you pick based on your property and risk tolerance."
+        },
+        {
+          "question": "Do you handle salting and ice control too?",
+          "answer": "Yes. Plowing clears the snow but doesn't address the ice layer underneath or refreeze afterward. We apply salt or ice melt to drives, walks, and entrances as part of the service or as a separate call, which matters most for commercial properties managing slip liability."
+        }
+      ],
+      "seoTitle": "Snow & Ice Removal in {{city}} | Residential & Commercial | {{company}}",
+      "seoDescription": "Reliable snow plowing, shoveling, and salting in {{city}} for homes and businesses. Flexible per-push or seasonal contracts. Reserve your spot with {{company}}."
+    }
+  ],
+  "blogTopics": [
+    {
+      "title": "How Often Should You Really Mow Your Lawn?",
+      "slug": "how-often-should-you-mow-your-lawn",
+      "outline": [
+        "Introduction: Why 'every Saturday no matter what' is the wrong rule",
+        "The one-third rule: never remove more than a third of the blade in one cut",
+        "How growth rate changes through spring flush, summer heat, and fall",
+        "Why mowing height matters more than mowing frequency",
+        "Cutting too short: weeds, scalping, shallow roots, and drought stress",
+        "Adjusting for grass type and seasonal conditions",
+        "When to skip a week vs. when to double-cut",
+        "Conclusion: A schedule that follows the grass, not the calendar"
+      ],
+      "targetWords": 1200,
+      "audience": "Homeowners trying to keep a healthy lawn and deciding between DIY and a service"
+    },
+    {
+      "title": "Why Paver Patios Sink (And How to Build One That Doesn't)",
+      "slug": "why-paver-patios-sink-and-how-to-prevent-it",
+      "outline": [
+        "Introduction: The patio you see is 20% of the job — the base is the other 80%",
+        "How freeze-thaw cycles destroy a poorly built patio",
+        "Proper excavation depth and why it matters",
+        "Compacted aggregate base in lifts vs. a thin layer of gravel",
+        "Bedding layer, edge restraint, and joint sand",
+        "Drainage: why the patio must pitch away from the house",
+        "Red flags in a low-bid patio quote",
+        "Conclusion: What to ask a contractor before you sign"
+      ],
+      "targetWords": 1500,
+      "audience": "Homeowners getting quotes for a patio and trying to compare bids honestly"
+    },
+    {
+      "title": "Spring Cleanup Checklist: What Your Yard Needs Before Growing Season",
+      "slug": "spring-yard-cleanup-checklist",
+      "outline": [
+        "Introduction: What winter leaves behind and why timing matters",
+        "Waiting for the ground to firm up before you start",
+        "Dethatching and clearing matted debris",
+        "Cutting back perennials and ornamental grasses",
+        "Re-edging and refreshing beds",
+        "The first mow: height and what to look for",
+        "Early-season problems to catch now before they spread",
+        "Conclusion: DIY vs. having it done in one pass"
+      ],
+      "targetWords": 1300,
+      "audience": "Homeowners preparing their property for the growing season"
+    },
+    {
+      "title": "Pressure Washing vs. Soft Washing: Which Does Your House Need?",
+      "slug": "pressure-washing-vs-soft-washing",
+      "outline": [
+        "Introduction: Why using the wrong one causes expensive damage",
+        "What pressure washing is and which surfaces can take it",
+        "What soft washing is and why siding needs it",
+        "How high pressure damages vinyl, paint, and wood",
+        "Why water-only cleaning lets the mildew come right back",
+        "Surface-by-surface guide: driveway, siding, deck, fence, patio",
+        "Protecting plants and the people doing the work",
+        "Conclusion: Matching the method to the surface"
+      ],
+      "targetWords": 1200,
+      "audience": "Homeowners considering exterior cleaning and worried about damage"
+    },
+    {
+      "title": "Per-Push or Seasonal? Choosing the Right Snow Removal Contract",
+      "slug": "per-push-vs-seasonal-snow-removal-contract",
+      "outline": [
+        "Introduction: Why the cheapest option depends on the winter you can't predict",
+        "How per-push billing works and when it saves money",
+        "How seasonal contracts work and the budgeting certainty they give",
+        "Per-event and per-inch models explained",
+        "Trigger depth and what it means for when you get cleared",
+        "Why commercial properties weigh this differently (liability and access)",
+        "Questions to ask before signing a snow contract",
+        "Conclusion: Matching the contract to your property and risk tolerance"
+      ],
+      "targetWords": 1300,
+      "audience": "Homeowners and small commercial property owners arranging winter service"
+    }
+  ],
+  "faq": [
+    {
+      "question": "Do you offer free estimates?",
+      "answer": "Yes. We come out, walk the property with you, and provide a clear written quote at no cost and with no obligation. For recurring services like lawn maintenance we can often quote from the property details and a quick look; for hardscaping and installs we always do an on-site walkthrough."
+    },
+    {
+      "question": "Are you licensed and insured?",
+      "answer": "Yes — we carry full general liability and workers' compensation coverage. That matters more than people realize: heavy equipment works close to your home, fence, vehicles, and foundation, and you should never be the one exposed if something goes wrong. We're happy to provide a certificate of insurance."
+    },
+    {
+      "question": "Do you offer recurring service or just one-time jobs?",
+      "answer": "Both. Most clients set up recurring lawn maintenance on a weekly or bi-weekly schedule, often bundled with seasonal cleanups and snow removal so the whole property is handled year-round. We also do one-time projects like patios, mulch refreshes, tree work, and cleanups."
+    },
+    {
+      "question": "What areas do you serve?",
+      "answer": "We serve {{city}} and the surrounding communities. If you're not sure whether you're in our service area, just ask when you request a quote — we'll tell you straight rather than overpromise and miss visits."
+    },
+    {
+      "question": "How and when do I pay?",
+      "answer": "For recurring maintenance we bill on a regular cycle — monthly is most common — and offer simple online payment. Project work like hardscaping is typically a deposit to schedule with the balance on completion. We go over the terms before any work starts so there are no surprises."
+    },
+    {
+      "question": "What if I'm not happy with the work?",
+      "answer": "We come back and make it right — a missed strip, an edge we didn't catch, cleanup we didn't finish. We'd rather fix it than lose a customer over something small. Tell us and we'll handle it, no charge and no runaround."
+    },
+    {
+      "question": "Do you do both residential and commercial properties?",
+      "answer": "Yes. We maintain residential yards as well as commercial properties — office and retail grounds, HOA common areas, and commercial snow and ice management with the reliability and documentation those accounts need."
+    },
+    {
+      "question": "Can you handle my whole property in one company?",
+      "answer": "That's the idea. Mowing, landscaping, mulch and beds, hardscaping, tree and shrub work, pressure washing, seasonal cleanups, and snow — having one crew that knows your property handle all of it is simpler for you and produces a more consistent result than juggling four contractors."
+    }
+  ],
+  "testimonialTemplates": [
+    {
+      "id": "weekly-maintenance",
+      "scenario": "Long-term recurring lawn maintenance client",
+      "template": "We've used {{company}} for our weekly lawn service for three seasons now and the yard has never looked better. Same crew every week, they know our property, and it's always edged, trimmed, and blown off clean before they leave. I haven't touched my mower since I called them and I don't miss it one bit.",
+      "rating": 5,
+      "service": "lawn-maintenance"
+    },
+    {
+      "id": "patio-build",
+      "scenario": "Paver patio and fire pit installation",
+      "template": "We got three quotes for a paver patio and {{company}} was the only one who actually explained the base prep instead of just talking about pavers. You can tell the difference — two winters in and it's still dead flat, no shifting, no separating. The fire pit has become the spot everyone ends up. Worth every penny.",
+      "rating": 5,
+      "service": "hardscaping"
+    },
+    {
+      "id": "full-property-makeover",
+      "scenario": "Landscape redesign and installation on an older home",
+      "template": "Our beds hadn't been touched in fifteen years. {{company}} redesigned the whole front of the house — new plantings, fresh edging, clean mulch — and the difference is unreal. They walked us through caring for everything the first season and it all took beautifully. Neighbors keep asking who did it.",
+      "rating": 5,
+      "service": "landscape-design-install"
+    },
+    {
+      "id": "snow-reliability",
+      "scenario": "Reliable residential snow removal through a hard winter",
+      "template": "Last winter was brutal and {{company}} never missed. Driveway and walks cleared and salted before I left for work every single storm — I never had to call, it was just done. After years of unreliable plow guys, having it actually handled is worth the seasonal contract by itself.",
+      "rating": 5,
+      "service": "snow-removal"
+    },
+    {
+      "id": "pressure-washing",
+      "scenario": "House soft wash and driveway cleaning",
+      "template": "The north side of our house was green and the driveway looked like it hadn't been cleaned in a decade. {{company}} soft washed the siding instead of blasting it and did the driveway with a surface cleaner — it looks like a different house. A year later the siding is still clean, not like the last company where it came right back.",
+      "rating": 5,
+      "service": "pressure-washing"
+    }
+  ]
+}

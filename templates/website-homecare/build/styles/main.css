@@ -1259,7 +1259,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .testimonial-author span {
   font-size: 0.9rem;
-  color: rgba(255,255,255,0.7);
+  color: rgba(255,255,255,0.92);
   display: block;
   margin-top: 3px;
 }
@@ -1580,7 +1580,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .about-col p {
   font-size: 14px;
-  opacity: 0.8;
+  opacity: 0.92;
   line-height: 1.8;
   margin-bottom: 20px;
 }
@@ -1630,7 +1630,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .footer-col ul a {
   font-size: 14px;
-  opacity: 0.8;
+  opacity: 0.92;
   transition: var(--transition);
 }
 
@@ -1666,7 +1666,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .hours span {
   font-size: 14px;
-  opacity: 0.8;
+  opacity: 0.92;
 }
 
 .footer-bottom {
@@ -1684,7 +1684,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .footer-bottom p {
   font-size: 13px;
-  opacity: 0.7;
+  opacity: 0.9;
 }
 
 /* ========== MODAL ========== */

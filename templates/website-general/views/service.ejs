@@ -30,7 +30,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
     <% if (heroImage) { %>
       <div 
         class="service-hero-bg animation-<%= heroAnimation %>"
-        style="background-image: url(<%= getImageUrl(heroImage) %>)"
+        style="background-image: <%- bgWithWebp(getImageUrl(heroImage)) %>"
       ></div>
       <div class="service-hero-overlay"></div>
     <% } %>

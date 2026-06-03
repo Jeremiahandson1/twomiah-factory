@@ -150,7 +150,7 @@
       <% projects.slice(0, 10).forEach((project, index) => { 
         const img = getCoverImage(project);
         if (img) { %>
-        "<%= img %>"<%= index < Math.min(projects.length - 1, 9) && getCoverImage(projects[index + 1]) ? ',' : '' %>
+        <%- _jsonStr(img) %><%= index < Math.min(projects.length - 1, 9) && getCoverImage(projects[index + 1]) ? ',' : '' %>
       <% } %>
       <% }); %>
     ]

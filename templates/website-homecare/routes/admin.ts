@@ -2283,6 +2283,27 @@ app.post('/upload', authMiddleware, async (c) => {
       try { fs.unlinkSync(tmpIn); } catch {}
     }
 
+    // Logo size discipline (Claflin 3.8 tenant-side) — if the filename or
+    // folder strongly suggests a logo and the file is still over 30 KB
+    // raster, downsize the same way Factory writeBrandingAssets does. Catches
+    // admin re-uploads of fat photographic logos that bypass the Factory-time
+    // check. Filename heuristic matches /\blogo\b/i (case-insensitive).
+    const isLikelyLogo = /\blogo\b/i.test(file.name) || /\blogo/i.test(folder);
+    if (isLikelyLogo && buffer.length > 30 * 1024 && ext.match(/\.(jpe?g|png)$/i)) {
+      try {
+        const disciplined = await sharp(buffer)
+          .resize({ height: 200, withoutEnlargement: true })
+          .png({ palette: true, colors: 32 })
+          .toBuffer();
+        if (disciplined.length < buffer.length) {
+          console.log(`[Upload] Logo discipline: ${buffer.length} → ${disciplined.length} bytes`);
+          buffer = disciplined;
+        }
+      } catch (err) {
+        console.error('Logo discipline error:', err);
+      }
+    }
+
     // Generate thumbnail in-memory
     const thumbName = `thumb_${uniqueName}`;
     let thumbBuffer: Buffer | null = null;
@@ -2295,20 +2316,56 @@ app.post('/upload', authMiddleware, async (c) => {
       console.error('Thumbnail generation error:', err);
     }
 
-    // Upload main image + thumbnail to storage (R2 or local)
+    // Generate WebP companion (Claflin 3.4) — skip non-JPG/PNG, and skip if
+    // WebP would be larger than source (rare, happens with already-optimized
+    // palette PNGs like a 32-color logo). The post-render wrap (3.5) reads
+    // hasWebp from image-meta.json to decide whether to emit a <picture>.
+    let webpBuffer: Buffer | null = null;
+    if (ext.match(/\.(jpe?g|png)$/i)) {
+      try {
+        const tryWebp = await sharp(buffer).webp({ quality: 72 }).toBuffer();
+        if (tryWebp.length < buffer.length) webpBuffer = tryWebp;
+      } catch (err) {
+        console.error('WebP generation error:', err);
+      }
+    }
+
+    // Get intrinsic dimensions for CLS-safe rendering (Claflin 3.5) — the
+    // post-render wrap injects these as width/height attrs on the <img> so
+    // the browser reserves correct space at first paint instead of shifting
+    // content when the image loads.
+    let imgDimensions: { width?: number; height?: number } = {};
+    try {
+      const m = await sharp(buffer).metadata();
+      if (m.width && m.height) imgDimensions = { width: m.width, height: m.height };
+    } catch {}
+
+    // Upload main image + thumbnail + WebP companion to storage (R2 or local)
     const contentType = file.type || 'image/jpeg';
     const imageUrl = await uploadFile(buffer, uniqueName, contentType);
     let thumbUrl = '';
     if (thumbBuffer) {
       thumbUrl = await uploadFile(thumbBuffer, thumbName, 'image/jpeg');
     }
+    let webpUrl = '';
+    if (webpBuffer) {
+      const webpName = uniqueName.replace(/\.(jpe?g|png)$/i, '.webp');
+      webpUrl = await uploadFile(webpBuffer, webpName, 'image/webp');
+    }
 
-    // Save metadata (folder, altText, uploadedAt) for R2 image listing
+    // Save metadata — folder/altText/uploadedAt for the image listing, plus
+    // hasWebp + width/height for the post-render <picture> wrap to consume.
     try {
       const metaFile = path.join(dataDir, 'image-meta.json');
       let meta: any = {};
       if (fs.existsSync(metaFile)) meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
-      meta[uniqueName] = { folder, altText, uploadedAt: new Date().toISOString() };
+      meta[uniqueName] = {
+        folder,
+        altText,
+        uploadedAt: new Date().toISOString(),
+        hasWebp: !!webpBuffer,
+        ...imgDimensions,
+      };
       fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2));
     } catch {}
 
@@ -2316,17 +2373,20 @@ app.post('/upload', authMiddleware, async (c) => {
       filename: uniqueName,
       folder,
       optimized: optimizationResult.optimized,
-      savings: optimizationResult.savings
+      savings: optimizationResult.savings,
+      webpGenerated: !!webpBuffer
     });
 
     return c.json({
       message: 'Image uploaded',
       url: imageUrl,
       thumbnail: thumbUrl,
+      webp: webpUrl,
       filename: uniqueName,
       folder,
       altText,
-      optimization: optimizationResult
+      optimization: optimizationResult,
+      dimensions: imgDimensions
     });
   } catch (err) {
     console.error('Upload error:', err);
@@ -2356,7 +2416,7 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
   const optimize = (typeof body['optimize'] === 'string' ? body['optimize'] : undefined) !== 'false';
 
   try {
-    const images = await Promise.all(fileArray.map(async (file) => {
+    const fileResults = await Promise.all(fileArray.map(async (file) => {
       const ext = path.extname(file.name).toLowerCase();
       const uniqueName = `${Date.now()}-${crypto.randomUUID()}${ext}`;
 
@@ -2377,6 +2437,20 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
         try { fs.unlinkSync(tmpIn); } catch {}
       }
 
+      // Logo size discipline (Claflin 3.8 tenant-side) — same heuristic as
+      // the single-upload route. Filename containing /\blogo\b/i triggers a
+      // sharp downsize to height-200 + 32-color palette PNG.
+      const isLikelyLogo = /\blogo\b/i.test(file.name) || /\blogo/i.test(folder);
+      if (isLikelyLogo && buffer.length > 30 * 1024 && ext.match(/\.(jpe?g|png)$/i)) {
+        try {
+          const disciplined = await sharp(buffer)
+            .resize({ height: 200, withoutEnlargement: true })
+            .png({ palette: true, colors: 32 })
+            .toBuffer();
+          if (disciplined.length < buffer.length) buffer = disciplined;
+        } catch {}
+      }
+
       // Generate thumbnail in-memory
       const thumbName = `thumb_${uniqueName}`;
       let thumbBuffer: Buffer | null = null;
@@ -2387,22 +2461,65 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
           .toBuffer();
       } catch {}
 
+      // WebP companion (Claflin 3.4) — same logic as single-upload route.
+      let webpBuffer: Buffer | null = null;
+      if (ext.match(/\.(jpe?g|png)$/i)) {
+        try {
+          const tryWebp = await sharp(buffer).webp({ quality: 72 }).toBuffer();
+          if (tryWebp.length < buffer.length) webpBuffer = tryWebp;
+        } catch {}
+      }
+
+      // Intrinsic dimensions for the post-render <picture> wrap (Claflin 3.5).
+      let imgDimensions: { width?: number; height?: number } = {};
+      try {
+        const m = await sharp(buffer).metadata();
+        if (m.width && m.height) imgDimensions = { width: m.width, height: m.height };
+      } catch {}
+
       const contentType = file.type || 'image/jpeg';
       const imageUrl = await uploadFile(buffer, uniqueName, contentType);
       let thumbUrl = '';
       if (thumbBuffer) {
         thumbUrl = await uploadFile(thumbBuffer, thumbName, 'image/jpeg');
       }
+      let webpUrl = '';
+      if (webpBuffer) {
+        const webpName = uniqueName.replace(/\.(jpe?g|png)$/i, '.webp');
+        webpUrl = await uploadFile(webpBuffer, webpName, 'image/webp');
+      }
 
       return {
         url: imageUrl,
         thumbnail: thumbUrl,
+        webp: webpUrl,
         filename: uniqueName,
         folder,
-        optimization: optimizationResult
+        optimization: optimizationResult,
+        dimensions: imgDimensions,
+        _meta: {
+          folder,
+          altText: '',
+          uploadedAt: new Date().toISOString(),
+          hasWebp: !!webpBuffer,
+          ...imgDimensions,
+        }
       };
     }));
 
+    // Bulk-save metadata for all uploaded files in one I/O (avoids races
+    // that per-file writes in the parallel map would cause). Without this
+    // the multi-upload would skip image-meta.json entirely and its files
+    // would be invisible to the post-render <picture> wrap.
+    try {
+      const metaFile = path.join(dataDir, 'image-meta.json');
+      let meta: any = {};
+      if (fs.existsSync(metaFile)) meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
+      for (const r of fileResults) meta[r.filename] = r._meta;
+      fs.writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+    } catch {}
+
+    const images = fileResults.map(({ _meta, ...rest }) => rest);
     logActivity('images_uploaded', { count: images.length, folder });
     return c.json({ message: 'Images uploaded', images });
   } catch (err) {

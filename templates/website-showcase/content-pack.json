@@ -1,0 +1,58 @@
+{
+  "vertical": "showcase",
+  "tone": "Bold, craveable, and personality-forward. Short punchy sentences. Sensory, vivid language. Confident and warm — never corporate or stiff. Make people feel something and want to show up. Avoid jargon, avoid 'we are committed to excellence' filler.",
+  "trustBadges": [
+    { "label": "Locally Loved" },
+    { "label": "Made Fresh / Made With Care" },
+    { "label": "Follow Us for Daily Updates" }
+  ],
+  "services": [
+    {
+      "id": "signature",
+      "name": "Our Signature Offering",
+      "slug": "signature",
+      "shortDescription": "The thing people drive across town for — describe the hero product/experience in mouth-watering, specific detail.",
+      "description": "Lead with the single best thing this business does. Be concrete and sensory. Name the ingredients, the craft, the feeling. This is the section that converts a scroller into a customer."
+    },
+    {
+      "id": "menu-or-services",
+      "name": "What We Offer",
+      "slug": "offerings",
+      "shortDescription": "The full lineup — menu, classes, treatments, or packages — grouped so it's easy to scan.",
+      "description": "Organize the offerings into clear, skimmable groups with vivid one-liners. Highlight anything seasonal, rotating, or signature. Invite customization and questions."
+    },
+    {
+      "id": "experience",
+      "name": "The Experience",
+      "slug": "experience",
+      "shortDescription": "What it's actually like to show up — atmosphere, people, the vibe.",
+      "description": "Sell the experience, not just the product. Describe the space/energy, the people behind it, and why regulars keep coming back."
+    },
+    {
+      "id": "events-catering",
+      "name": "Events & Booking",
+      "slug": "events",
+      "shortDescription": "Private events, catering, parties, or appointments — how to bring the experience to them or lock in a spot.",
+      "description": "Make booking effortless. State what's available, who it's great for, and the single clear next step (form, call, or order link)."
+    }
+  ],
+  "blogTopics": [
+    "Behind the scenes: how we make our signature offering",
+    "Where to find us this week",
+    "Meet the team / the story behind the business",
+    "Seasonal & limited-time offerings",
+    "Customer favorites and how to order them"
+  ],
+  "faq": [
+    { "q": "Where are you located / where can I find you?", "a": "State the location or that the schedule is posted regularly, and point to the live updates." },
+    { "q": "Do you take orders ahead, reservations, or bookings?", "a": "Explain the ordering/booking path clearly and link the next step." },
+    { "q": "Do you do private events or catering?", "a": "Yes — describe options and how to request a quote." },
+    { "q": "How do I stay updated on hours and specials?", "a": "Point to social channels and the on-site updates." }
+  ],
+  "testimonialTemplates": [
+    "Hands down the best in town — worth every minute of the wait.",
+    "The vibe, the people, the quality. We're regulars now.",
+    "Booked them for our event and everyone is still talking about it.",
+    "You can taste/feel the care that goes into everything they do."
+  ]
+}

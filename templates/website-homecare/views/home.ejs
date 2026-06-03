@@ -271,23 +271,27 @@ function getImageUrl(p) {
     </div>
   </section>
 
+  <%
+    // Defensive JSON-LD escape (Claflin 3.6) + email guard (3.7).
+    const _emailOk = typeof email === 'string' && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(email);
+  %>
   <!-- Structured Data -->
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "HomeHealthCare",
-    "name": "<%= settings && settings.companyName || 'Home Care' %>",
-    "url": "<%= settings && settings.siteUrl || '' %>",
-    "telephone": "+1<%= phoneRaw %>",
-    "email": "<%= email %>",
-    "address": {
+    "name": <%- _jsonStr(settings && settings.companyName || 'Home Care') %>,
+    "url": <%- _jsonStr(settings && settings.siteUrl || '') %>,
+    "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
+<% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
+<% } %>    "address": {
       "@type": "PostalAddress",
-      "addressLocality": "<%= city %>",
-      "addressRegion": "<%= state %>",
-      "postalCode": "<%= zip %>",
+      "addressLocality": <%- _jsonStr(city) %>,
+      "addressRegion": <%- _jsonStr(state) %>,
+      "postalCode": <%- _jsonStr(zip) %>,
       "addressCountry": "US"
     },
-    "areaServed": [<% serviceAreas.forEach(function(area, i) { %>{"@type":"City","name":"<%= area %>"}<%- i < serviceAreas.length-1 ? ',' : '' %><% }); %>]
+    "areaServed": [<% serviceAreas.forEach(function(area, i) { %>{"@type":"City","name":<%- _jsonStr(area) %>}<%- i < serviceAreas.length-1 ? ',' : '' %><% }); %>]
   }
   </script>
 

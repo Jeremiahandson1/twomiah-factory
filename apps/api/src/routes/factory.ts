@@ -12,6 +12,8 @@ import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../config/featureRegis
 import { PRODUCTS, getProductDefaults } from '../config/pricing'
 import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getCompanyInfo } from '../services/quickbooksOnline'
 import { getRegistrar, isRegistrarConfigured } from '../services/registrar'
+import { buildBrief, type Intake } from '../services/briefBuilder'
+import { renderHomepagePreview } from '../services/previewRenderer'
 const factory = new Hono()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
@@ -2577,6 +2579,28 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       return typeof v === 'string' ? v.trim() : ''
     }
 
+    // Array fields arrive either as repeated multipart keys (services[]) or as a
+    // single comma/newline-separated string (a textarea). Accept both.
+    const getArr = (key: string, max = 30): string[] => {
+      const raw = body[key] ?? body[key + '[]']
+      const items = Array.isArray(raw) ? raw : raw != null ? [raw] : []
+      const out: string[] = []
+      for (const v of items) {
+        if (typeof v !== 'string') continue
+        for (const part of v.split(/[\n,]/)) {
+          const t = part.trim()
+          if (t) out.push(t)
+        }
+      }
+      return out.slice(0, max)
+    }
+
+    const getBool = (key: string): boolean | undefined => {
+      const v = getStr(key).toLowerCase()
+      if (!v) return undefined
+      return ['true', 'yes', '1', 'on'].includes(v)
+    }
+
     const businessName = getStr('businessName')
     const businessType = getStr('businessType')
     const contactEmail = getStr('contactEmail')
@@ -2595,6 +2619,25 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     const currentSite = getStr('currentSite') || null
     const brandColors = getStr('brandColors') || null
     const intakeNotes = getStr('notes') || null
+
+    // ─── Rich intake fields ────────────────────────────────────────────────
+    // Optional. These map 1:1 onto briefBuilder's Intake interface so a captured
+    // lead can be handed straight to buildBrief() with no transformation.
+    const city = getStr('city') || null
+    const state = getStr('state') || null
+    const serviceRegion = getStr('serviceRegion') || null
+    const ownerName = getStr('ownerName') || null
+    const description = getStr('description') || null
+    const domain = getStr('domain') || null
+    const primaryColor = getStr('primaryColor') || null
+    const secondaryColor = getStr('secondaryColor') || null
+    const accentColor = getStr('accentColor') || null
+    const services = getArr('services')
+    const competitors = getArr('competitors', 10)  // "sites you like" — inspiration
+    const goals = getArr('goals', 10)               // e.g. orders, leads, bookings, info
+    const serviceAreas = getArr('serviceAreas', 12)
+    const nearbyCities = serviceAreas.length ? serviceAreas : getArr('nearbyCities', 12)  // manual "areas you serve"
+    const wantsCrm = getBool('wantsCrm')
 
     // ─── Slug — collision-resistant ────────────────────────────────────────
     // Intake slugs are suffixed with '-intake' so they're visually distinct
@@ -2657,6 +2700,33 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       logo: logoStorageKey ? { storageKey: logoStorageKey, storageType: logoStorageType } : null,
       photos: photoStorageKeys,
       freeFormNotes: intakeNotes || null,
+      // Brief-ready intake — mirrors briefBuilder's Intake interface exactly so
+      // buildBrief(intakeData.intake) works with no glue. Keys with no value are
+      // dropped on serialization, leaving a clean partial.
+      intake: {
+        businessName,
+        businessType,
+        city: city || undefined,
+        state: state || undefined,
+        phone: contactPhone || undefined,
+        email: contactEmail,
+        domain: domain || undefined,
+        ownerName: ownerName || undefined,
+        serviceRegion: serviceRegion || undefined,
+        nearbyCities: nearbyCities.length ? nearbyCities : undefined,
+        description: description || undefined,
+        siteUrl: currentSite || undefined,
+        goals: goals.length ? goals : undefined,
+        competitors: competitors.length ? competitors : undefined,
+        branding: {
+          primaryColor: primaryColor || undefined,
+          secondaryColor: secondaryColor || undefined,
+          accentColor: accentColor || undefined,
+          logo: logoUrl || undefined,
+        },
+        services: services.length ? services : undefined,
+        wantsCrm,
+      },
     }
 
     const tenantRecord: Record<string, any> = {
@@ -2667,6 +2737,8 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       phone: contactPhone,
       industry: businessType,
       website_url: currentSite,
+      city,
+      state,
       status: 'intake',
       notes: intakeNotes,  // free-form notes stay as plain text
       intake_data: intakeData,
@@ -2721,6 +2793,81 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     console.error('[Intake] Error:', err.message || err)
     return c.json({ error: 'Submission failed. Please try again.' }, 500)
   }
+})
+
+// ─── Show-first preview (staff-triggered draft render) ─────────────────────────
+// Renders a website-only DRAFT of an intake lead to a self-contained HTML page
+// and stores it so it can be shared via a public link. This NEVER touches the
+// deploy pipeline (no GitHub/Render/DB) — the real factory build only runs when
+// the customer buys. Re-running overwrites the same preview, so nothing piles up.
+factory.post('/intake/:id/preview', requireRole('owner', 'admin', 'editor'), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('id, name, industry, city, state, intake_data')
+      .eq('id', id)
+      .maybeSingle()
+    if (error || !tenant) return c.json({ error: 'Intake not found' }, 404)
+
+    // Prefer the structured intake captured by /public/intake; fall back to the
+    // tenant's own columns for leads created before structured capture existed.
+    const stored = (tenant.intake_data && tenant.intake_data.intake) || null
+    const intake: Intake = stored || {
+      businessName: tenant.name,
+      businessType: tenant.industry || 'other',
+      city: tenant.city || undefined,
+      state: tenant.state || undefined,
+    }
+    if (!intake.businessName || !intake.businessType) {
+      return c.json({ error: 'Lead is missing a business name or type — cannot build a preview.' }, 422)
+    }
+
+    const brief = buildBrief(intake)
+    if (!brief.ok) {
+      return c.json({ error: 'Could not build a safe config for this lead', validation: brief.validation }, 422)
+    }
+
+    const preview = await renderHomepagePreview(brief.config)
+    const generatedAt = new Date().toISOString()
+
+    const { error: saveErr } = await supabase
+      .from('tenants')
+      .update({ preview_html: preview.html, preview_generated_at: generatedAt })
+      .eq('id', id)
+    if (saveErr) {
+      console.error('[Preview] Save failed:', saveErr.code, saveErr.message)
+      return c.json({ error: 'Preview rendered but could not be saved. If this mentions a missing column, apply the preview_html migration.', detail: saveErr.message }, 500)
+    }
+
+    const origin = new URL(c.req.url).origin
+    return c.json({
+      ok: true,
+      previewUrl: `${origin}/api/v1/factory/public/intake/${id}/preview`,
+      template: brief.decision.websiteTemplate,
+      generatedAt,
+    })
+  } catch (err: any) {
+    console.error('[Preview] Render failed:', err?.message || err)
+    return c.json({ error: 'Failed to render preview', detail: err?.message }, 500)
+  }
+})
+
+// Public: serve the rendered preview so a prospect can just open the link.
+factory.get('/public/intake/:id/preview', async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.text('Invalid preview link', 400)
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('preview_html')
+    .eq('id', id)
+    .maybeSingle()
+  if (!tenant || !tenant.preview_html) {
+    return c.html('<!doctype html><meta charset="utf-8"><title>Preview not ready</title><body style="font:16px system-ui;padding:40px">This preview hasn\'t been generated yet.</body>', 404)
+  }
+  return c.html(tenant.preview_html)
 })
 
 

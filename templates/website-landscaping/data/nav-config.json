@@ -1,0 +1,79 @@
+{
+  "items": [
+    {
+      "id": "lawn-care",
+      "label": "Lawn Care",
+      "href": "/services/lawn-mowing-maintenance",
+      "visible": true,
+      "children": [
+        { "label": "Weekly Mowing & Maintenance", "href": "/services/lawn-mowing-maintenance" },
+        { "label": "Trimming & Edging", "href": "/services/lawn-mowing-maintenance" },
+        { "label": "Commercial Grounds", "href": "/services/lawn-mowing-maintenance" }
+      ]
+    },
+    {
+      "id": "landscaping",
+      "label": "Landscaping",
+      "href": "/services/landscape-design-installation",
+      "visible": true,
+      "children": [
+        { "label": "Landscape Design & Install", "href": "/services/landscape-design-installation" },
+        { "label": "Mulching & Bed Care", "href": "/services/mulching-planting-bed-care" },
+        { "label": "Planting & Sod", "href": "/services/landscape-design-installation" }
+      ]
+    },
+    {
+      "id": "hardscaping",
+      "label": "Hardscaping",
+      "href": "/services/hardscaping-paver-patios",
+      "visible": true,
+      "children": [
+        { "label": "Paver Patios", "href": "/services/hardscaping-paver-patios" },
+        { "label": "Retaining Walls", "href": "/services/hardscaping-paver-patios" },
+        { "label": "Fire Pits", "href": "/services/hardscaping-paver-patios" }
+      ]
+    },
+    {
+      "id": "tree-shrub",
+      "label": "Tree & Shrub",
+      "href": "/services/tree-shrub-stump-service",
+      "visible": true,
+      "children": [
+        { "label": "Tree & Hedge Trimming", "href": "/services/tree-shrub-stump-service" },
+        { "label": "Stump Grinding", "href": "/services/tree-shrub-stump-service" }
+      ]
+    },
+    {
+      "id": "more-services",
+      "label": "More Services",
+      "href": "/services",
+      "visible": true,
+      "children": [
+        { "label": "Pressure & Soft Washing", "href": "/services/pressure-washing-soft-washing" },
+        { "label": "Spring & Fall Cleanups", "href": "/services/spring-fall-cleanups" },
+        { "label": "Snow & Ice Removal", "href": "/services/snow-ice-removal" }
+      ]
+    },
+    {
+      "id": "gallery",
+      "label": "Gallery",
+      "href": "/gallery",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "blog",
+      "label": "Blog",
+      "href": "/blog",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "href": "/contact",
+      "visible": true,
+      "children": []
+    }
+  ]
+}

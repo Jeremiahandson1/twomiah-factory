@@ -59,9 +59,9 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
 {
   "@context": "https://schema.org",
   "@type": "Article",
-  "headline": "<%= post.title %>",
-  "description": "<%= (post.excerpt || '').replace(/"/g, '\\"') %>",
-  "datePublished": "<%= post.publishedAt %>",
+  "headline": <%- _jsonStr(post.title) %>,
+  "description": <%- _jsonStr(_plainDesc(post.excerpt, 280)) %>,
+  "datePublished": <%- _jsonStr(post.publishedAt) %>,
   "author": {
     "@type": "Organization",
     "name": "{{COMPANY_NAME}}",
@@ -74,7 +74,7 @@ const otherPosts = (typeof allPosts !== 'undefined' && Array.isArray(allPosts))
   },
   "mainEntityOfPage": {
     "@type": "WebPage",
-    "@id": "{{SITE_URL}}/blog/<%= post.slug %>"
+    "@id": <%- _jsonStr('{{SITE_URL}}/blog/' + (post.slug || '')) %>
   }
 }
 </script>

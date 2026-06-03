@@ -1,0 +1,40 @@
+/* ═══════════════════════════════════════════════════════
+   Theme: Warm Bold  (default for website-showcase)
+   Energetic, craveable, hospitality/food/beauty. Big type,
+   warm gradients, soft depth. Pairs with the showcase engine.
+   ═══════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=optional');
+
+:root{
+  --font-primary:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --font-secondary:'Inter',sans-serif;
+  --font-heading:'Anton',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --border-radius:16px;
+  --shadow-sm:0 3px 12px rgba(0,0,0,.10);
+  --shadow:0 10px 30px rgba(0,0,0,.16);
+  --shadow-lg:0 24px 60px rgba(0,0,0,.22);
+  --off-white:#fbf3e9;
+  --sx-warm-ink:#241a12;
+}
+
+body{font-family:var(--font-body);background:var(--off-white);color:var(--sx-warm-ink);line-height:1.65}
+h1,h2,h3,h4,h5,h6{font-family:var(--font-heading);text-transform:uppercase;letter-spacing:.005em;line-height:1.04;color:var(--sx-warm-ink)}
+.hero h1,h1{font-size:clamp(2.6rem,6vw,4.6rem)}
+p{color:#5c4a39;line-height:1.75}
+
+.header,.site-header{background:rgba(251,243,233,.9);backdrop-filter:blur(10px);box-shadow:var(--shadow-sm)}
+
+.btn,.button,a.button,.btn-primary,button[type=submit]{
+  border-radius:999px;font-family:var(--font-heading);text-transform:uppercase;letter-spacing:.04em;
+  background:linear-gradient(180deg,var(--color-accent,#ffb12e),var(--color-primary,#ff5a00));
+  color:#1a0d00;border:0;box-shadow:0 8px 22px rgba(255,90,0,.32);transition:transform .15s,box-shadow .15s}
+.btn:hover,.button:hover,a.button:hover,.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(255,90,0,.42)}
+
+.hero,.hero-section{background:
+  radial-gradient(ellipse at 50% 0%,rgba(255,177,46,.28),transparent 55%),
+  linear-gradient(180deg,#fff7ec,var(--off-white))}
+
+.card,.service-card,.feature-card{border-radius:var(--border-radius);box-shadow:var(--shadow);
+  border:1px solid rgba(0,0,0,.05);transition:transform .2s,box-shadow .2s}
+.card:hover,.service-card:hover,.feature-card:hover{transform:translateY(-6px);box-shadow:var(--shadow-lg)}

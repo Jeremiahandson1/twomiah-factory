@@ -1,0 +1,32 @@
+[
+  {
+    "name": "{{CITY}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} provides lawn care, landscaping, hardscaping, and seasonal services throughout {{CITY}}, {{STATE}}. Family-owned and fully insured, serving both homeowners and commercial properties with free estimates.",
+    "isPrimary": true
+  },
+  {
+    "name": "{{NEARBY_CITY_1}}",
+    "state": "{{STATE}}",
+    "description": "Serving {{NEARBY_CITY_1}} and the surrounding area with weekly lawn maintenance, landscape installs, hardscaping, and snow removal. Recurring or one-time — free quotes available.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_2}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} proudly serves {{NEARBY_CITY_2}} residents and businesses with mowing, mulch and bed care, tree and shrub service, pressure washing, and seasonal cleanups.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_3}}",
+    "state": "{{STATE}}",
+    "description": "Professional outdoor property care in {{NEARBY_CITY_3}}, {{STATE}}. Local, family-owned, fully insured, and trusted by your neighbors.",
+    "isPrimary": false
+  },
+  {
+    "name": "{{NEARBY_CITY_4}}",
+    "state": "{{STATE}}",
+    "description": "{{COMPANY_NAME}} serves {{NEARBY_CITY_4}} with full-service lawn care, landscaping, hardscaping, and winter snow and ice management. Free estimates on all work.",
+    "isPrimary": false
+  }
+]

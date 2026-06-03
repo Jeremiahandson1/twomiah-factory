@@ -1,0 +1,210 @@
+[
+  {
+    "id": "lawn-maintenance",
+    "name": "Lawn Mowing & Maintenance",
+    "title": "Lawn Mowing & Maintenance",
+    "slug": "lawn-mowing-maintenance",
+    "shortDescription": "Weekly mowing, trimming, and edging — a sharp lawn without you ever touching a mower.",
+    "description": "{{COMPANY_NAME}} keeps lawns across {{SERVICE_REGION}} looking their best on a schedule that fits your property. We mow at the right height for the season, trim and edge every visit, and blow off your walks, drive, and patio before we leave. Same crew every week, weekly or bi-weekly, with easy seasonal start and stop.",
+    "icon": "🌱",
+    "image": "",
+    "features": [
+      "Weekly or bi-weekly recurring service",
+      "Mowing height adjusted by grass type and season",
+      "Trimming and crisp edging every visit",
+      "Full blow-off — we leave it clean",
+      "Same crew each visit"
+    ],
+    "links": [
+      { "label": "Weekly Mowing", "href": "/services/lawn-mowing-maintenance" },
+      { "label": "Trimming & Edging", "href": "/services/lawn-mowing-maintenance" },
+      { "label": "Commercial Grounds", "href": "/services/lawn-mowing-maintenance" }
+    ],
+    "seoTitle": "Lawn Mowing & Maintenance in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Reliable weekly lawn mowing, trimming, and edging in {{CITY}}, {{STATE}}. Same crew every visit. Free quote from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 1
+  },
+  {
+    "id": "landscape-design-install",
+    "name": "Landscape Design & Installation",
+    "title": "Landscape Design & Installation",
+    "slug": "landscape-design-installation",
+    "shortDescription": "From bare dirt to a yard you actually want to spend time in — design, plantings, and install.",
+    "description": "{{COMPANY_NAME}} handles the full landscape job for {{SERVICE_REGION}} homeowners — design, plant selection, grading, soil prep, and installation. We pick hardy, correctly sized plants for sun, drainage, and the upkeep you actually want, and finish every install with clean edging and fresh mulch.",
+    "icon": "🌳",
+    "image": "",
+    "features": [
+      "Full design, plant selection, and installation",
+      "Proper grading and soil preparation",
+      "Climate-appropriate, correctly sized plantings",
+      "Bed shaping, edging, and finish mulch",
+      "Foundation plantings to full yard makeovers"
+    ],
+    "links": [
+      { "label": "Landscape Design", "href": "/services/landscape-design-installation" },
+      { "label": "Plantings & Beds", "href": "/services/landscape-design-installation" },
+      { "label": "Sod Installation", "href": "/services/landscape-design-installation" }
+    ],
+    "seoTitle": "Landscape Design & Installation in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Professional landscape design and installation in {{CITY}}, {{STATE}} — beds, plantings, grading, and full makeovers. Free consultation from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 2
+  },
+  {
+    "id": "hardscaping",
+    "name": "Hardscaping & Paver Patios",
+    "title": "Hardscaping & Paver Patios",
+    "slug": "hardscaping-paver-patios",
+    "shortDescription": "Patios, walkways, fire pits, and retaining walls built on a base that lasts.",
+    "description": "{{COMPANY_NAME}} builds paver and natural stone patios, walkways, retaining walls, and fire pits for {{SERVICE_REGION}} properties — built the right way, starting with a properly excavated and compacted base engineered for our freeze-thaw climate. Graded to drain away from your home and finished to last.",
+    "icon": "🧱",
+    "image": "",
+    "features": [
+      "Paver and natural stone patios and walkways",
+      "Engineered, compacted base for freeze-thaw",
+      "Segmental retaining and seating walls",
+      "Fire pits and outdoor living spaces",
+      "Concrete landscape curbing"
+    ],
+    "links": [
+      { "label": "Paver Patios", "href": "/services/hardscaping-paver-patios" },
+      { "label": "Retaining Walls", "href": "/services/hardscaping-paver-patios" },
+      { "label": "Fire Pits", "href": "/services/hardscaping-paver-patios" }
+    ],
+    "seoTitle": "Paver Patios & Retaining Walls in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Custom paver patios, walkways, retaining walls, and fire pits in {{CITY}}, {{STATE}}. Built to last. Free estimate from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 3
+  },
+  {
+    "id": "mulch-planting",
+    "name": "Mulching, Planting & Bed Care",
+    "title": "Mulching, Planting & Bed Care",
+    "slug": "mulching-planting-bed-care",
+    "shortDescription": "Fresh beds, healthy plants, and far fewer weekends pulling weeds.",
+    "description": "{{COMPANY_NAME}} refreshes beds across {{SERVICE_REGION}}: a clean hand-cut edge, weed removal, quality hardwood or dyed mulch at the correct depth, and shrub, perennial, and annual planting. Sharp beds that stay that way with less work for you.",
+    "icon": "🍂",
+    "image": "",
+    "features": [
+      "Hardwood and premium dyed mulch installation",
+      "Clean, hand-cut bed edging",
+      "Weed removal and bed prep",
+      "Shrub, perennial, and annual planting",
+      "Seasonal bed refreshes and redesigns"
+    ],
+    "links": [
+      { "label": "Mulch Installation", "href": "/services/mulching-planting-bed-care" },
+      { "label": "Bed Edging", "href": "/services/mulching-planting-bed-care" },
+      { "label": "Planting", "href": "/services/mulching-planting-bed-care" }
+    ],
+    "seoTitle": "Mulching, Planting & Bed Edging in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Mulch installation, clean bed edging, and seasonal planting in {{CITY}}, {{STATE}}. Free quote from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 4
+  },
+  {
+    "id": "tree-shrub-care",
+    "name": "Tree, Shrub & Stump Service",
+    "title": "Tree, Shrub & Stump Service",
+    "slug": "tree-shrub-stump-service",
+    "shortDescription": "Trimming, pruning, and stump grinding — done safely, cleaned up completely.",
+    "description": "{{COMPANY_NAME}} prunes for the long-term health and natural form of your trees and shrubs — structural and maintenance pruning, hedge trimming, deadwood and clearance work, plus stump grinding below grade and full debris haul-off. No hack jobs, no mess left behind.",
+    "icon": "🌲",
+    "image": "",
+    "features": [
+      "Structural and maintenance pruning",
+      "Hedge trimming and shrub shaping",
+      "Deadwood, storm, and clearance pruning",
+      "Stump grinding below grade",
+      "Tree/shrub removal and full cleanup"
+    ],
+    "links": [
+      { "label": "Tree Trimming", "href": "/services/tree-shrub-stump-service" },
+      { "label": "Hedge Trimming", "href": "/services/tree-shrub-stump-service" },
+      { "label": "Stump Grinding", "href": "/services/tree-shrub-stump-service" }
+    ],
+    "seoTitle": "Tree Trimming, Pruning & Stump Grinding in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Expert tree and shrub pruning, hedge trimming, and stump grinding in {{CITY}}, {{STATE}}. Safe work, full cleanup. {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 5
+  },
+  {
+    "id": "pressure-washing",
+    "name": "Pressure Washing & Soft Washing",
+    "title": "Pressure Washing & Soft Washing",
+    "slug": "pressure-washing-soft-washing",
+    "shortDescription": "Years of grime gone — without blasting the paint off your siding.",
+    "description": "{{COMPANY_NAME}} uses the right method for each surface — true pressure washing for concrete, drives, and patios, and gentle soft washing for siding, decks, and fences that kills algae and mildew at the root. Plantings protected, property left clean.",
+    "icon": "💦",
+    "image": "",
+    "features": [
+      "Surface-correct pressure vs. soft wash",
+      "House siding, soffit, and fence cleaning",
+      "Driveways, sidewalks, and patios",
+      "Deck cleaning without grain damage",
+      "Algae and mildew treated at the root"
+    ],
+    "links": [
+      { "label": "House Washing", "href": "/services/pressure-washing-soft-washing" },
+      { "label": "Driveways & Patios", "href": "/services/pressure-washing-soft-washing" },
+      { "label": "Decks & Fences", "href": "/services/pressure-washing-soft-washing" }
+    ],
+    "seoTitle": "Pressure Washing & Soft Washing in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Professional pressure washing and soft washing in {{CITY}}, {{STATE}} — siding, driveways, decks, patios. Safe, surface-correct. {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 6
+  },
+  {
+    "id": "seasonal-cleanups",
+    "name": "Spring & Fall Cleanups",
+    "title": "Spring & Fall Cleanups",
+    "slug": "spring-fall-cleanups",
+    "shortDescription": "Reset your property at both ends of the season — we'll handle the heavy lifting.",
+    "description": "{{COMPANY_NAME}} bookends the season with thorough cleanups for {{SERVICE_REGION}} properties: spring dethatching, bed reset, and first mow; fall leaf removal, perennial cut-back, and winter prep. Everything hauled away — no pile of bags at the curb.",
+    "icon": "🧹",
+    "image": "",
+    "features": [
+      "Full leaf removal and haul-off",
+      "Spring dethatching and bed reset",
+      "Perennial and grass cut-back",
+      "Bed re-edging and pre-season prep",
+      "One-time or built into a plan"
+    ],
+    "links": [
+      { "label": "Spring Cleanup", "href": "/services/spring-fall-cleanups" },
+      { "label": "Fall Cleanup", "href": "/services/spring-fall-cleanups" },
+      { "label": "Leaf Removal", "href": "/services/spring-fall-cleanups" }
+    ],
+    "seoTitle": "Spring & Fall Yard Cleanup in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Thorough spring and fall yard cleanups in {{CITY}}, {{STATE}} — leaf removal, bed prep, haul-off. Book with {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 7
+  },
+  {
+    "id": "snow-removal",
+    "name": "Snow & Ice Removal",
+    "title": "Snow & Ice Removal",
+    "slug": "snow-ice-removal",
+    "shortDescription": "Plowed, shoveled, and salted before you back out of the garage.",
+    "description": "{{COMPANY_NAME}} runs snow and ice removal as a managed service for {{SERVICE_REGION}} homes and businesses — forecast-monitored, trigger-depth deployment, drives, walks, lots, and entrances, with salt and ice melt. Flexible per-push, per-event, per-season, or per-inch billing.",
+    "icon": "❄️",
+    "image": "",
+    "features": [
+      "Residential and commercial snow removal",
+      "Forecast-monitored, trigger-depth deployment",
+      "Driveways, walks, lots, and entrances",
+      "Salt and ice-melt application",
+      "Per-push, per-event, per-season, or per-inch billing"
+    ],
+    "links": [
+      { "label": "Residential Snow", "href": "/services/snow-ice-removal" },
+      { "label": "Commercial Snow", "href": "/services/snow-ice-removal" },
+      { "label": "Salting & Ice Control", "href": "/services/snow-ice-removal" }
+    ],
+    "seoTitle": "Snow & Ice Removal in {{CITY}}, {{STATE}} | Residential & Commercial | {{COMPANY_NAME}}",
+    "seoDescription": "Reliable snow plowing, shoveling, and salting in {{CITY}}, {{STATE}} for homes and businesses. Flexible contracts. Reserve with {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 8
+  }
+]
