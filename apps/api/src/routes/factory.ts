@@ -14,6 +14,8 @@ import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getComp
 import { getRegistrar, isRegistrarConfigured } from '../services/registrar'
 import { buildBrief, type Intake } from '../services/briefBuilder'
 import { renderHomepagePreview } from '../services/previewRenderer'
+import { composeSite } from '../services/sectionComposer'
+import { renderPremiumPage } from '../services/premiumSiteRenderer'
 type FactoryAuthVariables = {
   user?: { id?: string; email?: string; [k: string]: any }
   userId?: string
@@ -2874,6 +2876,133 @@ factory.get('/public/intake/:id/preview', async (c) => {
     return c.html('<!doctype html><meta charset="utf-8"><title>Preview not ready</title><body style="font:16px system-ui;padding:40px">This preview hasn\'t been generated yet.</body>', 404)
   }
   return c.html(tenant.preview_html)
+})
+
+// ─── Premium preview: multi-page section-composition ──────────────────────
+// The premium tier produces a 4-page site (home/about/services/contact),
+// composed by Claude. Stored as the raw SiteResult JSON in
+// tenants.preview_premium_pages; rendered on-demand below so staff can
+// edit the JSON before publishing without invalidating the URL.
+
+factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'editor'), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+
+    const { data: tenant, error } = await supabase
+      .from('tenants')
+      .select('id, name, industry, city, state, intake_data')
+      .eq('id', id)
+      .maybeSingle()
+    if (error || !tenant) return c.json({ error: 'Intake not found' }, 404)
+
+    const stored = (tenant.intake_data && tenant.intake_data.intake) || null
+    const intake = stored || {
+      businessName: tenant.name,
+      businessType: tenant.industry || 'general contractor',
+      city: tenant.city || undefined,
+      state: tenant.state || undefined,
+    }
+    if (!intake.businessName || !intake.businessType) {
+      return c.json({ error: 'Lead is missing business name or type — cannot compose preview.' }, 422)
+    }
+
+    const composed = await composeSite({
+      businessName: intake.businessName,
+      businessType: intake.businessType,
+      city: intake.city,
+      state: intake.state,
+      description: intake.description,
+      services: intake.services,
+      goals: intake.goals,
+      competitors: intake.competitors,
+      ownerName: intake.ownerName,
+      phone: intake.phone,
+      email: intake.email,
+      nearbyCities: intake.nearbyCities,
+      primaryColor: intake.branding?.primaryColor,
+    })
+
+    const generatedAt = new Date().toISOString()
+    const { error: saveErr } = await supabase
+      .from('tenants')
+      .update({
+        preview_premium_pages: composed,
+        preview_premium_generated_at: generatedAt,
+      })
+      .eq('id', id)
+    if (saveErr) {
+      console.error('[PremiumPreview] Save failed:', saveErr.code, saveErr.message)
+      return c.json({ error: 'Composition rendered but could not be saved. If this mentions a missing column, apply the preview_premium_pages migration.', detail: saveErr.message }, 500)
+    }
+
+    const origin = new URL(c.req.url).origin
+    return c.json({
+      ok: true,
+      previewUrl: `${origin}/api/v1/factory/public/intake/${id}/preview-premium`,
+      generatedAt,
+      rationale: composed.rationale,
+      sections: {
+        home: composed.pages.home.sections.map(s => s.type + '/' + s.variant),
+        about: composed.pages.about.sections.map(s => s.type + '/' + s.variant),
+        services: composed.pages.services.sections.map(s => s.type + '/' + s.variant),
+        contact: composed.pages.contact.sections.map(s => s.type + '/' + s.variant),
+      },
+    })
+  } catch (err: any) {
+    console.error('[PremiumPreview] Compose failed:', err?.message || err)
+    return c.json({ error: 'Failed to compose preview', detail: err?.message }, 500)
+  }
+})
+
+const PREMIUM_PAGE_TITLES: Record<string, string> = {
+  home: 'Home', about: 'About', services: 'Services', contact: 'Contact',
+}
+
+async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('name, email, phone, preview_premium_pages, intake_data')
+    .eq('id', id)
+    .maybeSingle()
+  if (!tenant || !tenant.preview_premium_pages) {
+    return c.html('<!doctype html><meta charset="utf-8"><title>Preview not ready</title><body style="font:16px system-ui;padding:40px">This preview hasn\'t been composed yet.</body>', 404)
+  }
+  const composed = tenant.preview_premium_pages as { pages: Record<string, { sections: any[] }> }
+  const page = composed.pages?.[slug]
+  if (!page) return c.text('Page not found', 404)
+
+  const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
+  const settings = {
+    companyName: tenant.name || 'Your Company',
+    tagline: intake.description ? String(intake.description).slice(0, 120) : undefined,
+    phone: tenant.phone || intake.phone,
+    email: tenant.email || intake.email,
+    seoTitle: tenant.name,
+    seoDescription: intake.description,
+  }
+
+  const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
+  const rendered = await renderPremiumPage(
+    { slug, title: PREMIUM_PAGE_TITLES[slug] || slug, sections: page.sections },
+    settings,
+    previewBasePath
+  )
+  return c.html(rendered.html)
+}
+
+factory.get('/public/intake/:id/preview-premium', async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.text('Invalid preview link', 400)
+  return renderPremiumPreviewPage(id, 'home', c)
+})
+
+factory.get('/public/intake/:id/preview-premium/:slug', async (c) => {
+  const id = c.req.param('id')
+  const slug = c.req.param('slug')
+  if (!UUID_RE.test(id)) return c.text('Invalid preview link', 400)
+  if (!/^[a-z0-9-]+$/.test(slug)) return c.text('Invalid page', 400)
+  return renderPremiumPreviewPage(id, slug, c)
 })
 
 
