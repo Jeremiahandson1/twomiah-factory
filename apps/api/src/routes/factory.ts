@@ -128,7 +128,7 @@ factory.post('/generate', requireRole('owner', 'admin', 'editor'), async (c) => 
     if (!config.products?.length) return c.json({ error: 'At least one product must be selected' }, 400)
     if (!config.company?.name) return c.json({ error: 'Company name is required' }, 400)
 
-    const validProducts = ['website', 'cms', 'crm', 'vision', 'pricing']
+    const validProducts = ['website', 'website-premium', 'cms', 'crm', 'vision', 'pricing']
     const invalid = config.products.filter(p => !validProducts.includes(p))
     if (invalid.length) return c.json({ error: 'Invalid products: ' + invalid.join(', ') }, 400)
 
@@ -2907,19 +2907,31 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       return c.json({ error: 'Lead is missing business name or type — cannot compose preview.' }, 422)
     }
 
-    // Customer photos from the intake — these flow into the composer so
-    // the AI can place them in real section slots instead of Unsplash
-    // defaults. Intake stores them as signed URLs (7-day TTL) plus an
-    // optional logo URL. We treat the logo as a 'misc'-tagged photo so
-    // it stays in the library even if the composer doesn't use it.
-    const intakeAssets = (tenant.intake_data && tenant.intake_data.assets) || {}
+    // Customer photos from the intake — flow into the composer so the AI
+    // can place them in real section slots instead of Unsplash defaults.
+    // The intake stores:
+    //   intake_data.logo:   { storageKey, storageType }  — for the logo
+    //   intake_data.photos: [{ storageKey, storageType }] — reference photos
+    //   intake_data.intake.branding.logo: signed URL (7-day TTL at intake time)
+    // The signed URL at intake time has likely expired by composer-trigger
+    // time, so we regenerate from storageKeys with a 30-day TTL. After deploy,
+    // the seed-photos endpoint copies these into the tenant's permanent R2.
+    const intakeData = tenant.intake_data || {}
+    const SIGNED_TTL_SECONDS = 30 * 24 * 60 * 60
     const customerPhotos: Array<{ url: string; tag?: string; alt?: string }> = []
-    if (typeof intakeAssets.logoUrl === 'string') {
-      customerPhotos.push({ url: intakeAssets.logoUrl, tag: 'misc', alt: intake.businessName + ' logo' })
+    if (intakeData.logo && intakeData.logo.storageKey) {
+      const url = await getZipDownloadUrl(
+        intakeData.logo.storageKey,
+        intakeData.logo.storageType,
+        SIGNED_TTL_SECONDS
+      ).catch(() => null)
+      if (url) customerPhotos.push({ url, tag: 'misc', alt: intake.businessName + ' logo' })
     }
-    if (Array.isArray(intakeAssets.photoUrls)) {
-      for (const url of intakeAssets.photoUrls) {
-        if (typeof url === 'string') customerPhotos.push({ url })
+    if (Array.isArray(intakeData.photos)) {
+      for (const ref of intakeData.photos) {
+        if (!ref || !ref.storageKey) continue
+        const url = await getZipDownloadUrl(ref.storageKey, ref.storageType, SIGNED_TTL_SECONDS).catch(() => null)
+        if (url) customerPhotos.push({ url })
       }
     }
 
@@ -3123,7 +3135,7 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
 
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('id, name, email, phone, products, stripe_customer_id, preview_premium_pages')
+      .select('*')
       .eq('id', id)
       .maybeSingle()
     if (!tenant) return c.json({ error: 'Intake not found' }, 404)
@@ -3131,14 +3143,87 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
       return c.json({ error: 'Preview must be composed before checkout.' }, 422)
     }
 
-    // Mark products so the eventual deploy (triggered by Stripe webhook on
-    // checkout.session.completed) picks the website-premium template.
-    const currentProducts = Array.isArray(tenant.products) ? tenant.products : []
-    const products = currentProducts.includes('website-premium')
-      ? currentProducts
-      : [...currentProducts.filter((p: string) => p !== 'website'), 'website-premium', 'cms']
+    // Mark products so the eventual deploy picks the website-premium
+    // template. Note: 'website' MUST stay in products — the generator's
+    // premium branch is INSIDE `if (products.includes('website'))`, so
+    // dropping 'website' would skip the entire website pipeline.
+    const productsSet = new Set<string>(Array.isArray(tenant.products) ? tenant.products : [])
+    productsSet.add('website')
+    productsSet.add('website-premium')
+    productsSet.add('cms')
+    const products = Array.from(productsSet)
     if (JSON.stringify(products) !== JSON.stringify(tenant.products || [])) {
       await supabase.from('tenants').update({ products }).eq('id', id)
+    }
+
+    // Generate the build NOW so a factory_jobs row exists when the Stripe
+    // webhook calls triggerAutoDeploy on checkout.session.completed. The
+    // generate step is fast (~seconds) and idempotent — if a build already
+    // exists for this tenant, we skip and reuse. Without this, payment
+    // succeeds but the deploy never fires (triggerAutoDeploy bails on
+    // "No build found for tenant").
+    const { data: existingJob } = await supabase
+      .from('factory_jobs')
+      .select('id, status')
+      .eq('tenant_id', id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!existingJob) {
+      const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
+      const genConfig: GenerateConfig = {
+        tenant_id: tenant.id,
+        products,
+        company: {
+          name: intake.businessName || tenant.name || '',
+          email: intake.email || tenant.email || undefined,
+          phone: intake.phone || tenant.phone || undefined,
+          city: intake.city || tenant.city || undefined,
+          state: intake.state || tenant.state || undefined,
+          stateFull: intake.stateFull || undefined,
+          industry: 'general_contractor',  // routes to website-premium-contractor; #26 generalizes
+          ownerName: intake.ownerName || undefined,
+          serviceRegion: intake.serviceRegion || undefined,
+          nearbyCities: intake.nearbyCities || undefined,
+          description: intake.description || undefined,
+          domain: intake.domain || tenant.domain || undefined,
+          plan: 'premium',
+        },
+        branding: {
+          primaryColor: intake.branding?.primaryColor || '#1a2e22',
+          secondaryColor: intake.branding?.secondaryColor || '#0f1f17',
+        },
+        features: { website: [], crm: [] },
+      }
+      try {
+        const genResult = await generate(genConfig)
+        const storage = await uploadZip(genResult.zipPath, genResult.zipName)
+        const jobRecord: Record<string, any> = {
+          tenant_id: tenant.id,
+          template: products.join('+'),
+          deployment_model: 'saas',
+          status: 'pending',
+          features: [],
+          branding: genConfig.branding,
+          build_id: genResult.buildId,
+          zip_name: genResult.zipName,
+          storage_key: storage.storageKey,
+          storage_type: storage.storageType,
+        }
+        const { error: jobErr } = await supabase.from('factory_jobs').insert({ ...jobRecord, config: genConfig })
+        if (jobErr) {
+          if (jobErr.code === '42703') {
+            await supabase.from('factory_jobs').insert(jobRecord)
+          } else {
+            console.error('[CheckoutPremium] Build-row insert failed:', jobErr.message)
+            return c.json({ error: 'Could not record the build. Try again or email hello@twomiah.com.' }, 500)
+          }
+        }
+      } catch (genErr: any) {
+        console.error('[CheckoutPremium] generate() failed:', genErr.message)
+        return c.json({ error: 'Could not generate the build for checkout. ' + (genErr.message || '') }, 500)
+      }
     }
 
     const checkout = await factoryStripe.createPremiumWebsiteCheckout(
@@ -3153,7 +3238,6 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
     )
     if (!checkout.url) return c.json({ error: 'Stripe did not return a checkout URL' }, 502)
 
-    // Persist the Stripe customer id back to the tenant for future lookups.
     if (!tenant.stripe_customer_id && checkout.stripeCustomerId) {
       await supabase.from('tenants').update({ stripe_customer_id: checkout.stripeCustomerId }).eq('id', id)
     }

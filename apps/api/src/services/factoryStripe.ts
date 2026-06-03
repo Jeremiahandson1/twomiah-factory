@@ -209,10 +209,6 @@ export async function createPremiumWebsiteCheckout(
     customer: stripeCustomerId,
     mode: 'subscription',
     line_items: [{ price: recurringPriceId, quantity: 1 }],
-    // $1k one-time build fee added to the first invoice — same Checkout flow,
-    // single payment moment for the customer. (top-level on session, not
-    // inside subscription_data — Stripe moved this in their typed API).
-    invoice_creation: undefined,  // Stripe rejects this in subscription mode
     success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
     cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
     metadata: {
@@ -229,10 +225,14 @@ export async function createPremiumWebsiteCheckout(
       },
     },
   }
-  // add_invoice_items lives on the SessionCreateParams via a slightly
-  // looser cast because Stripe's TypeScript typings haven't caught up
-  // with the API field yet (API supports it; SDK ts shape lags).
-  ;(sessionParams as any).add_invoice_items = [{ price: buildPriceId, quantity: 1 }]
+  // $1k one-time build fee added to the first invoice of the subscription.
+  // Stripe's HTTP API supports `subscription_data[add_invoice_items]`
+  // (https://docs.stripe.com/api/checkout/sessions/create#create_checkout_session-subscription_data-add_invoice_items)
+  // but the typed SDK has not yet surfaced the field — write via cast on
+  // subscription_data so the request serializes correctly. Confirmed via
+  // grep: add_invoice_items only appears on Subscriptions/Invoices types,
+  // not at top-level on SessionCreateParams.
+  ;(sessionParams.subscription_data as any).add_invoice_items = [{ price: buildPriceId, quantity: 1 }]
 
   // Launch coupon (e.g. $499 off the build fee). Stripe rejects expired
   // coupons automatically — they expire on the coupon's own valid_until,
