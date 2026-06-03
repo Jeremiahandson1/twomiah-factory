@@ -129,8 +129,14 @@ export default function FactoryPage() {
       <div className="min-h-screen bg-white p-8 max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-3">{label} signup is coming soon</h1>
         <p className="text-gray-600 mb-6">
-          We're putting the finishing touches on the {label} product. Check back soon, or
-          contact us through the support page if you want to be notified when it goes live.
+          We're putting the finishing touches on the {label} product. If you'd like to be
+          notified when it goes live, email us at{' '}
+          <a
+            href={`mailto:hello@twomiah.com?subject=Notify%20me%20when%20${encodeURIComponent(String(label))}%20launches`}
+            className="text-blue-600 underline"
+          >
+            hello@twomiah.com
+          </a>.
         </p>
       </div>
     )
