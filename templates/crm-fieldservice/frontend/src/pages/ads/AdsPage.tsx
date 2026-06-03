@@ -25,8 +25,7 @@ export default function AdsPage() {
 
 // ─── Main content ────────────────────────────────────────────────────────────
 function AdsContent() {
-  const [tab, setTab] = useState<'performance' | 'campaigns' | 'approvals'>('performance');
-  const [pendingCount, setPendingCount] = useState(0);
+  const [tab, setTab] = useState<'performance' | 'campaigns'>('performance');
 
   return (
     <div className="space-y-6">
@@ -43,7 +42,6 @@ function AdsContent() {
         {([
           { id: 'performance' as const, label: 'Performance', icon: BarChart3 },
           { id: 'campaigns' as const, label: 'My Ads', icon: Target },
-          { id: 'approvals' as const, label: 'Ad Approval', icon: Check, badge: pendingCount },
         ]).map(t => (
           <button
             key={t.id}
@@ -56,11 +54,6 @@ function AdsContent() {
           >
             <t.icon className="w-4 h-4" />
             {t.label}
-            {t.badge ? (
-              <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
-                {t.badge}
-              </span>
-            ) : null}
           </button>
         ))}
       </div>
@@ -68,7 +61,6 @@ function AdsContent() {
       {/* Tab content */}
       {tab === 'performance' && <PerformanceTab />}
       {tab === 'campaigns' && <CampaignsTab />}
-      {tab === 'approvals' && <ApprovalsTab onCountChange={setPendingCount} />}
     </div>
   );
 }
