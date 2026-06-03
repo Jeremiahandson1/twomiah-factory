@@ -37,6 +37,21 @@ const DEFAULT_PLAN: PlanSelection = {
   addonIds: [],
 }
 
+// Public-signup gate. Verticals listed here are reachable via /signup/:product
+// without a flag; anything else needs its own VITE_ENABLE_<NAME>_SIGNUP=true.
+// Internal Factory operators (logged in at /factory) can still pick any
+// vertical from StepProducts — the gate only blocks the public signup path.
+const PUBLIC_SIGNUP_VERTICALS = new Set<string>(['build', 'care', 'wrench', 'roof', 'leaf'])
+const GATED_VERTICALS: Record<string, { envVar: string; label: string }> = {
+  landscaping: { envVar: 'VITE_ENABLE_LANDSCAPING_SIGNUP', label: 'Landscaping' },
+}
+function isVerticalPublic(vertical: string): boolean {
+  if (PUBLIC_SIGNUP_VERTICALS.has(vertical)) return true
+  const gate = GATED_VERTICALS[vertical]
+  if (!gate) return false
+  return (import.meta.env as any)[gate.envVar] === 'true'
+}
+
 export default function FactoryPage() {
   const [searchParams] = useSearchParams()
   const { product: urlProduct } = useParams<{ product?: string }>()
@@ -45,6 +60,29 @@ export default function FactoryPage() {
   const signupProduct = (urlProduct || searchParams.get('product')) as ProductLine | null
   const hasPlanStep = !!signupProduct && ['build', 'care', 'wrench', 'roof', 'leaf', 'landscaping'].includes(signupProduct)
   const isPublicSignup = hasPlanStep // public signup = light theme, friendly language
+
+  // Public signup is gated per vertical. If the URL points at a vertical
+  // that isn't open to the public yet (e.g. landscaping pre-launch), show
+  // a coming-soon page instead of the wizard.
+  const isGatedSignup = !!signupProduct && isPublicSignup && !isVerticalPublic(signupProduct)
+  if (isGatedSignup) {
+    const gate = GATED_VERTICALS[signupProduct!]
+    const label = gate?.label || signupProduct
+    return (
+      <div className="min-h-screen bg-white p-8 max-w-2xl mx-auto">
+        <h1 className="text-3xl font-bold text-gray-900 mb-3">{label} signup is coming soon</h1>
+        <p className="text-gray-600 mb-6">
+          We're putting the finishing touches on the {label} product. If you'd like to be
+          notified when it goes live, drop us a line at{' '}
+          <a href="mailto:hello@twomiah.com" className="text-blue-600 underline">hello@twomiah.com</a>.
+        </p>
+        <p className="text-sm text-gray-500">
+          In the meantime, check out our other products at{' '}
+          <a href="/" className="text-blue-600 underline">twomiah.com</a>.
+        </p>
+      </div>
+    )
+  }
 
   const [plan, setPlan] = useState<PlanSelection>(() => {
     const p: PlanSelection = { ...DEFAULT_PLAN }
