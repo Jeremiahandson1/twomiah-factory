@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip, uploadIntakeAsset } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyIntakeFeedback, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -2874,6 +2874,64 @@ factory.get('/public/intake/:id/preview', async (c) => {
     return c.html('<!doctype html><meta charset="utf-8"><title>Preview not ready</title><body style="font:16px system-ui;padding:40px">This preview hasn\'t been generated yet.</body>', 404)
   }
   return c.html(tenant.preview_html)
+})
+
+// Public: prospect submits change requests against their preview. Rate-limited
+// per IP to keep noise down; one prospect can still send several rounds since
+// each one is genuine product input. Stored against the tenant; staff sees
+// them in the platform inbox + gets an email per submission.
+factory.post('/public/intake/:id/feedback', rateLimit(60 * 60 * 1000, 10), async (c) => {
+  try {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid preview link' }, 400)
+
+    const body = await c.req.json().catch(() => ({})) as { message?: string; contactEmail?: string }
+    const message = typeof body.message === 'string' ? body.message.trim() : ''
+    if (!message || message.length < 4) {
+      return c.json({ error: 'Please describe what you want changed (at least a few words).' }, 400)
+    }
+    if (message.length > 5000) {
+      return c.json({ error: 'Message is too long. Trim to under 5000 characters.' }, 400)
+    }
+    const rawEmail = typeof body.contactEmail === 'string' ? body.contactEmail.trim() : ''
+    const contactEmail = rawEmail && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(rawEmail) ? rawEmail : null
+
+    // Tenant must exist AND must have a generated preview — feedback against
+    // a preview that doesn't exist is meaningless and likely abuse.
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('id, name, preview_html, preview_generated_at')
+      .eq('id', id)
+      .maybeSingle()
+    if (!tenant || !tenant.preview_html) {
+      return c.json({ error: 'Preview not found' }, 404)
+    }
+
+    const { error: insertErr } = await supabase.from('intake_feedback').insert({
+      tenant_id: id,
+      message,
+      contact_email: contactEmail,
+      preview_generated_at: tenant.preview_generated_at || null,
+    })
+    if (insertErr) {
+      console.error('[Feedback] Insert failed:', insertErr.code, insertErr.message)
+      return c.json({ error: 'Could not save your message. If this is a missing-table error, apply the intake_feedback migration.', detail: insertErr.message }, 500)
+    }
+
+    // Fire-and-forget — staff notification
+    notifyIntakeFeedback({
+      intakeId: id,
+      businessName: tenant.name || 'Unknown',
+      message,
+      contactEmail,
+      previewGeneratedAt: tenant.preview_generated_at,
+    }).catch((e: any) => console.warn('[Email] Feedback notification failed:', e.message))
+
+    return c.json({ ok: true, message: "Got it — we'll review and get back to you within one business day." })
+  } catch (err: any) {
+    console.error('[Feedback] Error:', err?.message || err)
+    return c.json({ error: 'Could not save your feedback. Please try again.' }, 500)
+  }
 })
 
 
