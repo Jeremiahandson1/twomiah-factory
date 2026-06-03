@@ -10,13 +10,14 @@ import { useRouter } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { useAuth } from '../../src/auth/AuthContext'
 import { useHaptics } from '../../src/hooks/useHaptics'
+import { useToast } from '../../src/components/ToastProvider'
 
 interface MenuItem {
   icon: string
   color: string
   label: string
   desc: string
-  route: string
+  route?: string
 }
 
 const MENU_SECTIONS: { title: string; items: MenuItem[] }[] = [
@@ -31,21 +32,21 @@ const MENU_SECTIONS: { title: string; items: MenuItem[] }[] = [
     title: 'Operations',
     items: [
       { icon: 'car', color: '#06b6d4', label: 'Delivery Driver Mode', desc: 'Active route & delivery tracking', route: '/(tabs)/driver' },
-      { icon: 'cash', color: '#22c55e', label: 'Cash Management', desc: 'Open/close drawers, count cash', route: '/(tabs)/cash-management' },
+      { icon: 'cash', color: '#22c55e', label: 'Cash Management', desc: 'Open/close drawers, count cash' },
     ],
   },
   {
     title: 'Insights',
     items: [
-      { icon: 'bar-chart', color: '#f59e0b', label: 'Analytics', desc: 'Sales reports & performance', route: '/(tabs)/analytics' },
+      { icon: 'bar-chart', color: '#f59e0b', label: 'Analytics', desc: 'Sales reports & performance' },
     ],
   },
   {
     title: 'Account',
     items: [
-      { icon: 'storefront', color: '#64748b', label: 'Store Settings', desc: 'Hours, tax rate, branding', route: '/(tabs)/store-settings' },
-      { icon: 'people-circle', color: '#64748b', label: 'Team', desc: 'Staff management & roles', route: '/(tabs)/team' },
-      { icon: 'settings', color: '#64748b', label: 'Settings', desc: 'Notifications & preferences', route: '/(tabs)/settings' },
+      { icon: 'storefront', color: '#64748b', label: 'Store Settings', desc: 'Hours, tax rate, branding' },
+      { icon: 'people-circle', color: '#64748b', label: 'Team', desc: 'Staff management & roles' },
+      { icon: 'settings', color: '#64748b', label: 'Settings', desc: 'Notifications & preferences' },
     ],
   },
 ]
@@ -55,10 +56,15 @@ export default function MoreDispensaryScreen() {
   const { logout } = useAuth()
   const haptics = useHaptics()
   const router = useRouter()
+  const toast = useToast()
 
   const handlePress = (item: MenuItem) => {
     haptics.light()
-    router.push(item.route as any)
+    if (item.route) {
+      router.push(item.route as any)
+    } else {
+      toast.info(`${item.label} — coming soon`)
+    }
   }
 
   return (

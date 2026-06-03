@@ -444,10 +444,9 @@ async function createRenderEnvironment(projectId: string, name = 'production'): 
 }
 
 async function addResourcesToEnvironment(environmentId: string, resourceIds: string[]) {
-  const resources = resourceIds.map(id => ({ id }))
   const res = await fetchWithTimeout(RENDER_API + '/environments/' + environmentId + '/resources', {
     method: 'POST', headers: renderHeaders(),
-    body: JSON.stringify({ resources }),
+    body: JSON.stringify({ resourceIds }),
   })
   if (!res.ok) {
     console.log('[Deploy] Could not add resources to environment:', await res.text())
@@ -577,7 +576,7 @@ async function createRenderStaticSite(config: {
   return await res.json()
 }
 
-async function updateRenderEnvVars(serviceId: string, envVars: Array<{ key: string; value: string }>) {
+export async function updateRenderEnvVars(serviceId: string, envVars: Array<{ key: string; value: string }>) {
   // Fetch existing env vars first so we don't wipe them (PUT replaces all)
   const existing: Array<{ key: string; value: string }> = []
   try {
@@ -715,6 +714,7 @@ export async function deployCustomer(
   const isFieldService = ind === 'field_service'
   const isAutomotive = ind === 'automotive'
   const isRoofing = ind === 'roofing'
+  const isLandscaping = ind === 'landscaping'
   const isDispensary = ind === 'dispensary'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
@@ -759,7 +759,7 @@ export async function deployCustomer(
     let dbConnectionString: string | null = null
     let supabaseProject: SupabaseProjectResult | null = null
     if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
-      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isDispensary ? slug + '-leaf' : slug
+      const dbSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : slug
 
       if (isSupabaseManagementConfigured()) {
         // ── Dedicated Supabase project per customer ──
@@ -849,7 +849,7 @@ export async function deployCustomer(
       results.steps.push({ step: 'r2_bucket', status: 'skipped', reason: 'no products require file storage' })
     } else {
       try {
-        const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isDispensary ? slug + '-leaf' : slug
+        const bucketSlug = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : slug
         r2BucketName = await createR2Bucket(bucketSlug)
         createdResources.push({ type: 'r2_bucket', id: r2BucketName })
         r2EnvVars = getR2EnvVars(r2BucketName)
@@ -924,9 +924,9 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isDispensary ? slug + '-leaf-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isDispensary ? slug + '-leaf' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isDispensary ? 'crm-dispensary' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : 'crm'
 
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)
@@ -1158,13 +1158,15 @@ export async function deployCustomer(
     // VISION_URL is already included in the website service's initial env vars above.
     if (hasVisualizerFeature) {
       try {
-        await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
+        const visionApiKey = await registerVisualizerTenant(slug, factoryCustomer.name || slug, factoryCustomer.config?.company)
         createdResources.push({ type: 'vision_tenant', id: slug })
         results.steps.push({ step: 'visualizer_tenant', status: 'ok' })
 
         results.visionUrl = sharedVisionUrl
         if (results.services.backend?.id) {
-          await updateRenderEnvVars(results.services.backend.id, [{ key: 'VISION_URL', value: sharedVisionUrl }])
+          const visionEnv = [{ key: 'VISION_URL', value: sharedVisionUrl }]
+          if (visionApiKey) visionEnv.push({ key: 'VISION_API_KEY', value: visionApiKey })
+          await updateRenderEnvVars(results.services.backend.id, visionEnv)
         }
       } catch (err: any) {
         console.warn('[Deploy] Could not register visualizer tenant:', err.message)
@@ -1202,17 +1204,23 @@ export async function deployCustomer(
       results.adsUrl = adsUrl
     }
 
-    // Assign all created services to the Twomiah project so they appear in the Render dashboard
+    // Assign ALL created resources (services + database) to the Twomiah project
+    // environment so they appear grouped in the Render dashboard — exactly like
+    // every other tenant. One POST handles services and Postgres together; the
+    // old per-/services PATCH loop silently skipped databases and used a body
+    // shape the Render API no longer accepts.
     if (twomiahEnvId && deployedResourceIds.length > 0) {
-      for (const resourceId of deployedResourceIds) {
-        try {
-          await fetchWithTimeout(RENDER_API + '/services/' + resourceId, {
-            method: 'PATCH', headers: renderHeaders(),
-            body: JSON.stringify({ environmentId: twomiahEnvId }),
-          })
-        } catch (_e) { /* non-critical */ }
-      }
-      console.log('[Deploy] Assigned', deployedResourceIds.length, 'services to project environment')
+      try {
+        const r = await fetchWithTimeout(RENDER_API + '/environments/' + twomiahEnvId + '/resources', {
+          method: 'POST', headers: renderHeaders(),
+          body: JSON.stringify({ resourceIds: deployedResourceIds }),
+        })
+        if (r.ok) {
+          console.log('[Deploy] Assigned', deployedResourceIds.length, 'resources to project environment', twomiahEnvId)
+        } else {
+          console.log('[Deploy] Could not assign resources to environment:', r.status, await r.text())
+        }
+      } catch (_e) { /* non-critical — services still run, just ungrouped */ }
     }
 
     if (dbConnectionString) results.dbConnectionString = dbConnectionString
@@ -1653,6 +1661,7 @@ export async function provisionR2ForExistingTenant(
     : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? tenant.slug + '-wrench'
     : ind === 'automotive' ? tenant.slug + '-drive'
     : ind === 'roofing' ? tenant.slug + '-roof'
+    : ind === 'landscaping' ? tenant.slug + '-landscape'
     : ind === 'dispensary' ? tenant.slug + '-leaf'
     : tenant.slug
 
@@ -1723,13 +1732,26 @@ async function deleteVisionTenant(slug: string) {
   console.log('[Deploy] Deleted Vision tenant:', slug)
 }
 
-async function registerVisualizerTenant(slug: string, companyName: string, company?: any) {
+// Registers (or self-heals) the tenant in the shared Vision Supabase and
+// returns the tenant's Vision API key. The key authenticates the CRM's
+// /api/visualizer proxy against Vision's /api/tenant/materials endpoint so
+// each client can choose which products show in their own visualizer.
+// Idempotent: if the tenant already exists but has no api_key (e.g. it was
+// registered before this wiring existed), it backfills the key in place.
+async function registerVisualizerTenant(slug: string, companyName: string, company?: any): Promise<string | null> {
   const supabaseUrl = process.env.VISION_SUPABASE_URL
   const supabaseKey = process.env.VISION_SUPABASE_SERVICE_KEY
   if (!supabaseUrl || !supabaseKey) {
     console.log('[Deploy] Skipping visualizer tenant registration — VISION_SUPABASE_URL/SERVICE_KEY not set')
-    return
+    return null
   }
+
+  const sbHeaders = {
+    'apikey': supabaseKey,
+    'Authorization': 'Bearer ' + supabaseKey,
+    'Content-Type': 'application/json',
+  }
+  const apiKey = 'vis_' + crypto.randomBytes(24).toString('hex')
 
   const body = {
     slug,
@@ -1737,6 +1759,7 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
     phone: company?.phone || '',
     email: company?.email || '',
     website: company?.domain ? 'https://' + company.domain : '',
+    api_key: apiKey,
     active: true,
     plan: 'starter',
     monthly_gen_limit: 50,
@@ -1744,19 +1767,36 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
 
   const res = await fetchWithTimeout(supabaseUrl + '/rest/v1/tenants', {
     method: 'POST',
-    headers: {
-      'apikey': supabaseKey,
-      'Authorization': 'Bearer ' + supabaseKey,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=minimal',
-    },
+    headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
     body: JSON.stringify(body),
   })
 
   if (res.status === 409 || res.status === 400) {
-    // Tenant likely already exists (unique constraint on slug)
+    // Tenant already exists (unique constraint on slug). Fetch it and make
+    // sure it has an api_key — backfill one if it was registered earlier.
     console.log('[Deploy] Visualizer tenant already exists:', slug)
-    return
+    try {
+      const existingRes = await fetchWithTimeout(
+        supabaseUrl + '/rest/v1/tenants?slug=eq.' + encodeURIComponent(slug) + '&select=id,api_key',
+        { headers: sbHeaders }
+      )
+      const rows = existingRes.ok ? await existingRes.json() : []
+      const existing = Array.isArray(rows) ? rows[0] : null
+      if (existing?.api_key) return existing.api_key as string
+      if (existing?.id) {
+        const patchRes = await fetchWithTimeout(
+          supabaseUrl + '/rest/v1/tenants?id=eq.' + existing.id,
+          { method: 'PATCH', headers: { ...sbHeaders, 'Prefer': 'return=minimal' }, body: JSON.stringify({ api_key: apiKey }) }
+        )
+        if (patchRes.ok) {
+          console.log('[Deploy] Backfilled visualizer api_key for existing tenant:', slug)
+          return apiKey
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Deploy] Could not backfill visualizer api_key:', err.message)
+    }
+    return null
   }
 
   if (!res.ok) {
@@ -1764,6 +1804,7 @@ async function registerVisualizerTenant(slug: string, companyName: string, compa
   }
 
   console.log('[Deploy] Registered visualizer tenant:', slug)
+  return apiKey
 }
 
 async function registerAdsTenant(slug: string, companyName: string, company?: any): Promise<{ url: string; apiKey: string }> {

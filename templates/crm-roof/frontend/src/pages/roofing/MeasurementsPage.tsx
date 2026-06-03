@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Ruler, ChevronLeft, ChevronRight, Plus, X, RefreshCw, CreditCard, AlertTriangle, CheckCircle, Loader2, Edit3 } from 'lucide-react';
+import { Ruler, ChevronLeft, ChevronRight, Plus, X, RefreshCw, CreditCard, AlertTriangle, CheckCircle, Loader2, Edit3, Eye, Camera, Globe } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { useFeature } from '../../data/features';
 
 const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-700',
@@ -34,10 +35,18 @@ export default function MeasurementsPage() {
   const [credits, setCredits] = useState<number | null>(null);
   const [pricePerReport, setPricePerReport] = useState('9.00');
 
+  // Provider availability
+  const hasEagleView = useFeature('eagleview_integration');
+  const hasHover = useFeature('hover_integration');
+
   // Order modal
   const [orderOpen, setOrderOpen] = useState(false);
+  const [orderProvider, setOrderProvider] = useState<'google_solar' | 'eagleview' | 'hover'>('google_solar');
   const [orderForm, setOrderForm] = useState({ address: '', city: '', state: '', zip: '', jobId: '' });
+  const [hoverContact, setHoverContact] = useState({ contactName: '', contactEmail: '', contactPhone: '' });
   const [ordering, setOrdering] = useState(false);
+  const [evConnected, setEvConnected] = useState(false);
+  const [hoverConnected, setHoverConnected] = useState(false);
 
   // Detail view
   const [selectedReport, setSelectedReport] = useState<any>(null);
@@ -80,6 +89,16 @@ export default function MeasurementsPage() {
     }
   }, [page, token]);
 
+  // Load provider connection status
+  useEffect(() => {
+    if (hasEagleView) {
+      fetch('/api/integrations/eagleview/status', { headers }).then(r => r.ok ? r.json() : null).then(d => { if (d) setEvConnected(d.connected); }).catch(() => {});
+    }
+    if (hasHover) {
+      fetch('/api/integrations/hover/status', { headers }).then(r => r.ok ? r.json() : null).then(d => { if (d) setHoverConnected(d.connected); }).catch(() => {});
+    }
+  }, [token]);
+
   useEffect(() => { load(); loadCredits(); }, [load, loadCredits]);
 
   const totalPages = Math.ceil(total / limit) || 1;
@@ -91,21 +110,35 @@ export default function MeasurementsPage() {
     }
     setOrdering(true);
     try {
-      const res = await fetch('/api/measurements/order', {
+      let endpoint = '/api/measurements/order';
+      let body: any = { ...orderForm };
+
+      if (orderProvider === 'eagleview') {
+        endpoint = '/api/measurements/order-eagleview';
+      } else if (orderProvider === 'hover') {
+        endpoint = '/api/measurements/order-hover';
+        body = { ...body, ...hoverContact };
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify(orderForm),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const err = await res.json();
         toast.error(err.error || 'Failed to order report');
         return;
       }
-      toast.success('Measurement report ordered! Processing...');
+
+      const providerLabel = orderProvider === 'eagleview' ? 'EagleView' : orderProvider === 'hover' ? 'HOVER' : 'Google Solar';
+      toast.success(`${providerLabel} report ordered! Processing...`);
       setOrderOpen(false);
       setOrderForm({ address: '', city: '', state: '', zip: '', jobId: '' });
+      setHoverContact({ contactName: '', contactEmail: '', contactPhone: '' });
+      setOrderProvider('google_solar');
       load();
-      loadCredits();
+      if (orderProvider === 'google_solar') loadCredits();
     } catch {
       toast.error('Failed to order report');
     } finally {
@@ -203,6 +236,7 @@ export default function MeasurementsPage() {
               <thead>
                 <tr className="bg-gray-50 border-b">
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Address</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Provider</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Quality</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500">Squares</th>
@@ -214,9 +248,9 @@ export default function MeasurementsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">Loading...</td></tr>
                 ) : measurements.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">No measurement reports found</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">No measurement reports found</td></tr>
                 ) : (
                   measurements.map((m) => (
                     <tr
@@ -226,6 +260,15 @@ export default function MeasurementsPage() {
                     >
                       <td className="px-4 py-3 text-gray-900 max-w-[200px] truncate">
                         {m.address}, {m.city}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                          m.provider === 'eagleview' ? 'bg-blue-100 text-blue-700' :
+                          m.provider === 'hover' ? 'bg-purple-100 text-purple-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {m.provider === 'eagleview' ? 'EagleView' : m.provider === 'hover' ? 'HOVER' : 'Google Solar'}
+                        </span>
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[m.status] || 'bg-gray-100 text-gray-600'}`}>
@@ -292,7 +335,52 @@ export default function MeasurementsPage() {
               <h2 className="text-lg font-bold text-gray-900">Order Measurement Report</h2>
               <button onClick={() => setOrderOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
-            {credits !== null && credits <= 0 && (
+
+            {/* Provider Picker */}
+            <div className="mb-4">
+              <label className="text-xs text-gray-500 block mb-2">Provider</label>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setOrderProvider('google_solar')}
+                  className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm text-left ${orderProvider === 'google_solar' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <Globe className="w-4 h-4" />
+                  <div>
+                    <span className="font-medium">Google Solar</span>
+                    <span className="text-xs text-gray-400 ml-2">Uses 1 credit (${pricePerReport})</span>
+                  </div>
+                </button>
+                {hasEagleView && evConnected && (
+                  <button
+                    type="button"
+                    onClick={() => setOrderProvider('eagleview')}
+                    className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm text-left ${orderProvider === 'eagleview' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    <Eye className="w-4 h-4" />
+                    <div>
+                      <span className="font-medium">EagleView</span>
+                      <span className="text-xs text-gray-400 ml-2">Billed to your EagleView account</span>
+                    </div>
+                  </button>
+                )}
+                {hasHover && hoverConnected && (
+                  <button
+                    type="button"
+                    onClick={() => setOrderProvider('hover')}
+                    className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm text-left ${orderProvider === 'hover' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    <Camera className="w-4 h-4" />
+                    <div>
+                      <span className="font-medium">HOVER</span>
+                      <span className="text-xs text-gray-400 ml-2">Sends capture request to homeowner</span>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {orderProvider === 'google_solar' && credits !== null && credits <= 0 && (
               <div className="flex items-start gap-2 p-3 mb-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 <span>No credits remaining. <button onClick={() => { setOrderOpen(false); setBuyOpen(true); }} className="underline font-medium">Purchase credits</button> to order reports.</span>
@@ -317,15 +405,34 @@ export default function MeasurementsPage() {
                   <input value={orderForm.zip} onChange={(e) => setOrderForm({ ...orderForm, zip: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
                 </div>
               </div>
+              {/* HOVER contact fields */}
+              {orderProvider === 'hover' && (
+                <div className="space-y-2 p-3 bg-purple-50 rounded-lg">
+                  <p className="text-xs text-purple-600 font-medium">HOVER will send the homeowner a link to capture photos with their phone.</p>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Homeowner Name</label>
+                    <input value={hoverContact.contactName} onChange={(e) => setHoverContact({ ...hoverContact, contactName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="John Smith" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Email</label>
+                      <input value={hoverContact.contactEmail} onChange={(e) => setHoverContact({ ...hoverContact, contactEmail: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="email@example.com" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500 block mb-1">Phone</label>
+                      <input value={hoverContact.contactPhone} onChange={(e) => setHoverContact({ ...hoverContact, contactPhone: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="(555) 123-4567" />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Link to Job (optional)</label>
                 <input value={orderForm.jobId} onChange={(e) => setOrderForm({ ...orderForm, jobId: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Job ID" />
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-3">Uses 1 credit (${pricePerReport}/report). Powered by Google Solar API.</p>
             <div className="flex justify-end gap-2 mt-5">
               <button onClick={() => setOrderOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
-              <button onClick={orderReport} disabled={ordering || (credits !== null && credits <= 0)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
+              <button onClick={orderReport} disabled={ordering || (orderProvider === 'google_solar' && credits !== null && credits <= 0)} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50">
                 <Ruler className="w-4 h-4" /> {ordering ? 'Ordering...' : 'Order Report'}
               </button>
             </div>

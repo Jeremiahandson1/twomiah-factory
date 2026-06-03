@@ -36,6 +36,7 @@ import leadsRoutes from './routes/leads.ts'
 import calltrackingRoutes from './routes/calltracking.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
 import adsRoutes from './routes/ads.ts'
+import visualizerRoutes from './routes/visualizer.ts'
 import roofReportsRoutes from './routes/roofReports.ts'
 import importRoutes from './routes/import.ts'
 import usersRoutes from './routes/users.ts'
@@ -118,6 +119,7 @@ app.route('/api/leads', leadsRoutes)
 app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 app.route('/api/ads', adsRoutes)
+app.route('/api/visualizer', visualizerRoutes)
 app.route('/api/estimator', estimatorRoutes) // public — no auth
 app.route('/api/roof-reports', roofReportsRoutes)
 app.route('/api/import', importRoutes)

@@ -7,6 +7,7 @@ import {
   View, Text, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, FlatList,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
@@ -28,6 +29,7 @@ const STAGES = [
 ]
 
 export default function PipelineScreen() {
+  const router = useRouter()
   const t = useTheme()
   const toast = useToast()
   const [leads, setLeads] = useState<any[]>([])
@@ -124,7 +126,8 @@ export default function PipelineScreen() {
               ) : (
                 stage.items.map((lead, idx) => (
                   <AnimatedCard key={lead.id} index={idx}>
-                    <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+                    <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
+                      onPress={() => router.push(`/(details)/lead/${lead.id}`)} activeOpacity={0.7}>
                       <View style={styles.cardRow}>
                         <AvatarCircle name={lead.contact?.name || lead.name} size={36} />
                         <View style={{ flex: 1 }}>
@@ -147,7 +150,7 @@ export default function PipelineScreen() {
                           <Text style={styles.insuranceText}>Insurance claim</Text>
                         </View>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   </AnimatedCard>
                 ))
               )}
@@ -159,7 +162,7 @@ export default function PipelineScreen() {
         )}
       </ScrollView>
 
-      <FAB icon="add" onPress={() => toast.info('Add lead from the web dashboard')} />
+      <FAB icon="add" onPress={() => router.push('/(details)/lead/quick-add')} />
     </SafeAreaView>
   )
 }

@@ -5,6 +5,8 @@ import { measurementReport, job, company } from '../../db/schema.ts'
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { getFullRoofReport } from '../services/googleSolar.ts'
+import * as eagleview from '../services/eagleview.ts'
+import * as hover from '../services/hover.ts'
 import logger from '../services/logger.ts'
 
 const app = new Hono()
@@ -87,6 +89,53 @@ app.post('/order', async (c) => {
   })
 
   return c.json(report, 201)
+})
+
+// Order via EagleView (BYOA — no credits deducted)
+app.post('/order-eagleview', async (c) => {
+  const currentUser = c.get('user') as any
+
+  const schema = z.object({
+    address: z.string().min(1),
+    city: z.string().min(1),
+    state: z.string().min(1),
+    zip: z.string().min(1),
+    jobId: z.string().optional().transform(v => v === '' ? undefined : v),
+  })
+  const data = schema.parse(await c.req.json())
+
+  try {
+    const report = await eagleview.orderReport(currentUser.companyId, data)
+    return c.json(report, 201)
+  } catch (err: any) {
+    logger.error('EagleView order endpoint failed', { error: err.message })
+    return c.json({ error: err.message }, 500)
+  }
+})
+
+// Order via HOVER (BYOA — no credits deducted)
+app.post('/order-hover', async (c) => {
+  const currentUser = c.get('user') as any
+
+  const schema = z.object({
+    address: z.string().min(1),
+    city: z.string().min(1),
+    state: z.string().min(1),
+    zip: z.string().min(1),
+    jobId: z.string().optional().transform(v => v === '' ? undefined : v),
+    contactEmail: z.string().optional(),
+    contactPhone: z.string().optional(),
+    contactName: z.string().optional(),
+  })
+  const data = schema.parse(await c.req.json())
+
+  try {
+    const report = await hover.createCaptureJob(currentUser.companyId, data)
+    return c.json(report, 201)
+  } catch (err: any) {
+    logger.error('HOVER order endpoint failed', { error: err.message })
+    return c.json({ error: err.message }, 500)
+  }
 })
 
 async function processReport(reportId: string, companyId: string, data: { address: string; city: string; state: string; zip: string; jobId?: string }) {

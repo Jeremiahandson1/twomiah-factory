@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning } from 'lucide-react';
+import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, Eye, Camera } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../data/features';
@@ -25,6 +25,14 @@ export default function SettingsPage() {
   const [qbLoading, setQbLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
+  // EagleView / HOVER integration state
+  const [evStatus, setEvStatus] = useState<any>(null);
+  const [hoverStatus, setHoverStatus] = useState<any>(null);
+  const [evCreds, setEvCreds] = useState({ clientId: '', clientSecret: '' });
+  const [hoverCreds, setHoverCreds] = useState({ clientId: '', clientSecret: '' });
+  const [savingEvCreds, setSavingEvCreds] = useState(false);
+  const [savingHoverCreds, setSavingHoverCreds] = useState(false);
+
   // Storm settings state
   const [stormSettings, setStormSettings] = useState({
     zipCodes: [] as string[],
@@ -38,6 +46,8 @@ export default function SettingsPage() {
 
   const hasQB = useFeature('quickbooks_sync');
   const hasStorm = useFeature('storm_lead_gen');
+  const hasEagleView = useFeature('eagleview_integration');
+  const hasHover = useFeature('hover_integration');
 
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -48,6 +58,8 @@ export default function SettingsPage() {
         fetch('/api/users', { headers }),
       ];
       if (hasQB) fetches.push(fetch('/api/quickbooks/status', { headers }).catch(() => null));
+      if (hasEagleView) fetches.push(fetch('/api/integrations/eagleview/status', { headers }).catch(() => null));
+      if (hasHover) fetches.push(fetch('/api/integrations/hover/status', { headers }).catch(() => null));
       if (hasStorm) fetches.push(fetch('/api/storms/service-area', { headers }).catch(() => null));
 
       const results = await Promise.all(fetches);
@@ -66,6 +78,14 @@ export default function SettingsPage() {
         setQbStatus(await results[idx].json());
         idx++;
       } else if (hasQB) idx++;
+      if (hasEagleView && results[idx]?.ok) {
+        setEvStatus(await results[idx].json());
+        idx++;
+      } else if (hasEagleView) idx++;
+      if (hasHover && results[idx]?.ok) {
+        setHoverStatus(await results[idx].json());
+        idx++;
+      } else if (hasHover) idx++;
       if (hasStorm && results[idx]?.ok) {
         const stormData = await results[idx].json();
         setStormSettings(prev => ({ ...prev, ...stormData }));
@@ -162,6 +182,44 @@ export default function SettingsPage() {
       toast.error('Sync failed');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // EagleView / HOVER handlers
+  const saveProviderCreds = async (provider: 'eagleview' | 'hover') => {
+    const creds = provider === 'eagleview' ? evCreds : hoverCreds;
+    const setSaving = provider === 'eagleview' ? setSavingEvCreds : setSavingHoverCreds;
+    if (!creds.clientId.trim() || !creds.clientSecret.trim()) { toast.error('Both Client ID and Client Secret are required'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/integrations/${provider}/credentials`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(creds),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`${provider === 'eagleview' ? 'EagleView' : 'HOVER'} credentials saved`);
+      if (provider === 'eagleview') setEvStatus((prev: any) => ({ ...prev, hasCredentials: true }));
+      else setHoverStatus((prev: any) => ({ ...prev, hasCredentials: true }));
+    } catch {
+      toast.error('Failed to save credentials');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const connectProvider = (provider: 'eagleview' | 'hover') => {
+    window.location.href = `/api/integrations/${provider}/connect`;
+  };
+
+  const disconnectProvider = async (provider: 'eagleview' | 'hover') => {
+    try {
+      await fetch(`/api/integrations/${provider}/disconnect`, { method: 'POST', headers });
+      if (provider === 'eagleview') setEvStatus({ connected: false, hasCredentials: true });
+      else setHoverStatus({ connected: false, hasCredentials: true });
+      toast.success(`${provider === 'eagleview' ? 'EagleView' : 'HOVER'} disconnected`);
+    } catch {
+      toast.error('Failed to disconnect');
     }
   };
 
@@ -336,6 +394,102 @@ export default function SettingsPage() {
                 <button onClick={connectQB} className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700">
                   <Link2 className="w-4 h-4" /> Connect QuickBooks
                 </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* EagleView Integration */}
+        {hasEagleView && (
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+              <Eye className="w-4 h-4 text-blue-600" /> EagleView Integration
+            </h2>
+            {evStatus?.connected ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-sm text-gray-700 font-medium">Connected</span>
+                </div>
+                {evStatus.connectedSince && (
+                  <p className="text-xs text-gray-500">Connected since: {new Date(evStatus.connectedSince).toLocaleDateString()}</p>
+                )}
+                <button onClick={() => disconnectProvider('eagleview')} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded-lg hover:bg-red-100">
+                  <Unlink className="w-3.5 h-3.5" /> Disconnect
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500">Connect your EagleView account to order aerial roof measurement reports directly from the CRM.</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Client ID</label>
+                    <input value={evCreds.clientId} onChange={(e) => setEvCreds(prev => ({ ...prev, clientId: e.target.value }))} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Your EagleView Client ID" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Client Secret</label>
+                    <input type="password" value={evCreds.clientSecret} onChange={(e) => setEvCreds(prev => ({ ...prev, clientSecret: e.target.value }))} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Your EagleView Client Secret" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => saveProviderCreds('eagleview')} disabled={savingEvCreds} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 disabled:opacity-50">
+                    <Save className="w-3.5 h-3.5" /> {savingEvCreds ? 'Saving...' : 'Save Credentials'}
+                  </button>
+                  {evStatus?.hasCredentials && (
+                    <button onClick={() => connectProvider('eagleview')} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700">
+                      <Link2 className="w-3.5 h-3.5" /> Connect to EagleView
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400">Get your API credentials from developer.eagleview.com</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* HOVER Integration */}
+        {hasHover && (
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
+              <Camera className="w-4 h-4 text-purple-600" /> HOVER Integration
+            </h2>
+            {hoverStatus?.connected ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                  <span className="text-sm text-gray-700 font-medium">Connected</span>
+                </div>
+                {hoverStatus.connectedSince && (
+                  <p className="text-xs text-gray-500">Connected since: {new Date(hoverStatus.connectedSince).toLocaleDateString()}</p>
+                )}
+                <button onClick={() => disconnectProvider('hover')} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 text-xs rounded-lg hover:bg-red-100">
+                  <Unlink className="w-3.5 h-3.5" /> Disconnect
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500">Connect your HOVER account to request 3D property captures and measurements from the CRM.</p>
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Client ID</label>
+                    <input value={hoverCreds.clientId} onChange={(e) => setHoverCreds(prev => ({ ...prev, clientId: e.target.value }))} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Your HOVER Client ID" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-1">Client Secret</label>
+                    <input type="password" value={hoverCreds.clientSecret} onChange={(e) => setHoverCreds(prev => ({ ...prev, clientSecret: e.target.value }))} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="Your HOVER Client Secret" />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => saveProviderCreds('hover')} disabled={savingHoverCreds} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 disabled:opacity-50">
+                    <Save className="w-3.5 h-3.5" /> {savingHoverCreds ? 'Saving...' : 'Save Credentials'}
+                  </button>
+                  {hoverStatus?.hasCredentials && (
+                    <button onClick={() => connectProvider('hover')} className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700">
+                      <Link2 className="w-3.5 h-3.5" /> Connect to HOVER
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400">Get your API credentials from developers.hover.to</p>
               </div>
             )}
           </div>

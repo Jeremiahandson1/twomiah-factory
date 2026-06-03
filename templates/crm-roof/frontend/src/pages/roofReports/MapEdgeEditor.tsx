@@ -85,6 +85,32 @@ function haversineFeet(lat1: number, lng1: number, lat2: number, lng2: number): 
 }
 
 // ---------------------------------------------------------------------------
+// Web Mercator bounds for a raster image captured at (centerLat, centerLng,
+// zoom) with pixel size (width, height). MUST match the server-side
+// latLngToPixel in roofReportRenderer.ts so user-drawn edges line up with
+// the rendered report. Using an equirectangular approximation here causes
+// vertical drift that compounds with latitude.
+// ---------------------------------------------------------------------------
+
+function mercatorBounds(
+  centerLat: number, centerLng: number, zoom: number,
+  width: number, height: number,
+): [number, number, number, number] {
+  const scale = Math.pow(2, zoom) * 256
+  const centerWorldX = (centerLng + 180) / 360 * scale
+  const sinLat = Math.sin(centerLat * Math.PI / 180)
+  const centerWorldY = (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * scale
+
+  const west = (centerWorldX - width / 2) / scale * 360 - 180
+  const east = (centerWorldX + width / 2) / scale * 360 - 180
+  const northWorldY = centerWorldY - height / 2
+  const southWorldY = centerWorldY + height / 2
+  const north = Math.atan(Math.sinh(Math.PI * (1 - 2 * northWorldY / scale))) * 180 / Math.PI
+  const south = Math.atan(Math.sinh(Math.PI * (1 - 2 * southWorldY / scale))) * 180 / Math.PI
+  return [west, south, east, north]
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -190,14 +216,9 @@ export default function MapEdgeEditor({
     if (nearmapTileUrl) {
       style = buildMapStyle({ nearmapTileUrl })
     } else if (aerialImageUrl && aerialImageUrl.startsWith('data:')) {
-      // Stored aerial image — compute approximate bounds
-      const metersPerPixel = 156543.03392 * Math.cos(centerLat * Math.PI / 180) / Math.pow(2, zoom)
-      const halfWidthDeg = (mapWidth / 2 * metersPerPixel) / (111319.5 * Math.cos(centerLat * Math.PI / 180))
-      const halfHeightDeg = (mapHeight / 2 * metersPerPixel) / 111319.5
-      style = buildImageStyle(aerialImageUrl, [
-        centerLng - halfWidthDeg, centerLat - halfHeightDeg,
-        centerLng + halfWidthDeg, centerLat + halfHeightDeg,
-      ])
+      // Stored aerial image — georeference via true Web Mercator bounds so
+      // clicks map to the same lat/lng the server uses when rendering.
+      style = buildImageStyle(aerialImageUrl, mercatorBounds(centerLat, centerLng, zoom, mapWidth, mapHeight))
     } else {
       style = buildMapStyle({ googleApiKey: 'satellite' })
     }
@@ -206,7 +227,7 @@ export default function MapEdgeEditor({
       container: mapContainerRef.current,
       style,
       center: [centerLng, centerLat],
-      zoom: zoom - 1, // MapLibre zoom is slightly different scale
+      zoom,
       maxZoom: 23,
       attributionControl: false,
     })

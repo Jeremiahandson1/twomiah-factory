@@ -86,6 +86,7 @@ import warrantiesRoutes from './routes/warranties.ts'
 import weatherRoutes from './routes/weather.ts'
 import supportRoutes from './routes/support.ts'
 import adsRoutes from './routes/ads.ts'
+import visualizerRoutes from './routes/visualizer.ts'
 import leadsRoutes from './routes/leads.ts'
 import wisetackRoutes from './routes/wisetack.ts'
 import aiReceptionistRoutes from './routes/aiReceptionist.ts'
@@ -228,6 +229,7 @@ app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 app.route('/api/estimator', estimatorRoutes)
+app.route('/api/visualizer', visualizerRoutes)
 app.route('/api/roof-reports', roofReportsRoutes)
 
 // Factory sync endpoint — allows Twomiah Factory to push feature updates via HTTP

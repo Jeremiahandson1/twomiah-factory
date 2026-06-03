@@ -8,6 +8,8 @@ export const FEATURES = {
   two_way_texting: 'two_way_texting',
   canvassing_tool: 'canvassing_tool',
   storm_lead_gen: 'storm_lead_gen',
+  eagleview_integration: 'eagleview_integration',
+  hover_integration: 'hover_integration',
 } as const
 
 export function useFeature(featureId: string): boolean {

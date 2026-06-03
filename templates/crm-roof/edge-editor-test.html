@@ -1,0 +1,333 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Edge Editor — Standalone Test</title>
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <style>
+    body { font: 14px system-ui, sans-serif; margin: 0; padding: 12px; background: #0f172a; color: #e2e8f0; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+    input, select { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; }
+    input { width: 110px; }
+    input.addr { width: 380px; }
+    button { background: #3b82f6; color: white; border: 0; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    button.alt { background: #64748b; }
+    button.mode { background: #334155; }
+    button.mode.active { background: #10b981; }
+    .panels { display: flex; gap: 12px; align-items: flex-start; }
+    #map { width: 800px; height: 600px; border: 2px solid #334155; border-radius: 4px; }
+    #sidebar { width: 280px; background: #1e293b; border: 1px solid #334155; border-radius: 4px; padding: 12px; font-size: 13px; }
+    #sidebar h2 { font-size: 13px; margin: 0 0 6px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    #sidebar .m { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed #334155; }
+    #sidebar .m b { color: #fde047; }
+    #sidebar section { margin-bottom: 14px; }
+    #log { width: 1092px; max-height: 140px; overflow: auto; background: #1e293b; border: 1px solid #334155; border-radius: 4px; padding: 8px; font-family: Consolas, monospace; font-size: 11px; margin-top: 8px; white-space: pre-wrap; }
+    .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+    .pill { padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 6px; }
+    .buggy { background: #b91c1c; }
+    .fixed { background: #059669; }
+  </style>
+</head>
+<body>
+  <h1>Roof Edge Editor — Standalone Test</h1>
+  <div class="row">
+    <label>Address <input class="addr" id="addr" placeholder="1600 Amphitheatre Parkway, Mountain View, CA" /></label>
+    <button onclick="geocode()">Find</button>
+  </div>
+  <div class="row">
+    <label>lat <input id="lat" value="33.4484" /></label>
+    <label>lng <input id="lng" value="-112.0740" /></label>
+    <label>zoom <input id="zoom" value="20" /></label>
+    <button onclick="reload()">Load</button>
+    <button class="alt" onclick="toggleMath()">Math: <span id="modeLabel" class="pill fixed">FIXED</span></button>
+  </div>
+  <div class="row">
+    <b>Mode:</b>
+    <button class="mode active" data-mode="edge" onclick="setMode('edge')">Draw edge</button>
+    <button class="mode" data-mode="segment" onclick="setMode('segment')">Draw segment polygon</button>
+    <button class="alt" onclick="clearAll()">Clear all</button>
+  </div>
+  <div class="row" id="edgeRow">
+    <b>Edge type:</b>
+    <button class="mode active" data-edge="ridge"  style="background:#7c1d1d" onclick="setEdgeType('ridge')"><span class="swatch" style="background:#ef4444"></span>Ridge</button>
+    <button class="mode" data-edge="valley" onclick="setEdgeType('valley')"><span class="swatch" style="background:#3b82f6"></span>Valley</button>
+    <button class="mode" data-edge="hip"    onclick="setEdgeType('hip')"><span class="swatch" style="background:#10b981"></span>Hip</button>
+    <button class="mode" data-edge="rake"   onclick="setEdgeType('rake')"><span class="swatch" style="background:#f59e0b"></span>Rake</button>
+    <button class="mode" data-edge="eave"   onclick="setEdgeType('eave')"><span class="swatch" style="background:#a855f7"></span>Eave</button>
+  </div>
+  <div class="row">
+    <label>Pitch (rise/12) <input id="pitch" value="6" style="width:60px" oninput="recalc()" /></label>
+    <label>Waste % <input id="waste" value="12" style="width:60px" oninput="recalc()" /></label>
+    <span style="font-size:12px;color:#94a3b8">Edge: click start → click end. Segment: click points, then <button onclick="closeSegment()" style="padding:2px 8px;font-size:11px">Close polygon</button></span>
+  </div>
+
+  <div class="panels">
+    <div id="map"></div>
+    <div id="sidebar">
+      <section>
+        <h2>Linear Feet</h2>
+        <div class="m"><span><span class="swatch" style="background:#ef4444"></span>Ridge</span><b id="ridgeLF">0.0 ft</b></div>
+        <div class="m"><span><span class="swatch" style="background:#3b82f6"></span>Valley</span><b id="valleyLF">0.0 ft</b></div>
+        <div class="m"><span><span class="swatch" style="background:#10b981"></span>Hip</span><b id="hipLF">0.0 ft</b></div>
+        <div class="m"><span><span class="swatch" style="background:#f59e0b"></span>Rake</span><b id="rakeLF">0.0 ft</b></div>
+        <div class="m"><span><span class="swatch" style="background:#a855f7"></span>Eave</span><b id="eaveLF">0.0 ft</b></div>
+        <div class="m"><span>Perimeter (rake+eave)</span><b id="periLF">0.0 ft</b></div>
+      </section>
+      <section>
+        <h2>Area</h2>
+        <div class="m"><span>Ground area</span><b id="groundArea">0 sqft</b></div>
+        <div class="m"><span>Slope area (pitch-adj)</span><b id="slopeArea">0 sqft</b></div>
+        <div class="m"><span>Squares</span><b id="squares">0.0</b></div>
+        <div class="m"><span>Squares w/ waste</span><b id="squaresWaste">0.0</b></div>
+        <div class="m"><span>Ice &amp; water (valley × 6)</span><b id="iceShield">0 sqft</b></div>
+      </section>
+      <section>
+        <h2>Counts</h2>
+        <div class="m"><span>Edges drawn</span><b id="edgeCount">0</b></div>
+        <div class="m"><span>Polygon points</span><b id="polyCount">0</b></div>
+      </section>
+    </div>
+  </div>
+  <div id="log"></div>
+
+<script>
+const KEY = 'AIzaSyCxLq_IjxfCAXZyr-ttYD6L2DOEQUDPp-E';
+const W = 800, H = 600;
+const COLORS = { ridge:'#ef4444', valley:'#3b82f6', hip:'#10b981', rake:'#f59e0b', eave:'#a855f7' };
+
+let map, useFixed = true;
+let mode = 'edge';          // 'edge' | 'segment'
+let edgeType = 'ridge';
+let edgeStart = null;       // [lng,lat] pending
+let edges = [];             // { type, a:[lng,lat], b:[lng,lat], lenFt }
+let polygon = [];           // [[lng,lat], ...]
+let polygonClosed = false;
+
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent = msg + '\n' + el.textContent;
+}
+
+// ----- FIXED math (matches server roofReportRenderer.ts) -----
+function mercatorBoundsFixed(lat, lng, zoom, width, height) {
+  const scale = Math.pow(2, zoom) * 256;
+  const cWX = (lng + 180) / 360 * scale;
+  const s = Math.sin(lat * Math.PI / 180);
+  const cWY = (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * scale;
+  const west = (cWX - width / 2) / scale * 360 - 180;
+  const east = (cWX + width / 2) / scale * 360 - 180;
+  const north = Math.atan(Math.sinh(Math.PI * (1 - 2 * (cWY - height / 2) / scale))) * 180 / Math.PI;
+  const south = Math.atan(Math.sinh(Math.PI * (1 - 2 * (cWY + height / 2) / scale))) * 180 / Math.PI;
+  return [west, south, east, north];
+}
+// ----- BUGGY math (old equirectangular approximation) -----
+function mercatorBoundsBuggy(lat, lng, zoom, width, height) {
+  const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
+  const halfW = (width / 2 * mpp) / (111319.5 * Math.cos(lat * Math.PI / 180));
+  const halfH = (height / 2 * mpp) / 111319.5;
+  return [lng - halfW, lat - halfH, lng + halfW, lat + halfH];
+}
+
+function haversineFt(a, b) {
+  const R = 6371000, toR = Math.PI / 180;
+  const dLat = (b[1] - a[1]) * toR, dLng = (b[0] - a[0]) * toR;
+  const h = Math.sin(dLat/2)**2 + Math.cos(a[1]*toR)*Math.cos(b[1]*toR)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h)) * 3.28084;
+}
+
+// Polygon ground area in sqft using an equirectangular local projection
+// around the first point (good enough for roof-size polygons).
+function polygonAreaSqft(poly) {
+  if (poly.length < 3) return 0;
+  const toR = Math.PI / 180;
+  const lat0 = poly[0][1] * toR;
+  const mPerDegLat = 111132.92;
+  const mPerDegLng = 111412.84 * Math.cos(lat0);
+  const pts = poly.map(([lng, lat]) => [(lng - poly[0][0]) * mPerDegLng, (lat - poly[0][1]) * mPerDegLat]);
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    a += pts[i][0] * pts[j][1] - pts[j][0] * pts[i][1];
+  }
+  return Math.abs(a / 2) * 10.7639; // m² → sqft
+}
+
+function reload() {
+  const lat = parseFloat(document.getElementById('lat').value);
+  const lng = parseFloat(document.getElementById('lng').value);
+  const zoom = parseInt(document.getElementById('zoom').value);
+  const imgUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=${W}x${H}&maptype=satellite&key=${KEY}`;
+  const bounds = (useFixed ? mercatorBoundsFixed : mercatorBoundsBuggy)(lat, lng, zoom, W, H);
+  log(`[${useFixed ? 'FIXED' : 'BUGGY'}] reload @ ${lat},${lng} z${zoom}`);
+
+  const style = {
+    version: 8,
+    sources: {
+      aerial: { type: 'image', url: imgUrl, coordinates: [
+        [bounds[0], bounds[3]], [bounds[2], bounds[3]],
+        [bounds[2], bounds[1]], [bounds[0], bounds[1]],
+      ]},
+      edges: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      pts:   { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+      poly:  { type: 'geojson', data: { type: 'FeatureCollection', features: [] } },
+    },
+    layers: [
+      { id: 'aerial', type: 'raster', source: 'aerial' },
+      { id: 'poly-fill', type: 'fill', source: 'poly', paint: { 'fill-color':'#fde047', 'fill-opacity':0.2 } },
+      { id: 'poly-line', type: 'line', source: 'poly', paint: { 'line-color':'#fde047', 'line-width':2, 'line-dasharray':[2,2] } },
+      { id: 'edges', type: 'line', source: 'edges', paint: {
+        'line-color': ['get','color'], 'line-width': 4
+      }},
+      { id: 'pts', type: 'circle', source: 'pts', paint: {
+        'circle-radius': 5, 'circle-color':'#fde047', 'circle-stroke-color':'#000', 'circle-stroke-width': 1
+      }},
+    ],
+  };
+
+  if (map) map.remove();
+  map = new maplibregl.Map({ container: 'map', style, center: [lng, lat], zoom, maxZoom: 23 });
+  map.on('click', onClick);
+  edgeStart = null;
+  refresh();
+}
+
+function onClick(e) {
+  const p = [e.lngLat.lng, e.lngLat.lat];
+  if (mode === 'edge') {
+    if (!edgeStart) {
+      edgeStart = p;
+    } else {
+      const lenFt = haversineFt(edgeStart, p);
+      edges.push({ type: edgeType, a: edgeStart, b: p, lenFt });
+      log(`edge ${edgeType}: ${lenFt.toFixed(1)} ft`);
+      edgeStart = null;
+    }
+  } else {
+    if (polygonClosed) { polygon = []; polygonClosed = false; }
+    polygon.push(p);
+    log(`polygon pt #${polygon.length}: ${p[1].toFixed(6)}, ${p[0].toFixed(6)}`);
+  }
+  refresh();
+}
+
+function closeSegment() {
+  if (polygon.length >= 3) {
+    polygonClosed = true;
+    log(`polygon closed — ${polygon.length} points`);
+    refresh();
+  }
+}
+
+function refresh() {
+  if (!map) return;
+  // edges
+  map.getSource('edges').setData({
+    type: 'FeatureCollection',
+    features: edges.map(e => ({
+      type: 'Feature',
+      properties: { color: COLORS[e.type] },
+      geometry: { type: 'LineString', coordinates: [e.a, e.b] },
+    })),
+  });
+  // pending edge start
+  const pending = edgeStart ? [{ type:'Feature', geometry:{ type:'Point', coordinates: edgeStart } }] : [];
+  map.getSource('pts').setData({ type: 'FeatureCollection', features: pending });
+  // polygon
+  const polyFeatures = [];
+  if (polygon.length >= 2) {
+    const coords = polygonClosed ? [...polygon, polygon[0]] : polygon;
+    polyFeatures.push({
+      type: 'Feature',
+      geometry: polygonClosed
+        ? { type: 'Polygon', coordinates: [coords] }
+        : { type: 'LineString', coordinates: coords },
+    });
+  }
+  map.getSource('poly').setData({ type: 'FeatureCollection', features: polyFeatures });
+  recalc();
+}
+
+function recalc() {
+  const sum = t => edges.filter(e => e.type === t).reduce((s,e) => s + e.lenFt, 0);
+  const r = sum('ridge'), v = sum('valley'), h = sum('hip'), rk = sum('rake'), ev = sum('eave');
+  const set = (id, v) => document.getElementById(id).textContent = v;
+  set('ridgeLF',  r.toFixed(1)+' ft');
+  set('valleyLF', v.toFixed(1)+' ft');
+  set('hipLF',    h.toFixed(1)+' ft');
+  set('rakeLF',   rk.toFixed(1)+' ft');
+  set('eaveLF',   ev.toFixed(1)+' ft');
+  set('periLF',  (rk+ev).toFixed(1)+' ft');
+
+  const rise = parseFloat(document.getElementById('pitch').value) || 0;
+  const pitchFactor = Math.sqrt(1 + (rise/12)**2);  // slope = ground * sqrt(1 + (rise/run)^2)
+  const ground = polygonClosed ? polygonAreaSqft(polygon) : 0;
+  const slope = ground * pitchFactor;
+  const squares = slope / 100;
+  const wastePct = parseFloat(document.getElementById('waste').value) || 0;
+  const squaresWaste = squares * (1 + wastePct/100);
+
+  set('groundArea',   Math.round(ground)+' sqft');
+  set('slopeArea',    Math.round(slope)+' sqft');
+  set('squares',      squares.toFixed(1));
+  set('squaresWaste', squaresWaste.toFixed(1));
+  set('iceShield',    Math.round(v * 6)+' sqft');
+  set('edgeCount',    edges.length);
+  set('polyCount',    polygon.length + (polygonClosed ? ' (closed)' : ''));
+}
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('button.mode[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  edgeStart = null;
+  refresh();
+}
+function setEdgeType(t) {
+  edgeType = t;
+  document.querySelectorAll('button.mode[data-edge]').forEach(b => {
+    b.classList.toggle('active', b.dataset.edge === t);
+    b.style.background = b.dataset.edge === t ? COLORS[t] + 'cc' : '';
+  });
+}
+function clearAll() {
+  edges = []; polygon = []; polygonClosed = false; edgeStart = null;
+  refresh();
+}
+async function geocode() {
+  const q = document.getElementById('addr').value.trim();
+  if (!q) return;
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(q)}&key=${KEY}`;
+    const r = await fetch(url);
+    const j = await r.json();
+    if (j.status !== 'OK' || !j.results?.length) {
+      log(`geocode failed: ${j.status} ${j.error_message || ''}`);
+      return;
+    }
+    const { lat, lng } = j.results[0].geometry.location;
+    document.getElementById('lat').value = lat.toFixed(6);
+    document.getElementById('lng').value = lng.toFixed(6);
+    document.getElementById('zoom').value = 20;
+    log(`geocoded "${j.results[0].formatted_address}" → ${lat}, ${lng}`);
+    clearAll();
+    reload();
+  } catch (err) {
+    log(`geocode error: ${err.message}`);
+  }
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && document.activeElement?.id === 'addr') geocode();
+});
+function toggleMath() {
+  useFixed = !useFixed;
+  const el = document.getElementById('modeLabel');
+  el.textContent = useFixed ? 'FIXED' : 'BUGGY';
+  el.className = 'pill ' + (useFixed ? 'fixed' : 'buggy');
+  reload();
+}
+
+reload();
+</script>
+</body>
+</html>

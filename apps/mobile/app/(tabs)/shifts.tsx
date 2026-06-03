@@ -8,6 +8,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
 import { StatusBadge } from '../../src/components/StatusBadge'
@@ -15,6 +16,7 @@ import { FilterChips } from '../../src/components/FilterChips'
 import { SkeletonList } from '../../src/components/SkeletonLoader'
 import { AnimatedCard } from '../../src/components/AnimatedCard'
 import { EmptyState } from '../../src/components/EmptyState'
+import { useHaptics } from '../../src/hooks/useHaptics'
 
 const FILTERS = [
   { key: 'today', label: 'Today' },
@@ -24,6 +26,8 @@ const FILTERS = [
 
 export default function ShiftsScreen() {
   const t = useTheme()
+  const router = useRouter()
+  const haptics = useHaptics()
   const [shifts, setShifts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -46,9 +50,19 @@ export default function ShiftsScreen() {
 
   const onRefresh = async () => { setRefreshing(true); await loadShifts(); setRefreshing(false) }
 
+  const openShift = (shift: any) => {
+    if (!shift.id) return
+    haptics.light()
+    router.push(`/(details)/job/${shift.id}` as any)
+  }
+
   const renderShift = ({ item: shift, index }: { item: any; index: number }) => (
     <AnimatedCard index={index}>
-      <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+      <TouchableOpacity
+        style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}
+        activeOpacity={0.7}
+        onPress={() => openShift(shift)}
+      >
         <View style={[styles.timeBlock, { backgroundColor: t.primaryLight }]}>
           <Text style={[styles.timeText, { color: t.primary }]}>
             {shift.scheduledTime || shift.startTime || 'TBD'}
@@ -90,7 +104,7 @@ export default function ShiftsScreen() {
             </View>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     </AnimatedCard>
   )
 

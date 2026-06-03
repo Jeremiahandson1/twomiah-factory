@@ -7,7 +7,7 @@ import {
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy,
-  Inbox, ExternalLink, Bot, Calculator, FileBarChart
+  Inbox, ExternalLink, Bot, Calculator, FileBarChart, Eye
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -58,6 +58,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
   { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'] },
+  { to: '/crm/visualizer', icon: Eye, label: 'Visualizer', features: ['visualizer'] },
   { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },

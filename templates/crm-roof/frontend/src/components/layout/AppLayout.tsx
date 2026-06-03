@@ -28,6 +28,7 @@ import {
   Star,
   CreditCard,
   Radio,
+  Eye,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -36,24 +37,25 @@ const baseNavItems = [
   { label: 'Jobs', icon: Briefcase, to: '/crm/jobs' },
   { label: 'Contacts', icon: Users, to: '/crm/contacts' },
   { label: 'Crews', icon: HardHat, to: '/crm/crews' },
-  { label: 'Measurements', icon: Ruler, to: '/crm/measurements' },
   { label: 'Materials', icon: Package, to: '/crm/materials' },
   { label: 'Quotes', icon: FileText, to: '/crm/quotes' },
   { label: 'Invoices', icon: Receipt, to: '/crm/invoices' },
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
   { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads' },
   { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
-  { label: 'Roof Estimator', icon: Calculator, to: '/crm/estimator' },
-  { label: 'Roof Reports', icon: FileBarChart, to: '/crm/roof-reports' },
 ]
 
 const fieldNavItems = [
+  { label: 'Measurements', icon: Ruler, to: '/crm/measurements', feature: 'measurement_reports' },
+  { label: 'Roof Reports', icon: FileBarChart, to: '/crm/roof-reports', feature: 'measurement_reports' },
+  { label: 'Roof Estimator', icon: Calculator, to: '/crm/estimator', feature: 'instant_estimator' },
   { label: 'Canvassing', icon: MapPin, to: '/crm/canvassing', feature: 'canvassing_tool' },
   { label: 'Storm Leads', icon: Zap, to: '/crm/storm-leads', feature: 'storm_lead_gen' },
   { label: 'Ads', icon: Megaphone, to: '/crm/ads', feature: 'paid_ads' },
   { label: 'Reviews', icon: Star, to: '/crm/reviews', feature: 'review_requests' },
   { label: 'Financing', icon: CreditCard, to: '/crm/financing', feature: 'consumer_financing' },
   { label: 'Storm Radar', icon: Radio, to: '/crm/storm-radar', feature: 'storm_radar_overlay' },
+  { label: 'Visualizer', icon: Eye, to: '/crm/visualizer', feature: 'visualizer' },
 ]
 
 const bottomNavItems = [
@@ -66,13 +68,19 @@ export default function AppLayout() {
   const { user, company, logout } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const hasMeasurements = useFeature('measurement_reports')
+  const hasInstantEstimator = useFeature('instant_estimator')
   const hasCanvassing = useFeature('canvassing_tool')
   const hasStormLeads = useFeature('storm_lead_gen')
   const hasPaidAds = useFeature('paid_ads')
+  const hasVisualizer = useFeature('visualizer')
   const activeFieldItems = fieldNavItems.filter(item => {
+    if (item.feature === 'measurement_reports') return hasMeasurements
+    if (item.feature === 'instant_estimator') return hasInstantEstimator
     if (item.feature === 'canvassing_tool') return hasCanvassing
     if (item.feature === 'storm_lead_gen') return hasStormLeads
     if (item.feature === 'paid_ads') return hasPaidAds
+    if (item.feature === 'visualizer') return hasVisualizer
     return true
   })
 

@@ -2,7 +2,7 @@
  * Tab definitions per vertical — controls which tabs appear in the bottom bar.
  */
 
-export type Vertical = 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'dispensary'
+export type Vertical = 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'dispensary'
 
 export interface TabDef {
   name: string
@@ -40,6 +40,13 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'canvass', title: 'Canvass', icon: 'walk-outline', activeIcon: 'walk' },
     { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
   ],
+  landscaping: [
+    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
+    { name: 'jobs', title: 'Jobs', icon: 'hammer-outline', activeIcon: 'hammer' },
+    { name: 'schedule', title: 'Schedule', icon: 'calendar-outline', activeIcon: 'calendar' },
+    { name: 'contacts', title: 'Contacts', icon: 'people-outline', activeIcon: 'people' },
+    { name: 'notifications', title: 'Alerts', icon: 'notifications-outline', activeIcon: 'notifications' },
+  ],
   dispensary: [
     { name: 'orders', title: 'Orders', icon: 'receipt-outline', activeIcon: 'receipt' },
     { name: 'pos-mobile', title: 'POS', icon: 'card-outline', activeIcon: 'card' },
@@ -55,5 +62,6 @@ export const VERTICAL_INITIAL_TAB: Record<Vertical, string> = {
   fieldservice: 'dashboard',
   homecare: 'shifts',
   roofing: 'pipeline',
+  landscaping: 'dashboard',
   dispensary: 'orders',
 }

@@ -8,14 +8,17 @@ import { Slot, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { AuthProvider, useAuth } from '../src/auth/AuthContext'
-import { VerticalProvider } from '../src/vertical/VerticalContext'
+import { VerticalProvider, useVertical } from '../src/vertical/VerticalContext'
 import { ThemeProvider, useTheme } from '../src/theme/ThemeContext'
 import { ToastProvider } from '../src/components/ToastProvider'
 import { SocketProvider } from '../src/socket/SocketContext'
+import { OfflineProvider } from '../src/offline/OfflineContext'
 import { OfflineBanner } from '../src/components/OfflineBanner'
+import { WrongAppGate } from '../src/vertical/WrongAppGate'
 
 function AuthGate() {
   const { isAuthenticated, isLoading } = useAuth()
+  const { verticalMismatch } = useVertical()
   const segments = useSegments()
   const router = useRouter()
   const t = useTheme()
@@ -38,6 +41,10 @@ function AuthGate() {
     )
   }
 
+  if (isAuthenticated && verticalMismatch) {
+    return <WrongAppGate />
+  }
+
   return (
     <>
       <OfflineBanner />
@@ -54,8 +61,10 @@ export default function RootLayout() {
           <ThemeProvider>
             <ToastProvider>
               <SocketProvider>
-                <StatusBar style="auto" />
-                <AuthGate />
+                <OfflineProvider>
+                  <StatusBar style="auto" />
+                  <AuthGate />
+                </OfflineProvider>
               </SocketProvider>
             </ToastProvider>
           </ThemeProvider>

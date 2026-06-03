@@ -2,7 +2,7 @@
 // Plan definitions for all Twomiah products
 // ═══════════════════════════════════════════════════════════════════
 
-export type ProductLine = 'build' | 'care' | 'wrench' | 'roof'
+export type ProductLine = 'build' | 'care' | 'wrench' | 'roof' | 'landscaping'
 
 export type Plan = {
   id: string
@@ -303,7 +303,7 @@ const ROOF_PLANS: Plan[] = [
     features: [
       'contacts', 'leads', 'jobs', 'quotes', 'invoices', 'documents',
       'customer_portal', 'dashboard', 'mobile_app',
-      'good_better_best_pricing', 'pricebook', 'measurement_reports', 'google_reviews',
+      'good_better_best_pricing', 'pricebook', 'google_reviews',
       'two_way_texting', 'photos', 'before_after_galleries', 'team', 'quickbooks_sync',
     ],
     websiteFeatures: ['contact_form', 'services_pages', 'testimonials'],
@@ -317,9 +317,9 @@ const ROOF_PLANS: Plan[] = [
     features: [
       'contacts', 'leads', 'jobs', 'quotes', 'invoices', 'documents',
       'customer_portal', 'dashboard', 'mobile_app',
-      'good_better_best_pricing', 'pricebook', 'measurement_reports', 'google_reviews',
+      'good_better_best_pricing', 'pricebook', 'google_reviews',
       'two_way_texting', 'photos', 'before_after_galleries', 'team', 'quickbooks_sync',
-      'instant_estimator', 'insurance_workflow', 'insurance_claims', 'adjuster_directory',
+      'insurance_workflow', 'insurance_claims', 'adjuster_directory',
       'consumer_financing', 'materials_management', 'crews', 'job_costing',
       'call_tracking', 'automations', 'email_campaigns', 'reports',
     ],
@@ -334,20 +334,96 @@ const ROOF_PLANS: Plan[] = [
     features: [
       'contacts', 'leads', 'jobs', 'quotes', 'invoices', 'documents',
       'customer_portal', 'dashboard', 'mobile_app',
-      'good_better_best_pricing', 'pricebook', 'measurement_reports', 'google_reviews',
+      'good_better_best_pricing', 'pricebook', 'google_reviews',
       'two_way_texting', 'photos', 'before_after_galleries', 'team', 'quickbooks_sync',
-      'instant_estimator', 'insurance_workflow', 'insurance_claims', 'adjuster_directory',
+      'insurance_workflow', 'insurance_claims', 'adjuster_directory',
       'consumer_financing', 'materials_management', 'crews', 'job_costing',
       'call_tracking', 'automations', 'email_campaigns', 'reports',
-      'unlimited_measurement_reports', 'storm_lead_generation', 'storms_dashboard',
+      'storm_lead_generation', 'storms_dashboard',
       'door_knock_canvassing', 'canvassing_routes', 'insurance_supplements',
       'depreciation_recovery', 'ai_receptionist', 'multi_crew_dispatch', 'service_area_pages',
     ],
     websiteFeatures: ['contact_form', 'services_pages', 'gallery', 'blog', 'testimonials', 'analytics', 'service_areas'],
-    websiteDesc: 'Book Jobs + instant estimator + service area pages',
+    websiteDesc: 'Book Jobs + service area pages',
   },
   {
     id: 'roof-enterprise',
+    name: 'Enterprise',
+    monthly: 199,
+    annual: 159,
+    features: ['all', 'api_access', 'white_label', 'custom_domain', 'sso', 'priority_support', 'dedicated_account_manager', 'custom_integrations', 'sla'],
+    websiteFeatures: ['contact_form', 'services_pages', 'gallery', 'blog', 'testimonials', 'analytics', 'service_areas'],
+    websiteDesc: 'White-label + custom domain',
+  },
+]
+
+const LANDSCAPING_PLANS: Plan[] = [
+  {
+    id: 'landscaping-solo',
+    name: 'Solo',
+    monthly: 49,
+    annual: 39,
+    features: [
+      'contacts', 'leads', 'jobs', 'quotes', 'invoices', 'documents',
+      'customer_portal', 'dashboard', 'mobile_app',
+    ],
+    websiteFeatures: ['contact_form'],
+    websiteDesc: 'Lead capture (1 page)',
+  },
+  {
+    id: 'landscaping-crew',
+    name: 'Crew',
+    monthly: 149,
+    annual: 119,
+    highlight: true,
+    features: [
+      'contacts', 'leads', 'jobs', 'quotes', 'invoices', 'documents',
+      'customer_portal', 'dashboard', 'mobile_app',
+      'recurring_jobs', 'drag_drop_calendar', 'service_dispatch', 'gps_tracking',
+      'photos', 'google_reviews', 'two_way_texting', 'team', 'online_booking',
+      'recurring_routes',
+    ],
+    websiteFeatures: ['contact_form', 'services_pages', 'testimonials'],
+    websiteDesc: 'Showcase (3–5 pages)',
+  },
+  {
+    id: 'landscaping-route-master',
+    name: 'Route Master',
+    monthly: 299,
+    annual: 239,
+    features: [
+      'contacts', 'leads', 'jobs', 'quotes', 'invoices', 'documents',
+      'customer_portal', 'dashboard', 'mobile_app',
+      'recurring_jobs', 'drag_drop_calendar', 'service_dispatch', 'gps_tracking',
+      'photos', 'google_reviews', 'two_way_texting', 'team', 'online_booking',
+      'route_optimization', 'job_costing', 'service_agreements', 'pricebook',
+      'quickbooks_sync', 'expense_tracking', 'reports', 'map_view',
+      'recurring_routes', 'area_pricing',
+    ],
+    websiteFeatures: ['contact_form', 'services_pages', 'gallery', 'blog', 'testimonials', 'analytics'],
+    websiteDesc: 'Book Jobs (full site)',
+  },
+  {
+    id: 'landscaping-fleet',
+    name: 'Fleet',
+    monthly: 599,
+    annual: 479,
+    features: [
+      'contacts', 'leads', 'jobs', 'quotes', 'invoices', 'documents',
+      'customer_portal', 'dashboard', 'mobile_app',
+      'recurring_jobs', 'drag_drop_calendar', 'service_dispatch', 'gps_tracking',
+      'photos', 'google_reviews', 'two_way_texting', 'team', 'online_booking',
+      'route_optimization', 'job_costing', 'service_agreements', 'pricebook',
+      'quickbooks_sync', 'expense_tracking', 'reports', 'map_view',
+      'equipment_tracking', 'fleet', 'multi_crew_dispatch', 'multi_location',
+      'call_tracking', 'email_campaigns', 'automations', 'ai_receptionist', 'service_area_pages',
+      'recurring_routes', 'area_pricing', 'snow_billing',
+    ],
+    websiteFeatures: ['contact_form', 'services_pages', 'gallery', 'blog', 'testimonials', 'analytics', 'service_areas'],
+    websiteDesc: 'Book Jobs + service area pages',
+  },
+  {
+    id: 'landscaping-enterprise',
     name: 'Enterprise',
     monthly: 199,
     annual: 159,
@@ -372,8 +448,8 @@ export const SETUP_TIERS: SetupTier[] = [
 // ═══════════════════════════════════════════════════════════════════
 
 export const ADDONS: Addon[] = [
-  { id: 'ads-single', name: 'Ads Hub — 1 Platform', monthly: 99, description: 'Google OR Meta automated campaigns' },
-  { id: 'ads-both', name: 'Ads Hub — Both Platforms', monthly: 199, description: 'Google AND Meta automated campaigns' },
+  { id: 'ads-single', name: 'Ads Hub — 1 Platform', monthly: 99, description: 'Performance dashboard for Google OR Meta' },
+  { id: 'ads-both', name: 'Ads Hub — Both Platforms', monthly: 199, description: 'Performance dashboard for Google AND Meta' },
   { id: 'vision-starter', name: 'Vision Starter', monthly: 29, description: '25 renders/mo', products: ['build'] },
   { id: 'vision-pro', name: 'Vision Pro', monthly: 59, description: '100 renders/mo', products: ['build'] },
 ]
@@ -387,6 +463,7 @@ export const PRODUCT_META: Record<ProductLine, { name: string; tagline: string; 
   care: { name: 'Twomiah Care', tagline: 'Home Care Agency CRM', icon: '🏥', color: '#10b981' },
   wrench: { name: 'Twomiah Wrench', tagline: 'Field Service CRM', icon: '🔧', color: '#3b82f6' },
   roof: { name: 'Twomiah Roof', tagline: 'Roofing CRM', icon: '🏠', color: '#dc2626' },
+  landscaping: { name: 'Twomiah Landscaping', tagline: 'Lawn & Landscape CRM', icon: '🌳', color: '#22c55e' },
 }
 
 export const PLANS_BY_PRODUCT: Record<ProductLine, Plan[]> = {
@@ -394,6 +471,7 @@ export const PLANS_BY_PRODUCT: Record<ProductLine, Plan[]> = {
   care: CARE_PLANS,
   wrench: WRENCH_PLANS,
   roof: ROOF_PLANS,
+  landscaping: LANDSCAPING_PLANS,
 }
 
 // Map product line to products array and industry for FactoryConfig
@@ -402,6 +480,7 @@ export const PRODUCT_CONFIG_MAP: Record<ProductLine, { products: string[]; indus
   care: { products: ['website', 'crm'], industry: 'home_care' },
   wrench: { products: ['website', 'crm'], industry: 'field_service' },
   roof: { products: ['website', 'crm'], industry: 'roofing' },
+  landscaping: { products: ['website', 'crm'], industry: 'landscaping' },
 }
 
 /** Get the tier index for a plan (0-based). Used to determine locked vs upgrade features. */

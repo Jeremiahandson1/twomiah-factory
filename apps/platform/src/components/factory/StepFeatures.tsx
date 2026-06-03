@@ -17,7 +17,7 @@ type Props = {
 const CRM_PRESETS: { id: string; name: string; icon: string; description: string; features: string[] | 'all'; templates?: string[] }[] = [
   { id: 'service-starter', name: 'Service Starter', icon: '🔧', description: 'HVAC, plumbing, electrical, cleaning', templates: ['crm', 'crm-fieldservice'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','drag_drop_calendar','recurring_jobs','online_booking','service_dispatch','pricebook','time_tracking','online_payments','expense_tracking','two_way_texting','google_reviews','lead_inbox'] },
   { id: 'project-pro', name: 'Project Pro', icon: '🏗️', description: 'Remodeling, general contracting', templates: ['crm'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','selections','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox'] },
-  { id: 'roofing-pro', name: 'Roofing Pro', icon: '🏠', description: 'Roofing contractors & storm restoration', templates: ['crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox','measurement_reports','insurance_workflow','pipeline_board','crews','materials','canvassing_tool','storm_lead_gen','instant_estimator'] },
+  { id: 'roofing-pro', name: 'Roofing Pro', icon: '🏠', description: 'Roofing contractors & storm restoration', templates: ['crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','change_orders','daily_logs','time_tracking','photo_capture','expense_tracking','job_costing','online_payments','consumer_financing','documents','client_portal','google_reviews','lead_inbox','insurance_workflow','pipeline_board','crews','materials','canvassing_tool','storm_lead_gen'] },
   { id: 'contractor-suite', name: 'Contractor Suite', icon: '🏢', description: 'Full commercial construction', templates: ['crm', 'crm-roof'], features: ['contacts','jobs','quotes','invoices','scheduling','team','dashboard','projects','rfis','change_orders','punch_lists','daily_logs','inspections','bid_management','takeoff_tools','selections','time_tracking','gps_tracking','photo_capture','fleet','online_payments','expense_tracking','job_costing','quickbooks','documents','reports','client_portal','call_tracking','lead_inbox'] },
   { id: 'everything', name: 'Enterprise', icon: '🚀', description: 'Every feature enabled', features: 'all' },
 ]
@@ -99,7 +99,6 @@ const CRM_REGISTRY = [
     { id: 'referral_program', name: 'Referral Program', description: 'Customer referral tracking', core: false },
   ]},
   { category: 'Roofing', features: [
-    { id: 'measurement_reports', name: 'Measurement Reports', description: 'Aerial roof measurement integration', core: false },
     { id: 'insurance_workflow', name: 'Insurance Workflow', description: 'Insurance claim and supplement tracking', core: false },
     { id: 'pipeline_board', name: 'Pipeline Board', description: 'Kanban sales pipeline for roof leads', core: false },
     { id: 'crews', name: 'Crews', description: 'Crew scheduling and management', core: false },
@@ -117,7 +116,6 @@ const CRM_REGISTRY = [
   ]},
   { category: 'Add-on Products', features: [
     { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior rendering tool', core: false },
-    { id: 'instant_estimator', name: 'Instant Estimator', description: 'Roof measurement + instant pricing', core: false },
   ]},
 ]
 
@@ -509,7 +507,7 @@ function PaidAdsFeature({ enabled, onChange }: { enabled: boolean; onChange: (v:
         <span className="text-4xl">📣</span>
         <div className="flex-1">
           <div className="text-white font-bold text-lg">Paid Ads — Google + Meta</div>
-          <div className="text-gray-400 text-sm mt-1">AI-powered campaign creation via Twomiah Ads. Launches Google campaigns automatically after onboarding.</div>
+          <div className="text-gray-400 text-sm mt-1">Performance dashboard for connected Google &amp; Meta ad accounts. Tenant connects their own ad accounts after deployment.</div>
         </div>
         <button onClick={() => onChange(!enabled)}
           className={`px-6 py-2 rounded-lg font-bold text-white transition-colors ${enabled ? 'bg-green-500 hover:bg-green-400' : 'bg-orange-500 hover:bg-orange-400'}`}>
@@ -518,7 +516,7 @@ function PaidAdsFeature({ enabled, onChange }: { enabled: boolean; onChange: (v:
       </div>
       {enabled && (
         <div className="px-5 py-3 bg-yellow-500/10 border-t border-yellow-500/20 text-yellow-300 text-sm">
-          Twomiah Ads tenant provisioned automatically on generate. Client connects Google Ads after deployment.
+          Tenant connects their Google Ads / Meta Business account from the Ads &gt; Settings page after deployment.
         </div>
       )}
     </div>

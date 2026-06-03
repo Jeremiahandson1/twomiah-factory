@@ -67,6 +67,7 @@ import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import AdsPage from './pages/ads/AdsPage';
+import VisualizerPage from './pages/VisualizerPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
 import EstimatorTrialPage from './pages/EstimatorTrialPage';
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage';
@@ -202,6 +203,7 @@ function App() {
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
                     <Route path="support" element={<SupportPage />} />
                     <Route path="ads" element={<AdsPage />} />
+                    <Route path="visualizer" element={<VisualizerPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                     <Route path="estimator" element={<EstimatorPage />} />
                     <Route path="roof-reports" element={<RoofReportsPage />} />

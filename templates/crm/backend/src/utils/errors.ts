@@ -9,8 +9,11 @@ export const errorHandler = (err: Error, c: Context) => {
     logger.error('Unhandled error', { error: message, stack: err.stack, path: c.req.path })
   }
 
+  // Include the actual error message in production to aid debugging.
+  // Sensitive stack traces are still excluded.
   return c.json({
-    error: process.env.NODE_ENV === 'production' && status >= 500 ? 'Internal server error' : message,
+    error: message || 'Internal server error',
+    ...(err.name === 'PostgresError' || (err as any).code ? { code: (err as any).code, detail: (err as any).detail } : {}),
   }, status)
 }
 

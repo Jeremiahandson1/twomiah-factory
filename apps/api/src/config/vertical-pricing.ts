@@ -28,7 +28,7 @@ import STRIPE_PRICES from './stripe-prices'
 
 export type WebsiteTierId = 'presence' | 'showcase' | 'book_jobs'
 export type CrmTierId = 'starter' | 'pro' | 'business' | 'top' | 'enterprise'
-export type VerticalId = 'build' | 'wrench' | 'care' | 'roof'
+export type VerticalId = 'build' | 'wrench' | 'care' | 'roof' | 'landscaping'
 
 export interface WebsiteTier {
   id: WebsiteTierId
@@ -318,16 +318,16 @@ export const VERTICALS: Record<VerticalId, VerticalPricing> = {
         internalName: 'pro',
         tagline: 'Good-Better-Best pricing + website',
         ...CRM_BASE.pro,
-        heroFeatures: ['Good-Better-Best pricing', 'Pricebook', 'Measurement reports (3/mo)', 'Review requests', 'Showcase website included'],
+        heroFeatures: ['Good-Better-Best pricing', 'Pricebook', 'Photo galleries', 'Review requests', 'Showcase website included'],
         highlight: true,
       },
       {
         id: 'business',
         displayName: 'Business',
         internalName: 'business',
-        tagline: 'Instant estimator + insurance workflow',
+        tagline: 'Insurance workflow + financing',
         ...CRM_BASE.business,
-        heroFeatures: ['Instant estimator on website ($350–$550/sq)', '10 measurement reports/mo', 'Insurance workflow', 'Consumer financing', 'Book Jobs website included'],
+        heroFeatures: ['Insurance workflow', 'Adjuster directory', 'Consumer financing', 'Materials management', 'Book Jobs website included'],
       },
       {
         id: 'top',
@@ -335,7 +335,55 @@ export const VERTICALS: Record<VerticalId, VerticalPricing> = {
         internalName: 'storm',
         tagline: 'Built for storm chasers and busy seasons',
         ...CRM_BASE.top,
-        heroFeatures: ['Unlimited measurement reports', 'Storm lead generation', 'Full insurance workflow + supplements', 'Door-knock canvassing tool', 'Estimator + service area pages'],
+        heroFeatures: ['Storm lead generation', 'Full insurance workflow + supplements', 'Door-knock canvassing tool', 'Multi-crew dispatch', 'Service area pages on website'],
+      },
+      {
+        id: 'enterprise',
+        displayName: 'Enterprise',
+        internalName: 'enterprise',
+        tagline: 'Unlimited scale, white-label',
+        ...CRM_BASE.enterprise,
+        heroFeatures: ['Unlimited crews', 'White-label', 'SSO', 'API access', 'Dedicated support'],
+      },
+    ],
+  },
+  landscaping: {
+    id: 'landscaping',
+    displayName: 'Twomiah Landscaping',
+    websiteTiers: WEBSITE_TIERS,
+    crmTiers: [
+      {
+        id: 'starter',
+        displayName: 'Solo',
+        internalName: 'solo',
+        tagline: 'Jobs, quotes, and invoicing for owner-operators',
+        ...CRM_BASE.starter,
+        heroFeatures: ['Contacts & properties', 'Job tracking', 'Quotes & invoices', 'Payments', 'Customer portal'],
+      },
+      {
+        id: 'pro',
+        displayName: 'Crew',
+        internalName: 'crew',
+        tagline: 'Recurring routes, crew scheduling + website',
+        ...CRM_BASE.pro,
+        heroFeatures: ['Recurring mow routes', 'Drag-and-drop scheduling', 'Crew time tracking', 'Job photos', 'Showcase website included'],
+        highlight: true,
+      },
+      {
+        id: 'business',
+        displayName: 'Route Master',
+        internalName: 'route_master',
+        tagline: 'Route optimization + job costing',
+        ...CRM_BASE.business,
+        heroFeatures: ['Route optimization', 'Job costing', 'Service agreements', 'Online booking', 'Book Jobs website included'],
+      },
+      {
+        id: 'top',
+        displayName: 'Fleet',
+        internalName: 'fleet',
+        tagline: 'Multi-crew, equipment & snow operations',
+        ...CRM_BASE.top,
+        heroFeatures: ['Multi-crew dispatch', 'Equipment tracking', 'Snow & seasonal billing', 'Commercial accounts', 'Service area pages on website'],
       },
       {
         id: 'enterprise',

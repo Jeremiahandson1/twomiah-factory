@@ -33,6 +33,7 @@ import AdsPage from './pages/ads/AdsPage'
 import RoofReportsPage from './pages/roofReports/RoofReportsPage'
 import RoofReportDetail from './pages/roofReports/RoofReportDetail'
 import VisualizerTrialPage from './pages/VisualizerTrialPage'
+import VisualizerPage from './pages/VisualizerPage'
 import PricebookTrialPage from './pages/PricebookTrialPage'
 import EstimatorTrialPage from './pages/EstimatorTrialPage'
 import BillingPricingPage from './pages/billing/PricingPage'
@@ -110,6 +111,7 @@ export default function App() {
                 <Route path="roof-reports" element={<RoofReportsPage />} />
                 <Route path="roof-reports/:id" element={<RoofReportDetail />} />
                 <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
+                <Route path="visualizer" element={<VisualizerPage />} />
                 <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                 <Route path="estimator-trial" element={<EstimatorTrialPage />} />
                 <Route path="billing/pricing" element={<BillingPricingPage />} />

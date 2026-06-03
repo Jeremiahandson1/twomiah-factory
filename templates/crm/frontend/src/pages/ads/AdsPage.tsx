@@ -5,7 +5,7 @@ import {
   BarChart3, Eye, MousePointer, DollarSign, Users, Target,
   TrendingUp, Pause, Play, ExternalLink, X, Send, Check,
   AlertCircle, Filter, Clock, Settings, Link, Unlink,
-  Plus, Image, Layout, MapPin, Calendar, Sparkles, ArrowLeft, ArrowRight, Loader2
+  Plus, Image, Layout, MapPin, Calendar, ArrowLeft, ArrowRight, Loader2
 } from 'lucide-react';
 
 // ─── Feature gate ────────────────────────────────────────────────────────────
@@ -28,8 +28,7 @@ export default function AdsPage() {
 
 // ─── Main content ────────────────────────────────────────────────────────────
 function AdsContent() {
-  const [tab, setTab] = useState<'performance' | 'campaigns' | 'approvals' | 'settings'>('performance');
-  const [pendingCount, setPendingCount] = useState(0);
+  const [tab, setTab] = useState<'performance' | 'campaigns' | 'settings'>('performance');
 
   return (
     <div className="space-y-6">
@@ -46,7 +45,6 @@ function AdsContent() {
         {([
           { id: 'performance' as const, label: 'Performance', icon: BarChart3 },
           { id: 'campaigns' as const, label: 'My Ads', icon: Target },
-          { id: 'approvals' as const, label: 'Ad Approval', icon: Check, badge: pendingCount },
           { id: 'settings' as const, label: 'Settings', icon: Settings },
         ]).map(t => (
           <button
@@ -60,11 +58,6 @@ function AdsContent() {
           >
             <t.icon className="w-4 h-4" />
             {t.label}
-            {t.badge ? (
-              <span className="ml-1 px-1.5 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">
-                {t.badge}
-              </span>
-            ) : null}
           </button>
         ))}
       </div>
@@ -72,17 +65,14 @@ function AdsContent() {
       {/* Tab content */}
       {tab === 'performance' && <PerformanceTab />}
       {tab === 'campaigns' && <CampaignsTab />}
-      {tab === 'approvals' && <ApprovalsTab onCountChange={setPendingCount} />}
       {tab === 'settings' && <AdsSettingsTab />}
     </div>
   );
 }
 
-// ─── Ads Settings (Mode + Connection) ────────────────────────────────────────
+// ─── Ads Settings (Account Connections) ──────────────────────────────────────
 function AdsSettingsTab() {
-  const [mode, setMode] = useState<'managed' | 'connected'>('managed');
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<any>({});
   const [connectingPlatform, setConnectingPlatform] = useState('');
 
@@ -90,21 +80,9 @@ function AdsSettingsTab() {
 
   const loadSettings = async () => {
     try {
-      const [modeRes, statusRes] = await Promise.all([
-        api.get('/api/ads/auth/mode'),
-        api.get('/api/ads/auth/status'),
-      ]);
-      setMode(modeRes?.mode || 'managed');
+      const statusRes = await api.get('/api/ads/auth/status');
       setStatus(statusRes?.status || {});
     } catch {} finally { setLoading(false); }
-  };
-
-  const switchMode = async (newMode: 'managed' | 'connected') => {
-    setSaving(true);
-    try {
-      await api.put('/api/ads/auth/mode', { mode: newMode });
-      setMode(newMode);
-    } catch {} finally { setSaving(false); }
   };
 
   const connectPlatform = (platform: string) => {
@@ -139,98 +117,45 @@ function AdsSettingsTab() {
 
   return (
     <div className="space-y-8">
-      {/* Mode Selector */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Ads Mode</h3>
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Connected Accounts</h3>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
-          Choose how your ad campaigns are managed.
+          Link your Google Ads, Meta Business, or TikTok Ads account to pull performance data into this dashboard.
         </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <button
-            onClick={() => switchMode('managed')}
-            disabled={saving}
-            className={`p-4 rounded-lg border-2 text-left transition-all ${
-              mode === 'managed'
-                ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10'
-                : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
-            }`}
-          >
-            <div className="font-bold text-gray-900 dark:text-white">Managed by Twomiah</div>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-              We handle everything. AI creates and optimizes your ads using our ad accounts. No Google Ads experience needed.
-            </p>
-            {mode === 'managed' && <span className="inline-block mt-2 text-xs font-bold text-orange-600">ACTIVE</span>}
-          </button>
-          <button
-            onClick={() => switchMode('connected')}
-            disabled={saving}
-            className={`p-4 rounded-lg border-2 text-left transition-all ${
-              mode === 'connected'
-                ? 'border-orange-500 bg-orange-50 dark:bg-orange-500/10'
-                : 'border-gray-200 dark:border-slate-700 hover:border-gray-300'
-            }`}
-          >
-            <div className="font-bold text-gray-900 dark:text-white">Connect My Account</div>
-            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-              Link your existing Google Ads or Meta account. Keep your history, quality scores, and audiences. We optimize within your account.
-            </p>
-            {mode === 'connected' && <span className="inline-block mt-2 text-xs font-bold text-orange-600">ACTIVE</span>}
-          </button>
-        </div>
-      </div>
-
-      {/* Platform Connections (show when connected mode) */}
-      {mode === 'connected' && (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border dark:border-slate-800 p-6">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Connected Accounts</h3>
-          <div className="space-y-3">
-            {(['google', 'meta', 'tiktok'] as const).map(platform => {
-              const info = status[platform];
-              const connected = info?.connected;
-              const labels: any = { google: 'Google Ads', meta: 'Meta (Facebook/Instagram)', tiktok: 'TikTok Ads' };
-              return (
-                <div key={platform} className="flex items-center justify-between p-4 rounded-lg border dark:border-slate-700">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <div>
-                      <div className="font-medium text-gray-900 dark:text-white">{labels[platform]}</div>
-                      <div className="text-xs text-gray-500 dark:text-slate-400">
-                        {connected ? (info.hasAccountId ? 'Connected' : 'Connected — needs account ID') : 'Not connected'}
-                      </div>
+        <div className="space-y-3">
+          {(['google', 'meta', 'tiktok'] as const).map(platform => {
+            const info = status[platform];
+            const connected = info?.connected;
+            const labels: any = { google: 'Google Ads', meta: 'Meta (Facebook/Instagram)', tiktok: 'TikTok Ads' };
+            return (
+              <div key={platform} className="flex items-center justify-between p-4 rounded-lg border dark:border-slate-700">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-500' : 'bg-gray-300'}`} />
+                  <div>
+                    <div className="font-medium text-gray-900 dark:text-white">{labels[platform]}</div>
+                    <div className="text-xs text-gray-500 dark:text-slate-400">
+                      {connected ? (info.hasAccountId ? 'Connected' : 'Connected — needs account ID') : 'Not connected'}
                     </div>
                   </div>
-                  {connected ? (
-                    <button onClick={() => disconnectPlatform(platform)} className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600">
-                      <Unlink className="w-4 h-4" /> Disconnect
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => connectPlatform(platform)}
-                      disabled={connectingPlatform === platform}
-                      className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600 font-medium"
-                    >
-                      <Link className="w-4 h-4" /> {connectingPlatform === platform ? 'Opening...' : 'Connect'}
-                    </button>
-                  )}
                 </div>
-              );
-            })}
-          </div>
+                {connected ? (
+                  <button onClick={() => disconnectPlatform(platform)} className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600">
+                    <Unlink className="w-4 h-4" /> Disconnect
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => connectPlatform(platform)}
+                    disabled={connectingPlatform === platform}
+                    className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600 font-medium"
+                  >
+                    <Link className="w-4 h-4" /> {connectingPlatform === platform ? 'Opening...' : 'Connect'}
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
-      )}
-
-      {mode === 'managed' && (
-        <div className="bg-blue-50 dark:bg-blue-500/10 rounded-xl p-6 border border-blue-200 dark:border-blue-500/20">
-          <h3 className="font-bold text-blue-900 dark:text-blue-300">How Managed Ads Work</h3>
-          <ul className="mt-2 space-y-1 text-sm text-blue-800 dark:text-blue-400">
-            <li>1. Set your budget and target area</li>
-            <li>2. AI generates ad copy and selects images</li>
-            <li>3. You review and approve the ads</li>
-            <li>4. We launch and optimize automatically</li>
-            <li>5. You see performance in the dashboard</li>
-          </ul>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -582,15 +507,15 @@ function CreateCampaignWizard({ onClose }: { onClose: () => void }) {
           ageMax,
         },
       });
-      const p = res?.preview || { headline: campaignName, description: 'Your AI-generated ad copy will appear here.', cta: 'Learn More' };
+      const p = res?.preview || { headline: campaignName, description: '', cta: 'Learn More' };
       setPreview(p);
       setPreviewHeadline(p.headline || '');
       setPreviewDescription(p.description || '');
       setPreviewCta(p.cta || 'Learn More');
     } catch {
-      setPreview({ headline: campaignName, description: 'Your AI-generated ad copy will appear here.', cta: 'Learn More' });
+      setPreview({ headline: campaignName, description: '', cta: 'Learn More' });
       setPreviewHeadline(campaignName);
-      setPreviewDescription('Your AI-generated ad copy will appear here.');
+      setPreviewDescription('');
       setPreviewCta('Learn More');
     } finally { setLoadingPreview(false); }
   };
@@ -993,9 +918,7 @@ function CreateCampaignWizard({ onClose }: { onClose: () => void }) {
               {loadingPreview ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="w-8 h-8 text-orange-500 animate-spin mb-3" />
-                  <p className="text-sm text-gray-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-orange-500" /> AI is generating your ad preview...
-                  </p>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">Loading preview...</p>
                 </div>
               ) : (
                 <>
@@ -1089,7 +1012,7 @@ function CreateCampaignWizard({ onClose }: { onClose: () => void }) {
                       disabled={launching || savingDraft}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50"
                     >
-                      {launching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                      {launching ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
                       Launch Campaign
                     </button>
                   </div>
@@ -1113,7 +1036,7 @@ function CreateCampaignWizard({ onClose }: { onClose: () => void }) {
               disabled={!canNext()}
               className="flex items-center gap-1.5 px-5 py-2 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {step === 3 ? 'Generate Preview' : 'Next'} <ArrowRight className="w-4 h-4" />
+              {step === 3 ? 'Review' : 'Next'} <ArrowRight className="w-4 h-4" />
             </button>
           </div>
         )}
