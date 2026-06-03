@@ -16,7 +16,7 @@ function getFromEmail(): string {
 
 // ─── Base send ───────────────────────────────────────────────────────────────
 
-export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+export async function sendEmail(to: string, subject: string, html: string, replyTo?: string): Promise<boolean> {
   const apiKey = getApiKey()
   if (!apiKey) {
     console.warn('[Email] SENDGRID_API_KEY not set — skipping email:', subject)
@@ -27,6 +27,14 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     return false
   }
 
+  const payload: Record<string, any> = {
+    personalizations: [{ to: [{ email: to }] }],
+    from: { email: getFromEmail(), name: 'Twomiah Factory' },
+    subject,
+    content: [{ type: 'text/html', value: html }],
+  }
+  if (replyTo) payload.reply_to = { email: replyTo }
+
   try {
     const res = await fetch(SENDGRID_API, {
       method: 'POST',
@@ -34,12 +42,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
         'Authorization': 'Bearer ' + apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: getFromEmail(), name: 'Twomiah Factory' },
-        subject,
-        content: [{ type: 'text/html', value: html }],
-      }),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30_000),
     })
 
@@ -301,6 +304,42 @@ export async function notifyNewIntake(
     ${data.intakeId ? btn('https://twomiah-factory-platform.onrender.com/tenants/' + data.intakeId, 'View in Factory Platform') : ''}`
 
   return sendEmail(to, 'New website intake: ' + data.businessName, wrap('New Local-Business Intake', body))
+}
+
+/**
+ * Fires when a prospect submits change requests against their show-first
+ * website preview. We want every one of these in front of staff fast —
+ * the show-first promise is a one-business-day turnaround per round.
+ */
+export async function notifyIntakeFeedback(
+  data: {
+    intakeId: string
+    businessName: string
+    message: string
+    contactEmail?: string | null
+    previewGeneratedAt?: string | null
+  }
+): Promise<boolean> {
+  const to = process.env.INTAKE_NOTIFY_EMAIL || 'hello@twomiah.com'
+
+  const safeMessage = data.message.substring(0, 5000).replace(/[<>]/g, (c) => c === '<' ? '&lt;' : '&gt;').replace(/\n/g, '<br>')
+  const replyTo = data.contactEmail && /^[^\s<>]+@[^\s<>]+\.[^\s<>]+$/.test(data.contactEmail) ? data.contactEmail : null
+
+  const body = `
+    <p style="color:#333;line-height:1.6;">A prospect requested changes to their preview. Their preview link is shareable — open it, then re-run the preview after applying changes.</p>
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:16px;margin:16px 0;">
+      ${kv('Business', data.businessName)}
+      ${kv('Intake ID', data.intakeId)}
+      ${replyTo ? kv('Reply to', '<a href="mailto:' + replyTo + '">' + replyTo + '</a>') : kv('Reply to', '<span style="color:#888">(none — prospect didn\'t leave an email)</span>')}
+      ${data.previewGeneratedAt ? kv('Preview version', data.previewGeneratedAt) : ''}
+    </div>
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0 0 6px;color:#111;font-weight:600;font-size:14px;">What they asked for:</p>
+      <p style="margin:0;color:#333;font-size:14px;line-height:1.6;">${safeMessage}</p>
+    </div>
+    ${btn('https://twomiah-factory-platform.onrender.com/tenants/' + data.intakeId, 'View in Factory Platform')}`
+
+  return sendEmail(to, 'Preview feedback: ' + data.businessName, wrap('Preview Change Request', body), replyTo || undefined)
 }
 
 // ─── Trial lifecycle notifications ───────────────────────────────────────────

@@ -43,7 +43,13 @@ export async function renderHomepagePreview(config: GenerateConfig): Promise<Pre
     // When the lead gave no real service areas, the site shows "Nearby City N"
     // placeholders — flag that in the preview so it reads as intentional.
     const hasRealCities = !!(config.company?.nearbyCities && config.company.nearbyCities.length)
-    const finalHtml = hasRealCities ? html : injectPlaceholderDisclaimer(html)
+    let finalHtml = hasRealCities ? html : injectPlaceholderDisclaimer(html)
+    // Inject the "Request changes" widget so the prospect can tell us what to
+    // change without leaving the preview. The widget reads the intake id from
+    // window.location.pathname (the preview is served at
+    // /api/v1/factory/public/intake/:id/preview), so we don't need to thread
+    // the id through here.
+    finalHtml = injectFeedbackWidget(finalHtml)
     return { html: finalHtml, slug: result.slug, buildId: result.buildId }
   } finally {
     // Disposable by design — preview artifacts must never accumulate.
@@ -150,6 +156,106 @@ function inlineAssets(html: string, websiteDir: string): string {
   })
 
   return html
+}
+
+/**
+ * Append a floating "Request changes" widget to <body>. The widget is the
+ * customer-facing half of the show-first iteration loop: prospect opens
+ * preview, taps the floating button, writes what they want changed, submits.
+ * Backend route is POST /api/v1/factory/public/intake/:id/feedback —
+ * the widget derives :id from window.location.pathname.
+ *
+ * Everything inline so the saved preview_html stays self-contained.
+ */
+function injectFeedbackWidget(html: string): string {
+  const widget = `
+<style data-preview-widget>
+  #__preview_fab{position:fixed;bottom:20px;right:20px;z-index:2147483646;background:#111827;color:#fff;border:none;border-radius:999px;padding:14px 20px;font:600 14px/1 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.25);display:flex;align-items:center;gap:8px}
+  #__preview_fab:hover{background:#1f2937}
+  #__preview_modal{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2147483647;display:none;align-items:flex-end;justify-content:center;padding:0;font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+  #__preview_modal.open{display:flex}
+  #__preview_card{background:#fff;border-radius:14px 14px 0 0;width:100%;max-width:520px;padding:24px;box-shadow:0 -10px 40px rgba(0,0,0,.2);max-height:90vh;overflow:auto}
+  @media (min-width:640px){#__preview_modal{align-items:center;padding:20px}#__preview_card{border-radius:14px}}
+  #__preview_card h3{margin:0 0 6px;font:600 18px/1.3 system-ui;color:#0f172a}
+  #__preview_card p.__hint{margin:0 0 18px;color:#475569;font-size:13px;line-height:1.5}
+  #__preview_card label{display:block;font:600 12px/1 system-ui;color:#0f172a;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+  #__preview_card textarea,#__preview_card input{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;color:#0f172a;background:#fff;outline:none}
+  #__preview_card textarea{min-height:140px;resize:vertical}
+  #__preview_card textarea:focus,#__preview_card input:focus{border-color:#111827;box-shadow:0 0 0 3px rgba(17,24,39,.12)}
+  #__preview_card .__row{margin-bottom:14px}
+  #__preview_card .__actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+  #__preview_card button{font:600 14px/1 system-ui;padding:10px 16px;border-radius:8px;border:none;cursor:pointer}
+  #__preview_card button.__cancel{background:transparent;color:#475569}
+  #__preview_card button.__send{background:#111827;color:#fff}
+  #__preview_card button.__send:disabled{background:#94a3b8;cursor:not-allowed}
+  #__preview_status{margin-top:10px;font-size:13px;min-height:18px}
+  #__preview_status.__ok{color:#15803d}
+  #__preview_status.__err{color:#b91c1c}
+</style>
+<button id="__preview_fab" type="button" aria-label="Request changes to this preview">
+  <span aria-hidden="true" style="display:inline-block;width:6px;height:6px;border-radius:999px;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)"></span>
+  Request changes
+</button>
+<div id="__preview_modal" role="dialog" aria-modal="true" aria-labelledby="__preview_title">
+  <div id="__preview_card">
+    <h3 id="__preview_title">What should we change?</h3>
+    <p class="__hint">Tell us what you'd like different — copy, colors, layout, services, anything. We'll update this preview within one business day.</p>
+    <form id="__preview_form">
+      <div class="__row">
+        <label for="__preview_msg">Changes you want</label>
+        <textarea id="__preview_msg" name="message" required minlength="4" maxlength="5000" placeholder="e.g. Make the green darker, drop the third service, add a photo of the team on the about section…"></textarea>
+      </div>
+      <div class="__row">
+        <label for="__preview_email">Email (optional, so we can reply)</label>
+        <input id="__preview_email" name="contactEmail" type="email" autocomplete="email" placeholder="you@yourcompany.com">
+      </div>
+      <div class="__actions">
+        <button type="button" class="__cancel" id="__preview_cancel">Cancel</button>
+        <button type="submit" class="__send" id="__preview_send">Send</button>
+      </div>
+      <div id="__preview_status" role="status" aria-live="polite"></div>
+    </form>
+  </div>
+</div>
+<script data-preview-widget>
+(function(){
+  function $(id){return document.getElementById(id)}
+  var fab=$('__preview_fab'),modal=$('__preview_modal'),cancel=$('__preview_cancel'),form=$('__preview_form'),send=$('__preview_send'),status=$('__preview_status'),msg=$('__preview_msg'),email=$('__preview_email');
+  function open(){modal.classList.add('open');setTimeout(function(){msg.focus()},50)}
+  function close(){modal.classList.remove('open');status.textContent='';status.className=''}
+  fab.addEventListener('click',open);
+  cancel.addEventListener('click',close);
+  modal.addEventListener('click',function(e){if(e.target===modal)close()});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&modal.classList.contains('open'))close()});
+  // Pull the intake id from the URL: /api/v1/factory/public/intake/:id/preview
+  var idMatch=(location.pathname||'').match(/\\/public\\/intake\\/([0-9a-f-]{36})\\/preview/i);
+  form.addEventListener('submit',function(e){
+    e.preventDefault();
+    if(!idMatch){status.textContent='Could not detect this preview\\u2019s id. Try the link your contact sent you.';status.className='__err';return}
+    if(!msg.value.trim()){return}
+    send.disabled=true;status.textContent='Sending\\u2026';status.className='';
+    fetch('/api/v1/factory/public/intake/'+idMatch[1]+'/feedback',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:msg.value,contactEmail:email.value||undefined})
+    }).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(o){
+      send.disabled=false;
+      if(o.ok){
+        status.textContent=(o.j&&o.j.message)||"Got it. We\\u2019ll be in touch.";
+        status.className='__ok';
+        msg.value='';
+        setTimeout(close,1800);
+      }else{
+        status.textContent=(o.j&&o.j.error)||'Something went wrong. Try again or email hello@twomiah.com.';
+        status.className='__err';
+      }
+    }).catch(function(){send.disabled=false;status.textContent='Network error. Try again or email hello@twomiah.com.';status.className='__err'});
+  });
+})();
+</script>`
+  const closeBodyMatch = html.match(/<\/body>/i)
+  if (!closeBodyMatch) return html + widget
+  return html.replace(closeBodyMatch[0], widget + '\n' + closeBodyMatch[0])
 }
 
 /**
