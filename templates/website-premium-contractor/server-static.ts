@@ -24,6 +24,7 @@ import fs from 'fs'
 import path from 'path'
 import { db } from './db'
 import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl } from './db/schema'
+import adminRoutes from './routes/admin'
 
 const app = new Hono()
 
@@ -127,15 +128,32 @@ app.post('/api/internal/sync-settings', async (c) => {
   return c.json({ ok: true, applied: Object.keys(allowed) })
 })
 
-// ── Admin stub — full implementation in task #22 ──────────────────────────
-app.get('/admin/*', (c) => c.html(
-  '<!doctype html><meta charset="utf-8"><title>Admin (coming soon)</title>' +
-  '<body style="font:16px system-ui;padding:40px;max-width:560px;margin:auto">' +
-  '<h1>Admin coming soon</h1>' +
-  '<p>The premium template ships its CMS admin in a follow-up release. ' +
-  'Your content is editable directly in the database in the meantime — contact support if you need a change.</p>' +
-  '</body>'
-))
+// ── Admin: JSON API + SPA ─────────────────────────────────────────────────
+// JSON API mounted at /api/admin/*. The React SPA build lands at
+// admin/dist/ and gets served below at /admin/*. SPA routes that don't
+// match a built asset fall back to index.html so client-side routing works.
+app.route('/api/admin', adminRoutes)
+
+const adminDistDir = path.join(__dirname, 'admin', 'dist')
+const hasAdminBuild = fs.existsSync(adminDistDir) && fs.existsSync(path.join(adminDistDir, 'index.html'))
+
+if (hasAdminBuild) {
+  app.use('/admin/assets/*', serveStatic({ root: './admin/dist' }))
+  app.get('/admin/*', (c) => {
+    // SPA fallback — serve index.html for any /admin/* request that wasn't
+    // an asset. React Router takes over from there.
+    const html = fs.readFileSync(path.join(adminDistDir, 'index.html'), 'utf8')
+    return c.html(html)
+  })
+} else {
+  app.get('/admin/*', (c) => c.html(
+    '<!doctype html><meta charset="utf-8"><title>Admin not built</title>' +
+    '<body style="font:16px system-ui;padding:40px;max-width:560px;margin:auto">' +
+    '<h1>Admin not built</h1>' +
+    '<p>Run <code>cd admin && bun install && bun run build</code> to ship the admin UI.</p>' +
+    '</body>'
+  ))
+}
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 const port = Number(process.env.PORT || '3000')
