@@ -2276,6 +2276,27 @@ app.post('/upload', authMiddleware, async (c) => {
       try { fs.unlinkSync(tmpIn); } catch {}
     }
 
+    // Logo size discipline (Claflin 3.8 tenant-side) — if the filename or
+    // folder strongly suggests a logo and the file is still over 30 KB
+    // raster, downsize the same way Factory writeBrandingAssets does. Catches
+    // admin re-uploads of fat photographic logos that bypass the Factory-time
+    // check. Filename heuristic matches /\blogo\b/i (case-insensitive).
+    const isLikelyLogo = /\blogo\b/i.test(file.name) || /\blogo/i.test(folder);
+    if (isLikelyLogo && buffer.length > 30 * 1024 && ext.match(/\.(jpe?g|png)$/i)) {
+      try {
+        const disciplined = await sharp(buffer)
+          .resize({ height: 200, withoutEnlargement: true })
+          .png({ palette: true, colors: 32 })
+          .toBuffer();
+        if (disciplined.length < buffer.length) {
+          console.log(`[Upload] Logo discipline: ${buffer.length} → ${disciplined.length} bytes`);
+          buffer = disciplined;
+        }
+      } catch (err) {
+        console.error('Logo discipline error:', err);
+      }
+    }
+
     // Generate thumbnail in-memory
     const thumbName = `thumb_${uniqueName}`;
     let thumbBuffer: Buffer | null = null;
@@ -2407,6 +2428,20 @@ app.post('/upload-multiple', authMiddleware, async (c) => {
           try { fs.unlinkSync(tmpOut); } catch {}
         }
         try { fs.unlinkSync(tmpIn); } catch {}
+      }
+
+      // Logo size discipline (Claflin 3.8 tenant-side) — same heuristic as
+      // the single-upload route. Filename containing /\blogo\b/i triggers a
+      // sharp downsize to height-200 + 32-color palette PNG.
+      const isLikelyLogo = /\blogo\b/i.test(file.name) || /\blogo/i.test(folder);
+      if (isLikelyLogo && buffer.length > 30 * 1024 && ext.match(/\.(jpe?g|png)$/i)) {
+        try {
+          const disciplined = await sharp(buffer)
+            .resize({ height: 200, withoutEnlargement: true })
+            .png({ palette: true, colors: 32 })
+            .toBuffer();
+          if (disciplined.length < buffer.length) buffer = disciplined;
+        } catch {}
       }
 
       // Generate thumbnail in-memory
