@@ -376,17 +376,59 @@ async function captureRenderBuildLogs(serviceIds: Record<string, string>, lastSt
       const buildStatus = deploys[0]?.deploy?.status
       const commit = deploys[0]?.deploy?.commit?.message || ''
 
-      // Render's logs endpoint returns last 1000 lines by default.
-      const lr = await fetch(`https://api.render.com/v1/logs?resource=${serviceId}&limit=1000`, {
+      // Render's /v1/logs endpoint requires ownerId + a time window. We
+      // grab ownerId from the service details and request the last 30
+      // minutes (more than enough for a failed build). Falls back to the
+      // events endpoint (simpler shape) if logs returns non-2xx.
+      const sd = await fetch(`https://api.render.com/v1/services/${serviceId}`, {
         headers: { 'Authorization': 'Bearer ' + process.env.RENDER_API_KEY },
         signal: AbortSignal.timeout(30_000),
       })
-      let logBody = lr.ok ? await lr.text() : `(log fetch HTTP ${lr.status})`
+      const svcDetails = sd.ok ? await sd.json() as any : {}
+      const ownerId = svcDetails.ownerId || svcDetails.owner?.id || ''
+      const endTime = new Date().toISOString()
+      const startTime = new Date(Date.now() - 30 * 60 * 1000).toISOString()
+
+      let logBody = ''
+      if (ownerId) {
+        const lr = await fetch(`https://api.render.com/v1/logs?ownerId=${encodeURIComponent(ownerId)}&resource=${encodeURIComponent(serviceId)}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}&limit=1000&direction=backward`, {
+          headers: { 'Authorization': 'Bearer ' + process.env.RENDER_API_KEY },
+          signal: AbortSignal.timeout(60_000),
+        })
+        if (lr.ok) {
+          const data = await lr.json() as any
+          const lines = Array.isArray(data.logs) ? data.logs : (Array.isArray(data) ? data : [])
+          logBody = lines.map((l: any) => `${l.timestamp || ''} ${l.message || l.text || JSON.stringify(l)}`).join('\n')
+        } else {
+          logBody = `(logs HTTP ${lr.status}: ${await lr.text().catch(() => '')})\n`
+        }
+      } else {
+        logBody = '(no ownerId on service — cannot query /v1/logs)\n'
+      }
+
+      // Also grab the recent events on the service — failure reasons
+      // often appear here in plain text even when logs are sparse.
+      const er = await fetch(`https://api.render.com/v1/services/${serviceId}/events?limit=20`, {
+        headers: { 'Authorization': 'Bearer ' + process.env.RENDER_API_KEY },
+        signal: AbortSignal.timeout(30_000),
+      })
+      let eventsBody = ''
+      if (er.ok) {
+        const events = await er.json() as any[]
+        eventsBody = events.map((e: any) => {
+          const evt = e.event || e
+          return `${evt.timestamp || ''} ${evt.type || ''} ${JSON.stringify(evt.details || {})}`
+        }).join('\n')
+      } else {
+        eventsBody = `(events HTTP ${er.status})\n`
+      }
+
       // Truncate if huge — keep tail since failures appear at the end.
       if (logBody.length > 200_000) logBody = '...(truncated head)...\n' + logBody.slice(-200_000)
 
-      const header = `# ${testId} :: ${role} (service ${serviceId})\n# status: ${lastStatuses[role]} | latest deploy ${deployId} status: ${buildStatus}\n# commit: ${commit}\n# fetched: ${new Date().toISOString()}\n\n`
-      fs.writeFileSync(path.join(auditDir, `${testId}__${role}__buildlog.txt`), header + logBody)
+      const header = `# ${testId} :: ${role} (service ${serviceId})\n# status: ${lastStatuses[role]} | latest deploy ${deployId} status: ${buildStatus}\n# commit: ${commit}\n# ownerId: ${ownerId}\n# fetched: ${new Date().toISOString()}\n\n`
+      const body = `=== EVENTS ===\n${eventsBody}\n\n=== LOGS ===\n${logBody}\n`
+      fs.writeFileSync(path.join(auditDir, `${testId}__${role}__buildlog.txt`), header + body)
     } catch (e: any) {
       fs.writeFileSync(path.join(auditDir, `${testId}__${role}__buildlog.txt`), `# log capture failed: ${e.message}\n`)
     }
