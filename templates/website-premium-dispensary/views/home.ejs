@@ -1,0 +1,24 @@
+<%
+  // Section composition renderer.
+  //
+  // homepage.json is expected to expose a sections[] array. Each entry shape:
+  //   { type: 'hero' | 'services' | 'cta' | ...,
+  //     variant: '<variant-name>',
+  //     data: { ... } }
+  //
+  // We loop the array and include views/sections/<type>/<variant>.ejs for each,
+  // passing { data } through. Unknown type or missing partial: silently skip
+  // (a missing partial shouldn't crash a customer's homepage).
+  const sections = Array.isArray(homepage.sections) ? homepage.sections : []
+%>
+<% for (const section of sections) { %>
+  <%
+    const type = (section && section.type) ? String(section.type).replace(/[^a-z0-9_-]/gi, '') : ''
+    const variant = (section && section.variant) ? String(section.variant).replace(/[^a-z0-9_-]/gi, '') : 'default'
+    const data = (section && section.data) || {}
+    if (!type) { continue }
+  %>
+  <% try { %>
+    <%- include('sections/' + type + '/' + variant, { data: data, settings: settings }) %>
+  <% } catch (e) { /* missing partial — skip, don't crash */ } %>
+<% } %>

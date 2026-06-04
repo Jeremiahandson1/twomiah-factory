@@ -195,6 +195,9 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
         'home_care', 'homecare', 'in_home_care', 'senior_care',
         'caregiving', 'companion_care',
       ])
+      const PREMIUM_DISPENSARY_INDUSTRIES = new Set([
+        'dispensary', 'cannabis', 'cannabis_retail',
+      ])
       const PREMIUM_CONTRACTOR_INDUSTRIES = new Set([
         'contractor', 'general_contractor', 'construction', 'remodeling',
         'siding', 'home_improvement',
@@ -210,6 +213,8 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
           websiteTemplate = 'website-premium-roofing'
         } else if (PREMIUM_HOMECARE_INDUSTRIES.has(industry)) {
           websiteTemplate = 'website-premium-homecare'
+        } else if (PREMIUM_DISPENSARY_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-dispensary'
         } else if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
           websiteTemplate = 'website-premium-fieldservice'
         } else if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
@@ -218,6 +223,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
           const supported = [
             ...Array.from(PREMIUM_ROOFING_INDUSTRIES),
             ...Array.from(PREMIUM_HOMECARE_INDUSTRIES),
+            ...Array.from(PREMIUM_DISPENSARY_INDUSTRIES),
             ...Array.from(PREMIUM_CONTRACTOR_INDUSTRIES),
             ...Array.from(PREMIUM_FIELDSERVICE_INDUSTRIES),
           ]

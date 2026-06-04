@@ -32,6 +32,9 @@ const PREMIUM_HOMECARE_INDUSTRIES = new Set([
   'home_care', 'homecare', 'in_home_care', 'senior_care',
   'caregiving', 'companion_care',
 ])
+const PREMIUM_DISPENSARY_INDUSTRIES = new Set([
+  'dispensary', 'cannabis', 'cannabis_retail',
+])
 const PREMIUM_FIELDSERVICE_INDUSTRIES = new Set([
   'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
   'cleaning', 'pest_control', 'locksmith', 'garage_door',
@@ -42,6 +45,9 @@ export function pickPremiumTemplateDir(industry?: string | null): string {
   }
   if (industry && PREMIUM_HOMECARE_INDUSTRIES.has(industry)) {
     return path.join(TEMPLATES_ROOT, 'website-premium-homecare')
+  }
+  if (industry && PREMIUM_DISPENSARY_INDUSTRIES.has(industry)) {
+    return path.join(TEMPLATES_ROOT, 'website-premium-dispensary')
   }
   if (industry && PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
     return path.join(TEMPLATES_ROOT, 'website-premium-fieldservice')
