@@ -17,6 +17,7 @@ import { renderHomepagePreview } from '../services/previewRenderer'
 import { composeSite } from '../services/sectionComposer'
 import { renderPremiumPage, pickPremiumTemplateDir } from '../services/premiumSiteRenderer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../services/unsplashPlus'
+import { hardDeleteTestTenant, cleanupOrphanTestTenants } from '../services/testCleanup'
 type FactoryAuthVariables = {
   user?: { id?: string; email?: string; [k: string]: any }
   userId?: string
@@ -1048,6 +1049,32 @@ factory.patch('/customers/:id/service/:role', requireRole('owner', 'admin'), asy
 })
 
 // ─── Cleanup ──────────────────────────────────────────────────────────────────
+// ─── Test-tenant cleanup ─────────────────────────────────────────────────
+// Hard-delete a single test tenant — Render services, Render DB, Cloudflare
+// zone, Stripe sub, Supabase row, etc. Refuses on real customers (the
+// is_test_tenant flag is the gate, enforced inside hardDeleteTestTenant).
+factory.post('/test/cleanup-tenant/:id', requireRole('owner', 'admin'), async (c) => {
+  const tenantId = c.req.param('id')
+  if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+  const result = await hardDeleteTestTenant(tenantId)
+  return c.json(result, result.success ? 200 : 500)
+})
+
+// Cron-triggered orphan sweep. Finds test tenants older than `maxAgeHours`
+// (default 6h) and hard-deletes them. Catches the case where a test run
+// crashes before its in-script cleanup fires.
+factory.post('/test/cleanup-orphans', async (c) => {
+  const cronSecret = c.req.header('x-cron-secret')
+  if (!cronSecret || cronSecret !== process.env.CRON_SECRET) {
+    return c.json({ error: 'Invalid cron secret' }, 401)
+  }
+  const body = await c.req.json().catch(() => ({})) as { maxAgeHours?: number }
+  const maxAgeMs = (body.maxAgeHours ?? 6) * 60 * 60 * 1000
+  const summary = await cleanupOrphanTestTenants({ maxAgeMs })
+  console.log('[Test cleanup] Scanned', summary.scanned, 'orphans, deleted', summary.deleted, 'failed', summary.failed)
+  return c.json(summary)
+})
+
 factory.post('/cleanup', async (c) => {
   // Auth: require CRON_SECRET header or valid Supabase session
   const cronSecret = c.req.header('x-cron-secret')
