@@ -34,6 +34,15 @@ export interface ComposerInput {
    * intake collected it; otherwise undefined and the composer chooses.
    */
   customerPhotos?: Array<{ url: string; tag?: string; alt?: string }>
+
+  /**
+   * Licensed stock photos (Unsplash+ etc.) fetched relevant to this
+   * business. Composer treats these as second-tier: customerPhotos
+   * first, then stockPhotos, then fall back to the prompt's hardcoded
+   * Unsplash placeholder URLs. Tag mirrors customerPhotos so the
+   * composer can match slot to context.
+   */
+  stockPhotos?: Array<{ url: string; tag?: string; alt?: string }>
 }
 
 export interface Section {
@@ -336,22 +345,33 @@ function buildSitePrompt(input: ComposerInput): string {
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
   ).join('\n')
 
-  // Customer-supplied photos take precedence over stock URLs. We list them
-  // with their tag (if any) so Claude can pick the right photo for the
-  // right slot — a 'hero'-tagged shot for hero sections, 'team' for
-  // team/grid members, etc. If no tag, it's eligible anywhere.
-  const photoList = (input.customerPhotos || []).slice(0, 30)
-  const photosSection = photoList.length > 0
-    ? `\n# Customer-supplied photos (USE THESE FIRST — they're authentic to this business)\n` +
-      photoList.map((p, i) =>
-        `${i + 1}. ${p.url}${p.tag ? '  [tag: ' + p.tag + ']' : ''}${p.alt ? '  [alt: ' + p.alt + ']' : ''}`
-      ).join('\n') +
-      `\n\nRules for these photos:\n` +
-      `- Always prefer a customer photo over an Unsplash URL when one fits the slot.\n` +
-      `- Match tags to section context (a 'hero'-tagged photo for hero sections, 'team' for team/grid members, 'services' for service item images).\n` +
-      `- Don't reuse the same customer photo across two sections on the same page unless absolutely necessary.\n` +
-      `- If no customer photo fits, fall back to an Unsplash URL as described above.\n`
-    : ''
+  // Three-tier photo preference: customer-supplied (authentic to THIS
+  // business) → licensed stock (Unsplash+ for this business type) →
+  // generic Unsplash placeholders from the prompt's example URLs.
+  const customerList = (input.customerPhotos || []).slice(0, 30)
+  const stockList = (input.stockPhotos || []).slice(0, 30)
+
+  let photosSection = ''
+  if (customerList.length > 0) {
+    photosSection += `\n# Tier 1 — Customer-supplied photos (USE THESE FIRST — authentic to this business)\n` +
+      customerList.map((p, i) =>
+        `C${i + 1}. ${p.url}${p.tag ? '  [tag: ' + p.tag + ']' : ''}${p.alt ? '  [alt: ' + p.alt + ']' : ''}`
+      ).join('\n') + '\n'
+  }
+  if (stockList.length > 0) {
+    photosSection += `\n# Tier 2 — Licensed stock photos (use when no Tier 1 photo fits)\n` +
+      stockList.map((p, i) =>
+        `S${i + 1}. ${p.url}${p.tag ? '  [tag: ' + p.tag + ']' : ''}${p.alt ? '  [alt: ' + p.alt + ']' : ''}`
+      ).join('\n') + '\n'
+  }
+  if (photosSection) {
+    photosSection += `\nRules for the photo tiers:\n` +
+      `- Tier 1 (customer photos) ALWAYS beats Tier 2 (stock) when one fits the slot.\n` +
+      `- Tier 2 (stock) ALWAYS beats the hardcoded Unsplash example URLs below.\n` +
+      `- Match tags to section context: 'hero' tag for hero sections, 'team' for team/grid members, 'services' for service item images.\n` +
+      `- Never reuse the same photo across two sections on the same page unless unavoidable.\n` +
+      `- Only fall back to the example URLs in rule 4 below if BOTH tiers are exhausted.\n`
+  }
 
   return `You are composing a multi-page website for ${input.businessName} — a ${input.businessType} in ${[input.city, input.state].filter(Boolean).join(', ') || 'the region they serve'}.
 

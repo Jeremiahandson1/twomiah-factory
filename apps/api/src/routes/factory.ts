@@ -16,6 +16,7 @@ import { buildBrief, type Intake } from '../services/briefBuilder'
 import { renderHomepagePreview } from '../services/previewRenderer'
 import { composeSite } from '../services/sectionComposer'
 import { renderPremiumPage } from '../services/premiumSiteRenderer'
+import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../services/unsplashPlus'
 type FactoryAuthVariables = {
   user?: { id?: string; email?: string; [k: string]: any }
   userId?: string
@@ -3007,6 +3008,15 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       }
     }
 
+    // Licensed stock photos from Unsplash+ if configured. Returns []
+    // silently when UNSPLASH_PLUS_ACCESS_KEY isn't set, so behavior is
+    // unchanged until you subscribe.
+    const stockPhotos = await searchStockPhotosForBusiness(
+      intake.businessType,
+      Array.isArray(intake.services) && intake.services.length > 0 ? intake.services[0] : undefined,
+      intake.city
+    )
+
     const composed = await composeSite({
       businessName: intake.businessName,
       businessType: intake.businessType,
@@ -3022,7 +3032,15 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       nearbyCities: intake.nearbyCities,
       primaryColor: intake.branding?.primaryColor,
       customerPhotos,
+      stockPhotos: stockPhotos.map(p => ({ url: p.url, tag: p.tag, alt: p.alt })),
     })
+
+    // Unsplash terms: ping /photos/:id/download for every photo we
+    // could conceivably use. Fire-and-forget — we don't block the
+    // response on Unsplash's ping endpoint.
+    for (const p of stockPhotos) {
+      trackUnsplashDownload(p.unsplashId).catch(() => {})
+    }
 
     const generatedAt = new Date().toISOString()
     const { error: saveErr } = await supabase
