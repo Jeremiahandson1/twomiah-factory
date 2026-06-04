@@ -15,16 +15,16 @@
  */
 
 :root {
-  --brand: #2d3a32;
-  --brand-deep: #1a2620;
-  --accent: #c89876;
-  --accent-deep: #a87a58;
-  --ink: #ffffff;
-  --ink-soft: #d8dad4;
-  --muted: #8a8e87;
-  --line: #2a2f2a;
-  --paper: #161b16;
-  --white: #1f2620;
+  --brand: #f5e6c5;
+  --brand-deep: #d4c098;
+  --accent: #4a8a5e;
+  --accent-deep: #356b46;
+  --ink: #f5f2eb;
+  --ink-soft: #d4cdbf;
+  --muted: #807a70;
+  --line: #2a2520;
+  --paper: #0e0c0a;
+  --white: #1a1714;
   --max: 1180px;
   --space: clamp(64px, 8vw, 120px);
 }
@@ -62,10 +62,11 @@ a { color: inherit; text-decoration: none; }
 }
 .brand {
   font-family: 'Cormorant Garamond', Georgia, serif;
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: -0.01em;
+  font-weight: 500;
+  font-size: 26px;
+  letter-spacing: 0.02em;
   color: var(--brand);
+  font-style: italic;
 }
 .primary-nav { display: flex; gap: 28px; }
 .primary-nav a { color: var(--ink-soft); font-weight: 500; font-size: 15px; }
@@ -90,10 +91,10 @@ a { color: inherit; text-decoration: none; }
   border: 2px solid transparent;
   transition: transform .12s ease, background .12s ease, color .12s ease;
 }
-.btn--lg { padding: 14px 24px; font-size: 15px; border-radius: 8px; }
-.btn--xl { padding: 18px 32px; font-size: 17px; border-radius: 10px; }
-.btn--primary { background: var(--accent); color: #1a2620; }
-.btn--primary:hover { background: var(--accent-deep); color: #ffffff; }
+.btn--lg { padding: 14px 28px; font-size: 14px; border-radius: 2px; letter-spacing: 0.12em; text-transform: uppercase; }
+.btn--xl { padding: 16px 36px; font-size: 14px; border-radius: 2px; letter-spacing: 0.14em; text-transform: uppercase; }
+.btn--primary { background: transparent; color: var(--brand); border-color: var(--brand); }
+.btn--primary:hover { background: var(--brand); color: var(--paper); }
 .btn--outline { background: transparent; color: var(--brand); border-color: var(--brand); }
 .btn--outline:hover { background: var(--brand); color: var(--white); }
 .btn--ghost { background: rgba(255,255,255,0.12); color: var(--white); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.35); }

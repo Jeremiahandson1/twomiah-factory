@@ -15,18 +15,18 @@
  */
 
 :root {
-  --brand: #2a201a;
-  --brand-deep: #1a120e;
-  --accent: #b45a3c;
-  --accent-deep: #8e3f24;
-  --ink: #2a201a;
-  --ink-soft: #5a4d44;
-  --muted: #8a7f74;
-  --line: #e8dfd2;
-  --paper: #f7f1e8;
-  --white: #fffdf8;
-  --max: 1180px;
-  --space: clamp(72px, 9vw, 140px);
+  --brand: #1a1614;
+  --brand-deep: #000000;
+  --accent: #8a1f3d;
+  --accent-deep: #6a142e;
+  --ink: #1a1614;
+  --ink-soft: #4a3f3a;
+  --muted: #8a807a;
+  --line: #e0d8d0;
+  --paper: #fbf8f3;
+  --white: #ffffff;
+  --max: 1080px;
+  --space: clamp(80px, 10vw, 160px);
 }
 
 * { box-sizing: border-box; }
@@ -62,10 +62,11 @@ a { color: inherit; text-decoration: none; }
 }
 .brand {
   font-family: 'Playfair Display', Georgia, serif;
-  font-weight: 700;
-  font-size: 22px;
-  letter-spacing: -0.01em;
+  font-weight: 400;
+  font-size: 28px;
+  letter-spacing: -0.02em;
   color: var(--brand);
+  font-style: italic;
 }
 .primary-nav { display: flex; gap: 28px; }
 .primary-nav a { color: var(--ink-soft); font-weight: 500; font-size: 15px; }
@@ -90,10 +91,10 @@ a { color: inherit; text-decoration: none; }
   border: 2px solid transparent;
   transition: transform .12s ease, background .12s ease, color .12s ease;
 }
-.btn--lg { padding: 14px 24px; font-size: 15px; border-radius: 8px; }
-.btn--xl { padding: 18px 32px; font-size: 17px; border-radius: 10px; }
-.btn--primary { background: var(--brand); color: var(--white); }
-.btn--primary:hover { background: var(--brand-deep); transform: translateY(-1px); }
+.btn--lg { padding: 14px 22px; font-size: 13px; border-radius: 0; letter-spacing: 0.18em; text-transform: uppercase; }
+.btn--xl { padding: 16px 28px; font-size: 13px; border-radius: 0; letter-spacing: 0.22em; text-transform: uppercase; }
+.btn--primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.btn--primary:hover { background: var(--accent); border-color: var(--accent); color: var(--white); }
 .btn--outline { background: transparent; color: var(--brand); border-color: var(--brand); }
 .btn--outline:hover { background: var(--brand); color: var(--white); }
 .btn--ghost { background: rgba(255,255,255,0.12); color: var(--white); backdrop-filter: blur(4px); border: 1px solid rgba(255,255,255,0.35); }
