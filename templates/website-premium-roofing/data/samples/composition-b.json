@@ -1,0 +1,80 @@
+{
+  "_note": "Composition B — credibility-stats led. Stats hero (years/installs/rating/GAF), about-us split, cards-grid for services menu, banner CTA. Reads as 'established storm-restoration firm with the certifications.'",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "centered-stats",
+      "data": {
+        "eyebrow": "GAF Master Elite · BBB A+ · Driftless since 2012",
+        "title": "The roof your insurance company recommends",
+        "subtitle": "Bluff Country Roofing is the Madison-area contractor adjusters call when they need a fair, documented bid. Free inspections, drone-documented claims, insurance billed direct.",
+        "primaryCta": { "label": "Schedule free inspection", "href": "#contact" },
+        "stats": [
+          { "value": "13 yrs", "label": "In business" },
+          { "value": "1,400+", "label": "Roofs installed" },
+          { "value": "4.9 ★", "label": "Google rating" },
+          { "value": "Top 2%", "label": "GAF Master Elite" }
+        ]
+      }
+    },
+    {
+      "type": "hero",
+      "variant": "split",
+      "data": {
+        "flip": true,
+        "eyebrow": "Our approach",
+        "title": "Drone-documented inspections + carrier-fluent paperwork",
+        "subtitle": "We've worked with every major insurance carrier in the upper Midwest. We know which photos each one wants, which line-items they'll cover, and how to negotiate when the first estimate comes back low.",
+        "image": "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=1400&q=80",
+        "primaryCta": { "label": "See our process", "href": "#services" },
+        "stats": [
+          { "value": "0", "label": "Subcontracted installs" },
+          { "value": "12 hr", "label": "Emergency tarp response" }
+        ]
+      }
+    },
+    {
+      "type": "services",
+      "variant": "cards-grid",
+      "data": {
+        "heading": "Four services, one roofing crew",
+        "intro": "Same GAF-certified installers do every job — no subcontractors, no quality drift.",
+        "items": [
+          {
+            "title": "Storm restoration",
+            "description": "Hail/wind damage assessment, drone-documented claim, full carrier coordination. You pay your deductible.",
+            "image": "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Full replacement",
+            "description": "Asphalt, metal, slate. GAF Master Elite installation with 25-year manufacturer + 10-year workmanship warranty.",
+            "image": "https://images.unsplash.com/photo-1632741894894-6c5f6d8b7d0a?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Repairs",
+            "description": "Missing shingles, flashing leaks, vent boots, valleys. Flat-rate $179 minimum, no surprise hourly bills.",
+            "image": "https://images.unsplash.com/photo-1632436258519-7f95bdcdac5e?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Gutters & guards",
+            "description": "5\" K-style or 6\" oversized seamless aluminum. Lifetime no-clog guarantee on covers.",
+            "image": "https://images.unsplash.com/photo-1604762525057-4e9c0a3fef4d?w=900&q=80",
+            "href": "#contact"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "After the storm, time matters",
+        "subtitle": "Most carriers require claims filed within 12 months. Free inspection — we'll tell you straight whether there's a claim worth filing.",
+        "primaryCta": { "label": "Call 608-555-7732", "href": "tel:6085557732" }
+      }
+    }
+  ]
+}

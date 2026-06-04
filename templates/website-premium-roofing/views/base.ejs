@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title><%= settings.seoTitle || settings.companyName || 'Website' %></title>
+  <meta name="description" content="<%= settings.seoDescription || '' %>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/main.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="<%= settings.homeHref || '/' %>"><%= settings.companyName || 'Your Company' %></a>
+      <nav class="primary-nav" aria-label="Primary">
+        <% (settings.nav || []).forEach(function(item) { %>
+          <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+        <% }) %>
+      </nav>
+      <a class="header-cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+    </div>
+  </header>
+
+  <main>
+    <%- body %>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-brand"><%= settings.companyName || 'Your Company' %></div>
+        <div class="footer-tagline"><%= settings.tagline || '' %></div>
+      </div>
+      <div class="footer-contact">
+        <% if (settings.phone) { %><a href="tel:<%= settings.phone %>"><%= settings.phone %></a><% } %>
+        <% if (settings.email) { %><a href="mailto:<%= settings.email %>"><%= settings.email %></a><% } %>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

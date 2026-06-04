@@ -1,0 +1,16 @@
+{
+  "companyName": "Bluff Country Roofing",
+  "tagline": "Storm restoration, full-tear-offs, and insurance work across the Driftless region",
+  "phone": "608-555-7732",
+  "email": "office@bluffcountryroofing.com",
+  "seoTitle": "Bluff Country Roofing — Storm restoration + insurance work | Madison, WI",
+  "seoDescription": "Free roof inspections after every storm. GAF Master Elite certified, BBB A+, insurance billed direct. Serving the Driftless region since 2012.",
+  "homeHref": "index.html",
+  "contactHref": "contact.html",
+  "contactCtaLabel": "Free roof inspection",
+  "nav": [
+    { "label": "Services", "href": "services.html" },
+    { "label": "About", "href": "about.html" },
+    { "label": "Contact", "href": "contact.html" }
+  ]
+}

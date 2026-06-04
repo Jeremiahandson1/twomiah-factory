@@ -1,0 +1,68 @@
+{
+  "_note": "Composition A — storm-response led. Full-bleed roof-in-progress hero with free-inspection CTA, alternating services rows (storm, replace, repair, gutters), split CTA with insurance-billed-direct trust signals.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "full-bleed",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1632437118800-12c8feb52a35?w=2000&q=80",
+        "eyebrow": "Free post-storm inspection · Insurance billed direct",
+        "title": "The Driftless region's storm-restoration crew",
+        "subtitle": "Hail or wind damage? We'll be on your roof within 48 hours, document everything for your carrier, and bill the insurance company direct. You pay your deductible — that's it.",
+        "primaryCta": { "label": "Schedule free inspection", "href": "#contact" },
+        "secondaryCta": { "label": "Call 608-555-7732", "href": "tel:6085557732" }
+      }
+    },
+    {
+      "type": "services",
+      "variant": "alternating",
+      "data": {
+        "heading": "What we do",
+        "intro": "GAF Master Elite installers — the top 2% of roofing contractors nationally — backed by a 25-year manufacturer warranty on every full system.",
+        "items": [
+          {
+            "title": "Storm damage restoration",
+            "description": "Hail, wind, ice dam, or tree-fall. We document the damage with drone footage, file the claim with your carrier, and replace the roof at no out-of-pocket beyond your deductible.",
+            "image": "https://images.unsplash.com/photo-1518780664697-55e3ad937233?w=1400&q=80",
+            "bullets": ["Free inspection within 48 hours of call", "Full insurance-claim assistance — adjusters meet us on-site", "Emergency tarping in <12 hours when weather threatens"]
+          },
+          {
+            "title": "Full roof replacement",
+            "description": "Asphalt, metal, slate, cedar shake — we do every system common to the upper Midwest. Tear-off and re-deck in 1–2 days on most homes.",
+            "image": "https://images.unsplash.com/photo-1632741894894-6c5f6d8b7d0a?w=1400&q=80",
+            "bullets": ["GAF Master Elite installers (top 2% nationally)", "25-year manufacturer + 10-year workmanship warranty", "Same-week scheduling for most installs"]
+          },
+          {
+            "title": "Repairs & maintenance",
+            "description": "Missing shingles, flashing leaks, vent boots, valleys. Small jobs get the same crew and the same standard — no \"too small\" minimum.",
+            "image": "https://images.unsplash.com/photo-1632436258519-7f95bdcdac5e?w=1400&q=80",
+            "bullets": ["$179 minimum service call — flat-rate, no surprises", "Same-week scheduling for repairs under $2k", "All work covered by our 10-year workmanship warranty"]
+          },
+          {
+            "title": "Gutters & gutter guards",
+            "description": "5-inch K-style and 6-inch oversized seamless aluminum. LeafGuard-style covers that actually keep maples out.",
+            "image": "https://images.unsplash.com/photo-1604762525057-4e9c0a3fef4d?w=1400&q=80",
+            "bullets": ["Bundled discounts when paired with a roof replacement", "Lifetime no-clog guarantee on gutter guards"]
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1632741894894-6c5f6d8b7d0a?w=1400&q=80",
+        "heading": "Storm damage? Don't wait — insurance claims have deadlines",
+        "subtitle": "Most carriers want claims filed within 12 months of the storm. We've handled hundreds — we know what each adjuster's looking for and how to get a fair settlement.",
+        "bullets": [
+          "Free inspection + drone documentation, with or without a claim",
+          "We meet your insurance adjuster on-site at no cost",
+          "Insurance billed direct — you pay only your deductible",
+          "GAF Master Elite · BBB A+ · Driftless region since 2012"
+        ],
+        "primaryCta": { "label": "Schedule inspection", "href": "#contact" },
+        "phone": "608-555-7732"
+      }
+    }
+  ]
+}
