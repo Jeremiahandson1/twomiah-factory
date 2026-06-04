@@ -65,6 +65,9 @@ const args = Object.fromEntries(
 const MODE = args.mode === 'full' ? 'full' : 'smoke'
 const WITH_DEPLOY = args['with-deploy'] === 'true'
 const CONCURRENCY = parseInt(args.concurrency || '1', 10)
+// --limit=n runs only the first n tests of the chosen matrix. Useful for
+// probing Render rate-limit recovery without burning the whole budget.
+const LIMIT = args.limit ? parseInt(args.limit, 10) : 0
 const AUDIT_DIR = args['audit-dir'] || path.join(__dirname, 'test-audit', new Date().toISOString().replace(/[:.]/g, '-'))
 // Render's API rate-limits resource creation. Without inter-test pacing
 // the matrix burns through the quota in a few minutes and starts getting
@@ -124,7 +127,8 @@ function buildFullMatrix(): TestCase[] {
   return cases
 }
 
-const MATRIX = MODE === 'full' ? buildFullMatrix() : SMOKE_CASES
+let MATRIX = MODE === 'full' ? buildFullMatrix() : SMOKE_CASES
+if (LIMIT > 0) MATRIX = MATRIX.slice(0, LIMIT)
 
 // ── Audit log ────────────────────────────────────────────────────────────
 
