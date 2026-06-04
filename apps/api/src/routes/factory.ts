@@ -15,7 +15,7 @@ import { getRegistrar, isRegistrarConfigured } from '../services/registrar'
 import { buildBrief, type Intake } from '../services/briefBuilder'
 import { renderHomepagePreview } from '../services/previewRenderer'
 import { composeSite } from '../services/sectionComposer'
-import { renderPremiumPage } from '../services/premiumSiteRenderer'
+import { renderPremiumPage, pickPremiumTemplateDir } from '../services/premiumSiteRenderer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../services/unsplashPlus'
 type FactoryAuthVariables = {
   user?: { id?: string; email?: string; [k: string]: any }
@@ -3081,7 +3081,7 @@ const PREMIUM_PAGE_TITLES: Record<string, string> = {
 async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name, email, phone, preview_premium_pages, preview_premium_approved_at, intake_data')
+    .select('name, email, phone, industry, preview_premium_pages, preview_premium_approved_at, intake_data')
     .eq('id', id)
     .maybeSingle()
   if (!tenant || !tenant.preview_premium_pages) {
@@ -3118,10 +3118,12 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
   }
 
   const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
+  const templateDir = pickPremiumTemplateDir(tenant.industry)
   const rendered = await renderPremiumPage(
     { slug, title: PREMIUM_PAGE_TITLES[slug] || slug, sections: page.sections },
     settings,
-    previewBasePath
+    previewBasePath,
+    templateDir,
   )
   return c.html(rendered.html)
 }
@@ -3274,7 +3276,7 @@ async function authStaffFromQueryOrHeader(c: any): Promise<{ ok: boolean; role?:
 async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('name, email, phone, preview_premium_pages, intake_data')
+    .select('name, email, phone, industry, preview_premium_pages, intake_data')
     .eq('id', id)
     .maybeSingle()
   if (!tenant || !tenant.preview_premium_pages) {
@@ -3299,10 +3301,12 @@ async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
   // while reviewing.
   const token = c.req.query('token')
   const previewBasePath = `/api/v1/factory/intake/${id}/preview-premium-staff`
+  const templateDir = pickPremiumTemplateDir(tenant.industry)
   let renderedHtml = (await renderPremiumPage(
     { slug, title: PREMIUM_PAGE_TITLES[slug] || slug, sections: page.sections },
     settings,
-    previewBasePath
+    previewBasePath,
+    templateDir,
   )).html
   if (token) {
     // Append ?token=… to every same-origin nav href so the iframe can

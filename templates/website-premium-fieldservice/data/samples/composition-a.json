@@ -1,0 +1,68 @@
+{
+  "_note": "Composition A — phone-first conversion. Hero with prominent CTA → services grid (HVAC tradespeople scan for the service they need) → CTA banner with phone number.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "full-bleed",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?w=2000&q=80",
+        "eyebrow": "Same-day service · 24/7 emergency",
+        "title": "Driftless region's most-called HVAC + plumbing crew",
+        "subtitle": "When the heat goes out at 2am, the line you call is answered by the same family that's been here since 2004. Licensed, insured, and 5-star rated on Google.",
+        "primaryCta": { "label": "Schedule service", "href": "#contact" },
+        "secondaryCta": { "label": "Call 608-555-4477", "href": "tel:6085554477" }
+      }
+    },
+    {
+      "type": "services",
+      "variant": "cards-grid",
+      "data": {
+        "heading": "What we fix",
+        "intro": "Same crew, two trucks, one phone line. We don't dispatch — when you call, you talk to a technician.",
+        "items": [
+          {
+            "title": "Heating & furnace",
+            "description": "Same-day diagnostics and repair on gas, oil, electric, and heat-pump systems. We carry the most-needed parts on the truck — most calls finish on the first visit.",
+            "image": "https://images.unsplash.com/photo-1597211833712-5e41faa202ea?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Air conditioning",
+            "description": "From a freon top-up to a full system replacement, we'll talk through your options at the kitchen table, not from a corporate script.",
+            "image": "https://images.unsplash.com/photo-1631545806609-d9325f3d28c5?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Plumbing",
+            "description": "Drain clearing, water heater repair/replace, fixture installation, and slab-leak detection. Upfront flat-rate quotes — no hourly billing surprises.",
+            "image": "https://images.unsplash.com/photo-1542013936693-884638332954?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Emergency calls (24/7)",
+            "description": "Burst pipes, no heat in winter, no AC in heat advisories — we answer at midnight on Christmas. After-hours surcharge is honest and posted.",
+            "image": "https://images.unsplash.com/photo-1604754742629-3e5728249d73?w=900&q=80",
+            "href": "tel:6085554477"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=1400&q=80",
+        "heading": "Service today or schedule for later — your call",
+        "subtitle": "Same-day appointments most weekdays. Quotes are free, transparent, and honor competitor pricing on identical scope.",
+        "bullets": [
+          "$0 dispatch fee on weekdays",
+          "Licensed master plumber + EPA-608 certified HVAC techs",
+          "Up-front flat-rate quotes — no surprise hourly billing",
+          "Senior + military discount, every day"
+        ],
+        "primaryCta": { "label": "Schedule online", "href": "#contact" },
+        "phone": "608-555-4477"
+      }
+    }
+  ]
+}

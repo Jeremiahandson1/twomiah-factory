@@ -1,19 +1,15 @@
-// Renders the two sample compositions in
-// templates/website-premium-contractor/data/samples/ to standalone HTML
-// files, so they can be opened side by side in a browser for the
-// premium-template proof-of-concept review.
+// Renders the fieldservice template's two hand-authored sample
+// compositions to standalone HTML files so they can be opened side by
+// side in a browser — the visual proof that fieldservice looks
+// distinct from contractor.
 //
 // Run from apps/api:
-//   bun run scripts/render-premium-contractor-samples.ts
-//
-// Outputs (in the template root):
-//   templates/website-premium-contractor/composition-a.html
-//   templates/website-premium-contractor/composition-b.html
+//   bun run scripts/render-premium-fieldservice-samples.ts
 import fs from 'fs'
 import path from 'path'
 import ejs from 'ejs'
 
-const ROOT = path.resolve(__dirname, '../../../templates/website-premium-contractor')
+const ROOT = path.resolve(__dirname, '../../../templates/website-premium-fieldservice')
 const viewsDir = path.join(ROOT, 'views')
 const dataDir = path.join(ROOT, 'data')
 const samplesDir = path.join(dataDir, 'samples')
@@ -26,7 +22,6 @@ async function render(compositionPath: string, outName: string) {
   const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings }) as string
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings, currentPath: '' }) as string
 
-  // Inline /styles/main.css so the output file opens anywhere.
   const inlined = html.replace(/<link\s+rel=["']stylesheet["']\s+href=["']\/styles\/([^"']+)["']\s*\/?>/i, (_m, p) => {
     const cssPath = path.join(buildDir, 'styles', p)
     try { return '<style>\n' + fs.readFileSync(cssPath, 'utf8') + '\n</style>' }
@@ -41,7 +36,10 @@ async function render(compositionPath: string, outName: string) {
 ;(async () => {
   await render(path.join(samplesDir, 'composition-a.json'), 'composition-a.html')
   await render(path.join(samplesDir, 'composition-b.json'), 'composition-b.html')
-  console.log('\nOpen side by side:')
+  console.log('\nOpen side by side to compare with contractor:')
   console.log('  ', path.join(ROOT, 'composition-a.html'))
   console.log('  ', path.join(ROOT, 'composition-b.html'))
+  console.log('  vs.')
+  console.log('  ', path.resolve(__dirname, '../../../templates/website-premium-contractor/composition-a.html'))
+  console.log('  ', path.resolve(__dirname, '../../../templates/website-premium-contractor/composition-b.html'))
 })()

@@ -15,10 +15,26 @@ import path from 'path'
 import ejs from 'ejs'
 import type { Section } from './sectionComposer'
 
-const TEMPLATE_DIR = path.resolve(
-  __dirname,
-  '../../../../templates/website-premium-contractor'
-)
+const TEMPLATES_ROOT = path.resolve(__dirname, '../../../../templates')
+const DEFAULT_TEMPLATE = 'website-premium-contractor'
+
+// Resolve the right premium template dir for a tenant based on its
+// products + industry. Mirrors the routing logic in
+// services/generator.ts so previews land in the same template the deploy
+// will use. Falls back to contractor when nothing matches — same behavior
+// as the deploy throw, but for previews we render something rather than
+// error (staff sees the wrong template instead of a 500, which is easier
+// to debug).
+const PREMIUM_FIELDSERVICE_INDUSTRIES = new Set([
+  'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
+  'cleaning', 'pest_control', 'locksmith', 'garage_door',
+])
+export function pickPremiumTemplateDir(industry?: string | null): string {
+  if (industry && PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
+    return path.join(TEMPLATES_ROOT, 'website-premium-fieldservice')
+  }
+  return path.join(TEMPLATES_ROOT, DEFAULT_TEMPLATE)
+}
 
 export interface RenderedPage {
   html: string
@@ -55,14 +71,20 @@ const DEFAULT_NAV: Array<{ label: string; href: string }> = [
  * hrefs with — for the public preview we use the route stem so nav
  * links navigate within the preview (e.g.
  * /api/v1/factory/public/intake/:id/preview-premium/about).
+ *
+ * templateDir defaults to contractor for back-compat with callers that
+ * pre-date the multi-industry split. New callers should pass the result
+ * of pickPremiumTemplateDir(industry).
  */
 export async function renderPremiumPage(
   page: PageInput,
   settings: PreviewSettings,
-  previewBasePath: string
+  previewBasePath: string,
+  templateDir?: string,
 ): Promise<RenderedPage> {
-  const viewsDir = path.join(TEMPLATE_DIR, 'views')
-  const buildDir = path.join(TEMPLATE_DIR, 'build')
+  const resolvedDir = templateDir || path.join(TEMPLATES_ROOT, DEFAULT_TEMPLATE)
+  const viewsDir = path.join(resolvedDir, 'views')
+  const buildDir = path.join(resolvedDir, 'build')
 
   // Settings get a runtime-resolved nav + brand link aimed at this preview.
   const nav = (settings.nav && settings.nav.length ? settings.nav : DEFAULT_NAV).map(item => ({

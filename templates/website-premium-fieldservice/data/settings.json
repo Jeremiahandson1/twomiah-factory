@@ -1,0 +1,16 @@
+{
+  "companyName": "Driftless HVAC & Plumbing",
+  "tagline": "24/7 heating, cooling, and plumbing service across the Driftless region",
+  "phone": "608-555-4477",
+  "email": "service@driftlesshvac.com",
+  "seoTitle": "Driftless HVAC & Plumbing — Same-day service across Madison, WI",
+  "seoDescription": "Same-day HVAC, plumbing, and emergency service from a Madison-area family business. Licensed, insured, and 5-star rated on Google.",
+  "homeHref": "index.html",
+  "contactHref": "contact.html",
+  "contactCtaLabel": "Schedule service",
+  "nav": [
+    { "label": "Services", "href": "services.html" },
+    { "label": "About", "href": "about.html" },
+    { "label": "Contact", "href": "contact.html" }
+  ]
+}

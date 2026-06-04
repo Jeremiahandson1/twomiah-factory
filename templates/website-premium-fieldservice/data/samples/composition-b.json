@@ -1,0 +1,74 @@
+{
+  "_note": "Composition B — trust-led. Stats hero (response time, rating, years), about-us split, alternating services with bullets, banner CTA. Reads as 'established, picked by neighbors.'",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "centered-stats",
+      "data": {
+        "eyebrow": "Family-owned since 2004",
+        "title": "Heating, cooling, plumbing — answered by a technician at midnight",
+        "subtitle": "Driftless HVAC is the after-hours line your neighbors actually trust. Two trucks, one family, and the same Madison-area crew on every call.",
+        "primaryCta": { "label": "Schedule service", "href": "#contact" },
+        "stats": [
+          { "value": "21 yrs", "label": "In business" },
+          { "value": "4.9 ★", "label": "Google rating" },
+          { "value": "<2 hrs", "label": "Avg response (weekday)" },
+          { "value": "0", "label": "Subcontractors used" }
+        ]
+      }
+    },
+    {
+      "type": "hero",
+      "variant": "split",
+      "data": {
+        "flip": true,
+        "eyebrow": "Our approach",
+        "title": "When you call, you reach the same techs who'll show up at your door",
+        "subtitle": "Most local shops dispatch to subs after midnight. We don't. The truck that pulls up has the same family name on the side as the people who answered the phone.",
+        "image": "https://images.unsplash.com/photo-1581094288338-2314dddb7ece?w=1400&q=80",
+        "primaryCta": { "label": "See what we fix", "href": "#services" },
+        "stats": [
+          { "value": "2", "label": "Service trucks" },
+          { "value": "3", "label": "Family-licensed techs" }
+        ]
+      }
+    },
+    {
+      "type": "services",
+      "variant": "alternating",
+      "data": {
+        "heading": "Three trades, one phone line",
+        "intro": "If it's HVAC, plumbing, or an emergency — same crew, no handoffs, no surprise subcontractors.",
+        "items": [
+          {
+            "title": "HVAC — heating & cooling",
+            "description": "Service and replacement on furnaces, heat pumps, mini-splits, and central AC. We carry the most-needed parts on the truck — most calls finish on the first visit.",
+            "image": "https://images.unsplash.com/photo-1597211833712-5e41faa202ea?w=1400&q=80",
+            "bullets": ["Same-day diagnostics on most weekdays", "EPA-608 certified", "Manufacturer-trained on Carrier, Trane, Lennox, Mitsubishi", "Honest replace-vs-repair recommendations"]
+          },
+          {
+            "title": "Plumbing",
+            "description": "From a stuck disposal to a full repipe, we'll quote it flat-rate at the kitchen table before anything gets turned off. No hourly meter running.",
+            "image": "https://images.unsplash.com/photo-1542013936693-884638332954?w=1400&q=80",
+            "bullets": ["Drain clearing + camera inspection", "Water heater repair + replace (tank + tankless)", "Fixture installation, valve replacement, slab-leak detection", "Master-plumber licensed in WI"]
+          },
+          {
+            "title": "24/7 emergency",
+            "description": "Burst pipe at 3am. No heat at -10°F. AC died during a heat advisory. We answer.",
+            "image": "https://images.unsplash.com/photo-1604754742629-3e5728249d73?w=1400&q=80",
+            "bullets": ["After-hours surcharge is honest and posted", "Phone answered by a technician, not a call center", "Most emergencies resolved in 1–3 hours from call"]
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "Need it fixed today?",
+        "subtitle": "Same-day weekday appointments. Call now or schedule online — both reach the same crew.",
+        "primaryCta": { "label": "Call 608-555-4477", "href": "tel:6085554477" }
+      }
+    }
+  ]
+}

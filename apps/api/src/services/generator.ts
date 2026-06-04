@@ -181,22 +181,32 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
       // Premium tier — section-composition templates with AI-driven layout.
       // The $19/standard tier flow below is untouched; premium tenants land
-      // in a separate template family entirely. Only contractor-family
-      // industries are supported today (#26 expands the rest).
+      // in a separate template family entirely. Industry coverage expands
+      // via #26 (multi-industry premium templates).
       const isPremium = products.includes('website-premium')
       const PREMIUM_CONTRACTOR_INDUSTRIES = new Set([
         'contractor', 'general_contractor', 'construction', 'remodeling',
         'roofing', 'siding', 'home_improvement',
       ])
+      const PREMIUM_FIELDSERVICE_INDUSTRIES = new Set([
+        'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
+        'cleaning', 'pest_control', 'locksmith', 'garage_door',
+      ])
 
       let websiteTemplate = 'website-general'
       if (isPremium) {
-        if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
+        if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-fieldservice'
+        } else if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
           websiteTemplate = 'website-premium-contractor'
         } else {
+          const supported = [
+            ...Array.from(PREMIUM_CONTRACTOR_INDUSTRIES),
+            ...Array.from(PREMIUM_FIELDSERVICE_INDUSTRIES),
+          ]
           throw new Error(
             `Premium website requested for industry='${industry}' but no premium template exists for this vertical yet. ` +
-            'Premium currently supports: ' + Array.from(PREMIUM_CONTRACTOR_INDUSTRIES).join(', ') + '. ' +
+            'Premium currently supports: ' + supported.join(', ') + '. ' +
             'Either change industry or drop website-premium from products.'
           )
         }
