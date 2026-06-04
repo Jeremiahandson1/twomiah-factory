@@ -279,11 +279,16 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
         return entry
       }
       deployedUrls = { siteUrl: deployResult.siteUrl, deployedUrl: deployResult.deployedUrl, apiUrl: deployResult.apiUrl }
-      // Build the role→serviceId map for checkDeployStatus polling. We only
-      // wait on services that actually exist (Render returned an id).
+      // Build the role→serviceId map for checkDeployStatus polling. Only
+      // include WEB SERVICES — Render Postgres uses a different API path
+      // (/postgres/{id}) and polling it via /services/{id}/deploys returns
+      // empty, which would keep us stuck at status='unknown' forever.
+      // Also skip Supabase databases entirely (no Render id at all).
+      const SERVICE_ROLES = ['backend', 'frontend', 'site', 'pricing', 'vision']
       const services = (deployResult as any).services || {}
-      for (const [role, svc] of Object.entries(services)) {
-        const id = (svc as any)?.id
+      for (const role of SERVICE_ROLES) {
+        const svc = (services as any)[role]
+        const id = svc?.id
         if (typeof id === 'string') renderServiceIds[role] = id
       }
       time('deploy', 'ok', JSON.stringify(deployedUrls), Date.now() - t2)
@@ -299,13 +304,13 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
     // return 502 from the URL regardless of how many retries we throw at it.
     if (Object.keys(renderServiceIds).length > 0) {
       const tWait = Date.now()
-      const liveWaitOk = await waitForRenderLive(renderServiceIds)
-      if (!liveWaitOk) {
-        time('wait_for_live', 'error', 'services did not reach live state within 10 min', Date.now() - tWait)
+      const liveResult = await waitForRenderLive(renderServiceIds)
+      if (!liveResult.ok) {
+        time('wait_for_live', 'error', `polled services: ${JSON.stringify(renderServiceIds)} | last statuses: ${JSON.stringify(liveResult.lastStatuses)}`, Date.now() - tWait)
         entry.outcome = 'fail'
         return entry
       }
-      time('wait_for_live', 'ok', undefined, Date.now() - tWait)
+      time('wait_for_live', 'ok', JSON.stringify(liveResult.lastStatuses), Date.now() - tWait)
     }
 
     // 5) Smoke checks against the live URLs. Render services come up over
@@ -339,23 +344,35 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
 // for each service is 'live'. Returns true when every service is live;
 // false on timeout.
 
-async function waitForRenderLive(serviceIds: Record<string, string>, opts: { maxMs?: number; pollMs?: number } = {}): Promise<boolean> {
+async function waitForRenderLive(serviceIds: Record<string, string>, opts: { maxMs?: number; pollMs?: number } = {}): Promise<{ ok: boolean; lastStatuses: Record<string, string> }> {
   const maxMs = opts.maxMs ?? 10 * 60 * 1000  // 10 min ceiling
   const pollMs = opts.pollMs ?? 15000          // poll every 15s
   const deadline = Date.now() + maxMs
+  // Terminal failures we bail on. 'unknown' is NOT in here — Render returns
+  // unknown briefly while the service is being created before the first
+  // deploy record exists; bailing on it would race the deploy startup.
+  const TERMINAL_FAILURES = new Set(['build_failed', 'update_failed', 'pre_deploy_failed', 'canceled'])
+  let lastStatuses: Record<string, string> = {}
   while (Date.now() < deadline) {
     try {
       const result = await checkDeployStatus({ renderServiceIds: serviceIds })
-      const allLive = Object.values(result.services).every((s: any) => s.status === 'live')
-      if (allLive) return true
-      const anyFailed = Object.values(result.services).some((s: any) => s.status === 'build_failed' || s.status === 'update_failed' || s.status === 'deactivated')
-      if (anyFailed) return false  // permanent failure, no point waiting
+      lastStatuses = {}
+      for (const [role, info] of Object.entries(result.services)) {
+        lastStatuses[role] = (info as any).status || 'unknown'
+      }
+      const allLive = Object.values(lastStatuses).every(s => s === 'live')
+      if (allLive) return { ok: true, lastStatuses }
+      // Conservative early-bail: ALL services must be terminal-failed before
+      // we give up. A mix of 'live' + 'build_failed' would have been caught
+      // by !allLive; a single transient 'unknown' shouldn't kill the test.
+      const allTerminal = Object.values(lastStatuses).every(s => TERMINAL_FAILURES.has(s))
+      if (allTerminal && Object.keys(lastStatuses).length > 0) return { ok: false, lastStatuses }
     } catch {
       // Transient Render API errors — keep waiting.
     }
     await new Promise(r => setTimeout(r, pollMs))
   }
-  return false
+  return { ok: false, lastStatuses }
 }
 
 // ── Smoke checks ────────────────────────────────────────────────────────
