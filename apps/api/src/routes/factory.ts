@@ -3174,6 +3174,148 @@ factory.post('/intake/:id/approve-premium', requireRole('owner', 'admin', 'edito
   }
 })
 
+// Staff: list pending premium compositions for the triage queue. A
+// composition is "pending" when preview_premium_pages is set but
+// preview_premium_approved_at is null.
+factory.get('/intake/premium-queue', requireRole('owner', 'admin', 'editor'), async (c) => {
+  const status = c.req.query('status') || 'pending'
+  let query = supabase
+    .from('tenants')
+    .select('id, name, email, phone, city, state, industry, intake_data, preview_premium_pages, preview_premium_generated_at, preview_premium_approved_at, preview_premium_approved_by, created_at')
+    .not('preview_premium_pages', 'is', null)
+    .order('preview_premium_generated_at', { ascending: false })
+    .limit(200)
+  if (status === 'pending') {
+    query = query.is('preview_premium_approved_at', null)
+  } else if (status === 'approved') {
+    query = query.not('preview_premium_approved_at', 'is', null)
+  }
+  const { data, error } = await query
+  if (error) return c.json({ error: error.message }, 500)
+  const items = (data || []).map((row: any) => {
+    const intake = (row.intake_data && row.intake_data.intake) || {}
+    const pages = (row.preview_premium_pages?.pages || {}) as Record<string, { sections?: any[] }>
+    const sectionCounts: Record<string, number> = {}
+    for (const [name, page] of Object.entries(pages)) {
+      sectionCounts[name] = Array.isArray(page?.sections) ? page.sections.length : 0
+    }
+    return {
+      id: row.id,
+      businessName: row.name || intake.businessName,
+      businessType: row.industry || intake.businessType,
+      city: row.city || intake.city,
+      state: row.state || intake.state,
+      email: row.email,
+      composedAt: row.preview_premium_generated_at,
+      approvedAt: row.preview_premium_approved_at,
+      approvedBy: row.preview_premium_approved_by,
+      sectionCounts,
+      rationale: row.preview_premium_pages?.rationale || null,
+    }
+  })
+  return c.json({ items })
+})
+
+// Staff: full intake + composition for the detail view.
+factory.get('/intake/:id/premium-detail', requireRole('owner', 'admin', 'editor'), async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+  const { data, error } = await supabase
+    .from('tenants')
+    .select('id, name, email, phone, city, state, industry, intake_data, preview_premium_pages, preview_premium_generated_at, preview_premium_approved_at, preview_premium_approved_by')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) return c.json({ error: error.message }, 500)
+  if (!data) return c.json({ error: 'Not found' }, 404)
+  return c.json({ intake: data })
+})
+
+// Staff preview routes — same renderer as the public preview but
+// bypasses the approval gate. Accepts the auth token via Authorization
+// header OR ?token=<jwt> query param. Iframes can't add custom headers
+// so the query-param path is necessary for the platform's review UI.
+async function authStaffFromQueryOrHeader(c: any): Promise<{ ok: boolean; role?: string }> {
+  const queryToken = c.req.query('token')
+  const headerAuth = c.req.header('Authorization') || ''
+  const headerToken = headerAuth.startsWith('Bearer ') ? headerAuth.slice(7) : ''
+  const token = queryToken || headerToken
+  if (!token) return { ok: false }
+  try {
+    const { data, error } = await supabase.auth.getUser(token)
+    if (error || !data?.user) return { ok: false }
+    const { data: factoryUser } = await supabase
+      .from('factory_users').select('role').eq('auth_id', data.user.id).maybeSingle()
+    const role = factoryUser?.role
+    if (!role || !['owner', 'admin', 'editor'].includes(role)) return { ok: false }
+    return { ok: true, role }
+  } catch {
+    return { ok: false }
+  }
+}
+
+async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('name, email, phone, preview_premium_pages, intake_data')
+    .eq('id', id)
+    .maybeSingle()
+  if (!tenant || !tenant.preview_premium_pages) {
+    return c.html('<!doctype html><meta charset="utf-8"><title>Preview not ready</title><body style="font:16px system-ui;padding:40px">This preview hasn\'t been composed yet.</body>', 404)
+  }
+  const composed = tenant.preview_premium_pages as { pages: Record<string, { sections: any[] }> }
+  const page = composed.pages?.[slug]
+  if (!page) return c.text('Page not found', 404)
+
+  const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
+  const settings = {
+    companyName: tenant.name || 'Your Company',
+    tagline: intake.description ? String(intake.description).slice(0, 120) : undefined,
+    phone: tenant.phone || intake.phone,
+    email: tenant.email || intake.email,
+    seoTitle: tenant.name,
+    seoDescription: intake.description,
+  }
+
+  // basePath is the STAFF route stem with the token preserved, so nav
+  // links inside the rendered preview stay on the staff-bypass path
+  // while reviewing.
+  const token = c.req.query('token')
+  const previewBasePath = `/api/v1/factory/intake/${id}/preview-premium-staff`
+  let renderedHtml = (await renderPremiumPage(
+    { slug, title: PREMIUM_PAGE_TITLES[slug] || slug, sections: page.sections },
+    settings,
+    previewBasePath
+  )).html
+  if (token) {
+    // Append ?token=… to every same-origin nav href so the iframe can
+    // navigate without losing auth. Only matches hrefs that start with
+    // the previewBasePath we just emitted.
+    renderedHtml = renderedHtml.replace(
+      new RegExp('href="(' + previewBasePath.replace(/[/]/g, '\\/') + '[^"?#]*)"', 'g'),
+      (_m, href) => 'href="' + href + '?token=' + encodeURIComponent(token) + '"'
+    )
+  }
+  return c.html(renderedHtml)
+}
+
+factory.get('/intake/:id/preview-premium-staff', async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.text('Invalid preview link', 400)
+  const auth = await authStaffFromQueryOrHeader(c)
+  if (!auth.ok) return c.text('Unauthorized', 401)
+  return renderPremiumPreviewPageStaff(id, 'home', c)
+})
+
+factory.get('/intake/:id/preview-premium-staff/:slug', async (c) => {
+  const id = c.req.param('id')
+  const slug = c.req.param('slug')
+  if (!UUID_RE.test(id)) return c.text('Invalid preview link', 400)
+  if (!/^[a-z0-9-]+$/.test(slug)) return c.text('Invalid page', 400)
+  const auth = await authStaffFromQueryOrHeader(c)
+  if (!auth.ok) return c.text('Unauthorized', 401)
+  return renderPremiumPreviewPageStaff(id, slug, c)
+})
+
 // Staff: unapprove (reverts the gate). Useful if a composition was approved
 // in error and staff needs to take it offline while fixing.
 factory.post('/intake/:id/unapprove-premium', requireRole('owner', 'admin'), async (c) => {
