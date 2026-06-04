@@ -45,7 +45,7 @@ for (const rawLine of fs.readFileSync(envPath, 'utf8').split('\n')) {
 
 import { supabase } from '../src/middleware/auth'
 import { generate } from '../src/services/generator'
-import { deployCustomer, isConfigured as isDeployConfigured } from '../src/services/deploy'
+import { deployCustomer, isConfigured as isDeployConfigured, checkDeployStatus } from '../src/services/deploy'
 import { hardDeleteTestTenant } from '../src/services/testCleanup'
 
 const args = Object.fromEntries(
@@ -267,6 +267,7 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
 
     const t2 = Date.now()
     let deployedUrls: { siteUrl?: string; deployedUrl?: string; apiUrl?: string } = {}
+    let renderServiceIds: Record<string, string> = {}
     try {
       const deployResult = await deployCustomer(
         { id: tenantId!, slug, name: config.tenant_name, industry: caseSpec.industry, products: config.products, config },
@@ -278,6 +279,13 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
         return entry
       }
       deployedUrls = { siteUrl: deployResult.siteUrl, deployedUrl: deployResult.deployedUrl, apiUrl: deployResult.apiUrl }
+      // Build the role→serviceId map for checkDeployStatus polling. We only
+      // wait on services that actually exist (Render returned an id).
+      const services = (deployResult as any).services || {}
+      for (const [role, svc] of Object.entries(services)) {
+        const id = (svc as any)?.id
+        if (typeof id === 'string') renderServiceIds[role] = id
+      }
       time('deploy', 'ok', JSON.stringify(deployedUrls), Date.now() - t2)
     } catch (e: any) {
       time('deploy', 'error', e.message, Date.now() - t2)
@@ -285,7 +293,22 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
       return entry
     }
 
-    // 4) Smoke checks against the live URLs. Render services come up over
+    // 4) Wait for Render to actually mark services 'live' before smoking.
+    // Polling Render's deploy status is much more accurate than hammering
+    // the URL hoping it'll come up — services in 'build_in_progress' will
+    // return 502 from the URL regardless of how many retries we throw at it.
+    if (Object.keys(renderServiceIds).length > 0) {
+      const tWait = Date.now()
+      const liveWaitOk = await waitForRenderLive(renderServiceIds)
+      if (!liveWaitOk) {
+        time('wait_for_live', 'error', 'services did not reach live state within 10 min', Date.now() - tWait)
+        entry.outcome = 'fail'
+        return entry
+      }
+      time('wait_for_live', 'ok', undefined, Date.now() - tWait)
+    }
+
+    // 5) Smoke checks against the live URLs. Render services come up over
     // a few minutes — first request often hits a cold start. We do a short
     // bounded wait + a couple of retries; if it doesn't respond, the
     // deploy is still up but smoke fails this run.
@@ -310,17 +333,41 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
   }
 }
 
+// ── Wait-for-live (Render deploy status polling) ───────────────────────
+// Render returns 502 on a URL while build_in_progress; throwing retries at
+// it doesn't help. Better: ask Render directly whether the latest deploy
+// for each service is 'live'. Returns true when every service is live;
+// false on timeout.
+
+async function waitForRenderLive(serviceIds: Record<string, string>, opts: { maxMs?: number; pollMs?: number } = {}): Promise<boolean> {
+  const maxMs = opts.maxMs ?? 10 * 60 * 1000  // 10 min ceiling
+  const pollMs = opts.pollMs ?? 15000          // poll every 15s
+  const deadline = Date.now() + maxMs
+  while (Date.now() < deadline) {
+    try {
+      const result = await checkDeployStatus({ renderServiceIds: serviceIds })
+      const allLive = Object.values(result.services).every((s: any) => s.status === 'live')
+      if (allLive) return true
+      const anyFailed = Object.values(result.services).some((s: any) => s.status === 'build_failed' || s.status === 'update_failed' || s.status === 'deactivated')
+      if (anyFailed) return false  // permanent failure, no point waiting
+    } catch {
+      // Transient Render API errors — keep waiting.
+    }
+    await new Promise(r => setTimeout(r, pollMs))
+  }
+  return false
+}
+
 // ── Smoke checks ────────────────────────────────────────────────────────
 // Hit the deployed URLs to verify the build is reachable + responding.
 // Bounded retries (Render cold-start can take a minute or two).
 
 async function fetchWithRetry(url: string, opts: { timeoutMs?: number; retries?: number; delayMs?: number } = {}): Promise<{ ok: boolean; status?: number; error?: string }> {
-  // Default budget: 18 retries × 20s = ~6 min. Render cold-start on a fresh
-  // deploy + DB migration can take 2-3 min; 90s was too tight and caused
-  // false-failures in the deploy smoke (2026-06-04). Tune down if your
-  // services come up faster.
-  const retries = opts.retries ?? 18
-  const delayMs = opts.delayMs ?? 20000
+  // After waitForRenderLive confirmed all services are 'live', the smoke
+  // checks should hit fast — 3 retries × 5s is plenty for any post-live
+  // warmup hiccups. The hard wait happens in waitForRenderLive, not here.
+  const retries = opts.retries ?? 3
+  const delayMs = opts.delayMs ?? 5000
   const timeoutMs = opts.timeoutMs ?? 30000
   for (let i = 0; i <= retries; i++) {
     try {
