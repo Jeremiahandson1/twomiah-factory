@@ -68,6 +68,9 @@ const CONCURRENCY = parseInt(args.concurrency || '1', 10)
 // --limit=n runs only the first n tests of the chosen matrix. Useful for
 // probing Render rate-limit recovery without burning the whole budget.
 const LIMIT = args.limit ? parseInt(args.limit, 10) : 0
+// --cases=2,4,5 runs only the specified case numbers (1-indexed). Lets us
+// re-probe specific failures after a fix without re-running the passers.
+const CASES = args.cases ? args.cases.split(',').map(s => parseInt(s.trim(), 10) - 1) : null
 const AUDIT_DIR = args['audit-dir'] || path.join(__dirname, 'test-audit', new Date().toISOString().replace(/[:.]/g, '-'))
 // Render's API rate-limits resource creation. Without inter-test pacing
 // the matrix burns through the quota in a few minutes and starts getting
@@ -128,6 +131,7 @@ function buildFullMatrix(): TestCase[] {
 }
 
 let MATRIX = MODE === 'full' ? buildFullMatrix() : SMOKE_CASES
+if (CASES) MATRIX = CASES.map(i => MATRIX[i]).filter((c): c is TestCase => !!c)
 if (LIMIT > 0) MATRIX = MATRIX.slice(0, LIMIT)
 
 // ── Audit log ────────────────────────────────────────────────────────────
