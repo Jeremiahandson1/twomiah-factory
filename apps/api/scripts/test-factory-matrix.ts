@@ -19,6 +19,9 @@
  *   --concurrency=<n>             default: 1. Stay low to respect Render concurrent
  *                                 service caps + Stripe/Cloudflare/etc rate limits.
  *   --audit-dir=<path>            default: scripts/test-audit/<timestamp>
+ *   --pace-ms=<n>                 sleep between tests when --with-deploy
+ *                                 is set, to dodge Render's API rate limit
+ *                                 (default: 90s with deploy, 0 without).
  *
  * Usage:
  *   cd apps/api
@@ -63,6 +66,12 @@ const MODE = args.mode === 'full' ? 'full' : 'smoke'
 const WITH_DEPLOY = args['with-deploy'] === 'true'
 const CONCURRENCY = parseInt(args.concurrency || '1', 10)
 const AUDIT_DIR = args['audit-dir'] || path.join(__dirname, 'test-audit', new Date().toISOString().replace(/[:.]/g, '-'))
+// Render's API rate-limits resource creation. Without inter-test pacing
+// the matrix burns through the quota in a few minutes and starts getting
+// HTTP 429 on /postgres POSTs. 90s between tests keeps us comfortably
+// under Render's published thresholds (smoke v5 hit the wall at test 2).
+// Generate-only mode hits no external APIs, so pacing defaults to 0.
+const PACE_MS = parseInt(args['pace-ms'] || (WITH_DEPLOY ? '90000' : '0'), 10)
 
 // ── Matrix definitions ──────────────────────────────────────────────────
 
@@ -487,6 +496,7 @@ async function main() {
   console.log(`With deploy: ${WITH_DEPLOY ? 'YES' : 'no (generate-only)'}`)
   console.log(`Tests:       ${MATRIX.length}`)
   console.log(`Concurrency: ${CONCURRENCY}`)
+  console.log(`Pacing:      ${PACE_MS / 1000}s between tests`)
   console.log(`Audit dir:   ${AUDIT_DIR}\n`)
 
   const results: AuditEntry[] = []
@@ -499,6 +509,12 @@ async function main() {
       const icon = r.outcome === 'pass' ? '✅' : r.outcome === 'skip' ? '⏭' : '❌'
       const errSteps = r.steps.filter(s => s.status === 'error').map(s => s.step).join(', ')
       console.log(`${icon} ${r.testId.padEnd(60)} ${r.totalMs}ms ${errSteps ? '  errors: ' + errSteps : ''}`)
+    }
+    // Pace the next batch so Render's API quota doesn't bite. Skip on
+    // the last iteration since there's no next test to throttle for.
+    if (PACE_MS > 0 && i + CONCURRENCY < MATRIX.length) {
+      console.log(`  …pacing ${PACE_MS / 1000}s before next test`)
+      await new Promise(r => setTimeout(r, PACE_MS))
     }
   }
 
