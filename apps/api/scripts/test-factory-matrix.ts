@@ -315,8 +315,12 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
 // Bounded retries (Render cold-start can take a minute or two).
 
 async function fetchWithRetry(url: string, opts: { timeoutMs?: number; retries?: number; delayMs?: number } = {}): Promise<{ ok: boolean; status?: number; error?: string }> {
-  const retries = opts.retries ?? 6
-  const delayMs = opts.delayMs ?? 15000
+  // Default budget: 18 retries × 20s = ~6 min. Render cold-start on a fresh
+  // deploy + DB migration can take 2-3 min; 90s was too tight and caused
+  // false-failures in the deploy smoke (2026-06-04). Tune down if your
+  // services come up faster.
+  const retries = opts.retries ?? 18
+  const delayMs = opts.delayMs ?? 20000
   const timeoutMs = opts.timeoutMs ?? 30000
   for (let i = 0; i <= retries; i++) {
     try {
