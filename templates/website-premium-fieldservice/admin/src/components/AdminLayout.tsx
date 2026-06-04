@@ -1,17 +1,22 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { FileText, Image as ImageIcon, Settings, Inbox, LogOut } from 'lucide-react'
+import { FileText, Image as ImageIcon, Settings, Inbox, LogOut, Users, UserCircle } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '../contexts/AuthContext'
 
-const NAV = [
+type NavItem = { to: string; label: string; Icon: typeof FileText; adminOnly?: boolean }
+
+const NAV: NavItem[] = [
   { to: '/pages',    label: 'Pages',    Icon: FileText },
   { to: '/photos',   label: 'Photos',   Icon: ImageIcon },
   { to: '/settings', label: 'Settings', Icon: Settings },
   { to: '/leads',    label: 'Leads',    Icon: Inbox },
+  { to: '/users',    label: 'Users',    Icon: Users, adminOnly: true },
+  { to: '/account',  label: 'Account',  Icon: UserCircle },
 ]
 
 export function AdminLayout() {
   const { user, logout } = useAuth()
+  const items = NAV.filter((n) => !n.adminOnly || user?.role === 'admin')
 
   return (
     <div className="h-full flex bg-paper">
@@ -22,7 +27,7 @@ export function AdminLayout() {
           <div className="text-xs text-white/50 mt-1">{user?.email}</div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV.map(({ to, label, Icon }) => (
+          {items.map(({ to, label, Icon }) => (
             <NavLink
               key={to}
               to={to}

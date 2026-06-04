@@ -4,17 +4,25 @@
  * Mounted at /api/admin/* by server-static.ts. Token-based auth (Bearer
  * Authorization header). Pages CRUD reads + writes the `pages` table.
  *
- * Endpoints (this commit — more in follow-up):
- *   POST /login          public, returns { token, user }
- *   GET  /me             auth, returns { user }
- *   GET  /pages          auth, list pages
- *   GET  /pages/:slug    auth, single page row including sections JSON
- *   PATCH /pages/:slug   auth, update title/sections/isPublished/navOrder/meta*
- *
- * (Photos, settings, leads, password change land in follow-up commits.)
+ * Auth:
+ *   POST   /login              public, returns { token, user }
+ *   GET    /me                 auth, returns { user }
+ *   POST   /password           auth, body { currentPassword, newPassword }
+ * Users (admin role only, except /password above):
+ *   GET    /users              admin, list users
+ *   POST   /users              admin, body { email, password, name?, role? }
+ *   PATCH  /users/:id          admin, body { name?, role? }
+ *   DELETE /users/:id          admin, refuses to remove last admin or self
+ * Pages:
+ *   GET    /pages              auth, list pages
+ *   GET    /pages/:slug        auth, single page including sections JSON
+ *   POST   /pages              auth, body { slug, title, sections?, ... }
+ *   PATCH  /pages/:slug        auth, partial update
+ *   DELETE /pages/:slug        auth, refuses to delete 'home'
+ * Settings / Photos / Leads — auth, see below.
  */
 import { Hono, type Context } from 'hono'
-import { eq, asc, desc } from 'drizzle-orm'
+import { eq, asc, desc, and, not } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import sharp from 'sharp'
@@ -90,6 +98,129 @@ app.get('/me', authMiddleware, async (c) => {
   return c.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } })
 })
 
+// Password change — current user only. Verifies the current password
+// before accepting a new one; rejects new passwords shorter than 8 chars.
+// Re-uses the JWT subject as the target user so a stolen token can't
+// reset somebody else's password.
+app.post('/password', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const body = await c.req.json().catch(() => ({})) as { currentPassword?: string; newPassword?: string }
+  const current = String(body.currentPassword || '')
+  const next = String(body.newPassword || '')
+  if (!current || !next) return c.json({ error: 'currentPassword and newPassword are required' }, 400)
+  if (next.length < 8) return c.json({ error: 'New password must be at least 8 characters' }, 400)
+  if (next === current) return c.json({ error: 'New password must differ from current password' }, 400)
+
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user) return c.json({ error: 'User not found' }, 404)
+
+  const ok = await bcrypt.compare(current, user.passwordHash)
+  if (!ok) return c.json({ error: 'Current password is incorrect' }, 401)
+
+  const newHash = await bcrypt.hash(next, 10)
+  await db.update(usersTbl).set({ passwordHash: newHash }).where(eq(usersTbl.id, userId))
+  return c.json({ ok: true })
+})
+
+// ─── Users ────────────────────────────────────────────────────────────────
+// Role-gated to 'admin'. Editors can still change their own password and
+// name via /password and (TODO if we add it) /me PATCH; managing the user
+// list is owner/admin only.
+
+const VALID_ROLES = new Set(['admin', 'editor'])
+
+async function requireAdmin(c: Context<{ Variables: AdminVars }>, next: () => Promise<void>) {
+  const role = c.get('userRole')
+  if (role !== 'admin') return c.json({ error: 'Admin role required' }, 403)
+  await next()
+}
+
+app.get('/users', authMiddleware, requireAdmin, async (c) => {
+  const rows = await db.select({
+    id: usersTbl.id, email: usersTbl.email, name: usersTbl.name,
+    role: usersTbl.role, lastLoginAt: usersTbl.lastLoginAt, createdAt: usersTbl.createdAt,
+  }).from(usersTbl).orderBy(asc(usersTbl.createdAt))
+  return c.json({ users: rows })
+})
+
+app.post('/users', authMiddleware, requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as {
+    email?: string; password?: string; name?: string; role?: string
+  }
+  const email = String(body.email || '').trim().toLowerCase()
+  const password = String(body.password || '')
+  const name = typeof body.name === 'string' ? body.name.trim() : null
+  const role = body.role && VALID_ROLES.has(body.role) ? body.role : 'editor'
+
+  if (!email || !password) return c.json({ error: 'Email and password are required' }, 400)
+  if (password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400)
+
+  const existing = await db.select({ id: usersTbl.id }).from(usersTbl).where(eq(usersTbl.email, email)).limit(1)
+  if (existing[0]) return c.json({ error: 'A user with that email already exists' }, 409)
+
+  const passwordHash = await bcrypt.hash(password, 10)
+  const [created] = await db.insert(usersTbl).values({
+    email, passwordHash, name: name || null, role,
+  }).returning({
+    id: usersTbl.id, email: usersTbl.email, name: usersTbl.name,
+    role: usersTbl.role, lastLoginAt: usersTbl.lastLoginAt, createdAt: usersTbl.createdAt,
+  })
+  return c.json({ user: created }, 201)
+})
+
+app.patch('/users/:id', authMiddleware, requireAdmin, async (c) => {
+  const targetId = c.req.param('id')
+  const selfId = c.get('userId')!
+  const body = await c.req.json().catch(() => ({})) as { name?: string | null; role?: string }
+  const patch: Record<string, any> = {}
+  if (typeof body.name === 'string' || body.name === null) patch.name = body.name
+  if (body.role !== undefined) {
+    if (!VALID_ROLES.has(body.role)) return c.json({ error: 'Invalid role' }, 400)
+    patch.role = body.role
+  }
+  if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields in patch' }, 400)
+
+  // Lockout protection: if the change demotes the *last* admin to a
+  // non-admin role, refuse. Otherwise an owner could lock themselves
+  // and everyone else out of the user-management UI.
+  if (patch.role && patch.role !== 'admin') {
+    const adminCount = await db.select({ id: usersTbl.id }).from(usersTbl).where(eq(usersTbl.role, 'admin'))
+    const target = await db.select({ id: usersTbl.id, role: usersTbl.role }).from(usersTbl).where(eq(usersTbl.id, targetId)).limit(1)
+    if (target[0]?.role === 'admin' && adminCount.length <= 1) {
+      return c.json({ error: 'Refusing to demote the last admin — promote another user first.' }, 400)
+    }
+    if (target[0]?.id === selfId) {
+      return c.json({ error: 'You can\'t demote yourself — ask another admin.' }, 400)
+    }
+  }
+
+  const result = await db.update(usersTbl).set(patch).where(eq(usersTbl.id, targetId)).returning({
+    id: usersTbl.id, email: usersTbl.email, name: usersTbl.name,
+    role: usersTbl.role, lastLoginAt: usersTbl.lastLoginAt, createdAt: usersTbl.createdAt,
+  })
+  if (result.length === 0) return c.json({ error: 'User not found' }, 404)
+  return c.json({ user: result[0] })
+})
+
+app.delete('/users/:id', authMiddleware, requireAdmin, async (c) => {
+  const targetId = c.req.param('id')
+  const selfId = c.get('userId')!
+  if (targetId === selfId) return c.json({ error: 'You can\'t delete yourself.' }, 400)
+
+  const target = await db.select({ id: usersTbl.id, role: usersTbl.role }).from(usersTbl).where(eq(usersTbl.id, targetId)).limit(1)
+  if (!target[0]) return c.json({ error: 'User not found' }, 404)
+  if (target[0].role === 'admin') {
+    const otherAdmins = await db.select({ id: usersTbl.id }).from(usersTbl).where(and(eq(usersTbl.role, 'admin'), not(eq(usersTbl.id, targetId))))
+    if (otherAdmins.length === 0) {
+      return c.json({ error: 'Refusing to delete the last admin — promote another user first.' }, 400)
+    }
+  }
+
+  await db.delete(usersTbl).where(eq(usersTbl.id, targetId))
+  return c.json({ ok: true })
+})
+
 // ─── Pages ────────────────────────────────────────────────────────────────
 
 app.get('/pages', authMiddleware, async (_c) => {
@@ -112,6 +243,61 @@ app.get('/pages/:slug', authMiddleware, async (c) => {
   const page = rows[0]
   if (!page) return c.json({ error: 'Page not found' }, 404)
   return c.json({ page })
+})
+
+// Slugs that collide with server routes (or are visually confusing). The
+// premium server mounts /api/admin/*, the auth flow uses /login, and we
+// reserve a handful of common slugs to keep URLs predictable.
+const RESERVED_SLUGS = new Set([
+  'api', 'admin', 'login', 'logout', 'auth', 'static', 'uploads',
+  'assets', 'build', 'public', 'sitemap.xml', 'robots.txt',
+])
+// Single-segment slug only — the public renderer's /:slug route matches
+// one path segment. Nested paths (service-areas/madison) would need both
+// route changes in server-static.ts AND admin UI support; not in this pass.
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+
+// Create a new page. Slug must be URL-safe and not reserved. Sections
+// default to empty — the admin builds it up from there.
+app.post('/pages', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const slug = String(body.slug || '').trim().toLowerCase()
+  const title = String(body.title || '').trim()
+
+  if (!slug) return c.json({ error: 'slug is required' }, 400)
+  if (!title) return c.json({ error: 'title is required' }, 400)
+  if (!SLUG_RE.test(slug)) {
+    return c.json({ error: 'slug must be lowercase letters, numbers, and hyphens (e.g. "service-areas")' }, 400)
+  }
+  if (RESERVED_SLUGS.has(slug)) {
+    return c.json({ error: `Slug "${slug}" is reserved` }, 400)
+  }
+
+  const existing = await db.select({ id: pagesTbl.id }).from(pagesTbl).where(eq(pagesTbl.slug, slug)).limit(1)
+  if (existing[0]) return c.json({ error: 'A page with that slug already exists' }, 409)
+
+  const sections = Array.isArray(body.sections) ? body.sections : []
+  const isPublished = typeof body.isPublished === 'boolean' ? body.isPublished : true
+  const navOrder = typeof body.navOrder === 'number' ? body.navOrder : 100
+  const metaTitle = typeof body.metaTitle === 'string' ? body.metaTitle : null
+  const metaDescription = typeof body.metaDescription === 'string' ? body.metaDescription : null
+
+  const [created] = await db.insert(pagesTbl).values({
+    slug, title, sections, isPublished, navOrder, metaTitle, metaDescription,
+  }).returning()
+  return c.json({ page: created }, 201)
+})
+
+// Delete a page. 'home' is essential to the site (template's root route
+// reads from it), so we refuse rather than 404 the public homepage.
+app.delete('/pages/:slug', authMiddleware, async (c) => {
+  const slug = c.req.param('slug')
+  if (slug === 'home') {
+    return c.json({ error: 'The home page can\'t be deleted. Hide it via isPublished instead.' }, 400)
+  }
+  const result = await db.delete(pagesTbl).where(eq(pagesTbl.slug, slug)).returning({ id: pagesTbl.id })
+  if (result.length === 0) return c.json({ error: 'Page not found' }, 404)
+  return c.json({ ok: true })
 })
 
 app.patch('/pages/:slug', authMiddleware, async (c) => {

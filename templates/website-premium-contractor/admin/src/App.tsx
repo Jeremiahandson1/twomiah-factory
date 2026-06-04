@@ -7,6 +7,8 @@ import { PageEditPage } from './pages/PageEditPage'
 import { PhotosPage } from './pages/PhotosPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { LeadsPage } from './pages/LeadsPage'
+import { UsersPage } from './pages/UsersPage'
+import { AccountPage } from './pages/AccountPage'
 import { PhotoPickerProvider } from './contexts/PhotoPickerContext'
 import { PhotoPickerModal } from './components/PhotoPickerModal'
 
@@ -22,6 +24,8 @@ export default function App() {
           <Route path="/photos" element={<PhotosPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/leads" element={<LeadsPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/account" element={<AccountPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/pages" replace />} />
       </Routes>
