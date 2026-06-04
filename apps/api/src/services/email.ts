@@ -141,9 +141,21 @@ export async function notifyDeployComplete(
 
   const product = getProductName(tenant.industry, tenant.products)
 
+  const products = tenant.products || []
+  const hasWebsite = products.includes('website') || products.includes('website-premium')
+  const isPremiumWebsite = products.includes('website-premium')
+  // Website admins live at <site>/admin — the SPA bundled inside the
+  // tenant's website service. CRMs handle their own auth at the deployed
+  // CRM URL above, so we only surface the website admin when a website
+  // product is included.
+  const websiteAdminUrl = hasWebsite && urls.siteUrl
+    ? urls.siteUrl.replace(/\/+$/, '') + '/admin'
+    : null
+
   const urlLines: string[] = []
   if (urls.deployedUrl) urlLines.push(kv('CRM', `<a href="${urls.deployedUrl}">${urls.deployedUrl}</a>`))
   if (urls.siteUrl) urlLines.push(kv('Website', `<a href="${urls.siteUrl}">${urls.siteUrl}</a>`))
+  if (websiteAdminUrl) urlLines.push(kv('Website admin', `<a href="${websiteAdminUrl}">${websiteAdminUrl}</a>`))
   if (urls.apiUrl && urls.apiUrl !== urls.deployedUrl) urlLines.push(kv('API', `<a href="${urls.apiUrl}">${urls.apiUrl}</a>`))
 
   const passwordLine = tenant.admin_password
@@ -165,8 +177,13 @@ export async function notifyDeployComplete(
         <li>Invite your team members from Settings</li>
       </ol>
     </div>
+    ${isPremiumWebsite ? `
+    <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0 0 4px;color:#6b21a8;font-weight:600;">Tweak your AI-composed site</p>
+      <p style="margin:0;color:#581c87;font-size:14px;">Open the Website admin to edit any section's wording, swap photos, reorder, or add a new page. The composed draft is yours to refine.</p>
+    </div>` : ''}
     <p style="color:#666;font-size:14px;">Services may take a few minutes to fully start up after deployment.</p>
-    ${urls.deployedUrl ? btn(urls.deployedUrl, 'Log In to Your CRM') : ''}`
+    ${urls.deployedUrl ? btn(urls.deployedUrl, 'Log In to Your CRM') : websiteAdminUrl ? btn(websiteAdminUrl, 'Open Website Admin') : urls.siteUrl ? btn(urls.siteUrl, 'View Your Website') : ''}`
 
   return sendEmail(
     tenant.email,

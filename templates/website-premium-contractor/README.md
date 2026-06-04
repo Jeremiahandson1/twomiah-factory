@@ -14,7 +14,7 @@ See `apps/api/src/services/sectionComposer.ts` (`SECTION_SCHEMA`) for the canoni
 
 ```
 templates/website-premium-contractor/
-├── server-static.ts           Hono server: page renderer, lead capture, admin stub
+├── server-static.ts           Hono server: page renderer, lead capture, admin SPA mount
 ├── package.json               Bun + Hono + Drizzle + Sharp + R2
 ├── render.yaml.template       Render service + Postgres database
 ├── drizzle.config.ts          Migration target
@@ -66,4 +66,4 @@ The Factory deploys this template via `apps/api/src/services/deploy.ts` — a ne
 
 ## Status
 
-Proof-of-concept. The renderer + composer work; the CMS admin is a stub (task #22); the payment-gated deploy flow doesn't exist yet (task #23). Not yet wired into the Factory's signup wizard. **Not customer-deployable as of this commit.**
+Customer-deployable. Renderer + composer + CMS admin (auth, pages, photos, settings, leads, users, account) are all live. Payment-gated deploy fires via Stripe checkout.session.completed → triggerAutoDeploy. Wired into the Factory signup wizard's tier picker (Standard vs Premium).

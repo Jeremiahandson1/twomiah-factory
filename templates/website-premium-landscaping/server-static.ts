@@ -7,7 +7,7 @@
  * Routes:
  *   /                 → renders page slug 'home'
  *   /:slug            → renders any other page row (about, services, contact, custom)
- *   /admin/*          → stub — full admin lands in task #22
+ *   /admin/*          → React SPA at admin/dist/ + JSON API at /api/admin/*
  *   /api/leads        → public POST for the contact form
  *   /api/internal/*   → Factory-key-gated control endpoints (settings sync, etc.)
  *   /uploads/*        → local-fallback static file serving for dev (R2 in prod)
