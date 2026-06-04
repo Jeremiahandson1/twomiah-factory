@@ -307,6 +307,10 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
       const liveResult = await waitForRenderLive(renderServiceIds)
       if (!liveResult.ok) {
         time('wait_for_live', 'error', `polled services: ${JSON.stringify(renderServiceIds)} | last statuses: ${JSON.stringify(liveResult.lastStatuses)}`, Date.now() - tWait)
+        // Snapshot Render build logs for the failed service(s) so the user
+        // can diagnose without having to keep the broken services around.
+        await captureRenderBuildLogs(renderServiceIds, liveResult.lastStatuses, AUDIT_DIR, testId)
+        time('captured_build_logs', 'ok', undefined, 0)
         entry.outcome = 'fail'
         return entry
       }
@@ -335,6 +339,44 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
     entry.totalMs = Date.now() - new Date(entry.startedAt).getTime()
     if (entry.outcome === 'running') entry.outcome = 'fail'
     writeAuditFile(entry)
+  }
+}
+
+// ── Render log capture ───────────────────────────────────────────────────
+// On wait_for_live failure, fetch the latest deploy logs for any service
+// in a terminal-failure state and write them to the audit dir. Cleanup
+// nukes the service immediately after, so we can't fetch logs later.
+
+async function captureRenderBuildLogs(serviceIds: Record<string, string>, lastStatuses: Record<string, string>, auditDir: string, testId: string) {
+  const TERMINAL = new Set(['build_failed', 'update_failed', 'pre_deploy_failed', 'canceled'])
+  for (const [role, serviceId] of Object.entries(serviceIds)) {
+    if (!TERMINAL.has(lastStatuses[role] || '')) continue
+    try {
+      // Get the latest deploy id to fetch its logs.
+      const dr = await fetch(`https://api.render.com/v1/services/${serviceId}/deploys?limit=1`, {
+        headers: { 'Authorization': 'Bearer ' + process.env.RENDER_API_KEY },
+        signal: AbortSignal.timeout(30_000),
+      })
+      if (!dr.ok) continue
+      const deploys = await dr.json() as any[]
+      const deployId = deploys[0]?.deploy?.id
+      const buildStatus = deploys[0]?.deploy?.status
+      const commit = deploys[0]?.deploy?.commit?.message || ''
+
+      // Render's logs endpoint returns last 1000 lines by default.
+      const lr = await fetch(`https://api.render.com/v1/logs?resource=${serviceId}&limit=1000`, {
+        headers: { 'Authorization': 'Bearer ' + process.env.RENDER_API_KEY },
+        signal: AbortSignal.timeout(30_000),
+      })
+      let logBody = lr.ok ? await lr.text() : `(log fetch HTTP ${lr.status})`
+      // Truncate if huge — keep tail since failures appear at the end.
+      if (logBody.length > 200_000) logBody = '...(truncated head)...\n' + logBody.slice(-200_000)
+
+      const header = `# ${testId} :: ${role} (service ${serviceId})\n# status: ${lastStatuses[role]} | latest deploy ${deployId} status: ${buildStatus}\n# commit: ${commit}\n# fetched: ${new Date().toISOString()}\n\n`
+      fs.writeFileSync(path.join(auditDir, `${testId}__${role}__buildlog.txt`), header + logBody)
+    } catch (e: any) {
+      fs.writeFileSync(path.join(auditDir, `${testId}__${role}__buildlog.txt`), `# log capture failed: ${e.message}\n`)
+    }
   }
 }
 
