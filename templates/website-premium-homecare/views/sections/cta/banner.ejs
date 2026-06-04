@@ -1,0 +1,16 @@
+<%
+  // CTA banner: single-row strip, big headline, single primary action.
+  // Used as section punctuation — between content blocks.
+  const heading = data.heading || ''
+  const subtitle = data.subtitle || ''
+  const primaryCta = data.primaryCta || { label: 'Get in touch', href: '#contact' }
+%>
+<section class="cta cta--banner" id="<%= data.id || 'contact' %>">
+  <div class="container cta__banner-inner">
+    <div class="cta__banner-copy">
+      <h2 class="cta__heading"><%= heading %></h2>
+      <% if (subtitle) { %><p class="cta__subtitle"><%= subtitle %></p><% } %>
+    </div>
+    <a class="btn btn--primary btn--xl" href="<%= primaryCta.href %>"><%= primaryCta.label %></a>
+  </div>
+</section>

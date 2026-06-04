@@ -25,11 +25,24 @@ const DEFAULT_TEMPLATE = 'website-premium-contractor'
 // as the deploy throw, but for previews we render something rather than
 // error (staff sees the wrong template instead of a 500, which is easier
 // to debug).
+const PREMIUM_ROOFING_INDUSTRIES = new Set([
+  'roofing', 'roof', 'storm_restoration', 'siding_roofing',
+])
+const PREMIUM_HOMECARE_INDUSTRIES = new Set([
+  'home_care', 'homecare', 'in_home_care', 'senior_care',
+  'caregiving', 'companion_care',
+])
 const PREMIUM_FIELDSERVICE_INDUSTRIES = new Set([
   'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
   'cleaning', 'pest_control', 'locksmith', 'garage_door',
 ])
 export function pickPremiumTemplateDir(industry?: string | null): string {
+  if (industry && PREMIUM_ROOFING_INDUSTRIES.has(industry)) {
+    return path.join(TEMPLATES_ROOT, 'website-premium-roofing')
+  }
+  if (industry && PREMIUM_HOMECARE_INDUSTRIES.has(industry)) {
+    return path.join(TEMPLATES_ROOT, 'website-premium-homecare')
+  }
   if (industry && PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
     return path.join(TEMPLATES_ROOT, 'website-premium-fieldservice')
   }

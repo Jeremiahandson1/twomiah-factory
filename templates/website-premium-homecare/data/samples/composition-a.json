@@ -1,0 +1,68 @@
+{
+  "_note": "Composition A — warm reassurance led. Hero with a caregiver-and-client moment, alternating services rows that read like a brochure for a worried adult child, split CTA emphasizing 'meet your caregiver first.'",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "full-bleed",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1581579438747-104c53e7a76b?w=2000&q=80",
+        "eyebrow": "Family-owned · Licensed in Wisconsin",
+        "title": "Care your parent would have chosen for themselves",
+        "subtitle": "Companion care, personal care, dementia specialty, hospice support — delivered by licensed caregivers we've personally trained and trust with our own families.",
+        "primaryCta": { "label": "Schedule a free consultation", "href": "#contact" },
+        "secondaryCta": { "label": "How we match caregivers", "href": "#services" }
+      }
+    },
+    {
+      "type": "services",
+      "variant": "alternating",
+      "data": {
+        "heading": "How we help",
+        "intro": "Care plans are written with you and your loved one in the same room. Every caregiver is licensed, bonded, family-vetted, and matched to the temperament and routine that fits.",
+        "items": [
+          {
+            "title": "Companion care",
+            "description": "A familiar face for the parts of the week when family can't be there. Conversation, meal prep, light housekeeping, errands, transportation to appointments, and steady company that builds into real friendship.",
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=1400&q=80",
+            "bullets": ["2-hour minimum visits — no overnight requirement", "Same caregiver every visit when possible", "Mobile updates after every shift if family asks", "Flexible scheduling, including weekends"]
+          },
+          {
+            "title": "Personal care",
+            "description": "Bathing, dressing, grooming, mobility assistance, medication reminders. Our caregivers are CBRF-certified and trained in respectful, dignity-first approaches.",
+            "image": "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=1400&q=80",
+            "bullets": ["CBRF and CNA certified caregivers", "Fall-risk and bathing safety assessments included", "Bilingual Spanish/English caregivers available", "Long-term care insurance accepted and billed direct"]
+          },
+          {
+            "title": "Dementia & Alzheimer's specialty",
+            "description": "Specially trained caregivers who understand sundowning, communication patterns, and what a 'good day' looks like. We work with your loved one's existing routine — we don't impose ours.",
+            "image": "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1400&q=80",
+            "bullets": ["Teepa Snow Positive Approach training", "Care plans coordinated with neurologist + family", "Continuity of caregiver to reduce confusion"]
+          },
+          {
+            "title": "Hospice & end-of-life support",
+            "description": "When the time comes, we partner with your hospice team to provide the continuous bedside presence that lets family rest, eat, and grieve together. We've walked this road many times.",
+            "image": "https://images.unsplash.com/photo-1574631818862-08ce1c6cee59?w=1400&q=80",
+            "bullets": ["24-hour and live-in shifts available", "Coordination with your hospice nurse and chaplain", "Family communication built into every shift"]
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?w=1400&q=80",
+        "heading": "Meet the caregiver before any care begins",
+        "subtitle": "Free in-home consultation. We bring the proposed caregiver, your loved one tells us what matters to them, and you say yes or pick someone else. No commitment until everyone's comfortable.",
+        "bullets": [
+          "Free in-home assessment — no obligation, no pressure",
+          "Match-or-replace caregiver guarantee for the first two weeks",
+          "Care plan written WITH the family, not delivered TO them",
+          "Bonded, insured, and Wisconsin-licensed since 2014"
+        ],
+        "primaryCta": { "label": "Schedule consultation", "href": "#contact" },
+        "phone": "608-555-2266"
+      }
+    }
+  ]
+}

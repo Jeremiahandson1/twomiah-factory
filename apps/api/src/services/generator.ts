@@ -184,9 +184,20 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // in a separate template family entirely. Industry coverage expands
       // via #26 (multi-industry premium templates).
       const isPremium = products.includes('website-premium')
+      // Per-industry premium template sets. Order of check matters in
+      // the routing block below — more-specific industries take priority
+      // over the contractor catch-all even when they're contractor-family
+      // trades.
+      const PREMIUM_ROOFING_INDUSTRIES = new Set([
+        'roofing', 'roof', 'storm_restoration', 'siding_roofing',
+      ])
+      const PREMIUM_HOMECARE_INDUSTRIES = new Set([
+        'home_care', 'homecare', 'in_home_care', 'senior_care',
+        'caregiving', 'companion_care',
+      ])
       const PREMIUM_CONTRACTOR_INDUSTRIES = new Set([
         'contractor', 'general_contractor', 'construction', 'remodeling',
-        'roofing', 'siding', 'home_improvement',
+        'siding', 'home_improvement',
       ])
       const PREMIUM_FIELDSERVICE_INDUSTRIES = new Set([
         'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
@@ -195,12 +206,18 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
       let websiteTemplate = 'website-general'
       if (isPremium) {
-        if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
+        if (PREMIUM_ROOFING_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-roofing'
+        } else if (PREMIUM_HOMECARE_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-homecare'
+        } else if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
           websiteTemplate = 'website-premium-fieldservice'
         } else if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
           websiteTemplate = 'website-premium-contractor'
         } else {
           const supported = [
+            ...Array.from(PREMIUM_ROOFING_INDUSTRIES),
+            ...Array.from(PREMIUM_HOMECARE_INDUSTRIES),
             ...Array.from(PREMIUM_CONTRACTOR_INDUSTRIES),
             ...Array.from(PREMIUM_FIELDSERVICE_INDUSTRIES),
           ]
