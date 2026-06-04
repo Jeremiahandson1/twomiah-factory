@@ -292,8 +292,24 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       }
 
       if (products.includes('cms')) {
-        copyTemplate('cms', path.join(workDir, 'website', 'admin'), tokens)
-        await writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding, config.company?.name)
+        // Premium templates bring their OWN admin SPA at website-premium-*/admin/
+        // — with its own package.json + postcss.config.js + tailwind.config.js
+        // wired together as a matched set. Overlaying the standalone `cms`
+        // template on top creates a Frankenstein admin: cms's package.json
+        // (no tailwindcss) on top of premium's postcss.config.js (requires
+        // tailwindcss), which breaks vite build. Skip the overlay for
+        // premium and trust the template's own admin.
+        if (!isPremium) {
+          copyTemplate('cms', path.join(workDir, 'website', 'admin'), tokens)
+          await writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding, config.company?.name)
+        } else {
+          // Premium already has its admin — just paint the branding assets
+          // into the existing folder so logo/favicon reflect this tenant.
+          const premiumAdminDir = path.join(workDir, 'website', 'admin')
+          if (fs.existsSync(premiumAdminDir)) {
+            await writeBrandingAssets(premiumAdminDir, config.branding, config.company?.name)
+          }
+        }
       }
     } else if (products.includes('cms')) {
       copyTemplate('cms', path.join(workDir, 'cms'), tokens)
