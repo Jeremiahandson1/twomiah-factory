@@ -45,6 +45,7 @@ for (const rawLine of fs.readFileSync(envPath, 'utf8').split('\n')) {
 
 import { supabase } from '../src/middleware/auth'
 import { generate } from '../src/services/generator'
+import { deployCustomer, isConfigured as isDeployConfigured } from '../src/services/deploy'
 import { hardDeleteTestTenant } from '../src/services/testCleanup'
 
 const args = Object.fromEntries(
@@ -241,8 +242,10 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
     // 2) Generate
     const t1 = Date.now()
     const config = buildConfig(caseSpec, tenantId!, slug)
+    let zipPath: string | undefined
     try {
       const result = await generate(config)
+      zipPath = result.zipPath
       time('generate', 'ok', result.zipName + ' (' + result.buildId + ')', Date.now() - t1)
     } catch (e: any) {
       time('generate', 'error', e.message, Date.now() - t1)
@@ -250,14 +253,45 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
       return entry
     }
 
-    // 3) Deploy (optional)
-    if (WITH_DEPLOY) {
-      time('deploy', 'skipped', 'TODO: real Render deploy not wired into harness yet — gate-keep with --with-deploy flag once stable', 0)
-    } else {
+    // 3) Deploy — only when --with-deploy is set AND deploy is configured
+    if (!WITH_DEPLOY) {
       time('deploy', 'skipped', 'generate-only mode (use --with-deploy for full E2E)', 0)
+      entry.outcome = 'pass'
+      return entry
+    }
+    if (!isDeployConfigured()) {
+      time('deploy', 'error', 'Deploy not configured — missing one of RENDER_API_KEY, GITHUB_TOKEN, GITHUB_ORG', 0)
+      entry.outcome = 'fail'
+      return entry
     }
 
-    entry.outcome = 'pass'
+    const t2 = Date.now()
+    let deployedUrls: { siteUrl?: string; deployedUrl?: string; apiUrl?: string } = {}
+    try {
+      const deployResult = await deployCustomer(
+        { id: tenantId!, slug, name: config.tenant_name, industry: caseSpec.industry, products: config.products, config },
+        zipPath!,
+      )
+      if (!deployResult.success) {
+        time('deploy', 'error', deployResult.errors?.join('; ') || deployResult.status, Date.now() - t2)
+        entry.outcome = 'fail'
+        return entry
+      }
+      deployedUrls = { siteUrl: deployResult.siteUrl, deployedUrl: deployResult.deployedUrl, apiUrl: deployResult.apiUrl }
+      time('deploy', 'ok', JSON.stringify(deployedUrls), Date.now() - t2)
+    } catch (e: any) {
+      time('deploy', 'error', e.message, Date.now() - t2)
+      entry.outcome = 'fail'
+      return entry
+    }
+
+    // 4) Smoke checks against the live URLs. Render services come up over
+    // a few minutes — first request often hits a cold start. We do a short
+    // bounded wait + a couple of retries; if it doesn't respond, the
+    // deploy is still up but smoke fails this run.
+    await smokeCheck(deployedUrls, caseSpec, time)
+
+    entry.outcome = entry.steps.some(s => s.status === 'error') ? 'fail' : 'pass'
     return entry
   } finally {
     // 4) Cleanup — runs even on failure
@@ -273,6 +307,65 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
     entry.totalMs = Date.now() - new Date(entry.startedAt).getTime()
     if (entry.outcome === 'running') entry.outcome = 'fail'
     writeAuditFile(entry)
+  }
+}
+
+// ── Smoke checks ────────────────────────────────────────────────────────
+// Hit the deployed URLs to verify the build is reachable + responding.
+// Bounded retries (Render cold-start can take a minute or two).
+
+async function fetchWithRetry(url: string, opts: { timeoutMs?: number; retries?: number; delayMs?: number } = {}): Promise<{ ok: boolean; status?: number; error?: string }> {
+  const retries = opts.retries ?? 6
+  const delayMs = opts.delayMs ?? 15000
+  const timeoutMs = opts.timeoutMs ?? 30000
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+      if (res.ok || res.status === 401 || res.status === 403) {
+        // 401/403 means the route exists and is responding (admin
+        // login page returns 200, admin API returns 401 — both prove
+        // the service is up).
+        return { ok: true, status: res.status }
+      }
+      if (i < retries) await new Promise(r => setTimeout(r, delayMs))
+    } catch (e: any) {
+      if (i < retries) await new Promise(r => setTimeout(r, delayMs))
+      else return { ok: false, error: e.message }
+    }
+  }
+  return { ok: false, status: 0, error: 'exceeded retries' }
+}
+
+async function smokeCheck(
+  urls: { siteUrl?: string; deployedUrl?: string; apiUrl?: string },
+  caseSpec: TestCase,
+  time: (step: string, status: 'ok' | 'warning' | 'error' | 'skipped', detail?: string, ms?: number) => void,
+) {
+  // a) Website root (only when website is part of the build)
+  if (urls.siteUrl && caseSpec.websiteMode !== 'none') {
+    const t = Date.now()
+    const r = await fetchWithRetry(urls.siteUrl)
+    time('smoke_website_root', r.ok ? 'ok' : 'error', r.status ? 'HTTP ' + r.status : r.error, Date.now() - t)
+
+    // b) Website admin (the SPA mount). 200 = SPA index served, 401 = API gate (also fine).
+    const t2 = Date.now()
+    const adminUrl = urls.siteUrl.replace(/\/+$/, '') + '/admin'
+    const r2 = await fetchWithRetry(adminUrl, { retries: 2 })
+    time('smoke_website_admin', r2.ok ? 'ok' : 'warning', r2.status ? 'HTTP ' + r2.status : r2.error, Date.now() - t2)
+  }
+
+  // c) CRM (always part of the test build)
+  if (urls.deployedUrl) {
+    const t = Date.now()
+    const r = await fetchWithRetry(urls.deployedUrl)
+    time('smoke_crm_root', r.ok ? 'ok' : 'error', r.status ? 'HTTP ' + r.status : r.error, Date.now() - t)
+  }
+
+  // d) CRM API health
+  if (urls.apiUrl) {
+    const t = Date.now()
+    const r = await fetchWithRetry(urls.apiUrl.replace(/\/+$/, '') + '/health', { retries: 2 })
+    time('smoke_crm_api_health', r.ok ? 'ok' : 'warning', r.status ? 'HTTP ' + r.status : r.error, Date.now() - t)
   }
 }
 
