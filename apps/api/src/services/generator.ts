@@ -202,6 +202,11 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
         'landscaping', 'lawn_care', 'lawncare', 'landscape_design',
         'snow_removal', 'tree_service',
       ])
+      const PREMIUM_SHOWCASE_INDUSTRIES = new Set([
+        'food', 'restaurant', 'hospitality', 'hotel', 'cafe',
+        'fitness', 'gym', 'yoga', 'beauty', 'salon', 'spa',
+        'events', 'wedding', 'catering',
+      ])
       const PREMIUM_CONTRACTOR_INDUSTRIES = new Set([
         'contractor', 'general_contractor', 'construction', 'remodeling',
         'siding', 'home_improvement',
@@ -221,6 +226,8 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
           websiteTemplate = 'website-premium-dispensary'
         } else if (PREMIUM_LANDSCAPING_INDUSTRIES.has(industry)) {
           websiteTemplate = 'website-premium-landscaping'
+        } else if (PREMIUM_SHOWCASE_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-showcase'
         } else if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
           websiteTemplate = 'website-premium-fieldservice'
         } else if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
@@ -231,6 +238,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
             ...Array.from(PREMIUM_HOMECARE_INDUSTRIES),
             ...Array.from(PREMIUM_DISPENSARY_INDUSTRIES),
             ...Array.from(PREMIUM_LANDSCAPING_INDUSTRIES),
+            ...Array.from(PREMIUM_SHOWCASE_INDUSTRIES),
             ...Array.from(PREMIUM_CONTRACTOR_INDUSTRIES),
             ...Array.from(PREMIUM_FIELDSERVICE_INDUSTRIES),
           ]
