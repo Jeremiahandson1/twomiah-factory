@@ -43,7 +43,6 @@ import billingRoutes from './routes/billing.ts'
 import reviewsRoutes from './routes/reviews.ts'
 import financingRoutes from './routes/financing.ts'
 import stormRadarRoutes from './routes/stormRadar.ts'
-import webhookRoutes from './routes/webhooks.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import emailDomainRoutes from './routes/emailDomain.ts'
 import accountRoutes from './routes/account.ts'
@@ -125,7 +124,6 @@ app.route('/api/billing', billingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 app.route('/api/financing', financingRoutes)
 app.route('/api/storm-radar', stormRadarRoutes)
-app.route('/api/webhooks', webhookRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
