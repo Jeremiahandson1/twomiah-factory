@@ -1,0 +1,107 @@
+{
+  "testId": "004-roofing-top-standard-byod",
+  "case": {
+    "vertical": "roofing",
+    "industry": "roofing",
+    "plan": "top",
+    "websiteMode": "standard",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "c948b291-f83c-4293-8c6e-f1891cbec461",
+      "ms": 63
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-roofing-co-5048bef3-twomiah-build.zip (5048bef3-64ae-43f0-b169-974b94d30419)",
+      "ms": 1462
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-roofing-mpzt9j8x-ab56-site.onrender.com\",\"deployedUrl\":\"https://test-roofing-mpzt9j8x-ab56-roof-api.onrender.com\",\"apiUrl\":\"https://test-roofing-mpzt9j8x-ab56-roof-api.onrender.com\"}",
+      "ms": 37010
+    },
+    {
+      "step": "smoke_website_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 122679
+    },
+    {
+      "step": "smoke_website_admin",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 99
+    },
+    {
+      "step": "smoke_crm_root",
+      "status": "error",
+      "detail": "exceeded retries",
+      "ms": 361938
+    },
+    {
+      "step": "smoke_crm_api_health",
+      "status": "warning",
+      "detail": "exceeded retries",
+      "ms": 40258
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 31490
+    }
+  ],
+  "startedAt": "2026-06-04T18:10:38.385Z",
+  "outcome": "fail",
+  "tenantId": "c948b291-f83c-4293-8c6e-f1891cbec461",
+  "finishedAt": "2026-06-04T18:20:33.399Z",
+  "totalMs": 595014
+}

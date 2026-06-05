@@ -1,0 +1,83 @@
+{
+  "testId": "068-roofing-top-standard-byod",
+  "case": {
+    "vertical": "roofing",
+    "industry": "roofing",
+    "plan": "top",
+    "websiteMode": "standard",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "58a2a567-1beb-4b67-ad6c-6f4437bf4c69",
+      "ms": 64
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-roofing-co-cb9fcc01-twomiah-build.zip (cb9fcc01-db8b-4d34-a321-b36b6f243b1f)",
+      "ms": 1327
+    },
+    {
+      "step": "deploy",
+      "status": "skipped",
+      "detail": "generate-only mode (use --with-deploy for full E2E)",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 39910
+    }
+  ],
+  "startedAt": "2026-06-04T16:16:32.405Z",
+  "outcome": "pass",
+  "tenantId": "58a2a567-1beb-4b67-ad6c-6f4437bf4c69",
+  "finishedAt": "2026-06-04T16:17:13.714Z",
+  "totalMs": 41309
+}

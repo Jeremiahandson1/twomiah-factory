@@ -1,0 +1,6 @@
+# 002-fieldservice-top-premium-byod :: site (service srv-d8gut34vikkc73dnmflg)
+# status: build_failed | latest deploy dep-d8gut3kvikkc73dnmg10 status: build_failed
+# commit: Initial Twomiah Factory deployment
+# fetched: 2026-06-04T21:32:14.333Z
+
+(log fetch HTTP 400)

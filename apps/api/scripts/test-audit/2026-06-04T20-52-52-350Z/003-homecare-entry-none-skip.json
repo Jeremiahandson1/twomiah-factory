@@ -1,0 +1,83 @@
+{
+  "testId": "003-homecare-entry-none-skip",
+  "case": {
+    "vertical": "homecare",
+    "industry": "home_care",
+    "plan": "entry",
+    "websiteMode": "none",
+    "domainMode": "skip"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "8199bd85-d57a-47bc-a18f-0916712a91e5",
+      "ms": 68
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-homecare-co-96f0b44b-twomiah-build.zip (96f0b44b-89c2-4b9b-9b3b-4e30fe0a92b3)",
+      "ms": 1061
+    },
+    {
+      "step": "deploy",
+      "status": "error",
+      "detail": "Database creation failed: Render DB creation failed (429): {\"error\":\"rate limit exceeded\"}",
+      "ms": 8008
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 19977
+    }
+  ],
+  "startedAt": "2026-06-04T20:55:50.434Z",
+  "outcome": "fail",
+  "tenantId": "8199bd85-d57a-47bc-a18f-0916712a91e5",
+  "finishedAt": "2026-06-04T20:56:19.552Z",
+  "totalMs": 29118
+}

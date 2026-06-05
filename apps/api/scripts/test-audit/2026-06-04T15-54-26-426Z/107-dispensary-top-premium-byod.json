@@ -1,0 +1,83 @@
+{
+  "testId": "107-dispensary-top-premium-byod",
+  "case": {
+    "vertical": "dispensary",
+    "industry": "dispensary",
+    "plan": "top",
+    "websiteMode": "premium",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "42a7c964-71d7-4878-a0c4-50275bc04a2b",
+      "ms": 64
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-dispensary-co-ec8a57be-twomiah-build.zip (ec8a57be-9338-4ab1-9848-6d0dc7c11b35)",
+      "ms": 1630
+    },
+    {
+      "step": "deploy",
+      "status": "skipped",
+      "detail": "generate-only mode (use --with-deploy for full E2E)",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 18984
+    }
+  ],
+  "startedAt": "2026-06-04T16:31:22.936Z",
+  "outcome": "pass",
+  "tenantId": "42a7c964-71d7-4878-a0c4-50275bc04a2b",
+  "finishedAt": "2026-06-04T16:31:43.616Z",
+  "totalMs": 20680
+}

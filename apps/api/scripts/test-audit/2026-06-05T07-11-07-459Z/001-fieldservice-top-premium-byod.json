@@ -1,0 +1,113 @@
+{
+  "testId": "001-fieldservice-top-premium-byod",
+  "case": {
+    "vertical": "fieldservice",
+    "industry": "hvac",
+    "plan": "top",
+    "websiteMode": "premium",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "f5ce63ae-4cd6-4531-aea8-01883cb86adf",
+      "ms": 288
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-fieldservice-co-5760b8d0-twomiah-build.zip (5760b8d0-4fff-469a-846c-299508dbc1a0)",
+      "ms": 1514
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-fieldservice-mq0l58sm-o7bj-site.onrender.com\",\"deployedUrl\":\"https://test-fieldservice-mq0l58sm-o7bj-wrench.onrender.com\",\"apiUrl\":\"https://test-fieldservice-mq0l58sm-o7bj-wrench.onrender.com\"}",
+      "ms": 51051
+    },
+    {
+      "step": "wait_for_live",
+      "status": "ok",
+      "detail": "{\"backend\":\"live\",\"site\":\"live\"}",
+      "ms": 76984
+    },
+    {
+      "step": "smoke_website_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 427
+    },
+    {
+      "step": "smoke_website_admin",
+      "status": "warning",
+      "detail": "exceeded retries",
+      "ms": 10180
+    },
+    {
+      "step": "smoke_crm_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 274
+    },
+    {
+      "step": "smoke_crm_api_health",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 46
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "2/15 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "2 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 15510
+    }
+  ],
+  "startedAt": "2026-06-05T07:11:07.462Z",
+  "outcome": "pass",
+  "tenantId": "f5ce63ae-4cd6-4531-aea8-01883cb86adf",
+  "finishedAt": "2026-06-05T07:13:43.746Z",
+  "totalMs": 156284
+}

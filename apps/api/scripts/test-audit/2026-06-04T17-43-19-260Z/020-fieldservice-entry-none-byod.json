@@ -1,0 +1,83 @@
+{
+  "testId": "020-fieldservice-entry-none-byod",
+  "case": {
+    "vertical": "fieldservice",
+    "industry": "hvac",
+    "plan": "entry",
+    "websiteMode": "none",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "cf11596d-fc96-4d8a-ae1b-3f855389254c",
+      "ms": 51
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-fieldservice-co-9572fc1a-twomiah-build.zip (9572fc1a-3c72-430f-935d-9f76508e2a29)",
+      "ms": 1074
+    },
+    {
+      "step": "deploy",
+      "status": "skipped",
+      "detail": "generate-only mode (use --with-deploy for full E2E)",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 14497
+    }
+  ],
+  "startedAt": "2026-06-04T17:49:22.652Z",
+  "outcome": "pass",
+  "tenantId": "cf11596d-fc96-4d8a-ae1b-3f855389254c",
+  "finishedAt": "2026-06-04T17:49:38.282Z",
+  "totalMs": 15630
+}

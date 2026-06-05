@@ -1,0 +1,22 @@
+{
+  "testId": "002-fieldservice-top-premium-byod",
+  "case": {
+    "vertical": "fieldservice",
+    "industry": "hvac",
+    "plan": "top",
+    "websiteMode": "premium",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "error",
+      "detail": "Could not find the 'domain_registrar' column of 'tenants' in the schema cache",
+      "ms": 77
+    }
+  ],
+  "startedAt": "2026-06-04T15:46:44.778Z",
+  "outcome": "fail",
+  "finishedAt": "2026-06-04T15:46:44.857Z",
+  "totalMs": 79
+}

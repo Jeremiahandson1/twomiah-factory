@@ -1,0 +1,83 @@
+{
+  "testId": "074-landscaping-entry-none-byod",
+  "case": {
+    "vertical": "landscaping",
+    "industry": "landscaping",
+    "plan": "entry",
+    "websiteMode": "none",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "28d86b67-7c36-4378-a3dd-1e6dfda5767b",
+      "ms": 64
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-landscaping-co-1bda195a-twomiah-build.zip (1bda195a-4d67-4ff1-9053-a9082d46f763)",
+      "ms": 1051
+    },
+    {
+      "step": "deploy",
+      "status": "skipped",
+      "detail": "generate-only mode (use --with-deploy for full E2E)",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 23038
+    }
+  ],
+  "startedAt": "2026-06-04T16:19:00.875Z",
+  "outcome": "pass",
+  "tenantId": "28d86b67-7c36-4378-a3dd-1e6dfda5767b",
+  "finishedAt": "2026-06-04T16:19:25.030Z",
+  "totalMs": 24155
+}

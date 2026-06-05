@@ -1,0 +1,118 @@
+{
+  "testId": "001-fieldservice-top-premium-byod",
+  "case": {
+    "vertical": "fieldservice",
+    "industry": "hvac",
+    "plan": "top",
+    "websiteMode": "premium",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "4acc5ab4-fc45-4a6e-9e43-8380c7779d80",
+      "ms": 289
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-fieldservice-co-1e5a0d9f-twomiah-build.zip (1e5a0d9f-ba77-400b-862f-64b83515e0d6)",
+      "ms": 1242
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-fieldservice-mq0b4oqp-xptb-site.onrender.com\",\"deployedUrl\":\"https://test-fieldservice-mq0b4oqp-xptb-wrench.onrender.com\",\"apiUrl\":\"https://test-fieldservice-mq0b4oqp-xptb-wrench.onrender.com\"}",
+      "ms": 54727
+    },
+    {
+      "step": "wait_for_live",
+      "status": "ok",
+      "detail": "{\"backend\":\"live\",\"site\":\"live\"}",
+      "ms": 61556
+    },
+    {
+      "step": "smoke_website_root",
+      "status": "error",
+      "detail": "exceeded retries",
+      "ms": 61275
+    },
+    {
+      "step": "smoke_website_admin",
+      "status": "warning",
+      "detail": "exceeded retries",
+      "ms": 10173
+    },
+    {
+      "step": "smoke_crm_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 264
+    },
+    {
+      "step": "smoke_crm_api_health",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 5137
+    },
+    {
+      "step": "captured_runtime_logs",
+      "status": "ok",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "2 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 26784
+    }
+  ],
+  "startedAt": "2026-06-05T02:30:45.313Z",
+  "outcome": "fail",
+  "tenantId": "4acc5ab4-fc45-4a6e-9e43-8380c7779d80",
+  "finishedAt": "2026-06-05T02:34:28.370Z",
+  "totalMs": 223057
+}

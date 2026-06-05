@@ -1,0 +1,107 @@
+{
+  "testId": "006-dispensary-top-standard-skip",
+  "case": {
+    "vertical": "dispensary",
+    "industry": "dispensary",
+    "plan": "top",
+    "websiteMode": "standard",
+    "domainMode": "skip"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "ac9ceb8d-88a4-4690-8a98-75c09b09b3ae",
+      "ms": 58
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-dispensary-co-0994733a-twomiah-build.zip (0994733a-0038-40e3-98ce-6e47e4d8f18b)",
+      "ms": 1440
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-dispensary-mpzu0a31-rxop-site.onrender.com\",\"deployedUrl\":\"https://test-dispensary-mpzu0a31-rxop-leaf-api.onrender.com\",\"apiUrl\":\"https://test-dispensary-mpzu0a31-rxop-leaf-api.onrender.com\"}",
+      "ms": 37891
+    },
+    {
+      "step": "smoke_website_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 82198
+    },
+    {
+      "step": "smoke_website_admin",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 312
+    },
+    {
+      "step": "smoke_crm_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 20361
+    },
+    {
+      "step": "smoke_crm_api_health",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 70
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 18768
+    }
+  ],
+  "startedAt": "2026-06-04T18:31:26.221Z",
+  "outcome": "pass",
+  "tenantId": "ac9ceb8d-88a4-4690-8a98-75c09b09b3ae",
+  "finishedAt": "2026-06-04T18:34:07.333Z",
+  "totalMs": 161112
+}

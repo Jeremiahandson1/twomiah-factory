@@ -1,0 +1,89 @@
+# 003-landscaping-entry-premium-buy :: site (service srv-d8h006k8aovs73ehvl4g)
+# status: build_failed | latest deploy dep-d8h00748aovs73ehvm3g status: build_failed
+# commit: Initial Twomiah Factory deployment
+# ownerId: tea-d63p56fpm1nc73bok5pg
+# fetched: 2026-06-04T22:56:06.214Z
+
+=== EVENTS ===
+2026-06-04T22:46:09.264383Z deploy_ended {"deployId":"dep-d8h00748aovs73ehvm3g","deployStatus":"failed","reason":{"buildFailed":{"id":"Exited with status 1"},"failure":{"evicted":false,"nonZeroExit":1}},"status":4}
+2026-06-04T22:46:07Z build_ended {"buildId":"bld-d8h00748aovs73ehvm40","buildStatus":"failed","reason":{"buildFailed":{"id":"bld-d8h00748aovs73ehvm40"},"failure":{"evicted":false,"nonZeroExit":1}},"status":3}
+2026-06-04T22:45:48.629347Z deploy_started {"deployId":"dep-d8h00748aovs73ehvm3g","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+2026-06-04T22:45:48.61748Z build_started {"buildId":"bld-d8h00748aovs73ehvm40","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+
+=== LOGS ===
+2026-06-04T22:45:51.816763397Z [34m[1m==>(B[m [1mCloning from https://github.com/Jeremiahandson1/test-landscaping-mq032hlz-uzm4(B[m
+2026-06-04T22:45:52.673438432Z [34m[1m==>(B[m [1mChecking out commit f90cf7c12d37bf35a8b083407b4f845eec6c1a69 in branch main(B[m
+2026-06-04T22:45:53.876528832Z [34;1m==>[0;22m [1mUsing Node.js version 24.14.1 (default)[22m
+2026-06-04T22:45:53.876542052Z [34;1m==>[0;22m [1mDocs on specifying a Node.js version: https://render.com/docs/node-version[22m
+2026-06-04T22:45:53.962934659Z [34m[1m==>(B[m [1mRunning build command 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi'...(B[m
+2026-06-04T22:45:54.507056395Z #=#=#                                                                                                                                                    0.1%####################################                                      50.6%######################################################################## 100.0%
+2026-06-04T22:45:55.608358989Z bun was installed successfully to ~/.bun/bin/bun 
+2026-06-04T22:45:55.612962316Z Run 'bun --help' to get started
+2026-06-04T22:45:55.61737954Z [0.07ms] ".env"
+2026-06-04T22:45:55.618646196Z bun install v1.3.14 (0d9b296a)
+2026-06-04T22:45:55.620790622Z Resolving dependencies
+2026-06-04T22:45:56.721748072Z Resolved, downloaded and extracted [657]
+2026-06-04T22:45:57.129758038Z Saved lockfile
+2026-06-04T22:45:57.129826139Z {"id":"7b0731e6-0a04-45a0-ab67-b9690e335e5f","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:45:57.129826139Z"}
+2026-06-04T22:45:57.129852419Z + @types/bcryptjs@2.4.6 (v3.0.0 available)
+2026-06-04T22:45:57.129857799Z + @types/jsonwebtoken@9.0.10
+2026-06-04T22:45:57.12986238Z + @types/pg@8.20.0
+2026-06-04T22:45:57.12986663Z + drizzle-kit@0.24.2 (v0.31.10 available)
+2026-06-04T22:45:57.12987102Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-04T22:45:57.12987507Z + @aws-sdk/client-s3@3.1062.0
+2026-06-04T22:45:57.12987891Z + @sendgrid/mail@8.1.6
+2026-06-04T22:45:57.12988266Z + bcryptjs@2.4.3 (v3.0.3 available)
+2026-06-04T22:45:57.1298864Z + drizzle-orm@0.33.0 (v0.45.2 available)
+2026-06-04T22:45:57.12988994Z + ejs@3.1.10 (v6.0.1 available)
+2026-06-04T22:45:57.1298936Z + hono@4.12.23
+2026-06-04T22:45:57.12989733Z + jsonwebtoken@9.0.3
+2026-06-04T22:45:57.12990121Z + pg@8.21.0
+2026-06-04T22:45:57.12990495Z + sharp@0.33.5 (v0.34.5 available)
+2026-06-04T22:45:57.12990804Z {"id":"a5682eaf-4449-4e7c-9eb9-e36597c88506","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:45:57.12990804Z"}
+2026-06-04T22:45:57.12991107Z 147 packages installed [1.51s]
+2026-06-04T22:45:57.159582756Z bun install v1.3.14 (0d9b296a)
+2026-06-04T22:45:57.163378633Z Resolving dependencies
+2026-06-04T22:45:58.062320949Z Resolved, downloaded and extracted [755]
+2026-06-04T22:46:06.7196027Z {"id":"04ec38a2-547c-446d-b6c7-ff8f8015cb0c","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:46:06.7196027Z"}
+2026-06-04T22:46:06.71961803Z Saved lockfile
+2026-06-04T22:46:06.719635451Z + @types/react@18.3.30 (v19.2.16 available)
+2026-06-04T22:46:06.719643171Z + @types/react-dom@18.3.7 (v19.2.3 available)
+2026-06-04T22:46:06.719649581Z + puppeteer@22.15.0 (v25.1.0 available)
+2026-06-04T22:46:06.719655641Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-04T22:46:06.719661831Z + @vitejs/plugin-react@4.7.0 (v6.0.2 available)
+2026-06-04T22:46:06.719668331Z + quill@1.3.7 (v2.0.3 available)
+2026-06-04T22:46:06.719673261Z + react@18.3.1 (v19.2.7 available)
+2026-06-04T22:46:06.719678371Z + react-dom@18.3.1 (v19.2.7 available)
+2026-06-04T22:46:06.719685011Z + react-quill@2.0.0
+2026-06-04T22:46:06.719707012Z + react-router-dom@6.30.4 (v7.17.0 available)
+2026-06-04T22:46:06.719711462Z + vite@5.4.21 (v8.0.16 available)
+2026-06-04T22:46:06.719715052Z {"id":"e566159c-a9fb-4246-bf2b-e6e818a341f2","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:46:06.719715052Z"}
+2026-06-04T22:46:06.719718932Z 205 packages installed [9.56s]
+2026-06-04T22:46:06.746125118Z $ vite build
+2026-06-04T22:46:07.118851178Z vite v5.4.21 building for production...
+2026-06-04T22:46:07.21132363Z transforming...
+2026-06-04T22:46:07.237608204Z node:internal/process/promises:394
+2026-06-04T22:46:07.237636575Z     triggerUncaughtException(err, true /* fromPromise */);
+2026-06-04T22:46:07.237640045Z     ^
+2026-06-04T22:46:07.237643035Z {"id":"09f59161-8ddc-4925-9f33-79ad372c7442","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:46:07.237643035Z"}
+2026-06-04T22:46:07.237648115Z [Failed to load PostCSS config: Failed to load PostCSS config (searchPath: /opt/render/project/src/website/admin): [Error] Loading PostCSS Plugin failed: Cannot find module 'tailwindcss'
+2026-06-04T22:46:07.237651275Z Require stack:
+2026-06-04T22:46:07.237655045Z - /opt/render/project/src/website/admin/postcss.config.js
+2026-06-04T22:46:07.237657825Z {"id":"6b86a9b7-be51-460f-9334-06f4d3028e55","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:46:07.237657825Z"}
+2026-06-04T22:46:07.237660815Z (@/opt/render/project/src/website/admin/postcss.config.js)
+2026-06-04T22:46:07.237665215Z Error: Loading PostCSS Plugin failed: Cannot find module 'tailwindcss'
+2026-06-04T22:46:07.237668225Z Require stack:
+2026-06-04T22:46:07.237671375Z - /opt/render/project/src/website/admin/postcss.config.js
+2026-06-04T22:46:07.237674215Z {"id":"ae5c4b47-6472-41a9-b988-1c9bb856ed9b","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:46:07.237674215Z"}
+2026-06-04T22:46:07.237677145Z (@/opt/render/project/src/website/admin/postcss.config.js)
+2026-06-04T22:46:07.237682465Z     at load (file:///opt/render/project/src/website/admin/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:33632:11)
+2026-06-04T22:46:07.237687725Z     at file:///opt/render/project/src/website/admin/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:33657:16
+2026-06-04T22:46:07.237692395Z     at Array.map (<anonymous>)
+2026-06-04T22:46:07.237695535Z     at plugins (file:///opt/render/project/src/website/admin/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:33656:8)
+2026-06-04T22:46:07.237698735Z     at processResult (file:///opt/render/project/src/website/admin/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:33726:14)
+2026-06-04T22:46:07.237702685Z     at file:///opt/render/project/src/website/admin/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:33856:14]
+2026-06-04T22:46:07.237705445Z {"id":"0dd2f59f-9999-4222-84b1-6ef99606474f","labels":[{"name":"resource","value":"srv-d8h006k8aovs73ehvl4g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-04T22:46:07.237705445Z"}
+2026-06-04T22:46:07.237708385Z Node.js v24.14.1
+2026-06-04T22:46:07.252910183Z error: script "build:quick" exited with code 1
+2026-06-04T22:46:07.312167415Z [31m[1m==> Build failed 😞(B[m
+2026-06-04T22:46:07.312206915Z [34m[1m==>(B[m [1mCommon ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys(B[m

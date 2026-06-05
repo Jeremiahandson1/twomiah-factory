@@ -1,0 +1,22 @@
+{
+  "testId": "001-contractor-entry-standard-buy",
+  "case": {
+    "vertical": "contractor",
+    "industry": "general_contractor",
+    "plan": "entry",
+    "websiteMode": "standard",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "error",
+      "detail": "Could not find the 'domain_registrar' column of 'tenants' in the schema cache",
+      "ms": 361
+    }
+  ],
+  "startedAt": "2026-06-04T15:46:44.415Z",
+  "outcome": "fail",
+  "finishedAt": "2026-06-04T15:46:44.778Z",
+  "totalMs": 363
+}

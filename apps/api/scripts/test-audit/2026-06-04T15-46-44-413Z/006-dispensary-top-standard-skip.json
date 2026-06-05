@@ -1,0 +1,22 @@
+{
+  "testId": "006-dispensary-top-standard-skip",
+  "case": {
+    "vertical": "dispensary",
+    "industry": "dispensary",
+    "plan": "top",
+    "websiteMode": "standard",
+    "domainMode": "skip"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "error",
+      "detail": "Could not find the 'domain_registrar' column of 'tenants' in the schema cache",
+      "ms": 74
+    }
+  ],
+  "startedAt": "2026-06-04T15:46:45.037Z",
+  "outcome": "fail",
+  "finishedAt": "2026-06-04T15:46:45.113Z",
+  "totalMs": 76
+}

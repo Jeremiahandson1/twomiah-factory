@@ -1,0 +1,154 @@
+# 002-landscaping-entry-premium-buy :: backend (service srv-d8h325mq1p3s73fkg96g)
+# status: live_but_smoke_failed | latest deploy dep-d8h3266q1p3s73fkgaa0 status: live
+# commit: Initial Twomiah Factory deployment
+# ownerId: tea-d63p56fpm1nc73bok5pg
+# fetched: 2026-06-05T02:17:56.919Z
+
+=== EVENTS ===
+2026-06-05T02:16:25.271336Z deploy_ended {"deployId":"dep-d8h3266q1p3s73fkgaa0","deployStatus":"succeeded","reason":{},"status":2}
+2026-06-05T02:15:21Z build_ended {"buildId":"bld-d8h3266q1p3s73fkgaag","buildStatus":"succeeded","reason":{},"status":2}
+2026-06-05T02:14:48.853626Z build_started {"buildId":"bld-d8h3266q1p3s73fkgaag","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+2026-06-05T02:14:48.834516Z deploy_started {"deployId":"dep-d8h3266q1p3s73fkgaa0","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+
+=== LOGS ===
+2026-06-05T02:14:53.677722721Z [34m[1m==>(B[m [1mCloning from https://github.com/Jeremiahandson1/test-landscaping-mq0ajgt3-knfz(B[m
+2026-06-05T02:14:54.479413602Z [34m[1m==>(B[m [1mChecking out commit a1fecdb620b456184ad67ee6e2d882d67cc6330f in branch main(B[m
+2026-06-05T02:14:56.397006664Z [34;1m==>[0;22m [1mUsing Node.js version 24.14.1 (default)[22m
+2026-06-05T02:14:56.397032035Z [34;1m==>[0;22m [1mDocs on specifying a Node.js version: https://render.com/docs/node-version[22m
+2026-06-05T02:14:56.493497664Z [34m[1m==>(B[m [1mRunning build command 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && cd ../frontend && bun install --no-verify && VITE_API_URL="" VITE_GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'...(B[m
+2026-06-05T02:14:57.0037791Z #=#=#                                                                         #######                                                                    9.9%####################################################                      73.3%######################################################################## 100.0%
+2026-06-05T02:14:58.069870704Z bun was installed successfully to ~/.bun/bin/bun 
+2026-06-05T02:14:58.074310273Z Run 'bun --help' to get started
+2026-06-05T02:14:58.078870934Z [0.07ms] ".env"
+2026-06-05T02:14:58.08029923Z bun install v1.3.14 (0d9b296a)
+2026-06-05T02:14:58.082720863Z Resolving dependencies
+2026-06-05T02:14:59.81597462Z Resolved, downloaded and extracted [1430]
+2026-06-05T02:15:00.489911503Z Saved lockfile
+2026-06-05T02:15:00.490472643Z {"id":"f07a846b-ba97-4a11-8c1c-98abf73b2451","labels":[{"name":"resource","value":"srv-d8h325mq1p3s73fkg96g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:15:00.490472643Z"}
+2026-06-05T02:15:00.490483783Z + @testing-library/jest-dom@6.9.1
+2026-06-05T02:15:00.490489733Z + @testing-library/react@14.3.1 (v16.3.2 available)
+2026-06-05T02:15:00.490495394Z + @types/react@18.3.30 (v19.2.16 available)
+2026-06-05T02:15:00.490500574Z + @types/react-dom@18.3.7 (v19.2.3 available)
+2026-06-05T02:15:00.490505544Z + @vitejs/plugin-react@4.7.0 (v6.0.2 available)
+2026-06-05T02:15:00.490510844Z + autoprefixer@10.5.0
+2026-06-05T02:15:00.490515654Z + jsdom@24.1.3 (v29.1.1 available)
+2026-06-05T02:15:00.490520474Z + postcss@8.5.15
+2026-06-05T02:15:00.490525244Z + tailwindcss@3.4.19 (v4.3.0 available)
+2026-06-05T02:15:00.490530184Z + vite@5.4.21 (v8.0.16 available)
+2026-06-05T02:15:00.490536414Z + vitest@1.6.1 (v4.1.8 available)
+2026-06-05T02:15:00.490541224Z + @stripe/react-stripe-js@2.9.0 (v6.6.0 available)
+2026-06-05T02:15:00.490546104Z + @stripe/stripe-js@3.5.0 (v9.7.0 available)
+2026-06-05T02:15:00.490551485Z + clsx@2.1.1
+2026-06-05T02:15:00.490556265Z + date-fns@2.30.0 (v4.4.0 available)
+2026-06-05T02:15:00.490561155Z + lucide-react@0.344.0 (v1.17.0 available)
+2026-06-05T02:15:00.490566005Z + react@18.3.1 (v19.2.7 available)
+2026-06-05T02:15:00.490570755Z + react-dom@18.3.1 (v19.2.7 available)
+2026-06-05T02:15:00.490575575Z + react-router-dom@6.30.4 (v7.17.0 available)
+2026-06-05T02:15:00.490580655Z + socket.io-client@4.8.3
+2026-06-05T02:15:00.490586095Z + zustand@4.5.7 (v5.0.14 available)
+2026-06-05T02:15:00.490590805Z {"id":"6deae0cb-d348-4921-ba2f-36a1d1d0a81e","labels":[{"name":"resource","value":"srv-d8h325mq1p3s73fkg96g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:15:00.490590805Z"}
+2026-06-05T02:15:00.490596185Z 342 packages installed [2.41s]
+2026-06-05T02:15:00.526552586Z $ vite build
+2026-06-05T02:15:00.944268592Z vite v5.4.21 building for production...
+2026-06-05T02:15:01.031536278Z transforming...
+2026-06-05T02:15:08.767986528Z ✓ 1958 modules transformed.
+2026-06-05T02:15:09.232218713Z rendering chunks...
+2026-06-05T02:15:09.587741481Z computing gzip size...
+2026-06-05T02:15:09.621848779Z dist/index.html                           2.06 kB │ gzip:   0.96 kB
+2026-06-05T02:15:09.621871669Z dist/assets/index-ClftqZ_N.css           84.94 kB │ gzip:  12.96 kB
+2026-06-05T02:15:09.622005972Z dist/assets/vendor-react-Cv7dV0PF.js    164.71 kB │ gzip:  53.75 kB
+2026-06-05T02:15:09.622071823Z dist/assets/index-ZMDlpvwX.js         1,021.96 kB │ gzip: 195.54 kB
+2026-06-05T02:15:09.622220616Z {"id":"1c7f1633-c4c1-4317-b6c8-2cbe34095a28","labels":[{"name":"resource","value":"srv-d8h325mq1p3s73fkg96g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:15:09.622220616Z"}
+2026-06-05T02:15:09.622228816Z (!) Some chunks are larger than 600 kB after minification. Consider:
+2026-06-05T02:15:09.622233666Z - Using dynamic import() to code-split the application
+2026-06-05T02:15:09.622238116Z - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+2026-06-05T02:15:09.622241636Z - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+2026-06-05T02:15:09.622619283Z ✓ built in 8.64s
+2026-06-05T02:15:09.755738106Z [0.09ms] ".env"
+2026-06-05T02:15:09.75709322Z bun install v1.3.14 (0d9b296a)
+2026-06-05T02:15:09.759402201Z Resolving dependencies
+2026-06-05T02:15:10.933264947Z Resolved, downloaded and extracted [750]
+2026-06-05T02:15:11.515560377Z {"id":"4b6b8dbc-b11e-4f39-ad11-3739ab96a138","labels":[{"name":"resource","value":"srv-d8h325mq1p3s73fkg96g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:15:11.515560377Z"}
+2026-06-05T02:15:11.515574417Z Saved lockfile
+2026-06-05T02:15:11.515597157Z + @types/jsonwebtoken@9.0.10
+2026-06-05T02:15:11.515605527Z + @types/pg@8.20.0
+2026-06-05T02:15:11.515612628Z + drizzle-kit@0.28.1 (v0.31.10 available)
+2026-06-05T02:15:11.515619068Z + @aws-sdk/client-s3@3.1062.0
+2026-06-05T02:15:11.515625348Z + @hono/node-server@1.19.14 (v2.0.4 available)
+2026-06-05T02:15:11.515631738Z + @paralleldrive/cuid2@2.3.1 (v3.3.0 available)
+2026-06-05T02:15:11.515637748Z + @sendgrid/mail@8.1.6
+2026-06-05T02:15:11.515642838Z + csv-parse@5.6.0 (v6.2.1 available)
+2026-06-05T02:15:11.515648438Z + drizzle-orm@0.36.4 (v0.45.2 available)
+2026-06-05T02:15:11.515695079Z + hono@4.12.23
+2026-06-05T02:15:11.515702549Z + jsonwebtoken@9.0.3
+2026-06-05T02:15:11.515708799Z + node-cron@3.0.3 (v4.2.1 available)
+2026-06-05T02:15:11.515714179Z + nodemailer@6.10.1 (v8.0.10 available)
+2026-06-05T02:15:11.515719199Z + pdfkit@0.15.2 (v0.18.0 available)
+2026-06-05T02:15:11.51572425Z + pg@8.21.0
+2026-06-05T02:15:11.51572917Z + sharp@0.33.5 (v0.34.5 available)
+2026-06-05T02:15:11.51573396Z + socket.io@4.8.3
+2026-06-05T02:15:11.51573879Z + stripe@20.4.1 (v22.2.0 available)
+2026-06-05T02:15:11.51574356Z + twilio@5.13.1 (v6.0.2 available)
+2026-06-05T02:15:11.51574839Z + web-push@3.6.7
+2026-06-05T02:15:11.51575315Z + winston@3.19.0
+2026-06-05T02:15:11.51575839Z + zod@3.25.76 (v4.4.3 available)
+2026-06-05T02:15:11.51576304Z {"id":"0aba7926-6972-4d00-be77-5de6da4c9030","labels":[{"name":"resource","value":"srv-d8h325mq1p3s73fkg96g"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:15:11.51576304Z"}
+2026-06-05T02:15:11.51576784Z 266 packages installed [1.76s]
+2026-06-05T02:15:13.3590748Z [34;1m==>[0;22m [1mUploading build...[22m
+2026-06-05T02:15:21.892558131Z [34;1m==>[0;22m [1mUploaded in 3.4s. Compression took 5.2s[22m
+2026-06-05T02:15:21.921227462Z [32;1m==>[0;22m [1mBuild successful 🎉[22m
+2026-06-05T02:15:24.435971717Z [0;34m[1m==> [0m[1mDeploying...[0m
+2026-06-05T02:15:24.570273126Z [0;34m[1m==> [0m[1mSetting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance[0m
+2026-06-05T02:15:40.630669358Z [34;1m==>[0;22m [1mUsing Bun version 1.3.4 (default)[22m
+2026-06-05T02:15:40.630682669Z [34;1m==>[0;22m [1mDocs on specifying a Bun version: https://render.com/docs/bun-version[22m
+2026-06-05T02:15:42.772737453Z [32m[1m==>(B[m [1mRunning 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'(B[m
+2026-06-05T02:15:42.857299438Z [migrate] Attempt 1/20...
+2026-06-05T02:15:43.263349934Z No config path provided, using default 'drizzle.config.ts'
+2026-06-05T02:15:43.263587409Z Reading config file '/opt/render/project/src/crm-landscaping/backend/drizzle.config.ts'
+2026-06-05T02:15:44.483119616Z Using 'pg' driver for database querying
+2026-06-05T02:15:45.374555985Z Error: connect ECONNREFUSED 10.208.244.253:5432
+2026-06-05T02:15:45.374579045Z     at /opt/render/project/src/crm-landscaping/backend/node_modules/pg-pool/index.js:45:11
+2026-06-05T02:15:45.374582956Z     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+2026-06-05T02:15:45.374658907Z     at async PgDialect.migrate (/opt/render/project/src/crm-landscaping/backend/node_modules/src/pg-core/dialect.ts:85:3)
+2026-06-05T02:15:45.374661697Z     at async migrate (/opt/render/project/src/crm-landscaping/backend/node_modules/src/node-postgres/migrator.ts:10:2) {
+2026-06-05T02:15:45.374664167Z   errno: -111,
+2026-06-05T02:15:45.374666747Z   code: 'ECONNREFUSED',
+2026-06-05T02:15:45.374668758Z   syscall: 'connect',
+2026-06-05T02:15:45.374671427Z   address: '10.208.244.253',
+2026-06-05T02:15:45.374673478Z   port: 5432
+2026-06-05T02:15:45.374675458Z }
+2026-06-05T02:15:45.483916238Z [⣷] applying migrations...[migrate] Connection failed, retrying in 10s...
+2026-06-05T02:15:55.485803858Z [migrate] Attempt 2/20...
+2026-06-05T02:15:55.785708759Z No config path provided, using default 'drizzle.config.ts'
+2026-06-05T02:15:55.785730239Z Reading config file '/opt/render/project/src/crm-landscaping/backend/drizzle.config.ts'
+2026-06-05T02:15:56.872080527Z Using 'pg' driver for database querying
+2026-06-05T02:16:06.598735689Z [⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[✓] migrations applied successfully![migrate] Success
+2026-06-05T02:16:07.053278888Z Setting up your CRM...
+2026-06-05T02:16:07.159309111Z Created company: Test landscaping Co
+2026-06-05T02:16:07.288727163Z Created admin user
+2026-06-05T02:16:07.366351904Z Seeded 8 help articles
+2026-06-05T02:16:07.38008964Z Created 3 demo contacts
+2026-06-05T02:16:07.388294162Z Created 2 demo sites for Martinez
+2026-06-05T02:16:07.460199063Z Created 4 demo equipment records
+2026-06-05T02:16:07.470451417Z Created 3 demo service calls linked to equipment
+2026-06-05T02:16:07.564699244Z Created 2 demo quotes (1 draft, 1 approved → converted to job)
+2026-06-05T02:16:07.581077466Z Created 1 demo agreement plan + 1 agreement with quarterly auto-scheduling
+2026-06-05T02:16:07.588094533Z Created 2 demo photos on JOB-00001
+2026-06-05T02:16:07.658936792Z Created 3 demo SMS messages on Johnson contact
+2026-06-05T02:16:07.677415397Z Seeded 5 service categories for Landscaping
+2026-06-05T02:16:07.677430787Z {"id":"f8bd48c4-b284-4a39-99c7-4b70ebbe60b8","labels":[{"name":"resource","value":"srv-d8h325mq1p3s73fkg96g"},{"name":"instance","value":"srv-d8h325mq1p3s73fkg96g-splpd"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:16:07.677430787Z"}
+2026-06-05T02:16:07.677434158Z Login credentials:
+2026-06-05T02:16:07.677437268Z   Email: twomiah14@gmail.com
+2026-06-05T02:16:07.677439588Z   Password: f47FcEPg!
+2026-06-05T02:16:19.462842516Z Email provider: console
+2026-06-05T02:16:19.482439465Z Stripe not configured - billing features disabled
+2026-06-05T02:16:19.554814636Z {"level":"info","message":"Serving frontend from /opt/render/project/src/crm-landscaping/backend/frontend-dist","timestamp":"2026-06-05T02:16:19.553Z"}
+2026-06-05T02:16:19.670415769Z {"env":"production","level":"info","message":"Server running on port 10000","port":10000,"timestamp":"2026-06-05T02:16:19.670Z","websocket":"enabled"}
+2026-06-05T02:16:25.2866026Z [0;32m[1m==> [0m[1mYour service is live 🎉[0m
+2026-06-05T02:16:25.417412853Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T02:16:25.420951839Z [0;32m[1m==> [0m[1m///////////////////////////////////////////////////////////[0m
+2026-06-05T02:16:25.423899173Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T02:16:25.427023567Z [0;32m[1m==> [0m[1mAvailable at your primary URL https://test-landscaping-mq0ajgt3-knfz-landscape.onrender.com[0m
+2026-06-05T02:16:25.430171031Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T02:16:25.432920284Z [0;32m[1m==> [0m[1m///////////////////////////////////////////////////////////[0m
+2026-06-05T02:16:25.67054517Z clientIP="34.168.108.203" requestID="553593ac-e984-43f3" responseTimeMS=140 responseBytes=223158 userAgent="Go-http-client/2.0"

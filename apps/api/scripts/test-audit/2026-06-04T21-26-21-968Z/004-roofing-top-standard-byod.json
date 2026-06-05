@@ -1,0 +1,94 @@
+{
+  "testId": "004-roofing-top-standard-byod",
+  "case": {
+    "vertical": "roofing",
+    "industry": "roofing",
+    "plan": "top",
+    "websiteMode": "standard",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "d8586e56-147b-4eaf-bec6-dea55ae7c86a",
+      "ms": 107
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-roofing-co-a8890542-twomiah-build.zip (a8890542-b749-4abc-b912-15af684bf44c)",
+      "ms": 2110
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-roofing-mq00oa87-hna5-site.onrender.com\",\"deployedUrl\":\"https://test-roofing-mq00oa87-hna5-roof-api.onrender.com\",\"apiUrl\":\"https://test-roofing-mq00oa87-hna5-roof-api.onrender.com\"}",
+      "ms": 36903
+    },
+    {
+      "step": "wait_for_live",
+      "status": "error",
+      "detail": "polled services: {\"backend\":\"srv-d8gv0mmq1p3s73fe205g\",\"site\":\"srv-d8gv0nk2m8qs73aev0eg\"} | last statuses: {\"backend\":\"update_failed\",\"site\":\"live\"}",
+      "ms": 613892
+    },
+    {
+      "step": "captured_build_logs",
+      "status": "ok",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 21518
+    }
+  ],
+  "startedAt": "2026-06-04T21:38:03.847Z",
+  "outcome": "fail",
+  "tenantId": "d8586e56-147b-4eaf-bec6-dea55ae7c86a",
+  "finishedAt": "2026-06-04T21:49:18.640Z",
+  "totalMs": 674793
+}

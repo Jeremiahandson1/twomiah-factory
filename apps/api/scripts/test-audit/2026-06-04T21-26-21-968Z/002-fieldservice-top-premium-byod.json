@@ -1,0 +1,94 @@
+{
+  "testId": "002-fieldservice-top-premium-byod",
+  "case": {
+    "vertical": "fieldservice",
+    "industry": "hvac",
+    "plan": "top",
+    "websiteMode": "premium",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "4e7e4c2c-0bbd-4436-adc2-50e7b0c296f6",
+      "ms": 106
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-fieldservice-co-9150edc4-twomiah-build.zip (9150edc4-47ab-4018-8e74-41bc2c1e9c12)",
+      "ms": 2188
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-fieldservice-mq00e86w-9swr-site.onrender.com\",\"deployedUrl\":\"https://test-fieldservice-mq00e86w-9swr-wrench.onrender.com\",\"apiUrl\":\"https://test-fieldservice-mq00e86w-9swr-wrench.onrender.com\"}",
+      "ms": 39911
+    },
+    {
+      "step": "wait_for_live",
+      "status": "error",
+      "detail": "polled services: {\"backend\":\"srv-d8gut1v7f7vs739o0ud0\",\"site\":\"srv-d8gut34vikkc73dnmflg\"} | last statuses: {\"backend\":\"update_failed\",\"site\":\"build_failed\"}",
+      "ms": 77007
+    },
+    {
+      "step": "captured_build_logs",
+      "status": "ok",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 19725
+    }
+  ],
+  "startedAt": "2026-06-04T21:30:14.648Z",
+  "outcome": "fail",
+  "tenantId": "4e7e4c2c-0bbd-4436-adc2-50e7b0c296f6",
+  "finishedAt": "2026-06-04T21:32:34.061Z",
+  "totalMs": 139413
+}

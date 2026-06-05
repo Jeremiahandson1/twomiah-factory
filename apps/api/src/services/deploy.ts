@@ -1114,6 +1114,31 @@ export async function deployCustomer(
         if (siteDbConnectionString) {
           siteEnvVars.push({ key: 'DATABASE_URL', value: siteDbConnectionString })
         }
+        // Premium site bootstrap requires identity to itself + auth back to
+        // the factory so initDb.ts can fetch the customer's composed pages
+        // and admin credentials. Mirrors the pattern used by the CRM side.
+        if (isPremiumSite) {
+          const factoryUrl = process.env.TWOMIAH_FACTORY_URL || ''
+          const adminEmail = factoryCustomer.config?.company?.email || factoryCustomer.config?.company?.admin_email || ''
+          // generator.ts auto-generates a defaultPassword but on a fresh
+          // config copy — direct deployCustomer callers (test harness,
+          // re-deploy paths) might not see it. Generate inline if missing
+          // so the seed never lands on an empty password.
+          let adminPassword = factoryCustomer.config?.company?.defaultPassword || ''
+          if (!adminPassword) {
+            adminPassword = crypto.randomBytes(8).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 12) + '!'
+            console.log('[Deploy] No defaultPassword on config — generated one for premium site admin')
+          }
+          siteEnvVars.push({ key: 'FACTORY_URL',           value: factoryUrl })
+          siteEnvVars.push({ key: 'TENANT_ID',             value: factoryCustomer.id })
+          siteEnvVars.push({ key: 'FACTORY_SYNC_KEY',      value: factorySyncKey })
+          siteEnvVars.push({ key: 'ADMIN_EMAIL',           value: adminEmail })
+          siteEnvVars.push({ key: 'ADMIN_INITIAL_PASSWORD',value: adminPassword })
+          siteEnvVars.push({ key: 'COMPANY_NAME',          value: factoryCustomer.name || slug })
+          // Stash the generated password on the result so notifyDeployComplete
+          // can include it in the customer's welcome email.
+          ;(results as any).adminPassword = adminPassword
+        }
         if (hasVisualizerFeature) {
           siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
@@ -1161,6 +1186,10 @@ export async function deployCustomer(
             'sleep 10; ' +
           'done; ' +
           'if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never verified"; exit 1; fi; ' +
+          // Seed step: tries to fetch composed pages + admin from the
+          // factory, falls back to env-var defaults. Non-fatal if it
+          // fails — the site still boots and renders the placeholder.
+          'bun run scripts/initDb.ts || echo "[boot] WARN: initDb.ts exited non-zero — server will start anyway"; ' +
           'NODE_ENV=production exec bun server-static.ts'
         const siteStartCommand = isPremiumSite
           ? premiumBoot

@@ -1,0 +1,83 @@
+{
+  "testId": "002-landscaping-entry-premium-buy",
+  "case": {
+    "vertical": "landscaping",
+    "industry": "landscaping",
+    "plan": "entry",
+    "websiteMode": "premium",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "5ba95707-af8a-4074-9a93-e6b826243422",
+      "ms": 88
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-landscaping-co-2bf18e29-twomiah-build.zip (2bf18e29-c605-4b12-a3ae-bb92d75c0b35)",
+      "ms": 1333
+    },
+    {
+      "step": "deploy",
+      "status": "error",
+      "detail": "Database creation failed: Render DB creation failed (429): {\"error\":\"rate limit exceeded\"}",
+      "ms": 7094
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 26941
+    }
+  ],
+  "startedAt": "2026-06-05T02:35:58.395Z",
+  "outcome": "fail",
+  "tenantId": "5ba95707-af8a-4074-9a93-e6b826243422",
+  "finishedAt": "2026-06-05T02:36:33.854Z",
+  "totalMs": 35459
+}

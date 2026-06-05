@@ -1,0 +1,479 @@
+# 002-landscaping-entry-premium-buy :: site (service srv-d8h26537uimc73cepcjg)
+# status: live_but_smoke_failed | latest deploy dep-d8h265j7uimc73cepdhg status: live
+# commit: Initial Twomiah Factory deployment
+# ownerId: tea-d63p56fpm1nc73bok5pg
+# fetched: 2026-06-05T01:17:35.454Z
+
+=== EVENTS ===
+2026-06-05T01:16:07.076678Z deploy_ended {"deployId":"dep-d8h265j7uimc73cepdhg","deployStatus":"succeeded","reason":{},"status":2}
+2026-06-05T01:15:30Z build_ended {"buildId":"bld-d8h265j7uimc73cepdi0","buildStatus":"succeeded","reason":{},"status":2}
+2026-06-05T01:15:02.779795Z deploy_started {"deployId":"dep-d8h265j7uimc73cepdhg","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+2026-06-05T01:15:02.704339Z build_started {"buildId":"bld-d8h265j7uimc73cepdi0","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+
+=== LOGS ===
+2026-06-05T01:15:11.817143379Z [34m[1m==>(B[m [1mCloning from https://github.com/Jeremiahandson1/test-landscaping-mq08e5o6-wqhg(B[m
+2026-06-05T01:15:12.581123278Z [34m[1m==>(B[m [1mChecking out commit ce06c5d7114160d4c1a496fd2a1f06cd94d88e53 in branch main(B[m
+2026-06-05T01:15:13.866450576Z [34;1m==>[0;22m [1mUsing Node.js version 24.14.1 (default)[22m
+2026-06-05T01:15:13.866473187Z [34;1m==>[0;22m [1mDocs on specifying a Node.js version: https://render.com/docs/node-version[22m
+2026-06-05T01:15:13.95646562Z [34m[1m==>(B[m [1mRunning build command 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi'...(B[m
+2026-06-05T01:15:14.454716098Z #=#=#                                                                         ########                                                                  12.0%#######################################################                   77.0%######################################################################## 100.0%
+2026-06-05T01:15:15.554086368Z bun was installed successfully to ~/.bun/bin/bun 
+2026-06-05T01:15:15.558471008Z Run 'bun --help' to get started
+2026-06-05T01:15:15.563267205Z [0.07ms] ".env"
+2026-06-05T01:15:15.564687664Z bun install v1.3.14 (0d9b296a)
+2026-06-05T01:15:15.567219026Z Resolving dependencies
+2026-06-05T01:15:16.638885023Z Resolved, downloaded and extracted [657]
+2026-06-05T01:15:17.059982249Z Saved lockfile
+2026-06-05T01:15:17.0600536Z {"id":"362a4cd9-d733-4052-ad50-02a7bd8cbdf6","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:15:17.0600536Z"}
+2026-06-05T01:15:17.060074191Z + @types/bcryptjs@2.4.6 (v3.0.0 available)
+2026-06-05T01:15:17.060078851Z + @types/jsonwebtoken@9.0.10
+2026-06-05T01:15:17.060082581Z + @types/pg@8.20.0
+2026-06-05T01:15:17.060086051Z + drizzle-kit@0.24.2 (v0.31.10 available)
+2026-06-05T01:15:17.060089741Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T01:15:17.060092991Z + @aws-sdk/client-s3@3.1062.0
+2026-06-05T01:15:17.060096361Z + @sendgrid/mail@8.1.6
+2026-06-05T01:15:17.060099731Z + bcryptjs@2.4.3 (v3.0.3 available)
+2026-06-05T01:15:17.060102691Z + drizzle-orm@0.33.0 (v0.45.2 available)
+2026-06-05T01:15:17.060105732Z + ejs@3.1.10 (v6.0.1 available)
+2026-06-05T01:15:17.060108732Z + hono@4.12.23
+2026-06-05T01:15:17.060111942Z + jsonwebtoken@9.0.3
+2026-06-05T01:15:17.060114902Z + pg@8.21.0
+2026-06-05T01:15:17.060117862Z + sharp@0.33.5 (v0.34.5 available)
+2026-06-05T01:15:17.060120602Z {"id":"72078f3e-da49-40dc-9a6d-81c38fab24ff","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:15:17.060120602Z"}
+2026-06-05T01:15:17.060123612Z 147 packages installed [1497.00ms]
+2026-06-05T01:15:17.09439778Z bun install v1.3.14 (0d9b296a)
+2026-06-05T01:15:17.098021814Z Resolving dependencies
+2026-06-05T01:15:17.98012505Z Resolved, downloaded and extracted [564]
+2026-06-05T01:15:18.222627569Z Saved lockfile
+2026-06-05T01:15:18.222729451Z {"id":"2a94571a-4a9a-4ecd-b11e-667df19adddd","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:15:18.222729451Z"}
+2026-06-05T01:15:18.222754871Z + @types/react@18.3.30 (v19.2.16 available)
+2026-06-05T01:15:18.222761291Z + @types/react-dom@18.3.7 (v19.2.3 available)
+2026-06-05T01:15:18.222766051Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T01:15:18.222770272Z + @vitejs/plugin-react@4.7.0 (v6.0.2 available)
+2026-06-05T01:15:18.222774812Z + autoprefixer@10.5.0
+2026-06-05T01:15:18.222779112Z + clsx@2.1.1
+2026-06-05T01:15:18.222782822Z + lucide-react@0.344.0 (v1.17.0 available)
+2026-06-05T01:15:18.222786542Z + postcss@8.5.15
+2026-06-05T01:15:18.222790482Z + react@18.3.1 (v19.2.7 available)
+2026-06-05T01:15:18.222826713Z + react-dom@18.3.1 (v19.2.7 available)
+2026-06-05T01:15:18.222831603Z + react-router-dom@6.30.4 (v7.17.0 available)
+2026-06-05T01:15:18.222835263Z + tailwindcss@3.4.19 (v4.3.0 available)
+2026-06-05T01:15:18.222839003Z + vite@5.4.21 (v8.0.16 available)
+2026-06-05T01:15:18.222843193Z {"id":"ffd8c254-584c-4a58-b20d-b87cd1183bae","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:15:18.222843193Z"}
+2026-06-05T01:15:18.222846923Z 139 packages installed [1130.00ms]
+2026-06-05T01:15:18.254545269Z $ vite build
+2026-06-05T01:15:18.632970126Z vite v5.4.21 building for production...
+2026-06-05T01:15:18.717726392Z transforming...
+2026-06-05T01:15:22.589417558Z ✓ 1502 modules transformed.
+2026-06-05T01:15:22.804927327Z rendering chunks...
+2026-06-05T01:15:22.850040056Z computing gzip size...
+2026-06-05T01:15:22.860334165Z dist/index.html                         0.84 kB │ gzip:  0.44 kB
+2026-06-05T01:15:22.860354436Z dist/assets/index-BzMNhRk-.css         19.01 kB │ gzip:  4.19 kB
+2026-06-05T01:15:22.86056574Z dist/assets/index-CRnprfN5.js          78.25 kB │ gzip: 18.84 kB
+2026-06-05T01:15:22.860586071Z dist/assets/vendor-react-BeotF3cW.js  164.06 kB │ gzip: 53.53 kB
+2026-06-05T01:15:22.860984209Z ✓ built in 4.19s
+2026-06-05T01:15:24.992172275Z [34;1m==>[0;22m [1mUploading build...[22m
+2026-06-05T01:15:30.752085189Z [34;1m==>[0;22m [1mUploaded in 2.7s. Compression took 3.0s[22m
+2026-06-05T01:15:30.774311052Z [32;1m==>[0;22m [1mBuild successful 🎉[22m
+2026-06-05T01:15:33.951982489Z [0;34m[1m==> [0m[1mDeploying...[0m
+2026-06-05T01:15:34.084200451Z [0;34m[1m==> [0m[1mSetting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance[0m
+2026-06-05T01:15:49.226597227Z [34;1m==>[0;22m [1mUsing Bun version 1.3.4 (default)[22m
+2026-06-05T01:15:49.226612857Z [34;1m==>[0;22m [1mDocs on specifying a Bun version: https://render.com/docs/bun-version[22m
+2026-06-05T01:15:54.634648347Z [32m[1m==>(B[m [1mRunning 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts'(B[m
+2026-06-05T01:15:55.62852275Z [Premium-Contractor] Serving on port 10000
+2026-06-05T01:15:55.635150706Z Started server: http://localhost:10000
+2026-06-05T01:15:55.803733441Z <-- HEAD /
+2026-06-05T01:15:55.830236188Z 40 |     res = resolve
+2026-06-05T01:15:55.830256318Z 41 |     rej = reject
+2026-06-05T01:15:55.830305599Z 42 |   }).catch((err) => {
+2026-06-05T01:15:55.83031093Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:15:55.830316299Z 44 |     // application that created the query
+2026-06-05T01:15:55.83031958Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:15:55.8303475Z                ^
+2026-06-05T01:15:55.830351831Z error: connect ECONNREFUSED 10.208.5.211:5432
+2026-06-05T01:15:55.83035542Z    errno: -111,
+2026-06-05T01:15:55.830358671Z  syscall: "connect",
+2026-06-05T01:15:55.830362221Z     port: 5432,
+2026-06-05T01:15:55.830365891Z  address: "10.208.5.211",
+2026-06-05T01:15:55.830369041Z     code: "ECONNREFUSED"
+2026-06-05T01:15:55.830371801Z {"id":"f606381b-721a-4df2-8c4a-36467e6af2d4","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:15:55.830371801Z"}
+2026-06-05T01:15:55.830375281Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:15:55.830377821Z {"id":"5f6f006a-0043-4e59-a5cb-759206c664cd","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:15:55.830377821Z"}
+2026-06-05T01:15:55.831781394Z --> HEAD / [31m500[0m 28ms
+2026-06-05T01:16:08.272579471Z clientIP="35.247.111.159" requestID="b71c970c-4be6-4572" responseTimeMS=117 responseBytes=223158 userAgent="Go-http-client/2.0"
+2026-06-05T01:16:22.219622661Z <-- GET /
+2026-06-05T01:16:22.234108333Z 40 |     res = resolve
+2026-06-05T01:16:22.234126324Z 41 |     rej = reject
+2026-06-05T01:16:22.234131874Z 42 |   }).catch((err) => {
+2026-06-05T01:16:22.234137174Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:22.234141964Z 44 |     // application that created the query
+2026-06-05T01:16:22.234146385Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:22.234150454Z                ^
+2026-06-05T01:16:22.234154595Z error: connect ECONNREFUSED 10.208.5.211:5432
+2026-06-05T01:16:22.234158805Z    errno: -111,
+2026-06-05T01:16:22.234162945Z  syscall: "connect",
+2026-06-05T01:16:22.234167415Z     port: 5432,
+2026-06-05T01:16:22.234173565Z  address: "10.208.5.211",
+2026-06-05T01:16:22.234177825Z     code: "ECONNREFUSED"
+2026-06-05T01:16:22.234181945Z {"id":"b328ea61-0f0a-4edf-8f14-0c705e00c54c","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:22.234181945Z"}
+2026-06-05T01:16:22.234186715Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:22.234190755Z {"id":"57351740-7081-4fb5-9a7f-d9918e33dafa","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:22.234190755Z"}
+2026-06-05T01:16:22.235406037Z clientIP="173.40.6.129" requestID="70cc11da-c412-4b8a" responseTimeMS=19 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:22.236047189Z --> GET / [31m500[0m 15ms
+2026-06-05T01:16:27.331173753Z <-- GET /
+2026-06-05T01:16:27.361110985Z clientIP="173.40.6.129" requestID="f24ad49c-d747-49fb" responseTimeMS=33 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:27.361481159Z 40 |     res = resolve
+2026-06-05T01:16:27.361496549Z 41 |     rej = reject
+2026-06-05T01:16:27.361499529Z --> GET / [31m500[0m 30ms
+2026-06-05T01:16:27.36150115Z 42 |   }).catch((err) => {
+2026-06-05T01:16:27.36151834Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:27.36152383Z 44 |     // application that created the query
+2026-06-05T01:16:27.36152795Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:27.36154536Z                ^
+2026-06-05T01:16:27.361548611Z error: relation "settings" does not exist
+2026-06-05T01:16:27.361551951Z      length: 108,
+2026-06-05T01:16:27.361554821Z    severity: "ERROR",
+2026-06-05T01:16:27.361557841Z      detail: undefined,
+2026-06-05T01:16:27.361560851Z        hint: undefined,
+2026-06-05T01:16:27.361563681Z    position: "227",
+2026-06-05T01:16:27.361566391Z  internalPosition: undefined,
+2026-06-05T01:16:27.361569391Z  internalQuery: undefined,
+2026-06-05T01:16:27.361572321Z       where: undefined,
+2026-06-05T01:16:27.361575251Z      schema: undefined,
+2026-06-05T01:16:27.361578531Z       table: undefined,
+2026-06-05T01:16:27.361581421Z    dataType: undefined,
+2026-06-05T01:16:27.361584361Z  constraint: undefined,
+2026-06-05T01:16:27.361587621Z        file: "parse_relation.c",
+2026-06-05T01:16:27.361590512Z     routine: "parserOpenTable",
+2026-06-05T01:16:27.361593381Z        code: "42P01"
+2026-06-05T01:16:27.361596222Z {"id":"6d6f1748-25e6-46b5-a5d9-5cca47f91a11","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:27.361596222Z"}
+2026-06-05T01:16:27.361599892Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:27.361602442Z {"id":"06b559e7-95e2-45bd-af53-b32f117fc950","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:27.361602442Z"}
+2026-06-05T01:16:32.430080767Z <-- GET /
+2026-06-05T01:16:32.442108584Z clientIP="173.40.6.129" requestID="137991a6-937f-4b01" responseTimeMS=15 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:32.442313916Z 40 |     res = resolve
+2026-06-05T01:16:32.442339496Z 41 |     rej = reject
+2026-06-05T01:16:32.442343746Z 42 |   }).catch((err) => {
+2026-06-05T01:16:32.442348317Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:32.442352566Z 44 |     // application that created the query
+2026-06-05T01:16:32.442355697Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:32.442359277Z                ^
+2026-06-05T01:16:32.442362287Z error: relation "pages" does not exist
+2026-06-05T01:16:32.442365207Z      length: 105,
+2026-06-05T01:16:32.442367877Z    severity: "ERROR",
+2026-06-05T01:16:32.442370547Z      detail: undefined,
+2026-06-05T01:16:32.442373037Z        hint: undefined,
+2026-06-05T01:16:32.442375687Z    position: "138",
+2026-06-05T01:16:32.442378577Z  internalPosition: undefined,
+2026-06-05T01:16:32.442381227Z  internalQuery: undefined,
+2026-06-05T01:16:32.442384107Z       where: undefined,
+2026-06-05T01:16:32.442387207Z      schema: undefined,
+2026-06-05T01:16:32.442390278Z       table: undefined,
+2026-06-05T01:16:32.442392867Z    dataType: undefined,
+2026-06-05T01:16:32.442394858Z  constraint: undefined,
+2026-06-05T01:16:32.442397258Z        file: "parse_relation.c",
+2026-06-05T01:16:32.442399338Z     routine: "parserOpenTable",
+2026-06-05T01:16:32.442402218Z        code: "42P01"
+2026-06-05T01:16:32.442405338Z {"id":"30b72baa-f0b2-46ff-8cd3-75e2d5c7f8fa","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:32.442405338Z"}
+2026-06-05T01:16:32.442409428Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:32.442412618Z {"id":"2135e0ff-c470-4236-b014-d6ee1a17dbcf","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:32.442412618Z"}
+2026-06-05T01:16:32.442726715Z --> GET / [31m500[0m 13ms
+2026-06-05T01:16:37.510617318Z <-- GET /
+2026-06-05T01:16:37.521453944Z clientIP="173.40.6.129" requestID="e7257855-02ea-4902" responseTimeMS=13 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:37.52172516Z 40 |     res = resolve
+2026-06-05T01:16:37.521977776Z --> GET / [31m500[0m 11ms
+2026-06-05T01:16:37.523160664Z 41 |     rej = reject
+2026-06-05T01:16:37.523171265Z 42 |   }).catch((err) => {
+2026-06-05T01:16:37.523175865Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:37.523179735Z 44 |     // application that created the query
+2026-06-05T01:16:37.523182725Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:37.523185435Z                ^
+2026-06-05T01:16:37.523188185Z error: relation "settings" does not exist
+2026-06-05T01:16:37.523193985Z      length: 108,
+2026-06-05T01:16:37.523196765Z    severity: "ERROR",
+2026-06-05T01:16:37.523199525Z      detail: undefined,
+2026-06-05T01:16:37.523214866Z        hint: undefined,
+2026-06-05T01:16:37.523218306Z    position: "227",
+2026-06-05T01:16:37.523221526Z  internalPosition: undefined,
+2026-06-05T01:16:37.523224786Z  internalQuery: undefined,
+2026-06-05T01:16:37.523228096Z       where: undefined,
+2026-06-05T01:16:37.523231276Z      schema: undefined,
+2026-06-05T01:16:37.523234196Z       table: undefined,
+2026-06-05T01:16:37.523249966Z    dataType: undefined,
+2026-06-05T01:16:37.523253586Z  constraint: undefined,
+2026-06-05T01:16:37.523256916Z        file: "parse_relation.c",
+2026-06-05T01:16:37.523259476Z     routine: "parserOpenTable",
+2026-06-05T01:16:37.523261807Z        code: "42P01"
+2026-06-05T01:16:37.523264447Z {"id":"acdc4f50-e5dd-41a9-9735-095eb7b759ef","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:37.523264447Z"}
+2026-06-05T01:16:37.523268207Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:37.523270787Z {"id":"24c074ea-8218-436b-89e8-445dda5888b3","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:37.523270787Z"}
+2026-06-05T01:16:42.597438939Z <-- GET /
+2026-06-05T01:16:42.60815582Z clientIP="173.40.6.129" requestID="a5d62812-8a6a-4751" responseTimeMS=13 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:42.608528241Z 40 |     res = resolve
+2026-06-05T01:16:42.608549902Z 41 |     rej = reject
+2026-06-05T01:16:42.608564102Z 42 |   }).catch((err) => {
+2026-06-05T01:16:42.608568032Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:42.608571842Z 44 |     // application that created the query
+2026-06-05T01:16:42.608574352Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:42.608576872Z                ^
+2026-06-05T01:16:42.608579772Z error: relation "settings" does not exist
+2026-06-05T01:16:42.608582542Z      length: 108,
+2026-06-05T01:16:42.608585172Z    severity: "ERROR",
+2026-06-05T01:16:42.608587962Z      detail: undefined,
+2026-06-05T01:16:42.608591002Z        hint: undefined,
+2026-06-05T01:16:42.608594083Z    position: "227",
+2026-06-05T01:16:42.608597052Z  internalPosition: undefined,
+2026-06-05T01:16:42.608600093Z  internalQuery: undefined,
+2026-06-05T01:16:42.608603303Z       where: undefined,
+2026-06-05T01:16:42.608606243Z      schema: undefined,
+2026-06-05T01:16:42.608609613Z       table: undefined,
+2026-06-05T01:16:42.608612173Z    dataType: undefined,
+2026-06-05T01:16:42.608614853Z  constraint: undefined,
+2026-06-05T01:16:42.608617423Z        file: "parse_relation.c",
+2026-06-05T01:16:42.608619933Z     routine: "parserOpenTable",
+2026-06-05T01:16:42.608622453Z        code: "42P01"
+2026-06-05T01:16:42.608624893Z {"id":"8b3a9367-ac27-41f8-8d4f-f6ff4f4ae4b8","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:42.608624893Z"}
+2026-06-05T01:16:42.608628273Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:42.608630713Z {"id":"5603cca3-2b24-4d04-bf9a-17bb0352f5cd","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:42.608630713Z"}
+2026-06-05T01:16:42.60889387Z --> GET / [31m500[0m 11ms
+2026-06-05T01:16:47.691540413Z <-- GET /
+2026-06-05T01:16:47.705396383Z clientIP="173.40.6.129" requestID="8e8da6ef-0c69-4f3c" responseTimeMS=17 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:47.705534164Z 40 |     res = resolve
+2026-06-05T01:16:47.705555514Z 41 |     rej = reject
+2026-06-05T01:16:47.705561724Z 42 |   }).catch((err) => {
+2026-06-05T01:16:47.70621291Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:47.70622766Z 44 |     // application that created the query
+2026-06-05T01:16:47.70623291Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:47.70623774Z                ^
+2026-06-05T01:16:47.70624244Z error: relation "pages" does not exist
+2026-06-05T01:16:47.706247471Z      length: 105,
+2026-06-05T01:16:47.706252001Z    severity: "ERROR",
+2026-06-05T01:16:47.706256491Z      detail: undefined,
+2026-06-05T01:16:47.706261711Z        hint: undefined,
+2026-06-05T01:16:47.706266451Z    position: "138",
+2026-06-05T01:16:47.706506637Z --> GET / [31m500[0m 14ms
+2026-06-05T01:16:47.706663961Z  internalPosition: undefined,
+2026-06-05T01:16:47.706684241Z  internalQuery: undefined,
+2026-06-05T01:16:47.706687961Z       where: undefined,
+2026-06-05T01:16:47.706690151Z      schema: undefined,
+2026-06-05T01:16:47.706692121Z       table: undefined,
+2026-06-05T01:16:47.706694141Z    dataType: undefined,
+2026-06-05T01:16:47.706696171Z  constraint: undefined,
+2026-06-05T01:16:47.706698351Z        file: "parse_relation.c",
+2026-06-05T01:16:47.706700351Z     routine: "parserOpenTable",
+2026-06-05T01:16:47.706702391Z        code: "42P01"
+2026-06-05T01:16:47.706704322Z {"id":"078bbf91-e2a4-4060-a3a2-6701a29e87dd","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:47.706704322Z"}
+2026-06-05T01:16:47.706707682Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:47.706709622Z {"id":"4f9cf2bc-414e-4a44-8d8a-76c0cacf9b94","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:47.706709622Z"}
+2026-06-05T01:16:52.792964482Z <-- GET /
+2026-06-05T01:16:52.801996036Z 40 |     res = resolve
+2026-06-05T01:16:52.802017946Z 41 |     rej = reject
+2026-06-05T01:16:52.802022006Z 42 |   }).catch((err) => {
+2026-06-05T01:16:52.802025796Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:52.802029266Z 44 |     // application that created the query
+2026-06-05T01:16:52.802031636Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:52.802034056Z                ^
+2026-06-05T01:16:52.802036566Z error: relation "settings" does not exist
+2026-06-05T01:16:52.802038966Z      length: 108,
+2026-06-05T01:16:52.802041477Z    severity: "ERROR",
+2026-06-05T01:16:52.802043837Z      detail: undefined,
+2026-06-05T01:16:52.802046147Z        hint: undefined,
+2026-06-05T01:16:52.802048617Z    position: "227",
+2026-06-05T01:16:52.802051457Z  internalPosition: undefined,
+2026-06-05T01:16:52.802053907Z  internalQuery: undefined,
+2026-06-05T01:16:52.802056337Z       where: undefined,
+2026-06-05T01:16:52.802058797Z      schema: undefined,
+2026-06-05T01:16:52.802064677Z       table: undefined,
+2026-06-05T01:16:52.802067367Z    dataType: undefined,
+2026-06-05T01:16:52.802069667Z  constraint: undefined,
+2026-06-05T01:16:52.802072177Z        file: "parse_relation.c",
+2026-06-05T01:16:52.802074517Z     routine: "parserOpenTable",
+2026-06-05T01:16:52.802076877Z        code: "42P01"
+2026-06-05T01:16:52.802079067Z {"id":"fc26aedb-4132-4f50-a647-5baf2c888dc1","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:52.802079067Z"}
+2026-06-05T01:16:52.802081918Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:52.802084518Z {"id":"472e0139-6152-456e-8677-e2d1093b3326","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:52.802084518Z"}
+2026-06-05T01:16:52.802323083Z --> GET / [31m500[0m 10ms
+2026-06-05T01:16:52.802564803Z clientIP="173.40.6.129" requestID="b6ff67e9-91d9-4af3" responseTimeMS=13 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:57.867483567Z <-- GET /
+2026-06-05T01:16:57.876715264Z clientIP="173.40.6.129" requestID="662193ec-41c7-4935" responseTimeMS=12 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:16:57.877105764Z 40 |     res = resolve
+2026-06-05T01:16:57.877125024Z 41 |     rej = reject
+2026-06-05T01:16:57.877129624Z 42 |   }).catch((err) => {
+2026-06-05T01:16:57.877133905Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:16:57.877138375Z 44 |     // application that created the query
+2026-06-05T01:16:57.877141535Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:16:57.877144785Z                ^
+2026-06-05T01:16:57.877148005Z error: relation "pages" does not exist
+2026-06-05T01:16:57.877151155Z      length: 105,
+2026-06-05T01:16:57.877154195Z    severity: "ERROR",
+2026-06-05T01:16:57.877157115Z      detail: undefined,
+2026-06-05T01:16:57.877159945Z        hint: undefined,
+2026-06-05T01:16:57.877163075Z    position: "138",
+2026-06-05T01:16:57.877166375Z  internalPosition: undefined,
+2026-06-05T01:16:57.877169425Z  internalQuery: undefined,
+2026-06-05T01:16:57.877172385Z       where: undefined,
+2026-06-05T01:16:57.877175336Z      schema: undefined,
+2026-06-05T01:16:57.877179156Z       table: undefined,
+2026-06-05T01:16:57.877201446Z    dataType: undefined,
+2026-06-05T01:16:57.877204776Z  constraint: undefined,
+2026-06-05T01:16:57.877207716Z        file: "parse_relation.c",
+2026-06-05T01:16:57.877210857Z     routine: "parserOpenTable",
+2026-06-05T01:16:57.877213966Z        code: "42P01"
+2026-06-05T01:16:57.877216797Z {"id":"5fd95ebe-d62f-4622-94fe-efd54757c8f1","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:57.877216797Z"}
+2026-06-05T01:16:57.877220757Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:16:57.877221927Z --> GET / [31m500[0m 10ms
+2026-06-05T01:16:57.877223917Z {"id":"e793b8e3-a2d7-4ed7-9d1e-0b215be8980c","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:16:57.877223917Z"}
+2026-06-05T01:17:02.949900379Z <-- GET /
+2026-06-05T01:17:02.959015285Z 40 |     res = resolve
+2026-06-05T01:17:02.959036765Z 41 |     rej = reject
+2026-06-05T01:17:02.959042935Z 42 |   }).catch((err) => {
+2026-06-05T01:17:02.959048845Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:17:02.959054176Z 44 |     // application that created the query
+2026-06-05T01:17:02.959059446Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:17:02.959064766Z                ^
+2026-06-05T01:17:02.959069336Z error: relation "settings" does not exist
+2026-06-05T01:17:02.959073816Z      length: 108,
+2026-06-05T01:17:02.959078546Z    severity: "ERROR",
+2026-06-05T01:17:02.959082946Z      detail: undefined,
+2026-06-05T01:17:02.959087856Z        hint: undefined,
+2026-06-05T01:17:02.959092486Z    position: "227",
+2026-06-05T01:17:02.959096966Z  internalPosition: undefined,
+2026-06-05T01:17:02.959101057Z  internalQuery: undefined,
+2026-06-05T01:17:02.959105137Z       where: undefined,
+2026-06-05T01:17:02.959109477Z      schema: undefined,
+2026-06-05T01:17:02.959113827Z       table: undefined,
+2026-06-05T01:17:02.959118307Z    dataType: undefined,
+2026-06-05T01:17:02.959122717Z  constraint: undefined,
+2026-06-05T01:17:02.959127607Z        file: "parse_relation.c",
+2026-06-05T01:17:02.959132607Z     routine: "parserOpenTable",
+2026-06-05T01:17:02.959137007Z        code: "42P01"
+2026-06-05T01:17:02.959141118Z {"id":"648440ce-eea6-4fbf-8ace-c52315df9c07","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:02.959141118Z"}
+2026-06-05T01:17:02.959146588Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:17:02.959151368Z {"id":"3112c7a3-a279-49c5-a5bf-f65a2e1538b5","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:02.959151368Z"}
+2026-06-05T01:17:02.959630034Z clientIP="173.40.6.129" requestID="bb5b9058-5faf-4303" responseTimeMS=12 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:17:02.95968403Z --> GET / [31m500[0m 10ms
+2026-06-05T01:17:08.036055082Z <-- GET /
+2026-06-05T01:17:08.047029901Z clientIP="173.40.6.129" requestID="e350ff61-81cd-404c" responseTimeMS=14 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:17:08.047301368Z 40 |     res = resolve
+2026-06-05T01:17:08.047330318Z 41 |     rej = reject
+2026-06-05T01:17:08.047337728Z 42 |   }).catch((err) => {
+2026-06-05T01:17:08.047345138Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:17:08.047350529Z 44 |     // application that created the query
+2026-06-05T01:17:08.047355149Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:17:08.047360259Z                ^
+2026-06-05T01:17:08.047365419Z error: relation "settings" does not exist
+2026-06-05T01:17:08.047370259Z      length: 108,
+2026-06-05T01:17:08.047374639Z    severity: "ERROR",
+2026-06-05T01:17:08.047379179Z      detail: undefined,
+2026-06-05T01:17:08.047383799Z        hint: undefined,
+2026-06-05T01:17:08.047388439Z    position: "227",
+2026-06-05T01:17:08.04739305Z  internalPosition: undefined,
+2026-06-05T01:17:08.04739744Z  internalQuery: undefined,
+2026-06-05T01:17:08.04740205Z       where: undefined,
+2026-06-05T01:17:08.04740638Z      schema: undefined,
+2026-06-05T01:17:08.0474108Z       table: undefined,
+2026-06-05T01:17:08.04741518Z    dataType: undefined,
+2026-06-05T01:17:08.04741956Z  constraint: undefined,
+2026-06-05T01:17:08.04742402Z        file: "parse_relation.c",
+2026-06-05T01:17:08.047445241Z     routine: "parserOpenTable",
+2026-06-05T01:17:08.047448781Z        code: "42P01"
+2026-06-05T01:17:08.047451491Z {"id":"26d0faa1-d3c3-46dd-a815-747f85f95f1f","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:08.047451491Z"}
+2026-06-05T01:17:08.047457081Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:17:08.047460191Z {"id":"cc49430b-bcd1-4e88-9bec-29f0994dd20a","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:08.047460191Z"}
+2026-06-05T01:17:08.047533553Z --> GET / [31m500[0m 12ms
+2026-06-05T01:17:13.107287423Z <-- GET /
+2026-06-05T01:17:13.117209377Z --> GET / [31m500[0m 9ms
+2026-06-05T01:17:13.117215497Z clientIP="173.40.6.129" requestID="dd302c85-5126-46a3" responseTimeMS=12 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:17:13.117367511Z 40 |     res = resolve
+2026-06-05T01:17:13.117377501Z 41 |     rej = reject
+2026-06-05T01:17:13.117382201Z 42 |   }).catch((err) => {
+2026-06-05T01:17:13.117386501Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:17:13.117437563Z 44 |     // application that created the query
+2026-06-05T01:17:13.117445703Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:17:13.117450633Z                ^
+2026-06-05T01:17:13.117455273Z error: relation "settings" does not exist
+2026-06-05T01:17:13.117460763Z      length: 108,
+2026-06-05T01:17:13.117463983Z    severity: "ERROR",
+2026-06-05T01:17:13.117467133Z      detail: undefined,
+2026-06-05T01:17:13.117470983Z        hint: undefined,
+2026-06-05T01:17:13.117476294Z    position: "227",
+2026-06-05T01:17:13.117481074Z  internalPosition: undefined,
+2026-06-05T01:17:13.117485724Z  internalQuery: undefined,
+2026-06-05T01:17:13.117490114Z       where: undefined,
+2026-06-05T01:17:13.117525595Z      schema: undefined,
+2026-06-05T01:17:13.117529615Z       table: undefined,
+2026-06-05T01:17:13.117532765Z    dataType: undefined,
+2026-06-05T01:17:13.117535835Z  constraint: undefined,
+2026-06-05T01:17:13.117539095Z        file: "parse_relation.c",
+2026-06-05T01:17:13.117542185Z     routine: "parserOpenTable",
+2026-06-05T01:17:13.117545255Z        code: "42P01"
+2026-06-05T01:17:13.117548295Z {"id":"00f675c4-356e-4949-9ca5-f04dc0847012","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:13.117548295Z"}
+2026-06-05T01:17:13.117552205Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:17:13.117580496Z {"id":"79c1d36e-35c1-44d7-ad30-73f743ddd557","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:13.117580496Z"}
+2026-06-05T01:17:18.183478232Z <-- GET /
+2026-06-05T01:17:18.229297266Z 40 |     res = resolve
+2026-06-05T01:17:18.229317976Z 41 |     rej = reject
+2026-06-05T01:17:18.229323566Z 42 |   }).catch((err) => {
+2026-06-05T01:17:18.229328796Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:17:18.229336556Z 44 |     // application that created the query
+2026-06-05T01:17:18.229341457Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:17:18.229346117Z                ^
+2026-06-05T01:17:18.229350737Z error: relation "pages" does not exist
+2026-06-05T01:17:18.229355877Z      length: 105,
+2026-06-05T01:17:18.229361217Z    severity: "ERROR",
+2026-06-05T01:17:18.229366267Z      detail: undefined,
+2026-06-05T01:17:18.229368958Z clientIP="173.40.6.129" requestID="b3b5856e-de7e-427f" responseTimeMS=50 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:17:18.229370897Z        hint: undefined,
+2026-06-05T01:17:18.229375517Z    position: "138",
+2026-06-05T01:17:18.229379978Z  internalPosition: undefined,
+2026-06-05T01:17:18.229384268Z  internalQuery: undefined,
+2026-06-05T01:17:18.229388678Z       where: undefined,
+2026-06-05T01:17:18.229393218Z      schema: undefined,
+2026-06-05T01:17:18.229397628Z       table: undefined,
+2026-06-05T01:17:18.229402028Z    dataType: undefined,
+2026-06-05T01:17:18.229406328Z  constraint: undefined,
+2026-06-05T01:17:18.229411088Z        file: "parse_relation.c",
+2026-06-05T01:17:18.229415238Z     routine: "parserOpenTable",
+2026-06-05T01:17:18.229419309Z        code: "42P01"
+2026-06-05T01:17:18.229423459Z {"id":"db39189b-ceb9-493d-8765-50bc32d27683","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:18.229423459Z"}
+2026-06-05T01:17:18.229428609Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:17:18.229442959Z {"id":"6dd09547-132f-4ca0-bb7e-7384ba481926","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:18.229442959Z"}
+2026-06-05T01:17:18.229708805Z --> GET / [31m500[0m 46ms
+2026-06-05T01:17:23.283265161Z <-- GET /
+2026-06-05T01:17:23.295801728Z 40 |     res = resolve
+2026-06-05T01:17:23.295822058Z 41 |     rej = reject
+2026-06-05T01:17:23.295827349Z 42 |   }).catch((err) => {
+2026-06-05T01:17:23.295832358Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T01:17:23.295837219Z 44 |     // application that created the query
+2026-06-05T01:17:23.295841259Z 45 |     Error.captureStackTrace(err)
+2026-06-05T01:17:23.295845419Z                ^
+2026-06-05T01:17:23.295849519Z error: relation "pages" does not exist
+2026-06-05T01:17:23.295853499Z      length: 105,
+2026-06-05T01:17:23.295857519Z    severity: "ERROR",
+2026-06-05T01:17:23.295861449Z      detail: undefined,
+2026-06-05T01:17:23.295865459Z        hint: undefined,
+2026-06-05T01:17:23.295869359Z    position: "138",
+2026-06-05T01:17:23.295873319Z  internalPosition: undefined,
+2026-06-05T01:17:23.29587733Z  internalQuery: undefined,
+2026-06-05T01:17:23.29588132Z       where: undefined,
+2026-06-05T01:17:23.29588537Z      schema: undefined,
+2026-06-05T01:17:23.29588937Z       table: undefined,
+2026-06-05T01:17:23.29589337Z    dataType: undefined,
+2026-06-05T01:17:23.29589734Z  constraint: undefined,
+2026-06-05T01:17:23.29590136Z        file: "parse_relation.c",
+2026-06-05T01:17:23.29590533Z     routine: "parserOpenTable",
+2026-06-05T01:17:23.29590931Z        code: "42P01"
+2026-06-05T01:17:23.2959131Z {"id":"09bfbb32-fa20-477d-807b-68022e4050e9","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:23.2959131Z"}
+2026-06-05T01:17:23.295915611Z --> GET / [31m500[0m 12ms
+2026-06-05T01:17:23.29591774Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T01:17:23.295953531Z {"id":"8222cd5a-2bbd-4873-b2af-32762c2e81a2","labels":[{"name":"resource","value":"srv-d8h26537uimc73cepcjg"},{"name":"instance","value":"srv-d8h26537uimc73cepcjg-4wskh"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T01:17:23.295953531Z"}
+2026-06-05T01:17:23.29622642Z clientIP="173.40.6.129" requestID="af731339-a100-4252" responseTimeMS=15 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T01:17:23.351811382Z <-- GET /admin
+2026-06-05T01:17:23.35220787Z clientIP="173.40.6.129" requestID="8fbf64fe-ced4-4332" responseTimeMS=3 responseBytes=249 userAgent="Bun/1.3.10"
+2026-06-05T01:17:23.352707973Z --> GET /admin [33m404[0m 1ms
+2026-06-05T01:17:28.412779945Z <-- GET /admin
+2026-06-05T01:17:28.41301886Z --> GET /admin [33m404[0m 0ms
+2026-06-05T01:17:28.413341242Z clientIP="173.40.6.129" requestID="e844280a-cc03-47be" responseTimeMS=2 responseBytes=249 userAgent="Bun/1.3.10"
+2026-06-05T01:17:33.46957038Z <-- GET /admin
+2026-06-05T01:17:33.470019801Z --> GET /admin [33m404[0m 0ms
+2026-06-05T01:17:33.470458495Z clientIP="173.40.6.129" requestID="3983ed78-19fc-42e9" responseTimeMS=3 responseBytes=249 userAgent="Bun/1.3.10"

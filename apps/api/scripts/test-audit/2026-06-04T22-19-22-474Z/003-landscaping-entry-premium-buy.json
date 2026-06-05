@@ -1,0 +1,94 @@
+{
+  "testId": "003-landscaping-entry-premium-buy",
+  "case": {
+    "vertical": "landscaping",
+    "industry": "landscaping",
+    "plan": "entry",
+    "websiteMode": "premium",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "678e0a75-1973-4a35-b833-e1f6db9eae37",
+      "ms": 81
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-landscaping-co-0ce4ad3c-twomiah-build.zip (0ce4ad3c-2b7b-4613-a00a-b0e77e501584)",
+      "ms": 7283
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-landscaping-mq032hlz-uzm4-site.onrender.com\",\"deployedUrl\":\"https://test-landscaping-mq032hlz-uzm4-landscape.onrender.com\",\"apiUrl\":\"https://test-landscaping-mq032hlz-uzm4-landscape.onrender.com\"}",
+      "ms": 39219
+    },
+    {
+      "step": "wait_for_live",
+      "status": "error",
+      "detail": "polled services: {\"backend\":\"srv-d8h005mk1jcs739ar1b0\",\"site\":\"srv-d8h006k8aovs73ehvl4g\"} | last statuses: {\"backend\":\"live\",\"site\":\"build_failed\"}",
+      "ms": 612986
+    },
+    {
+      "step": "captured_build_logs",
+      "status": "ok",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 26817
+    }
+  ],
+  "startedAt": "2026-06-04T22:45:05.831Z",
+  "outcome": "fail",
+  "tenantId": "678e0a75-1973-4a35-b833-e1f6db9eae37",
+  "finishedAt": "2026-06-04T22:56:33.033Z",
+  "totalMs": 687203
+}

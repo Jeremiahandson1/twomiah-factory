@@ -1,0 +1,83 @@
+{
+  "testId": "004-roofing-top-standard-byod",
+  "case": {
+    "vertical": "roofing",
+    "industry": "roofing",
+    "plan": "top",
+    "websiteMode": "standard",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "0bfb3c52-d947-46aa-a92a-d5b9142671f5",
+      "ms": 90
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-roofing-co-5375da3d-twomiah-build.zip (5375da3d-132f-451c-bb66-4f21238a46bb)",
+      "ms": 1850
+    },
+    {
+      "step": "deploy",
+      "status": "error",
+      "detail": "Database creation failed: Render DB creation failed (429): {\"error\":\"rate limit exceeded\"}",
+      "ms": 7747
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 19240
+    }
+  ],
+  "startedAt": "2026-06-04T20:56:19.562Z",
+  "outcome": "fail",
+  "tenantId": "0bfb3c52-d947-46aa-a92a-d5b9142671f5",
+  "finishedAt": "2026-06-04T20:56:48.493Z",
+  "totalMs": 28931
+}

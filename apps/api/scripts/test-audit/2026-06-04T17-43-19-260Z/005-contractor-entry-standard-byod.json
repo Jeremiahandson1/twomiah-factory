@@ -1,0 +1,83 @@
+{
+  "testId": "005-contractor-entry-standard-byod",
+  "case": {
+    "vertical": "contractor",
+    "industry": "general_contractor",
+    "plan": "entry",
+    "websiteMode": "standard",
+    "domainMode": "byod"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "5a78afe3-66ef-4dfd-9fc8-476bc8a744c5",
+      "ms": 54
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-contractor-co-9ae8b8ca-twomiah-build.zip (9ae8b8ca-6da6-4c87-9383-1796283247c2)",
+      "ms": 2112
+    },
+    {
+      "step": "deploy",
+      "status": "skipped",
+      "detail": "generate-only mode (use --with-deploy for full E2E)",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 20631
+    }
+  ],
+  "startedAt": "2026-06-04T17:44:30.434Z",
+  "outcome": "pass",
+  "tenantId": "5a78afe3-66ef-4dfd-9fc8-476bc8a744c5",
+  "finishedAt": "2026-06-04T17:44:53.240Z",
+  "totalMs": 22806
+}

@@ -1,0 +1,107 @@
+{
+  "testId": "005-landscaping-entry-premium-buy",
+  "case": {
+    "vertical": "landscaping",
+    "industry": "landscaping",
+    "plan": "entry",
+    "websiteMode": "premium",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "46285be6-8fce-4716-8269-58ba66412d5a",
+      "ms": 57
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-landscaping-co-f8874d8c-twomiah-build.zip (f8874d8c-e399-4dc5-aaca-ea76ebe12025)",
+      "ms": 1846
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-landscaping-mpzp6z15-cl75-site.onrender.com\",\"deployedUrl\":\"https://test-landscaping-mpzp6z15-cl75-landscape.onrender.com\",\"apiUrl\":\"https://test-landscaping-mpzp6z15-cl75-landscape.onrender.com\"}",
+      "ms": 45930
+    },
+    {
+      "step": "smoke_website_root",
+      "status": "error",
+      "detail": "exceeded retries",
+      "ms": 92253
+    },
+    {
+      "step": "smoke_website_admin",
+      "status": "warning",
+      "detail": "exceeded retries",
+      "ms": 30239
+    },
+    {
+      "step": "smoke_crm_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 15537
+    },
+    {
+      "step": "smoke_crm_api_health",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 51
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 22099
+    }
+  ],
+  "startedAt": "2026-06-04T16:16:40.409Z",
+  "outcome": "fail",
+  "tenantId": "46285be6-8fce-4716-8269-58ba66412d5a",
+  "finishedAt": "2026-06-04T16:20:08.440Z",
+  "totalMs": 208031
+}

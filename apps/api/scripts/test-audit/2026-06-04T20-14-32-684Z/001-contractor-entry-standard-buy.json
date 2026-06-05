@@ -1,0 +1,113 @@
+{
+  "testId": "001-contractor-entry-standard-buy",
+  "case": {
+    "vertical": "contractor",
+    "industry": "general_contractor",
+    "plan": "entry",
+    "websiteMode": "standard",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "2037eae5-cd00-468e-8d14-6dc9ec559210",
+      "ms": 299
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-contractor-co-7b4bb3de-twomiah-build.zip (7b4bb3de-136c-4ad1-a2d7-02c338c048d8)",
+      "ms": 10814
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-contractor-mpzxovla-1ls5-site.onrender.com\",\"deployedUrl\":\"https://test-contractor-mpzxovla-1ls5-api.onrender.com\",\"apiUrl\":\"https://test-contractor-mpzxovla-1ls5-api.onrender.com\"}",
+      "ms": 46164
+    },
+    {
+      "step": "wait_for_live",
+      "status": "ok",
+      "detail": "{\"backend\":\"live\",\"site\":\"live\"}",
+      "ms": 142907
+    },
+    {
+      "step": "smoke_website_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 324
+    },
+    {
+      "step": "smoke_website_admin",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 63
+    },
+    {
+      "step": "smoke_crm_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 10377
+    },
+    {
+      "step": "smoke_crm_api_health",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 57
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 21579
+    }
+  ],
+  "startedAt": "2026-06-04T20:14:32.686Z",
+  "outcome": "pass",
+  "tenantId": "2037eae5-cd00-468e-8d14-6dc9ec559210",
+  "finishedAt": "2026-06-04T20:18:25.285Z",
+  "totalMs": 232599
+}

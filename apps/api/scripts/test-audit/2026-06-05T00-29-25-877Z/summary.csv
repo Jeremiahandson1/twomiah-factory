@@ -1,0 +1,4 @@
+testId,vertical,plan,websiteMode,domainMode,outcome,totalMs,errorSteps
+001-fieldservice-top-premium-byod,fieldservice,top,premium,byod,fail,195285,"smoke_website_root"
+002-roofing-top-standard-byod,roofing,top,standard,byod,pass,158252,""
+003-landscaping-entry-premium-buy,landscaping,entry,premium,buy,fail,170523,"smoke_website_root"

@@ -1,0 +1,101 @@
+{
+  "testId": "003-homecare-entry-none-skip",
+  "case": {
+    "vertical": "homecare",
+    "industry": "home_care",
+    "plan": "entry",
+    "websiteMode": "none",
+    "domainMode": "skip"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "ff3ff83c-9873-42cd-9f5b-e095659b2af1",
+      "ms": 89
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-homecare-co-52506b2a-twomiah-build.zip (52506b2a-eb2a-4a83-9873-863fafe099f6)",
+      "ms": 1004
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"deployedUrl\":\"https://test-homecare-mq00j58m-65bs-care-api.onrender.com\",\"apiUrl\":\"https://test-homecare-mq00j58m-65bs-care-api.onrender.com\"}",
+      "ms": 30540
+    },
+    {
+      "step": "wait_for_live",
+      "status": "ok",
+      "detail": "{\"backend\":\"live\"}",
+      "ms": 91250
+    },
+    {
+      "step": "smoke_crm_root",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 5362
+    },
+    {
+      "step": "smoke_crm_api_health",
+      "status": "ok",
+      "detail": "HTTP 200",
+      "ms": 56
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 21415
+    }
+  ],
+  "startedAt": "2026-06-04T21:34:04.102Z",
+  "outcome": "pass",
+  "tenantId": "ff3ff83c-9873-42cd-9f5b-e095659b2af1",
+  "finishedAt": "2026-06-04T21:36:33.825Z",
+  "totalMs": 149723
+}

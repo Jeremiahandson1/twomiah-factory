@@ -1,0 +1,267 @@
+# 001-fieldservice-top-premium-byod :: site (service srv-d8h1tl6k1jcs739d2ac0)
+# status: live_but_smoke_failed | latest deploy dep-d8h1tlmk1jcs739d2avg status: live
+# commit: Initial Twomiah Factory deployment
+# ownerId: tea-d63p56fpm1nc73bok5pg
+# fetched: 2026-06-05T00:59:42.388Z
+
+=== EVENTS ===
+2026-06-05T00:57:39.977685Z deploy_ended {"deployId":"dep-d8h1tlmk1jcs739d2avg","deployStatus":"succeeded","reason":{},"status":2}
+2026-06-05T00:57:16Z build_ended {"buildId":"bld-d8h1tlmk1jcs739d2b00","buildStatus":"succeeded","reason":{},"status":2}
+2026-06-05T00:56:54.701593Z build_started {"buildId":"bld-d8h1tlmk1jcs739d2b00","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+2026-06-05T00:56:54.690553Z deploy_started {"deployId":"dep-d8h1tlmk1jcs739d2avg","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+
+=== LOGS ===
+2026-06-05T00:56:58.015905696Z [34m[1m==>(B[m [1mCloning from https://github.com/Jeremiahandson1/test-fieldservice-mq07r83n-k4i7(B[m
+2026-06-05T00:56:58.771416078Z [34m[1m==>(B[m [1mChecking out commit 221da31b58f69e9a93be9ad10359f4447052f167 in branch main(B[m
+2026-06-05T00:57:00.09307258Z [34;1m==>[0;22m [1mUsing Node.js version 24.14.1 (default)[22m
+2026-06-05T00:57:00.0930896Z [34;1m==>[0;22m [1mDocs on specifying a Node.js version: https://render.com/docs/node-version[22m
+2026-06-05T00:57:00.175855073Z [34m[1m==>(B[m [1mRunning build command 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi'...(B[m
+2026-06-05T00:57:00.710133358Z #=#=#                                                                                                                                                    0.0%#######################################                                   55.3%######################################################################## 100.0%
+2026-06-05T00:57:01.780971836Z bun was installed successfully to ~/.bun/bin/bun 
+2026-06-05T00:57:01.785633546Z Run 'bun --help' to get started
+2026-06-05T00:57:01.790487609Z [0.07ms] ".env"
+2026-06-05T00:57:01.791846012Z bun install v1.3.14 (0d9b296a)
+2026-06-05T00:57:01.794172461Z Resolving dependencies
+2026-06-05T00:57:02.955006667Z Resolved, downloaded and extracted [657]
+2026-06-05T00:57:03.38030844Z Saved lockfile
+2026-06-05T00:57:03.380402652Z {"id":"629f728e-07a0-4d55-8e8a-c56edc632f79","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:57:03.380402652Z"}
+2026-06-05T00:57:03.380428292Z + @types/bcryptjs@2.4.6 (v3.0.0 available)
+2026-06-05T00:57:03.380433542Z + @types/jsonwebtoken@9.0.10
+2026-06-05T00:57:03.380437922Z + @types/pg@8.20.0
+2026-06-05T00:57:03.380442012Z + drizzle-kit@0.24.2 (v0.31.10 available)
+2026-06-05T00:57:03.380446003Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T00:57:03.380450113Z + @aws-sdk/client-s3@3.1062.0
+2026-06-05T00:57:03.380453763Z + @sendgrid/mail@8.1.6
+2026-06-05T00:57:03.380457633Z + bcryptjs@2.4.3 (v3.0.3 available)
+2026-06-05T00:57:03.380461303Z + drizzle-orm@0.33.0 (v0.45.2 available)
+2026-06-05T00:57:03.380465153Z + ejs@3.1.10 (v6.0.1 available)
+2026-06-05T00:57:03.380468893Z + hono@4.12.23
+2026-06-05T00:57:03.380472523Z + jsonwebtoken@9.0.3
+2026-06-05T00:57:03.380476343Z + pg@8.21.0
+2026-06-05T00:57:03.380480793Z + sharp@0.33.5 (v0.34.5 available)
+2026-06-05T00:57:03.380484123Z {"id":"a9b13df7-aab6-4ff1-a77b-b22760d114a2","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:57:03.380484123Z"}
+2026-06-05T00:57:03.380487843Z 147 packages installed [1.59s]
+2026-06-05T00:57:03.420430895Z bun install v1.3.14 (0d9b296a)
+2026-06-05T00:57:03.424085268Z Resolving dependencies
+2026-06-05T00:57:04.301053445Z Resolved, downloaded and extracted [564]
+2026-06-05T00:57:04.549632901Z {"id":"67ab1544-62d7-4289-bd14-026e65183241","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:57:04.549632901Z"}
+2026-06-05T00:57:04.549663181Z + @types/react@18.3.30 (v19.2.16 available)
+2026-06-05T00:57:04.549668661Z + @types/react-dom@18.3.7 (v19.2.3 available)
+2026-06-05T00:57:04.549673081Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T00:57:04.549678152Z + @vitejs/plugin-react@4.7.0 (v6.0.2 available)
+2026-06-05T00:57:04.549681502Z Saved lockfile
+2026-06-05T00:57:04.549683382Z + autoprefixer@10.5.0
+2026-06-05T00:57:04.549690482Z + clsx@2.1.1
+2026-06-05T00:57:04.549695062Z + lucide-react@0.344.0 (v1.17.0 available)
+2026-06-05T00:57:04.549699862Z + postcss@8.5.15
+2026-06-05T00:57:04.549704382Z + react@18.3.1 (v19.2.7 available)
+2026-06-05T00:57:04.549776393Z + react-dom@18.3.1 (v19.2.7 available)
+2026-06-05T00:57:04.549781163Z + react-router-dom@6.30.4 (v7.17.0 available)
+2026-06-05T00:57:04.549784373Z + tailwindcss@3.4.19 (v4.3.0 available)
+2026-06-05T00:57:04.549787733Z + vite@5.4.21 (v8.0.16 available)
+2026-06-05T00:57:04.549790603Z {"id":"95710bbf-f4a3-4716-b84a-02d1ed8a34fb","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:57:04.549790603Z"}
+2026-06-05T00:57:04.549793604Z 139 packages installed [1131.00ms]
+2026-06-05T00:57:04.580139512Z $ vite build
+2026-06-05T00:57:04.950246683Z vite v5.4.21 building for production...
+2026-06-05T00:57:05.03553592Z transforming...
+2026-06-05T00:57:09.012255918Z ✓ 1502 modules transformed.
+2026-06-05T00:57:09.194710284Z rendering chunks...
+2026-06-05T00:57:09.240531977Z computing gzip size...
+2026-06-05T00:57:09.257436796Z dist/index.html                         0.84 kB │ gzip:  0.44 kB
+2026-06-05T00:57:09.257519457Z dist/assets/index-BzMNhRk-.css         19.01 kB │ gzip:  4.19 kB
+2026-06-05T00:57:09.25766708Z dist/assets/index-CRnprfN5.js          78.25 kB │ gzip: 18.84 kB
+2026-06-05T00:57:09.257743521Z dist/assets/vendor-react-BeotF3cW.js  164.06 kB │ gzip: 53.53 kB
+2026-06-05T00:57:09.258206629Z ✓ built in 4.27s
+2026-06-05T00:57:11.093681648Z [34;1m==>[0;22m [1mUploading build...[22m
+2026-06-05T00:57:16.736644759Z [34;1m==>[0;22m [1mUploaded in 3.0s. Compression took 2.7s[22m
+2026-06-05T00:57:16.761622826Z [32;1m==>[0;22m [1mBuild successful 🎉[22m
+2026-06-05T00:57:19.229727843Z [0;34m[1m==> [0m[1mDeploying...[0m
+2026-06-05T00:57:19.327612195Z [0;34m[1m==> [0m[1mSetting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance[0m
+2026-06-05T00:57:27.289787847Z [34;1m==>[0;22m [1mUsing Bun version 1.3.4 (default)[22m
+2026-06-05T00:57:27.289810558Z [34;1m==>[0;22m [1mDocs on specifying a Bun version: https://render.com/docs/bun-version[22m
+2026-06-05T00:57:28.993512614Z [32m[1m==>(B[m [1mRunning 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts'(B[m
+2026-06-05T00:57:30.184515402Z [Premium-Contractor] Serving on port 10000
+2026-06-05T00:57:30.199852798Z Started server: http://localhost:10000
+2026-06-05T00:57:30.762563492Z <-- HEAD /
+2026-06-05T00:57:30.783038524Z 40 |     res = resolve
+2026-06-05T00:57:30.783058054Z 41 |     rej = reject
+2026-06-05T00:57:30.783061394Z 42 |   }).catch((err) => {
+2026-06-05T00:57:30.783064974Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:57:30.783067714Z 44 |     // application that created the query
+2026-06-05T00:57:30.783069915Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:57:30.783071885Z                ^
+2026-06-05T00:57:30.783073885Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:57:30.783075925Z  syscall: "getaddrinfo",
+2026-06-05T00:57:30.783077915Z    errno: 4,
+2026-06-05T00:57:30.783080615Z     code: "ENOTFOUND"
+2026-06-05T00:57:30.783082465Z {"id":"8954921c-e806-4934-a886-db20e5d4cf45","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:57:30.783082465Z"}
+2026-06-05T00:57:30.783085195Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:57:30.783087115Z {"id":"65a0b062-e734-4542-b710-5fa4a535c0b5","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:57:30.783087115Z"}
+2026-06-05T00:57:30.783904433Z --> HEAD / [31m500[0m 21ms
+2026-06-05T00:57:40.022545157Z [0;32m[1m==> [0m[1mYour service is live 🎉[0m
+2026-06-05T00:57:40.143907008Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T00:57:40.145978296Z [0;32m[1m==> [0m[1m///////////////////////////////////////////////////////////[0m
+2026-06-05T00:57:40.147968052Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T00:57:40.150237245Z [0;32m[1m==> [0m[1mAvailable at your primary URL https://test-fieldservice-mq07r83n-k4i7-site.onrender.com[0m
+2026-06-05T00:57:40.15220668Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T00:57:40.154768622Z [0;32m[1m==> [0m[1m///////////////////////////////////////////////////////////[0m
+2026-06-05T00:57:40.360522734Z clientIP="35.247.111.159" requestID="4bbe1110-0fbc-4a77" responseTimeMS=122 responseBytes=223158 userAgent="Go-http-client/2.0"
+2026-06-05T00:58:34.497346473Z <-- GET /
+2026-06-05T00:58:34.500500824Z 40 |     res = resolve
+2026-06-05T00:58:34.500519324Z 41 |     rej = reject
+2026-06-05T00:58:34.500521686Z clientIP="173.40.6.129" requestID="353b597d-0f26-4edb" responseTimeMS=7 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:58:34.500524494Z 42 |   }).catch((err) => {
+2026-06-05T00:58:34.500530465Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:58:34.500537765Z 44 |     // application that created the query
+2026-06-05T00:58:34.500543985Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:58:34.500550135Z                ^
+2026-06-05T00:58:34.500555885Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:58:34.500561845Z  syscall: "getaddrinfo",
+2026-06-05T00:58:34.500567686Z    errno: 4,
+2026-06-05T00:58:34.500574296Z     code: "ENOTFOUND"
+2026-06-05T00:58:34.500578586Z {"id":"de2722e9-7fa9-4be6-8e25-9fb1c31b3c6a","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:34.500578586Z"}
+2026-06-05T00:58:34.500584416Z --> GET / [31m500[0m 3ms
+2026-06-05T00:58:34.500585396Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:58:34.500596736Z {"id":"25b654b5-d8a2-4a05-b65e-49d816791c96","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:34.500596736Z"}
+2026-06-05T00:58:39.564296477Z <-- GET /
+2026-06-05T00:58:39.565533007Z clientIP="173.40.6.129" requestID="d3112c6b-1fed-4311" responseTimeMS=4 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:58:39.566632679Z 40 |     res = resolve
+2026-06-05T00:58:39.56665464Z 41 |     rej = reject
+2026-06-05T00:58:39.56666054Z 42 |   }).catch((err) => {
+2026-06-05T00:58:39.56666526Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:58:39.56667017Z 44 |     // application that created the query
+2026-06-05T00:58:39.56667416Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:58:39.56667798Z                ^
+2026-06-05T00:58:39.56668228Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:58:39.56668609Z  syscall: "getaddrinfo",
+2026-06-05T00:58:39.56669002Z    errno: 4,
+2026-06-05T00:58:39.5666939Z     code: "ENOTFOUND"
+2026-06-05T00:58:39.566697661Z {"id":"023626ee-60e7-4790-a1c5-c6e4bafeef7f","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:39.566697661Z"}
+2026-06-05T00:58:39.566715681Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:58:39.566718321Z {"id":"e91402df-872b-4c12-9384-f0ef6bfd1a6f","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:39.566718321Z"}
+2026-06-05T00:58:39.566720231Z --> GET / [31m500[0m 2ms
+2026-06-05T00:58:44.643100485Z <-- GET /
+2026-06-05T00:58:44.644698556Z clientIP="173.40.6.129" requestID="6afd7311-930f-41b6" responseTimeMS=4 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:58:44.645770595Z 40 |     res = resolve
+2026-06-05T00:58:44.645785785Z 41 |     rej = reject
+2026-06-05T00:58:44.645790045Z 42 |   }).catch((err) => {
+2026-06-05T00:58:44.645793905Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:58:44.645797766Z 44 |     // application that created the query
+2026-06-05T00:58:44.645800815Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:58:44.645803866Z                ^
+2026-06-05T00:58:44.645806986Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:58:44.645810556Z  syscall: "getaddrinfo",
+2026-06-05T00:58:44.645813666Z    errno: 4,
+2026-06-05T00:58:44.645816696Z     code: "ENOTFOUND"
+2026-06-05T00:58:44.645819666Z {"id":"a3e7d663-5085-45e1-bfef-a9dba64ad8e6","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:44.645819666Z"}
+2026-06-05T00:58:44.645823806Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:58:44.645826776Z {"id":"aad34485-2a8c-4834-81de-f80efdb83fd6","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:44.645826776Z"}
+2026-06-05T00:58:44.645859437Z --> GET / [31m500[0m 2ms
+2026-06-05T00:58:54.768178564Z <-- GET /
+2026-06-05T00:58:54.76988332Z clientIP="173.40.6.129" requestID="17fdb823-bb9b-4f3e" responseTimeMS=4 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:58:54.770850954Z 40 |     res = resolve
+2026-06-05T00:58:54.770872304Z 41 |     rej = reject
+2026-06-05T00:58:54.770879715Z 42 |   }).catch((err) => {
+2026-06-05T00:58:54.770884935Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:58:54.770889955Z 44 |     // application that created the query
+2026-06-05T00:58:54.770894185Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:58:54.770898335Z                ^
+2026-06-05T00:58:54.770902725Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:58:54.770907015Z  syscall: "getaddrinfo",
+2026-06-05T00:58:54.770911235Z    errno: 4,
+2026-06-05T00:58:54.770915725Z     code: "ENOTFOUND"
+2026-06-05T00:58:54.770920045Z {"id":"193b69f9-3892-41d2-aeda-a5c1148d3753","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:54.770920045Z"}
+2026-06-05T00:58:54.770925096Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:58:54.770929426Z {"id":"74c99bee-f081-4a00-b4fc-0b95a9936033","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:58:54.770929426Z"}
+2026-06-05T00:58:54.771033118Z --> GET / [31m500[0m 2ms
+2026-06-05T00:59:04.898362469Z <-- GET /
+2026-06-05T00:59:04.899846123Z clientIP="173.40.6.129" requestID="d23e525a-cc26-4c7f" responseTimeMS=4 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:59:04.900990848Z 40 |     res = resolve
+2026-06-05T00:59:04.901009628Z 41 |     rej = reject
+2026-06-05T00:59:04.901014228Z 42 |   }).catch((err) => {
+2026-06-05T00:59:04.901018168Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:59:04.901022129Z 44 |     // application that created the query
+2026-06-05T00:59:04.901025149Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:59:04.901028219Z                ^
+2026-06-05T00:59:04.901031339Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:59:04.901034439Z  syscall: "getaddrinfo",
+2026-06-05T00:59:04.901038299Z    errno: 4,
+2026-06-05T00:59:04.901043179Z     code: "ENOTFOUND"
+2026-06-05T00:59:04.901047929Z {"id":"2fac150e-71e0-4bed-83b8-450b30a4b961","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:04.901047929Z"}
+2026-06-05T00:59:04.901053239Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:59:04.90105806Z {"id":"10c8e60d-e1f0-4fe6-b19c-f53c69b4d4d4","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:04.90105806Z"}
+2026-06-05T00:59:04.90108167Z --> GET / [31m500[0m 2ms
+2026-06-05T00:59:09.969757993Z <-- GET /
+2026-06-05T00:59:09.970881439Z clientIP="173.40.6.129" requestID="d57aea73-ef10-4758" responseTimeMS=4 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:59:09.971867911Z 40 |     res = resolve
+2026-06-05T00:59:09.971883761Z 41 |     rej = reject
+2026-06-05T00:59:09.971889652Z 42 |   }).catch((err) => {
+2026-06-05T00:59:09.971895081Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:59:09.971900532Z 44 |     // application that created the query
+2026-06-05T00:59:09.971918272Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:59:09.971921892Z                ^
+2026-06-05T00:59:09.971925122Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:59:09.971928082Z  syscall: "getaddrinfo",
+2026-06-05T00:59:09.971931052Z    errno: 4,
+2026-06-05T00:59:09.971933882Z     code: "ENOTFOUND"
+2026-06-05T00:59:09.971936602Z {"id":"f6a58d1d-275e-4f67-a4f6-57ccee484399","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:09.971936602Z"}
+2026-06-05T00:59:09.971940273Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:59:09.971943043Z {"id":"2bdc9937-cac3-4c13-aa7c-a87ff2a3b6d6","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:09.971943043Z"}
+2026-06-05T00:59:09.971963173Z --> GET / [31m500[0m 2ms
+2026-06-05T00:59:15.014725442Z <-- GET /
+2026-06-05T00:59:15.0173073Z clientIP="173.40.6.129" requestID="d12e13a2-2055-41df" responseTimeMS=5 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:59:15.018438646Z 40 |     res = resolve
+2026-06-05T00:59:15.018461867Z 41 |     rej = reject
+2026-06-05T00:59:15.018467777Z 42 |   }).catch((err) => {
+2026-06-05T00:59:15.018472307Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:59:15.018477717Z 44 |     // application that created the query
+2026-06-05T00:59:15.018482207Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:59:15.018486727Z                ^
+2026-06-05T00:59:15.018491277Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:59:15.018495718Z  syscall: "getaddrinfo",
+2026-06-05T00:59:15.018500027Z    errno: 4,
+2026-06-05T00:59:15.018504528Z     code: "ENOTFOUND"
+2026-06-05T00:59:15.018508608Z {"id":"c11279d8-df76-41a0-9588-800295339211","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:15.018508608Z"}
+2026-06-05T00:59:15.018513728Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:59:15.018518078Z {"id":"41ca419d-ba52-48cc-a74d-e1fcff37fe08","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:15.018518078Z"}
+2026-06-05T00:59:15.018558169Z --> GET / [31m500[0m 4ms
+2026-06-05T00:59:25.146235118Z <-- GET /
+2026-06-05T00:59:25.148087075Z clientIP="173.40.6.129" requestID="bb997b19-de9d-4de1" responseTimeMS=5 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:59:25.149220066Z 40 |     res = resolve
+2026-06-05T00:59:25.149240466Z 41 |     rej = reject
+2026-06-05T00:59:25.149246276Z 42 |   }).catch((err) => {
+2026-06-05T00:59:25.149251217Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:59:25.149255797Z 44 |     // application that created the query
+2026-06-05T00:59:25.149260137Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:59:25.149263957Z                ^
+2026-06-05T00:59:25.149267887Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:59:25.149271687Z  syscall: "getaddrinfo",
+2026-06-05T00:59:25.149277227Z    errno: 4,
+2026-06-05T00:59:25.149283447Z     code: "ENOTFOUND"
+2026-06-05T00:59:25.149289177Z {"id":"589d2b45-a347-4558-9ec9-e9e89d1d4dd3","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:25.149289177Z"}
+2026-06-05T00:59:25.149298618Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:59:25.149304238Z {"id":"1a13dadf-2b39-46d3-a073-d5a2e3314b44","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:25.149304238Z"}
+2026-06-05T00:59:25.149322178Z --> GET / [31m500[0m 3ms
+2026-06-05T00:59:30.199543796Z <-- GET /
+2026-06-05T00:59:30.200603505Z clientIP="173.40.6.129" requestID="3ba6054a-217e-4817" responseTimeMS=3 responseBytes=257 userAgent="Bun/1.3.10"
+2026-06-05T00:59:30.201796347Z 40 |     res = resolve
+2026-06-05T00:59:30.201813058Z 41 |     rej = reject
+2026-06-05T00:59:30.201817498Z 42 |   }).catch((err) => {
+2026-06-05T00:59:30.201821468Z 43 |     // replace the stack trace that leads to `TCP.onStreamRead` with one that leads back to the
+2026-06-05T00:59:30.201825248Z 44 |     // application that created the query
+2026-06-05T00:59:30.201828818Z 45 |     Error.captureStackTrace(err)
+2026-06-05T00:59:30.201832068Z                ^
+2026-06-05T00:59:30.201835228Z DNSException: getaddrinfo ENOTFOUND
+2026-06-05T00:59:30.201838338Z  syscall: "getaddrinfo",
+2026-06-05T00:59:30.201841488Z    errno: 4,
+2026-06-05T00:59:30.201844718Z     code: "ENOTFOUND"
+2026-06-05T00:59:30.201847658Z {"id":"4f8fcf3a-2bb1-47e9-958d-79f1688e227c","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:30.201847658Z"}
+2026-06-05T00:59:30.201851448Z       at <anonymous> (/opt/render/project/src/website/node_modules/pg-pool/index.js:45:11)
+2026-06-05T00:59:30.201854439Z {"id":"98d7585c-2e6d-405d-b778-ca0ec0d4ba8a","labels":[{"name":"resource","value":"srv-d8h1tl6k1jcs739d2ac0"},{"name":"instance","value":"srv-d8h1tl6k1jcs739d2ac0-cqksq"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T00:59:30.201854439Z"}
+2026-06-05T00:59:30.201890149Z --> GET / [31m500[0m 2ms
+2026-06-05T00:59:30.250552207Z clientIP="173.40.6.129" requestID="19c8b9a0-4b62-4372" responseTimeMS=1 responseBytes=249 userAgent="Bun/1.3.10"
+2026-06-05T00:59:30.251202151Z <-- GET /admin
+2026-06-05T00:59:30.251851246Z --> GET /admin [33m404[0m 0ms
+2026-06-05T00:59:35.306128504Z clientIP="173.40.6.129" requestID="937e7042-0cea-4e5d" responseTimeMS=2 responseBytes=249 userAgent="Bun/1.3.10"
+2026-06-05T00:59:35.307064216Z <-- GET /admin
+2026-06-05T00:59:35.307425095Z --> GET /admin [33m404[0m 1ms

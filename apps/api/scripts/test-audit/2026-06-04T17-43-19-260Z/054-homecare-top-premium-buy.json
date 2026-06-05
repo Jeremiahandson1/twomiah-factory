@@ -1,0 +1,83 @@
+{
+  "testId": "054-homecare-top-premium-buy",
+  "case": {
+    "vertical": "homecare",
+    "industry": "home_care",
+    "plan": "top",
+    "websiteMode": "premium",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "215ca68c-fe1d-496d-9039-058f06e16e77",
+      "ms": 55
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-homecare-co-f7fdf9c9-twomiah-build.zip (f7fdf9c9-8423-425c-9161-75caa1999365)",
+      "ms": 1352
+    },
+    {
+      "step": "deploy",
+      "status": "skipped",
+      "detail": "generate-only mode (use --with-deploy for full E2E)",
+      "ms": 0
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "skipped",
+      "detail": "0/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "skipped",
+      "detail": "0 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 20955
+    }
+  ],
+  "startedAt": "2026-06-04T18:00:19.470Z",
+  "outcome": "pass",
+  "tenantId": "215ca68c-fe1d-496d-9039-058f06e16e77",
+  "finishedAt": "2026-06-04T18:00:41.836Z",
+  "totalMs": 22366
+}

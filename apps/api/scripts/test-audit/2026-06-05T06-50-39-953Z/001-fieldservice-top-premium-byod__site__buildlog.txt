@@ -1,0 +1,98 @@
+# 001-fieldservice-top-premium-byod :: site (service srv-d8h73ueq1p3s73fqrno0)
+# status: update_failed | latest deploy dep-d8h73uuq1p3s73fqroig status: update_failed
+# commit: Initial Twomiah Factory deployment
+# ownerId: tea-d63p56fpm1nc73bok5pg
+# fetched: 2026-06-05T07:06:46.927Z
+
+=== EVENTS ===
+2026-06-05T06:52:24.088298Z deploy_ended {"deployId":"dep-d8h73uuq1p3s73fqroig","deployStatus":"failed","reason":{"failure":{"evicted":false,"nonZeroExit":2}},"status":4}
+2026-06-05T06:52:01Z build_ended {"buildId":"bld-d8h73uuq1p3s73fqroj0","buildStatus":"succeeded","reason":{},"status":2}
+2026-06-05T06:51:39.553326Z deploy_started {"deployId":"dep-d8h73uuq1p3s73fqroig","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+2026-06-05T06:51:39.529039Z build_started {"buildId":"bld-d8h73uuq1p3s73fqroj0","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+
+=== LOGS ===
+2026-06-05T06:51:42.542006211Z [34m[1m==>(B[m [1mCloning from https://github.com/Jeremiahandson1/test-fieldservice-mq0kexn7-xjzr(B[m
+2026-06-05T06:51:43.322433133Z [34m[1m==>(B[m [1mChecking out commit eb913ee24a9457d32579481457c6f7a98abb0b2d in branch main(B[m
+2026-06-05T06:51:44.670550443Z [34;1m==>[0;22m [1mUsing Node.js version 24.14.1 (default)[22m
+2026-06-05T06:51:44.670570534Z [34;1m==>[0;22m [1mDocs on specifying a Node.js version: https://render.com/docs/node-version[22m
+2026-06-05T06:51:44.75509963Z [34m[1m==>(B[m [1mRunning build command 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi'...(B[m
+2026-06-05T06:51:45.314436579Z #=#=#                                                                                                                                                    0.0%############################################                              61.5%######################################################################## 100.0%
+2026-06-05T06:51:46.390108337Z bun was installed successfully to ~/.bun/bin/bun 
+2026-06-05T06:51:46.394609377Z Run 'bun --help' to get started
+2026-06-05T06:51:46.399344781Z [0.07ms] ".env"
+2026-06-05T06:51:46.400682062Z bun install v1.3.14 (0d9b296a)
+2026-06-05T06:51:46.403073949Z Resolving dependencies
+2026-06-05T06:51:47.589193087Z Resolved, downloaded and extracted [657]
+2026-06-05T06:51:48.015363282Z {"id":"2ee351ac-b6db-448c-98c6-8904c4d9ccfd","labels":[{"name":"resource","value":"srv-d8h73ueq1p3s73fqrno0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T06:51:48.015363282Z"}
+2026-06-05T06:51:48.015365182Z Saved lockfile
+2026-06-05T06:51:48.015394263Z + @types/bcryptjs@2.4.6 (v3.0.0 available)
+2026-06-05T06:51:48.015399003Z + @types/jsonwebtoken@9.0.10
+2026-06-05T06:51:48.015403263Z + @types/pg@8.20.0
+2026-06-05T06:51:48.015407353Z + drizzle-kit@0.24.2 (v0.31.10 available)
+2026-06-05T06:51:48.015411083Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T06:51:48.015414393Z + @aws-sdk/client-s3@3.1062.0
+2026-06-05T06:51:48.015417323Z + @sendgrid/mail@8.1.6
+2026-06-05T06:51:48.015420293Z + bcryptjs@2.4.3 (v3.0.3 available)
+2026-06-05T06:51:48.015423243Z + drizzle-orm@0.33.0 (v0.45.2 available)
+2026-06-05T06:51:48.015426373Z + ejs@3.1.10 (v6.0.1 available)
+2026-06-05T06:51:48.015429523Z + hono@4.12.23
+2026-06-05T06:51:48.015432743Z + jsonwebtoken@9.0.3
+2026-06-05T06:51:48.015435964Z + pg@8.21.0
+2026-06-05T06:51:48.015438924Z + sharp@0.33.5 (v0.34.5 available)
+2026-06-05T06:51:48.015441664Z {"id":"dd0693ac-a2a1-46f8-9449-a0fd4967a44d","labels":[{"name":"resource","value":"srv-d8h73ueq1p3s73fqrno0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T06:51:48.015441664Z"}
+2026-06-05T06:51:48.015444734Z 147 packages installed [1.62s]
+2026-06-05T06:51:48.053554297Z bun install v1.3.14 (0d9b296a)
+2026-06-05T06:51:48.05693576Z Resolving dependencies
+2026-06-05T06:51:48.919454559Z Resolved, downloaded and extracted [564]
+2026-06-05T06:51:49.181745723Z Saved lockfile
+2026-06-05T06:51:49.181803904Z {"id":"46f5adc2-e72c-4e53-8b94-cca0543a5802","labels":[{"name":"resource","value":"srv-d8h73ueq1p3s73fqrno0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T06:51:49.181803904Z"}
+2026-06-05T06:51:49.181877025Z + @types/react@18.3.30 (v19.2.16 available)
+2026-06-05T06:51:49.181883015Z + @types/react-dom@18.3.7 (v19.2.3 available)
+2026-06-05T06:51:49.181886935Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T06:51:49.181890895Z + @vitejs/plugin-react@4.7.0 (v6.0.2 available)
+2026-06-05T06:51:49.181895365Z + autoprefixer@10.5.0
+2026-06-05T06:51:49.181899215Z + clsx@2.1.1
+2026-06-05T06:51:49.181903245Z + lucide-react@0.344.0 (v1.17.0 available)
+2026-06-05T06:51:49.181906845Z + postcss@8.5.15
+2026-06-05T06:51:49.181910175Z + react@18.3.1 (v19.2.7 available)
+2026-06-05T06:51:49.181944996Z + react-dom@18.3.1 (v19.2.7 available)
+2026-06-05T06:51:49.181948366Z + react-router-dom@6.30.4 (v7.17.0 available)
+2026-06-05T06:51:49.181951366Z + tailwindcss@3.4.19 (v4.3.0 available)
+2026-06-05T06:51:49.181954366Z + vite@5.4.21 (v8.0.16 available)
+2026-06-05T06:51:49.181957106Z {"id":"66dd19d1-c55f-49fa-ac95-34db2d272429","labels":[{"name":"resource","value":"srv-d8h73ueq1p3s73fqrno0"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T06:51:49.181957106Z"}
+2026-06-05T06:51:49.181960216Z 139 packages installed [1130.00ms]
+2026-06-05T06:51:49.214590674Z $ vite build
+2026-06-05T06:51:49.592098772Z vite v5.4.21 building for production...
+2026-06-05T06:51:49.676703259Z transforming...
+2026-06-05T06:51:53.796677696Z ✓ 1502 modules transformed.
+2026-06-05T06:51:53.984764385Z rendering chunks...
+2026-06-05T06:51:54.037564787Z computing gzip size...
+2026-06-05T06:51:54.048287364Z dist/index.html                         0.84 kB │ gzip:  0.44 kB
+2026-06-05T06:51:54.048337364Z dist/assets/index-BzMNhRk-.css         19.01 kB │ gzip:  4.19 kB
+2026-06-05T06:51:54.048487237Z dist/assets/index-CRnprfN5.js          78.25 kB │ gzip: 18.84 kB
+2026-06-05T06:51:54.048587678Z dist/assets/vendor-react-BeotF3cW.js  164.06 kB │ gzip: 53.53 kB
+2026-06-05T06:51:54.048986094Z ✓ built in 4.42s
+2026-06-05T06:51:55.740671973Z [34;1m==>[0;22m [1mUploading build...[22m
+2026-06-05T06:52:01.385522289Z [34;1m==>[0;22m [1mUploaded in 3.0s. Compression took 2.7s[22m
+2026-06-05T06:52:01.40934672Z [32;1m==>[0;22m [1mBuild successful 🎉[22m
+2026-06-05T06:52:03.729949974Z [0;34m[1m==> [0m[1mDeploying...[0m
+2026-06-05T06:52:03.837089105Z [0;34m[1m==> [0m[1mSetting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance[0m
+2026-06-05T06:52:15.941882342Z [34;1m==>[0;22m [1mUsing Bun version 1.3.4 (default)[22m
+2026-06-05T06:52:15.941904092Z [34;1m==>[0;22m [1mDocs on specifying a Bun version: https://render.com/docs/bun-version[22m
+2026-06-05T06:52:22.139021925Z [32m[1m==>(B[m [1mRunning 'export PATH=$HOME/.bun/bin:$PATH; PUSH_OK=false; for i in $(seq 1 60); do;   bunx drizzle-kit push --force;   RC=$?;   if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi;   echo "[boot] push attempt $i exited $RC, retrying in 10s";   sleep 10; done; if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi; NODE_ENV=production exec bun server-static.ts'(B[m
+2026-06-05T06:52:22.145738024Z bash: -c: line 1: syntax error near unexpected token `;'
+2026-06-05T06:52:22.145754044Z bash: -c: line 1: `export PATH=$HOME/.bun/bin:$PATH; PUSH_OK=false; for i in $(seq 1 60); do;   bunx drizzle-kit push --force;   RC=$?;   if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi;   echo "[boot] push attempt $i exited $RC, retrying in 10s";   sleep 10; done; if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi; NODE_ENV=production exec bun server-static.ts'
+2026-06-05T06:52:24.35558609Z [34;1m==>[0;22m [1mUsing Bun version 1.3.4 (default)[22m
+2026-06-05T06:52:24.35560089Z [34;1m==>[0;22m [1mDocs on specifying a Bun version: https://render.com/docs/bun-version[22m
+2026-06-05T06:52:24.35694946Z [0;31m[1m==> Exited with status 2[0m
+2026-06-05T06:52:24.359133778Z [0;34m[1m==> [0m[1mCommon ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys[0m
+2026-06-05T06:52:24.865681127Z [0;33m[1m==> [0m[1mInstance srv-d8h73ueq1p3s73fqrno0-bsq2z restarted[0m
+2026-06-05T06:52:25.838677275Z [32m[1m==>(B[m [1mRunning 'export PATH=$HOME/.bun/bin:$PATH; PUSH_OK=false; for i in $(seq 1 60); do;   bunx drizzle-kit push --force;   RC=$?;   if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi;   echo "[boot] push attempt $i exited $RC, retrying in 10s";   sleep 10; done; if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi; NODE_ENV=production exec bun server-static.ts'(B[m
+2026-06-05T06:52:25.844588169Z bash: -c: line 1: syntax error near unexpected token `;'
+2026-06-05T06:52:25.844605099Z bash: -c: line 1: `export PATH=$HOME/.bun/bin:$PATH; PUSH_OK=false; for i in $(seq 1 60); do;   bunx drizzle-kit push --force;   RC=$?;   if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi;   echo "[boot] push attempt $i exited $RC, retrying in 10s";   sleep 10; done; if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi; NODE_ENV=production exec bun server-static.ts'
+2026-06-05T06:52:36.604411637Z [34;1m==>[0;22m [1mUsing Bun version 1.3.4 (default)[22m
+2026-06-05T06:52:36.604427647Z [34;1m==>[0;22m [1mDocs on specifying a Bun version: https://render.com/docs/bun-version[22m
+2026-06-05T06:52:37.015786255Z [0;33m[1m==> [0m[1mInstance srv-d8h73ueq1p3s73fqrno0-bsq2z restarted[0m
+2026-06-05T06:52:38.185582652Z [32m[1m==>(B[m [1mRunning 'export PATH=$HOME/.bun/bin:$PATH; PUSH_OK=false; for i in $(seq 1 60); do;   bunx drizzle-kit push --force;   RC=$?;   if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi;   echo "[boot] push attempt $i exited $RC, retrying in 10s";   sleep 10; done; if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi; NODE_ENV=production exec bun server-static.ts'(B[m
+2026-06-05T06:52:38.192000506Z bash: -c: line 1: syntax error near unexpected token `;'
+2026-06-05T06:52:38.192022386Z bash: -c: line 1: `export PATH=$HOME/.bun/bin:$PATH; PUSH_OK=false; for i in $(seq 1 60); do;   bunx drizzle-kit push --force;   RC=$?;   if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi;   echo "[boot] push attempt $i exited $RC, retrying in 10s";   sleep 10; done; if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi; NODE_ENV=production exec bun server-static.ts'

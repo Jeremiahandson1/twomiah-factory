@@ -1,0 +1,22 @@
+{
+  "testId": "005-landscaping-entry-premium-buy",
+  "case": {
+    "vertical": "landscaping",
+    "industry": "landscaping",
+    "plan": "entry",
+    "websiteMode": "premium",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "error",
+      "detail": "Could not find the 'domain_registrar' column of 'tenants' in the schema cache",
+      "ms": 58
+    }
+  ],
+  "startedAt": "2026-06-04T15:46:44.977Z",
+  "outcome": "fail",
+  "finishedAt": "2026-06-04T15:46:45.037Z",
+  "totalMs": 60
+}

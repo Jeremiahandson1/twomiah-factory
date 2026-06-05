@@ -1,0 +1,33 @@
+{
+  "testId": "005-landscaping-entry-premium-buy",
+  "case": {
+    "vertical": "landscaping",
+    "industry": "landscaping",
+    "plan": "entry",
+    "websiteMode": "premium",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "ece04fa6-70a3-489c-b7a4-f33a3e29f63c",
+      "ms": 75
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-landscaping-co-39ef3438-twomiah-build.zip (39ef3438-27cb-4274-928a-1f87da80b3c3)",
+      "ms": 2301
+    },
+    {
+      "step": "deploy",
+      "status": "error",
+      "detail": "Database creation failed: Render DB creation failed (429): {\"error\":\"rate limit exceeded\"}",
+      "ms": 9793
+    }
+  ],
+  "startedAt": "2026-06-04T20:56:48.494Z",
+  "outcome": "running",
+  "tenantId": "ece04fa6-70a3-489c-b7a4-f33a3e29f63c"
+}

@@ -1,0 +1,144 @@
+# 001-fieldservice-top-premium-byod :: site (service srv-d8h34ib7uimc73cfv6vg)
+# status: live_but_smoke_failed | latest deploy dep-d8h34ir7uimc73cfv910 status: live
+# commit: Initial Twomiah Factory deployment
+# ownerId: tea-d63p56fpm1nc73bok5pg
+# fetched: 2026-06-05T02:22:28.464Z
+
+=== EVENTS ===
+2026-06-05T02:21:11.697419Z deploy_ended {"deployId":"dep-d8h34ir7uimc73cfv910","deployStatus":"succeeded","reason":{},"status":2}
+2026-06-05T02:20:19Z build_ended {"buildId":"bld-d8h34ir7uimc73cfv91g","buildStatus":"succeeded","reason":{},"status":2}
+2026-06-05T02:19:55.651658Z deploy_started {"deployId":"dep-d8h34ir7uimc73cfv910","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+2026-06-05T02:19:55.638117Z build_started {"buildId":"bld-d8h34ir7uimc73cfv91g","trigger":{"clearCache":false,"deployedByRender":false,"envUpdated":false,"firstBuild":true,"manual":false,"rollback":false}}
+
+=== LOGS ===
+2026-06-05T02:19:58.546816256Z [34m[1m==>(B[m [1mCloning from https://github.com/Jeremiahandson1/test-fieldservice-mq0apm77-eroi(B[m
+2026-06-05T02:19:59.310851879Z [34m[1m==>(B[m [1mChecking out commit 7b1812dc9f2eeb8eee858ad753b443a0878e27bc in branch main(B[m
+2026-06-05T02:20:00.63167271Z [34;1m==>[0;22m [1mUsing Node.js version 24.14.1 (default)[22m
+2026-06-05T02:20:00.631691891Z [34;1m==>[0;22m [1mDocs on specifying a Node.js version: https://render.com/docs/node-version[22m
+2026-06-05T02:20:00.722811622Z [34m[1m==>(B[m [1mRunning build command 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi'...(B[m
+2026-06-05T02:20:01.275266425Z #=#=#                                                                         ######                                                                     9.6%#####################################                                     51.5%######################################################################## 100.0%
+2026-06-05T02:20:02.354393729Z bun was installed successfully to ~/.bun/bin/bun 
+2026-06-05T02:20:02.358886457Z Run 'bun --help' to get started
+2026-06-05T02:20:02.363687759Z [0.07ms] ".env"
+2026-06-05T02:20:02.365047476Z bun install v1.3.14 (0d9b296a)
+2026-06-05T02:20:02.367322846Z Resolving dependencies
+2026-06-05T02:20:03.685421522Z Resolved, downloaded and extracted [657]
+2026-06-05T02:20:04.110827422Z Saved lockfile
+2026-06-05T02:20:04.111286168Z {"id":"0c72a4c3-b598-4432-9d6c-b678c4356b99","labels":[{"name":"resource","value":"srv-d8h34ib7uimc73cfv6vg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:20:04.111286168Z"}
+2026-06-05T02:20:04.111296068Z + @types/bcryptjs@2.4.6 (v3.0.0 available)
+2026-06-05T02:20:04.111300808Z + @types/jsonwebtoken@9.0.10
+2026-06-05T02:20:04.111305168Z + @types/pg@8.20.0
+2026-06-05T02:20:04.111308948Z + drizzle-kit@0.24.2 (v0.31.10 available)
+2026-06-05T02:20:04.111312798Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T02:20:04.111316468Z + @aws-sdk/client-s3@3.1062.0
+2026-06-05T02:20:04.111320018Z + @sendgrid/mail@8.1.6
+2026-06-05T02:20:04.111324088Z + bcryptjs@2.4.3 (v3.0.3 available)
+2026-06-05T02:20:04.111327878Z + drizzle-orm@0.33.0 (v0.45.2 available)
+2026-06-05T02:20:04.111331548Z + ejs@3.1.10 (v6.0.1 available)
+2026-06-05T02:20:04.111335208Z + hono@4.12.23
+2026-06-05T02:20:04.111338838Z + jsonwebtoken@9.0.3
+2026-06-05T02:20:04.111342458Z + pg@8.21.0
+2026-06-05T02:20:04.111346048Z + sharp@0.33.5 (v0.34.5 available)
+2026-06-05T02:20:04.111349538Z {"id":"b29c87e5-cb4d-4d0e-9f77-074d8eb67363","labels":[{"name":"resource","value":"srv-d8h34ib7uimc73cfv6vg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:20:04.111349538Z"}
+2026-06-05T02:20:04.111353368Z 147 packages installed [1.75s]
+2026-06-05T02:20:04.148558987Z bun install v1.3.14 (0d9b296a)
+2026-06-05T02:20:04.152078442Z Resolving dependencies
+2026-06-05T02:20:08.827915479Z Resolved, downloaded and extracted [564]
+2026-06-05T02:20:09.07294905Z {"id":"163f6447-ff75-49a9-9d5d-e34b61cfb00e","labels":[{"name":"resource","value":"srv-d8h34ib7uimc73cfv6vg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:20:09.07294905Z"}
+2026-06-05T02:20:09.07295981Z Saved lockfile
+2026-06-05T02:20:09.072975Z + @types/react@18.3.30 (v19.2.16 available)
+2026-06-05T02:20:09.07298259Z + @types/react-dom@18.3.7 (v19.2.3 available)
+2026-06-05T02:20:09.07298902Z + typescript@5.9.3 (v6.0.3 available)
+2026-06-05T02:20:09.07299462Z + @vitejs/plugin-react@4.7.0 (v6.0.2 available)
+2026-06-05T02:20:09.07300018Z + autoprefixer@10.5.0
+2026-06-05T02:20:09.07300512Z + clsx@2.1.1
+2026-06-05T02:20:09.07301125Z + lucide-react@0.344.0 (v1.17.0 available)
+2026-06-05T02:20:09.073017561Z + postcss@8.5.15
+2026-06-05T02:20:09.073023841Z + react@18.3.1 (v19.2.7 available)
+2026-06-05T02:20:09.073047521Z + react-dom@18.3.1 (v19.2.7 available)
+2026-06-05T02:20:09.073052371Z + react-router-dom@6.30.4 (v7.17.0 available)
+2026-06-05T02:20:09.073056471Z + tailwindcss@3.4.19 (v4.3.0 available)
+2026-06-05T02:20:09.073060531Z + vite@5.4.21 (v8.0.16 available)
+2026-06-05T02:20:09.073063971Z {"id":"6f1f288a-d56b-4780-be4b-7fb9c6545c37","labels":[{"name":"resource","value":"srv-d8h34ib7uimc73cfv6vg"},{"name":"level","value":"info"},{"name":"type","value":"app"}],"message":"","timestamp":"2026-06-05T02:20:09.073063971Z"}
+2026-06-05T02:20:09.073077541Z 139 packages installed [4.93s]
+2026-06-05T02:20:09.102329817Z $ vite build
+2026-06-05T02:20:09.479328174Z vite v5.4.21 building for production...
+2026-06-05T02:20:09.568312769Z transforming...
+2026-06-05T02:20:13.480863783Z ✓ 1502 modules transformed.
+2026-06-05T02:20:13.655239584Z rendering chunks...
+2026-06-05T02:20:13.731767568Z computing gzip size...
+2026-06-05T02:20:13.743666301Z dist/index.html                         0.84 kB │ gzip:  0.44 kB
+2026-06-05T02:20:13.743805453Z dist/assets/index-BzMNhRk-.css         19.01 kB │ gzip:  4.19 kB
+2026-06-05T02:20:13.743940345Z dist/assets/index-CRnprfN5.js          78.25 kB │ gzip: 18.84 kB
+2026-06-05T02:20:13.744019416Z dist/assets/vendor-react-BeotF3cW.js  164.06 kB │ gzip: 53.53 kB
+2026-06-05T02:20:13.744488302Z ✓ built in 4.22s
+2026-06-05T02:20:14.578938151Z [34;1m==>[0;22m [1mUploading build...[22m
+2026-06-05T02:20:19.832233523Z [34;1m==>[0;22m [1mUploaded in 2.7s. Compression took 2.5s[22m
+2026-06-05T02:20:19.86079206Z [32;1m==>[0;22m [1mBuild successful 🎉[22m
+2026-06-05T02:20:22.588115554Z [0;34m[1m==> [0m[1mDeploying...[0m
+2026-06-05T02:20:22.699500837Z [0;34m[1m==> [0m[1mSetting WEB_CONCURRENCY=1 by default, based on available CPUs in the instance[0m
+2026-06-05T02:21:00.761478683Z [34;1m==>[0;22m [1mUsing Bun version 1.3.4 (default)[22m
+2026-06-05T02:21:00.761491264Z [34;1m==>[0;22m [1mDocs on specifying a Bun version: https://render.com/docs/bun-version[22m
+2026-06-05T02:21:02.329274078Z [32m[1m==>(B[m [1mRunning 'export PATH=$HOME/.bun/bin:$PATH && for i in $(seq 1 60); do bunx drizzle-kit push --force && break || sleep 10; done && NODE_ENV=production bun server-static.ts'(B[m
+2026-06-05T02:21:02.816425587Z No config path provided, using default 'drizzle.config.ts'
+2026-06-05T02:21:02.816748137Z Reading config file '/opt/render/project/src/website/drizzle.config.ts'
+2026-06-05T02:21:03.737356408Z Using 'pg' driver for database querying
+2026-06-05T02:21:04.632634399Z [⣷] Pulling schema from database...
+2026-06-05T02:21:04.749932463Z [2K[1G[⣯] Pulling schema from database...
+2026-06-05T02:21:04.751937796Z [2K[1G[✓] Pulling schema from database...
+2026-06-05T02:21:05.046830676Z [✓] Changes applied
+2026-06-05T02:21:06.22553507Z [Premium-Contractor] Serving on port 10000
+2026-06-05T02:21:06.242039137Z Started server: http://localhost:10000
+2026-06-05T02:21:06.939480045Z <-- HEAD /
+2026-06-05T02:21:07.040442022Z --> HEAD / [31m503[0m 98ms
+2026-06-05T02:21:11.717274522Z [0;32m[1m==> [0m[1mYour service is live 🎉[0m
+2026-06-05T02:21:11.852236083Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T02:21:11.855484122Z [0;32m[1m==> [0m[1m///////////////////////////////////////////////////////////[0m
+2026-06-05T02:21:11.857820856Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T02:21:11.859734018Z [0;32m[1m==> [0m[1mAvailable at your primary URL https://test-fieldservice-mq0apm77-eroi-site.onrender.com[0m
+2026-06-05T02:21:11.861548228Z [0;32m[1m==> [0m[1m[0m
+2026-06-05T02:21:11.863578294Z [0;32m[1m==> [0m[1m///////////////////////////////////////////////////////////[0m
+2026-06-05T02:21:12.135731727Z clientIP="35.197.97.226" requestID="76c4b524-a472-4a9a" responseTimeMS=139 responseBytes=223158 userAgent="Go-http-client/2.0"
+2026-06-05T02:21:15.11179915Z clientIP="173.40.6.129" requestID="ee7a3159-f119-4a39" responseTimeMS=22 responseBytes=223158 userAgent="Bun/1.3.10"
+2026-06-05T02:21:20.264660119Z clientIP="173.40.6.129" requestID="c91e2924-7737-40da" responseTimeMS=36 responseBytes=223158 userAgent="Bun/1.3.10"
+2026-06-05T02:21:25.305636736Z <-- GET /
+2026-06-05T02:21:25.319976839Z --> GET / [31m503[0m 14ms
+2026-06-05T02:21:25.322201702Z clientIP="173.40.6.129" requestID="d3aa51cd-cf1d-4a8a" responseTimeMS=17 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:21:30.392016952Z <-- GET /
+2026-06-05T02:21:30.395410181Z --> GET / [31m503[0m 4ms
+2026-06-05T02:21:30.396582159Z clientIP="173.40.6.129" requestID="291838e5-9ada-465a" responseTimeMS=5 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:21:35.461765989Z <-- GET /
+2026-06-05T02:21:35.465724223Z --> GET / [31m503[0m 4ms
+2026-06-05T02:21:35.466836709Z clientIP="173.40.6.129" requestID="1987b9f5-b93a-491e" responseTimeMS=5 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:21:40.529715543Z <-- GET /
+2026-06-05T02:21:40.532988065Z --> GET / [31m503[0m 3ms
+2026-06-05T02:21:40.534023048Z clientIP="173.40.6.129" requestID="8cea4763-d8bc-451d" responseTimeMS=5 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:21:45.604243169Z <-- GET /
+2026-06-05T02:21:45.607619477Z --> GET / [31m503[0m 3ms
+2026-06-05T02:21:45.609007414Z clientIP="173.40.6.129" requestID="dfae0fca-5281-4af4" responseTimeMS=5 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:21:50.672456973Z <-- GET /
+2026-06-05T02:21:50.679403631Z --> GET / [31m503[0m 7ms
+2026-06-05T02:21:50.68319561Z clientIP="173.40.6.129" requestID="37992e50-fb83-40df" responseTimeMS=11 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:21:55.750969488Z <-- GET /
+2026-06-05T02:21:55.757269456Z --> GET / [31m503[0m 7ms
+2026-06-05T02:21:55.758475971Z clientIP="173.40.6.129" requestID="3f95478e-0773-476e" responseTimeMS=8 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:22:00.819827146Z <-- GET /
+2026-06-05T02:22:00.822790889Z --> GET / [31m503[0m 3ms
+2026-06-05T02:22:00.823937338Z clientIP="173.40.6.129" requestID="f661b03b-cd70-498a" responseTimeMS=5 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:22:05.892033067Z <-- GET /
+2026-06-05T02:22:05.895530552Z --> GET / [31m503[0m 4ms
+2026-06-05T02:22:05.896552415Z clientIP="173.40.6.129" requestID="d49da276-1bf0-42a3" responseTimeMS=5 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:22:10.960640293Z <-- GET /
+2026-06-05T02:22:11.166889452Z --> GET / [31m503[0m 206ms
+2026-06-05T02:22:11.168020772Z clientIP="173.40.6.129" requestID="bc8b65d5-af67-43cf" responseTimeMS=208 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:22:16.246974372Z <-- GET /
+2026-06-05T02:22:16.250080324Z --> GET / [31m503[0m 3ms
+2026-06-05T02:22:16.251169019Z clientIP="173.40.6.129" requestID="07253a92-7572-4c42" responseTimeMS=5 responseBytes=265 userAgent="Bun/1.3.10"
+2026-06-05T02:22:16.315689813Z <-- GET /admin
+2026-06-05T02:22:16.316297621Z --> GET /admin [33m404[0m 1ms
+2026-06-05T02:22:16.317677771Z clientIP="173.40.6.129" requestID="6f4a7444-56c2-430c" responseTimeMS=2 responseBytes=249 userAgent="Bun/1.3.10"
+2026-06-05T02:22:21.3793761Z <-- GET /admin
+2026-06-05T02:22:21.37969342Z --> GET /admin [33m404[0m 0ms
+2026-06-05T02:22:21.380691695Z clientIP="173.40.6.129" requestID="8e81d296-216b-4bf6" responseTimeMS=2 responseBytes=249 userAgent="Bun/1.3.10"
+2026-06-05T02:22:26.447265573Z <-- GET /admin
+2026-06-05T02:22:26.447508178Z --> GET /admin [33m404[0m 0ms

@@ -1,0 +1,89 @@
+{
+  "testId": "001-contractor-entry-standard-buy",
+  "case": {
+    "vertical": "contractor",
+    "industry": "general_contractor",
+    "plan": "entry",
+    "websiteMode": "standard",
+    "domainMode": "buy"
+  },
+  "steps": [
+    {
+      "step": "tenant_insert",
+      "status": "ok",
+      "detail": "911e445c-6d0a-477c-9d27-d013b8ca08d4",
+      "ms": 315
+    },
+    {
+      "step": "generate",
+      "status": "ok",
+      "detail": "test-contractor-co-02b43d61-twomiah-build.zip (02b43d61-01a5-42f9-bd3f-a64e47b00e21)",
+      "ms": 2046
+    },
+    {
+      "step": "deploy",
+      "status": "ok",
+      "detail": "{\"siteUrl\":\"https://test-contractor-mpzu7hyy-rlhv-site.onrender.com\",\"deployedUrl\":\"https://test-contractor-mpzu7hyy-rlhv-api.onrender.com\",\"apiUrl\":\"https://test-contractor-mpzu7hyy-rlhv-api.onrender.com\"}",
+      "ms": 41351
+    },
+    {
+      "step": "wait_for_live",
+      "status": "error",
+      "detail": "services did not reach live state within 10 min",
+      "ms": 605338
+    },
+    {
+      "step": "cleanup_safety_check",
+      "status": "ok",
+      "detail": "is_test_tenant=true"
+    },
+    {
+      "step": "cleanup_stripe_cancel",
+      "status": "skipped",
+      "detail": "no subscription"
+    },
+    {
+      "step": "cleanup_render_services",
+      "status": "ok",
+      "detail": "1/14 candidate names deleted"
+    },
+    {
+      "step": "cleanup_render_postgres",
+      "status": "ok",
+      "detail": "1 database(s) deleted"
+    },
+    {
+      "step": "cleanup_cloudflare_zone",
+      "status": "skipped",
+      "detail": "no zone"
+    },
+    {
+      "step": "cleanup_sendgrid_domain_auth",
+      "status": "skipped",
+      "detail": "no domain auth"
+    },
+    {
+      "step": "cleanup_factory_jobs_delete",
+      "status": "ok",
+      "detail": "0 rows"
+    },
+    {
+      "step": "cleanup_intake_feedback_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_tenant_row_delete",
+      "status": "ok"
+    },
+    {
+      "step": "cleanup_total_ms",
+      "status": "ok",
+      "ms": 20475
+    }
+  ],
+  "startedAt": "2026-06-04T18:37:03.034Z",
+  "outcome": "fail",
+  "tenantId": "911e445c-6d0a-477c-9d27-d013b8ca08d4",
+  "finishedAt": "2026-06-04T18:48:12.570Z",
+  "totalMs": 669536
+}
