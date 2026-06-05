@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip, uploadIntakeAsset } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyPreviewReady, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyPreviewReady, notifyIntakeFeedback, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -3450,6 +3450,53 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   // extra UPDATE during deploy and adds nothing — the env-var path is
   // already populated by every deploy that runs initDb.ts.
   return c.json({ settings, pages })
+})
+
+// Public: customer feedback on a premium-website preview. The "Request
+// changes" widget on the preview page POSTs here. We save the message
+// and email staff so they can review and trigger a recompose (or edit
+// the preview JSON directly in the Premium Review page).
+//
+// Rate-limited per IP to make brigading the inbox harder.
+factory.post('/public/intake/:id/feedback', rateLimit(60 * 60 * 1000, 20), async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+  const body = await c.req.json().catch(() => ({})) as { message?: string }
+  const message = (body.message || '').toString().trim()
+  if (!message) return c.json({ error: 'Tell us what you would like changed.' }, 400)
+  if (message.length > 4000) return c.json({ error: 'Please keep feedback under 4000 characters.' }, 400)
+
+  const { data: tenant, error: tErr } = await supabase.from('tenants')
+    .select('id, name, email, preview_premium_pages')
+    .eq('id', id)
+    .single()
+  if (tErr || !tenant) return c.json({ error: 'Preview not found.' }, 404)
+  if (!tenant.preview_premium_pages) {
+    return c.json({ error: 'No preview composed yet — nothing to give feedback on.' }, 400)
+  }
+
+  const { error: insertErr } = await supabase.from('intake_feedback').insert({
+    tenant_id: id,
+    message,
+    status: 'new',
+  })
+  if (insertErr) {
+    const missingCol = insertErr.code === '42P01' || (insertErr.message || '').toLowerCase().includes('intake_feedback')
+    if (missingCol) {
+      return c.json({ error: 'Feedback table not migrated yet. Run apps/api/migrations/2026-06-05_intake_feedback.sql in Supabase.' }, 503)
+    }
+    console.error('[Feedback] insert failed:', insertErr)
+    return c.json({ error: 'Could not save your feedback. Please try again or email hello@twomiah.com.' }, 500)
+  }
+
+  notifyIntakeFeedback({
+    businessName: tenant.name,
+    intakeId: tenant.id,
+    message,
+    contactEmail: tenant.email || undefined,
+  }).catch((e: any) => console.warn('[Email] Feedback notification failed:', e.message))
+
+  return c.json({ success: true, message: "Got it — we'll turn around revisions in one business day." })
 })
 
 // Public: "Approve & buy" action on the premium preview. Creates a Stripe

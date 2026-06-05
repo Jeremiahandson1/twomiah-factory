@@ -339,6 +339,26 @@ export async function notifyPreviewReady(
   return sendEmail(data.to, `Your ${data.businessName} website preview is ready`, wrap('Your preview is ready', body))
 }
 
+/**
+ * Internal notification when a customer submits feedback on their
+ * premium-website preview. Routed to STAFF_NOTIFY_EMAIL (falls back
+ * to FACTORY_FROM_EMAIL) so somebody actually sees the request.
+ */
+export async function notifyIntakeFeedback(
+  data: { businessName: string; intakeId: string; message: string; contactEmail?: string }
+): Promise<boolean> {
+  const to = process.env.STAFF_NOTIFY_EMAIL || process.env.FACTORY_FROM_EMAIL || ''
+  if (!to) return false
+
+  const escaped = data.message.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c))
+  const body = `
+    <p style="color:#333;line-height:1.6;">New preview feedback from <strong>${data.businessName}</strong>${data.contactEmail ? ' (' + data.contactEmail + ')' : ''}:</p>
+    <div style="background:#f8f8fa;border-left:3px solid #f97316;padding:14px 18px;margin:16px 0;border-radius:4px;white-space:pre-wrap;color:#1a1a1a;line-height:1.55;">${escaped}</div>
+    <p style="color:#666;font-size:14px;">Open Premium Review on the platform to see all feedback for this intake and trigger a recompose.</p>
+    <p style="color:#999;font-size:12px;">Intake: <code>${data.intakeId}</code></p>`
+  return sendEmail(to, `[Preview feedback] ${data.businessName}`, wrap('Preview feedback received', body))
+}
+
 // ─── Trial lifecycle notifications ───────────────────────────────────────────
 
 /**
