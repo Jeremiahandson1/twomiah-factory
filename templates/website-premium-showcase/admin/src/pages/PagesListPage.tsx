@@ -39,8 +39,40 @@ export function PagesListPage() {
     }
   }
 
+  const [welcomeDismissed, setWelcomeDismissed] = useState<boolean>(() => {
+    try { return localStorage.getItem('twomiah_admin_welcome_dismissed') === '1' } catch { return false }
+  })
+  const dismissWelcome = () => {
+    setWelcomeDismissed(true)
+    try { localStorage.setItem('twomiah_admin_welcome_dismissed', '1') } catch { /* ignore */ }
+  }
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
+      {!welcomeDismissed && (
+        <div className="card card-padding mb-6 bg-paper border-2" style={{ borderColor: 'var(--brand)' }}>
+          <div className="flex items-start gap-4">
+            <div className="text-2xl flex-shrink-0" aria-hidden>👋</div>
+            <div className="flex-1">
+              <h2 className="text-lg text-ink font-semibold mb-1">Welcome to your site admin</h2>
+              <p className="text-sm text-ink-soft mb-3">
+                Your home, about, services, and contact pages are already filled in from your intake. Click any page below to tweak the wording, swap photos, or change section order. Everything saves live — visitors see updates immediately.
+              </p>
+              <div className="text-sm text-ink-soft mb-3">
+                <strong>Three things to try first:</strong>
+                <ol className="list-decimal list-inside mt-1.5 space-y-1">
+                  <li>Open <span className="font-semibold">home</span>, edit the hero section, watch the live preview update.</li>
+                  <li>Visit <span className="font-semibold">Photos</span> to upload a logo or hero shot, then drop it into any section.</li>
+                  <li>Check <span className="font-semibold">Settings</span> to confirm your company name, phone, and brand colors look right.</li>
+                </ol>
+              </div>
+              <button onClick={dismissWelcome} className="btn-secondary btn-sm">
+                Got it — don't show again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl text-ink">Pages</h1>
