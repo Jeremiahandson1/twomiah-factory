@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { API_URL } from '../supabase'
 
 type Step = 'business' | 'location' | 'voice' | 'brand' | 'review' | 'submitted'
@@ -103,32 +103,7 @@ export default function PublicIntakePage() {
   }
 
   if (step === 'submitted') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <div className="bg-white max-w-xl w-full rounded-2xl shadow-sm border border-gray-200 p-10 text-center">
-          <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green-600"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">You're all set.</h1>
-          <p className="text-gray-600 leading-relaxed mb-6">
-            Our team is composing your preview right now. You'll get an email at
-            <span className="font-semibold text-gray-900"> {state.contactEmail} </span>
-            within the next 10–15 minutes with a link to review your draft site.
-          </p>
-          <div className="bg-gray-50 rounded-lg p-4 text-left text-sm text-gray-600 mb-6">
-            <div className="font-semibold text-gray-900 mb-2">What happens next</div>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>We compose your home, about, services, and contact pages using your inputs.</li>
-              <li>You preview the result — request changes, swap photos, edit any section.</li>
-              <li>When you're happy, approve & buy. Your site goes live in ~10 minutes.</li>
-            </ol>
-          </div>
-          <div className="text-xs text-gray-500">
-            Reference: <code className="bg-gray-100 px-2 py-1 rounded">{intakeId}</code>
-          </div>
-        </div>
-      </div>
-    )
+    return <SubmittedScreen intakeId={intakeId!} contactEmail={state.contactEmail} />
   }
 
   const canAdvance = (() => {
@@ -295,6 +270,91 @@ export default function PublicIntakePage() {
         .input { display:block; width:100%; padding:10px 14px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; background:#fff; }
         .input:focus { outline:none; border-color:#f97316; box-shadow:0 0 0 3px rgba(249,115,22,.15); }
       `}</style>
+    </div>
+  )
+}
+
+function SubmittedScreen({ intakeId, contactEmail }: { intakeId: string; contactEmail: string }) {
+  const [ready, setReady] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const startedAtRef = useRef(Date.now())
+
+  // Tick a visible "elapsed time" counter so the customer knows the page
+  // is alive (not just spinning forever).
+  useEffect(() => {
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Poll status every 10s until ready. Stops on first success.
+  useEffect(() => {
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    async function tick() {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/factory/public/intake/${intakeId}/status`)
+        if (!res.ok) throw new Error('status check failed')
+        const data = await res.json()
+        if (cancelled) return
+        if (data.ready && data.previewUrl) {
+          setPreviewUrl(data.previewUrl)
+          setReady(true)
+          return
+        }
+      } catch { /* keep polling */ }
+      if (!cancelled) timer = setTimeout(tick, 10000)
+    }
+    tick()
+    return () => { cancelled = true; if (timer) clearTimeout(timer) }
+  }, [intakeId])
+
+  const mins = Math.floor(elapsed / 60)
+  const secs = elapsed % 60
+  const elapsedStr = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}s`
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="bg-white max-w-xl w-full rounded-2xl shadow-sm border border-gray-200 p-10 text-center">
+        {!ready ? (
+          <>
+            <div className="w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full border-4 border-orange-200 border-t-orange-500 animate-spin" />
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-3">Composing your preview…</h1>
+            <p className="text-gray-600 leading-relaxed mb-6">
+              Our AI is writing your home, about, services, and contact pages right now.
+              This usually takes 1–2 minutes.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600 mb-6">
+              <div className="font-semibold text-gray-900 mb-1">Elapsed: {elapsedStr}</div>
+              <div>You can leave this page open and it'll auto-refresh — or close it and watch your inbox for the preview link. We'll email <span className="font-semibold text-gray-900">{contactEmail}</span> when it's ready.</div>
+            </div>
+            <div className="text-xs text-gray-500">
+              Reference: <code className="bg-gray-100 px-2 py-1 rounded">{intakeId}</code>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-green-600"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-3">Your preview is ready.</h1>
+            <p className="text-gray-600 leading-relaxed mb-6">
+              We've composed a 4-page draft. Click below to review it — request changes from any page, or approve and buy.
+            </p>
+            <a
+              href={previewUrl || '#'}
+              className="inline-block bg-orange-500 hover:bg-orange-400 text-white px-8 py-3 rounded-lg text-base font-semibold transition-colors mb-6"
+            >
+              Open my preview →
+            </a>
+            <div className="text-xs text-gray-500">
+              We've also emailed the link to <span className="font-mono">{contactEmail}</span>.
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -3504,6 +3504,28 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   return c.json({ settings, pages })
 })
 
+// Public: status check used by the intake "we're composing" screen to
+// poll until the preview is ready. Returns { ready, previewUrl } without
+// leaking the full intake payload.
+factory.get('/public/intake/:id/status', async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+  const { data, error } = await supabase.from('tenants')
+    .select('name, preview_premium_pages, preview_premium_generated_at, preview_premium_approved_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (error || !data) return c.json({ ready: false, error: 'Not found' }, 404)
+  const ready = !!data.preview_premium_pages && !!data.preview_premium_approved_at
+  const factoryUrl = process.env.TWOMIAH_FACTORY_URL || ''
+  const previewUrl = ready && factoryUrl ? `${factoryUrl}/api/v1/factory/public/intake/${id}/preview-premium` : null
+  return c.json({
+    ready,
+    businessName: data.name,
+    generatedAt: data.preview_premium_generated_at,
+    previewUrl,
+  })
+})
+
 // Auto-compose path. Called from /public/intake right after the row
 // lands. Mirrors the staff-triggered /intake/:id/preview-premium logic
 // — pulls intake_data, signs customer photo URLs, fetches stock photos
