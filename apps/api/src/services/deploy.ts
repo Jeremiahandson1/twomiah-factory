@@ -1125,10 +1125,16 @@ export async function deployCustomer(
           siteEnvVars.push({ key: 'CRM_API_URL', value: results.apiUrl })
           siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
         }
+        // Premium sites push their drizzle schema to the dedicated DB on
+        // boot (no migration files exist — they're greenfield templates).
+        // Standard sites have no DB query path so they skip db:push.
+        const siteStartCommand = isPremiumSite
+          ? 'export PATH=$HOME/.bun/bin:$PATH && bunx drizzle-kit push --force && NODE_ENV=production bun server-static.ts'
+          : 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
           buildCommand: siteBunSetup + ' && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi',
-          startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts',
+          startCommand: siteStartCommand,
           envVars: siteEnvVars,
           plan, region,
         })
