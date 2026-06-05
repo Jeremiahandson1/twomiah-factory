@@ -153,6 +153,18 @@ export const SECTION_DEFS: SectionDef[] = [
       photos: [],
     },
   },
+
+  // ── Testimonials ────────────────────────────────────────────────────
+  {
+    type: 'testimonials', variant: 'quotes',
+    label: 'Testimonials — Customer quotes',
+    description: '1-3 short quotes from real customers. Most persuasive piece of copy on most service-business sites.',
+    defaultData: {
+      heading: 'What our customers say',
+      intro: '',
+      items: [{ quote: '', author: '', role: '', photo: '' }],
+    },
+  },
 ]
 
 export function findSectionDef(type: string, variant: string): SectionDef | undefined {

@@ -144,6 +144,13 @@ export const SECTION_SCHEMA = {
       use_when: 'showcase 6-12 photos of recent work, projects, dishes, builds, or before/after — best for visual businesses with portfolio-quality shots',
     },
   },
+  testimonials: {
+    quotes: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'show 1-3 short customer testimonials. Only use when the intake actually provided quotes or named customers — never fabricate testimonials.',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
