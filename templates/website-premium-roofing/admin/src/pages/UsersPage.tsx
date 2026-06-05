@@ -193,11 +193,11 @@ function InviteModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
               type="text"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              minLength={8}
+              minLength={10}
               required
               className="input"
             />
-            <p className="text-xs text-muted mt-1">At least 8 characters. They can change it after first login.</p>
+            <p className="text-xs text-muted mt-1">At least 10 characters, mixing letters with a number or symbol. They can change it after first login.</p>
           </div>
           <div>
             <Label>Name (optional)</Label>

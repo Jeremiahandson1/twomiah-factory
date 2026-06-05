@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { FileText, Image as ImageIcon, Settings, Inbox, LogOut, Users, UserCircle, CreditCard } from 'lucide-react'
+import { FileText, Image as ImageIcon, Settings, Inbox, LogOut, Users, UserCircle, CreditCard, Newspaper, Shield } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
@@ -9,11 +9,13 @@ type NavItem = { to: string; label: string; Icon: typeof FileText; adminOnly?: b
 
 const NAV: NavItem[] = [
   { to: '/pages',    label: 'Pages',    Icon: FileText },
+  { to: '/posts',    label: 'Blog',     Icon: Newspaper },
   { to: '/photos',   label: 'Photos',   Icon: ImageIcon },
   { to: '/settings', label: 'Settings', Icon: Settings },
   { to: '/leads',    label: 'Leads',    Icon: Inbox },
   { to: '/billing',  label: 'Billing',  Icon: CreditCard, adminOnly: true },
   { to: '/users',    label: 'Users',    Icon: Users, adminOnly: true },
+  { to: '/activity', label: 'Activity', Icon: Shield, adminOnly: true },
   { to: '/account',  label: 'Account',  Icon: UserCircle },
 ]
 

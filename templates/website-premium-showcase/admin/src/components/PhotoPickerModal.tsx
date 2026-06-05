@@ -36,7 +36,7 @@ export function PhotoPickerModal() {
       if (open.initialTag) form.append('tag', open.initialTag)
       const res = await fetch('/api/admin/photos', {
         method: 'POST',
-        headers: { Authorization: 'Bearer ' + (localStorage.getItem('admin_token') || '') },
+        credentials: 'include',
         body: form,
       })
       const data = await res.json()

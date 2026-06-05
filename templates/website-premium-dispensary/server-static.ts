@@ -18,21 +18,52 @@ import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/bun'
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, desc } from 'drizzle-orm'
 import ejs from 'ejs'
 import fs from 'fs'
 import path from 'path'
 import { db } from './db'
-import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl } from './db/schema'
+import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl } from './db/schema'
 import adminRoutes from './routes/admin'
+import { secureHeaders, adminCors, loginRateLimit, isSafeUrl } from './lib/security'
 
 const app = new Hono()
 
 app.use('*', logger())
+app.use('*', secureHeaders())
+// Public marketing pages can be embedded/fetched cross-origin freely.
+// The admin API gets a stricter CORS gate further down.
 app.use('*', cors())
+
+// In-memory per-IP rate limit for the public contact form. Honeypot +
+// dwell-time stop dumb bots; this stops someone hand-flooding a real
+// browser. 5 submissions per IP per 10 minutes — generous for a human
+// who's correcting typos, brutal for a flood.
+const leadBuckets = new Map<string, number[]>()
+const LEAD_WINDOW_MS = 10 * 60 * 1000
+const LEAD_MAX = 5
+function leadClientIp(c: any): string {
+  const xff = c.req.header('X-Forwarded-For') || ''
+  if (xff) return xff.split(',')[0].trim()
+  return c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
+}
 
 // ── Health ────────────────────────────────────────────────────────────────
 app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
+
+// RFC 9116 security disclosure file. Pointer to twomiah.com/security
+// keeps every tenant pointing to a single coordinated disclosure page.
+app.get('/.well-known/security.txt', (c) => {
+  const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
+  return c.text(
+    'Contact: mailto:security@twomiah.com\n' +
+    'Expires: ' + expires + '\n' +
+    'Preferred-Languages: en\n' +
+    'Canonical: https://twomiah.com/.well-known/security.txt\n' +
+    'Policy: https://twomiah.com/security\n',
+    200, { 'Content-Type': 'text/plain; charset=utf-8' }
+  )
+})
 
 // ── Asset serving (CSS, JS, uploads) ──────────────────────────────────────
 app.use('/styles/*', serveStatic({ root: './build' }))
@@ -89,14 +120,159 @@ app.get('/', async (c) => {
   return c.html(html)
 })
 
+// Blog routes — must register before the catch-all `/:slug` below or
+// Hono dispatches /blog to the slug handler first.
+app.get('/blog', async (c) => {
+  const settings = await loadSettings()
+  if (!settings) return c.text('Blog not configured yet.', 503)
+  const rows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
+  const listHtml = rows.length === 0
+    ? '<p class="blog-empty">No posts yet. Check back soon.</p>'
+    : '<div class="blog-list">' + rows.map(r => {
+        const date = r.publishedAt ? new Date(r.publishedAt as any).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
+        return `<a class="blog-card" href="/blog/${r.slug}">
+          ${r.coverImageUrl ? `<img class="blog-card__cover" src="${r.coverImageUrl}" alt="" loading="lazy">` : ''}
+          <div class="blog-card__body">
+            ${date ? `<div class="blog-card__date">${date}</div>` : ''}
+            <h2 class="blog-card__title">${r.title}</h2>
+            ${r.excerpt ? `<p class="blog-card__excerpt">${r.excerpt}</p>` : ''}
+            <span class="blog-card__more">Read →</span>
+          </div>
+        </a>`
+      }).join('') + '</div>'
+  const body = '<section class="blog-section"><div class="container"><h1 class="blog-section__title">From the blog</h1>' + listHtml + '</div></section>'
+  const effectiveSettings = {
+    ...settings,
+    homeHref: '/',
+    contactHref: '/contact',
+    seoTitle: 'Blog · ' + (settings.companyName || 'Our blog'),
+    seoDescription: settings.seoDescription || 'Recent posts from ' + (settings.companyName || 'the team') + '.',
+    nav: settings.nav || [],
+  }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath: '/blog' }) as string
+  return c.html(html)
+})
+
+app.get('/blog/:slug', async (c) => {
+  const slug = c.req.param('slug')
+  const settings = await loadSettings()
+  if (!settings) return c.text('Blog not configured yet.', 503)
+  const rows = await db.select().from(postsTbl).where(eq(postsTbl.slug, slug as string)).limit(1)
+  const post = rows[0]
+  if (!post || post.status !== 'published') return c.notFound()
+  const date = post.publishedAt ? new Date(post.publishedAt as any).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''
+  const body = `<article class="blog-post">
+    <div class="container container--narrow">
+      <a class="blog-post__back" href="/blog">← All posts</a>
+      ${post.coverImageUrl ? `<img class="blog-post__cover" src="${post.coverImageUrl}" alt="">` : ''}
+      ${date ? `<div class="blog-post__date">${date}</div>` : ''}
+      <h1 class="blog-post__title">${post.title}</h1>
+      ${post.excerpt ? `<p class="blog-post__excerpt">${post.excerpt}</p>` : ''}
+      <div class="blog-post__body">${markdownToHtml(post.body || '')}</div>
+    </div>
+  </article>`
+  const effectiveSettings = {
+    ...settings,
+    homeHref: '/',
+    contactHref: '/contact',
+    seoTitle: post.metaTitle || post.title + ' — ' + (settings.companyName || ''),
+    seoDescription: post.metaDescription || post.excerpt || '',
+    nav: settings.nav || [],
+  }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath: '/blog/' + slug }) as string
+  return c.html(html)
+})
+
 // Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt'].includes(slug)) return c.notFound()
+  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog'].includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
 })
+
+// ── Blog ──────────────────────────────────────────────────────────────
+// /blog        → list of published posts (newest first)
+// /blog/:slug  → individual post detail
+// Body is stored as markdown; we render to HTML at request time with a
+// tiny inline converter rather than pulling a heavy dep — covers the
+// 90% case (headings, paragraphs, lists, links, bold/italic, code,
+// blockquotes, images).
+
+function markdownToHtml(md: string): string {
+  if (!md) return ''
+  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const lines = md.replace(/\r\n/g, '\n').split('\n')
+  const out: string[] = []
+  let inList = false, listTag: 'ul' | 'ol' = 'ul'
+  let inBlockquote = false
+  let inCode = false, codeLang = ''
+  for (let raw of lines) {
+    // Fenced code block
+    const fence = raw.match(/^```(\w*)\s*$/)
+    if (fence) {
+      if (inCode) { out.push('</code></pre>'); inCode = false } else { codeLang = fence[1] || ''; out.push('<pre><code' + (codeLang ? ' class="lang-' + codeLang + '"' : '') + '>'); inCode = true }
+      continue
+    }
+    if (inCode) { out.push(escape(raw)); continue }
+    let line = raw
+    // Headings
+    const h = line.match(/^(#{1,6})\s+(.+)$/)
+    if (h) { if (inList) { out.push('</' + listTag + '>'); inList = false } if (inBlockquote) { out.push('</blockquote>'); inBlockquote = false } out.push('<h' + h[1].length + '>' + inlineMd(escape(h[2])) + '</h' + h[1].length + '>'); continue }
+    // List items
+    const ul = line.match(/^\s*[-*]\s+(.+)$/)
+    const ol = line.match(/^\s*\d+\.\s+(.+)$/)
+    if (ul || ol) {
+      const targetTag: 'ul' | 'ol' = ul ? 'ul' : 'ol'
+      if (!inList || listTag !== targetTag) { if (inList) out.push('</' + listTag + '>'); listTag = targetTag; out.push('<' + listTag + '>'); inList = true }
+      out.push('<li>' + inlineMd(escape((ul || ol)![1])) + '</li>')
+      continue
+    } else if (inList) { out.push('</' + listTag + '>'); inList = false }
+    // Blockquote
+    if (line.match(/^>\s?(.*)$/)) {
+      const bq = line.match(/^>\s?(.*)$/)![1]
+      if (!inBlockquote) { out.push('<blockquote>'); inBlockquote = true }
+      out.push('<p>' + inlineMd(escape(bq)) + '</p>')
+      continue
+    } else if (inBlockquote) { out.push('</blockquote>'); inBlockquote = false }
+    // Image: ![alt](url) — scheme-validate the URL so data:/javascript: can't sneak in
+    const img = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/)
+    if (img) {
+      const rawUrl = img[2]
+      if (isSafeUrl(rawUrl) && /^(https?:|\/)/i.test(rawUrl)) {
+        out.push('<p><img src="' + escape(rawUrl) + '" alt="' + escape(img[1]) + '" loading="lazy"></p>')
+      }
+      continue
+    }
+    // Blank line
+    if (line.trim() === '') { continue }
+    // Paragraph
+    out.push('<p>' + inlineMd(escape(line)) + '</p>')
+  }
+  if (inList) out.push('</' + listTag + '>')
+  if (inBlockquote) out.push('</blockquote>')
+  if (inCode) out.push('</code></pre>')
+  return out.join('\n')
+}
+
+function inlineMd(s: string): string {
+  // Order matters — bold before italic. Links are scheme-validated to
+  // strip javascript:/data:/vbscript: payloads even though body text is
+  // already HTML-escaped upstream (defense in depth).
+  return s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/_([^_]+)_/g, '<em>$1</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, href) => {
+      const safe = isSafeUrl(href) ? href : '#'
+      const external = /^https?:/i.test(safe)
+      const attrs = external ? ' rel="noopener noreferrer" target="_blank"' : ''
+      return '<a href="' + safe + '"' + attrs + '>' + text + '</a>'
+    })
+}
 
 // ── SEO files ──────────────────────────────────────────────────────────
 // Dynamic sitemap + robots so search engines see whatever's currently
@@ -112,12 +288,22 @@ function getSiteOrigin(c: any): string {
 
 app.get('/sitemap.xml', async (c) => {
   const origin = getSiteOrigin(c)
-  const rows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
-  const urls = rows.map(r => {
+  const pageRows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
+  const postRows = await db.select().from(postsTbl).where(eq(postsTbl.status, 'published')).orderBy(desc(postsTbl.publishedAt))
+  const urls: string[] = []
+  for (const r of pageRows) {
     const loc = origin + (r.slug === 'home' ? '/' : '/' + r.slug)
     const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
-    return `  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`
-  })
+    urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+  }
+  if (postRows.length > 0) {
+    urls.push(`  <url><loc>${escapeXml(origin + '/blog')}</loc></url>`)
+    for (const r of postRows) {
+      const loc = origin + '/blog/' + r.slug
+      const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+      urls.push(`  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`)
+    }
+  }
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
     `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
     urls.join('\n') +
@@ -143,6 +329,19 @@ function escapeXml(s: string): string {
 // ── Public: lead capture from the contact form ────────────────────────────
 app.post('/api/leads', async (c) => {
   try {
+    // Rate-limit first — keeps the DB write and email send off the
+    // critical path for flooders.
+    const ip = leadClientIp(c)
+    const now = Date.now()
+    const times = (leadBuckets.get(ip) || []).filter(t => now - t < LEAD_WINDOW_MS)
+    if (times.length >= LEAD_MAX) {
+      const retryAfterSec = Math.ceil((LEAD_WINDOW_MS - (now - times[0])) / 1000)
+      c.res.headers.set('Retry-After', String(retryAfterSec))
+      return c.json({ error: 'Too many submissions. Please try again later.' }, 429)
+    }
+    times.push(now)
+    leadBuckets.set(ip, times)
+
     const body = await c.req.parseBody() as Record<string, any>
 
     // ── Spam protection (honeypot + minimum dwell time) ────────────────
@@ -344,6 +543,11 @@ app.post('/api/internal/seed-photos', async (c) => {
 // JSON API mounted at /api/admin/*. The React SPA build lands at
 // admin/dist/ and gets served below at /admin/*. SPA routes that don't
 // match a built asset fall back to index.html so client-side routing works.
+// Admin API: stricter CORS than public pages — only same-origin browser
+// requests, or explicit allowlist via CORS_ALLOWED_ORIGINS env var.
+app.use('/api/admin/*', adminCors())
+// Login endpoint gets its own rate limit before the bcrypt comparison.
+app.use('/api/admin/login', loginRateLimit())
 app.route('/api/admin', adminRoutes)
 
 const adminDistDir = path.join(__dirname, 'admin', 'dist')

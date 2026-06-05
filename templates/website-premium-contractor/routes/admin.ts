@@ -22,38 +22,123 @@
  * Settings / Photos / Leads — auth, see below.
  */
 import { Hono, type Context } from 'hono'
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { eq, asc, desc, and, not } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import sharp from 'sharp'
+import crypto from 'crypto'
 import { db } from '../db'
-import { users as usersTbl, pages as pagesTbl, photos as photosTbl, settings as settingsTbl, leads as leadsTbl } from '../db/schema'
+import { users as usersTbl, pages as pagesTbl, photos as photosTbl, settings as settingsTbl, leads as leadsTbl, posts as postsTbl, userTokens as userTokensTbl, auditLog as auditLogTbl, sessions as sessionsTbl } from '../db/schema'
+import { isNull } from 'drizzle-orm'
 import { uploadImage, deleteImage } from '../services/storage'
+import { validatePasswordStrength } from '../lib/security'
+import { generateSecret, verifyTotp, otpauthUri, generateRecoveryCodes } from '../lib/totp'
+import { sendPasswordResetEmail, sendEmailVerificationEmail, sendLoginNotificationEmail } from '../lib/email'
+import { writeAudit, clientIp } from '../lib/audit'
+
+// In-memory 2FA challenge store. After a successful password check we
+// hand the client a one-time challenge ID; they POST it back with the
+// TOTP code. Single-process is fine (one Render web service per tenant)
+// and challenges expire in 5 minutes so the map stays small.
+interface Challenge { userId: string; expiresAt: number }
+const twofaChallenges = new Map<string, Challenge>()
+function newChallenge(userId: string): string {
+  const id = crypto.randomBytes(24).toString('base64url')
+  twofaChallenges.set(id, { userId, expiresAt: Date.now() + 5 * 60 * 1000 })
+  // Opportunistic GC
+  if (twofaChallenges.size > 1000) {
+    const now = Date.now()
+    for (const [k, v] of twofaChallenges) if (v.expiresAt < now) twofaChallenges.delete(k)
+  }
+  return id
+}
+function consumeChallenge(id: string): string | null {
+  const ch = twofaChallenges.get(id)
+  if (!ch || ch.expiresAt < Date.now()) { twofaChallenges.delete(id); return null }
+  twofaChallenges.delete(id)
+  return ch.userId
+}
+
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000  // 1 hour
+const VERIFY_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000  // 7 days
+
+function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex')
+}
+
+function siteOrigin(c: Context): string {
+  const explicit = process.env.SITE_URL
+  if (explicit) return explicit.replace(/\/$/, '')
+  const host = c.req.header('Host') || 'localhost'
+  const proto = c.req.header('X-Forwarded-Proto') || (host.startsWith('localhost') ? 'http' : 'https')
+  return proto + '://' + host
+}
 
 type AdminVars = {
   userId?: string
   userEmail?: string
   userRole?: string
+  sessionId?: string
 }
 
 const app = new Hono<{ Variables: AdminVars }>()
 
 const JWT_SECRET = process.env.JWT_SECRET || ''
 const TOKEN_TTL_SECONDS = 60 * 60 * 12 // 12h
+const AUTH_COOKIE = 'auth'
 
-function signToken(user: { id: string; email: string; role: string }): string {
+function signToken(user: { id: string; email: string; role: string }, jti: string): string {
   if (!JWT_SECRET) throw new Error('JWT_SECRET not set')
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: TOKEN_TTL_SECONDS })
+  return jwt.sign({ sub: user.id, email: user.email, role: user.role, jti }, JWT_SECRET, { expiresIn: TOKEN_TTL_SECONDS })
+}
+
+// Set the auth JWT as an httpOnly cookie. JavaScript on the page can't
+// read it (so XSS can't exfiltrate the credential), the browser refuses
+// to send it on cross-site requests (so CSRF is dead), and it auto-rides
+// every same-origin request — admin SPA doesn't touch the token at all.
+function setAuthCookie(c: Context, token: string) {
+  setCookie(c, AUTH_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict',
+    path: '/',
+    maxAge: TOKEN_TTL_SECONDS,
+  })
 }
 
 async function authMiddleware(c: Context<{ Variables: AdminVars }>, next: () => Promise<void>) {
   if (!JWT_SECRET) return c.json({ error: 'JWT_SECRET not configured' }, 503)
+  const cookieToken = getCookie(c, AUTH_COOKIE) || ''
   const header = c.req.header('Authorization') || ''
-  const token = header.startsWith('Bearer ') ? header.slice(7) : ''
+  const headerToken = header.startsWith('Bearer ') ? header.slice(7) : ''
+  const token = cookieToken || headerToken
   if (!token) return c.json({ error: 'Missing auth token' }, 401)
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; email?: string; role?: string }
+    const decoded = jwt.verify(token, JWT_SECRET) as { sub?: string; email?: string; role?: string; iat?: number; jti?: string }
     if (!decoded.sub) return c.json({ error: 'Invalid token' }, 401)
+    // jti-based session check. Bearer tokens (server-to-server) may not
+    // carry a jti — those skip the session check, since they're issued
+    // with the factory sync key, not from the login flow.
+    if (decoded.jti) {
+      const sess = (await db.select().from(sessionsTbl).where(eq(sessionsTbl.jti, decoded.jti)).limit(1))[0]
+      if (!sess || sess.revokedAt) {
+        deleteCookie(c, AUTH_COOKIE, { path: '/' })
+        return c.json({ error: 'Session was revoked. Please sign in again.' }, 401)
+      }
+      // Best-effort heartbeat — don't await
+      db.update(sessionsTbl).set({ lastSeenAt: new Date() }).where(eq(sessionsTbl.id, sess.id)).catch(() => {})
+      c.set('sessionId', sess.id)
+    } else {
+      // Legacy/non-session-issued token — still honor tokensInvalidatedAt
+      const rows = await db.select({ tokensInvalidatedAt: usersTbl.tokensInvalidatedAt })
+        .from(usersTbl).where(eq(usersTbl.id, decoded.sub)).limit(1)
+      const inv = rows[0]?.tokensInvalidatedAt
+      if (inv && decoded.iat && decoded.iat * 1000 < inv.getTime()) {
+        deleteCookie(c, AUTH_COOKIE, { path: '/' })
+        return c.json({ error: 'Session was revoked. Please sign in again.' }, 401)
+      }
+    }
     c.set('userId', decoded.sub)
     c.set('userEmail', decoded.email)
     c.set('userRole', decoded.role || 'admin')
@@ -63,7 +148,54 @@ async function authMiddleware(c: Context<{ Variables: AdminVars }>, next: () => 
   }
 }
 
+// Audit-log every successful admin mutation. Catches everything that
+// touches state without each handler needing to call writeAudit. Login
+// and a few other endpoints add richer entries manually on top.
+app.use('*', async (c, next) => {
+  await next()
+  const m = c.req.method
+  if (m === 'GET' || m === 'OPTIONS' || m === 'HEAD') return
+  if (c.res.status >= 400) return
+  const userId = c.get('userId') || null
+  const userEmail = c.get('userEmail') || null
+  // Skip the noisier auth churn — login/me have their own audit entries
+  const path = new URL(c.req.url).pathname
+  if (/\/(login|login\/2fa|logout|me|password\/forgot)$/.test(path)) return
+  writeAudit(c, {
+    userId, userEmail,
+    action: m.toLowerCase() + ' ' + path.replace(/^\/api\/admin/, ''),
+    target: path.replace(/^\/api\/admin\//, ''),
+  })
+})
+
 // ─── Auth ─────────────────────────────────────────────────────────────────
+
+async function completeLogin(c: Context, user: { id: string; email: string; name: string | null; role: string }) {
+  await db.update(usersTbl).set({ lastLoginAt: new Date() }).where(eq(usersTbl.id, user.id))
+  const jti = crypto.randomBytes(16).toString('base64url')
+  await db.insert(sessionsTbl).values({
+    userId: user.id,
+    jti,
+    ip: clientIp(c),
+    userAgent: (c.req.header('User-Agent') || '').slice(0, 500),
+  })
+  const token = signToken({ id: user.id, email: user.email, role: user.role }, jti)
+  setAuthCookie(c, token)
+  writeAudit(c, { userId: user.id, userEmail: user.email, action: 'login' })
+  // Login notification — fire-and-forget so a flaky SendGrid doesn't stall sign-in
+  const origin = siteOrigin(c)
+  sendLoginNotificationEmail({
+    to: user.email,
+    ip: clientIp(c),
+    userAgent: (c.req.header('User-Agent') || 'unknown').slice(0, 200),
+    when: new Date(),
+    resetUrl: origin + '/admin/forgot-password',
+  }).catch(() => { /* non-fatal */ })
+  return c.json({
+    token,
+    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+  })
+}
 
 app.post('/login', async (c) => {
   const body = await c.req.json().catch(() => ({})) as { email?: string; password?: string }
@@ -73,21 +205,76 @@ app.post('/login', async (c) => {
 
   const rows = await db.select().from(usersTbl).where(eq(usersTbl.email, email)).limit(1)
   const user = rows[0]
-  // Constant-time-ish: always do the bcrypt comparison even if user not found,
-  // so we don't leak whether the email exists.
+  // Always do bcrypt regardless of user existence so we don't leak which emails exist
   const ok = user
     ? await bcrypt.compare(password, user.passwordHash)
     : await bcrypt.compare(password, '$2a$10$invalidsaltinvalidsaltinvalidsaltinvalidsaltinval')
 
-  if (!user || !ok) return c.json({ error: 'Incorrect email or password' }, 401)
+  if (!user || !ok) {
+    writeAudit(c, { userEmail: email, action: 'login_failed', meta: { reason: 'bad_credentials' } })
+    return c.json({ error: 'Incorrect email or password' }, 401)
+  }
 
-  await db.update(usersTbl).set({ lastLoginAt: new Date() }).where(eq(usersTbl.id, user.id))
+  if (user.totpEnabledAt) {
+    const challengeId = newChallenge(user.id)
+    return c.json({ requires2fa: true, challengeId })
+  }
 
-  const token = signToken({ id: user.id, email: user.email, role: user.role })
-  return c.json({
-    token,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
-  })
+  return await completeLogin(c, user)
+})
+
+// Second leg of 2FA login. Accepts either a TOTP code or a recovery
+// code. Recovery codes are bcrypt-hashed and stored comma-separated;
+// a match consumes that hash (the user's code-list shrinks by one).
+app.post('/login/2fa', async (c) => {
+  const body = await c.req.json().catch(() => ({})) as { challengeId?: string; code?: string }
+  const challengeId = String(body.challengeId || '')
+  const code = String(body.code || '').trim().replace(/\s/g, '')
+  if (!challengeId || !code) return c.json({ error: 'challengeId and code are required' }, 400)
+
+  const userId = consumeChallenge(challengeId)
+  if (!userId) return c.json({ error: 'Challenge expired. Please sign in again.' }, 401)
+
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user || !user.totpSecret) return c.json({ error: 'Two-factor not configured' }, 401)
+
+  // First try TOTP
+  if (verifyTotp(user.totpSecret, code)) {
+    return await completeLogin(c, user)
+  }
+
+  // Recovery code path — codes look like xxxx-xxxx; bcrypt hashes stored
+  const stored = (user.recoveryCodes || '').split(',').filter(Boolean)
+  for (let i = 0; i < stored.length; i++) {
+    if (await bcrypt.compare(code.toLowerCase(), stored[i])) {
+      const remaining = stored.slice(0, i).concat(stored.slice(i + 1))
+      await db.update(usersTbl).set({ recoveryCodes: remaining.join(',') }).where(eq(usersTbl.id, user.id))
+      writeAudit(c, { userId: user.id, userEmail: user.email, action: 'login_recovery_code_used', meta: { remaining: remaining.length } })
+      return await completeLogin(c, user)
+    }
+  }
+
+  writeAudit(c, { userId: user.id, userEmail: user.email, action: 'login_failed', meta: { reason: 'bad_2fa' } })
+  // Re-issue the challenge so a typo doesn't force the user back to password — but only if there's time
+  const newId = newChallenge(user.id)
+  return c.json({ error: 'Incorrect code. Try again.', challengeId: newId }, 401)
+})
+
+// Logout — clears the cookie and revokes the current session row so
+// the token is hard-invalidated even if it leaked.
+app.post('/logout', async (c) => {
+  const token = getCookie(c, AUTH_COOKIE) || ''
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { jti?: string }
+      if (decoded.jti) {
+        await db.update(sessionsTbl).set({ revokedAt: new Date() }).where(eq(sessionsTbl.jti, decoded.jti))
+      }
+    } catch { /* token already invalid — fine */ }
+  }
+  deleteCookie(c, AUTH_COOKIE, { path: '/' })
+  return c.json({ ok: true })
 })
 
 app.get('/me', authMiddleware, async (c) => {
@@ -95,7 +282,12 @@ app.get('/me', authMiddleware, async (c) => {
   const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
   const user = rows[0]
   if (!user) return c.json({ error: 'User not found' }, 404)
-  return c.json({ user: { id: user.id, email: user.email, name: user.name, role: user.role } })
+  return c.json({ user: {
+    id: user.id, email: user.email, name: user.name, role: user.role,
+    emailVerified: !!user.emailVerifiedAt,
+    totpEnabled: !!user.totpEnabledAt,
+    recoveryCodesRemaining: (user.recoveryCodes || '').split(',').filter(Boolean).length,
+  } })
 })
 
 // Password change — current user only. Verifies the current password
@@ -108,7 +300,8 @@ app.post('/password', authMiddleware, async (c) => {
   const current = String(body.currentPassword || '')
   const next = String(body.newPassword || '')
   if (!current || !next) return c.json({ error: 'currentPassword and newPassword are required' }, 400)
-  if (next.length < 8) return c.json({ error: 'New password must be at least 8 characters' }, 400)
+  const strength = validatePasswordStrength(next)
+  if (!strength.ok) return c.json({ error: strength.reason }, 400)
   if (next === current) return c.json({ error: 'New password must differ from current password' }, 400)
 
   const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
@@ -119,8 +312,239 @@ app.post('/password', authMiddleware, async (c) => {
   if (!ok) return c.json({ error: 'Current password is incorrect' }, 401)
 
   const newHash = await bcrypt.hash(next, 10)
-  await db.update(usersTbl).set({ passwordHash: newHash }).where(eq(usersTbl.id, userId))
+  // Revoke every other open session; re-mint the current one so we don't kick ourselves out
+  const currentSessionId = c.get('sessionId') || null
+  await db.update(usersTbl).set({ passwordHash: newHash, tokensInvalidatedAt: new Date() }).where(eq(usersTbl.id, userId))
+  if (currentSessionId) {
+    await db.update(sessionsTbl).set({ revokedAt: new Date() })
+      .where(and(eq(sessionsTbl.userId, userId), isNull(sessionsTbl.revokedAt), not(eq(sessionsTbl.id, currentSessionId))))
+  } else {
+    await db.update(sessionsTbl).set({ revokedAt: new Date() })
+      .where(and(eq(sessionsTbl.userId, userId), isNull(sessionsTbl.revokedAt)))
+    const jti = crypto.randomBytes(16).toString('base64url')
+    await db.insert(sessionsTbl).values({ userId, jti, ip: clientIp(c), userAgent: (c.req.header('User-Agent') || '').slice(0, 500) })
+    setAuthCookie(c, signToken({ id: user.id, email: user.email, role: user.role }, jti))
+  }
+  writeAudit(c, { userId, userEmail: user.email, action: 'password_change' })
   return c.json({ ok: true })
+})
+
+// ─── Sessions ────────────────────────────────────────────────────────────
+
+app.get('/sessions', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const currentSessionId = c.get('sessionId') || null
+  const rows = await db.select().from(sessionsTbl)
+    .where(and(eq(sessionsTbl.userId, userId), isNull(sessionsTbl.revokedAt)))
+    .orderBy(desc(sessionsTbl.lastSeenAt))
+  return c.json({
+    sessions: rows.map(r => ({
+      id: r.id, ip: r.ip, userAgent: r.userAgent,
+      createdAt: r.createdAt, lastSeenAt: r.lastSeenAt,
+      isCurrent: r.id === currentSessionId,
+    })),
+  })
+})
+
+app.post('/sessions/:id/revoke', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const sessionId = c.req.param('id')!
+  const result = await db.update(sessionsTbl).set({ revokedAt: new Date() })
+    .where(and(eq(sessionsTbl.id, sessionId), eq(sessionsTbl.userId, userId)))
+    .returning({ id: sessionsTbl.id })
+  if (result.length === 0) return c.json({ error: 'Session not found' }, 404)
+  writeAudit(c, { userId, action: 'session_revoked', target: 'session/' + sessionId })
+  return c.json({ ok: true })
+})
+
+// Revoke every other open session; re-mint the current.
+app.post('/sessions/revoke-all', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user) return c.json({ error: 'User not found' }, 404)
+  const currentSessionId = c.get('sessionId') || null
+  if (currentSessionId) {
+    await db.update(sessionsTbl).set({ revokedAt: new Date() })
+      .where(and(eq(sessionsTbl.userId, userId), isNull(sessionsTbl.revokedAt), not(eq(sessionsTbl.id, currentSessionId))))
+  } else {
+    await db.update(sessionsTbl).set({ revokedAt: new Date() })
+      .where(and(eq(sessionsTbl.userId, userId), isNull(sessionsTbl.revokedAt)))
+    const jti = crypto.randomBytes(16).toString('base64url')
+    await db.insert(sessionsTbl).values({ userId, jti, ip: clientIp(c), userAgent: (c.req.header('User-Agent') || '').slice(0, 500) })
+    setAuthCookie(c, signToken({ id: user.id, email: user.email, role: user.role }, jti))
+  }
+  await db.update(usersTbl).set({ tokensInvalidatedAt: new Date() }).where(eq(usersTbl.id, userId))
+  writeAudit(c, { userId: user.id, userEmail: user.email, action: 'sessions_revoked_all' })
+  return c.json({ ok: true })
+})
+
+// ─── Password reset (public) ──────────────────────────────────────────────
+// Public — no auth. We send the link to the user's email; the link
+// carries a 32-byte random token. We store only its SHA-256 hash so a
+// DB dump doesn't yield usable reset links. One-hour expiry, single-use.
+
+app.post('/password/forgot', async (c) => {
+  const body = await c.req.json().catch(() => ({})) as { email?: string }
+  const email = String(body.email || '').trim().toLowerCase()
+  if (!email) return c.json({ error: 'Email is required' }, 400)
+
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.email, email)).limit(1)
+  const user = rows[0]
+
+  if (user) {
+    const token = crypto.randomBytes(32).toString('base64url')
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS)
+    await db.insert(userTokensTbl).values({
+      userId: user.id, kind: 'password_reset', tokenHash: hashToken(token), expiresAt,
+    })
+    const origin = siteOrigin(c)
+    const resetUrl = origin + '/admin/reset-password?token=' + encodeURIComponent(token)
+    await sendPasswordResetEmail({ to: user.email, resetUrl }).catch((e) => console.warn('[reset] email send failed:', e?.message))
+    writeAudit(c, { userId: user.id, userEmail: user.email, action: 'password_reset_requested' })
+  }
+  // Always respond identically so email-existence can't be probed
+  return c.json({ ok: true, message: 'If that email is on file, a reset link has been sent.' })
+})
+
+app.post('/password/reset', async (c) => {
+  const body = await c.req.json().catch(() => ({})) as { token?: string; newPassword?: string }
+  const token = String(body.token || '')
+  const next = String(body.newPassword || '')
+  if (!token || !next) return c.json({ error: 'token and newPassword are required' }, 400)
+  const strength = validatePasswordStrength(next)
+  if (!strength.ok) return c.json({ error: strength.reason }, 400)
+
+  const tokenHash = hashToken(token)
+  const rows = await db.select().from(userTokensTbl)
+    .where(and(eq(userTokensTbl.kind, 'password_reset'), eq(userTokensTbl.tokenHash, tokenHash)))
+    .limit(1)
+  const row = rows[0]
+  if (!row || row.usedAt || row.expiresAt.getTime() < Date.now()) {
+    return c.json({ error: 'This reset link is invalid or has expired.' }, 400)
+  }
+
+  const newHash = await bcrypt.hash(next, 10)
+  await db.update(usersTbl).set({ passwordHash: newHash }).where(eq(usersTbl.id, row.userId))
+  await db.update(userTokensTbl).set({ usedAt: new Date() }).where(eq(userTokensTbl.id, row.id))
+  // Invalidate any other outstanding reset tokens for this user — once one is used the rest are stale
+  await db.update(userTokensTbl).set({ usedAt: new Date() })
+    .where(and(eq(userTokensTbl.userId, row.userId), eq(userTokensTbl.kind, 'password_reset'), not(eq(userTokensTbl.id, row.id))))
+
+  const userRow = (await db.select().from(usersTbl).where(eq(usersTbl.id, row.userId)).limit(1))[0]
+  if (userRow) writeAudit(c, { userId: userRow.id, userEmail: userRow.email, action: 'password_reset_completed' })
+  return c.json({ ok: true })
+})
+
+// ─── Email verification ───────────────────────────────────────────────────
+
+app.post('/verify-email/send', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user) return c.json({ error: 'User not found' }, 404)
+  if (user.emailVerifiedAt) return c.json({ ok: true, alreadyVerified: true })
+  const token = crypto.randomBytes(32).toString('base64url')
+  await db.insert(userTokensTbl).values({
+    userId: user.id, kind: 'email_verify', tokenHash: hashToken(token),
+    expiresAt: new Date(Date.now() + VERIFY_TOKEN_TTL_MS),
+  })
+  const verifyUrl = siteOrigin(c) + '/admin/verify-email?token=' + encodeURIComponent(token)
+  await sendEmailVerificationEmail({ to: user.email, verifyUrl }).catch(() => { /* non-fatal */ })
+  return c.json({ ok: true })
+})
+
+app.post('/verify-email/confirm', async (c) => {
+  const body = await c.req.json().catch(() => ({})) as { token?: string }
+  const token = String(body.token || '')
+  if (!token) return c.json({ error: 'token is required' }, 400)
+  const tokenHash = hashToken(token)
+  const rows = await db.select().from(userTokensTbl)
+    .where(and(eq(userTokensTbl.kind, 'email_verify'), eq(userTokensTbl.tokenHash, tokenHash)))
+    .limit(1)
+  const row = rows[0]
+  if (!row || row.usedAt || row.expiresAt.getTime() < Date.now()) {
+    return c.json({ error: 'This verification link is invalid or has expired.' }, 400)
+  }
+  await db.update(usersTbl).set({ emailVerifiedAt: new Date() }).where(eq(usersTbl.id, row.userId))
+  await db.update(userTokensTbl).set({ usedAt: new Date() }).where(eq(userTokensTbl.id, row.id))
+  return c.json({ ok: true })
+})
+
+// ─── 2FA (TOTP) ───────────────────────────────────────────────────────────
+// Three-step setup: GET /2fa/setup → returns a fresh secret + otpauth
+// URI for the QR code. POST /2fa/enable with the first valid code locks
+// it on and returns recovery codes (shown once). POST /2fa/disable
+// requires the current password to turn it back off.
+
+app.post('/2fa/setup', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user) return c.json({ error: 'User not found' }, 404)
+  // Generate but don't persist as enabled — only the secret column.
+  // If the user abandons setup, the secret sits unused until next attempt.
+  const secret = generateSecret()
+  await db.update(usersTbl).set({ totpSecret: secret, totpEnabledAt: null }).where(eq(usersTbl.id, user.id))
+  const issuer = (process.env.COMPANY_NAME || 'Twomiah') + ' Admin'
+  return c.json({
+    secret,
+    otpauthUri: otpauthUri({ secret, account: user.email, issuer }),
+  })
+})
+
+app.post('/2fa/enable', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const body = await c.req.json().catch(() => ({})) as { code?: string }
+  const code = String(body.code || '').trim()
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user || !user.totpSecret) return c.json({ error: 'Start setup before enabling' }, 400)
+  if (!verifyTotp(user.totpSecret, code)) return c.json({ error: "Code didn't match. Check your authenticator and try again." }, 400)
+  if (user.totpEnabledAt) return c.json({ ok: true, alreadyEnabled: true })
+
+  const codes = generateRecoveryCodes(10)
+  const hashes = await Promise.all(codes.map(c => bcrypt.hash(c, 10)))
+  await db.update(usersTbl).set({
+    totpEnabledAt: new Date(),
+    recoveryCodes: hashes.join(','),
+  }).where(eq(usersTbl.id, user.id))
+  writeAudit(c, { userId: user.id, userEmail: user.email, action: '2fa_enabled' })
+  return c.json({ ok: true, recoveryCodes: codes })
+})
+
+app.post('/2fa/disable', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const body = await c.req.json().catch(() => ({})) as { password?: string }
+  const password = String(body.password || '')
+  if (!password) return c.json({ error: 'password is required' }, 400)
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user) return c.json({ error: 'User not found' }, 404)
+  const ok = await bcrypt.compare(password, user.passwordHash)
+  if (!ok) return c.json({ error: 'Password is incorrect' }, 401)
+  await db.update(usersTbl).set({
+    totpEnabledAt: null, totpSecret: null, recoveryCodes: null,
+  }).where(eq(usersTbl.id, user.id))
+  writeAudit(c, { userId: user.id, userEmail: user.email, action: '2fa_disabled' })
+  return c.json({ ok: true })
+})
+
+app.post('/2fa/recovery-codes/regenerate', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const body = await c.req.json().catch(() => ({})) as { password?: string }
+  const password = String(body.password || '')
+  const rows = await db.select().from(usersTbl).where(eq(usersTbl.id, userId)).limit(1)
+  const user = rows[0]
+  if (!user || !user.totpEnabledAt) return c.json({ error: 'Two-factor is not enabled' }, 400)
+  if (!password || !(await bcrypt.compare(password, user.passwordHash))) {
+    return c.json({ error: 'Password is incorrect' }, 401)
+  }
+  const codes = generateRecoveryCodes(10)
+  const hashes = await Promise.all(codes.map(c => bcrypt.hash(c, 10)))
+  await db.update(usersTbl).set({ recoveryCodes: hashes.join(',') }).where(eq(usersTbl.id, user.id))
+  writeAudit(c, { userId: user.id, userEmail: user.email, action: '2fa_recovery_codes_regenerated' })
+  return c.json({ ok: true, recoveryCodes: codes })
 })
 
 // ─── Users ────────────────────────────────────────────────────────────────
@@ -154,7 +578,8 @@ app.post('/users', authMiddleware, requireAdmin, async (c) => {
   const role = body.role && VALID_ROLES.has(body.role) ? body.role : 'editor'
 
   if (!email || !password) return c.json({ error: 'Email and password are required' }, 400)
-  if (password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400)
+  const newUserStrength = validatePasswordStrength(password)
+  if (!newUserStrength.ok) return c.json({ error: newUserStrength.reason }, 400)
 
   const existing = await db.select({ id: usersTbl.id }).from(usersTbl).where(eq(usersTbl.email, email)).limit(1)
   if (existing[0]) return c.json({ error: 'A user with that email already exists' }, 409)
@@ -477,6 +902,90 @@ app.delete('/photos/:id', authMiddleware, async (c) => {
   }
   await db.delete(photosTbl).where(eq(photosTbl.id, id))
   return c.json({ ok: true })
+})
+
+// ─── Blog posts ───────────────────────────────────────────────────────────
+const POST_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,80}[a-z0-9])?$/
+
+app.get('/posts', authMiddleware, async (c) => {
+  const rows = await db.select().from(postsTbl).orderBy(desc(postsTbl.createdAt))
+  return c.json({
+    posts: rows.map(r => ({
+      id: r.id,
+      slug: r.slug,
+      title: r.title,
+      excerpt: r.excerpt,
+      status: r.status,
+      coverImageUrl: r.coverImageUrl,
+      publishedAt: r.publishedAt,
+      updatedAt: r.updatedAt,
+    })),
+  })
+})
+
+app.get('/posts/:slug', authMiddleware, async (c) => {
+  const slug = c.req.param('slug')!
+  const rows = await db.select().from(postsTbl).where(eq(postsTbl.slug, slug)).limit(1)
+  const post = rows[0]
+  if (!post) return c.json({ error: 'Post not found' }, 404)
+  return c.json({ post })
+})
+
+app.post('/posts', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const title = String(body.title || '').trim()
+  const slug = String(body.slug || '').trim().toLowerCase()
+  if (!title) return c.json({ error: 'title is required' }, 400)
+  if (!slug || !POST_SLUG_RE.test(slug)) return c.json({ error: 'slug must be lowercase letters, numbers, and hyphens' }, 400)
+  const existing = await db.select({ id: postsTbl.id }).from(postsTbl).where(eq(postsTbl.slug, slug)).limit(1)
+  if (existing[0]) return c.json({ error: 'A post with that slug already exists' }, 409)
+  const [created] = await db.insert(postsTbl).values({
+    slug, title,
+    excerpt: typeof body.excerpt === 'string' ? body.excerpt : null,
+    body: typeof body.body === 'string' ? body.body : '',
+    coverImageUrl: typeof body.coverImageUrl === 'string' ? body.coverImageUrl : null,
+    status: body.status === 'published' ? 'published' : 'draft',
+    publishedAt: body.status === 'published' ? new Date() : null,
+  }).returning()
+  return c.json({ post: created }, 201)
+})
+
+app.patch('/posts/:slug', authMiddleware, async (c) => {
+  const slug = c.req.param('slug')!
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const patch: Record<string, any> = {}
+  if (typeof body.title === 'string') patch.title = body.title
+  if (typeof body.excerpt === 'string' || body.excerpt === null) patch.excerpt = body.excerpt
+  if (typeof body.body === 'string') patch.body = body.body
+  if (typeof body.coverImageUrl === 'string' || body.coverImageUrl === null) patch.coverImageUrl = body.coverImageUrl
+  if (typeof body.metaTitle === 'string' || body.metaTitle === null) patch.metaTitle = body.metaTitle
+  if (typeof body.metaDescription === 'string' || body.metaDescription === null) patch.metaDescription = body.metaDescription
+  if (body.status === 'draft' || body.status === 'published') {
+    patch.status = body.status
+    if (body.status === 'published') {
+      const existing = await db.select().from(postsTbl).where(eq(postsTbl.slug, slug)).limit(1)
+      if (existing[0] && !existing[0].publishedAt) patch.publishedAt = new Date()
+    }
+  }
+  if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields in patch' }, 400)
+  patch.updatedAt = new Date()
+  const result = await db.update(postsTbl).set(patch).where(eq(postsTbl.slug, slug)).returning()
+  if (result.length === 0) return c.json({ error: 'Post not found' }, 404)
+  return c.json({ post: result[0] })
+})
+
+app.delete('/posts/:slug', authMiddleware, async (c) => {
+  const slug = c.req.param('slug')!
+  const result = await db.delete(postsTbl).where(eq(postsTbl.slug, slug)).returning({ id: postsTbl.id })
+  if (result.length === 0) return c.json({ error: 'Post not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// ─── Audit log read (admin only) ─────────────────────────────────────────
+app.get('/audit', authMiddleware, requireAdmin, async (c) => {
+  const limit = Math.min(parseInt(c.req.query('limit') || '100', 10) || 100, 500)
+  const rows = await db.select().from(auditLogTbl).orderBy(desc(auditLogTbl.createdAt)).limit(limit)
+  return c.json({ entries: rows })
 })
 
 export default app

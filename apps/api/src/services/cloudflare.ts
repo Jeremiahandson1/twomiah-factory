@@ -108,6 +108,83 @@ export async function deleteDnsRecord(zoneId: string, recordId: string): Promise
   await cfFetch('/zones/' + zoneId + '/dns_records/' + recordId, { method: 'DELETE' })
 }
 
+// ─── WAF custom rules (Rulesets API) ────────────────────────────────────────
+// We push our standard tenant ruleset to each customer zone idempotently —
+// list the http_request_firewall_custom rulesets, find ours by description,
+// then upsert the rule set. Reference:
+// https://developers.cloudflare.com/ruleset-engine/
+
+const WAF_RULESET_NAME = 'Twomiah tenant WAF rules'
+
+interface WafRule {
+  description: string
+  expression: string
+  action: 'block' | 'managed_challenge' | 'js_challenge' | 'log'
+  enabled: boolean
+}
+
+const STANDARD_WAF_RULES: WafRule[] = [
+  {
+    description: 'Block obvious path traversal probes',
+    expression: '(http.request.uri.path contains "..") or (http.request.uri.path contains "%2e%2e")',
+    action: 'block',
+    enabled: true,
+  },
+  {
+    description: 'Block unverified bots',
+    expression: '(cf.client.bot) and (not cf.verified_bot)',
+    action: 'block',
+    enabled: true,
+  },
+  {
+    description: 'Challenge high-threat-score login attempts',
+    expression: '(http.request.uri.path eq "/api/admin/login") and (cf.threat_score gt 10)',
+    action: 'managed_challenge',
+    enabled: true,
+  },
+  {
+    description: 'Challenge medium-threat-score admin path access',
+    // No reference to $cf_known_abusers — that's not a built-in Cloudflare list;
+    // customers can add their own IP list rules separately if they want one.
+    expression: '(starts_with(http.request.uri.path, "/api/admin/") or starts_with(http.request.uri.path, "/admin")) and (cf.threat_score gt 20)',
+    action: 'managed_challenge',
+    enabled: true,
+  },
+]
+
+export async function applyTenantWafRules(zoneId: string): Promise<{ rulesetId: string; applied: number }> {
+  // Find or create our custom ruleset for the zone
+  const lists: any = await cfFetch('/zones/' + zoneId + '/rulesets')
+  const existing = Array.isArray(lists) ? lists.find((r: any) => r.name === WAF_RULESET_NAME && r.phase === 'http_request_firewall_custom') : null
+
+  const body = {
+    name: WAF_RULESET_NAME,
+    description: 'Managed by Twomiah Factory — do not edit manually; changes will be overwritten on next sync.',
+    kind: 'zone' as const,
+    phase: 'http_request_firewall_custom' as const,
+    rules: STANDARD_WAF_RULES.map(r => ({
+      description: r.description,
+      expression: r.expression,
+      action: r.action,
+      enabled: r.enabled,
+    })),
+  }
+
+  if (existing) {
+    const updated = await cfFetch('/zones/' + zoneId + '/rulesets/' + existing.id, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    })
+    return { rulesetId: updated.id || existing.id, applied: STANDARD_WAF_RULES.length }
+  } else {
+    const created = await cfFetch('/zones/' + zoneId + '/rulesets', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+    return { rulesetId: created.id, applied: STANDARD_WAF_RULES.length }
+  }
+}
+
 // ─── Email Routing ───────────────────────────────────────────────────────────
 // Enabling Email Routing provisions Cloudflare's MX records automatically.
 // After enabling we add destination addresses (each tenant email forwarder

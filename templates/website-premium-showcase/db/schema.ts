@@ -70,16 +70,76 @@ export const photos = pgTable('photos', {
 }))
 
 // Admin user — the customer who logs in to edit. One row by default,
-// they can invite more later.
+// they can invite more later. totp_* columns hold the second-factor
+// state; recovery_codes is a comma-separated list of bcrypt hashes,
+// each consumed once.
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   passwordHash: text('password_hash').notNull(),
   name: text('name'),
   role: text('role').notNull().default('admin'),  // 'admin' | 'editor'
+  totpSecret: text('totp_secret'),
+  totpEnabledAt: timestamp('totp_enabled_at', { withTimezone: true }),
+  recoveryCodes: text('recovery_codes'),  // comma-separated bcrypt hashes
+  // Bumped on password change, 2FA disable, force-logout-all. Tokens
+  // issued before this timestamp (iat < tokenInvalidatedAt) are rejected.
+  tokensInvalidatedAt: timestamp('tokens_invalidated_at', { withTimezone: true }),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
+
+// Sessions — one row per active sign-in. JWT carries the jti; we
+// require the jti to be present here and not revoked. Adds one indexed
+// DB read per request (same call we were already making for the
+// tokensInvalidatedAt check, just selecting more columns).
+export const sessions = pgTable('sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  jti: text('jti').notNull().unique(),
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+}, (t) => ({
+  userIdx: index('sessions_user_idx').on(t.userId, t.revokedAt),
+  jtiIdx: index('sessions_jti_idx').on(t.jti),
+}))
+
+// Single-use tokens for password reset + email verification. We store
+// only the hash; the plaintext lives in the email the user receives.
+export const userTokens = pgTable('user_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  // 'password_reset' | 'email_verify'
+  kind: text('kind').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  hashIdx: index('user_tokens_hash_idx').on(t.tokenHash),
+  userKindIdx: index('user_tokens_user_kind_idx').on(t.userId, t.kind),
+}))
+
+// Append-only audit log. Every admin action that mutates state writes
+// one row here. UI surfaces it under Settings → Activity for the owner.
+export const auditLog = pgTable('audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  userEmail: text('user_email'),  // captured at write time so deletes don't blank the log
+  action: text('action').notNull(),  // 'login' | 'login_failed' | 'password_change' | 'page_update' | ...
+  target: text('target'),  // free-text identifier, e.g. 'pages/home' or 'user/abc'
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+  meta: jsonb('meta'),  // optional structured details
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  createdIdx: index('audit_log_created_idx').on(t.createdAt),
+  userIdx: index('audit_log_user_idx').on(t.userId, t.createdAt),
+}))
 
 // Lead inbox — every contact form submission lands here. Mirrors
 // the existing template's lead capture so we don't lose the basics.
@@ -95,4 +155,27 @@ export const leads = pgTable('leads', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusIdx: index('leads_status_created_idx').on(t.status, t.createdAt),
+}))
+
+// Blog posts — body is markdown, rendered to HTML at request time.
+// Status drives the public route's filter: only 'published' posts
+// appear on /blog and /blog/<slug>.
+export const posts = pgTable('posts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  title: text('title').notNull(),
+  excerpt: text('excerpt'),
+  body: text('body').notNull().default(''),  // markdown
+  coverImageUrl: text('cover_image_url'),
+  // 'draft' | 'published' — drafts hidden from public site + sitemap
+  status: text('status').notNull().default('draft'),
+  // Override per-post; falls back to title/excerpt for SEO when empty
+  metaTitle: text('meta_title'),
+  metaDescription: text('meta_description'),
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  slugIdx: index('posts_slug_idx').on(t.slug),
+  statusPublishedIdx: index('posts_status_published_idx').on(t.status, t.publishedAt),
 }))

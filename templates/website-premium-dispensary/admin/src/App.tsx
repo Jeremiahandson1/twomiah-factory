@@ -10,6 +10,12 @@ import { LeadsPage } from './pages/LeadsPage'
 import { UsersPage } from './pages/UsersPage'
 import { AccountPage } from './pages/AccountPage'
 import { BillingPage } from './pages/BillingPage'
+import { PostsListPage } from './pages/PostsListPage'
+import { PostEditPage } from './pages/PostEditPage'
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
+import { VerifyEmailPage } from './pages/VerifyEmailPage'
+import { AuditLogPage } from './pages/AuditLogPage'
 import { PhotoPickerProvider } from './contexts/PhotoPickerContext'
 import { PhotoPickerModal } from './components/PhotoPickerModal'
 
@@ -18,6 +24,9 @@ export default function App() {
     <PhotoPickerProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/pages" replace />} />
           <Route path="/pages" element={<PagesListPage />} />
@@ -28,6 +37,9 @@ export default function App() {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/billing" element={<BillingPage />} />
+          <Route path="/posts" element={<PostsListPage />} />
+          <Route path="/posts/:slug" element={<PostEditPage />} />
+          <Route path="/activity" element={<AuditLogPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/pages" replace />} />
       </Routes>
