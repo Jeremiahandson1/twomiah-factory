@@ -340,6 +340,18 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
     // deploy is still up but smoke fails this run.
     await smokeCheck(deployedUrls, caseSpec, time)
 
+    // If smoke failed despite Render saying services were live, capture
+    // runtime logs (not build) so we can see WHY the service isn't
+    // responding. captureRenderBuildLogs honours the synthetic
+    // 'live_but_smoke_failed' status to fetch logs for every service.
+    const smokeFailed = entry.steps.some(s => s.status === 'error' && s.step.startsWith('smoke_'))
+    if (smokeFailed && Object.keys(renderServiceIds).length > 0) {
+      const synthetic: Record<string, string> = {}
+      for (const role of Object.keys(renderServiceIds)) synthetic[role] = 'live_but_smoke_failed'
+      await captureRenderBuildLogs(renderServiceIds, synthetic, AUDIT_DIR, testId)
+      time('captured_runtime_logs', 'ok', undefined, 0)
+    }
+
     entry.outcome = entry.steps.some(s => s.status === 'error') ? 'fail' : 'pass'
     return entry
   } finally {
