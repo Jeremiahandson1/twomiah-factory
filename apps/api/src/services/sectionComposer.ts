@@ -201,6 +201,60 @@ ${Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
 9. CTA must include a primaryCta with a real action label ("Schedule a consultation", "Get a quote") — not "Click here".
 10. All copy must read like a human wrote it for this specific business, not a template.
 
+# Voice — the part most AI fails at
+
+This is the bar. Headlines must be SPECIFIC, CONFIDENT, and NON-GENERIC.
+A reader should be able to tell ONE business apart from another competitor
+in the same industry just by reading the hero.
+
+BANNED phrases — never use these or anything that smells like them:
+- "Trusted [X] experts/professionals/leader"
+- "Premier / leading / number-one [X]"
+- "Compassionate care" (homecare)
+- "Complete [X] solutions" / "Full-service [X] solutions"
+- "Quality [X] for your [Y]" / "Quality you can trust"
+- "Your [adjective] partner for [X]"
+- "Where [vague noun] meets [vague noun]"
+- "From [X] to [Y]" used as a complete headline
+- Any title that could substitute the business name and still apply to a
+  competitor down the street.
+
+WRITE LIKE A HUMAN:
+- Use a fact from the intake in the headline if you can (city, year founded,
+  signature dish/service, owner name, what they do that competitors don't).
+- Take a position. The dispensary headline "Curated Quality, Not Volume
+  Pricing" is good because it picks a side. "Premium Cannabis Selection"
+  is bad because anybody could say it.
+- The hero subtitle should be ONE concrete claim — a price, a count, a
+  specific service window, a thing only they do — not a list of buzzwords.
+- It's better to be slightly weird and specific than smooth and generic.
+
+Examples — the SAME business done well vs poorly:
+
+Landscaping done BADLY (don't do this):
+  eyebrow: "Madison's Trusted Landscaping Experts"
+  title:   "Complete Landscape Solutions from Design to Maintenance"
+  subtitle:"Full-service landscape design-build and maintenance."
+
+Landscaping done WELL:
+  eyebrow: "Madison · since 2011"
+  title:   "Nine trucks, weekly cycles, one foreman per job"
+  subtitle:"Design-build crews who also handle your spring cleanups,
+            paver patios, and snow. Started by a guy who spent 12 years on
+            someone else's truck before starting his own."
+
+Homecare done BADLY (don't do this):
+  title:   "Compassionate care for your loved ones at home"
+
+Homecare done WELL:
+  eyebrow: "Eau Claire · founded by two RNs"
+  title:   "Care designed by nurses, not consultants"
+  subtitle:"Twenty-two caregivers, all background-checked, all paid above
+            market. Specialists in dementia and end-of-life support."
+
+If your headline could plausibly run on a competitor's site five miles
+away, rewrite it.
+
 # Output schema (strict)
 {
   "rationale": "1-2 sentences on why this composition fits this business",
