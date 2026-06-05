@@ -155,7 +155,7 @@ export const SECTION_SCHEMA = {
     accordion: {
       required: ['items'],
       optional: ['heading', 'intro'],
-      use_when: 'pre-empt the 5-8 most common buyer questions for this business: pricing, process, lead time, coverage area, what is included, what to expect. Big SEO win and qualifies leads.',
+      use_when: 'pre-empt the 5-8 most common buyer questions for this business — pricing, process, lead time, coverage area, what is included, what to expect, scheduling, payment, warranty/guarantee. Strong SEO win. PROACTIVELY GENERATE these questions from the business description even when the intake didn\'t explicitly ask for an FAQ — the questions and answers should be plausibly true given what the business said about itself.',
     },
   },
 } as const
@@ -413,23 +413,23 @@ export interface SiteResult {
 const PAGE_RECIPES = {
   home: {
     purpose: 'Front door. Build trust fast, show what they do, close with a CTA.',
-    allowed_types: ['hero', 'services', 'cta'],
-    required_sequence: '1 hero, optional 1 second hero (e.g. hero/split flip for an about-style block), 1 services section, 1 cta',
+    allowed_types: ['hero', 'services', 'gallery', 'testimonials', 'faq', 'cta'],
+    required_sequence: '1 hero, then 1 services, then ADD 1 faq (proactively — generate plausible questions from the description), optionally 1 gallery (if visual business with Tier 1 customer photos available) or 1 testimonials (ONLY if real quotes are in the intake — never fabricate), close with 1 cta',
   },
   about: {
     purpose: 'Tell who they are. The voice page — read by qualified leads doing due diligence.',
-    allowed_types: ['about', 'team', 'cta'],
-    required_sequence: '1 about/story section, optional 1 team/grid, optional 1 cta to drive to contact',
+    allowed_types: ['about', 'team', 'testimonials', 'cta'],
+    required_sequence: '1 about/story, optional 1 team/grid, optional 1 testimonials block (only with real quotes), close with 1 cta',
   },
   services: {
     purpose: 'Full menu of what they do. Read by people who already know they want to hire and are scoping fit.',
-    allowed_types: ['hero', 'services', 'cta'],
-    required_sequence: 'optional 1 hero (lighter than homepage hero), 1 services section (use the more-detailed variant), 1 cta',
+    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
+    required_sequence: 'optional 1 hero (lighter), 1 services (use the more-detailed variant), optional 1 of {gallery, faq}, close with 1 cta',
   },
   contact: {
     purpose: 'Conversion page. Form + business details + response promise.',
-    allowed_types: ['hero', 'contact'],
-    required_sequence: 'optional 1 hero (short, copy-only), 1 contact/form-info section',
+    allowed_types: ['hero', 'contact', 'faq'],
+    required_sequence: 'optional 1 hero (short, copy-only), 1 contact/form-info, optional 1 faq if it answers common pre-contact questions',
   },
 } as const
 
