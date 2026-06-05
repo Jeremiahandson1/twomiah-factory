@@ -84,6 +84,43 @@ export function BookingsCalendarPage() {
       .filter(b => new Date(b.startAt).toDateString() === date.toDateString())
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
 
+  // Drag-to-reschedule: drop a booking on a different day preserves
+  // the time-of-day, shifts only the date. Optimistic local update
+  // then API patch; rollback on failure.
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dragSavingError, setDragSavingError] = useState<string | null>(null)
+
+  const onDragStart = (e: React.DragEvent, b: Booking) => {
+    setDragId(b.id)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', b.id)
+  }
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }
+  const onDrop = async (e: React.DragEvent, target: Date) => {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('text/plain') || dragId
+    setDragId(null)
+    if (!id) return
+    const b = bookings.find(x => x.id === id)
+    if (!b) return
+    const oldStart = new Date(b.startAt)
+    if (oldStart.toDateString() === target.toDateString()) return  // same day, no-op
+    const oldEnd = new Date(b.endAt)
+    const newStart = new Date(target)
+    newStart.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0)
+    const newEnd = new Date(newStart.getTime() + (oldEnd.getTime() - oldStart.getTime()))
+    // Optimistic
+    setBookings(prev => prev.map(x => x.id === id ? { ...x, startAt: newStart.toISOString(), endAt: newEnd.toISOString() } : x))
+    try {
+      await api.patch(`/api/admin/bookings/${id}`, { startAt: newStart.toISOString(), endAt: newEnd.toISOString() })
+      setDragSavingError(null)
+    } catch (err: any) {
+      // Rollback
+      setBookings(prev => prev.map(x => x.id === id ? { ...x, startAt: b.startAt, endAt: b.endAt } : x))
+      setDragSavingError(err?.message || 'Reschedule failed')
+    }
+  }
+
   const goWeek = (delta: number) => {
     const d = new Date(weekStart)
     if (view === 'week') d.setDate(d.getDate() + 7 * delta)
@@ -133,6 +170,8 @@ export function BookingsCalendarPage() {
       </div>
 
       {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
+      {dragSavingError && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{dragSavingError}</div>}
+      <p className="text-xs text-muted mb-4">Tip: drag any booking to a different day to reschedule. Time of day is preserved.</p>
 
       {view === 'week' ? (
         <div className="card overflow-hidden">
@@ -151,11 +190,16 @@ export function BookingsCalendarPage() {
               {days.map((d, i) => {
                 const dayBookings = bookingsForDay(d)
                 return (
-                  <div key={i} className="border-r border-line last:border-r-0 p-2 space-y-1.5">
+                  <div key={i}
+                    onDragOver={onDragOver}
+                    onDrop={(e) => onDrop(e, d)}
+                    className="border-r border-line last:border-r-0 p-2 space-y-1.5">
                     {dayBookings.length === 0 && <div className="text-xs text-muted/60 text-center pt-4">—</div>}
                     {dayBookings.map(b => (
                       <Link key={b.id} to={`/bookings/${b.id}`}
-                        className={clsx('block px-2 py-1.5 rounded border text-xs hover:shadow-sm transition-shadow', STATUS_BG[b.status])}
+                        draggable
+                        onDragStart={(e) => onDragStart(e, b)}
+                        className={clsx('block px-2 py-1.5 rounded border text-xs hover:shadow-sm transition-shadow cursor-move', STATUS_BG[b.status], dragId === b.id && 'opacity-50')}
                         title={`${b.customerName} — ${serviceById(b.serviceId)}`}>
                         <div className="font-mono text-[10px] opacity-70">
                           {new Date(b.startAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
@@ -183,13 +227,18 @@ export function BookingsCalendarPage() {
                 const inMonth = d.getMonth() === monthStart.getMonth()
                 const dayBookings = bookingsForDay(d)
                 return (
-                  <div key={i} className={clsx('border-r border-b border-line last:border-r-0 p-1.5 min-h-[88px]', !inMonth && 'bg-paper/40')}>
+                  <div key={i}
+                    onDragOver={onDragOver}
+                    onDrop={(e) => onDrop(e, d)}
+                    className={clsx('border-r border-b border-line last:border-r-0 p-1.5 min-h-[88px]', !inMonth && 'bg-paper/40')}>
                     <div className={clsx('text-xs font-mono mb-1', d.toDateString() === today ? 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand text-white' : inMonth ? 'text-ink-soft' : 'text-muted/50')}>
                       {d.getDate()}
                     </div>
                     {dayBookings.slice(0, 3).map(b => (
                       <Link key={b.id} to={`/bookings/${b.id}`}
-                        className={clsx('block px-1.5 py-0.5 rounded mb-0.5 text-[10px] truncate hover:underline', STATUS_BG[b.status])}
+                        draggable
+                        onDragStart={(e) => onDragStart(e, b)}
+                        className={clsx('block px-1.5 py-0.5 rounded mb-0.5 text-[10px] truncate hover:underline cursor-move', STATUS_BG[b.status], dragId === b.id && 'opacity-50')}
                         title={`${b.customerName} — ${serviceById(b.serviceId)}`}>
                         <span className="font-mono opacity-60 mr-1">{new Date(b.startAt).toLocaleTimeString('en-US', { hour: 'numeric' })}</span>
                         {b.customerName}

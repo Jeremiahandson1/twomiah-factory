@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff, Calendar, Link2, Link2Off, Type } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff, Calendar, Link2, Link2Off, Type, MapPin, Users } from 'lucide-react'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
 
@@ -20,6 +20,8 @@ interface Service {
 }
 interface Rule { id: string; userId: string | null; dayOfWeek: number; startMinute: number; endMinute: number }
 interface Blackout { id: string; date: string; startMinute: number | null; endMinute: number | null; reason: string | null; userId: string | null }
+interface User { id: string; email: string; name: string | null; role: string }
+interface Zone { id: string; userId: string; zipList: string | null; centerLat: string | null; centerLng: string | null; radiusMiles: number | null }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
@@ -35,6 +37,7 @@ export function BookingSettingsPage() {
       <ServicesSection />
       <AvailabilitySection />
       <BlackoutsSection />
+      <ZonesSection />
       <CalendarSyncSection />
       <CopyCustomizationSection />
     </div>
@@ -42,6 +45,83 @@ export function BookingSettingsPage() {
 }
 
 interface Connection { id: string; provider: string; externalAccountEmail: string | null; createdAt: string; expiresAt: string | null }
+
+function ZonesSection() {
+  const [zones, setZones] = useState<Zone[]>([])
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [newUserId, setNewUserId] = useState('')
+  const [newZips, setNewZips] = useState('')
+
+  const load = () => {
+    setLoading(true)
+    Promise.all([
+      api.get<{ zones: Zone[] }>('/api/admin/booking-zones').catch(() => ({ zones: [] as Zone[] })),
+      api.get<{ users: User[] }>('/api/admin/users').catch(() => ({ users: [] as User[] })),
+    ]).then(([z, u]) => { setZones(z.zones); setUsers(u.users) })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const userById = (id: string) => users.find(u => u.id === id)
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(null)
+    try {
+      await api.post('/api/admin/booking-zones', { userId: newUserId, zipList: newZips.replace(/\s/g, '') })
+      setNewUserId(''); setNewZips(''); load()
+    } catch (e: any) { setError(e?.message) }
+  }
+  const remove = async (id: string) => {
+    if (!confirm('Remove this service zone?')) return
+    try { await api.delete(`/api/admin/booking-zones/${id}`); load() }
+    catch (e: any) { setError(e?.message) }
+  }
+
+  if (users.length === 0) return null  // no crew = no per-crew zones meaningful
+
+  return (
+    <section className="card card-padding mb-6">
+      <h2 className="text-lg text-ink flex items-center gap-2 mb-3"><MapPin className="w-4 h-4" />Service zones</h2>
+      <p className="text-muted text-xs mb-4">Restrict each crew to specific ZIP codes. Customer's ZIP at booking time filters to qualifying crews. Crew without any zone = serves everywhere.</p>
+      {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
+      <form onSubmit={add} className="flex items-end gap-2 mb-4 flex-wrap">
+        <div>
+          <Label>Crew</Label>
+          <select required value={newUserId} onChange={e => setNewUserId(e.target.value)} className="input" style={{ width: 200 }}>
+            <option value="">Pick a crew…</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+          </select>
+        </div>
+        <div className="flex-1">
+          <Label>Serves ZIPs (comma-separated)</Label>
+          <input required value={newZips} onChange={e => setNewZips(e.target.value)} placeholder="53703, 53704, 53705" className="input" />
+        </div>
+        <button type="submit" className="btn-primary btn-md">Add zone</button>
+      </form>
+      {loading && <div className="text-muted text-sm">Loading…</div>}
+      {!loading && zones.length === 0 && <div className="text-muted text-sm">No zones set — all crews serve everywhere.</div>}
+      {!loading && zones.length > 0 && (
+        <ul className="divide-y divide-line">
+          {zones.map(z => {
+            const u = userById(z.userId)
+            return (
+              <li key={z.id} className="py-3 flex items-center gap-3">
+                <Users className="w-4 h-4 text-muted shrink-0" />
+                <div className="flex-1">
+                  <div className="font-semibold text-ink">{u?.name || u?.email || 'Unknown crew'}</div>
+                  <div className="text-xs text-muted font-mono break-all">{z.zipList || '(no ZIPs)'}</div>
+                </div>
+                <button onClick={() => remove(z.id)} className="btn-secondary btn-sm text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
 
 function CopyCustomizationSection() {
   const [vals, setVals] = useState({ bookingHeroTitle: '', bookingHeroSubtitle: '', bookingConfirmCta: '', bookingThanksMessage: '' })
@@ -336,14 +416,18 @@ function ServiceModal({ initial, onClose, onSaved }: { initial?: Service; onClos
 
 function AvailabilitySection() {
   const [rules, setRules] = useState<Rule[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [okMsg, setOkMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    api.get<{ rules: Rule[] }>('/api/admin/booking-availability')
-      .then(({ rules }) => setRules(rules))
+    Promise.all([
+      api.get<{ rules: Rule[] }>('/api/admin/booking-availability'),
+      api.get<{ users: User[] }>('/api/admin/users').catch(() => ({ users: [] as User[] })),
+    ])
+      .then(([r, u]) => { setRules(r.rules); setUsers(u.users) })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
@@ -380,7 +464,13 @@ function AvailabilitySection() {
       {!loading && rules.length > 0 && (
         <ul className="space-y-2 mb-4">
           {rules.map((r, i) => (
-            <li key={r.id} className="flex items-center gap-2">
+            <li key={r.id} className="flex items-center gap-2 flex-wrap">
+              {users.length > 0 && (
+                <select value={r.userId || ''} onChange={e => updateRule(i, { userId: e.target.value || null })} className="input" style={{ width: 160 }}>
+                  <option value="">Any crew</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+                </select>
+              )}
               <select value={r.dayOfWeek} onChange={e => updateRule(i, { dayOfWeek: parseInt(e.target.value) })} className="input" style={{ width: 110 }}>
                 {DAYS.map((d, ix) => <option key={ix} value={ix}>{d}</option>)}
               </select>
