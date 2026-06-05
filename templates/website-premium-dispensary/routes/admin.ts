@@ -1173,6 +1173,65 @@ app.get('/bookings', authMiddleware, async (c) => {
   return c.json({ bookings: rows })
 })
 
+// ─── Twomiah Bookings — analytics dashboard ─────────────────────────────
+// MUST be declared before `/bookings/:id` so Hono doesn't try to look up
+// a booking with id="analytics" (which fails Postgres UUID parsing → 500).
+app.get('/bookings/analytics', authMiddleware, async (c) => {
+  const days = Math.min(parseInt(c.req.query('days') || '30', 10) || 30, 365)
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+  const rows = await db.select().from(bookingsTbl).where(gte(bookingsTbl.createdAt, since))
+  const services = await db.select().from(bookingServicesTbl)
+  const priceById = new Map(services.map(s => [s.id, s.priceCents || 0]))
+  const nameById = new Map(services.map(s => [s.id, s.name]))
+
+  const byStatus: Record<string, number> = { confirmed: 0, completed: 0, cancelled: 0, no_show: 0 }
+  const byDayOfWeek = Array.from({ length: 7 }, () => 0)
+  const byHour = Array.from({ length: 24 }, () => 0)
+  const byServiceCount: Record<string, number> = {}
+  let revenue = 0, completedCount = 0
+  let noShows = 0, completedAndCancelledAndNoShow = 0
+
+  for (const b of rows) {
+    byStatus[b.status] = (byStatus[b.status] || 0) + 1
+    const start = b.startAt as Date
+    byDayOfWeek[start.getDay()]++
+    byHour[start.getHours()]++
+    byServiceCount[b.serviceId] = (byServiceCount[b.serviceId] || 0) + 1
+    if (b.status === 'completed') {
+      revenue += priceById.get(b.serviceId) || 0
+      completedCount++
+    }
+    if (b.status === 'no_show') noShows++
+    if (b.status === 'completed' || b.status === 'cancelled' || b.status === 'no_show') completedAndCancelledAndNoShow++
+  }
+
+  const byServiceRevenue: Record<string, { count: number; completed: number; revenueCents: number }> = {}
+  for (const b of rows) {
+    if (!byServiceRevenue[b.serviceId]) byServiceRevenue[b.serviceId] = { count: 0, completed: 0, revenueCents: 0 }
+    byServiceRevenue[b.serviceId].count++
+    if (b.status === 'completed') {
+      byServiceRevenue[b.serviceId].completed++
+      byServiceRevenue[b.serviceId].revenueCents += priceById.get(b.serviceId) || 0
+    }
+  }
+  const topServices = Object.entries(byServiceRevenue)
+    .sort(([, a], [, b]) => b.revenueCents - a.revenueCents || b.count - a.count)
+    .slice(0, 5)
+    .map(([id, stats]) => ({ id, name: nameById.get(id) || 'Unknown', count: stats.count, completedCount: stats.completed, revenueCents: stats.revenueCents }))
+
+  return c.json({
+    rangeDays: days,
+    totalBookings: rows.length,
+    byStatus,
+    revenueCents: revenue,
+    avgBookingValueCents: completedCount > 0 ? Math.round(revenue / completedCount) : 0,
+    noShowRate: completedAndCancelledAndNoShow > 0 ? noShows / completedAndCancelledAndNoShow : 0,
+    byDayOfWeek,
+    byHour,
+    topServices,
+  })
+})
+
 app.get('/bookings/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')!
   const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id)).limit(1)
@@ -1588,68 +1647,6 @@ app.get('/booking-customers/:email', authMiddleware, async (c) => {
       priceCents: svcById.get(b.serviceId)?.priceCents || null,
       seriesId: b.seriesId,
     })),
-  })
-})
-
-// ─── Twomiah Bookings — analytics dashboard ─────────────────────────────
-// Compact aggregates for the last 30 / 90 days: counts by status,
-// revenue total, average booking value, no-show rate, day-of-week +
-// time-of-day distributions, top services. All from one trip to the
-// bookings table.
-app.get('/bookings/analytics', authMiddleware, async (c) => {
-  const days = Math.min(parseInt(c.req.query('days') || '30', 10) || 30, 365)
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-  const rows = await db.select().from(bookingsTbl).where(gte(bookingsTbl.createdAt, since))
-  const services = await db.select().from(bookingServicesTbl)
-  const priceById = new Map(services.map(s => [s.id, s.priceCents || 0]))
-  const nameById = new Map(services.map(s => [s.id, s.name]))
-
-  const byStatus: Record<string, number> = { confirmed: 0, completed: 0, cancelled: 0, no_show: 0 }
-  const byDayOfWeek = Array.from({ length: 7 }, () => 0)
-  const byHour = Array.from({ length: 24 }, () => 0)
-  const byServiceCount: Record<string, number> = {}
-  let revenue = 0, completedCount = 0
-  let noShows = 0, completedAndCancelledAndNoShow = 0
-
-  for (const b of rows) {
-    byStatus[b.status] = (byStatus[b.status] || 0) + 1
-    const start = b.startAt as Date
-    byDayOfWeek[start.getDay()]++
-    byHour[start.getHours()]++
-    byServiceCount[b.serviceId] = (byServiceCount[b.serviceId] || 0) + 1
-    if (b.status === 'completed') {
-      revenue += priceById.get(b.serviceId) || 0
-      completedCount++
-    }
-    if (b.status === 'no_show') noShows++
-    if (b.status === 'completed' || b.status === 'cancelled' || b.status === 'no_show') completedAndCancelledAndNoShow++
-  }
-
-  // Revenue + completion count per service (top 5 by revenue)
-  const byServiceRevenue: Record<string, { count: number; completed: number; revenueCents: number }> = {}
-  for (const b of rows) {
-    if (!byServiceRevenue[b.serviceId]) byServiceRevenue[b.serviceId] = { count: 0, completed: 0, revenueCents: 0 }
-    byServiceRevenue[b.serviceId].count++
-    if (b.status === 'completed') {
-      byServiceRevenue[b.serviceId].completed++
-      byServiceRevenue[b.serviceId].revenueCents += priceById.get(b.serviceId) || 0
-    }
-  }
-  const topServices = Object.entries(byServiceRevenue)
-    .sort(([, a], [, b]) => b.revenueCents - a.revenueCents || b.count - a.count)
-    .slice(0, 5)
-    .map(([id, stats]) => ({ id, name: nameById.get(id) || 'Unknown', count: stats.count, completedCount: stats.completed, revenueCents: stats.revenueCents }))
-
-  return c.json({
-    rangeDays: days,
-    totalBookings: rows.length,
-    byStatus,
-    revenueCents: revenue,
-    avgBookingValueCents: completedCount > 0 ? Math.round(revenue / completedCount) : 0,
-    noShowRate: completedAndCancelledAndNoShow > 0 ? noShows / completedAndCancelledAndNoShow : 0,
-    byDayOfWeek,
-    byHour,
-    topServices,
   })
 })
 
