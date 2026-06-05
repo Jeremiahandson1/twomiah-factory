@@ -484,11 +484,11 @@ async function waitForRenderLive(serviceIds: Record<string, string>, opts: { max
       }
       const allLive = Object.values(lastStatuses).every(s => s === 'live')
       if (allLive) return { ok: true, lastStatuses }
-      // Conservative early-bail: ALL services must be terminal-failed before
-      // we give up. A mix of 'live' + 'build_failed' would have been caught
-      // by !allLive; a single transient 'unknown' shouldn't kill the test.
-      const allTerminal = Object.values(lastStatuses).every(s => TERMINAL_FAILURES.has(s))
-      if (allTerminal && Object.keys(lastStatuses).length > 0) return { ok: false, lastStatuses }
+      // Bail as soon as ANY service is terminal-failed — a 'live' site
+      // paired with an 'update_failed' backend is still broken overall,
+      // and waiting the full timeout just to confirm doesn't add signal.
+      const anyTerminal = Object.values(lastStatuses).some(s => TERMINAL_FAILURES.has(s))
+      if (anyTerminal) return { ok: false, lastStatuses }
     } catch {
       // Transient Render API errors — keep waiting.
     }

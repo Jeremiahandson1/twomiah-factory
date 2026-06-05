@@ -1254,6 +1254,47 @@ app.delete('/booking-series/:id', authMiddleware, async (c) => {
   return c.json({ ok: true })
 })
 
+// Admin creates a booking directly — "customer called, book them Tuesday".
+// Skips the public flow's slot re-verification (the admin is the
+// authority) but still respects the unique constraint on (start_at,
+// assigned_user_id) where status='confirmed' so we can't double-book.
+app.post('/bookings', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, any>
+  const serviceId = String(body.serviceId || '')
+  const startAtIso = String(body.startAt || '')
+  if (!serviceId || !startAtIso) return c.json({ error: 'serviceId and startAt required' }, 400)
+  const svc = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, serviceId)).limit(1))[0]
+  if (!svc) return c.json({ error: 'service not found' }, 404)
+  const customerName = String(body.customerName || '').trim()
+  const customerEmail = String(body.customerEmail || '').trim()
+  if (!customerName || !customerEmail) return c.json({ error: 'customerName and customerEmail required' }, 400)
+
+  const startAt = new Date(startAtIso)
+  if (isNaN(startAt.getTime())) return c.json({ error: 'invalid startAt' }, 400)
+  const endAt = new Date(startAt.getTime() + svc.durationMinutes * 60_000)
+
+  try {
+    const [created] = await db.insert(bookingsTbl).values({
+      serviceId,
+      startAt, endAt,
+      customerName, customerEmail,
+      customerPhone: body.customerPhone ? String(body.customerPhone) : null,
+      customerAddress: body.customerAddress ? String(body.customerAddress) : null,
+      customerZip: body.customerZip ? String(body.customerZip) : null,
+      customerNotes: body.customerNotes ? String(body.customerNotes) : null,
+      assignedUserId: body.assignedUserId ? String(body.assignedUserId) : null,
+      source: 'admin_manual',
+      confirmationToken: crypto2.randomBytes(24).toString('base64url'),
+    }).returning()
+    return c.json({ booking: created }, 201)
+  } catch (err: any) {
+    if (err?.message?.includes('unique') || err?.code === '23505') {
+      return c.json({ error: 'That crew is already booked at that time.' }, 409)
+    }
+    throw err
+  }
+})
+
 app.patch('/bookings/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')!
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>

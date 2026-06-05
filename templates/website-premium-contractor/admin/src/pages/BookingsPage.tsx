@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink } from 'lucide-react'
+import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../api/client'
+import { Label } from '../components/Field'
 
 interface Booking {
   id: string
@@ -34,15 +35,18 @@ export function BookingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming')
+  const [newOpen, setNewOpen] = useState(false)
 
-  useEffect(() => {
+  const reload = () => {
+    setLoading(true)
     Promise.all([
       api.get<{ bookings: Booking[] }>('/api/admin/bookings'),
       api.get<{ services: Service[] }>('/api/admin/booking-services'),
     ]).then(([b, s]) => {
       setBookings(b.bookings); setServices(s.services)
     }).catch((e) => setError(e.message)).finally(() => setLoading(false))
-  }, [])
+  }
+  useEffect(reload, [])
 
   const serviceById = (id: string) => services.find(s => s.id === id)?.name || 'Unknown service'
   const now = Date.now()
@@ -59,7 +63,10 @@ export function BookingsPage() {
           <h1 className="text-3xl text-ink">Bookings</h1>
           <p className="text-muted text-sm mt-1">Every appointment booked through your public site.</p>
         </div>
-        <Link to="/booking-settings" className="btn-secondary btn-md">Settings</Link>
+        <div className="flex gap-2">
+          <button onClick={() => setNewOpen(true)} className="btn-primary btn-md inline-flex items-center gap-1.5"><Plus className="w-4 h-4" />New booking</button>
+          <Link to="/booking-settings" className="btn-secondary btn-md">Settings</Link>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-6">
@@ -114,6 +121,78 @@ export function BookingsPage() {
           ))}
         </div>
       )}
+
+      {newOpen && <NewBookingModal services={services} onClose={() => setNewOpen(false)} onCreated={() => { setNewOpen(false); reload() }} />}
+    </div>
+  )
+}
+
+function NewBookingModal({ services, onClose, onCreated }: { services: Service[]; onClose: () => void; onCreated: () => void }) {
+  const [serviceId, setServiceId] = useState(services[0]?.id || '')
+  const [startAt, setStartAt] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerAddress, setCustomerAddress] = useState('')
+  const [customerNotes, setCustomerNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null); setSubmitting(true)
+    try {
+      await api.post('/api/admin/bookings', {
+        serviceId,
+        startAt: new Date(startAt).toISOString(),
+        customerName, customerEmail,
+        customerPhone: customerPhone || null,
+        customerAddress: customerAddress || null,
+        customerNotes: customerNotes || null,
+      })
+      onCreated()
+    } catch (e: any) { setError(e?.message) }
+    finally { setSubmitting(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="card card-padding w-full max-w-lg" onClick={e => e.stopPropagation()}>
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-xl text-ink">New booking</h3>
+          <button onClick={onClose} className="text-muted hover:text-ink"><X className="w-4 h-4" /></button>
+        </div>
+        {services.length === 0 ? (
+          <div className="text-sm text-muted">No services configured yet. <Link to="/booking-settings" className="text-brand">Add a service first</Link>.</div>
+        ) : (
+          <form onSubmit={submit} className="space-y-3">
+            <div>
+              <Label>Service</Label>
+              <select className="input" required value={serviceId} onChange={e => setServiceId(e.target.value)}>
+                {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label>Date &amp; time</Label>
+              <input type="datetime-local" className="input" required value={startAt} onChange={e => setStartAt(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Customer name</Label><input className="input" required value={customerName} onChange={e => setCustomerName(e.target.value)} autoFocus /></div>
+              <div><Label>Email</Label><input type="email" className="input" required value={customerEmail} onChange={e => setCustomerEmail(e.target.value)} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Phone</Label><input type="tel" className="input" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} /></div>
+              <div><Label>Address</Label><input className="input" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} /></div>
+            </div>
+            <div><Label>Notes</Label><textarea rows={2} className="input" value={customerNotes} onChange={e => setCustomerNotes(e.target.value)} /></div>
+            {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={onClose} className="btn-secondary btn-md">Cancel</button>
+              <button type="submit" disabled={submitting} className="btn-primary btn-md">{submitting ? 'Booking…' : 'Confirm booking'}</button>
+            </div>
+          </form>
+        )}
+      </div>
     </div>
   )
 }

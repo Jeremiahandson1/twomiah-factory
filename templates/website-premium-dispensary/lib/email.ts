@@ -19,6 +19,7 @@ export async function sendEmail(opts: {
   subject: string
   html: string
   replyTo?: { email: string; name?: string }
+  attachments?: Array<{ content: string; filename: string; type: string; disposition?: 'attachment' | 'inline' }>
 }): Promise<boolean> {
   const apiKey = process.env.SENDGRID_API_KEY
   if (!apiKey) { console.warn('[email] SENDGRID_API_KEY not set; skipping send'); return false }
@@ -28,6 +29,12 @@ export async function sendEmail(opts: {
     content: [{ type: 'text/html', value: opts.html }],
   }
   if (opts.replyTo) body.reply_to = opts.replyTo
+  if (opts.attachments && opts.attachments.length > 0) {
+    body.attachments = opts.attachments.map(a => ({
+      content: a.content, filename: a.filename, type: a.type,
+      disposition: a.disposition || 'attachment',
+    }))
+  }
   const res = await fetch(SENDGRID_API, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
@@ -102,9 +109,10 @@ function fmtBookingDateTime(d: Date, tz?: string): string {
 
 /**
  * Customer confirmation — sent immediately after a booking is created.
- * Lands in their inbox before they refresh the thank-you page.
+ * Lands in their inbox before they refresh the thank-you page. Includes
+ * an .ics attachment so Apple Mail / Outlook can auto-add to calendar.
  */
-export async function sendBookingConfirmationEmail(opts: BookingEmailContext): Promise<boolean> {
+export async function sendBookingConfirmationEmail(opts: BookingEmailContext & { companyName?: string }): Promise<boolean> {
   const when = fmtBookingDateTime(opts.startAt, opts.tenantTz)
   const body = `
     <p style="margin:0 0 14px;">Hi ${escape(opts.customerName)},</p>
@@ -114,13 +122,44 @@ export async function sendBookingConfirmationEmail(opts: BookingEmailContext): P
       <div style="color:#666;font-size:14px;">${escape(when)}</div>
       ${opts.customerAddress ? `<div style="color:#666;font-size:14px;margin-top:6px;">${escape(opts.customerAddress)}</div>` : ''}
     </div>
-    ${opts.manageUrl ? `<p style="margin:14px 0 0;font-size:14px;color:#666;">Need to reschedule or cancel? <a href="${escape(opts.manageUrl)}" style="color:#f97316;">Manage your booking</a>.</p>` : ''}
-    ${opts.icsUrl ? `<p style="margin:8px 0 0;font-size:14px;color:#666;"><a href="${escape(opts.icsUrl)}" style="color:#f97316;">Add to your calendar</a></p>` : ''}`
+    <p style="margin:14px 0 0;font-size:14px;color:#666;">A calendar invite is attached — tap to add it to your phone.</p>
+    ${opts.manageUrl ? `<p style="margin:8px 0 0;font-size:14px;color:#666;">Need to reschedule or cancel? <a href="${escape(opts.manageUrl)}" style="color:#f97316;">Manage your booking</a>.</p>` : ''}`
+  const ics = buildIcs({
+    summary: opts.serviceName + (opts.companyName ? ' — ' + opts.companyName : ''),
+    startAt: opts.startAt,
+    endAt: opts.endAt,
+    location: opts.customerAddress || undefined,
+    description: 'Booking confirmation. Manage: ' + (opts.manageUrl || ''),
+    uid: 'booking-' + opts.startAt.getTime() + '@twomiah',
+  })
   return sendEmail({
     to: opts.customerEmail,
     subject: 'Booking confirmed — ' + opts.serviceName,
     html: wrap('Booking confirmed', body, opts.manageUrl ? { href: opts.manageUrl, label: 'Manage booking' } : undefined),
+    attachments: [{
+      filename: 'booking.ics',
+      content: Buffer.from(ics).toString('base64'),
+      type: 'text/calendar; method=REQUEST',
+    }],
   })
+}
+
+function buildIcs(opts: { summary: string; startAt: Date; endAt: Date; location?: string; description?: string; uid: string }): string {
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Twomiah//Bookings//EN', 'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    'UID:' + opts.uid,
+    'DTSTAMP:' + fmt(new Date()),
+    'DTSTART:' + fmt(opts.startAt),
+    'DTEND:' + fmt(opts.endAt),
+    'SUMMARY:' + opts.summary.replace(/[\n,;]/g, ' '),
+    opts.location ? 'LOCATION:' + opts.location.replace(/[\n,;]/g, ' ') : '',
+    opts.description ? 'DESCRIPTION:' + opts.description.replace(/[\n,;]/g, ' ') : '',
+    'STATUS:CONFIRMED',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].filter(Boolean)
+  return lines.join('\r\n')
 }
 
 /**
