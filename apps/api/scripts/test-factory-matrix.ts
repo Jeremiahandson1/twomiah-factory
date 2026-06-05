@@ -501,12 +501,16 @@ async function waitForRenderLive(serviceIds: Record<string, string>, opts: { max
 // Bounded retries (Render cold-start can take a minute or two).
 
 async function fetchWithRetry(url: string, opts: { timeoutMs?: number; retries?: number; delayMs?: number } = {}): Promise<{ ok: boolean; status?: number; error?: string }> {
-  // After waitForRenderLive confirmed all services are 'live', smoke checks
-  // should usually hit fast. But Render's 'live' status updates a few seconds
-  // before the URL actually starts responding (especially for sites with
-  // longer startup hooks like DB ping + EJS warmup). 12 × 5s = 1 min budget.
-  const retries = opts.retries ?? 12
-  const delayMs = opts.delayMs ?? 5000
+  // After waitForRenderLive confirmed services are 'live', URL reachability
+  // can still lag by another 2-3 min for brand-new Render services — DNS
+  // propagation for {svc}.onrender.com isn't instant. Landscaping in the
+  // syntax-fix probe showed the site responding to Render's own health
+  // check (internal hostname) and "Your service is live", but my external
+  // fetch from a different IP got connection-refused/timeout for the full
+  // 60s window. 30 × 10s = 5 min is enough headroom for that case while
+  // still bounding a truly broken service.
+  const retries = opts.retries ?? 30
+  const delayMs = opts.delayMs ?? 10000
   const timeoutMs = opts.timeoutMs ?? 30000
   for (let i = 0; i <= retries; i++) {
     try {
