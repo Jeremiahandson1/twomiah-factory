@@ -3,6 +3,19 @@
 // No framework; vanilla DOM + fetch. Keeps the page under 5KB of JS.
 
 (function () {
+  // If we're inside an iframe (embed mode), post our height to parent
+  // every time the DOM mutates so the iframe can resize without scroll.
+  if (window.parent !== window) {
+    var post = function () {
+      try {
+        var h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+        window.parent.postMessage({ type: 'twomiah-book-height', height: h }, '*');
+      } catch (e) { /* ignore cross-origin */ }
+    };
+    var ro = new ResizeObserver(post);
+    ro.observe(document.body);
+    setTimeout(post, 50);
+  }
   const root = document.getElementById('book-flow');
   if (!root) return;
   const slug = root.dataset.serviceSlug;
@@ -101,7 +114,12 @@
       const res = await fetch('/book/' + encodeURIComponent(slug), { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Booking failed');
-      window.location.href = '/book/thanks?id=' + encodeURIComponent(data.booking.id);
+      // If the service has a deposit, redirect to Stripe Checkout first
+      if (data.depositCheckoutUrl) {
+        window.location.href = data.depositCheckoutUrl;
+      } else {
+        window.location.href = '/book/thanks?id=' + encodeURIComponent(data.booking.id);
+      }
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.hidden = false;

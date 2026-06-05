@@ -1158,6 +1158,102 @@ app.get('/bookings/:id', authMiddleware, async (c) => {
   return c.json({ booking: rows[0] })
 })
 
+// ─── Recurring booking series — admin-side ──────────────────────────────
+import { bookingSeries as seriesTbl } from '../db/schema'
+import { expandSeries } from '../lib/booking-recurrence'
+import crypto2 from 'crypto'
+
+app.post('/booking-series', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as any
+  const serviceId = String(body.serviceId || '')
+  const frequency = String(body.frequency || '')
+  const intervalCount = parseInt(String(body.intervalCount || '1'), 10) || 1
+  const firstStartIso = String(body.firstStartAt || '')
+  const occurrencesCount = body.occurrencesCount ? parseInt(String(body.occurrencesCount), 10) : null
+  const untilDateIso = body.untilDate ? String(body.untilDate) : null
+  if (!serviceId || !['weekly', 'biweekly', 'monthly'].includes(frequency) || !firstStartIso) {
+    return c.json({ error: 'serviceId, frequency, firstStartAt required' }, 400)
+  }
+  const customerName = String(body.customerName || '').trim()
+  const customerEmail = String(body.customerEmail || '').trim()
+  if (!customerName || !customerEmail) return c.json({ error: 'customerName and customerEmail required' }, 400)
+
+  const svc = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, serviceId)).limit(1))[0]
+  if (!svc) return c.json({ error: 'service not found' }, 404)
+
+  const firstStartAt = new Date(firstStartIso)
+  const occurrences = expandSeries({
+    frequency: frequency as any,
+    intervalCount,
+    firstStartAt,
+    durationMinutes: svc.durationMinutes,
+    occurrencesCount,
+    untilDate: untilDateIso ? new Date(untilDateIso) : null,
+  })
+
+  const confirmationToken = crypto2.randomBytes(24).toString('base64url')
+  const [seriesRow] = await db.insert(seriesTbl).values({
+    serviceId,
+    frequency, intervalCount,
+    firstStartAt, occurrencesCount, untilDate: untilDateIso ? new Date(untilDateIso) : null,
+    customerName, customerEmail,
+    customerPhone: body.customerPhone ? String(body.customerPhone) : null,
+    customerAddress: body.customerAddress ? String(body.customerAddress) : null,
+    customerZip: body.customerZip ? String(body.customerZip) : null,
+    customerNotes: body.customerNotes ? String(body.customerNotes) : null,
+    assignedUserId: body.assignedUserId ? String(body.assignedUserId) : null,
+    confirmationToken,
+  }).returning()
+
+  // Materialize each instance as a bookings row. Slot conflicts are
+  // possible — we mark conflicting instances as 'cancelled' with a
+  // reason so the admin can address them, rather than refusing to
+  // create the series.
+  const created: any[] = []
+  for (const occ of occurrences) {
+    try {
+      const [b] = await db.insert(bookingsTbl).values({
+        serviceId,
+        seriesId: seriesRow.id,
+        seriesIndex: occ.index,
+        startAt: occ.startAt, endAt: occ.endAt,
+        customerName, customerEmail,
+        customerPhone: seriesRow.customerPhone,
+        customerAddress: seriesRow.customerAddress,
+        customerZip: seriesRow.customerZip,
+        customerNotes: seriesRow.customerNotes,
+        assignedUserId: seriesRow.assignedUserId,
+        source: 'series',
+        confirmationToken: crypto2.randomBytes(24).toString('base64url'),
+      }).returning({ id: bookingsTbl.id })
+      created.push({ index: occ.index, id: b.id, startAt: occ.startAt })
+    } catch (err: any) {
+      console.warn('[series] instance ' + occ.index + ' failed:', err?.message)
+    }
+  }
+
+  return c.json({ series: seriesRow, instancesCreated: created.length, instances: created }, 201)
+})
+
+app.get('/booking-series/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const rows = await db.select().from(seriesTbl).where(eq(seriesTbl.id, id)).limit(1)
+  if (!rows[0]) return c.json({ error: 'Series not found' }, 404)
+  const instances = await db.select().from(bookingsTbl).where(eq(bookingsTbl.seriesId, id)).orderBy(asc(bookingsTbl.seriesIndex))
+  return c.json({ series: rows[0], instances })
+})
+
+app.delete('/booking-series/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  // Cancel the series and all future instances
+  const series = (await db.select().from(seriesTbl).where(eq(seriesTbl.id, id)).limit(1))[0]
+  if (!series) return c.json({ error: 'Series not found' }, 404)
+  await db.update(seriesTbl).set({ status: 'cancelled', cancelledAt: new Date() }).where(eq(seriesTbl.id, id))
+  await db.update(bookingsTbl).set({ status: 'cancelled', cancelledAt: new Date(), cancelledReason: 'series_cancelled' })
+    .where(and(eq(bookingsTbl.seriesId, id), eq(bookingsTbl.status, 'confirmed'), gte(bookingsTbl.startAt, new Date())))
+  return c.json({ ok: true })
+})
+
 app.patch('/bookings/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')!
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>

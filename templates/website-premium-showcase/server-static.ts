@@ -191,6 +191,7 @@ import { generateSlots, pickCrewForSlot } from './lib/booking-slots'
 import { sendBookingConfirmationEmail, notifyOwnerOfBooking } from './lib/email'
 import { pushBookingEvent, deleteBookingEvent, listExternalBusyEvents } from './lib/google-calendar'
 import { pushBookingEventOutlook, deleteBookingEventOutlook, listExternalBusyEventsOutlook } from './lib/outlook-calendar'
+import { depositAmountFor, createDepositCheckoutSession, verifyStripeWebhook } from './lib/stripe-deposit'
 import {
   bookingServices as bookingServicesTbl,
   bookingAvailabilityRules as bookingAvailabilityRulesTbl,
@@ -637,11 +638,67 @@ app.post('/book/:serviceSlug', async (c) => {
       }).catch(e => console.warn('[book] customer sms failed:', e?.message))
     }
 
+    // Stripe deposit if the service requires one. If checkout session
+    // succeeds, return the URL so the client redirects to Stripe before
+    // confirmation. We pre-mark the booking depositStatus='pending';
+    // webhook flips it to 'paid' and the booking stays confirmed.
+    const depositAmount = depositAmountFor(service)
+    if (depositAmount > 0) {
+      const checkout = await createDepositCheckoutSession({
+        amountCents: depositAmount,
+        serviceName: service.name,
+        customerEmail: email,
+        bookingId: created.id,
+        successUrl: siteOrigin(c) + '/book/thanks?id=' + created.id + '&deposit=paid',
+        cancelUrl: siteOrigin(c) + '/booking/' + confirmationToken + '?deposit=cancelled',
+      })
+      if (checkout) {
+        await db.update(bookingsTbl).set({
+          depositAmountCents: depositAmount,
+          depositStatus: 'pending',
+        }).where(eq(bookingsTbl.id, created.id))
+        return c.json({ ok: true, booking: { id: created.id, confirmationToken }, depositCheckoutUrl: checkout.url })
+      }
+      // Falling through — deposit configured but Stripe failed, log + still confirm
+      console.warn('[book] deposit checkout failed for booking ' + created.id)
+    }
     return c.json({ ok: true, booking: { id: created.id, confirmationToken } })
   } catch (err: any) {
     console.error('[book] insert failed:', err.message)
     return c.json({ error: 'Could not save your booking. Please try again.' }, 500)
   }
+})
+
+// Stripe webhook for deposit payment status. Flips booking
+// depositStatus='paid' when the deposit checkout completes.
+app.post('/api/webhooks/stripe-deposit', async (c) => {
+  const signature = c.req.header('Stripe-Signature') || ''
+  const raw = await c.req.text()
+  if (!verifyStripeWebhook(signature, raw)) return c.json({ error: 'invalid signature' }, 400)
+  let event: any
+  try { event = JSON.parse(raw) } catch { return c.json({ error: 'invalid payload' }, 400) }
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data?.object || {}
+    const bookingId = session.metadata?.booking_id
+    if (bookingId) {
+      await db.update(bookingsTbl).set({
+        depositStatus: 'paid',
+        depositPaymentIntentId: session.payment_intent || null,
+      }).where(eq(bookingsTbl.id, bookingId))
+    }
+  } else if (event.type === 'checkout.session.expired') {
+    const session = event.data?.object || {}
+    const bookingId = session.metadata?.booking_id
+    if (bookingId) {
+      await db.update(bookingsTbl).set({
+        status: 'cancelled',
+        depositStatus: null,
+        cancelledAt: new Date(),
+        cancelledReason: 'deposit_not_paid',
+      }).where(eq(bookingsTbl.id, bookingId))
+    }
+  }
+  return c.json({ received: true })
 })
 
 // Customer self-service: view + cancel a booking using the

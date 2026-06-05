@@ -194,6 +194,12 @@ export const bookingServices = pgTable('booking_services', {
   description: text('description'),
   durationMinutes: integer('duration_minutes').notNull(),
   priceCents: integer('price_cents'),
+  // Optional Stripe deposit. If depositAmountCents is set, customer is
+  // taken through Stripe Checkout before the booking is confirmed.
+  // If depositPercent is set instead, the deposit is computed from
+  // priceCents at booking time. Only one of the two should be set.
+  depositAmountCents: integer('deposit_amount_cents'),
+  depositPercent: integer('deposit_percent'),
   bufferBeforeMinutes: integer('buffer_before_minutes').notNull().default(0),
   bufferAfterMinutes: integer('buffer_after_minutes').notNull().default(0),
   slotGranularityMinutes: integer('slot_granularity_minutes').notNull().default(30),
@@ -250,6 +256,42 @@ export const bookingServiceZones = pgTable('booking_service_zones', {
   userIdx: index('booking_zones_user_idx').on(t.userId),
 }))
 
+// A series of recurring bookings — "every other Tuesday at 10am × 8".
+// Each generated instance is a normal `bookings` row with `seriesId`
+// pointing here. Cancelling the series cancels all future instances;
+// editing modifies the template + regenerates future instances.
+export const bookingSeries = pgTable('booking_series', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serviceId: uuid('service_id').notNull().references(() => bookingServices.id, { onDelete: 'restrict' }),
+  // frequency: 'weekly' | 'biweekly' | 'monthly'
+  frequency: text('frequency').notNull(),
+  // interval = 1 weekly, 2 biweekly, etc. (kept explicit for "every 3 weeks")
+  intervalCount: integer('interval_count').notNull().default(1),
+  // First occurrence start (UTC). Subsequent computed from this + frequency.
+  firstStartAt: timestamp('first_start_at', { withTimezone: true }).notNull(),
+  // Either occurrencesCount OR untilDate caps the series. Both set = whichever hits first.
+  occurrencesCount: integer('occurrences_count'),
+  untilDate: timestamp('until_date', { withTimezone: true }),
+  // Customer info — same as a single booking (denormalized so the series
+  // owns the contact even after instances get split off / cancelled).
+  customerName: text('customer_name').notNull(),
+  customerEmail: text('customer_email').notNull(),
+  customerPhone: text('customer_phone'),
+  customerAddress: text('customer_address'),
+  customerZip: text('customer_zip'),
+  customerNotes: text('customer_notes'),
+  assignedUserId: uuid('assigned_user_id').references(() => users.id, { onDelete: 'set null' }),
+  confirmationToken: text('confirmation_token').notNull().unique(),
+  // 'active' | 'cancelled'
+  status: text('status').notNull().default('active'),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  customerEmailIdx: index('booking_series_customer_email_idx').on(t.customerEmail),
+  statusIdx: index('booking_series_status_idx').on(t.status),
+}))
+
 // The bookings themselves. start_at and end_at stored UTC; tenant TZ
 // applied at display time. Unique partial index on (start_at,
 // assigned_user_id) where status='confirmed' makes double-booking the
@@ -257,6 +299,11 @@ export const bookingServiceZones = pgTable('booking_service_zones', {
 export const bookings = pgTable('bookings', {
   id: uuid('id').primaryKey().defaultRandom(),
   serviceId: uuid('service_id').notNull().references(() => bookingServices.id, { onDelete: 'restrict' }),
+  // Set when this row is one instance of a recurring series. Cancelling
+  // the series sets this row's status to 'cancelled'.
+  seriesId: uuid('series_id').references(() => bookingSeries.id, { onDelete: 'set null' }),
+  // 1-indexed position in the series ("3rd of 8")
+  seriesIndex: integer('series_index'),
   startAt: timestamp('start_at', { withTimezone: true }).notNull(),
   endAt: timestamp('end_at', { withTimezone: true }).notNull(),
   customerName: text('customer_name').notNull(),
@@ -268,8 +315,12 @@ export const bookings = pgTable('bookings', {
   // 'confirmed' | 'cancelled' | 'completed' | 'no_show'
   status: text('status').notNull().default('confirmed'),
   assignedUserId: uuid('assigned_user_id').references(() => users.id, { onDelete: 'set null' }),
-  source: text('source').notNull().default('public_form'),  // 'public_form' | 'admin_manual'
+  source: text('source').notNull().default('public_form'),  // 'public_form' | 'admin_manual' | 'series'
   confirmationToken: text('confirmation_token').notNull().unique(),  // for self-service link
+  // Stripe deposit (V2)
+  depositPaymentIntentId: text('deposit_payment_intent_id'),
+  depositAmountCents: integer('deposit_amount_cents'),
+  depositStatus: text('deposit_status'),  // 'pending' | 'paid' | 'refunded' | null
   reminder24hSentAt: timestamp('reminder_24h_sent_at', { withTimezone: true }),
   reviewRequestSentAt: timestamp('review_request_sent_at', { withTimezone: true }),
   externalCalendarEventId: text('external_calendar_event_id'),  // for Phase 1 cal sync
@@ -281,6 +332,7 @@ export const bookings = pgTable('bookings', {
   startIdx: index('bookings_start_idx').on(t.startAt),
   assignedStartIdx: index('bookings_assigned_start_idx').on(t.assignedUserId, t.startAt),
   statusStartIdx: index('bookings_status_start_idx').on(t.status, t.startAt),
+  seriesIdx: index('bookings_series_idx').on(t.seriesId, t.seriesIndex),
 }))
 
 // Calendar sync OAuth tokens per crew member. Stored encrypted at rest
