@@ -16,6 +16,7 @@ interface Service {
   slotGranularityMinutes: number
   isActive: boolean
   displayOrder: number
+  rebookIntervalDays?: number | null
 }
 interface Rule { id: string; userId: string | null; dayOfWeek: number; startMinute: number; endMinute: number }
 interface Blackout { id: string; date: string; startMinute: number | null; endMinute: number | null; reason: string | null; userId: string | null }
@@ -194,6 +195,7 @@ function ServiceModal({ initial, onClose, onSaved }: { initial?: Service; onClos
   const [bAfter, setBAfter] = useState(initial?.bufferAfterMinutes || 0)
   const [granularity, setGranularity] = useState(initial?.slotGranularityMinutes || 30)
   const [isActive, setIsActive] = useState(initial?.isActive ?? true)
+  const [rebookDays, setRebookDays] = useState<string>(initial?.rebookIntervalDays ? String(initial.rebookIntervalDays) : '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const isEdit = !!initial
@@ -209,6 +211,7 @@ function ServiceModal({ initial, onClose, onSaved }: { initial?: Service; onClos
       bufferAfterMinutes: bAfter,
       slotGranularityMinutes: granularity,
       isActive,
+      rebookIntervalDays: rebookDays ? parseInt(rebookDays, 10) : null,
     }
     try {
       if (isEdit) await api.patch(`/api/admin/booking-services/${initial!.id}`, payload)
@@ -237,6 +240,11 @@ function ServiceModal({ initial, onClose, onSaved }: { initial?: Service; onClos
             <div><Label>Buffer before (min)</Label><input type="number" min={0} max={240} className="input" value={bBefore} onChange={e => setBBefore(parseInt(e.target.value) || 0)} /></div>
             <div><Label>Buffer after (min)</Label><input type="number" min={0} max={240} className="input" value={bAfter} onChange={e => setBAfter(parseInt(e.target.value) || 0)} /></div>
             <div><Label>Slot grid (min)</Label><input type="number" min={5} max={240} className="input" value={granularity} onChange={e => setGranularity(parseInt(e.target.value) || 30)} /></div>
+          </div>
+          <div>
+            <Label>Re-book reminder (days after completion, optional)</Label>
+            <input type="number" min={0} max={365} className="input" placeholder="e.g. 21 for cleaning, 180 for HVAC tune-ups" value={rebookDays} onChange={e => setRebookDays(e.target.value)} />
+            <p className="text-xs text-muted mt-1">If set, customer gets a "ready for your next one?" email this many days after the appointment ends. Leave blank to skip.</p>
           </div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} />Show on public booking page</label>
           {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}

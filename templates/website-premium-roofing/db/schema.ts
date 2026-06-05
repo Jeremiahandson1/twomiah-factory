@@ -205,6 +205,9 @@ export const bookingServices = pgTable('booking_services', {
   slotGranularityMinutes: integer('slot_granularity_minutes').notNull().default(30),
   isActive: boolean('is_active').notNull().default(true),
   displayOrder: integer('display_order').notNull().default(0),
+  // Days after completion to email "ready for your next [service]?" — null = no
+  // rebook reminder. Defaults vary by industry (cleaning ~21, hvac ~180).
+  rebookIntervalDays: integer('rebook_interval_days'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -322,6 +325,7 @@ export const bookings = pgTable('bookings', {
   depositAmountCents: integer('deposit_amount_cents'),
   depositStatus: text('deposit_status'),  // 'pending' | 'paid' | 'refunded' | null
   reminder24hSentAt: timestamp('reminder_24h_sent_at', { withTimezone: true }),
+  rebookReminderSentAt: timestamp('rebook_reminder_sent_at', { withTimezone: true }),
   reviewRequestSentAt: timestamp('review_request_sent_at', { withTimezone: true }),
   externalCalendarEventId: text('external_calendar_event_id'),  // for Phase 1 cal sync
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),

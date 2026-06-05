@@ -1618,6 +1618,39 @@ factory.get('/calendar/outlook/callback', async (c) => {
   return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'outlook=connected')
 })
 
+// ─── Twomiah Bookings rebook nudge daily cron ──────────────────────────────
+// Daily cron. Fans out to every live premium-website tenant; each
+// tenant decides per-service whether to send (rebookIntervalDays).
+factory.post('/internal/booking-rebook-reminders', async (c) => {
+  const expectedSecret = process.env.CRON_SECRET
+  const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!expectedSecret || gotSecret !== expectedSecret) return c.json({ error: 'Unauthorized' }, 401)
+
+  const { data: tenants, error } = await supabase
+    .from('tenants')
+    .select('id, slug, render_website_url, factory_sync_key, status')
+    .eq('status', 'live')
+    .contains('products', ['website-premium'])
+  if (error) return c.json({ error: error.message }, 500)
+
+  const results: any[] = []
+  for (const t of tenants || []) {
+    if (!t.render_website_url || !t.factory_sync_key) continue
+    try {
+      const res = await fetch(t.render_website_url.replace(/\/$/, '') + '/api/internal/booking-rebook-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
+        signal: AbortSignal.timeout(30_000),
+      })
+      const body = await res.json().catch(() => ({}))
+      results.push({ slug: t.slug, ok: res.ok, ...body })
+    } catch (e: any) {
+      results.push({ slug: t.slug, ok: false, error: e?.message })
+    }
+  }
+  return c.json({ ok: true, tenants: results.length, results })
+})
+
 // ─── Twomiah Bookings 24h reminder cron ────────────────────────────────────
 // External scheduler hits this hourly. We fan out to every live tenant
 // that has the website-premium product and POST their internal

@@ -186,6 +186,24 @@ export async function notifyOwnerOfBooking(opts: BookingEmailContext & { ownerEm
 }
 
 /**
+ * Re-book nudge — sent N days after a completed appointment. "Time
+ * for your next clean / tune-up / inspection". Massive lever on
+ * customer LTV for service businesses with natural rebook cadences.
+ */
+export async function sendBookingRebookEmail(opts: BookingEmailContext & { bookUrl: string }): Promise<boolean> {
+  const sinceLabel = opts.startAt.toLocaleString('en-US', { dateStyle: 'long' })
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(opts.customerName)},</p>
+    <p style="margin:0 0 14px;">It's been a few weeks since your last <strong>${escape(opts.serviceName)}</strong> on ${escape(sinceLabel)}. Ready for your next one?</p>
+    <p style="margin:0 0 14px;">Click below to pick a time — we kept your details so it's a 30-second booking.</p>`
+  return sendEmail({
+    to: opts.customerEmail,
+    subject: 'Ready for your next ' + opts.serviceName + '?',
+    html: wrap('Ready for round two?', body, { href: opts.bookUrl, label: 'Book your next ' + opts.serviceName }),
+  })
+}
+
+/**
  * 24-hour reminder — fired by an hourly cron when the booking starts
  * within the next ~24 hours and reminder_24h_sent_at is still null.
  */

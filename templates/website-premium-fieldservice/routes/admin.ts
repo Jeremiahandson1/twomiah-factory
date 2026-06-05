@@ -1020,6 +1020,7 @@ app.post('/booking-services', authMiddleware, async (c) => {
     slotGranularityMinutes: typeof body.slotGranularityMinutes === 'number' ? body.slotGranularityMinutes : 30,
     isActive: body.isActive !== false,
     displayOrder: typeof body.displayOrder === 'number' ? body.displayOrder : 0,
+    rebookIntervalDays: typeof body.rebookIntervalDays === 'number' && body.rebookIntervalDays > 0 ? body.rebookIntervalDays : null,
   }).returning()
   return c.json({ service: created }, 201)
 })
@@ -1037,6 +1038,8 @@ app.patch('/booking-services/:id', authMiddleware, async (c) => {
   if (typeof body.slotGranularityMinutes === 'number') patch.slotGranularityMinutes = body.slotGranularityMinutes
   if (typeof body.isActive === 'boolean') patch.isActive = body.isActive
   if (typeof body.displayOrder === 'number') patch.displayOrder = body.displayOrder
+  if (body.rebookIntervalDays === null) patch.rebookIntervalDays = null
+  else if (typeof body.rebookIntervalDays === 'number' && body.rebookIntervalDays > 0) patch.rebookIntervalDays = body.rebookIntervalDays
   const result = await db.update(bookingServicesTbl).set(patch).where(eq(bookingServicesTbl.id, id)).returning()
   if (result.length === 0) return c.json({ error: 'Service not found' }, 404)
   return c.json({ service: result[0] })

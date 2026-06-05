@@ -1102,6 +1102,52 @@ app.post('/api/internal/calendar/store-tokens', async (c) => {
   return c.json({ ok: true, connectionId: row.id })
 })
 
+// ── Factory internal: rebook nudge cron ───────────────────────────────────
+// Daily cron from the Factory. For each service with rebookIntervalDays
+// set, find completed bookings whose end_at is between (today - N days
+// + 0d) and (today - N days + 1d) and whose rebook_reminder_sent_at is
+// null. Send the "ready for your next one?" email, stamp the column.
+app.post('/api/internal/booking-rebook-reminders', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { sendBookingRebookEmail } = await import('./lib/email')
+
+  const services = await db.select().from(bookingServicesTbl)
+  let sent = 0, checked = 0
+  for (const svc of services) {
+    if (!svc.rebookIntervalDays || svc.rebookIntervalDays <= 0) continue
+    const lowerBound = new Date(Date.now() - (svc.rebookIntervalDays + 1) * 24 * 60 * 60 * 1000)
+    const upperBound = new Date(Date.now() - svc.rebookIntervalDays * 24 * 60 * 60 * 1000)
+    const due = await db.select().from(bookingsTbl).where(and(
+      eq(bookingsTbl.serviceId, svc.id),
+      eq(bookingsTbl.status, 'completed'),
+      gte(bookingsTbl.endAt, lowerBound),
+      lte(bookingsTbl.endAt, upperBound),
+    ))
+    for (const b of due) {
+      checked++
+      if (b.rebookReminderSentAt) continue
+      try {
+        const bookUrl = siteOrigin(c) + '/book/' + svc.slug
+        await sendBookingRebookEmail({
+          serviceName: svc.name,
+          startAt: b.startAt as Date, endAt: b.endAt as Date,
+          customerName: b.customerName, customerEmail: b.customerEmail,
+          customerAddress: b.customerAddress,
+          bookUrl,
+          tenantTz: TENANT_TZ,
+        })
+        await db.update(bookingsTbl).set({ rebookReminderSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+        sent++
+      } catch (err: any) {
+        console.warn('[rebook] failed for booking ' + b.id + ':', err?.message)
+      }
+    }
+  }
+  return c.json({ ok: true, checked, sent })
+})
+
 // ── Factory internal: 24h booking reminders ───────────────────────────────
 // Hourly cron from the Factory hits this. We find every confirmed
 // booking with start_at in the next 23-25 hours and reminder_24h_sent_at
