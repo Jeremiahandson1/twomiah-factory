@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff, Calendar, Link2, Link2Off } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff, Calendar, Link2, Link2Off, Type } from 'lucide-react'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
 
@@ -36,11 +36,87 @@ export function BookingSettingsPage() {
       <AvailabilitySection />
       <BlackoutsSection />
       <CalendarSyncSection />
+      <CopyCustomizationSection />
     </div>
   )
 }
 
 interface Connection { id: string; provider: string; externalAccountEmail: string | null; createdAt: string; expiresAt: string | null }
+
+function CopyCustomizationSection() {
+  const [vals, setVals] = useState({ bookingHeroTitle: '', bookingHeroSubtitle: '', bookingConfirmCta: '', bookingThanksMessage: '' })
+  const [originalJson, setOriginalJson] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [okMsg, setOkMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.get<{ settings: any }>('/api/admin/settings')
+      .then(({ settings }) => {
+        const next = {
+          bookingHeroTitle: settings?.bookingHeroTitle || '',
+          bookingHeroSubtitle: settings?.bookingHeroSubtitle || '',
+          bookingConfirmCta: settings?.bookingConfirmCta || '',
+          bookingThanksMessage: settings?.bookingThanksMessage || '',
+        }
+        setVals(next)
+        setOriginalJson(JSON.stringify(next))
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const dirty = JSON.stringify(vals) !== originalJson
+  const save = async () => {
+    setSaving(true); setError(null); setOkMsg(null)
+    try {
+      await api.patch('/api/admin/settings', {
+        bookingHeroTitle: vals.bookingHeroTitle || null,
+        bookingHeroSubtitle: vals.bookingHeroSubtitle || null,
+        bookingConfirmCta: vals.bookingConfirmCta || null,
+        bookingThanksMessage: vals.bookingThanksMessage || null,
+      })
+      setOriginalJson(JSON.stringify(vals))
+      setOkMsg('Saved.')
+      setTimeout(() => setOkMsg(null), 2000)
+    } catch (e: any) { setError(e?.message) }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <section className="card card-padding mt-6">
+      <h2 className="text-lg text-ink flex items-center gap-2 mb-3"><Type className="w-4 h-4" />Public booking page copy</h2>
+      <p className="text-muted text-xs mb-4">Customize the headline, button text, and thanks message customers see on /book. Leave blank for defaults.</p>
+      {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
+      {okMsg && <div className="text-green-800 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">{okMsg}</div>}
+      {loading ? <div className="text-muted text-sm">Loading…</div> : (
+        <div className="space-y-3">
+          <div>
+            <Label>Hero title</Label>
+            <input className="input" placeholder='Default: "Book a service"' value={vals.bookingHeroTitle} onChange={e => setVals({ ...vals, bookingHeroTitle: e.target.value })} />
+          </div>
+          <div>
+            <Label>Hero subtitle</Label>
+            <input className="input" placeholder="Optional one-line tagline" value={vals.bookingHeroSubtitle} onChange={e => setVals({ ...vals, bookingHeroSubtitle: e.target.value })} />
+          </div>
+          <div>
+            <Label>Submit button</Label>
+            <input className="input" placeholder='Default: "Confirm booking"' value={vals.bookingConfirmCta} onChange={e => setVals({ ...vals, bookingConfirmCta: e.target.value })} />
+          </div>
+          <div>
+            <Label>Thanks page title</Label>
+            <input className="input" placeholder={'Default: "You\'re booked."'} value={vals.bookingThanksMessage} onChange={e => setVals({ ...vals, bookingThanksMessage: e.target.value })} />
+          </div>
+          <button onClick={save} disabled={saving || !dirty} className="btn-primary btn-md inline-flex items-center gap-1.5 disabled:opacity-40">
+            <Save className="w-4 h-4" />
+            {saving ? 'Saving…' : 'Save copy'}
+          </button>
+        </div>
+      )}
+    </section>
+  )
+}
 
 function CalendarSyncSection() {
   const [connections, setConnections] = useState<Connection[]>([])

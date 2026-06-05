@@ -709,9 +709,123 @@ app.post('/api/webhooks/stripe-deposit', async (c) => {
   return c.json({ received: true })
 })
 
+// Customer self-service reschedule. Reuses the slot-list endpoint
+// (filtered to the same service) so the picker is identical to the
+// initial booking flow. New slot validated server-side, atomic update
+// on the same booking row, calendar event patched.
+app.get('/booking/:token/reschedule', async (c) => {
+  const token = c.req.param('token')!
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  if (booking.status !== 'confirmed') return c.redirect('/booking/' + token)
+  if ((booking.startAt as Date).getTime() < Date.now() + 60 * 60_000) return c.redirect('/booking/' + token + '?reschedule=too-late')
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  if (!service) return c.notFound()
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const currentLabel = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short', timeZone: TENANT_TZ })
+  const body = `<section class="book-picker"><div class="container container--narrow">
+    <a class="book-picker__back" href="/booking/${escape(token)}">← Booking</a>
+    <h1 class="book-picker__title">Reschedule</h1>
+    <p class="book-picker__desc">Currently booked for <strong>${escape(currentLabel)}</strong>. Pick a new time below.</p>
+    <div id="book-flow" data-service-slug="${escape(service.slug)}" data-reschedule-token="${escape(token)}" data-duration="${service.durationMinutes}">
+      <div class="book-step book-step--date">
+        <h2>Pick a date</h2>
+        <div class="book-dates" id="book-dates"></div>
+      </div>
+      <div class="book-step book-step--slot" hidden>
+        <h2>Pick a time</h2>
+        <div class="book-slots" id="book-slots"></div>
+      </div>
+      <div class="book-step book-step--form" hidden>
+        <form id="book-form">
+          <input type="hidden" name="startAtIso" id="book-start">
+          <button type="submit" class="book-submit">Confirm new time</button>
+          <div class="book-error" id="book-error" hidden></div>
+        </form>
+      </div>
+    </div>
+  </div></section>
+  <script src="/scripts/book-flow.js" defer></script>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Reschedule', seoDescription: '', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token + '/reschedule' }) as string
+  return c.html(html)
+})
+
+app.post('/booking/:token/reschedule', async (c) => {
+  const token = c.req.param('token')!
+  const body = await c.req.parseBody() as Record<string, any>
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  if (booking.status !== 'confirmed') return c.json({ error: 'Cannot reschedule a non-confirmed booking' }, 409)
+  if ((booking.startAt as Date).getTime() < Date.now() + 60 * 60_000) {
+    return c.json({ error: 'Too late to reschedule (within 1 hour of start time).' }, 409)
+  }
+  const newStartIso = String(body.startAtIso || '')
+  const newStart = new Date(newStartIso)
+  if (isNaN(newStart.getTime())) return c.json({ error: 'Invalid start time' }, 400)
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  if (!service) return c.notFound()
+
+  // Server-side slot re-verification at the new time
+  const dateStr = dateInTenantTz(newStart).isoDate
+  const dayOfWeek = dateInTenantTz(newStart).dayOfWeek
+  const startMinuteWanted = dateInTenantTz(newStart).minuteOfDay
+  const rules = await db.select().from(bookingAvailabilityRulesTbl).where(eq(bookingAvailabilityRulesTbl.isActive, true))
+  const blackouts = await db.select().from(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.date, dateStr))
+  const dayStart = tenantDateTimeToUtc(dateStr, 0)
+  const dayEnd = tenantDateTimeToUtc(dateStr, 24 * 60)
+  const dayBookings = (await db.select().from(bookingsTbl)
+    .where(and(gte(bookingsTbl.startAt, dayStart), lte(bookingsTbl.startAt, dayEnd), eq(bookingsTbl.status, 'confirmed'))))
+    .filter(b => b.id !== booking.id)  // exclude ourselves so we can re-pick our own slot if we want
+  const slots = generateSlots({
+    dayOfWeek,
+    service: {
+      durationMinutes: service.durationMinutes,
+      bufferBeforeMinutes: service.bufferBeforeMinutes,
+      bufferAfterMinutes: service.bufferAfterMinutes,
+      slotGranularityMinutes: service.slotGranularityMinutes,
+      capacityPerSlot: service.capacityPerSlot,
+    },
+    rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
+    blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
+    existingBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, startMinute: dateInTenantTz(b.startAt as any).minuteOfDay, endMinute: dateInTenantTz(b.endAt as any).minuteOfDay, status: b.status })),
+  })
+  if (!slots.find(s => s.startMinute === startMinuteWanted)) {
+    return c.json({ error: 'That slot is no longer available. Pick another.' }, 409)
+  }
+
+  const newEnd = new Date(newStart.getTime() + service.durationMinutes * 60_000)
+  await db.update(bookingsTbl).set({
+    startAt: newStart, endAt: newEnd, updatedAt: new Date(),
+  }).where(eq(bookingsTbl.id, booking.id))
+
+  // Patch the external calendar event if connected
+  if (booking.assignedUserId && booking.externalCalendarEventId) {
+    const { patchBookingEvent } = await import('./lib/google-calendar')
+    const settingsRow = await loadSettings()
+    patchBookingEvent({
+      userId: booking.assignedUserId,
+      eventId: booking.externalCalendarEventId,
+      booking: {
+        id: booking.id, startAt: newStart, endAt: newEnd,
+        customerName: booking.customerName, customerEmail: booking.customerEmail,
+        customerPhone: booking.customerPhone, customerAddress: booking.customerAddress, customerNotes: booking.customerNotes,
+        externalCalendarEventId: booking.externalCalendarEventId,
+      },
+      service: { name: service.name, description: service.description },
+      companyName: (settingsRow as any)?.companyName || undefined,
+    }).catch(() => {})
+  }
+
+  return c.json({ ok: true, booking: { id: booking.id, startAt: newStart.toISOString() } })
+})
+
 // Customer self-service: view + cancel a booking using the
-// confirmation token from their email. Reschedule is admin-side
-// for V1; customer can cancel and re-book.
+// confirmation token from their email.
 app.get('/booking/:token', async (c) => {
   const token = c.req.param('token') as string
   const settings = await loadSettings()
@@ -733,8 +847,11 @@ app.get('/booking/:token', async (c) => {
       <div><span>Status</span><strong>${statusLabel}</strong></div>
       ${booking.customerAddress ? `<div><span>Where</span><strong>${escape(booking.customerAddress)}</strong></div>` : ''}
     </div>
-    ${showCancel ? `<form method="POST" action="/booking/${escape(token)}/cancel" onsubmit="return confirm('Cancel this booking?')" style="margin-top:24px;text-align:center;"><button type="submit" class="book-submit" style="background:#dc2626;max-width:220px;">Cancel booking</button></form>` : ''}
-    <p style="margin-top:16px;color:var(--muted);font-size:13px;text-align:center;">Need to reschedule? Reply to your confirmation email and we'll help you find a new time.</p>
+    ${showCancel ? `<div style="margin-top:24px;text-align:center;display:flex;gap:12px;justify-content:center;">
+      <a href="/booking/${escape(token)}/reschedule" class="book-submit" style="background:transparent;color:var(--brand);border:1px solid var(--brand);max-width:200px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Reschedule</a>
+      <form method="POST" action="/booking/${escape(token)}/cancel" onsubmit="return confirm('Cancel this booking?')" style="margin:0;"><button type="submit" class="book-submit" style="background:#dc2626;max-width:200px;">Cancel booking</button></form>
+    </div>` : ''}
+    <p style="margin-top:16px;color:var(--muted);font-size:13px;text-align:center;">Questions? Hit reply on your confirmation email.</p>
   </div></section>`
   const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Your booking', seoDescription: '', nav: settings.nav || [] }
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token }) as string
@@ -1131,8 +1248,8 @@ app.post('/api/internal/calendar/store-tokens', async (c) => {
     calendarId: body.calendarId || 'primary',
   }).returning({ id: calConnTbl.id })
 
-  // Subscribe to Google push notifications best-effort. Outlook uses
-  // a different mechanism (graph subscriptions) — wire later.
+  // Subscribe to push notifications. Best-effort; pull side still works
+  // if subscription fails.
   if (provider === 'google') {
     const { watchCalendar } = await import('./lib/google-calendar')
     const webhookUrl = siteOrigin(c) + '/api/webhooks/google-calendar'
@@ -1145,9 +1262,43 @@ app.post('/api/internal/calendar/store-tokens', async (c) => {
         }).where(eq(calConnTbl.id, row.id)).catch(() => {})
       })
       .catch(() => {})
+  } else if (provider === 'outlook') {
+    const { watchCalendarOutlook } = await import('./lib/outlook-calendar')
+    const webhookUrl = siteOrigin(c) + '/api/webhooks/outlook-calendar'
+    watchCalendarOutlook({ userId: body.userId, webhookUrl })
+      .then(async sub => {
+        if (sub) await db.update(calConnTbl).set({
+          syncChannelId: sub.subscriptionId,
+          lastSyncAt: new Date(),
+        }).where(eq(calConnTbl.id, row.id)).catch(() => {})
+      })
+      .catch(() => {})
   }
 
   return c.json({ ok: true, connectionId: row.id })
+})
+
+// Outlook (Microsoft Graph) sends a validationToken on initial
+// subscription handshake — we have to echo it within 10 seconds or
+// the subscription fails. After that, POSTs carry change notifications.
+app.post('/api/webhooks/outlook-calendar', async (c) => {
+  const validationToken = c.req.query('validationToken')
+  if (validationToken) {
+    return c.text(validationToken, 200, { 'Content-Type': 'text/plain' })
+  }
+  // Real notification — we don't act on it directly; slot generator
+  // pulls fresh on next list. Stamp lastSyncAt and 202.
+  try {
+    const body = await c.req.json().catch(() => ({})) as any
+    for (const v of (body.value || [])) {
+      if (v.subscriptionId) {
+        await db.update(calConnTbl).set({ lastSyncAt: new Date() })
+          .where(eq(calConnTbl.syncChannelId, v.subscriptionId))
+          .catch(() => {})
+      }
+    }
+  } catch { /* ignore */ }
+  return c.body(null, 202)
 })
 
 // Google Calendar webhook receiver. We don't actually do anything
@@ -1166,34 +1317,53 @@ app.post('/api/webhooks/google-calendar', async (c) => {
   return c.body(null, 200)
 })
 
-// Cron: refresh Google watch channels approaching expiry. Hourly so we
-// can re-subscribe well before the 7-day TTL.
+// Cron: refresh watch subscriptions approaching expiry. Hourly cron.
+// Google channels: 7-day TTL. Outlook subscriptions: 3-day TTL (we
+// RENEW rather than re-create to preserve the subscription ID).
 app.post('/api/internal/calendar/refresh-watches', async (c) => {
   const factoryKey = process.env.FACTORY_SYNC_KEY
   if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
   if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
   const { watchCalendar, unwatchCalendar } = await import('./lib/google-calendar')
-  // Connections with channels expiring within 24 hours
+  const { renewSubscriptionOutlook, watchCalendarOutlook } = await import('./lib/outlook-calendar')
   const dueSoon = new Date(Date.now() + 24 * 60 * 60 * 1000)
-  const stale = await db.select().from(calConnTbl).where(eq(calConnTbl.provider, 'google'))
+  const stale = await db.select().from(calConnTbl)
   let refreshed = 0
   for (const conn of stale) {
     if (!conn.lastSyncAt) continue
-    const guessedExpiry = new Date(conn.lastSyncAt.getTime() + 7 * 24 * 60 * 60 * 1000)
-    if (guessedExpiry > dueSoon) continue
-    // Stop the old channel, start a new one
-    if (conn.syncChannelId && conn.syncResourceId) {
-      await unwatchCalendar({ userId: conn.userId, channelId: conn.syncChannelId, resourceId: conn.syncResourceId }).catch(() => {})
-    }
-    const webhookUrl = siteOrigin(c) + '/api/webhooks/google-calendar'
-    const sub = await watchCalendar({ userId: conn.userId, webhookUrl })
-    if (sub) {
-      await db.update(calConnTbl).set({
-        syncChannelId: sub.channelId,
-        syncResourceId: sub.resourceId,
-        lastSyncAt: new Date(),
-      }).where(eq(calConnTbl.id, conn.id))
-      refreshed++
+    if (conn.provider === 'google') {
+      const guessedExpiry = new Date(conn.lastSyncAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+      if (guessedExpiry > dueSoon) continue
+      if (conn.syncChannelId && conn.syncResourceId) {
+        await unwatchCalendar({ userId: conn.userId, channelId: conn.syncChannelId, resourceId: conn.syncResourceId }).catch(() => {})
+      }
+      const webhookUrl = siteOrigin(c) + '/api/webhooks/google-calendar'
+      const sub = await watchCalendar({ userId: conn.userId, webhookUrl })
+      if (sub) {
+        await db.update(calConnTbl).set({
+          syncChannelId: sub.channelId, syncResourceId: sub.resourceId, lastSyncAt: new Date(),
+        }).where(eq(calConnTbl.id, conn.id))
+        refreshed++
+      }
+    } else if (conn.provider === 'outlook') {
+      const guessedExpiry = new Date(conn.lastSyncAt.getTime() + 70 * 60 * 60 * 1000)
+      if (guessedExpiry > dueSoon) continue
+      let ok = false
+      if (conn.syncChannelId) {
+        ok = await renewSubscriptionOutlook({ userId: conn.userId, subscriptionId: conn.syncChannelId })
+      }
+      if (!ok) {
+        const sub = await watchCalendarOutlook({ userId: conn.userId, webhookUrl: siteOrigin(c) + '/api/webhooks/outlook-calendar' })
+        if (sub) {
+          await db.update(calConnTbl).set({
+            syncChannelId: sub.subscriptionId, lastSyncAt: new Date(),
+          }).where(eq(calConnTbl.id, conn.id))
+          refreshed++
+        }
+      } else {
+        await db.update(calConnTbl).set({ lastSyncAt: new Date() }).where(eq(calConnTbl.id, conn.id))
+        refreshed++
+      }
     }
   }
   return c.json({ ok: true, refreshed })

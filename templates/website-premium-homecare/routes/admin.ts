@@ -765,6 +765,7 @@ app.patch('/pages/:slug', authMiddleware, async (c) => {
 const SETTINGS_FIELDS = [
   'companyName', 'tagline', 'phone', 'email', 'address',
   'seoTitle', 'seoDescription', 'contactCtaLabel',
+  'bookingHeroTitle', 'bookingHeroSubtitle', 'bookingConfirmCta', 'bookingThanksMessage',
   'primaryColor', 'secondaryColor', 'accentColor',
   'logoUrl', 'faviconUrl', 'nav',
 ] as const

@@ -19,6 +19,7 @@
   const root = document.getElementById('book-flow');
   if (!root) return;
   const slug = root.dataset.serviceSlug;
+  const rescheduleToken = root.dataset.rescheduleToken || '';
   const duration = parseInt(root.dataset.duration, 10);
   const stepDate = root.querySelector('.book-step--date');
   const stepSlot = root.querySelector('.book-step--slot');
@@ -123,14 +124,19 @@
     errorEl.hidden = true;
     const submitBtn = form.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Booking…';
+    var originalLabel = submitBtn.textContent;
+    submitBtn.textContent = rescheduleToken ? 'Rescheduling…' : 'Booking…';
     const formData = new FormData(form);
     try {
-      const res = await fetch('/book/' + encodeURIComponent(slug), { method: 'POST', body: formData });
+      var endpoint = rescheduleToken
+        ? '/booking/' + encodeURIComponent(rescheduleToken) + '/reschedule'
+        : '/book/' + encodeURIComponent(slug);
+      const res = await fetch(endpoint, { method: 'POST', body: formData });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Booking failed');
-      // If the service has a deposit, redirect to Stripe Checkout first
-      if (data.depositCheckoutUrl) {
+      if (!res.ok) throw new Error(data.error || (rescheduleToken ? 'Reschedule failed' : 'Booking failed'));
+      if (rescheduleToken) {
+        window.location.href = '/booking/' + encodeURIComponent(rescheduleToken) + '?rescheduled=1';
+      } else if (data.depositCheckoutUrl) {
         window.location.href = data.depositCheckoutUrl;
       } else {
         window.location.href = '/book/thanks?id=' + encodeURIComponent(data.booking.id);
@@ -139,7 +145,7 @@
       errorEl.textContent = err.message;
       errorEl.hidden = false;
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Confirm booking';
+      submitBtn.textContent = originalLabel;
     }
   });
 

@@ -117,6 +117,63 @@ export async function pushBookingEventOutlook(opts: {
   return data.id || null
 }
 
+/**
+ * Subscribe to Microsoft Graph change notifications for /me/events.
+ * Returns the subscription id + expiry. Max TTL for /me/events is
+ * ~3 days; cron job refreshes before expiry.
+ *
+ * Note: Graph requires the webhook to respond with the validationToken
+ * during the initial handshake — handled in the receiver endpoint.
+ */
+export async function watchCalendarOutlook(opts: {
+  userId: string
+  webhookUrl: string
+  clientState?: string
+}): Promise<{ subscriptionId: string; expirationMs: number } | null> {
+  const ctx = await getValidOutlookToken(opts.userId)
+  if (!ctx) return null
+  const expirationDateTime = new Date(Date.now() + 4230 * 60 * 1000).toISOString()  // 70.5 hours, just under 3-day max
+  const res = await fetch(API_BASE + '/subscriptions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + ctx.accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      changeType: 'created,updated,deleted',
+      notificationUrl: opts.webhookUrl,
+      resource: 'me/events',
+      expirationDateTime,
+      clientState: opts.clientState || 'twomiah-' + opts.userId,
+    }),
+  })
+  if (!res.ok) { console.warn('[outlook] watch failed:', res.status, await res.text().catch(() => '')); return null }
+  const data: any = await res.json()
+  return {
+    subscriptionId: data.id,
+    expirationMs: new Date(data.expirationDateTime).getTime(),
+  }
+}
+
+export async function unwatchCalendarOutlook(opts: { userId: string; subscriptionId: string }): Promise<boolean> {
+  const ctx = await getValidOutlookToken(opts.userId)
+  if (!ctx) return false
+  const res = await fetch(API_BASE + '/subscriptions/' + opts.subscriptionId, {
+    method: 'DELETE',
+    headers: { 'Authorization': 'Bearer ' + ctx.accessToken },
+  })
+  return res.ok || res.status === 404
+}
+
+export async function renewSubscriptionOutlook(opts: { userId: string; subscriptionId: string }): Promise<boolean> {
+  const ctx = await getValidOutlookToken(opts.userId)
+  if (!ctx) return false
+  const expirationDateTime = new Date(Date.now() + 4230 * 60 * 1000).toISOString()
+  const res = await fetch(API_BASE + '/subscriptions/' + opts.subscriptionId, {
+    method: 'PATCH',
+    headers: { 'Authorization': 'Bearer ' + ctx.accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expirationDateTime }),
+  })
+  return res.ok
+}
+
 export async function deleteBookingEventOutlook(opts: { userId: string; eventId: string }): Promise<boolean> {
   const ctx = await getValidOutlookToken(opts.userId)
   if (!ctx) return false
