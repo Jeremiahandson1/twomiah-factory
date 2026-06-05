@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Edit3, Eye, EyeOff, Plus, Trash2, X } from 'lucide-react'
+import { Edit3, Eye, EyeOff, Plus, Trash2, X, ChevronUp, ChevronDown } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
@@ -26,6 +26,28 @@ export function PagesListPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
+
+  const swapOrder = async (i: number, dir: -1 | 1) => {
+    const j = i + dir
+    if (j < 0 || j >= pages.length) return
+    const a = pages[i], b = pages[j]
+    // Optimistically swap navOrder values in local state
+    const aOrder = a.navOrder, bOrder = b.navOrder
+    const next = [...pages]
+    next[i] = { ...a, navOrder: bOrder }
+    next[j] = { ...b, navOrder: aOrder }
+    next.sort((x, y) => x.navOrder - y.navOrder)
+    setPages(next)
+    setError(null)
+    try {
+      await Promise.all([
+        api.patch(`/api/admin/pages/${a.slug}`, { navOrder: bOrder }),
+        api.patch(`/api/admin/pages/${b.slug}`, { navOrder: aOrder }),
+      ])
+    } catch (e: any) {
+      setError(e.message)
+    }
+  }
 
   const remove = async (p: PageRow) => {
     if (p.slug === 'home') return
@@ -105,10 +127,28 @@ export function PagesListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {pages.map((p) => {
+              {pages.map((p, i) => {
                 const isHome = p.slug === 'home'
                 return (
                   <tr key={p.id} className="hover:bg-paper/50">
+                    <td className="px-2 py-4 w-px">
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => swapOrder(i, -1)}
+                          disabled={i === 0}
+                          className="text-muted hover:text-ink disabled:opacity-30 disabled:cursor-default"
+                          aria-label="Move up"
+                        ><ChevronUp className="w-3.5 h-3.5" /></button>
+                        <button
+                          type="button"
+                          onClick={() => swapOrder(i, 1)}
+                          disabled={i === pages.length - 1}
+                          className="text-muted hover:text-ink disabled:opacity-30 disabled:cursor-default"
+                          aria-label="Move down"
+                        ><ChevronDown className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-ink">{p.title}</div>
                       <div className="text-xs text-muted mt-0.5">/{p.slug}</div>
