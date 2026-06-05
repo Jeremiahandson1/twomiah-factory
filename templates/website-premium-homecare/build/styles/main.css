@@ -402,3 +402,57 @@ a { color: inherit; text-decoration: none; }
 .footer-contact { display: flex; gap: 28px; }
 .footer-contact a { color: rgba(255,255,255,0.85); font-size: 15px; }
 .footer-contact a:hover { color: var(--accent); }
+/* ── Twomiah Bookings ─────────────────────────────────────────────────── */
+.book-services { padding: var(--space) 0; }
+.book-services__title { font-family: var(--font-display, serif); font-size: clamp(36px, 4vw, 52px); margin: 0 0 40px; color: var(--ink); letter-spacing: -0.02em; }
+.book-services__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; }
+.service-card { display: block; background: var(--white); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; text-decoration: none; color: var(--ink); transition: transform .2s, box-shadow .2s; }
+.service-card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(20,20,30,0.08); }
+.service-card__body { padding: 28px; }
+.service-card__name { font-family: var(--font-display, serif); font-size: 26px; margin: 0 0 12px; letter-spacing: -0.01em; color: var(--ink); }
+.service-card__desc { margin: 0 0 18px; color: var(--ink-soft); line-height: 1.6; font-size: 15px; }
+.service-card__meta { display: flex; gap: 18px; margin-bottom: 14px; font-size: 14px; color: var(--muted); }
+.service-card__price { font-weight: 700; color: var(--ink); }
+.service-card__cta { color: var(--brand); font-weight: 600; font-size: 14px; }
+@media (max-width: 760px) { .book-services__grid { grid-template-columns: 1fr; } }
+
+.book-picker { padding: var(--space) 0; }
+.book-picker__back { display: inline-block; color: var(--muted); text-decoration: none; font-size: 14px; margin-bottom: 24px; }
+.book-picker__back:hover { color: var(--ink); }
+.book-picker__title { font-family: var(--font-display, serif); font-size: clamp(34px, 4vw, 48px); margin: 0 0 14px; letter-spacing: -0.02em; }
+.book-picker__desc { color: var(--ink-soft); font-size: 17px; margin: 0 0 36px; line-height: 1.6; }
+.book-step { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+.book-step h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 18px; font-weight: 700; }
+.book-zip label { display: block; font-size: 14px; color: var(--ink-soft); margin-bottom: 18px; }
+.book-zip input { display: block; margin-top: 6px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; max-width: 140px; }
+.book-dates { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+.book-date { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 10px 6px; cursor: pointer; text-align: center; display: flex; flex-direction: column; gap: 4px; font-family: inherit; transition: border-color .15s, background .15s; }
+.book-date:hover { border-color: var(--brand); }
+.book-date.is-selected { background: var(--brand); border-color: var(--brand); color: var(--white); }
+.book-date__dow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.7; }
+.book-date__day { font-size: 22px; font-weight: 700; }
+.book-date__mon { font-size: 11px; text-transform: uppercase; opacity: 0.7; }
+@media (max-width: 580px) { .book-dates { grid-template-columns: repeat(4, 1fr); } }
+.book-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.book-slot { background: var(--white); border: 1px solid var(--line); border-radius: 8px; padding: 12px; cursor: pointer; font-size: 15px; font-family: inherit; transition: border-color .15s, background .15s; }
+.book-slot:hover { border-color: var(--brand); }
+.book-slot.is-selected { background: var(--brand); border-color: var(--brand); color: var(--white); }
+.book-loading, .book-empty { color: var(--muted); font-size: 15px; padding: 20px 0; }
+#book-form { display: flex; flex-direction: column; gap: 14px; }
+#book-form label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink-soft); }
+#book-form input[type="text"], #book-form input[type="email"], #book-form input[type="tel"], #book-form textarea { padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 16px; font-family: inherit; }
+.book-submit { margin-top: 6px; padding: 14px 28px; background: var(--brand); color: var(--white); border: none; border-radius: 8px; font-size: 16px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
+.book-submit:hover { opacity: 0.9; }
+.book-submit:disabled { opacity: 0.5; cursor: wait; }
+.book-error { background: #fee; color: #c00; border: 1px solid #fcc; padding: 12px 16px; border-radius: 8px; font-size: 14px; margin-top: 8px; }
+.book-thanks { padding: var(--space) 0; text-align: center; }
+.book-thanks__check { width: 80px; height: 80px; margin: 0 auto 24px; background: #22c55e; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 44px; font-weight: 700; }
+.book-thanks h1 { font-family: var(--font-display, serif); font-size: clamp(36px, 4vw, 52px); margin: 0 0 14px; letter-spacing: -0.02em; }
+.book-thanks__lead { color: var(--ink-soft); font-size: 17px; margin: 0 0 36px; }
+.book-thanks__summary { background: var(--white); border: 1px solid var(--line); border-radius: 12px; padding: 24px; margin: 0 0 28px; text-align: left; max-width: 480px; margin-left: auto; margin-right: auto; }
+.book-thanks__summary div { display: flex; justify-content: space-between; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.book-thanks__summary div:last-child { border-bottom: none; }
+.book-thanks__summary span { color: var(--muted); font-size: 14px; }
+.book-thanks__addcal { color: var(--muted); font-size: 14px; }
+.book-thanks__addcal a { color: var(--brand); text-decoration: underline; }
+.book-empty { text-align: center; padding: 60px 20px; color: var(--muted); }

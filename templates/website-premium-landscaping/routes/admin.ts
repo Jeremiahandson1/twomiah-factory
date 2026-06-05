@@ -29,8 +29,18 @@ import jwt from 'jsonwebtoken'
 import sharp from 'sharp'
 import crypto from 'crypto'
 import { db } from '../db'
-import { users as usersTbl, pages as pagesTbl, photos as photosTbl, settings as settingsTbl, leads as leadsTbl, posts as postsTbl, userTokens as userTokensTbl, auditLog as auditLogTbl, sessions as sessionsTbl } from '../db/schema'
-import { isNull, sql } from 'drizzle-orm'
+import {
+  users as usersTbl, pages as pagesTbl, photos as photosTbl, settings as settingsTbl,
+  leads as leadsTbl, posts as postsTbl, userTokens as userTokensTbl, auditLog as auditLogTbl,
+  sessions as sessionsTbl,
+  bookingServices as bookingServicesTbl,
+  bookingAvailabilityRules as bookingAvailabilityRulesTbl,
+  bookingBlackouts as bookingBlackoutsTbl,
+  bookingServiceZones as bookingServiceZonesTbl,
+  bookings as bookingsTbl,
+} from '../db/schema'
+import { gte, lte } from 'drizzle-orm'
+import { isNull } from 'drizzle-orm'
 import { uploadImage, deleteImage } from '../services/storage'
 import { validatePasswordStrength } from '../lib/security'
 import { generateSecret, verifyTotp, otpauthUri, generateRecoveryCodes } from '../lib/totp'
@@ -348,7 +358,7 @@ app.get('/sessions', authMiddleware, async (c) => {
 
 app.post('/sessions/:id/revoke', authMiddleware, async (c) => {
   const userId = c.get('userId')!
-  const sessionId = c.req.param('id')
+  const sessionId = c.req.param('id')!
   const result = await db.update(sessionsTbl).set({ revokedAt: new Date() })
     .where(and(eq(sessionsTbl.id, sessionId), eq(sessionsTbl.userId, userId)))
     .returning({ id: sessionsTbl.id })
@@ -924,7 +934,7 @@ app.get('/posts', authMiddleware, async (c) => {
 })
 
 app.get('/posts/:slug', authMiddleware, async (c) => {
-  const slug = c.req.param('slug')
+  const slug = c.req.param('slug')!
   const rows = await db.select().from(postsTbl).where(eq(postsTbl.slug, slug)).limit(1)
   const post = rows[0]
   if (!post) return c.json({ error: 'Post not found' }, 404)
@@ -951,7 +961,7 @@ app.post('/posts', authMiddleware, async (c) => {
 })
 
 app.patch('/posts/:slug', authMiddleware, async (c) => {
-  const slug = c.req.param('slug')
+  const slug = c.req.param('slug')!
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
   const patch: Record<string, any> = {}
   if (typeof body.title === 'string') patch.title = body.title
@@ -975,10 +985,193 @@ app.patch('/posts/:slug', authMiddleware, async (c) => {
 })
 
 app.delete('/posts/:slug', authMiddleware, async (c) => {
-  const slug = c.req.param('slug')
+  const slug = c.req.param('slug')!
   const result = await db.delete(postsTbl).where(eq(postsTbl.slug, slug)).returning({ id: postsTbl.id })
   if (result.length === 0) return c.json({ error: 'Post not found' }, 404)
   return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — services ────────────────────────────────────────
+
+const SERVICE_SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,80}[a-z0-9])?$/
+
+app.get('/booking-services', authMiddleware, async (c) => {
+  const rows = await db.select().from(bookingServicesTbl).orderBy(asc(bookingServicesTbl.displayOrder), asc(bookingServicesTbl.name))
+  return c.json({ services: rows })
+})
+
+app.post('/booking-services', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const name = String(body.name || '').trim()
+  const slug = String(body.slug || '').trim().toLowerCase()
+  const durationMinutes = parseInt(String(body.durationMinutes || '0'), 10)
+  if (!name) return c.json({ error: 'name is required' }, 400)
+  if (!slug || !SERVICE_SLUG_RE.test(slug)) return c.json({ error: 'slug must be lowercase letters, numbers, hyphens' }, 400)
+  if (!durationMinutes || durationMinutes <= 0 || durationMinutes > 8 * 60) return c.json({ error: 'durationMinutes must be 1-480' }, 400)
+  const existing = await db.select({ id: bookingServicesTbl.id }).from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1)
+  if (existing[0]) return c.json({ error: 'A service with that slug already exists' }, 409)
+  const [created] = await db.insert(bookingServicesTbl).values({
+    slug, name, durationMinutes,
+    description: typeof body.description === 'string' ? body.description : null,
+    priceCents: typeof body.priceCents === 'number' ? body.priceCents : null,
+    bufferBeforeMinutes: typeof body.bufferBeforeMinutes === 'number' ? body.bufferBeforeMinutes : 0,
+    bufferAfterMinutes: typeof body.bufferAfterMinutes === 'number' ? body.bufferAfterMinutes : 0,
+    slotGranularityMinutes: typeof body.slotGranularityMinutes === 'number' ? body.slotGranularityMinutes : 30,
+    isActive: body.isActive !== false,
+    displayOrder: typeof body.displayOrder === 'number' ? body.displayOrder : 0,
+  }).returning()
+  return c.json({ service: created }, 201)
+})
+
+app.patch('/booking-services/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const patch: Record<string, any> = { updatedAt: new Date() }
+  if (typeof body.name === 'string') patch.name = body.name.trim()
+  if (typeof body.description === 'string' || body.description === null) patch.description = body.description
+  if (typeof body.durationMinutes === 'number') patch.durationMinutes = body.durationMinutes
+  if (typeof body.priceCents === 'number' || body.priceCents === null) patch.priceCents = body.priceCents
+  if (typeof body.bufferBeforeMinutes === 'number') patch.bufferBeforeMinutes = body.bufferBeforeMinutes
+  if (typeof body.bufferAfterMinutes === 'number') patch.bufferAfterMinutes = body.bufferAfterMinutes
+  if (typeof body.slotGranularityMinutes === 'number') patch.slotGranularityMinutes = body.slotGranularityMinutes
+  if (typeof body.isActive === 'boolean') patch.isActive = body.isActive
+  if (typeof body.displayOrder === 'number') patch.displayOrder = body.displayOrder
+  const result = await db.update(bookingServicesTbl).set(patch).where(eq(bookingServicesTbl.id, id)).returning()
+  if (result.length === 0) return c.json({ error: 'Service not found' }, 404)
+  return c.json({ service: result[0] })
+})
+
+app.delete('/booking-services/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const result = await db.delete(bookingServicesTbl).where(eq(bookingServicesTbl.id, id)).returning({ id: bookingServicesTbl.id })
+  if (result.length === 0) return c.json({ error: 'Service not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — availability + blackouts ────────────────────────
+
+app.get('/booking-availability', authMiddleware, async (c) => {
+  const rules = await db.select().from(bookingAvailabilityRulesTbl)
+    .where(eq(bookingAvailabilityRulesTbl.isActive, true))
+    .orderBy(asc(bookingAvailabilityRulesTbl.dayOfWeek), asc(bookingAvailabilityRulesTbl.startMinute))
+  return c.json({ rules })
+})
+
+// Replace the whole availability set atomically — the editor pushes the
+// complete weekly grid every save. Simpler than diffing.
+app.put('/booking-availability', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as { rules?: Array<{ userId?: string | null; dayOfWeek: number; startMinute: number; endMinute: number }> }
+  const rules = Array.isArray(body.rules) ? body.rules : []
+  for (const r of rules) {
+    if (r.dayOfWeek < 0 || r.dayOfWeek > 6) return c.json({ error: 'dayOfWeek must be 0-6' }, 400)
+    if (r.startMinute < 0 || r.endMinute > 24 * 60 || r.startMinute >= r.endMinute) return c.json({ error: 'invalid window' }, 400)
+  }
+  await db.delete(bookingAvailabilityRulesTbl)
+  if (rules.length > 0) {
+    await db.insert(bookingAvailabilityRulesTbl).values(rules.map(r => ({
+      userId: r.userId || null,
+      dayOfWeek: r.dayOfWeek,
+      startMinute: r.startMinute,
+      endMinute: r.endMinute,
+      isActive: true,
+    })))
+  }
+  return c.json({ ok: true, count: rules.length })
+})
+
+app.get('/booking-blackouts', authMiddleware, async (c) => {
+  const rows = await db.select().from(bookingBlackoutsTbl).orderBy(asc(bookingBlackoutsTbl.date))
+  return c.json({ blackouts: rows })
+})
+
+app.post('/booking-blackouts', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const date = String(body.date || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return c.json({ error: 'date must be YYYY-MM-DD' }, 400)
+  const [created] = await db.insert(bookingBlackoutsTbl).values({
+    date,
+    userId: typeof body.userId === 'string' ? body.userId : null,
+    startMinute: typeof body.startMinute === 'number' ? body.startMinute : null,
+    endMinute: typeof body.endMinute === 'number' ? body.endMinute : null,
+    reason: typeof body.reason === 'string' ? body.reason : null,
+  }).returning()
+  return c.json({ blackout: created }, 201)
+})
+
+app.delete('/booking-blackouts/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const result = await db.delete(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.id, id)).returning({ id: bookingBlackoutsTbl.id })
+  if (result.length === 0) return c.json({ error: 'Blackout not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — service zones ───────────────────────────────────
+
+app.get('/booking-zones', authMiddleware, async (c) => {
+  const rows = await db.select().from(bookingServiceZonesTbl)
+  return c.json({ zones: rows })
+})
+
+app.post('/booking-zones', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const userId = String(body.userId || '').trim()
+  if (!userId) return c.json({ error: 'userId is required' }, 400)
+  const zipList = typeof body.zipList === 'string' ? body.zipList.replace(/\s/g, '') : null
+  const [created] = await db.insert(bookingServiceZonesTbl).values({
+    userId,
+    zipList,
+    centerLat: typeof body.centerLat === 'string' ? body.centerLat : null,
+    centerLng: typeof body.centerLng === 'string' ? body.centerLng : null,
+    radiusMiles: typeof body.radiusMiles === 'number' ? body.radiusMiles : null,
+  }).returning()
+  return c.json({ zone: created }, 201)
+})
+
+app.delete('/booking-zones/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const result = await db.delete(bookingServiceZonesTbl).where(eq(bookingServiceZonesTbl.id, id)).returning({ id: bookingServiceZonesTbl.id })
+  if (result.length === 0) return c.json({ error: 'Zone not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — bookings list/detail ────────────────────────────
+
+app.get('/bookings', authMiddleware, async (c) => {
+  const fromQ = c.req.query('from')
+  const toQ = c.req.query('to')
+  const statusQ = c.req.query('status')
+  const conds: any[] = []
+  if (fromQ) conds.push(gte(bookingsTbl.startAt, new Date(fromQ)))
+  if (toQ) conds.push(lte(bookingsTbl.startAt, new Date(toQ)))
+  if (statusQ) conds.push(eq(bookingsTbl.status, statusQ))
+  const rows = conds.length > 0
+    ? await db.select().from(bookingsTbl).where(and(...conds)).orderBy(asc(bookingsTbl.startAt))
+    : await db.select().from(bookingsTbl).orderBy(asc(bookingsTbl.startAt))
+  return c.json({ bookings: rows })
+})
+
+app.get('/bookings/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id)).limit(1)
+  if (!rows[0]) return c.json({ error: 'Booking not found' }, 404)
+  return c.json({ booking: rows[0] })
+})
+
+app.patch('/bookings/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const patch: Record<string, any> = { updatedAt: new Date() }
+  if (typeof body.startAt === 'string') patch.startAt = new Date(body.startAt)
+  if (typeof body.endAt === 'string') patch.endAt = new Date(body.endAt)
+  if (typeof body.assignedUserId === 'string' || body.assignedUserId === null) patch.assignedUserId = body.assignedUserId
+  if (body.status === 'confirmed' || body.status === 'cancelled' || body.status === 'completed' || body.status === 'no_show') {
+    patch.status = body.status
+    if (body.status === 'cancelled' && !('cancelledAt' in patch)) patch.cancelledAt = new Date()
+  }
+  if (typeof body.customerNotes === 'string' || body.customerNotes === null) patch.customerNotes = body.customerNotes
+  const result = await db.update(bookingsTbl).set(patch).where(eq(bookingsTbl.id, id)).returning()
+  if (result.length === 0) return c.json({ error: 'Booking not found' }, 404)
+  return c.json({ booking: result[0] })
 })
 
 // ─── Audit log read (admin only) ─────────────────────────────────────────

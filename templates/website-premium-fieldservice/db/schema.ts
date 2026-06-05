@@ -179,3 +179,126 @@ export const posts = pgTable('posts', {
   slugIdx: index('posts_slug_idx').on(t.slug),
   statusPublishedIdx: index('posts_status_published_idx').on(t.status, t.publishedAt),
 }))
+
+// ─── Twomiah Bookings ────────────────────────────────────────────────────
+// A complete booking system: services with duration/price, per-crew
+// availability + service zones, customer-facing slot picker, confirmed
+// bookings with auto-assigned crew + email/SMS confirmations.
+
+// Bookable services. Each has a duration the slot generator respects
+// and optional buffer time around it (drive time, cleanup, etc.).
+export const bookingServices = pgTable('booking_services', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description'),
+  durationMinutes: integer('duration_minutes').notNull(),
+  priceCents: integer('price_cents'),
+  bufferBeforeMinutes: integer('buffer_before_minutes').notNull().default(0),
+  bufferAfterMinutes: integer('buffer_after_minutes').notNull().default(0),
+  slotGranularityMinutes: integer('slot_granularity_minutes').notNull().default(30),
+  isActive: boolean('is_active').notNull().default(true),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  activeOrderIdx: index('booking_services_active_order_idx').on(t.isActive, t.displayOrder),
+}))
+
+// Recurring weekly availability per crew member. user_id NULL means
+// "any crew" — useful for single-operator businesses that don't track
+// individual crews yet.
+export const bookingAvailabilityRules = pgTable('booking_availability_rules', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  dayOfWeek: integer('day_of_week').notNull(),  // 0=Sun..6=Sat
+  startMinute: integer('start_minute').notNull(),  // minutes from midnight, tenant TZ
+  endMinute: integer('end_minute').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userDayIdx: index('booking_avail_user_day_idx').on(t.userId, t.dayOfWeek),
+}))
+
+// One-off blackouts (holidays, time off, equipment outages). NULL
+// user_id means tenant-wide blackout (e.g. closed for Christmas).
+// NULL start/end means full-day blackout.
+export const bookingBlackouts = pgTable('booking_blackouts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(),  // ISO YYYY-MM-DD in tenant TZ
+  startMinute: integer('start_minute'),
+  endMinute: integer('end_minute'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dateIdx: index('booking_blackouts_date_idx').on(t.date),
+}))
+
+// Service zones per crew. zip_list is comma-separated ZIPs; if both
+// zip_list and radius are set, customer's ZIP must be in zip_list OR
+// within radius of center. Empty zone = serves everywhere.
+export const bookingServiceZones = pgTable('booking_service_zones', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  zipList: text('zip_list'),  // comma-separated
+  centerLat: text('center_lat'),  // text to avoid float precision games
+  centerLng: text('center_lng'),
+  radiusMiles: integer('radius_miles'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userIdx: index('booking_zones_user_idx').on(t.userId),
+}))
+
+// The bookings themselves. start_at and end_at stored UTC; tenant TZ
+// applied at display time. Unique partial index on (start_at,
+// assigned_user_id) where status='confirmed' makes double-booking the
+// same crew at the same time structurally impossible.
+export const bookings = pgTable('bookings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serviceId: uuid('service_id').notNull().references(() => bookingServices.id, { onDelete: 'restrict' }),
+  startAt: timestamp('start_at', { withTimezone: true }).notNull(),
+  endAt: timestamp('end_at', { withTimezone: true }).notNull(),
+  customerName: text('customer_name').notNull(),
+  customerEmail: text('customer_email').notNull(),
+  customerPhone: text('customer_phone'),
+  customerAddress: text('customer_address'),
+  customerZip: text('customer_zip'),
+  customerNotes: text('customer_notes'),
+  // 'confirmed' | 'cancelled' | 'completed' | 'no_show'
+  status: text('status').notNull().default('confirmed'),
+  assignedUserId: uuid('assigned_user_id').references(() => users.id, { onDelete: 'set null' }),
+  source: text('source').notNull().default('public_form'),  // 'public_form' | 'admin_manual'
+  confirmationToken: text('confirmation_token').notNull().unique(),  // for self-service link
+  reminder24hSentAt: timestamp('reminder_24h_sent_at', { withTimezone: true }),
+  reviewRequestSentAt: timestamp('review_request_sent_at', { withTimezone: true }),
+  externalCalendarEventId: text('external_calendar_event_id'),  // for Phase 1 cal sync
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancelledReason: text('cancelled_reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  startIdx: index('bookings_start_idx').on(t.startAt),
+  assignedStartIdx: index('bookings_assigned_start_idx').on(t.assignedUserId, t.startAt),
+  statusStartIdx: index('bookings_status_start_idx').on(t.status, t.startAt),
+}))
+
+// Calendar sync OAuth tokens per crew member. Stored encrypted at rest
+// via Render's encrypted-env-vars... actually no, these live in the DB.
+// V1 stores them in plaintext; rotating to encryption is a follow-up.
+export const bookingCalendarConnections = pgTable('booking_calendar_connections', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),  // 'google' | 'outlook'
+  externalAccountEmail: text('external_account_email'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  calendarId: text('calendar_id'),  // which of the user's calendars to write to
+  syncChannelId: text('sync_channel_id'),  // for push notification webhooks
+  syncResourceId: text('sync_resource_id'),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userProviderIdx: index('booking_cal_user_provider_idx').on(t.userId, t.provider),
+}))

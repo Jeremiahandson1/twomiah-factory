@@ -18,7 +18,7 @@ import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/bun'
-import { eq, asc, desc } from 'drizzle-orm'
+import { eq, asc, desc, and, gte, lte } from 'drizzle-orm'
 import ejs from 'ejs'
 import fs from 'fs'
 import path from 'path'
@@ -183,10 +183,335 @@ app.get('/blog/:slug', async (c) => {
   return c.html(html)
 })
 
+// ─── Twomiah Bookings — public routes ────────────────────────────────────
+// Register BEFORE the catch-all `/:slug` below or Hono dispatches /book
+// to the slug handler first.
+
+import { generateSlots, pickCrewForSlot } from './lib/booking-slots'
+import {
+  bookingServices as bookingServicesTbl,
+  bookingAvailabilityRules as bookingAvailabilityRulesTbl,
+  bookingBlackouts as bookingBlackoutsTbl,
+  bookingServiceZones as bookingServiceZonesTbl,
+  bookings as bookingsTbl,
+} from './db/schema'
+import crypto from 'crypto'
+
+const TENANT_TZ = process.env.TENANT_TIMEZONE || 'America/Chicago'
+
+function dateInTenantTz(d: Date): { isoDate: string; dayOfWeek: number; minuteOfDay: number } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: TENANT_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+  })
+  const parts = Object.fromEntries(fmt.formatToParts(d).map(p => [p.type, p.value]))
+  const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return {
+    isoDate: parts.year + '-' + parts.month + '-' + parts.day,
+    dayOfWeek: dayMap[parts.weekday] ?? 0,
+    minuteOfDay: parseInt(parts.hour, 10) * 60 + parseInt(parts.minute, 10),
+  }
+}
+
+// Convert a tenant-TZ wall-clock time on a specific date to UTC. Naive
+// approach: build a Date as if local, then offset. We rely on the
+// tenant TZ offset being stable for the target date (DST handled by
+// Intl on the way back).
+function tenantDateTimeToUtc(isoDate: string, minuteOfDay: number): Date {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const hour = Math.floor(minuteOfDay / 60), minute = minuteOfDay % 60
+  // Build a UTC Date at the wall-clock time then shift by tenant offset
+  const naive = new Date(Date.UTC(y, m - 1, d, hour, minute))
+  const tzString = new Intl.DateTimeFormat('en-US', {
+    timeZone: TENANT_TZ, timeZoneName: 'shortOffset',
+  }).formatToParts(naive).find(p => p.type === 'timeZoneName')?.value || 'GMT'
+  // Parse offset like "GMT-05:00"
+  const m2 = /GMT([+-])(\d{1,2})(?::(\d{2}))?/.exec(tzString)
+  if (!m2) return naive
+  const sign = m2[1] === '+' ? -1 : 1  // GMT-5 means we add 5 hours to get UTC
+  const offsetMinutes = sign * (parseInt(m2[2], 10) * 60 + parseInt(m2[3] || '0', 10))
+  return new Date(naive.getTime() + offsetMinutes * 60_000)
+}
+
+app.get('/book', async (c) => {
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const services = await db.select().from(bookingServicesTbl)
+    .where(eq(bookingServicesTbl.isActive, true))
+    .orderBy(asc(bookingServicesTbl.displayOrder), asc(bookingServicesTbl.name))
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const body = services.length === 0
+    ? '<section class="book-empty"><div class="container"><h1>Bookings opening soon</h1><p>This business is setting up online booking. Use the contact form for now.</p></div></section>'
+    : `<section class="book-services"><div class="container"><h1 class="book-services__title">Book a service</h1><div class="book-services__grid">${services.map(s => {
+        const price = s.priceCents != null ? '$' + (s.priceCents / 100).toFixed(0) : ''
+        const dur = s.durationMinutes >= 60 ? (s.durationMinutes / 60) + ' hr' : s.durationMinutes + ' min'
+        return `<a class="service-card" href="/book/${escape(s.slug)}"><div class="service-card__body"><h2 class="service-card__name">${escape(s.name)}</h2>${s.description ? `<p class="service-card__desc">${escape(s.description)}</p>` : ''}<div class="service-card__meta"><span class="service-card__dur">${dur}</span>${price ? `<span class="service-card__price">${price}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`
+      }).join('')}</div></div></section>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Book online · ' + (settings.companyName || ''), seoDescription: 'Pick a service and time that works for you.', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath: '/book' }) as string
+  return c.html(html)
+})
+
+app.get('/book/:serviceSlug', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+  if (!service || !service.isActive) return c.notFound()
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const body = `<section class="book-picker"><div class="container container--narrow">
+    <a class="book-picker__back" href="/book">← All services</a>
+    <h1 class="book-picker__title">${escape(service.name)}</h1>
+    ${service.description ? `<p class="book-picker__desc">${escape(service.description)}</p>` : ''}
+    <div id="book-flow" data-service-slug="${escape(service.slug)}" data-service-name="${escape(service.name)}" data-duration="${service.durationMinutes}" data-price-cents="${service.priceCents ?? ''}">
+      <div class="book-step book-step--date">
+        <h2>1. Pick a date</h2>
+        <div class="book-zip"><label>Your ZIP code <input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="53703" id="book-zip-input"></label></div>
+        <div class="book-dates" id="book-dates"></div>
+      </div>
+      <div class="book-step book-step--slot" hidden>
+        <h2>2. Pick a time</h2>
+        <div class="book-slots" id="book-slots"></div>
+      </div>
+      <div class="book-step book-step--form" hidden>
+        <h2>3. Your details</h2>
+        <form id="book-form" autocomplete="on">
+          <input type="hidden" name="serviceSlug" value="${escape(service.slug)}">
+          <input type="hidden" name="startAtIso" id="book-start">
+          <input type="hidden" name="customerZip" id="book-zip-hidden">
+          <label>Name<input type="text" name="customerName" required autocomplete="name"></label>
+          <label>Email<input type="email" name="customerEmail" required autocomplete="email"></label>
+          <label>Phone<input type="tel" name="customerPhone" autocomplete="tel"></label>
+          <label>Address<input type="text" name="customerAddress" autocomplete="street-address"></label>
+          <label>Anything we should know? (optional)<textarea name="customerNotes" rows="3"></textarea></label>
+          <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
+          <input type="hidden" name="t" id="book-form-t">
+          <button type="submit" class="book-submit">Confirm booking</button>
+          <div class="book-error" id="book-error" hidden></div>
+        </form>
+      </div>
+    </div>
+  </div></section>
+  <script src="/scripts/book-flow.js" defer></script>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Book ' + service.name + ' · ' + (settings.companyName || ''), seoDescription: service.description || '', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath: '/book/' + slug }) as string
+  return c.html(html)
+})
+
+// JSON endpoint the slot picker queries when the customer picks a date
+app.get('/book/:serviceSlug/slots', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  const dateStr = c.req.query('date') || ''
+  const customerZip = (c.req.query('zip') || '').trim()
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return c.json({ error: 'date required' }, 400)
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+  if (!service || !service.isActive) return c.json({ error: 'service not found' }, 404)
+
+  // Figure out which day-of-week this date falls on in tenant TZ
+  const noonOfDate = new Date(dateStr + 'T12:00:00Z')
+  const { dayOfWeek } = dateInTenantTz(noonOfDate)
+
+  const rules = await db.select().from(bookingAvailabilityRulesTbl).where(eq(bookingAvailabilityRulesTbl.isActive, true))
+  const blackouts = await db.select().from(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.date, dateStr))
+  const zones = await db.select().from(bookingServiceZonesTbl)
+  // Existing bookings overlapping the target date — pull anything that
+  // starts on the same date in tenant TZ, project to minutes
+  const dayStart = tenantDateTimeToUtc(dateStr, 0)
+  const dayEnd = tenantDateTimeToUtc(dateStr, 24 * 60)
+  const dayBookings = await db.select().from(bookingsTbl)
+    .where(and(gte(bookingsTbl.startAt, dayStart), lte(bookingsTbl.startAt, dayEnd), eq(bookingsTbl.status, 'confirmed')))
+  const projected = dayBookings.map(b => ({
+    assignedUserId: b.assignedUserId,
+    startMinute: dateInTenantTz(b.startAt as any).minuteOfDay,
+    endMinute: dateInTenantTz(b.endAt as any).minuteOfDay,
+    status: b.status,
+  }))
+
+  const slots = generateSlots({
+    dayOfWeek,
+    service: {
+      durationMinutes: service.durationMinutes,
+      bufferBeforeMinutes: service.bufferBeforeMinutes,
+      bufferAfterMinutes: service.bufferAfterMinutes,
+      slotGranularityMinutes: service.slotGranularityMinutes,
+    },
+    rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
+    blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
+    existingBookings: projected,
+    zone: customerZip ? { customerZip, serviceZones: zones.map(z => ({ userId: z.userId, zipList: z.zipList })) } : undefined,
+  })
+
+  return c.json({
+    slots: slots.map(s => ({
+      startMinute: s.startMinute,
+      label: minuteToLabel(s.startMinute),
+      startAtIso: tenantDateTimeToUtc(dateStr, s.startMinute).toISOString(),
+    })),
+  })
+})
+
+function minuteToLabel(min: number): string {
+  const h = Math.floor(min / 60), m = min % 60
+  const am = h < 12
+  const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return displayH + (m === 0 ? '' : ':' + String(m).padStart(2, '0')) + (am ? ' AM' : ' PM')
+}
+
+// In-memory rate limit for public booking POSTs — 3 per IP per hour
+const bookBuckets = new Map<string, number[]>()
+function bookIp(c: any): string {
+  const xff = c.req.header('X-Forwarded-For') || ''
+  if (xff) return xff.split(',')[0].trim()
+  return c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
+}
+
+app.get('/book/thanks', async (c) => {
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const id = c.req.query('id')
+  if (!id) return c.notFound()
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id as string)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const dateStr = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: TENANT_TZ })
+  const body = `<section class="book-thanks"><div class="container container--narrow">
+    <div class="book-thanks__check">✓</div>
+    <h1>You're booked.</h1>
+    <p class="book-thanks__lead">A confirmation is on its way to <strong>${escape(booking.customerEmail)}</strong>.</p>
+    <div class="book-thanks__summary">
+      <div><span>Service</span><strong>${escape(service?.name || 'Service')}</strong></div>
+      <div><span>When</span><strong>${escape(dateStr)}</strong></div>
+      ${booking.customerAddress ? `<div><span>Where</span><strong>${escape(booking.customerAddress)}</strong></div>` : ''}
+    </div>
+    <p class="book-thanks__addcal">Add to your calendar: <a href="/book/${booking.id}/ics">Apple / Outlook</a> · <a href="${googleCalendarLink(booking, service?.name || 'Booking')}" target="_blank" rel="noopener noreferrer">Google</a></p>
+  </div></section>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Booking confirmed', seoDescription: 'Your booking is confirmed.', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath: '/book/thanks' }) as string
+  return c.html(html)
+})
+
+function googleCalendarLink(booking: any, title: string): string {
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: fmt(booking.startAt) + '/' + fmt(booking.endAt),
+    details: 'Booking #' + (booking.id || '').slice(0, 8),
+    location: booking.customerAddress || '',
+  })
+  return 'https://www.google.com/calendar/render?' + params.toString()
+}
+
+app.get('/book/:id/ics', async (c) => {
+  const id = c.req.param('id')!
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const settings = await loadSettings()
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Twomiah//Bookings//EN',
+    'BEGIN:VEVENT',
+    'UID:' + booking.id + '@twomiah',
+    'DTSTAMP:' + fmt(new Date()),
+    'DTSTART:' + fmt(booking.startAt as Date),
+    'DTEND:' + fmt(booking.endAt as Date),
+    'SUMMARY:' + (service?.name || 'Booking') + ' — ' + (settings?.companyName || ''),
+    'DESCRIPTION:Booking confirmation. Reschedule or cancel: open the link in your confirmation email.',
+    booking.customerAddress ? 'LOCATION:' + booking.customerAddress : '',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n')
+  return new Response(ics, { headers: { 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'attachment; filename="booking.ics"' } })
+})
+
+app.post('/book/:serviceSlug', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  try {
+    const ip = bookIp(c)
+    const now = Date.now()
+    const times = (bookBuckets.get(ip) || []).filter(t => now - t < 60 * 60_000)
+    if (times.length >= 3) {
+      c.res.headers.set('Retry-After', String(Math.ceil((60 * 60_000 - (now - times[0])) / 1000)))
+      return c.json({ error: 'Too many booking attempts. Please try again later.' }, 429)
+    }
+    times.push(now); bookBuckets.set(ip, times)
+
+    const body = await c.req.parseBody() as Record<string, any>
+    // Honeypot + dwell-time
+    if (String(body.website || '').trim()) return c.json({ ok: true, booking: { id: 'silent' } })
+    const stamp = parseInt(String(body.t || '0'), 10)
+    if (stamp > 0 && Date.now() - stamp < 2000) return c.json({ ok: true, booking: { id: 'silent' } })
+
+    const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+    if (!service || !service.isActive) return c.json({ error: 'service not found' }, 404)
+
+    const startAtIso = String(body.startAtIso || '')
+    const startAt = new Date(startAtIso)
+    if (isNaN(startAt.getTime())) return c.json({ error: 'invalid start time' }, 400)
+    if (startAt.getTime() < Date.now() + 30 * 60_000) return c.json({ error: 'start time must be at least 30 minutes from now' }, 400)
+    const endAt = new Date(startAt.getTime() + service.durationMinutes * 60_000)
+
+    const name = String(body.customerName || '').trim()
+    const email = String(body.customerEmail || '').trim()
+    if (!name || !email) return c.json({ error: 'name and email are required' }, 400)
+
+    // Re-verify this slot is still available, server-side. Cheap because
+    // we're already in the same transaction shape.
+    const { dayOfWeek } = dateInTenantTz(startAt)
+    const dateStr = dateInTenantTz(startAt).isoDate
+    const startMinuteWanted = dateInTenantTz(startAt).minuteOfDay
+    const rules = await db.select().from(bookingAvailabilityRulesTbl).where(eq(bookingAvailabilityRulesTbl.isActive, true))
+    const blackouts = await db.select().from(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.date, dateStr))
+    const zones = await db.select().from(bookingServiceZonesTbl)
+    const dayBookings = await db.select().from(bookingsTbl)
+      .where(and(gte(bookingsTbl.startAt, tenantDateTimeToUtc(dateStr, 0)), lte(bookingsTbl.startAt, tenantDateTimeToUtc(dateStr, 24 * 60)), eq(bookingsTbl.status, 'confirmed')))
+    const slots = generateSlots({
+      dayOfWeek,
+      service: {
+        durationMinutes: service.durationMinutes,
+        bufferBeforeMinutes: service.bufferBeforeMinutes,
+        bufferAfterMinutes: service.bufferAfterMinutes,
+        slotGranularityMinutes: service.slotGranularityMinutes,
+      },
+      rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
+      blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
+      existingBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, startMinute: dateInTenantTz(b.startAt as any).minuteOfDay, endMinute: dateInTenantTz(b.endAt as any).minuteOfDay, status: b.status })),
+      zone: String(body.customerZip || '').trim() ? { customerZip: String(body.customerZip).trim(), serviceZones: zones.map(z => ({ userId: z.userId, zipList: z.zipList })) } : undefined,
+    })
+    const matchingSlot = slots.find(s => s.startMinute === startMinuteWanted)
+    if (!matchingSlot) return c.json({ error: 'That slot is no longer available. Please pick another.' }, 409)
+    const assignedUserId = pickCrewForSlot(matchingSlot.qualifyingUserIds)
+    const confirmationToken = crypto.randomBytes(24).toString('base64url')
+
+    const [created] = await db.insert(bookingsTbl).values({
+      serviceId: service.id,
+      startAt, endAt,
+      customerName: name,
+      customerEmail: email,
+      customerPhone: String(body.customerPhone || '').trim() || null,
+      customerAddress: String(body.customerAddress || '').trim() || null,
+      customerZip: String(body.customerZip || '').trim() || null,
+      customerNotes: String(body.customerNotes || '').trim() || null,
+      assignedUserId,
+      confirmationToken,
+      source: 'public_form',
+    }).returning({ id: bookingsTbl.id })
+
+    // TODO: send confirmation email + SMS (next session)
+    return c.json({ ok: true, booking: { id: created.id, confirmationToken } })
+  } catch (err: any) {
+    console.error('[book] insert failed:', err.message)
+    return c.json({ error: 'Could not save your booking. Please try again.' }, 500)
+  }
+})
+
 // Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog'].includes(slug)) return c.notFound()
+  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book'].includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
