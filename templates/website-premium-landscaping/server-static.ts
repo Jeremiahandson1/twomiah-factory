@@ -155,12 +155,58 @@ app.post('/api/leads', async (c) => {
     if (!message || message.length < 4) return c.json({ error: 'Tell us a bit about your project.' }, 400)
 
     await db.insert(leadsTbl).values({ name, email, phone, message, source: source || undefined })
+
+    // Fire-and-forget owner notification. Reads recipient from
+    // settings.email (the customer's contact address); skips silently
+    // if SENDGRID_API_KEY isn't set yet.
+    notifyOwnerOfLead({ name, email, phone, message, source }).catch((e: any) =>
+      console.warn('[Leads] owner notification failed:', e.message))
+
     return c.json({ ok: true, message: "Got it. We'll reply within one business day." })
   } catch (err: any) {
     console.error('[Leads] insert failed:', err.message)
     return c.json({ error: 'Could not save your message. Please try again.' }, 500)
   }
 })
+
+async function notifyOwnerOfLead(lead: { name: string; email: string; phone: string | null; message: string; source: string | null }): Promise<void> {
+  const apiKey = process.env.SENDGRID_API_KEY
+  if (!apiKey) return
+  const fromEmail = process.env.FROM_EMAIL || process.env.FACTORY_FROM_EMAIL || 'noreply@twomiah.app'
+  const settingsRow = await loadSettings()
+  const toEmail = (settingsRow as any)?.email
+  if (!toEmail) return
+  const companyName = (settingsRow as any)?.companyName || 'Your site'
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const subject = `New website lead — ${lead.name}`
+  const html = `<!doctype html><html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#fafaf7;margin:0;padding:40px 16px;color:#1a1a1a;">
+    <table width="560" cellpadding="0" cellspacing="0" align="center" style="background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(20,20,30,0.06);">
+      <tr><td style="padding:28px 32px 16px;"><div style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#888;">${escape(companyName)} · new lead</div></td></tr>
+      <tr><td style="padding:0 32px 12px;"><h2 style="margin:0;font-size:22px;color:#1a1a1a;">${escape(lead.name)}</h2></td></tr>
+      <tr><td style="padding:0 32px 24px;color:#3a3a3a;font-size:15px;line-height:1.6;">
+        <div><strong>Email:</strong> <a href="mailto:${escape(lead.email)}" style="color:#1a1a1a;">${escape(lead.email)}</a></div>
+        ${lead.phone ? `<div><strong>Phone:</strong> <a href="tel:${escape(lead.phone)}" style="color:#1a1a1a;">${escape(lead.phone)}</a></div>` : ''}
+        ${lead.source ? `<div style="margin-top:6px;color:#888;font-size:13px;">Submitted from: ${escape(lead.source)}</div>` : ''}
+        <div style="margin-top:18px;padding:14px 18px;background:#fafaf7;border-left:3px solid #f97316;border-radius:4px;white-space:pre-wrap;">${escape(lead.message)}</div>
+      </td></tr>
+      <tr><td style="padding:0 32px 24px;"><a href="mailto:${escape(lead.email)}?subject=Re:%20your%20inquiry" style="display:inline-block;background:#f97316;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;">Reply now</a></td></tr>
+      <tr><td style="background:#fafaf7;padding:16px 32px;border-top:1px solid #eee;color:#888;font-size:12px;">This lead is also saved in your admin under Leads.</td></tr>
+    </table>
+  </body></html>`
+  const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: toEmail }], subject }],
+      from: { email: fromEmail, name: 'Twomiah' },
+      reply_to: { email: lead.email, name: lead.name },
+      content: [{ type: 'text/html', value: html }],
+    }),
+  })
+  if (!res.ok) {
+    console.warn('[Leads] SendGrid HTTP', res.status, await res.text().catch(() => ''))
+  }
+}
 
 // ── Factory internal: sync settings from the Factory ──────────────────────
 app.post('/api/internal/sync-settings', async (c) => {
