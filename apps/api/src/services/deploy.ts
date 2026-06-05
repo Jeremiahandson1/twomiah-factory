@@ -1128,14 +1128,33 @@ export async function deployCustomer(
         // Premium sites push their drizzle schema to the dedicated DB on
         // boot (no migration files exist — they're greenfield templates).
         // Realistic Render Postgres readiness is 2-5 min after the API
-        // returns a connection string; smoke v5 saw ECONNREFUSED for the
-        // first ~90s. Wrap drizzle-kit push in a 60× / 10s retry loop —
-        // up to 10 min — to cover the slow end of provisioning. If all
-        // 60 attempts fail, the for-loop exits and the server boots
-        // anyway so the operator can diagnose via Render's logs.
+        // returns a connection string.
+        //
+        // First attempt used `bunx drizzle-kit push --force && break ||
+        // sleep 10` but probe-final-final 2026-06-05 02:30 showed the
+        // server starting 1s after the first push failed — the shell
+        // construct exited the loop early (suspected: a sub-shell or
+        // signal interaction with bunx). Refactored to explicit if-check
+        // with RC capture, plus a final exit 1 when all 60 attempts fail
+        // so Render marks the deploy update_failed instead of incorrectly
+        // booting a broken server.
+        //
         // Standard sites have no DB query path so they skip push entirely.
+        const premiumBoot = [
+          'export PATH=$HOME/.bun/bin:$PATH',
+          'PUSH_OK=false',
+          'for i in $(seq 1 60); do',
+          '  bunx drizzle-kit push --force',
+          '  RC=$?',
+          '  if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi',
+          '  echo "[boot] push attempt $i exited $RC, retrying in 10s"',
+          '  sleep 10',
+          'done',
+          'if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi',
+          'NODE_ENV=production exec bun server-static.ts',
+        ].join('; ')
         const siteStartCommand = isPremiumSite
-          ? 'export PATH=$HOME/.bun/bin:$PATH && for i in $(seq 1 60); do bunx drizzle-kit push --force && break || sleep 10; done && NODE_ENV=production bun server-static.ts'
+          ? premiumBoot
           : 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',

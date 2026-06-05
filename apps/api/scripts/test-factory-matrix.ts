@@ -72,12 +72,12 @@ const LIMIT = args.limit ? parseInt(args.limit, 10) : 0
 // re-probe specific failures after a fix without re-running the passers.
 const CASES = args.cases ? args.cases.split(',').map(s => parseInt(s.trim(), 10) - 1) : null
 const AUDIT_DIR = args['audit-dir'] || path.join(__dirname, 'test-audit', new Date().toISOString().replace(/[:.]/g, '-'))
-// Render's API rate-limits resource creation. Without inter-test pacing
-// the matrix burns through the quota in a few minutes and starts getting
-// HTTP 429 on /postgres POSTs. 90s between tests keeps us comfortably
-// under Render's published thresholds (smoke v5 hit the wall at test 2).
+// Render's API rate-limits resource creation. Premium tests now create
+// 2 DBs each (CRM + site), which doubles quota burn — 90s pacing was
+// enough for 1-DB tests but landscaping in probe-final-final hit a 429
+// on its second DB creation. Bumping default to 180s for --with-deploy.
 // Generate-only mode hits no external APIs, so pacing defaults to 0.
-const PACE_MS = parseInt(args['pace-ms'] || (WITH_DEPLOY ? '90000' : '0'), 10)
+const PACE_MS = parseInt(args['pace-ms'] || (WITH_DEPLOY ? '180000' : '0'), 10)
 
 // ── Matrix definitions ──────────────────────────────────────────────────
 
