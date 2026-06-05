@@ -189,6 +189,7 @@ app.get('/blog/:slug', async (c) => {
 
 import { generateSlots, pickCrewForSlot } from './lib/booking-slots'
 import { sendBookingConfirmationEmail, notifyOwnerOfBooking } from './lib/email'
+import { pushBookingEvent, deleteBookingEvent } from './lib/google-calendar'
 import {
   bookingServices as bookingServicesTbl,
   bookingAvailabilityRules as bookingAvailabilityRulesTbl,
@@ -545,6 +546,24 @@ app.post('/book/:serviceSlug', async (c) => {
     if (ownerEmail) {
       notifyOwnerOfBooking({ ...ctx, ownerEmail }).catch(e => console.warn('[book] owner email failed:', e?.message))
     }
+    // Push to assigned crew's Google Calendar if connected. Capture the
+    // event ID so admin updates/cancellations can patch the same event.
+    if (assignedUserId) {
+      pushBookingEvent({
+        userId: assignedUserId,
+        booking: {
+          id: created.id,
+          startAt, endAt,
+          customerName: name, customerEmail: email,
+          customerPhone, customerAddress, customerNotes,
+          externalCalendarEventId: null,
+        },
+        service: { name: service.name, description: service.description },
+        companyName: (settingsForEmail as any)?.companyName || undefined,
+      }).then(eventId => {
+        if (eventId) db.update(bookingsTbl).set({ externalCalendarEventId: eventId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
+      }).catch(e => console.warn('[book] gcal push failed:', e?.message))
+    }
     if (customerPhone && process.env.SMS_INTERNAL_URL) {
       sendBookingSmsConfirmation({
         url: process.env.SMS_INTERNAL_URL,
@@ -605,6 +624,10 @@ app.post('/booking/:token/cancel', async (c) => {
   }
   await db.update(bookingsTbl).set({ status: 'cancelled', cancelledAt: new Date(), cancelledReason: 'customer_self_service' })
     .where(eq(bookingsTbl.id, booking.id))
+  // Best-effort: remove from crew's Google Calendar
+  if (booking.assignedUserId && booking.externalCalendarEventId) {
+    deleteBookingEvent({ userId: booking.assignedUserId, eventId: booking.externalCalendarEventId }).catch(() => {})
+  }
   return c.redirect('/booking/' + token)
 })
 
@@ -880,6 +903,35 @@ app.get('/api/admin/billing-portal', async (c) => {
   } catch (e: any) {
     return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
   }
+})
+
+// ── Factory internal: store Google Calendar OAuth tokens ──────────────────
+// The Factory orchestrates the OAuth flow with one global Google app and
+// POSTs the resulting tokens here, gated by FACTORY_SYNC_KEY. We upsert
+// by (user_id, provider) so a re-connect overwrites the old row cleanly.
+import { bookingCalendarConnections as calConnTbl } from './db/schema'
+
+app.post('/api/internal/calendar/store-tokens', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({})) as any
+  if (!body.userId || body.provider !== 'google' || !body.accessToken) {
+    return c.json({ error: 'userId + provider=google + accessToken required' }, 400)
+  }
+  const expiresAt = new Date(Date.now() + ((body.expiresInSec || 3600) - 60) * 1000)
+  // Upsert: delete any existing google connection for this user, then insert
+  await db.delete(calConnTbl).where(and(eq(calConnTbl.userId, body.userId), eq(calConnTbl.provider, 'google')))
+  const [row] = await db.insert(calConnTbl).values({
+    userId: body.userId,
+    provider: 'google',
+    externalAccountEmail: body.externalAccountEmail || null,
+    accessToken: body.accessToken,
+    refreshToken: body.refreshToken || null,
+    expiresAt,
+    calendarId: body.calendarId || 'primary',
+  }).returning({ id: calConnTbl.id })
+  return c.json({ ok: true, connectionId: row.id })
 })
 
 // ── Factory internal: 24h booking reminders ───────────────────────────────

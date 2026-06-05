@@ -38,6 +38,7 @@ import {
   bookingBlackouts as bookingBlackoutsTbl,
   bookingServiceZones as bookingServiceZonesTbl,
   bookings as bookingsTbl,
+  bookingCalendarConnections as calConnTbl,
 } from '../db/schema'
 import { gte, lte } from 'drizzle-orm'
 import { isNull } from 'drizzle-orm'
@@ -1160,6 +1161,9 @@ app.get('/bookings/:id', authMiddleware, async (c) => {
 app.patch('/bookings/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')!
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const before = (await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id)).limit(1))[0]
+  if (!before) return c.json({ error: 'Booking not found' }, 404)
+
   const patch: Record<string, any> = { updatedAt: new Date() }
   if (typeof body.startAt === 'string') patch.startAt = new Date(body.startAt)
   if (typeof body.endAt === 'string') patch.endAt = new Date(body.endAt)
@@ -1170,8 +1174,55 @@ app.patch('/bookings/:id', authMiddleware, async (c) => {
   }
   if (typeof body.customerNotes === 'string' || body.customerNotes === null) patch.customerNotes = body.customerNotes
   const result = await db.update(bookingsTbl).set(patch).where(eq(bookingsTbl.id, id)).returning()
-  if (result.length === 0) return c.json({ error: 'Booking not found' }, 404)
+
+  // Push status changes to Google Calendar best-effort.
+  // - cancelled: delete the event
+  // - other transitions: leave the event as-is (could patch summary in V2)
+  if (before.assignedUserId && before.externalCalendarEventId && body.status === 'cancelled' && before.status !== 'cancelled') {
+    const { deleteBookingEvent } = await import('../lib/google-calendar')
+    deleteBookingEvent({ userId: before.assignedUserId, eventId: before.externalCalendarEventId })
+      .then(ok => { if (ok) db.update(bookingsTbl).set({ externalCalendarEventId: null }).where(eq(bookingsTbl.id, id)).catch(() => {}) })
+      .catch(() => {})
+  }
   return c.json({ booking: result[0] })
+})
+
+// ─── Twomiah Bookings — calendar connections ────────────────────────────
+
+// Returns the URL the SPA should redirect the browser to in order to
+// connect a Google Calendar. The Factory orchestrates the OAuth flow
+// (one app for the whole platform) and lands us back here when done.
+app.get('/calendar/google/connect-url', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const siteUrl = process.env.SITE_URL || ('https://' + (c.req.header('Host') || ''))
+  if (!factoryUrl || !tenantId) return c.json({ error: 'Calendar sync not configured on this site yet — contact support.' }, 503)
+  const returnUrl = siteUrl.replace(/\/$/, '') + '/admin/booking-settings'
+  const params = new URLSearchParams({ tenant: tenantId, user: userId, return: returnUrl })
+  return c.json({ url: factoryUrl.replace(/\/$/, '') + '/calendar/google/auth?' + params.toString() })
+})
+
+app.get('/calendar/connections', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const rows = await db.select({
+    id: calConnTbl.id,
+    provider: calConnTbl.provider,
+    externalAccountEmail: calConnTbl.externalAccountEmail,
+    createdAt: calConnTbl.createdAt,
+    expiresAt: calConnTbl.expiresAt,
+  }).from(calConnTbl).where(eq(calConnTbl.userId, userId))
+  return c.json({ connections: rows })
+})
+
+app.delete('/calendar/connections/:id', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const id = c.req.param('id')!
+  const result = await db.delete(calConnTbl)
+    .where(and(eq(calConnTbl.id, id), eq(calConnTbl.userId, userId)))
+    .returning({ id: calConnTbl.id })
+  if (result.length === 0) return c.json({ error: 'Connection not found' }, 404)
+  return c.json({ ok: true })
 })
 
 // ─── Audit log read (admin only) ─────────────────────────────────────────

@@ -1401,6 +1401,129 @@ factory.post('/customers/:id/email-domain/verify', async (c) => {
 })
 
 
+// ─── Twomiah Bookings Google Calendar OAuth orchestration ─────────────────
+// One Google OAuth app for the whole platform. Tenants don't approve
+// their own — the admin redirects to this Factory endpoint, we send them
+// through Google's consent screen, exchange the code for tokens, then
+// forward those tokens to the right tenant's internal endpoint. Admin
+// browser lands back on the tenant's booking-settings page.
+
+const googleOauthState = new Map<string, { tenantId: string; userId: string; returnUrl: string; expiresAt: number }>()
+
+function newOauthState(payload: { tenantId: string; userId: string; returnUrl: string }): string {
+  const state = (globalThis.crypto || require('crypto')).randomUUID()
+  googleOauthState.set(state, { ...payload, expiresAt: Date.now() + 10 * 60_000 })
+  // Light GC
+  if (googleOauthState.size > 1000) {
+    const now = Date.now()
+    for (const [k, v] of googleOauthState) if (v.expiresAt < now) googleOauthState.delete(k)
+  }
+  return state
+}
+
+function consumeOauthState(state: string): { tenantId: string; userId: string; returnUrl: string } | null {
+  const entry = googleOauthState.get(state)
+  if (!entry || entry.expiresAt < Date.now()) { googleOauthState.delete(state); return null }
+  googleOauthState.delete(state)
+  return entry
+}
+
+// Step 1: tenant admin SPA hits this. We persist state, send the
+// browser to Google's consent screen with our credentials.
+factory.get('/calendar/google/auth', async (c) => {
+  const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID
+  if (!clientId) return c.json({ error: 'Google Calendar OAuth not configured' }, 503)
+  const tenantId = c.req.query('tenant')
+  const userId = c.req.query('user')
+  const returnUrl = c.req.query('return') || ''
+  if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
+  // Verify tenant exists and the return URL points to it (anti-redirect-abuse)
+  const { data: tenant } = await supabase.from('tenants').select('id, render_website_url').eq('id', tenantId).single()
+  if (!tenant) return c.json({ error: 'tenant not found' }, 404)
+  if (!returnUrl.startsWith(tenant.render_website_url || '') && !returnUrl.startsWith('http://localhost')) {
+    return c.json({ error: 'return URL must point to your tenant site' }, 400)
+  }
+  const state = newOauthState({ tenantId, userId, returnUrl })
+  const factoryUrl = process.env.FACTORY_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ''
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/calendar.events',
+    redirect_uri: factoryUrl.replace(/\/$/, '') + '/calendar/google/callback',
+    access_type: 'offline',
+    prompt: 'consent',  // forces refresh_token issuance
+    state,
+  })
+  return c.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString())
+})
+
+// Step 2: Google redirects here after consent. Exchange code for
+// tokens, POST to the tenant, redirect admin back.
+factory.get('/calendar/google/callback', async (c) => {
+  const code = c.req.query('code')
+  const state = c.req.query('state') || ''
+  const error = c.req.query('error')
+  const entry = consumeOauthState(state)
+  if (!entry) return c.html('<p>Sign-in session expired. Please try again from your admin.</p>', 400)
+  if (error || !code) return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'google=denied')
+
+  const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET
+  const factoryUrl = process.env.FACTORY_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ''
+  if (!clientId || !clientSecret) return c.html('<p>Server misconfiguration.</p>', 503)
+
+  // Exchange code for tokens
+  let tokens: any
+  try {
+    const body = new URLSearchParams({
+      code, client_id: clientId, client_secret: clientSecret,
+      redirect_uri: factoryUrl.replace(/\/$/, '') + '/calendar/google/callback',
+      grant_type: 'authorization_code',
+    })
+    const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+    if (!res.ok) return c.html('<p>Token exchange failed: ' + (await res.text().catch(() => '')) + '</p>', 502)
+    tokens = await res.json()
+  } catch (e: any) {
+    return c.html('<p>Token exchange error: ' + e?.message + '</p>', 502)
+  }
+
+  // Look up the user's email from Google so we display it nicely
+  let externalEmail = ''
+  try {
+    const ures = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { 'Authorization': 'Bearer ' + tokens.access_token } })
+    if (ures.ok) { const ud: any = await ures.json(); externalEmail = ud.email || '' }
+  } catch { /* non-fatal */ }
+
+  // Forward tokens to the tenant
+  const { data: tenant } = await supabase.from('tenants').select('render_website_url, factory_sync_key').eq('id', entry.tenantId).single()
+  if (!tenant?.render_website_url || !tenant?.factory_sync_key) {
+    return c.html('<p>Tenant routing not configured.</p>', 502)
+  }
+  try {
+    const r = await fetch(tenant.render_website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
+      body: JSON.stringify({
+        userId: entry.userId,
+        provider: 'google',
+        externalAccountEmail: externalEmail,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiresInSec: tokens.expires_in || 3600,
+        calendarId: 'primary',
+      }),
+    })
+    if (!r.ok) {
+      const text = await r.text().catch(() => '')
+      return c.html('<p>Tenant accept failed: ' + text + '</p>', 502)
+    }
+  } catch (e: any) {
+    return c.html('<p>Tenant call error: ' + e?.message + '</p>', 502)
+  }
+
+  return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'google=connected')
+})
+
 // ─── Twomiah Bookings 24h reminder cron ────────────────────────────────────
 // External scheduler hits this hourly. We fan out to every live tenant
 // that has the website-premium product and POST their internal

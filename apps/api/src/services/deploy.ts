@@ -1135,6 +1135,18 @@ export async function deployCustomer(
           siteEnvVars.push({ key: 'ADMIN_EMAIL',           value: adminEmail })
           siteEnvVars.push({ key: 'ADMIN_INITIAL_PASSWORD',value: adminPassword })
           siteEnvVars.push({ key: 'COMPANY_NAME',          value: factoryCustomer.name || slug })
+          // Pass through Google Calendar OAuth creds so the tenant can
+          // refresh access tokens. Initial token exchange is done by
+          // the Factory (one approved app, one redirect URI).
+          if (process.env.GOOGLE_CALENDAR_CLIENT_ID && process.env.GOOGLE_CALENDAR_CLIENT_SECRET) {
+            siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_ID',     value: process.env.GOOGLE_CALENDAR_CLIENT_ID })
+            siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_SECRET', value: process.env.GOOGLE_CALENDAR_CLIENT_SECRET })
+          }
+          // Pass through SMS internal URL so booking confirmations can
+          // text the customer via the connected CRM's Twilio.
+          if (results.apiUrl) {
+            siteEnvVars.push({ key: 'SMS_INTERNAL_URL', value: results.apiUrl.replace(/\/$/, '') + '/api/internal/send-sms' })
+          }
           // Stash the generated password on the result so notifyDeployComplete
           // can include it in the customer's welcome email.
           ;(results as any).adminPassword = adminPassword

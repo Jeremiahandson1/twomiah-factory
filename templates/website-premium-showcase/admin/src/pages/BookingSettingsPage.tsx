@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff, Calendar, Link2, Link2Off } from 'lucide-react'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
 
@@ -34,7 +34,88 @@ export function BookingSettingsPage() {
       <ServicesSection />
       <AvailabilitySection />
       <BlackoutsSection />
+      <CalendarSyncSection />
     </div>
+  )
+}
+
+interface Connection { id: string; provider: string; externalAccountEmail: string | null; createdAt: string; expiresAt: string | null }
+
+function CalendarSyncSection() {
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [connecting, setConnecting] = useState(false)
+  const [okMsg, setOkMsg] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    api.get<{ connections: Connection[] }>('/api/admin/calendar/connections')
+      .then(({ connections }) => setConnections(connections))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    load()
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('google') === 'connected') {
+      setOkMsg('Google Calendar connected.')
+      const url = new URL(window.location.href); url.searchParams.delete('google'); window.history.replaceState({}, '', url.toString())
+    } else if (params.get('google') === 'denied') {
+      setError('Google Calendar connection cancelled or denied.')
+      const url = new URL(window.location.href); url.searchParams.delete('google'); window.history.replaceState({}, '', url.toString())
+    }
+  }, [])
+
+  const connectGoogle = async () => {
+    setConnecting(true); setError(null)
+    try {
+      const { url } = await api.get<{ url: string }>('/api/admin/calendar/google/connect-url')
+      window.location.href = url
+    } catch (e: any) { setError(e.message); setConnecting(false) }
+  }
+
+  const disconnect = async (id: string) => {
+    if (!confirm('Disconnect this calendar? New bookings will stop showing up there.')) return
+    setError(null)
+    try { await api.delete(`/api/admin/calendar/connections/${id}`); load() }
+    catch (e: any) { setError(e.message) }
+  }
+
+  const googleConn = connections.find(c => c.provider === 'google')
+
+  return (
+    <section className="card card-padding mt-6">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h2 className="text-lg text-ink flex items-center gap-2"><Calendar className="w-4 h-4" />Calendar sync</h2>
+          <p className="text-muted text-xs mt-1">Bookings show up on your connected calendar automatically. Customer cancellations remove the event.</p>
+        </div>
+      </div>
+      {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
+      {okMsg && <div className="text-green-800 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 mb-3">{okMsg}</div>}
+      {loading ? <div className="text-muted text-sm">Loading…</div> : (
+        <ul className="space-y-2">
+          <li className="py-3 px-4 border border-line rounded-lg flex items-center gap-3">
+            <div className="w-8 h-8 rounded bg-paper grid place-items-center"><Calendar className="w-4 h-4 text-ink-soft" /></div>
+            <div className="flex-1">
+              <div className="font-semibold text-ink">Google Calendar</div>
+              <div className="text-xs text-muted">{googleConn ? `Connected as ${googleConn.externalAccountEmail || 'Google account'}` : 'Not connected'}</div>
+            </div>
+            {googleConn ? (
+              <button onClick={() => disconnect(googleConn.id)} className="btn-secondary btn-sm text-red-600 inline-flex items-center gap-1.5">
+                <Link2Off className="w-3.5 h-3.5" />Disconnect
+              </button>
+            ) : (
+              <button onClick={connectGoogle} disabled={connecting} className="btn-primary btn-sm inline-flex items-center gap-1.5 disabled:opacity-50">
+                <Link2 className="w-3.5 h-3.5" />{connecting ? 'Opening Google…' : 'Connect Google'}
+              </button>
+            )}
+          </li>
+        </ul>
+      )}
+    </section>
   )
 }
 
