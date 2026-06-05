@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X, Search, Download } from 'lucide-react'
+import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X, Search, Download, RotateCw } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
@@ -195,22 +195,54 @@ function NewBookingModal({ services, onClose, onCreated }: { services: Service[]
   const [customerNotes, setCustomerNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Recurring options
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [frequency, setFrequency] = useState<'weekly' | 'biweekly' | 'monthly'>('biweekly')
+  const [occurrencesCount, setOccurrencesCount] = useState('8')
+  const [seriesResult, setSeriesResult] = useState<{ instancesCreated: number } | null>(null)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null); setSubmitting(true)
     try {
-      await api.post('/api/admin/bookings', {
-        serviceId,
-        startAt: new Date(startAt).toISOString(),
-        customerName, customerEmail,
-        customerPhone: customerPhone || null,
-        customerAddress: customerAddress || null,
-        customerNotes: customerNotes || null,
-      })
-      onCreated()
+      if (isRecurring) {
+        const res = await api.post<{ instancesCreated: number }>('/api/admin/booking-series', {
+          serviceId,
+          frequency,
+          firstStartAt: new Date(startAt).toISOString(),
+          occurrencesCount: parseInt(occurrencesCount, 10) || 8,
+          customerName, customerEmail,
+          customerPhone: customerPhone || null,
+          customerAddress: customerAddress || null,
+          customerNotes: customerNotes || null,
+        })
+        setSeriesResult(res)
+        setTimeout(() => onCreated(), 1500)
+      } else {
+        await api.post('/api/admin/bookings', {
+          serviceId,
+          startAt: new Date(startAt).toISOString(),
+          customerName, customerEmail,
+          customerPhone: customerPhone || null,
+          customerAddress: customerAddress || null,
+          customerNotes: customerNotes || null,
+        })
+        onCreated()
+      }
     } catch (e: any) { setError(e?.message) }
     finally { setSubmitting(false) }
+  }
+
+  if (seriesResult) {
+    return (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="card card-padding w-full max-w-md text-center" onClick={e => e.stopPropagation()}>
+          <RotateCw className="w-10 h-10 text-green-600 mx-auto mb-3" />
+          <h3 className="text-xl text-ink mb-2">Series created</h3>
+          <p className="text-muted text-sm">{seriesResult.instancesCreated} appointments scheduled.</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -243,10 +275,31 @@ function NewBookingModal({ services, onClose, onCreated }: { services: Service[]
               <div><Label>Address</Label><input className="input" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)} /></div>
             </div>
             <div><Label>Notes</Label><textarea rows={2} className="input" value={customerNotes} onChange={e => setCustomerNotes(e.target.value)} /></div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer border-t border-line pt-3">
+              <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)} />
+              <RotateCw className="w-3.5 h-3.5 text-muted" />
+              Make this recurring
+            </label>
+            {isRecurring && (
+              <div className="grid grid-cols-2 gap-3 pl-6">
+                <div>
+                  <Label>Frequency</Label>
+                  <select className="input" value={frequency} onChange={e => setFrequency(e.target.value as any)}>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Every other week</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Number of appointments</Label>
+                  <input type="number" min={2} max={52} className="input" value={occurrencesCount} onChange={e => setOccurrencesCount(e.target.value)} />
+                </div>
+              </div>
+            )}
             {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</div>}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" onClick={onClose} className="btn-secondary btn-md">Cancel</button>
-              <button type="submit" disabled={submitting} className="btn-primary btn-md">{submitting ? 'Booking…' : 'Confirm booking'}</button>
+              <button type="submit" disabled={submitting} className="btn-primary btn-md">{submitting ? (isRecurring ? 'Creating series…' : 'Booking…') : (isRecurring ? 'Create series' : 'Confirm booking')}</button>
             </div>
           </form>
         )}
