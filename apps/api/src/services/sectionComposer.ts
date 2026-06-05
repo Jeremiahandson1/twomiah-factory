@@ -522,6 +522,42 @@ contact/form-info: { "heading": "...", "intro": "...", "phone": "${input.phone |
   }
 }
 
+# Few-shot examples — match this tier of voice and specificity
+
+## GOOD example: a Driftless-region restaurant
+Hero (full-bleed):
+  eyebrow:  "Mineral Point · 28 seats · Tuesday–Saturday"
+  title:    "Five courses. One chef. The whole room hears the kitchen."
+  subtitle: "Anika cooks for 28 people a night from three farms inside a 30-mile circle. Reservations open four weeks ahead."
+  primaryCta: { label: "Reserve a table", href: "contact.html" }
+
+Why this works: every word is specific to THIS restaurant. "The whole room
+hears the kitchen" is a real fact about the 28-seat layout that becomes
+a vivid promise. No 'farm-to-table experience' or 'culinary journey'.
+
+## GOOD example: a roofing company
+Hero (split, flip:false):
+  eyebrow:  "Madison + Dane County · since 2014"
+  title:    "We answer the phone. We show up when we say."
+  subtitle: "Storm-damage insurance work is most of what we do. Re-roofs and gutters fill in the slow weeks. Owner-on-the-roof on every job."
+  stats: [
+    { value: "1,200+", label: "Roofs since 2014" },
+    { value: "Owner", label: "On every job site" },
+  ]
+
+Why this works: takes a position other contractors won't ("we answer the
+phone"). The stats are anchored to specific facts, not vanity numbers.
+
+## BAD example — do NOT do this
+Hero:
+  eyebrow:  "Trusted Roofing Experts"
+  title:    "Complete Roofing Solutions From Inspection To Installation"
+  subtitle: "Quality work you can trust, with experience you can rely on."
+
+Why this is bad: every word could substitute on a competitor's site. The
+copy is interchangeable. The title is just a list of nouns. The subtitle
+uses "trust" twice and says nothing concrete. NEVER ship copy like this.
+
 Output the JSON now — nothing else.`
 }
 
