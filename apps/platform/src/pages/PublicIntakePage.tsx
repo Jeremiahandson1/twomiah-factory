@@ -129,8 +129,28 @@ export default function PublicIntakePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto p-6 pt-12 pb-24">
         <div className="mb-2 text-xs font-semibold tracking-wider text-orange-600 uppercase">Twomiah Premium Website</div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Get your AI-composed preview in 15 minutes</h1>
-        <p className="text-gray-600 mb-8">Tell us about your business. We'll compose a 4-page site you can review before paying.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Get your AI-composed preview in minutes</h1>
+        <p className="text-gray-600 mb-6">Tell us about your business. We'll compose a 4-page site you can review before paying.</p>
+
+        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-8">
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-gray-900">Free</div>
+              <div className="text-xs text-gray-500 mt-1">Preview + revisions</div>
+            </div>
+            <div className="border-x border-gray-200">
+              <div className="text-2xl font-bold text-gray-900">$1,000</div>
+              <div className="text-xs text-gray-500 mt-1">One-time build, only if you approve</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900">$75/mo</div>
+              <div className="text-xs text-gray-500 mt-1">Hosting + CMS + edits, after launch</div>
+            </div>
+          </div>
+          <div className="text-xs text-gray-500 text-center mt-4">
+            No charge until you click <span className="font-semibold text-gray-700">Approve &amp; build my site</span> on the preview.
+          </div>
+        </div>
 
         <div className="flex flex-wrap gap-x-6 gap-y-2 mb-8">
           <StepBadge s="business" label="Business" num={1} />
@@ -262,7 +282,7 @@ export default function PublicIntakePage() {
         </div>
 
         <div className="text-center text-xs text-gray-400 mt-6">
-          By submitting you agree we may email you a preview link. We won't charge anything until you approve.
+          By submitting you agree we may email you a preview link. Free to preview and request changes — you only pay if you approve.
         </div>
       </div>
 
