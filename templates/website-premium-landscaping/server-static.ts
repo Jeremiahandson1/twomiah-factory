@@ -188,6 +188,7 @@ app.get('/blog/:slug', async (c) => {
 // to the slug handler first.
 
 import { generateSlots, pickCrewForSlot } from './lib/booking-slots'
+import { sendBookingConfirmationEmail, notifyOwnerOfBooking } from './lib/email'
 import {
   bookingServices as bookingServicesTbl,
   bookingAvailabilityRules as bookingAvailabilityRulesTbl,
@@ -392,6 +393,26 @@ app.get('/book/thanks', async (c) => {
   return c.html(html)
 })
 
+// SMS via the connected CRM's Twilio. We don't bundle Twilio here —
+// the CRM holds the credentials. Internal endpoint protected by
+// FACTORY_SYNC_KEY. Best-effort; silently swallows failures so the
+// booking still confirms.
+async function sendBookingSmsConfirmation(opts: { url: string; key: string; to: string; body: string }): Promise<void> {
+  await fetch(opts.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Factory-Key': opts.key },
+    body: JSON.stringify({ to: opts.to, body: opts.body }),
+  })
+}
+
+function siteOrigin(c: any): string {
+  const explicit = process.env.SITE_URL
+  if (explicit) return explicit.replace(/\/$/, '')
+  const host = c.req.header('Host') || 'localhost'
+  const proto = c.req.header('X-Forwarded-Proto') || (host.startsWith('localhost') ? 'http' : 'https')
+  return proto + '://' + host
+}
+
 function googleCalendarLink(booking: any, title: string): string {
   const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
   const params = new URLSearchParams({
@@ -486,21 +507,53 @@ app.post('/book/:serviceSlug', async (c) => {
     const assignedUserId = pickCrewForSlot(matchingSlot.qualifyingUserIds)
     const confirmationToken = crypto.randomBytes(24).toString('base64url')
 
+    const customerAddress = String(body.customerAddress || '').trim() || null
+    const customerNotes = String(body.customerNotes || '').trim() || null
+    const customerPhone = String(body.customerPhone || '').trim() || null
     const [created] = await db.insert(bookingsTbl).values({
       serviceId: service.id,
       startAt, endAt,
       customerName: name,
       customerEmail: email,
-      customerPhone: String(body.customerPhone || '').trim() || null,
-      customerAddress: String(body.customerAddress || '').trim() || null,
+      customerPhone,
+      customerAddress,
       customerZip: String(body.customerZip || '').trim() || null,
-      customerNotes: String(body.customerNotes || '').trim() || null,
+      customerNotes,
       assignedUserId,
       confirmationToken,
       source: 'public_form',
     }).returning({ id: bookingsTbl.id })
 
-    // TODO: send confirmation email + SMS (next session)
+    // Fire-and-forget customer + owner emails. SMS to customer fires
+    // through the CRM's existing Twilio integration via internal API
+    // (not implemented yet — falls through silently if SMS_INTERNAL_URL
+    // isn't set).
+    const settingsForEmail = await loadSettings()
+    const ownerEmail = (settingsForEmail as any)?.email || ''
+    const ctx = {
+      serviceName: service.name,
+      startAt, endAt,
+      customerName: name,
+      customerEmail: email,
+      customerAddress,
+      customerNotes,
+      manageUrl: siteOrigin(c) + '/booking/' + confirmationToken,
+      icsUrl: siteOrigin(c) + '/book/' + created.id + '/ics',
+      tenantTz: TENANT_TZ,
+    }
+    sendBookingConfirmationEmail(ctx).catch(e => console.warn('[book] customer email failed:', e?.message))
+    if (ownerEmail) {
+      notifyOwnerOfBooking({ ...ctx, ownerEmail }).catch(e => console.warn('[book] owner email failed:', e?.message))
+    }
+    if (customerPhone && process.env.SMS_INTERNAL_URL) {
+      sendBookingSmsConfirmation({
+        url: process.env.SMS_INTERNAL_URL,
+        key: process.env.FACTORY_SYNC_KEY || '',
+        to: customerPhone,
+        body: 'Booking confirmed: ' + service.name + ' on ' + (startAt.toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short', timeZone: TENANT_TZ })) + '. Manage: ' + ctx.manageUrl,
+      }).catch(e => console.warn('[book] customer sms failed:', e?.message))
+    }
+
     return c.json({ ok: true, booking: { id: created.id, confirmationToken } })
   } catch (err: any) {
     console.error('[book] insert failed:', err.message)
@@ -508,10 +561,57 @@ app.post('/book/:serviceSlug', async (c) => {
   }
 })
 
+// Customer self-service: view + cancel a booking using the
+// confirmation token from their email. Reschedule is admin-side
+// for V1; customer can cancel and re-book.
+app.get('/booking/:token', async (c) => {
+  const token = c.req.param('token') as string
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const dateStr = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: TENANT_TZ })
+  const statusLabel = booking.status === 'cancelled' ? 'Cancelled' : booking.status === 'completed' ? 'Completed' : 'Confirmed'
+  const showCancel = booking.status === 'confirmed' && (booking.startAt as Date).getTime() > Date.now() + 60 * 60_000
+  const body = `<section class="book-manage"><div class="container container--narrow">
+    <a class="book-picker__back" href="/">← Home</a>
+    <h1>Your booking</h1>
+    <div class="book-thanks__summary">
+      <div><span>Service</span><strong>${escape(service?.name || 'Service')}</strong></div>
+      <div><span>When</span><strong>${escape(dateStr)}</strong></div>
+      <div><span>Status</span><strong>${statusLabel}</strong></div>
+      ${booking.customerAddress ? `<div><span>Where</span><strong>${escape(booking.customerAddress)}</strong></div>` : ''}
+    </div>
+    ${showCancel ? `<form method="POST" action="/booking/${escape(token)}/cancel" onsubmit="return confirm('Cancel this booking?')" style="margin-top:24px;text-align:center;"><button type="submit" class="book-submit" style="background:#dc2626;max-width:220px;">Cancel booking</button></form>` : ''}
+    <p style="margin-top:16px;color:var(--muted);font-size:13px;text-align:center;">Need to reschedule? Reply to your confirmation email and we'll help you find a new time.</p>
+  </div></section>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Your booking', seoDescription: '', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath: '/booking/' + token }) as string
+  return c.html(html)
+})
+
+app.post('/booking/:token/cancel', async (c) => {
+  const token = c.req.param('token') as string
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.confirmationToken, token)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  if (booking.status !== 'confirmed') return c.redirect('/booking/' + token)
+  // 1-hour cutoff
+  if ((booking.startAt as Date).getTime() < Date.now() + 60 * 60_000) {
+    return c.redirect('/booking/' + token)
+  }
+  await db.update(bookingsTbl).set({ status: 'cancelled', cancelledAt: new Date(), cancelledReason: 'customer_self_service' })
+    .where(eq(bookingsTbl.id, booking.id))
+  return c.redirect('/booking/' + token)
+})
+
 // Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book'].includes(slug)) return c.notFound()
+  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
@@ -780,6 +880,48 @@ app.get('/api/admin/billing-portal', async (c) => {
   } catch (e: any) {
     return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
   }
+})
+
+// ── Factory internal: 24h booking reminders ───────────────────────────────
+// Hourly cron from the Factory hits this. We find every confirmed
+// booking with start_at in the next 23-25 hours and reminder_24h_sent_at
+// IS NULL, send the reminder, stamp the sent-at column. Idempotent.
+app.post('/api/internal/booking-reminders', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+
+  const { sendBookingReminderEmail } = await import('./lib/email')
+  const now = new Date()
+  const windowStart = new Date(now.getTime() + 23 * 60 * 60 * 1000)
+  const windowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000)
+  const due = await db.select().from(bookingsTbl)
+    .where(and(
+      eq(bookingsTbl.status, 'confirmed'),
+      gte(bookingsTbl.startAt, windowStart),
+      lte(bookingsTbl.startAt, windowEnd),
+    ))
+  let sent = 0
+  for (const b of due) {
+    if (b.reminder24hSentAt) continue
+    const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, b.serviceId)).limit(1))[0]
+    if (!service) continue
+    try {
+      await sendBookingReminderEmail({
+        serviceName: service.name,
+        startAt: b.startAt as Date, endAt: b.endAt as Date,
+        customerName: b.customerName, customerEmail: b.customerEmail,
+        customerAddress: b.customerAddress,
+        manageUrl: siteOrigin(c) + '/booking/' + b.confirmationToken,
+        tenantTz: TENANT_TZ,
+      })
+      await db.update(bookingsTbl).set({ reminder24hSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+      sent++
+    } catch (err: any) {
+      console.warn('[reminder] failed for booking ' + b.id + ':', err?.message)
+    }
+  }
+  return c.json({ ok: true, checked: due.length, sent })
 })
 
 // ── Factory internal: sync settings from the Factory ──────────────────────

@@ -78,6 +78,96 @@ export async function sendEmailVerificationEmail(opts: { to: string; verifyUrl: 
   })
 }
 
+// ─── Booking templates ──────────────────────────────────────────────────
+
+interface BookingEmailContext {
+  serviceName: string
+  startAt: Date
+  endAt: Date
+  customerName: string
+  customerEmail: string
+  customerAddress?: string | null
+  customerNotes?: string | null
+  manageUrl?: string
+  icsUrl?: string
+  tenantTz?: string
+}
+
+function fmtBookingDateTime(d: Date, tz?: string): string {
+  return d.toLocaleString('en-US', {
+    dateStyle: 'full', timeStyle: 'short',
+    timeZone: tz || process.env.TENANT_TIMEZONE || 'America/Chicago',
+  })
+}
+
+/**
+ * Customer confirmation — sent immediately after a booking is created.
+ * Lands in their inbox before they refresh the thank-you page.
+ */
+export async function sendBookingConfirmationEmail(opts: BookingEmailContext): Promise<boolean> {
+  const when = fmtBookingDateTime(opts.startAt, opts.tenantTz)
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(opts.customerName)},</p>
+    <p style="margin:0 0 14px;">Your booking is confirmed.</p>
+    <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
+      <div style="margin-bottom:8px;"><strong style="color:#1a1a1a;">${escape(opts.serviceName)}</strong></div>
+      <div style="color:#666;font-size:14px;">${escape(when)}</div>
+      ${opts.customerAddress ? `<div style="color:#666;font-size:14px;margin-top:6px;">${escape(opts.customerAddress)}</div>` : ''}
+    </div>
+    ${opts.manageUrl ? `<p style="margin:14px 0 0;font-size:14px;color:#666;">Need to reschedule or cancel? <a href="${escape(opts.manageUrl)}" style="color:#f97316;">Manage your booking</a>.</p>` : ''}
+    ${opts.icsUrl ? `<p style="margin:8px 0 0;font-size:14px;color:#666;"><a href="${escape(opts.icsUrl)}" style="color:#f97316;">Add to your calendar</a></p>` : ''}`
+  return sendEmail({
+    to: opts.customerEmail,
+    subject: 'Booking confirmed — ' + opts.serviceName,
+    html: wrap('Booking confirmed', body, opts.manageUrl ? { href: opts.manageUrl, label: 'Manage booking' } : undefined),
+  })
+}
+
+/**
+ * Owner notification — fires alongside the customer confirmation so
+ * the owner sees the booking lobby fast (especially useful before they
+ * have the admin SPA open all day).
+ */
+export async function notifyOwnerOfBooking(opts: BookingEmailContext & { ownerEmail: string }): Promise<boolean> {
+  const when = fmtBookingDateTime(opts.startAt, opts.tenantTz)
+  const body = `
+    <p style="margin:0 0 14px;">New booking from <strong>${escape(opts.customerName)}</strong> (${escape(opts.customerEmail)}).</p>
+    <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
+      <div style="margin-bottom:8px;"><strong style="color:#1a1a1a;">${escape(opts.serviceName)}</strong></div>
+      <div style="color:#666;font-size:14px;">${escape(when)}</div>
+      ${opts.customerAddress ? `<div style="color:#666;font-size:14px;margin-top:6px;">${escape(opts.customerAddress)}</div>` : ''}
+      ${opts.customerNotes ? `<div style="color:#3a3a3a;font-size:14px;margin-top:10px;padding-top:10px;border-top:1px solid #eee;white-space:pre-wrap;">${escape(opts.customerNotes)}</div>` : ''}
+    </div>`
+  return sendEmail({
+    to: opts.ownerEmail,
+    subject: '[New booking] ' + opts.serviceName + ' — ' + opts.customerName,
+    html: wrap('New booking', body),
+    replyTo: { email: opts.customerEmail, name: opts.customerName },
+  })
+}
+
+/**
+ * 24-hour reminder — fired by an hourly cron when the booking starts
+ * within the next ~24 hours and reminder_24h_sent_at is still null.
+ */
+export async function sendBookingReminderEmail(opts: BookingEmailContext): Promise<boolean> {
+  const when = fmtBookingDateTime(opts.startAt, opts.tenantTz)
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(opts.customerName)},</p>
+    <p style="margin:0 0 14px;">Quick reminder of your upcoming booking:</p>
+    <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
+      <div style="margin-bottom:8px;"><strong style="color:#1a1a1a;">${escape(opts.serviceName)}</strong></div>
+      <div style="color:#666;font-size:14px;">${escape(when)}</div>
+      ${opts.customerAddress ? `<div style="color:#666;font-size:14px;margin-top:6px;">${escape(opts.customerAddress)}</div>` : ''}
+    </div>
+    ${opts.manageUrl ? `<p style="margin:14px 0 0;font-size:14px;color:#666;">Need to reschedule? <a href="${escape(opts.manageUrl)}" style="color:#f97316;">Open your booking</a>.</p>` : ''}`
+  return sendEmail({
+    to: opts.customerEmail,
+    subject: 'Reminder: ' + opts.serviceName + ' tomorrow',
+    html: wrap('See you tomorrow', body),
+  })
+}
+
 export async function sendLoginNotificationEmail(opts: {
   to: string
   ip: string

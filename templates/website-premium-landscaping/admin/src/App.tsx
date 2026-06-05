@@ -16,6 +16,9 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { VerifyEmailPage } from './pages/VerifyEmailPage'
 import { AuditLogPage } from './pages/AuditLogPage'
+import { BookingsPage } from './pages/BookingsPage'
+import { BookingDetailPage } from './pages/BookingDetailPage'
+import { BookingSettingsPage } from './pages/BookingSettingsPage'
 import { PhotoPickerProvider } from './contexts/PhotoPickerContext'
 import { PhotoPickerModal } from './components/PhotoPickerModal'
 
@@ -39,6 +42,9 @@ export default function App() {
           <Route path="/billing" element={<BillingPage />} />
           <Route path="/posts" element={<PostsListPage />} />
           <Route path="/posts/:slug" element={<PostEditPage />} />
+          <Route path="/bookings" element={<BookingsPage />} />
+          <Route path="/bookings/:id" element={<BookingDetailPage />} />
+          <Route path="/booking-settings" element={<BookingSettingsPage />} />
           <Route path="/activity" element={<AuditLogPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/pages" replace />} />

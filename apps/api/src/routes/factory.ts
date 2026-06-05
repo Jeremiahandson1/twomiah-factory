@@ -1401,6 +1401,45 @@ factory.post('/customers/:id/email-domain/verify', async (c) => {
 })
 
 
+// ─── Twomiah Bookings 24h reminder cron ────────────────────────────────────
+// External scheduler hits this hourly. We fan out to every live tenant
+// that has the website-premium product and POST their internal
+// /api/internal/booking-reminders endpoint, which sends emails for any
+// bookings starting in the next 23-25 hours.
+factory.post('/internal/booking-reminders', async (c) => {
+  const expectedSecret = process.env.CRON_SECRET
+  const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
+  if (!expectedSecret || gotSecret !== expectedSecret) return c.json({ error: 'Unauthorized' }, 401)
+
+  const { data: tenants, error } = await supabase
+    .from('tenants')
+    .select('id, slug, render_website_url, factory_sync_key, products, status')
+    .eq('status', 'live')
+    .contains('products', ['website-premium'])
+  if (error) return c.json({ error: error.message }, 500)
+
+  const results: any[] = []
+  for (const t of tenants || []) {
+    if (!t.render_website_url || !t.factory_sync_key) {
+      results.push({ slug: t.slug, ok: false, reason: 'missing url or sync key' })
+      continue
+    }
+    try {
+      const res = await fetch(t.render_website_url.replace(/\/$/, '') + '/api/internal/booking-reminders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
+        signal: AbortSignal.timeout(30_000),
+      })
+      const body = await res.json().catch(() => ({}))
+      results.push({ slug: t.slug, ok: res.ok, ...body })
+    } catch (e: any) {
+      results.push({ slug: t.slug, ok: false, error: e?.message })
+    }
+  }
+  const totalSent = results.reduce((acc, r) => acc + (r.sent || 0), 0)
+  return c.json({ ok: true, tenants: results.length, totalSent, results })
+})
+
 // ─── Renewal check cron (domain + sub renewals + teardown pickup) ──────────
 // Runs daily via external scheduler (same x-cron-secret pattern as /internal/trial-check).
 // Idempotent — sentinel columns prevent duplicate warnings.

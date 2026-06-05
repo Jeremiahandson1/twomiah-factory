@@ -1,0 +1,119 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink } from 'lucide-react'
+import clsx from 'clsx'
+import { api } from '../api/client'
+
+interface Booking {
+  id: string
+  serviceId: string
+  startAt: string
+  endAt: string
+  customerName: string
+  customerEmail: string
+  customerPhone: string | null
+  customerAddress: string | null
+  customerNotes: string | null
+  status: 'confirmed' | 'cancelled' | 'completed' | 'no_show'
+  assignedUserId: string | null
+  createdAt: string
+}
+
+interface Service { id: string; name: string }
+
+const STATUS_STYLES: Record<string, string> = {
+  confirmed: 'bg-blue-50 text-blue-800 border-blue-200',
+  completed: 'bg-green-50 text-green-800 border-green-200',
+  cancelled: 'bg-gray-100 text-gray-600 border-gray-200',
+  no_show: 'bg-amber-50 text-amber-800 border-amber-200',
+}
+
+export function BookingsPage() {
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [services, setServices] = useState<Service[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming')
+
+  useEffect(() => {
+    Promise.all([
+      api.get<{ bookings: Booking[] }>('/api/admin/bookings'),
+      api.get<{ services: Service[] }>('/api/admin/booking-services'),
+    ]).then(([b, s]) => {
+      setBookings(b.bookings); setServices(s.services)
+    }).catch((e) => setError(e.message)).finally(() => setLoading(false))
+  }, [])
+
+  const serviceById = (id: string) => services.find(s => s.id === id)?.name || 'Unknown service'
+  const now = Date.now()
+  const filtered = bookings.filter(b => {
+    if (filter === 'upcoming') return new Date(b.startAt).getTime() >= now && b.status !== 'cancelled'
+    if (filter === 'past') return new Date(b.startAt).getTime() < now
+    return true
+  })
+
+  return (
+    <div className="p-8 max-w-6xl mx-auto">
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-3xl text-ink">Bookings</h1>
+          <p className="text-muted text-sm mt-1">Every appointment booked through your public site.</p>
+        </div>
+        <Link to="/booking-settings" className="btn-secondary btn-md">Settings</Link>
+      </div>
+
+      <div className="flex gap-2 mb-6">
+        {(['upcoming', 'past', 'all'] as const).map(f => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={clsx(
+              'px-4 py-1.5 rounded-full text-sm font-medium border',
+              filter === f ? 'bg-ink text-white border-ink' : 'bg-white text-ink-soft border-line hover:border-ink-soft'
+            )}
+          >
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {loading && <div className="text-muted text-sm">Loading…</div>}
+      {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-4">{error}</div>}
+
+      {!loading && filtered.length === 0 && (
+        <div className="card card-padding text-center text-muted">
+          No bookings in this view yet.
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div className="space-y-3">
+          {filtered.map(b => (
+            <Link key={b.id} to={`/bookings/${b.id}`} className="block card card-padding hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    <span className="font-semibold text-ink">{b.customerName}</span>
+                    <span className={clsx('text-xs font-medium px-2 py-0.5 rounded-full border', STATUS_STYLES[b.status])}>
+                      {b.status}
+                    </span>
+                  </div>
+                  <div className="text-sm text-ink-soft mb-2">{serviceById(b.serviceId)}</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                    <span className="inline-flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(b.startAt).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                    <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(b.startAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+                    {b.customerAddress && <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{b.customerAddress}</span>}
+                  </div>
+                </div>
+                <div className="flex flex-col items-end gap-2 text-xs text-muted">
+                  {b.customerPhone && <a href={`tel:${b.customerPhone}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-ink"><Phone className="w-3 h-3" />{b.customerPhone}</a>}
+                  <a href={`mailto:${b.customerEmail}`} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 hover:text-ink"><Mail className="w-3 h-3" />{b.customerEmail}</a>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
