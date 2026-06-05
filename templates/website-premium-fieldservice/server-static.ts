@@ -144,6 +144,25 @@ function escapeXml(s: string): string {
 app.post('/api/leads', async (c) => {
   try {
     const body = await c.req.parseBody() as Record<string, any>
+
+    // ── Spam protection (honeypot + minimum dwell time) ────────────────
+    // The contact form template includes a hidden 'website' field that
+    // legitimate users never see. Bots auto-fill every input — any
+    // value here is a tell. Silently 200 so the bot thinks it worked.
+    // The form also stamps a hidden 't' field with Date.now() when it
+    // renders; if the submit lands in under 1.5s the form was almost
+    // certainly auto-completed. Both checks are cheap and effective.
+    const honeypot = String(body.website || '').trim()
+    if (honeypot) {
+      console.log('[Leads] honeypot triggered — silent drop')
+      return c.json({ ok: true, message: "Got it. We'll reply within one business day." })
+    }
+    const stamp = parseInt(String(body.t || '0'), 10)
+    if (stamp > 0 && Date.now() - stamp < 1500) {
+      console.log('[Leads] dwell-time triggered — silent drop')
+      return c.json({ ok: true, message: "Got it. We'll reply within one business day." })
+    }
+
     const name = String(body.name || '').trim()
     const email = String(body.email || '').trim()
     const phone = String(body.phone || '').trim() || null

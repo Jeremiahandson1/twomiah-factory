@@ -53,6 +53,15 @@
     </div>
 
     <form class="contact-form" action="<%= formAction %>" method="post">
+      <%/* Spam protection: hidden honeypot + a stamp the server compares
+            against submit time to drop sub-2s bot submissions. Both
+            inputs are visually + screen-reader hidden. */%>
+      <div aria-hidden="true" style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;">
+        <label for="cf-website">Website (leave empty)</label>
+        <input id="cf-website" name="website" type="text" tabindex="-1" autocomplete="off">
+      </div>
+      <input type="hidden" name="t" value="" data-form-stamp>
+      <script>(function(){var s=document.currentScript.previousElementSibling;if(s&&s.name==='t')s.value=Date.now();})();</script>
       <div class="contact-form__row">
         <label for="cf-name">Your name</label>
         <input id="cf-name" name="name" type="text" required>
