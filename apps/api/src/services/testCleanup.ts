@@ -61,6 +61,7 @@ function deriveServiceNames(slug: string, industry: string | null | undefined): 
   const candidates = new Set<string>()
   candidates.add(slug)                       // generic web
   candidates.add(slug + '-api')              // generic backend
+  candidates.add(slug + '-site')             // premium website service
   if (suffix) {
     candidates.add(slug + suffix)            // vertical-specific web
     candidates.add(slug + suffix + '-api')   // vertical-specific backend
