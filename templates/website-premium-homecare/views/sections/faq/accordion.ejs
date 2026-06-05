@@ -1,0 +1,25 @@
+<%
+  // FAQ section: collapsible Q&A pairs. Pure CSS via <details>/<summary>
+  // so it works without JS and search engines see the answers in the
+  // initial HTML.
+  const heading = data.heading || ''
+  const intro = data.intro || ''
+  const items = Array.isArray(data.items) ? data.items.filter(it => it && it.question && it.answer) : []
+  if (items.length === 0) return
+%>
+<section class="faq-section">
+  <div class="container faq-section__grid">
+    <div class="faq-section__head">
+      <% if (heading) { %><h2 class="faq-section__title"><%= heading %></h2><% } %>
+      <% if (intro) { %><p class="faq-section__intro"><%= intro %></p><% } %>
+    </div>
+    <div class="faq-list">
+      <% items.forEach(function(it) { %>
+        <details class="faq-item">
+          <summary class="faq-item__question"><%= it.question %></summary>
+          <div class="faq-item__answer"><%= it.answer %></div>
+        </details>
+      <% }) %>
+    </div>
+  </div>
+</section>

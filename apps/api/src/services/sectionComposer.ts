@@ -151,6 +151,13 @@ export const SECTION_SCHEMA = {
       use_when: 'show 1-3 short customer testimonials. Only use when the intake actually provided quotes or named customers — never fabricate testimonials.',
     },
   },
+  faq: {
+    accordion: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'pre-empt the 5-8 most common buyer questions for this business: pricing, process, lead time, coverage area, what is included, what to expect. Big SEO win and qualifies leads.',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA

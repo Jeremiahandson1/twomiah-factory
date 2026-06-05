@@ -165,6 +165,18 @@ export const SECTION_DEFS: SectionDef[] = [
       items: [{ quote: '', author: '', role: '', photo: '' }],
     },
   },
+
+  // ── FAQ ─────────────────────────────────────────────────────────────
+  {
+    type: 'faq', variant: 'accordion',
+    label: 'FAQ — Accordion',
+    description: 'Pre-empt the 5-8 most common buyer questions. Pure CSS accordion. Huge for SEO and qualifying leads.',
+    defaultData: {
+      heading: 'Frequently asked',
+      intro: '',
+      items: [{ question: '', answer: '' }],
+    },
+  },
 ]
 
 export function findSectionDef(type: string, variant: string): SectionDef | undefined {
