@@ -3522,6 +3522,32 @@ factory.post('/intake/:id/unapprove-premium', requireRole('owner', 'admin'), asy
   return c.json({ ok: true })
 })
 
+// Internal: generate a Stripe Customer Portal session URL for the
+// tenant's admin to manage their subscription, payment method, and
+// invoices. The tenant's site server calls this from /api/internal/
+// billing-portal authenticated by FACTORY_SYNC_KEY, then forwards the
+// URL to the admin's Billing nav click.
+factory.get('/internal/billing-portal/:tenantId', async (c) => {
+  const tenantId = c.req.param('tenantId')
+  if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant id' }, 400)
+  const key = c.req.header('X-Factory-Key')
+  const { data: tenant, error } = await supabase.from('tenants')
+    .select('id, factory_sync_key, stripe_customer_id, website_url, render_frontend_url')
+    .eq('id', tenantId)
+    .single()
+  if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+  if (!key || key !== tenant.factory_sync_key) return c.json({ error: 'Bad sync key' }, 401)
+  if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant yet — billing portal unavailable until first payment.' }, 409)
+  const returnUrl = (tenant.website_url || tenant.render_frontend_url || 'https://twomiah.com').replace(/\/+$/, '') + '/admin/account'
+  try {
+    const session = await factoryStripe.createBillingPortalSession(tenant.stripe_customer_id, returnUrl)
+    return c.json({ url: session.url })
+  } catch (e: any) {
+    console.error('[BillingPortal]', e.message)
+    return c.json({ error: 'Could not create billing portal session: ' + e.message }, 500)
+  }
+})
+
 // Internal: bootstrap payload for a freshly-deployed premium site.
 // Called by the premium template's bin/seed.ts on first boot (after
 // drizzle-kit push creates the schema). Returns the data needed to

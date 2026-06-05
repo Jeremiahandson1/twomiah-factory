@@ -9,6 +9,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { LeadsPage } from './pages/LeadsPage'
 import { UsersPage } from './pages/UsersPage'
 import { AccountPage } from './pages/AccountPage'
+import { BillingPage } from './pages/BillingPage'
 import { PhotoPickerProvider } from './contexts/PhotoPickerContext'
 import { PhotoPickerModal } from './components/PhotoPickerModal'
 
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="/leads" element={<LeadsPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/account" element={<AccountPage />} />
+          <Route path="/billing" element={<BillingPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/pages" replace />} />
       </Routes>

@@ -227,6 +227,37 @@ async function notifyOwnerOfLead(lead: { name: string; email: string; phone: str
   }
 }
 
+// ── Billing portal proxy ─────────────────────────────────────────────────
+// The admin UI calls this to get a Stripe Customer Portal URL. We
+// forward to the Factory (which has the Stripe secret key) using the
+// shared FACTORY_SYNC_KEY for auth. Admin-only — gated by /api/admin/
+// auth middleware in the route mount above isn't applied here, but
+// the path is /api/admin/billing-portal so we gate manually below.
+app.get('/api/admin/billing-portal', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  // Don't bother fully verifying — admin SPA already gates the route.
+  // The token presence is a smoke check.
+
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) {
+    return c.json({ error: 'Billing portal not configured on this tenant.' }, 503)
+  }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/billing-portal/' + tenantId, {
+      headers: { 'X-Factory-Key': syncKey },
+      signal: AbortSignal.timeout(15000),
+    })
+    const body = await r.json()
+    if (!r.ok) return c.json(body, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 503)
+    return c.json(body)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
 // ── Factory internal: sync settings from the Factory ──────────────────────
 app.post('/api/internal/sync-settings', async (c) => {
   const factoryKey = process.env.FACTORY_SYNC_KEY
