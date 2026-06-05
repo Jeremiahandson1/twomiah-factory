@@ -1238,6 +1238,11 @@ app.post('/booking-series', authMiddleware, async (c) => {
   return c.json({ series: seriesRow, instancesCreated: created.length, instances: created }, 201)
 })
 
+app.get('/booking-series', authMiddleware, async (c) => {
+  const rows = await db.select().from(seriesTbl).orderBy(desc(seriesTbl.createdAt))
+  return c.json({ series: rows })
+})
+
 app.get('/booking-series/:id', authMiddleware, async (c) => {
   const id = c.req.param('id')!
   const rows = await db.select().from(seriesTbl).where(eq(seriesTbl.id, id)).limit(1)

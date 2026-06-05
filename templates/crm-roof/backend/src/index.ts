@@ -117,6 +117,8 @@ app.route('/api/leads', leadsRoutes)
 app.route('/api/calltracking', calltrackingRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 app.route('/api/ads', adsRoutes)
+const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
+app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/estimator', estimatorRoutes) // public — no auth
 app.route('/api/roof-reports', roofReportsRoutes)
 app.route('/api/import', importRoutes)
@@ -151,7 +153,7 @@ app.get('/api/bookings/external', authenticate, async (c) => {
   if (!websiteUrl || !syncKey) return c.json({ bookings: [] })
   const fromQ = c.req.query('from')
   const toQ = c.req.query('to')
-  const url = new URL(websiteUrl.replace(//$/, '') + '/api/internal/bookings')
+  const url = new URL(websiteUrl.replace(/\/$/, '') + '/api/internal/bookings')
   if (fromQ) url.searchParams.set('from', fromQ)
   if (toQ) url.searchParams.set('to', toQ)
   try {

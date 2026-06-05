@@ -208,6 +208,9 @@ app.route('/api/support', supportRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ads', adsRoutes)
+// Public visitor tracking — no auth, called from tenant public website JS
+const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
+app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {

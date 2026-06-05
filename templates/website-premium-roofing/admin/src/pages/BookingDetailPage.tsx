@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Save, Phone, Mail, MapPin, FileText, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Save, Phone, Mail, MapPin, FileText, AlertTriangle, RotateCw } from 'lucide-react'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
 
 interface Booking {
   id: string
   serviceId: string
+  seriesId: string | null
+  seriesIndex: number | null
   startAt: string
   endAt: string
   customerName: string
@@ -66,6 +68,12 @@ export function BookingDetailPage() {
         <div>
           <h1 className="text-3xl text-ink">{booking.customerName}</h1>
           <p className="text-muted text-sm mt-1">Booked {new Date(booking.createdAt).toLocaleDateString('en-US', { dateStyle: 'medium' })} · {booking.source}</p>
+          {booking.seriesId && (
+            <Link to={`/series/${booking.seriesId}`} className="inline-flex items-center gap-1.5 mt-2 text-xs text-brand hover:underline">
+              <RotateCw className="w-3 h-3" />
+              Part of a recurring series ({booking.seriesIndex && <span>#{booking.seriesIndex}</span>})
+            </Link>
+          )}
         </div>
         <select
           value={booking.status}

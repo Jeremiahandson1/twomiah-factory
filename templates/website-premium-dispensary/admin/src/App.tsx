@@ -19,6 +19,7 @@ import { AuditLogPage } from './pages/AuditLogPage'
 import { BookingsPage } from './pages/BookingsPage'
 import { BookingDetailPage } from './pages/BookingDetailPage'
 import { BookingSettingsPage } from './pages/BookingSettingsPage'
+import { BookingSeriesPage } from './pages/BookingSeriesPage'
 import { PhotoPickerProvider } from './contexts/PhotoPickerContext'
 import { PhotoPickerModal } from './components/PhotoPickerModal'
 
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/bookings/:id" element={<BookingDetailPage />} />
           <Route path="/booking-settings" element={<BookingSettingsPage />} />
+          <Route path="/series/:id" element={<BookingSeriesPage />} />
           <Route path="/activity" element={<AuditLogPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/pages" replace />} />

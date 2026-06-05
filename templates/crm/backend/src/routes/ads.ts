@@ -1,192 +1,309 @@
 import { Hono } from 'hono'
-import jwt from 'jsonwebtoken'
 import { authenticate } from '../middleware/auth.ts'
 import { db } from '../../db/index.ts'
-import { user } from '../../db/schema.ts'
-import { eq } from 'drizzle-orm'
+import { adsExperiment, adsExperimentAssignment, adsExperimentConversion, company } from '../../db/schema.ts'
+import { eq, desc, sql, and } from 'drizzle-orm'
 
 const app = new Hono()
-
-// ─── OAuth redirect (no Bearer auth — opened via window.open) ────────────────
-// Token is passed as a query param since new tabs can't send Authorization headers.
-app.get('/auth/connect-url/:platform', async (c) => {
-  const platform = c.req.param('platform')
-  const token = c.req.query('token')
-  const adsUrl = process.env.ADS_URL
-
-  if (!adsUrl) return c.text('Ads service not configured', 500)
-  if (!token) return c.text('Missing token', 401)
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
-    const [found] = await db.select({ companyId: user.companyId, isActive: user.isActive })
-      .from(user).where(eq(user.id, decoded.userId)).limit(1)
-    if (!found || !found.isActive) return c.text('Unauthorized', 401)
-
-    const url = `${adsUrl}/auth/${platform}?tenantId=${found.companyId}`
-    return c.redirect(url)
-  } catch {
-    return c.text('Invalid token', 401)
-  }
-})
-
-// All other routes require Bearer auth
 app.use('*', authenticate)
 
-// ─── Proxy helper ───────────────────────────────────────────────────────────
-// All ads data comes from the Twomiah Ads service. No mock data.
-
-async function adsProxy(method: string, path: string, body?: any) {
-  const adsUrl = process.env.ADS_URL
-  const adsApiKey = process.env.ADS_API_KEY // Tenant-specific API key for the ads service
-  if (!adsUrl) {
-    return { error: 'Ads service not configured. Set ADS_URL environment variable.', notConfigured: true }
-  }
-  try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (adsApiKey) headers['Authorization'] = `ApiKey ${adsApiKey}`
-    const res = await fetch(`${adsUrl}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(10000),
-    })
-    return await res.json()
-  } catch (err) {
-    console.error(`Ads proxy error [${method} ${path}]:`, err)
-    return { error: 'Failed to reach ads service' }
-  }
+// ─── A/B experiments ─────────────────────────────────────────────────────────
+async function companyId(): Promise<string | null> {
+  const [c] = await db.select({ id: company.id }).from(company).limit(1)
+  return c?.id || null
 }
 
-// ─── Auth / Settings ────────────────────────────────────────────────────────
+async function hydrateExperiment(exp: typeof adsExperiment.$inferSelect) {
+  // Pull aggregate assignment + conversion counts per variant
+  const counts = await db.execute(sql`
+    SELECT variant_key,
+           (SELECT count(*) FROM ads_experiment_assignment WHERE experiment_id = ${exp.id} AND variant_key = v.variant_key) AS assignments,
+           (SELECT count(*) FROM ads_experiment_conversion WHERE experiment_id = ${exp.id} AND variant_key = v.variant_key) AS conversions
+    FROM (SELECT DISTINCT variant_key FROM ads_experiment_assignment WHERE experiment_id = ${exp.id}
+          UNION SELECT jsonb_array_elements(${JSON.stringify(exp.variants)}::jsonb)->>'key') v
+  `) as any
+  const countMap = new Map<string, { assignments: number; conversions: number }>()
+  for (const r of (counts.rows || counts)) {
+    countMap.set(r.variant_key, { assignments: Number(r.assignments || 0), conversions: Number(r.conversions || 0) })
+  }
+  const variants = ((exp.variants as any[]) || []).map(v => ({
+    ...v,
+    assignments: countMap.get(v.key)?.assignments || 0,
+    conversions: countMap.get(v.key)?.conversions || 0,
+  }))
+  return { ...exp, variants }
+}
 
-app.get('/auth/mode', async (c) => {
-  const result = await adsProxy('GET', '/auth/mode')
-  return c.json(result || { mode: 'managed' })
+app.get('/experiments', async (c) => {
+  const cid = await companyId()
+  if (!cid) return c.json({ experiments: [] })
+  const rows = await db.select().from(adsExperiment).where(eq(adsExperiment.companyId, cid)).orderBy(desc(adsExperiment.createdAt))
+  const hydrated = await Promise.all(rows.map(hydrateExperiment))
+  return c.json({ experiments: hydrated })
 })
 
-app.put('/auth/mode', async (c) => {
-  const body = await c.req.json()
-  const result = await adsProxy('PUT', '/auth/mode', body)
-  return c.json(result)
+app.post('/experiments', async (c) => {
+  const cid = await companyId()
+  if (!cid) return c.json({ error: 'No company' }, 400)
+  const body = await c.req.json().catch(() => ({})) as any
+  if (!body.name || !body.path || !Array.isArray(body.variants) || body.variants.length < 2) {
+    return c.json({ error: 'name, path, and 2+ variants required' }, 400)
+  }
+  // Normalize traffic to sum to 100
+  const total = body.variants.reduce((s: number, v: any) => s + (v.trafficPercent || 0), 0)
+  const variants = body.variants.map((v: any, i: number) => ({
+    key: v.key || String.fromCharCode(97 + i),
+    label: v.label || 'Variant ' + (i + 1),
+    trafficPercent: total > 0 ? Math.round((v.trafficPercent / total) * 100) : Math.round(100 / body.variants.length),
+  }))
+  const [created] = await db.insert(adsExperiment).values({
+    companyId: cid,
+    name: body.name, path: body.path,
+    variants,
+    status: 'running', startedAt: new Date(),
+  }).returning()
+  return c.json({ experiment: await hydrateExperiment(created) }, 201)
 })
 
-app.get('/auth/status', async (c) => {
-  const result = await adsProxy('GET', '/auth/status')
-  return c.json(result || { status: { google: false, meta: false, tiktok: false } })
+app.patch('/experiments/:id', async (c) => {
+  const id = c.req.param('id')!
+  const body = await c.req.json().catch(() => ({})) as any
+  const patch: any = { updatedAt: new Date() }
+  if (typeof body.name === 'string') patch.name = body.name
+  if (typeof body.status === 'string' && ['running', 'completed', 'archived', 'draft'].includes(body.status)) {
+    patch.status = body.status
+    if (body.status === 'completed' && !patch.endedAt) patch.endedAt = new Date()
+  }
+  if (typeof body.winnerKey === 'string') patch.winnerKey = body.winnerKey
+  const result = await db.update(adsExperiment).set(patch).where(eq(adsExperiment.id, id)).returning()
+  if (result.length === 0) return c.json({ error: 'Not found' }, 404)
+  return c.json({ experiment: await hydrateExperiment(result[0]) })
 })
 
-app.delete('/auth/:platform', async (c) => {
-  const platform = c.req.param('platform')
-  const result = await adsProxy('DELETE', `/auth/${platform}`)
-  return c.json(result)
-})
 
-// ─── Performance & Campaigns ────────────────────────────────────────────────
+
+// ─── Mock data generators ────────────────────────────────────────────────────
+// These return realistic mock data. Replace with real Twomiah Ads API calls later.
+
+function generateDailyData(days: number) {
+  const data = []
+  const now = new Date()
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(now)
+    date.setDate(date.getDate() - i)
+    const impressions = Math.floor(800 + Math.random() * 1200)
+    const clicks = Math.floor(impressions * (0.02 + Math.random() * 0.04))
+    data.push({
+      date: date.toISOString().split('T')[0],
+      impressions,
+      clicks,
+    })
+  }
+  return data
+}
+
+const MOCK_CAMPAIGNS = [
+  {
+    id: 'camp_1',
+    name: 'Google Search — Emergency Services',
+    platform: 'google',
+    status: 'active',
+    impressions: 24500,
+    clicks: 980,
+    spend: 1247.50,
+    leads: 42,
+    budget: 2000,
+    startDate: '2026-02-01',
+    ads: [
+      { id: 'ad_1', headline: '24/7 Emergency Plumbing', body: 'Licensed & insured. Same-day service. Call now for a free estimate!', imageUrl: null, cta: 'Call Now', status: 'active' },
+      { id: 'ad_2', headline: 'Fast AC Repair Near You', body: 'Top-rated HVAC service. No overtime charges. Book online today.', imageUrl: null, cta: 'Book Now', status: 'active' },
+    ],
+  },
+  {
+    id: 'camp_2',
+    name: 'Meta — Kitchen Remodel Leads',
+    platform: 'meta',
+    status: 'active',
+    impressions: 18200,
+    clicks: 546,
+    spend: 892.30,
+    leads: 28,
+    budget: 1500,
+    startDate: '2026-02-10',
+    ads: [
+      { id: 'ad_3', headline: 'Dream Kitchen Awaits', body: 'Transform your kitchen with our award-winning design team. Free consultations this month.', imageUrl: null, cta: 'Get Free Quote', status: 'active' },
+      { id: 'ad_4', headline: 'Kitchen Remodel — 0% Financing', body: 'Beautiful kitchens, affordable payments. See our portfolio of 500+ completed projects.', imageUrl: null, cta: 'See Portfolio', status: 'paused' },
+    ],
+  },
+  {
+    id: 'camp_3',
+    name: 'Google Local Services',
+    platform: 'google',
+    status: 'paused',
+    impressions: 8400,
+    clicks: 252,
+    spend: 445.00,
+    leads: 15,
+    budget: 1000,
+    startDate: '2026-01-15',
+    ads: [
+      { id: 'ad_5', headline: 'Trusted Local Contractor', body: 'Google Guaranteed. 5-star rated. Serving the greater metro area.', imageUrl: null, cta: 'Get Quote', status: 'paused' },
+    ],
+  },
+  {
+    id: 'camp_4',
+    name: 'Meta — Spring Promotion',
+    platform: 'meta',
+    status: 'draft',
+    impressions: 0,
+    clicks: 0,
+    spend: 0,
+    leads: 0,
+    budget: 800,
+    startDate: '2026-03-15',
+    ads: [
+      { id: 'ad_6', headline: 'Spring Special: 15% Off', body: 'Book your spring project now and save. Limited time offer.', imageUrl: null, cta: 'Claim Offer', status: 'draft' },
+    ],
+  },
+]
+
+const MOCK_PENDING_APPROVALS = [
+  {
+    id: 'pending_1',
+    campaignId: 'camp_2',
+    campaignName: 'Meta — Kitchen Remodel Leads',
+    platform: 'meta',
+    headline: 'Luxury Kitchen Makeover — Free 3D Design',
+    body: 'See your dream kitchen before construction begins. Our 3D visualization tool lets you preview every detail. Schedule your free design consultation today.',
+    imageUrl: null,
+    cta: 'Book Consultation',
+    createdAt: '2026-03-07T14:30:00Z',
+    status: 'pending',
+  },
+  {
+    id: 'pending_2',
+    campaignId: 'camp_1',
+    campaignName: 'Google Search — Emergency Services',
+    platform: 'google',
+    headline: 'Water Heater Install — Same Day',
+    body: 'Professional water heater installation. Licensed plumbers, warranty included. Emergency service available.',
+    imageUrl: null,
+    cta: 'Call Now',
+    createdAt: '2026-03-08T09:15:00Z',
+    status: 'pending',
+  },
+]
+
+// In-memory store for approvals/rejections (mock — replace with DB later)
+const approvalStore = new Map<string, { status: string; feedback?: string }>()
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
 
 app.get('/performance', async (c) => {
   const range = c.req.query('range') || '30'
-  const result = await adsProxy('GET', `/dashboard/performance?range=${range}`)
-  if (result?.notConfigured) {
-    return c.json({
-      summary: { impressions: 0, clicks: 0, ctr: 0, spend: 0, leads: 0, costPerLead: 0 },
-      daily: [],
-      campaigns: [],
-      notConfigured: true,
-    })
-  }
-  return c.json(result)
+  const days = Math.min(Number(range) || 30, 90)
+  const daily = generateDailyData(days)
+
+  const totalImpressions = daily.reduce((s, d) => s + d.impressions, 0)
+  const totalClicks = daily.reduce((s, d) => s + d.clicks, 0)
+  const totalSpend = MOCK_CAMPAIGNS.reduce((s, c) => s + c.spend, 0)
+  const totalLeads = MOCK_CAMPAIGNS.reduce((s, c) => s + c.leads, 0)
+
+  return c.json({
+    summary: {
+      impressions: totalImpressions,
+      clicks: totalClicks,
+      ctr: totalClicks / Math.max(totalImpressions, 1),
+      spend: totalSpend,
+      leads: totalLeads,
+      costPerLead: totalSpend / Math.max(totalLeads, 1),
+    },
+    daily,
+    campaigns: MOCK_CAMPAIGNS.filter(c => c.status !== 'draft').map(camp => ({
+      id: camp.id,
+      name: camp.name,
+      platform: camp.platform,
+      status: camp.status,
+      impressions: camp.impressions,
+      clicks: camp.clicks,
+      ctr: camp.clicks / Math.max(camp.impressions, 1),
+      spend: camp.spend,
+      leads: camp.leads,
+    })),
+  })
 })
 
 app.get('/campaigns', async (c) => {
-  const status = c.req.query('status') || 'all'
-  const result = await adsProxy('GET', `/campaigns?status=${status}`)
-  if (result?.notConfigured) {
-    return c.json({ campaigns: [], notConfigured: true })
+  const status = c.req.query('status')
+  let campaigns = MOCK_CAMPAIGNS
+  if (status && status !== 'all') {
+    campaigns = campaigns.filter(camp => camp.status === status)
   }
-  return c.json(result)
+
+  return c.json({
+    campaigns: campaigns.map(camp => ({
+      ...camp,
+      ads: camp.ads.map(ad => ({
+        ...ad,
+        // Merge any approval state
+        ...(approvalStore.has(ad.id) ? { status: approvalStore.get(ad.id)!.status === 'approved' ? 'active' : ad.status } : {}),
+      })),
+    })),
+  })
 })
 
 app.get('/pending-approvals', async (c) => {
-  const result = await adsProxy('GET', '/campaigns/pending-approvals')
-  if (result?.notConfigured) {
-    return c.json({ approvals: [], count: 0, notConfigured: true })
-  }
-  return c.json(result)
+  const pending = MOCK_PENDING_APPROVALS.filter(p => {
+    const stored = approvalStore.get(p.id)
+    return !stored || stored.status === 'pending'
+  })
+  return c.json({ approvals: pending, count: pending.length })
 })
-
-// ─── Campaign Actions ───────────────────────────────────────────────────────
-
-app.post('/campaigns/preview', async (c) => {
-  const body = await c.req.json()
-  const result = await adsProxy('POST', '/campaigns/preview', body)
-  return c.json(result)
-})
-
-app.post('/campaigns/launch', async (c) => {
-  const body = await c.req.json()
-  const result = await adsProxy('POST', '/campaigns/launch', body)
-  return c.json(result)
-})
-
-// ─── Photos & Templates ────────────────────────────────────────────────────
-
-app.get('/photos', async (c) => {
-  try {
-    const currentUser = c.get('user') as any
-    const { db } = await import('../../db/index.ts')
-    const { sql } = await import('drizzle-orm')
-    const result = await db.execute(sql`
-      SELECT id, url, thumbnail_url, caption, category, created_at
-      FROM documents
-      WHERE company_id = ${currentUser.companyId}
-        AND type IN ('photo', 'image')
-      ORDER BY created_at DESC
-      LIMIT 50
-    `)
-    return c.json({ photos: (result as any).rows || result })
-  } catch {
-    return c.json({ photos: [] })
-  }
-})
-
-app.get('/templates', async (c) => {
-  const result = await adsProxy('GET', '/campaigns/templates')
-  return c.json(result || { templates: [] })
-})
-
-// ─── Approval Actions (/:id params — MUST come last) ───────────────────────
 
 app.post('/:id/approve', async (c) => {
   const id = c.req.param('id')
-  const result = await adsProxy('POST', `/campaigns/${id}/approve`)
-  return c.json(result)
+  approvalStore.set(id, { status: 'approved' })
+
+  // In production: notify Twomiah Ads service
+  const adsUrl = process.env.ADS_URL
+  if (adsUrl) {
+    try {
+      await fetch(`${adsUrl}/api/webhooks/ad-approved`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adId: id, approvedAt: new Date().toISOString() }),
+        signal: AbortSignal.timeout(5000),
+      })
+    } catch (err) {
+      console.error('Failed to notify Ads service:', err)
+    }
+  }
+
+  return c.json({ success: true, status: 'approved' })
 })
 
 app.post('/:id/request-changes', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
-  const result = await adsProxy('POST', `/campaigns/${id}/request-changes`, body)
-  return c.json(result)
-})
+  const feedback = body?.feedback || ''
+  approvalStore.set(id, { status: 'changes_requested', feedback })
 
-app.post('/:id/images', async (c) => {
-  const id = c.req.param('id')
-  const body = await c.req.json()
-  const result = await adsProxy('POST', `/campaigns/${id}/images`, body)
-  return c.json(result)
-})
+  // In production: notify Twomiah Ads service
+  const adsUrl = process.env.ADS_URL
+  if (adsUrl) {
+    try {
+      await fetch(`${adsUrl}/api/webhooks/ad-changes-requested`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adId: id, feedback, requestedAt: new Date().toISOString() }),
+        signal: AbortSignal.timeout(5000),
+      })
+    } catch (err) {
+      console.error('Failed to notify Ads service:', err)
+    }
+  }
 
-app.post('/:id/pause', async (c) => {
-  const id = c.req.param('id')
-  const result = await adsProxy('POST', `/campaigns/${id}/pause`)
-  return c.json(result)
-})
-
-app.post('/:id/resume', async (c) => {
-  const id = c.req.param('id')
-  const result = await adsProxy('POST', `/campaigns/${id}/resume`)
-  return c.json(result)
+  return c.json({ success: true, status: 'changes_requested' })
 })
 
 export default app

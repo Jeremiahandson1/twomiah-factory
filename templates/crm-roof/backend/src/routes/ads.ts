@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
 import { db } from '../../db/index.ts'
 import { adsExperiment, adsExperimentAssignment, adsExperimentConversion, company } from '../../db/schema.ts'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, and } from 'drizzle-orm'
 
 const app = new Hono()
 app.use('*', authenticate)

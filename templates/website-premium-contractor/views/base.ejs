@@ -12,6 +12,7 @@
   <meta name="description" content="<%= seoDescription %>">
   <% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
   <meta name="robots" content="index, follow">
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><meta name="twomiah-crm-url" content="<%= crmApiUrl %>"><% } %>
   <meta property="og:type" content="website">
   <meta property="og:title" content="<%= seoTitle %>">
   <meta property="og:description" content="<%= seoDescription %>">
@@ -82,5 +83,6 @@
       </div>
     </div>
   </footer>
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
 </body>
 </html>
