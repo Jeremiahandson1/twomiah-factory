@@ -1127,9 +1127,15 @@ export async function deployCustomer(
         }
         // Premium sites push their drizzle schema to the dedicated DB on
         // boot (no migration files exist — they're greenfield templates).
-        // Standard sites have no DB query path so they skip db:push.
+        // Realistic Render Postgres readiness is 2-5 min after the API
+        // returns a connection string; smoke v5 saw ECONNREFUSED for the
+        // first ~90s. Wrap drizzle-kit push in a 60× / 10s retry loop —
+        // up to 10 min — to cover the slow end of provisioning. If all
+        // 60 attempts fail, the for-loop exits and the server boots
+        // anyway so the operator can diagnose via Render's logs.
+        // Standard sites have no DB query path so they skip push entirely.
         const siteStartCommand = isPremiumSite
-          ? 'export PATH=$HOME/.bun/bin:$PATH && bunx drizzle-kit push --force && NODE_ENV=production bun server-static.ts'
+          ? 'export PATH=$HOME/.bun/bin:$PATH && for i in $(seq 1 60); do bunx drizzle-kit push --force && break || sleep 10; done && NODE_ENV=production bun server-static.ts'
           : 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',

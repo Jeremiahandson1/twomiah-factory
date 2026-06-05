@@ -461,7 +461,12 @@ async function captureRenderBuildLogs(serviceIds: Record<string, string>, lastSt
 // false on timeout.
 
 async function waitForRenderLive(serviceIds: Record<string, string>, opts: { maxMs?: number; pollMs?: number } = {}): Promise<{ ok: boolean; lastStatuses: Record<string, string> }> {
-  const maxMs = opts.maxMs ?? 10 * 60 * 1000  // 10 min ceiling
+  // Realistic Render readiness is 2-5 min per service. Premium tests
+  // wait on backend + site + db; with sequential build/start cycles
+  // each service can independently take a few minutes. 15 min ceiling
+  // gives enough slack for the slow end without letting a truly broken
+  // build hang forever.
+  const maxMs = opts.maxMs ?? 15 * 60 * 1000
   const pollMs = opts.pollMs ?? 15000          // poll every 15s
   const deadline = Date.now() + maxMs
   // Terminal failures we bail on. 'unknown' is NOT in here — Render returns
