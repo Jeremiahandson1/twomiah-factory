@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { FileText, Image as ImageIcon, Settings, Inbox, LogOut, Users, UserCircle } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuth } from '../contexts/AuthContext'
+import { api } from '../api/client'
 
 type NavItem = { to: string; label: string; Icon: typeof FileText; adminOnly?: boolean }
 
@@ -17,6 +19,22 @@ const NAV: NavItem[] = [
 export function AdminLayout() {
   const { user, logout } = useAuth()
   const items = NAV.filter((n) => !n.adminOnly || user?.role === 'admin')
+  const [newLeadCount, setNewLeadCount] = useState<number>(0)
+
+  // Poll new-lead count every 60s so customers see the badge update
+  // without refreshing. Best-effort — silently zero on failure.
+  useEffect(() => {
+    let cancelled = false
+    async function fetchCount() {
+      try {
+        const { leads } = await api.get<{ leads: Array<{ status?: string }> }>('/api/admin/leads?status=new')
+        if (!cancelled) setNewLeadCount((leads || []).length)
+      } catch { if (!cancelled) setNewLeadCount(0) }
+    }
+    fetchCount()
+    const t = setInterval(fetchCount, 60_000)
+    return () => { cancelled = true; clearInterval(t) }
+  }, [])
 
   return (
     <div className="h-full flex bg-paper">
@@ -27,16 +45,24 @@ export function AdminLayout() {
           <div className="text-xs text-white/50 mt-1">{user?.email}</div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {items.map(({ to, label, Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) => clsx('nav-link', isActive && 'nav-link-active')}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </NavLink>
-          ))}
+          {items.map(({ to, label, Icon }) => {
+            const badge = to === '/leads' && newLeadCount > 0 ? newLeadCount : null
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) => clsx('nav-link', isActive && 'nav-link-active')}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="flex-1">{label}</span>
+                {badge !== null && (
+                  <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-orange-500 text-white text-[10px] font-bold">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
+              </NavLink>
+            )
+          })}
         </nav>
         <div className="px-3 py-4 border-t border-white/10">
           <button onClick={logout} className="nav-link w-full">
