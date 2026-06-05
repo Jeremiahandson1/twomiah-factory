@@ -2896,10 +2896,21 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       intakeId: tenant.id,
     }).catch((e: any) => console.warn('[Email] Intake notification failed:', e.message))
 
+    // Auto-fire composer so the customer gets a preview without staff
+    // having to click 'Compose' in the staff queue. Delayed slightly so
+    // the HTTP response returns first. Rate-limiting already happens
+    // upstream on the intake POST (3/hr/IP) so spam doesn't flood the
+    // composer. Idempotent: if preview_premium_pages is already set
+    // (re-submission), we skip and don't waste tokens.
+    setTimeout(() => {
+      autoComposeForNewIntake(tenant.id).catch((e: any) =>
+        console.warn('[AutoCompose] Failed for ' + tenant.id + ':', e.message))
+    }, 200)
+
     return c.json({
       success: true,
       intakeId: tenant.id,
-      message: "Thanks! We'll respond within one business day from hello@twomiah.com.",
+      message: "Thanks! We're composing your preview now — you'll get an email within 15 minutes.",
     })
   } catch (err: any) {
     console.error('[Intake] Error:', err.message || err)
@@ -3492,6 +3503,108 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   // already populated by every deploy that runs initDb.ts.
   return c.json({ settings, pages })
 })
+
+// Auto-compose path. Called from /public/intake right after the row
+// lands. Mirrors the staff-triggered /intake/:id/preview-premium logic
+// — pulls intake_data, signs customer photo URLs, fetches stock photos
+// if configured, calls composeSite, saves preview_premium_pages, fires
+// the preview-ready email. Idempotent: skips when the tenant already
+// has preview_premium_pages set.
+async function autoComposeForNewIntake(tenantId: string): Promise<void> {
+  const { data: tenant, error } = await supabase.from('tenants')
+    .select('id, name, email, industry, intake_data, preview_premium_pages')
+    .eq('id', tenantId)
+    .single()
+  if (error || !tenant) {
+    console.warn('[AutoCompose] tenant not found:', tenantId, error?.message)
+    return
+  }
+  if (tenant.preview_premium_pages) {
+    console.log('[AutoCompose] tenant ' + tenantId + ' already has a preview — skipping.')
+    return
+  }
+  if (!tenant.intake_data) {
+    console.warn('[AutoCompose] tenant ' + tenantId + ' has no intake_data — cannot compose.')
+    return
+  }
+
+  const intake = (tenant.intake_data as any).intake || (tenant.intake_data as any)
+  if (!intake?.businessName) {
+    console.warn('[AutoCompose] no businessName on intake_data for ' + tenantId)
+    return
+  }
+
+  // Customer-supplied photos: sign R2 keys so the composer (and Claude
+  // via image-url-fetch eventually) can reach them.
+  const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 14  // 14d
+  const customerPhotos: Array<{ url: string; tag?: string; alt?: string }> = []
+  const intakeRoot = tenant.intake_data as any
+  if (intakeRoot.logo?.storageKey) {
+    const url = await getZipDownloadUrl(intakeRoot.logo.storageKey, intakeRoot.logo.storageType, SIGNED_TTL_SECONDS).catch(() => null)
+    if (url) customerPhotos.push({ url, tag: 'misc', alt: intake.businessName + ' logo' })
+  }
+  if (Array.isArray(intakeRoot.photos)) {
+    for (const ref of intakeRoot.photos) {
+      if (!ref || !ref.storageKey) continue
+      const url = await getZipDownloadUrl(ref.storageKey, ref.storageType, SIGNED_TTL_SECONDS).catch(() => null)
+      if (url) customerPhotos.push({ url })
+    }
+  }
+
+  const stockPhotos = await searchStockPhotosForBusiness(
+    intake.businessType,
+    Array.isArray(intake.services) && intake.services.length > 0 ? intake.services[0] : undefined,
+    intake.city,
+  ).catch(() => [])
+
+  const composed = await composeSite({
+    businessName: intake.businessName,
+    businessType: intake.businessType,
+    city: intake.city,
+    state: intake.state,
+    description: intake.description,
+    services: intake.services,
+    goals: intake.goals,
+    competitors: intake.competitors,
+    ownerName: intake.ownerName,
+    phone: intake.phone,
+    email: intake.email,
+    nearbyCities: intake.nearbyCities,
+    primaryColor: intake.branding?.primaryColor,
+    customerPhotos,
+    stockPhotos: (stockPhotos || []).map((p: any) => ({ url: p.url, tag: p.tag, alt: p.alt })),
+  })
+
+  for (const p of (stockPhotos || []) as any[]) {
+    if (p.unsplashId) trackUnsplashDownload(p.unsplashId).catch(() => {})
+  }
+
+  const generatedAt = new Date().toISOString()
+  await supabase.from('tenants').update({
+    preview_premium_pages: composed,
+    preview_premium_generated_at: generatedAt,
+  }).eq('id', tenantId)
+
+  // Email the prospect the preview link. We do NOT gate on staff approval
+  // here — the self-serve flow assumes the AI output is fine to show and
+  // staff steps in only when feedback comes back through the widget or
+  // when a quality issue surfaces.
+  const factoryUrl = process.env.TWOMIAH_FACTORY_URL || ''
+  if (factoryUrl && tenant.email) {
+    const previewUrl = `${factoryUrl}/api/v1/factory/public/intake/${tenantId}/preview-premium`
+    // For auto-compose we DO need to pre-approve so the public preview
+    // URL doesn't 401. Mark approved_at as the compose time.
+    await supabase.from('tenants').update({
+      preview_premium_approved_at: generatedAt,
+    }).eq('id', tenantId)
+    notifyPreviewReady({
+      to: tenant.email,
+      businessName: tenant.name,
+      previewUrl,
+    }).catch((e: any) => console.warn('[Email] auto-compose preview-ready failed:', e.message))
+  }
+  console.log('[AutoCompose] tenant=' + tenantId + ' composed in self-serve mode, preview at ' + generatedAt)
+}
 
 // Public: customer feedback on a premium-website preview. The "Request
 // changes" widget on the preview page POSTs here. We save the message
