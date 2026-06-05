@@ -151,6 +151,13 @@ export const SECTION_SCHEMA = {
       use_when: 'show 1-3 short customer testimonials. Only use when the intake actually provided quotes or named customers — never fabricate testimonials.',
     },
   },
+  stats: {
+    bar: {
+      required: ['items'],
+      optional: ['heading'],
+      use_when: 'standalone credibility band between sections — 3-4 anchor metrics in a horizontal strip with brand-color background. Only use real numbers from the intake; never fabricate.',
+    },
+  },
   faq: {
     accordion: {
       required: ['items'],

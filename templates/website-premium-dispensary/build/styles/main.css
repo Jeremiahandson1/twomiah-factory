@@ -286,6 +286,18 @@ a { color: inherit; text-decoration: none; }
 
 
 
+
+/* ── Stats bar ────────────────────────────────────────────────────────── */
+.stats-bar { padding: calc(var(--space) * 0.6) 0; background: var(--brand); color: var(--white); }
+.stats-bar__heading { font-size: 18px; text-align: center; opacity: 0.85; font-weight: 500; letter-spacing: 0.04em; margin: 0 0 24px; text-transform: uppercase; }
+.stats-bar__grid { display: grid; gap: 24px; align-items: end; }
+.stats-bar__grid--2 { grid-template-columns: repeat(2, 1fr); }
+.stats-bar__grid--3 { grid-template-columns: repeat(3, 1fr); }
+.stats-bar__grid--4 { grid-template-columns: repeat(4, 1fr); }
+.stats-bar__item { text-align: center; }
+.stats-bar__value { font-family: var(--font-display, serif); font-size: clamp(36px, 4.5vw, 56px); line-height: 1; font-weight: 700; letter-spacing: -0.02em; }
+.stats-bar__label { font-size: 13px; margin-top: 8px; opacity: 0.8; letter-spacing: 0.05em; text-transform: uppercase; }
+@media (max-width: 720px) { .stats-bar__grid--3, .stats-bar__grid--4 { grid-template-columns: repeat(2, 1fr); } }
 /* ── FAQ section ──────────────────────────────────────────────────────── */
 .faq-section { padding: var(--space) 0; background: var(--white); }
 .faq-section__grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 64px; align-items: start; }

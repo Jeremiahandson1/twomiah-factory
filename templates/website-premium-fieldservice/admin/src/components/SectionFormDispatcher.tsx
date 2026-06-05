@@ -14,6 +14,7 @@ import { ContactFormInfoForm } from './sectionForms/ContactFormInfoForm'
 import { GalleryGridForm } from './sectionForms/GalleryGridForm'
 import { TestimonialsQuotesForm } from './sectionForms/TestimonialsQuotesForm'
 import { FaqAccordionForm } from './sectionForms/FaqAccordionForm'
+import { StatsBarForm } from './sectionForms/StatsBarForm'
 
 interface Props {
   type: string
@@ -38,6 +39,7 @@ export function SectionFormDispatcher({ type, variant, data, onChange }: Props) 
     case 'gallery/grid':          return <GalleryGridForm data={data} onChange={onChange} />
     case 'testimonials/quotes':   return <TestimonialsQuotesForm data={data} onChange={onChange} />
     case 'faq/accordion':         return <FaqAccordionForm data={data} onChange={onChange} />
+    case 'stats/bar':             return <StatsBarForm data={data} onChange={onChange} />
     default:
       return (
         <div className="text-sm text-muted bg-amber-50 border border-amber-200 rounded-lg p-3">

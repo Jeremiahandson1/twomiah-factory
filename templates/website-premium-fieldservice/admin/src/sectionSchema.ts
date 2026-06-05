@@ -166,6 +166,21 @@ export const SECTION_DEFS: SectionDef[] = [
     },
   },
 
+  // ── Stats bar ───────────────────────────────────────────────────────
+  {
+    type: 'stats', variant: 'bar',
+    label: 'Stats — Credibility bar',
+    description: '3-4 anchor metrics in a colored band. Drops between sections to add trust without taking over a hero.',
+    defaultData: {
+      heading: '',
+      items: [
+        { value: '', label: '' },
+        { value: '', label: '' },
+        { value: '', label: '' },
+      ],
+    },
+  },
+
   // ── FAQ ─────────────────────────────────────────────────────────────
   {
     type: 'faq', variant: 'accordion',
