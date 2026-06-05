@@ -43,6 +43,15 @@ export interface ComposerInput {
    * composer can match slot to context.
    */
   stockPhotos?: Array<{ url: string; tag?: string; alt?: string }>
+
+  /**
+   * Customer feedback on a prior preview. When present, the composer
+   * gets the feedback verbatim and is instructed to act on it: change
+   * specific section copy, swap variants, drop sections, etc. The
+   * recompose path calls composeSite with feedbackHistory populated
+   * from intake_feedback rows in chronological order.
+   */
+  feedbackHistory?: string[]
 }
 
 export interface Section {
@@ -161,8 +170,21 @@ function buildPrompt(input: ComposerInput): string {
     `  ${type}: ${Object.keys(variants).join(', ')}`
   ).join('\n')
 
-  return `You are composing a homepage for ${input.businessName} — a ${input.businessType} in ${[input.city, input.state].filter(Boolean).join(', ') || 'the region they serve'}.
+  // Customer feedback from prior previews. When present, must take priority
+  // over the original intake — the customer has already SEEN the first
+  // attempt and is asking for specific changes. Treat as MUST-DO not as
+  // suggestions.
+  const feedbackBlock = (input.feedbackHistory && input.feedbackHistory.length > 0)
+    ? `\n\n# Prior customer feedback — ACT ON ALL OF IT\n` +
+      `The customer has already reviewed previous draft(s) and asked for these changes. ` +
+      `Treat each as a hard requirement, not a suggestion. If two pieces of feedback conflict, ` +
+      `take the most recent.\n\n` +
+      input.feedbackHistory.map((m, i) => `[${i + 1}] ${m}`).join('\n\n') +
+      `\n\n`
+    : ''
 
+  return `You are composing a homepage for ${input.businessName} — a ${input.businessType} in ${[input.city, input.state].filter(Boolean).join(', ') || 'the region they serve'}.
+${feedbackBlock}
 About the business
 ${input.description ? '"' + input.description + '"' : '(no description provided — work from the business type and services)'}
 
@@ -399,6 +421,14 @@ function buildSitePrompt(input: ComposerInput): string {
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
   ).join('\n')
 
+  const feedbackBlock = (input.feedbackHistory && input.feedbackHistory.length > 0)
+    ? `\n# Prior customer feedback — ACT ON ALL OF IT\n` +
+      `The customer has already reviewed previous draft(s) and asked for these changes. ` +
+      `Treat each as a hard requirement. If two pieces of feedback conflict, take the most recent.\n\n` +
+      input.feedbackHistory.map((m, i) => `[${i + 1}] ${m}`).join('\n\n') +
+      `\n`
+    : ''
+
   // Three-tier photo preference: customer-supplied (authentic to THIS
   // business) → licensed stock (Unsplash+ for this business type) →
   // generic Unsplash placeholders from the prompt's example URLs.
@@ -428,7 +458,7 @@ function buildSitePrompt(input: ComposerInput): string {
   }
 
   return `You are composing a multi-page website for ${input.businessName} — a ${input.businessType} in ${[input.city, input.state].filter(Boolean).join(', ') || 'the region they serve'}.
-
+${feedbackBlock}
 About the business
 ${input.description ? '"' + input.description + '"' : '(no description provided)'}
 

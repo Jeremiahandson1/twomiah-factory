@@ -3496,8 +3496,84 @@ factory.post('/public/intake/:id/feedback', rateLimit(60 * 60 * 1000, 20), async
     contactEmail: tenant.email || undefined,
   }).catch((e: any) => console.warn('[Email] Feedback notification failed:', e.message))
 
-  return c.json({ success: true, message: "Got it — we'll turn around revisions in one business day." })
+  // Fire-and-forget auto-recompose. We DON'T block the customer's response
+  // on this — the composer takes 30-60s and the customer's already moved
+  // on. When the recompose finishes, the preview JSON is updated and we
+  // email the customer a fresh "your updated preview is ready" link.
+  // Wrapped in setTimeout so the response goes out first.
+  setTimeout(() => {
+    recomposePreviewWithFeedback(id).catch((e: any) =>
+      console.warn('[Feedback] auto-recompose failed for ' + id + ':', e.message))
+  }, 100)
+
+  return c.json({ success: true, message: "Got it — we'll send you an updated preview in 10-15 minutes." })
 })
+
+// Re-runs the composer using the original intake_data + every piece of
+// feedback that's been submitted on this intake, in chronological order.
+// Treats feedback as a mandate ('act on all of it', not as suggestions),
+// then saves the new pages to preview_premium_pages and emails the
+// customer a refreshed preview link. Resets preview_premium_approved_at
+// because the new draft hasn't been re-approved by staff.
+async function recomposePreviewWithFeedback(tenantId: string): Promise<void> {
+  const { data: tenant, error } = await supabase.from('tenants')
+    .select('id, name, email, industry, intake_data')
+    .eq('id', tenantId)
+    .single()
+  if (error || !tenant || !tenant.intake_data) {
+    console.warn('[Recompose] No intake_data on tenant ' + tenantId + ' — cannot recompose')
+    return
+  }
+
+  const { data: fbRows } = await supabase.from('intake_feedback')
+    .select('message')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: true })
+  const feedbackHistory = (fbRows || []).map(r => String((r as any).message || '')).filter(Boolean)
+  if (feedbackHistory.length === 0) return  // nothing to act on (shouldn't happen, but safe)
+
+  const intake = tenant.intake_data as any
+  const composed = await composeSite({
+    businessName: intake.businessName || tenant.name,
+    businessType: intake.businessType || tenant.industry || 'business',
+    city: intake.city,
+    state: intake.state,
+    description: intake.description,
+    services: intake.services,
+    goals: intake.goals,
+    competitors: intake.competitors,
+    ownerName: intake.ownerName,
+    phone: intake.phone,
+    email: intake.email,
+    nearbyCities: intake.nearbyCities,
+    primaryColor: intake.branding?.primaryColor,
+    feedbackHistory,
+  })
+
+  const generatedAt = new Date().toISOString()
+  await supabase.from('tenants').update({
+    preview_premium_pages: composed,
+    preview_premium_generated_at: generatedAt,
+    preview_premium_approved_at: null,         // re-review required
+    preview_premium_approved_by: null,
+  }).eq('id', tenantId)
+
+  await supabase.from('intake_feedback').update({ status: 'recomposed', recomposed_at: generatedAt })
+    .eq('tenant_id', tenantId).in('status', ['new', 'reviewed'])
+
+  if (tenant.email) {
+    const factoryUrl = process.env.TWOMIAH_FACTORY_URL || ''
+    const previewUrl = factoryUrl ? `${factoryUrl}/api/v1/factory/public/intake/${tenantId}/preview-premium` : ''
+    if (previewUrl) {
+      notifyPreviewReady({
+        to: tenant.email,
+        businessName: tenant.name,
+        previewUrl,
+      }).catch((e: any) => console.warn('[Email] Recompose preview-ready failed:', e.message))
+    }
+  }
+  console.log('[Recompose] tenant=' + tenantId + ' feedback_count=' + feedbackHistory.length + ' new preview saved')
+}
 
 // Public: "Approve & buy" action on the premium preview. Creates a Stripe
 // Checkout session for the standalone $1k build + $75/mo subscription
