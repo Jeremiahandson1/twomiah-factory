@@ -268,17 +268,22 @@ app.get('/book/:serviceSlug', async (c) => {
     <h1 class="book-picker__title">${escape(service.name)}</h1>
     ${service.description ? `<p class="book-picker__desc">${escape(service.description)}</p>` : ''}
     <div id="book-flow" data-service-slug="${escape(service.slug)}" data-service-name="${escape(service.name)}" data-duration="${service.durationMinutes}" data-price-cents="${service.priceCents ?? ''}">
+      <ol class="book-progress" aria-label="Booking progress">
+        <li class="book-progress__step is-active" data-step="date"><span class="book-progress__num">1</span><span class="book-progress__label">Date</span></li>
+        <li class="book-progress__step" data-step="slot"><span class="book-progress__num">2</span><span class="book-progress__label">Time</span></li>
+        <li class="book-progress__step" data-step="form"><span class="book-progress__num">3</span><span class="book-progress__label">Details</span></li>
+      </ol>
       <div class="book-step book-step--date">
-        <h2>1. Pick a date</h2>
+        <h2>Pick a date</h2>
         <div class="book-zip"><label>Your ZIP code <input type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="53703" id="book-zip-input"></label></div>
         <div class="book-dates" id="book-dates"></div>
       </div>
       <div class="book-step book-step--slot" hidden>
-        <h2>2. Pick a time</h2>
+        <h2>Pick a time</h2>
         <div class="book-slots" id="book-slots"></div>
       </div>
       <div class="book-step book-step--form" hidden>
-        <h2>3. Your details</h2>
+        <h2>Your details</h2>
         <form id="book-form" autocomplete="on">
           <input type="hidden" name="serviceSlug" value="${escape(service.slug)}">
           <input type="hidden" name="startAtIso" id="book-start">

@@ -63,17 +63,31 @@
     datesEl.querySelectorAll('.book-date').forEach(btn => btn.addEventListener('click', onDateClick));
   }
 
+  function setStepActive(step) {
+    document.querySelectorAll('.book-progress__step').forEach(el => {
+      const s = el.dataset.step;
+      const order = { date: 0, slot: 1, form: 2 };
+      const cur = order[step];
+      const my = order[s];
+      el.classList.toggle('is-active', my === cur);
+      el.classList.toggle('is-done', my < cur);
+    });
+  }
+
   function onDateClick(e) {
     const btn = e.currentTarget;
     selectedDate = btn.dataset.iso;
     datesEl.querySelectorAll('.book-date').forEach(b => b.classList.toggle('is-selected', b === btn));
+    setStepActive('slot');
     loadSlots();
   }
 
   async function loadSlots() {
     if (!selectedDate) return;
     stepSlot.hidden = false;
-    slotsEl.innerHTML = '<p class="book-loading">Loading available times…</p>';
+    // Skeleton for perceived speed
+    slotsEl.innerHTML = '<div class="book-slots-skeleton">' +
+      Array.from({ length: 8 }).map(() => '<div class="book-slot-skel"></div>').join('') + '</div>';
     stepForm.hidden = true;
     const zip = (zipInput.value || '').trim();
     const url = '/book/' + encodeURIComponent(slug) + '/slots?date=' + selectedDate + (zip ? '&zip=' + encodeURIComponent(zip) : '');
@@ -100,6 +114,7 @@
     startHidden.value = selectedSlotIso;
     zipHidden.value = (zipInput.value || '').trim();
     stepForm.hidden = false;
+    setStepActive('form');
     stepForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 

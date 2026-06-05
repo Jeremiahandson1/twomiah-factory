@@ -459,3 +459,21 @@ a { color: inherit; text-decoration: none; }
 .book-thanks__addcal { color: var(--muted); font-size: 14px; }
 .book-thanks__addcal a { color: var(--brand); text-decoration: underline; }
 .book-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+/* ── Twomiah Bookings polish ────────────────────────────────────────────── */
+.book-progress { list-style: none; display: flex; align-items: center; gap: 8px; padding: 0; margin: 0 0 32px; }
+.book-progress__step { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px; background: var(--paper); color: var(--muted); font-size: 14px; transition: background .2s, color .2s; flex: 1; max-width: 180px; }
+.book-progress__step.is-active { background: var(--brand); color: var(--white); font-weight: 600; }
+.book-progress__step.is-done { background: var(--ink); color: var(--white); }
+.book-progress__step.is-done .book-progress__num::before { content: '✓'; }
+.book-progress__step.is-done .book-progress__num { font-size: 0; }
+.book-progress__step.is-done .book-progress__num::before { font-size: 16px; }
+.book-progress__num { width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,0.06); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.book-progress__step.is-active .book-progress__num, .book-progress__step.is-done .book-progress__num { background: rgba(255,255,255,0.2); }
+.book-progress__label { letter-spacing: 0.02em; }
+@media (max-width: 580px) {
+  .book-progress__step { padding: 6px 10px; font-size: 12px; }
+  .book-progress__label { display: none; }
+}
+.book-slots-skeleton { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.book-slot-skel { height: 44px; border-radius: 8px; background: linear-gradient(90deg, var(--paper), rgba(0,0,0,0.04), var(--paper)); background-size: 200% 100%; animation: book-shimmer 1.2s ease-in-out infinite; }
+@keyframes book-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
