@@ -3,11 +3,40 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronUp, ExternalLink, Save, Trash2, RefreshCw } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../api/client'
-import { findSectionDef } from '../sectionSchema'
+import { findSectionDef, SECTION_DEFS } from '../sectionSchema'
 import { SectionFormDispatcher } from '../components/SectionFormDispatcher'
 import { AddSectionMenu } from '../components/AddSectionMenu'
 
 interface Section { type: string; variant: string; data: Record<string, any> }
+
+function VariantPicker({ currentType, currentVariant, onChange }: { currentType: string; currentVariant: string; onChange: (v: string) => void }) {
+  const siblings = SECTION_DEFS.filter(d => d.type === currentType)
+  if (siblings.length <= 1) return null
+  return (
+    <div className="mb-4 pb-4 border-b border-line">
+      <label className="block text-xs font-semibold uppercase tracking-wider text-ink-soft mb-1.5">Layout variant</label>
+      <select
+        value={currentVariant}
+        onChange={(e) => {
+          if (e.target.value === currentVariant) return
+          if (!window.confirm("Switch this section's layout? We'll keep your text and images but the new variant may show different fields.")) {
+            e.target.value = currentVariant
+            return
+          }
+          onChange(e.target.value)
+        }}
+        className="input"
+      >
+        {siblings.map(def => (
+          <option key={def.variant} value={def.variant}>{def.label}</option>
+        ))}
+      </select>
+      <p className="text-xs text-muted mt-1.5">
+        {siblings.find(d => d.variant === currentVariant)?.description}
+      </p>
+    </div>
+  )
+}
 interface Page {
   id: string
   slug: string
@@ -191,6 +220,18 @@ export function PageEditPage() {
                 </div>
                 {isOpen && (
                   <div className={clsx('px-4 py-4 border-t border-line bg-paper')}>
+                    <VariantPicker
+                      currentType={section.type}
+                      currentVariant={section.variant}
+                      onChange={(newVariant) => {
+                        const targetDef = SECTION_DEFS.find(d => d.type === section.type && d.variant === newVariant)
+                        if (!targetDef) return
+                        // Preserve any fields that exist in the new variant's
+                        // shape — title, image, etc. usually carry over fine.
+                        const merged = { ...targetDef.defaultData, ...section.data } as Record<string, any>
+                        updateSection(i, { ...section, variant: newVariant, data: merged })
+                      }}
+                    />
                     <SectionFormDispatcher
                       type={section.type}
                       variant={section.variant}
