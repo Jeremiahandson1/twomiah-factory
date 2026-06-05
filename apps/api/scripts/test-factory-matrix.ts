@@ -366,8 +366,11 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
 
 async function captureRenderBuildLogs(serviceIds: Record<string, string>, lastStatuses: Record<string, string>, auditDir: string, testId: string) {
   const TERMINAL = new Set(['build_failed', 'update_failed', 'pre_deploy_failed', 'canceled'])
+  // 'live_but_smoke_failed' is a synthetic status used by the smoke-fail
+  // capture path; it tells us to grab logs even though Render says live.
+  const CAPTURE = new Set([...TERMINAL, 'live_but_smoke_failed'])
   for (const [role, serviceId] of Object.entries(serviceIds)) {
-    if (!TERMINAL.has(lastStatuses[role] || '')) continue
+    if (!CAPTURE.has(lastStatuses[role] || '')) continue
     try {
       // Get the latest deploy id to fetch its logs.
       const dr = await fetch(`https://api.render.com/v1/services/${serviceId}/deploys?limit=1`, {
@@ -481,10 +484,11 @@ async function waitForRenderLive(serviceIds: Record<string, string>, opts: { max
 // Bounded retries (Render cold-start can take a minute or two).
 
 async function fetchWithRetry(url: string, opts: { timeoutMs?: number; retries?: number; delayMs?: number } = {}): Promise<{ ok: boolean; status?: number; error?: string }> {
-  // After waitForRenderLive confirmed all services are 'live', the smoke
-  // checks should hit fast — 3 retries × 5s is plenty for any post-live
-  // warmup hiccups. The hard wait happens in waitForRenderLive, not here.
-  const retries = opts.retries ?? 3
+  // After waitForRenderLive confirmed all services are 'live', smoke checks
+  // should usually hit fast. But Render's 'live' status updates a few seconds
+  // before the URL actually starts responding (especially for sites with
+  // longer startup hooks like DB ping + EJS warmup). 12 × 5s = 1 min budget.
+  const retries = opts.retries ?? 12
   const delayMs = opts.delayMs ?? 5000
   const timeoutMs = opts.timeoutMs ?? 30000
   for (let i = 0; i <= retries; i++) {
