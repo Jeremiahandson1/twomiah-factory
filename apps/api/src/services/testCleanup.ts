@@ -171,8 +171,8 @@ export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupRes
     detail: `${serviceDeletedCount}/${serviceTryCount} candidate names deleted`,
   })
 
-  // ─── 3) Render Postgres (vertical-suffix DB) ─────────────────────────
-  const dbCandidates = new Set<string>([slug + '-db'])
+  // ─── 3) Render Postgres (vertical-suffix DB + premium site DB) ────
+  const dbCandidates = new Set<string>([slug + '-db', slug + '-site-db'])
   for (const s of ['-care', '-wrench', '-roof', '-landscape', '-leaf', '-drive']) {
     dbCandidates.add(slug + s + '-db')
   }

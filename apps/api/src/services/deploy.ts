@@ -1051,6 +1051,58 @@ export async function deployCustomer(
       try {
         await findAndDeleteRenderService(slug + '-site')
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
+
+        // ── Premium-site DB provisioning ──────────────────────────────────
+        // The premium templates (templates/website-premium-*) need their own
+        // dedicated Postgres for CMS data (pages.sections jsonb, users,
+        // photos, leads, settings). The Hono server reads DATABASE_URL on
+        // boot and crashes ENOTFOUND when the host is unresolvable, which
+        // 500s every request — discovered via test harness 2026-06-04
+        // probe-final3. Skipped for standard websites (they don't query
+        // any DB from server-static.ts).
+        const isPremiumSite = products.includes('website-premium')
+        let siteDbConnectionString: string | null = null
+        if (isPremiumSite) {
+          try {
+            const siteDbName = slug + '-site'  // creates {slug}-site-db once -db suffix is applied by createRenderDatabase
+            const existingSiteDb = await findExistingDatabase(siteDbName + '-db')
+            if (existingSiteDb) {
+              console.log('[Deploy] Reusing existing premium site DB:', siteDbName + '-db', existingSiteDb.id)
+              createdResources.push({ type: 'database', id: existingSiteDb.id, name: siteDbName + '-db' })
+              if (existingSiteDb.id) deployedResourceIds.push(existingSiteDb.id)
+              const connInfo = await getDatabaseConnectionInfo(existingSiteDb.id)
+              if (connInfo?.internalConnectionString) siteDbConnectionString = connInfo.internalConnectionString
+            }
+            if (!siteDbConnectionString) {
+              console.log('[Deploy] Creating premium site DB:', siteDbName + '-db')
+              const siteDb = await createRenderDatabase(siteDbName, region, dbPlan)
+              createdResources.push({ type: 'database', id: siteDb.id, name: siteDbName + '-db' })
+              if (siteDb.id) deployedResourceIds.push(siteDb.id)
+              // Poll for connection string — same pattern as CRM DB above.
+              for (let attempt = 0; attempt < 20; attempt++) {
+                await sleep(15000)
+                try {
+                  const connInfo = await getDatabaseConnectionInfo(siteDb.id)
+                  if (connInfo?.internalConnectionString) {
+                    siteDbConnectionString = connInfo.internalConnectionString
+                    console.log('[Deploy] Premium site DB connection string received (attempt ' + (attempt + 1) + ')')
+                    break
+                  }
+                } catch (_e) { /* not ready yet */ }
+              }
+              if (!siteDbConnectionString) throw new Error('Premium site DB did not become ready in time')
+            }
+            results.steps.push({ step: 'render_site_db', status: 'ok' })
+          } catch (siteDbErr: any) {
+            results.steps.push({ step: 'render_site_db', status: 'error', error: siteDbErr.message })
+            results.errors.push('Premium site DB: ' + siteDbErr.message)
+            // Don't bail — let the site service get created without DB and
+            // surface the failure via /health. (The site will 500 until
+            // DATABASE_URL is set manually, but at least the deploy completes
+            // far enough to be diagnosable.)
+          }
+        }
+
         const siteEnvVars: Array<{ key: string; value: string }> = [
             { key: 'NODE_ENV', value: 'production' },
             { key: 'PORT', value: '10000' },
@@ -1059,6 +1111,9 @@ export async function deployCustomer(
             { key: 'TENANT_SLUG', value: slug },
             ...r2EnvVars,
         ]
+        if (siteDbConnectionString) {
+          siteEnvVars.push({ key: 'DATABASE_URL', value: siteDbConnectionString })
+        }
         if (hasVisualizerFeature) {
           siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
