@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X } from 'lucide-react'
+import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X, Search, Download } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
@@ -35,6 +35,8 @@ export function BookingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<'upcoming' | 'past' | 'all'>('upcoming')
+  const [query, setQuery] = useState('')
+  const [serviceFilter, setServiceFilter] = useState<string>('all')
   const [newOpen, setNewOpen] = useState(false)
 
   const reload = () => {
@@ -50,11 +52,46 @@ export function BookingsPage() {
 
   const serviceById = (id: string) => services.find(s => s.id === id)?.name || 'Unknown service'
   const now = Date.now()
+  const q = query.trim().toLowerCase()
   const filtered = bookings.filter(b => {
-    if (filter === 'upcoming') return new Date(b.startAt).getTime() >= now && b.status !== 'cancelled'
-    if (filter === 'past') return new Date(b.startAt).getTime() < now
+    if (filter === 'upcoming' && (new Date(b.startAt).getTime() < now || b.status === 'cancelled')) return false
+    if (filter === 'past' && new Date(b.startAt).getTime() >= now) return false
+    if (serviceFilter !== 'all' && b.serviceId !== serviceFilter) return false
+    if (q && !(
+      b.customerName.toLowerCase().includes(q) ||
+      b.customerEmail.toLowerCase().includes(q) ||
+      (b.customerPhone || '').toLowerCase().includes(q) ||
+      (b.customerAddress || '').toLowerCase().includes(q)
+    )) return false
     return true
   })
+
+  const exportCsv = () => {
+    const headers = ['Date', 'Time', 'Customer', 'Email', 'Phone', 'Address', 'Service', 'Status', 'Notes']
+    const rows = filtered.map(b => {
+      const d = new Date(b.startAt)
+      return [
+        d.toLocaleDateString('en-US'),
+        d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        b.customerName,
+        b.customerEmail,
+        b.customerPhone || '',
+        b.customerAddress || '',
+        serviceById(b.serviceId),
+        b.status,
+        b.customerNotes || '',
+      ]
+    })
+    const escape = (v: string) => '"' + v.replace(/"/g, '""').replace(/\r?\n/g, ' ') + '"'
+    const csv = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'bookings-' + new Date().toISOString().slice(0, 10) + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -69,7 +106,7 @@ export function BookingsPage() {
         </div>
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         {(['upcoming', 'past', 'all'] as const).map(f => (
           <button
             key={f}
@@ -82,6 +119,27 @@ export function BookingsPage() {
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
+        <div className="flex-1 min-w-[200px] relative">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+          <input
+            type="search"
+            placeholder="Search name, email, phone, address…"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            className="input pl-9"
+          />
+        </div>
+        {services.length > 1 && (
+          <select value={serviceFilter} onChange={e => setServiceFilter(e.target.value)} className="input" style={{ width: 'auto' }}>
+            <option value="all">All services</option>
+            {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        )}
+        {filtered.length > 0 && (
+          <button onClick={exportCsv} className="btn-secondary btn-sm inline-flex items-center gap-1.5">
+            <Download className="w-3.5 h-3.5" />CSV
+          </button>
+        )}
       </div>
 
       {loading && <div className="text-muted text-sm">Loading…</div>}

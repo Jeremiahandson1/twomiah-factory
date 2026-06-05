@@ -11,6 +11,7 @@ import { db } from '../db/index.ts'
 import { eq, desc } from 'drizzle-orm'
 import { company, roofReport } from '../db/schema.ts'
 import logger from './services/logger.ts'
+import { authenticate } from './middleware/auth.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

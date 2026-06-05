@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm'
 import { agencies } from '../db/schema.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
+import { authenticate } from './middleware/auth.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 
 const __filename = fileURLToPath(import.meta.url)
