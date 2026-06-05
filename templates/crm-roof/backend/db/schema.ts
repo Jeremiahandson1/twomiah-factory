@@ -999,3 +999,27 @@ export const financingApplication = pgTable('financing_application', {
   index('financing_application_contact_id_idx').on(t.contactId),
   index('financing_application_status_idx').on(t.status),
 ])
+// ─── Twomiah Ads — A/B experiments ─────────────────────────────────────────
+// Each experiment tests variants of a landing page against ad traffic.
+// We record one row per visitor assignment (so we can compute uplift +
+// significance) and one row per conversion event.
+
+export const adsExperiment = pgTable('ads_experiment', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  // Page path being tested, e.g. '/contact' or '/services'
+  path: text('path').notNull(),
+  // 'draft' | 'running' | 'completed' | 'archived'
+  status: text('status').notNull().default('draft'),
+  // Variant config — array of { key, label, trafficPercent }
+  variants: jsonb('variants').notNull().default([]),
+  // The winning variant once we call it
+  winnerKey: text('winner_key'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ads_experiment_company_status_idx').on(t.companyId, t.status),
+])

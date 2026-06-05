@@ -4,7 +4,7 @@ import api from '../../services/api';
 import {
   BarChart3, Eye, MousePointer, DollarSign, Users, Target,
   TrendingUp, Pause, Play, ExternalLink, X, Send, Check,
-  AlertCircle, Filter, Clock
+  AlertCircle, Filter, Clock, Beaker, Trophy
 } from 'lucide-react';
 
 // ─── Feature gate ────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ export default function AdsPage() {
 
 // ─── Main content ────────────────────────────────────────────────────────────
 function AdsContent() {
-  const [tab, setTab] = useState<'performance' | 'campaigns'>('performance');
+  const [tab, setTab] = useState<'performance' | 'campaigns' | 'experiments'>('performance');
 
   return (
     <div className="space-y-6">
@@ -42,6 +42,7 @@ function AdsContent() {
         {([
           { id: 'performance' as const, label: 'Performance', icon: BarChart3 },
           { id: 'campaigns' as const, label: 'My Ads', icon: Target },
+          { id: 'experiments' as const, label: 'A/B Tests', icon: Beaker },
         ]).map(t => (
           <button
             key={t.id}
@@ -61,6 +62,182 @@ function AdsContent() {
       {/* Tab content */}
       {tab === 'performance' && <PerformanceTab />}
       {tab === 'campaigns' && <CampaignsTab />}
+      {tab === 'experiments' && <ExperimentsTab />}
+    </div>
+  );
+}
+
+// ─── A/B EXPERIMENTS TAB ─────────────────────────────────────────────────────
+// Lists landing-page experiments running against ad traffic. Backend
+// stores experiments + variant assignments + conversion events. UI:
+// list view, per-experiment detail with variant performance + p-value.
+interface Experiment {
+  id: string;
+  name: string;
+  path: string;  // e.g. '/contact'
+  status: 'draft' | 'running' | 'completed' | 'archived';
+  startedAt: string | null;
+  endedAt: string | null;
+  variants: Array<{
+    key: string;
+    label: string;
+    trafficPercent: number;
+    assignments: number;
+    conversions: number;
+  }>;
+  winnerKey: string | null;
+}
+
+function ExperimentsTab() {
+  const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [newOpen, setNewOpen] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    api.get('/api/ads/experiments')
+      .then((res: any) => setExperiments(res.experiments || []))
+      .catch((e: any) => setError(e?.message || 'Failed to load'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, []);
+
+  const cvr = (v: Experiment['variants'][0]) => v.assignments > 0 ? (v.conversions / v.assignments * 100) : 0;
+  const lift = (a: number, b: number) => a > 0 ? ((b - a) / a * 100) : 0;
+
+  if (loading) return <div className="text-gray-500 dark:text-slate-400 text-sm py-8">Loading experiments…</div>;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500 dark:text-slate-400">Test landing-page variants against your ad traffic. Stop spending on a page that doesn't convert.</p>
+        </div>
+        <button
+          onClick={() => setNewOpen(true)}
+          className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium inline-flex items-center gap-1.5"
+        >
+          <Beaker className="w-4 h-4" /> New experiment
+        </button>
+      </div>
+
+      {error && <div className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">{error}</div>}
+
+      {experiments.length === 0 ? (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-8 text-center">
+          <Beaker className="w-10 h-10 text-gray-300 dark:text-slate-700 mx-auto mb-3" />
+          <p className="text-gray-600 dark:text-slate-400 text-sm">No experiments yet.</p>
+          <p className="text-gray-500 dark:text-slate-500 text-xs mt-2 max-w-md mx-auto">Pick a landing page, define two or more variants (different hero copy, CTA, form length), split traffic. We'll measure conversion and call the winner.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {experiments.map(e => {
+            const base = e.variants[0];
+            return (
+              <div key={e.id} className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-800 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">{e.name}</h3>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{e.path}</p>
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                    e.status === 'running' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    e.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
+                    'bg-gray-100 text-gray-600 border-gray-200'
+                  }`}>{e.status}</span>
+                </div>
+                <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${e.variants.length}, 1fr)` }}>
+                  {e.variants.map((v, i) => {
+                    const c = cvr(v);
+                    const l = i > 0 ? lift(cvr(base), c) : 0;
+                    const isWinner = e.winnerKey === v.key;
+                    return (
+                      <div key={v.key} className={`p-3 rounded border ${isWinner ? 'border-orange-500 bg-orange-50/40 dark:bg-orange-900/10' : 'border-gray-200 dark:border-slate-800'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-gray-600 dark:text-slate-400">{v.label}</span>
+                          {isWinner && <Trophy className="w-3.5 h-3.5 text-orange-500" />}
+                        </div>
+                        <div className="text-xl font-bold text-gray-900 dark:text-white">{c.toFixed(1)}%</div>
+                        <div className="text-xs text-gray-500 dark:text-slate-500">{v.conversions}/{v.assignments}</div>
+                        {i > 0 && (
+                          <div className={`text-xs font-medium mt-1 ${l >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {l >= 0 ? '+' : ''}{l.toFixed(1)}% vs control
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {newOpen && <NewExperimentModal onClose={() => setNewOpen(false)} onCreated={() => { setNewOpen(false); load(); }} />}
+    </div>
+  );
+}
+
+function NewExperimentModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState('');
+  const [path, setPath] = useState('/');
+  const [variantA, setVariantA] = useState('Original');
+  const [variantB, setVariantB] = useState('New');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null); setSubmitting(true);
+    try {
+      await api.post('/api/ads/experiments', {
+        name, path,
+        variants: [
+          { key: 'a', label: variantA, trafficPercent: 50 },
+          { key: 'b', label: variantB, trafficPercent: 50 },
+        ],
+      });
+      onCreated();
+    } catch (e: any) { setError(e?.message || 'Failed to create'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-900 rounded-lg p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 dark:text-white">New A/B test</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700"><X className="w-4 h-4" /></button>
+        </div>
+        <form onSubmit={submit} className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Test name</label>
+            <input className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-white" required value={name} onChange={e => setName(e.target.value)} placeholder="Hero headline test" autoFocus />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Page path</label>
+            <input className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-white" required value={path} onChange={e => setPath(e.target.value)} placeholder="/services" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Variant A</label>
+              <input className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-white" required value={variantA} onChange={e => setVariantA(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-slate-300 mb-1">Variant B</label>
+              <input className="w-full px-3 py-2 border border-gray-300 dark:border-slate-700 rounded-lg text-sm dark:bg-slate-800 dark:text-white" required value={variantB} onChange={e => setVariantB(e.target.value)} />
+            </div>
+          </div>
+          {error && <div className="text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm">{error}</div>}
+          <p className="text-xs text-gray-500 dark:text-slate-400">Traffic will split 50/50. You'll need to update the page itself with the two variants — we'll surface a code snippet on the experiment detail page.</p>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 dark:border-slate-700 rounded-lg">Cancel</button>
+            <button type="submit" disabled={submitting} className="px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600 text-white rounded-lg disabled:opacity-50">{submitting ? 'Creating…' : 'Create test'}</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

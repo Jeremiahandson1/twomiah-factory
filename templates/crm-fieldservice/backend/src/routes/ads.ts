@@ -1,8 +1,86 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { db } from '../../db/client.ts'
+import { adsExperiment, adsExperimentAssignment, adsExperimentConversion, company } from '../../db/schema.ts'
+import { eq, desc, sql } from 'drizzle-orm'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// ─── A/B experiments ─────────────────────────────────────────────────────────
+async function companyId(): Promise<string | null> {
+  const [c] = await db.select({ id: company.id }).from(company).limit(1)
+  return c?.id || null
+}
+
+async function hydrateExperiment(exp: typeof adsExperiment.$inferSelect) {
+  // Pull aggregate assignment + conversion counts per variant
+  const counts = await db.execute(sql`
+    SELECT variant_key,
+           (SELECT count(*) FROM ads_experiment_assignment WHERE experiment_id = ${exp.id} AND variant_key = v.variant_key) AS assignments,
+           (SELECT count(*) FROM ads_experiment_conversion WHERE experiment_id = ${exp.id} AND variant_key = v.variant_key) AS conversions
+    FROM (SELECT DISTINCT variant_key FROM ads_experiment_assignment WHERE experiment_id = ${exp.id}
+          UNION SELECT jsonb_array_elements(${JSON.stringify(exp.variants)}::jsonb)->>'key') v
+  `) as any
+  const countMap = new Map<string, { assignments: number; conversions: number }>()
+  for (const r of (counts.rows || counts)) {
+    countMap.set(r.variant_key, { assignments: Number(r.assignments || 0), conversions: Number(r.conversions || 0) })
+  }
+  const variants = ((exp.variants as any[]) || []).map(v => ({
+    ...v,
+    assignments: countMap.get(v.key)?.assignments || 0,
+    conversions: countMap.get(v.key)?.conversions || 0,
+  }))
+  return { ...exp, variants }
+}
+
+app.get('/experiments', async (c) => {
+  const cid = await companyId()
+  if (!cid) return c.json({ experiments: [] })
+  const rows = await db.select().from(adsExperiment).where(eq(adsExperiment.companyId, cid)).orderBy(desc(adsExperiment.createdAt))
+  const hydrated = await Promise.all(rows.map(hydrateExperiment))
+  return c.json({ experiments: hydrated })
+})
+
+app.post('/experiments', async (c) => {
+  const cid = await companyId()
+  if (!cid) return c.json({ error: 'No company' }, 400)
+  const body = await c.req.json().catch(() => ({})) as any
+  if (!body.name || !body.path || !Array.isArray(body.variants) || body.variants.length < 2) {
+    return c.json({ error: 'name, path, and 2+ variants required' }, 400)
+  }
+  // Normalize traffic to sum to 100
+  const total = body.variants.reduce((s: number, v: any) => s + (v.trafficPercent || 0), 0)
+  const variants = body.variants.map((v: any, i: number) => ({
+    key: v.key || String.fromCharCode(97 + i),
+    label: v.label || 'Variant ' + (i + 1),
+    trafficPercent: total > 0 ? Math.round((v.trafficPercent / total) * 100) : Math.round(100 / body.variants.length),
+  }))
+  const [created] = await db.insert(adsExperiment).values({
+    companyId: cid,
+    name: body.name, path: body.path,
+    variants,
+    status: 'running', startedAt: new Date(),
+  }).returning()
+  return c.json({ experiment: await hydrateExperiment(created) }, 201)
+})
+
+app.patch('/experiments/:id', async (c) => {
+  const id = c.req.param('id')!
+  const body = await c.req.json().catch(() => ({})) as any
+  const patch: any = { updatedAt: new Date() }
+  if (typeof body.name === 'string') patch.name = body.name
+  if (typeof body.status === 'string' && ['running', 'completed', 'archived', 'draft'].includes(body.status)) {
+    patch.status = body.status
+    if (body.status === 'completed' && !patch.endedAt) patch.endedAt = new Date()
+  }
+  if (typeof body.winnerKey === 'string') patch.winnerKey = body.winnerKey
+  const result = await db.update(adsExperiment).set(patch).where(eq(adsExperiment.id, id)).returning()
+  if (result.length === 0) return c.json({ error: 'Not found' }, 404)
+  return c.json({ experiment: await hydrateExperiment(result[0]) })
+})
+
+
 
 // ─── Mock data generators ────────────────────────────────────────────────────
 // These return realistic mock data. Replace with real Twomiah Ads API calls later.
