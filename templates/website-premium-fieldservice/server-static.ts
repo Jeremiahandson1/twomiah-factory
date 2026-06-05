@@ -971,6 +971,46 @@ app.get('/api/admin/billing-portal', async (c) => {
   }
 })
 
+// ── Factory internal: bookings list for CRM SchedulePage ──────────────────
+// CRM admin views jobs + bookings in one schedule view. The CRM backend
+// calls this endpoint server-to-server with FACTORY_SYNC_KEY. Returns
+// bookings in the requested date range with the service+assignee joined
+// so the CRM doesn't need a separate lookup.
+app.get('/api/internal/bookings', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const fromQ = c.req.query('from')
+  const toQ = c.req.query('to')
+  const conds: any[] = []
+  if (fromQ) conds.push(gte(bookingsTbl.startAt, new Date(fromQ)))
+  if (toQ) conds.push(lte(bookingsTbl.startAt, new Date(toQ)))
+  const rows = conds.length > 0
+    ? await db.select().from(bookingsTbl).where(and(...conds)).orderBy(asc(bookingsTbl.startAt))
+    : await db.select().from(bookingsTbl).orderBy(asc(bookingsTbl.startAt))
+  // Hydrate service name and assignee email so the CRM has everything inline
+  const serviceIds = Array.from(new Set(rows.map(r => r.serviceId)))
+  const userIds = Array.from(new Set(rows.map(r => r.assignedUserId).filter(Boolean) as string[]))
+  const services = serviceIds.length > 0 ? await db.select().from(bookingServicesTbl) : []
+  const { users: usersTbl } = await import('./db/schema')
+  const users = userIds.length > 0 ? await db.select({ id: usersTbl.id, email: usersTbl.email, name: usersTbl.name }).from(usersTbl) : []
+  const sById = new Map(services.map(s => [s.id, s]))
+  const uById = new Map(users.map(u => [u.id, u]))
+  return c.json({
+    bookings: rows.map(b => ({
+      id: b.id,
+      startAt: b.startAt, endAt: b.endAt,
+      status: b.status,
+      customerName: b.customerName,
+      customerEmail: b.customerEmail,
+      customerPhone: b.customerPhone,
+      customerAddress: b.customerAddress,
+      serviceName: sById.get(b.serviceId)?.name || null,
+      assignedUser: b.assignedUserId ? (uById.get(b.assignedUserId) ? { id: b.assignedUserId, email: uById.get(b.assignedUserId)!.email, name: uById.get(b.assignedUserId)!.name } : null) : null,
+    })),
+  })
+})
+
 // ── Factory internal: store Google Calendar OAuth tokens ──────────────────
 // The Factory orchestrates the OAuth flow with one global Google app and
 // POSTs the resulting tokens here, gated by FACTORY_SYNC_KEY. We upsert
