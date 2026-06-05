@@ -45,6 +45,9 @@ export interface ServiceConfig {
   // 1 = single-customer service. >1 = group service (a single time
   // slot can accept up to N bookings before it's full).
   capacityPerSlot?: number
+  // Drive-time padding between any two confirmed bookings for the
+  // same crew on the same day. Added on top of bufferBefore/After.
+  driveTimeMinutes?: number
 }
 
 export interface ZoneFilter {
@@ -151,10 +154,14 @@ export function generateSlots(args: {
       for (const [key, windows] of rulesByCrew) rulesByCrew.set(key, cutWindow(windows))
     }
   } else {
+    const driveTime = service.driveTimeMinutes ?? 0
     for (const bk of existingBookings) {
       if (bk.status !== 'confirmed') continue
-      const blockStart = bk.startMinute - bufferBefore
-      const blockEnd = bk.endMinute + bufferAfter
+      // Drive-time pads before+after the existing booking on top of
+      // the service's own buffers (so the new slot must clear a full
+      // drive-time window from any neighbor on the same crew).
+      const blockStart = bk.startMinute - bufferBefore - driveTime
+      const blockEnd = bk.endMinute + bufferAfter + driveTime
       const cutWindow = (windows: Array<{ start: number; end: number }>) => {
         const out: Array<{ start: number; end: number }> = []
         for (const w of windows) {

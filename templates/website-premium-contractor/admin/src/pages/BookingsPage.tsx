@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X, Search, Download, RotateCw, LayoutGrid, TrendingUp, Hourglass } from 'lucide-react'
+import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X, Search, Download, RotateCw, LayoutGrid, TrendingUp, Hourglass, Users } from 'lucide-react'
 import clsx from 'clsx'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
@@ -105,6 +105,7 @@ export function BookingsPage() {
           <Link to="/bookings-calendar" className="btn-secondary btn-md inline-flex items-center gap-1.5"><LayoutGrid className="w-4 h-4" />Calendar</Link>
           <Link to="/bookings-analytics" className="btn-secondary btn-md inline-flex items-center gap-1.5"><TrendingUp className="w-4 h-4" />Analytics</Link>
           <Link to="/bookings-waitlist" className="btn-secondary btn-md inline-flex items-center gap-1.5"><Hourglass className="w-4 h-4" />Waitlist</Link>
+          <Link to="/customers" className="btn-secondary btn-md inline-flex items-center gap-1.5"><Users className="w-4 h-4" />Customers</Link>
           <Link to="/booking-settings" className="btn-secondary btn-md">Settings</Link>
         </div>
       </div>

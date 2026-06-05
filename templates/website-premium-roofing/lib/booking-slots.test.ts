@@ -283,6 +283,29 @@ describe('generateSlots — group services (capacity > 1)', () => {
   })
 })
 
+describe('generateSlots — drive time between bookings', () => {
+  test('drive time pads on both sides of an existing booking', () => {
+    const slots = generateSlots({
+      dayOfWeek: 1,
+      service: { ...SERVICE_2HR, driveTimeMinutes: 30 },
+      rules: [MON_9_TO_5],
+      blackouts: [],
+      existingBookings: [
+        { assignedUserId: 'crew-1', startMinute: 11 * HOUR, endMinute: 13 * HOUR, status: 'confirmed' },
+      ],
+    })
+    const starts = slots.map(s => s.startMinute / HOUR)
+    // Booking 11-13. With 30min drive time and zero service buffers,
+    // blocked window is 10:30-13:30. 9:00 (ends 11:00) is at the cusp
+    // but 11:00 > 10:30 means slot 9:00 ends INSIDE blocked window — blocked.
+    expect(starts).not.toContain(9)
+    expect(starts).not.toContain(10)
+    // 13:30 — service starts there, but the booking + drive ends at 13:30
+    // and there's no afterBuffer/drive on the new slot itself, so it fits.
+    expect(starts).toContain(13.5)
+  })
+})
+
 describe('pickCrewForSlot', () => {
   test('prefers real crew over null wildcard', () => {
     expect(pickCrewForSlot(['crew-1', null])).toBe('crew-1')

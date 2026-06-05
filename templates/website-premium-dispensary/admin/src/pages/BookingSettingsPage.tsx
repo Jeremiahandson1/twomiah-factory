@@ -124,7 +124,7 @@ function ZonesSection() {
 }
 
 function CopyCustomizationSection() {
-  const [vals, setVals] = useState({ bookingHeroTitle: '', bookingHeroSubtitle: '', bookingConfirmCta: '', bookingThanksMessage: '' })
+  const [vals, setVals] = useState({ bookingHeroTitle: '', bookingHeroSubtitle: '', bookingConfirmCta: '', bookingThanksMessage: '', bookingDefaultDriveTimeMinutes: 0 })
   const [originalJson, setOriginalJson] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -139,6 +139,7 @@ function CopyCustomizationSection() {
           bookingHeroSubtitle: settings?.bookingHeroSubtitle || '',
           bookingConfirmCta: settings?.bookingConfirmCta || '',
           bookingThanksMessage: settings?.bookingThanksMessage || '',
+          bookingDefaultDriveTimeMinutes: settings?.bookingDefaultDriveTimeMinutes || 0,
         }
         setVals(next)
         setOriginalJson(JSON.stringify(next))
@@ -156,6 +157,7 @@ function CopyCustomizationSection() {
         bookingHeroSubtitle: vals.bookingHeroSubtitle || null,
         bookingConfirmCta: vals.bookingConfirmCta || null,
         bookingThanksMessage: vals.bookingThanksMessage || null,
+        bookingDefaultDriveTimeMinutes: Math.max(0, vals.bookingDefaultDriveTimeMinutes || 0),
       })
       setOriginalJson(JSON.stringify(vals))
       setOkMsg('Saved.')
@@ -187,6 +189,11 @@ function CopyCustomizationSection() {
           <div>
             <Label>Thanks page title</Label>
             <input className="input" placeholder={'Default: "You\'re booked."'} value={vals.bookingThanksMessage} onChange={e => setVals({ ...vals, bookingThanksMessage: e.target.value })} />
+          </div>
+          <div>
+            <Label>Default drive time between bookings (minutes)</Label>
+            <input type="number" min={0} max={240} className="input" value={vals.bookingDefaultDriveTimeMinutes} onChange={e => setVals({ ...vals, bookingDefaultDriveTimeMinutes: parseInt(e.target.value) || 0 })} />
+            <p className="text-xs text-muted mt-1">Padding added between any two bookings for the same crew. 0 = off.</p>
           </div>
           <button onClick={save} disabled={saving || !dirty} className="btn-primary btn-md inline-flex items-center gap-1.5 disabled:opacity-40">
             <Save className="w-4 h-4" />

@@ -127,6 +127,14 @@
     var originalLabel = submitBtn.textContent;
     submitBtn.textContent = rescheduleToken ? 'Rescheduling…' : 'Booking…';
     const formData = new FormData(form);
+    // Attribution
+    try {
+      formData.append('sourcePath', document.referrer && new URL(document.referrer).origin === window.location.origin ? new URL(document.referrer).pathname : '/');
+      formData.append('sourceReferrer', document.referrer || '');
+      if (window.twomiahAb && window.twomiahAb.state && window.twomiahAb.state.variant) {
+        formData.append('sourceVariant', window.twomiahAb.state.variant);
+      }
+    } catch (_) { /* ignore */ }
     try {
       var endpoint = rescheduleToken
         ? '/booking/' + encodeURIComponent(rescheduleToken) + '/reschedule'

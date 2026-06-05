@@ -766,6 +766,7 @@ const SETTINGS_FIELDS = [
   'companyName', 'tagline', 'phone', 'email', 'address',
   'seoTitle', 'seoDescription', 'contactCtaLabel',
   'bookingHeroTitle', 'bookingHeroSubtitle', 'bookingConfirmCta', 'bookingThanksMessage',
+  'bookingDefaultDriveTimeMinutes',
   'primaryColor', 'secondaryColor', 'accentColor',
   'logoUrl', 'faviconUrl', 'nav',
 ] as const
@@ -1420,6 +1421,77 @@ app.delete('/calendar/connections/:id', authMiddleware, async (c) => {
     .returning({ id: calConnTbl.id })
   if (result.length === 0) return c.json({ error: 'Connection not found' }, 404)
   return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — customer history ────────────────────────────────
+// Customers identified by email — group all bookings, compute LTV,
+// repeat metrics, last visit. Service businesses live on repeat
+// customers; surfacing them in one view is high-leverage.
+app.get('/booking-customers', authMiddleware, async (c) => {
+  const rows = await db.select().from(bookingsTbl)
+  const services = await db.select().from(bookingServicesTbl)
+  const priceById = new Map(services.map(s => [s.id, s.priceCents || 0]))
+
+  const byEmail = new Map<string, {
+    email: string; name: string; phone: string | null
+    totalBookings: number; completed: number; cancelled: number
+    revenueCents: number; firstAt: Date; lastAt: Date
+  }>()
+
+  for (const b of rows) {
+    const key = b.customerEmail.toLowerCase()
+    const startAt = b.startAt as Date
+    const existing = byEmail.get(key)
+    if (existing) {
+      existing.totalBookings++
+      if (b.status === 'completed') { existing.completed++; existing.revenueCents += priceById.get(b.serviceId) || 0 }
+      if (b.status === 'cancelled') existing.cancelled++
+      if (startAt < existing.firstAt) existing.firstAt = startAt
+      if (startAt > existing.lastAt) existing.lastAt = startAt
+      // Keep most recent name + phone
+      if (startAt.getTime() === existing.lastAt.getTime()) {
+        existing.name = b.customerName
+        existing.phone = b.customerPhone || existing.phone
+      }
+    } else {
+      byEmail.set(key, {
+        email: key, name: b.customerName, phone: b.customerPhone,
+        totalBookings: 1,
+        completed: b.status === 'completed' ? 1 : 0,
+        cancelled: b.status === 'cancelled' ? 1 : 0,
+        revenueCents: b.status === 'completed' ? (priceById.get(b.serviceId) || 0) : 0,
+        firstAt: startAt, lastAt: startAt,
+      })
+    }
+  }
+  const customers = Array.from(byEmail.values()).sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime())
+  return c.json({ customers })
+})
+
+app.get('/booking-customers/:email', authMiddleware, async (c) => {
+  const email = decodeURIComponent(c.req.param('email')!).toLowerCase()
+  // Drizzle doesn't have a clean lower() compare without sql template;
+  // emails are typically stored as the customer typed them, so we
+  // filter in JS after pulling matching candidates.
+  const all = await db.select().from(bookingsTbl).orderBy(desc(bookingsTbl.startAt))
+  const bookings = all.filter(b => b.customerEmail.toLowerCase() === email)
+  if (bookings.length === 0) return c.json({ error: 'Customer not found' }, 404)
+  const services = await db.select().from(bookingServicesTbl)
+  const svcById = new Map(services.map(s => [s.id, s]))
+  return c.json({
+    email,
+    bookings: bookings.map(b => ({
+      id: b.id,
+      startAt: b.startAt, endAt: b.endAt,
+      status: b.status,
+      customerName: b.customerName,
+      customerPhone: b.customerPhone,
+      customerAddress: b.customerAddress,
+      serviceName: svcById.get(b.serviceId)?.name || null,
+      priceCents: svcById.get(b.serviceId)?.priceCents || null,
+      seriesId: b.seriesId,
+    })),
+  })
 })
 
 // ─── Twomiah Bookings — analytics dashboard ─────────────────────────────

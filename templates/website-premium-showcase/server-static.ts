@@ -316,6 +316,7 @@ app.get('/book/:serviceSlug/slots', async (c) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return c.json({ error: 'date required' }, 400)
   const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
   if (!service || !service.isActive) return c.json({ error: 'service not found' }, 404)
+  const settings = await loadSettings()
 
   // Figure out which day-of-week this date falls on in tenant TZ
   const noonOfDate = new Date(dateStr + 'T12:00:00Z')
@@ -352,6 +353,7 @@ app.get('/book/:serviceSlug/slots', async (c) => {
       bufferAfterMinutes: service.bufferAfterMinutes,
       slotGranularityMinutes: service.slotGranularityMinutes,
       capacityPerSlot: service.capacityPerSlot,
+      driveTimeMinutes: (settings as any)?.bookingDefaultDriveTimeMinutes || 0,
     },
     rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
     blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
@@ -538,6 +540,7 @@ app.post('/book/:serviceSlug', async (c) => {
 
     // Re-verify this slot is still available, server-side. Cheap because
     // we're already in the same transaction shape.
+    const settings = await loadSettings()
     const { dayOfWeek } = dateInTenantTz(startAt)
     const dateStr = dateInTenantTz(startAt).isoDate
     const startMinuteWanted = dateInTenantTz(startAt).minuteOfDay
@@ -589,6 +592,9 @@ app.post('/book/:serviceSlug', async (c) => {
       assignedUserId,
       confirmationToken,
       source: 'public_form',
+      sourcePath: String(body.sourcePath || '').trim() || null,
+      sourceReferrer: String(body.sourceReferrer || '').trim() || null,
+      sourceVariant: String(body.sourceVariant || '').trim() || null,
     }).returning({ id: bookingsTbl.id })
 
     // Fire-and-forget customer + owner emails. SMS to customer fires
@@ -769,6 +775,7 @@ app.post('/booking/:token/reschedule', async (c) => {
   if (isNaN(newStart.getTime())) return c.json({ error: 'Invalid start time' }, 400)
   const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
   if (!service) return c.notFound()
+  const settings = await loadSettings()
 
   // Server-side slot re-verification at the new time
   const dateStr = dateInTenantTz(newStart).isoDate
@@ -789,6 +796,7 @@ app.post('/booking/:token/reschedule', async (c) => {
       bufferAfterMinutes: service.bufferAfterMinutes,
       slotGranularityMinutes: service.slotGranularityMinutes,
       capacityPerSlot: service.capacityPerSlot,
+      driveTimeMinutes: (settings as any)?.bookingDefaultDriveTimeMinutes || 0,
     },
     rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
     blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),

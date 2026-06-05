@@ -30,6 +30,9 @@ export const settings = pgTable('settings', {
   bookingHeroSubtitle: text('booking_hero_subtitle'),
   bookingConfirmCta: text('booking_confirm_cta'),
   bookingThanksMessage: text('booking_thanks_message'),
+  // Default drive-time minutes added as buffer between any two
+  // confirmed bookings for the same crew on the same day. 0 = off.
+  bookingDefaultDriveTimeMinutes: integer('booking_default_drive_time_minutes').notNull().default(0),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -328,6 +331,10 @@ export const bookings = pgTable('bookings', {
   status: text('status').notNull().default('confirmed'),
   assignedUserId: uuid('assigned_user_id').references(() => users.id, { onDelete: 'set null' }),
   source: text('source').notNull().default('public_form'),  // 'public_form' | 'admin_manual' | 'series'
+  // Attribution — where in the funnel did this booking originate?
+  sourcePath: text('source_path'),       // referring page on the tenant site
+  sourceReferrer: text('source_referrer'), // document.referrer (external)
+  sourceVariant: text('source_variant'),   // A/B test variant if applicable
   confirmationToken: text('confirmation_token').notNull().unique(),  // for self-service link
   // Stripe deposit (V2)
   depositPaymentIntentId: text('deposit_payment_intent_id'),
