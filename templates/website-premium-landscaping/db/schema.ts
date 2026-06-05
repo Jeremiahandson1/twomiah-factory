@@ -24,6 +24,12 @@ export const settings = pgTable('settings', {
   // Branding assets
   logoUrl: text('logo_url'),
   faviconUrl: text('favicon_url'),
+  // Per-tenant copy for the public booking flow. null falls back to
+  // hardcoded defaults in the template.
+  bookingHeroTitle: text('booking_hero_title'),
+  bookingHeroSubtitle: text('booking_hero_subtitle'),
+  bookingConfirmCta: text('booking_confirm_cta'),
+  bookingThanksMessage: text('booking_thanks_message'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -203,6 +209,9 @@ export const bookingServices = pgTable('booking_services', {
   bufferBeforeMinutes: integer('buffer_before_minutes').notNull().default(0),
   bufferAfterMinutes: integer('buffer_after_minutes').notNull().default(0),
   slotGranularityMinutes: integer('slot_granularity_minutes').notNull().default(30),
+  // For group services (classes, tours, etc.), how many customers can
+  // book the same slot. Default 1 = 1-on-1 service. >1 = group service.
+  capacityPerSlot: integer('capacity_per_slot').notNull().default(1),
   isActive: boolean('is_active').notNull().default(true),
   displayOrder: integer('display_order').notNull().default(0),
   // Days after completion to email "ready for your next [service]?" — null = no
@@ -337,6 +346,31 @@ export const bookings = pgTable('bookings', {
   assignedStartIdx: index('bookings_assigned_start_idx').on(t.assignedUserId, t.startAt),
   statusStartIdx: index('bookings_status_start_idx').on(t.status, t.startAt),
   seriesIdx: index('bookings_series_idx').on(t.seriesId, t.seriesIndex),
+}))
+
+// Waitlist — customer asks to be notified if a slot opens up for a
+// given service within a date window. When a confirmed booking gets
+// cancelled, we look for matching waitlist entries and email them.
+// notified_at sentinel prevents repeat emails for the same opening.
+export const bookingWaitlist = pgTable('booking_waitlist', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  serviceId: uuid('service_id').notNull().references(() => bookingServices.id, { onDelete: 'cascade' }),
+  customerName: text('customer_name').notNull(),
+  customerEmail: text('customer_email').notNull(),
+  customerPhone: text('customer_phone'),
+  customerZip: text('customer_zip'),
+  // ISO YYYY-MM-DD, inclusive bounds. Either side can be null = open-ended.
+  preferredFrom: text('preferred_from'),
+  preferredTo: text('preferred_to'),
+  notes: text('notes'),
+  // 'open' | 'notified' | 'converted' | 'expired'
+  status: text('status').notNull().default('open'),
+  notifiedAt: timestamp('notified_at', { withTimezone: true }),
+  convertedBookingId: uuid('converted_booking_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  serviceStatusIdx: index('booking_waitlist_service_status_idx').on(t.serviceId, t.status),
+  emailIdx: index('booking_waitlist_email_idx').on(t.customerEmail),
 }))
 
 // Calendar sync OAuth tokens per crew member. Stored encrypted at rest

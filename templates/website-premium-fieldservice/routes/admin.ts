@@ -39,6 +39,7 @@ import {
   bookingServiceZones as bookingServiceZonesTbl,
   bookings as bookingsTbl,
   bookingCalendarConnections as calConnTbl,
+  bookingWaitlist as waitlistTbl,
 } from '../db/schema'
 import { gte, lte } from 'drizzle-orm'
 import { isNull } from 'drizzle-orm'
@@ -1020,9 +1021,23 @@ app.post('/booking-services', authMiddleware, async (c) => {
     slotGranularityMinutes: typeof body.slotGranularityMinutes === 'number' ? body.slotGranularityMinutes : 30,
     isActive: body.isActive !== false,
     displayOrder: typeof body.displayOrder === 'number' ? body.displayOrder : 0,
+    capacityPerSlot: typeof body.capacityPerSlot === 'number' && body.capacityPerSlot > 0 ? body.capacityPerSlot : 1,
     rebookIntervalDays: typeof body.rebookIntervalDays === 'number' && body.rebookIntervalDays > 0 ? body.rebookIntervalDays : null,
   }).returning()
   return c.json({ service: created }, 201)
+})
+
+// ─── Waitlist management ────────────────────────────────────────────────
+app.get('/booking-waitlist', authMiddleware, async (c) => {
+  const rows = await db.select().from(waitlistTbl).orderBy(desc(waitlistTbl.createdAt))
+  return c.json({ waitlist: rows })
+})
+
+app.delete('/booking-waitlist/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const result = await db.delete(waitlistTbl).where(eq(waitlistTbl.id, id)).returning({ id: waitlistTbl.id })
+  if (result.length === 0) return c.json({ error: 'Waitlist entry not found' }, 404)
+  return c.json({ ok: true })
 })
 
 app.patch('/booking-services/:id', authMiddleware, async (c) => {
@@ -1328,6 +1343,31 @@ app.patch('/bookings/:id', authMiddleware, async (c) => {
     deleteBookingEvent({ userId: before.assignedUserId, eventId: before.externalCalendarEventId })
       .then(ok => { if (ok) db.update(bookingsTbl).set({ externalCalendarEventId: null }).where(eq(bookingsTbl.id, id)).catch(() => {}) })
       .catch(() => {})
+  }
+  // Cancelled bookings free up a slot — notify any waitlist entries
+  // for this service whose date window overlaps.
+  if (body.status === 'cancelled' && before.status !== 'cancelled') {
+    const { sendWaitlistNotificationEmail } = await import('../lib/email').catch(() => ({ sendWaitlistNotificationEmail: null as any }))
+    const startIso = (before.startAt as Date).toISOString().slice(0, 10)
+    const open = await db.select().from(waitlistTbl).where(and(
+      eq(waitlistTbl.serviceId, before.serviceId),
+      eq(waitlistTbl.status, 'open'),
+    ))
+    for (const w of open) {
+      const fromOk = !w.preferredFrom || w.preferredFrom <= startIso
+      const toOk = !w.preferredTo || w.preferredTo >= startIso
+      if (!fromOk || !toOk) continue
+      if (sendWaitlistNotificationEmail) {
+        const svc = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, before.serviceId)).limit(1))[0]
+        sendWaitlistNotificationEmail({
+          serviceName: svc?.name || 'Service',
+          customerName: w.customerName,
+          customerEmail: w.customerEmail,
+          bookUrl: (process.env.SITE_URL || '') + '/book/' + (svc?.slug || ''),
+        }).catch(() => {})
+      }
+      await db.update(waitlistTbl).set({ status: 'notified', notifiedAt: new Date() }).where(eq(waitlistTbl.id, w.id))
+    }
   }
   return c.json({ booking: result[0] })
 })

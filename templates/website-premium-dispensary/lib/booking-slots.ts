@@ -42,6 +42,9 @@ export interface ServiceConfig {
   bufferBeforeMinutes: number
   bufferAfterMinutes: number
   slotGranularityMinutes: number  // typically 30
+  // 1 = single-customer service. >1 = group service (a single time
+  // slot can accept up to N bookings before it's full).
+  capacityPerSlot?: number
 }
 
 export interface ZoneFilter {
@@ -120,23 +123,52 @@ export function generateSlots(args: {
   // 3. Subtract existing bookings per crew (booking ± its own buffer).
   //    A booking assigned to one specific crew blocks only that crew. A
   //    booking with no assigned crew (legacy or admin-manual) blocks all.
-  for (const bk of existingBookings) {
-    if (bk.status !== 'confirmed') continue
-    const blockStart = bk.startMinute - bufferBefore
-    const blockEnd = bk.endMinute + bufferAfter
-    const cutWindow = (windows: Array<{ start: number; end: number }>) => {
-      const out: Array<{ start: number; end: number }> = []
-      for (const w of windows) {
-        if (blockEnd <= w.start || blockStart >= w.end) { out.push(w); continue }
-        if (blockStart > w.start) out.push({ start: w.start, end: blockStart })
-        if (blockEnd < w.end) out.push({ start: blockEnd, end: w.end })
-      }
-      return out
+  //    For group services (capacity > 1), we count concurrent bookings
+  //    by start-minute and only block slots where capacity is reached.
+  const capacity = service.capacityPerSlot ?? 1
+  if (capacity > 1) {
+    // Group service: count bookings per exact start_minute. Slot is
+    // "blocked" only when N bookings already at that minute.
+    const countByStart = new Map<number, number>()
+    for (const bk of existingBookings) {
+      if (bk.status !== 'confirmed') continue
+      countByStart.set(bk.startMinute, (countByStart.get(bk.startMinute) || 0) + 1)
     }
-    if (bk.assignedUserId === null) {
+    const fullStartMinutes = new Set(Array.from(countByStart.entries()).filter(([, c]) => c >= capacity).map(([m]) => m))
+    // Subtract the duration-window of each fully-booked slot
+    for (const startMin of fullStartMinutes) {
+      const blockStart = startMin - bufferBefore
+      const blockEnd = startMin + totalServiceMinutes + bufferAfter
+      const cutWindow = (windows: Array<{ start: number; end: number }>) => {
+        const out: Array<{ start: number; end: number }> = []
+        for (const w of windows) {
+          if (blockEnd <= w.start || blockStart >= w.end) { out.push(w); continue }
+          if (blockStart > w.start) out.push({ start: w.start, end: blockStart })
+          if (blockEnd < w.end) out.push({ start: blockEnd, end: w.end })
+        }
+        return out
+      }
       for (const [key, windows] of rulesByCrew) rulesByCrew.set(key, cutWindow(windows))
-    } else if (rulesByCrew.has(bk.assignedUserId)) {
-      rulesByCrew.set(bk.assignedUserId, cutWindow(rulesByCrew.get(bk.assignedUserId)!))
+    }
+  } else {
+    for (const bk of existingBookings) {
+      if (bk.status !== 'confirmed') continue
+      const blockStart = bk.startMinute - bufferBefore
+      const blockEnd = bk.endMinute + bufferAfter
+      const cutWindow = (windows: Array<{ start: number; end: number }>) => {
+        const out: Array<{ start: number; end: number }> = []
+        for (const w of windows) {
+          if (blockEnd <= w.start || blockStart >= w.end) { out.push(w); continue }
+          if (blockStart > w.start) out.push({ start: w.start, end: blockStart })
+          if (blockEnd < w.end) out.push({ start: blockEnd, end: w.end })
+        }
+        return out
+      }
+      if (bk.assignedUserId === null) {
+        for (const [key, windows] of rulesByCrew) rulesByCrew.set(key, cutWindow(windows))
+      } else if (rulesByCrew.has(bk.assignedUserId)) {
+        rulesByCrew.set(bk.assignedUserId, cutWindow(rulesByCrew.get(bk.assignedUserId)!))
+      }
     }
   }
 

@@ -204,6 +204,27 @@ export async function sendBookingRebookEmail(opts: BookingEmailContext & { bookU
 }
 
 /**
+ * Waitlist hit — sent when a confirmed booking is cancelled, freeing
+ * up a slot that matches an open waitlist entry.
+ */
+export async function sendWaitlistNotificationEmail(opts: {
+  serviceName: string
+  customerName: string
+  customerEmail: string
+  bookUrl: string
+}): Promise<boolean> {
+  const body = `
+    <p style="margin:0 0 14px;">Hi ${escape(opts.customerName)},</p>
+    <p style="margin:0 0 14px;">Good news — a <strong>${escape(opts.serviceName)}</strong> slot just opened up.</p>
+    <p style="margin:0 0 14px;">Slots tend to go quickly. Click below to grab one before someone else does.</p>`
+  return sendEmail({
+    to: opts.customerEmail,
+    subject: 'A ' + opts.serviceName + ' slot just opened',
+    html: wrap('A slot opened up', body, { href: opts.bookUrl, label: 'Book a slot' }),
+  })
+}
+
+/**
  * 24-hour reminder — fired by an hourly cron when the booking starts
  * within the next ~24 hours and reminder_24h_sent_at is still null.
  */

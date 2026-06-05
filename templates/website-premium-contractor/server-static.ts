@@ -244,9 +244,10 @@ app.get('/book', async (c) => {
     .where(eq(bookingServicesTbl.isActive, true))
     .orderBy(asc(bookingServicesTbl.displayOrder), asc(bookingServicesTbl.name))
   const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const heroTitle = (settings as any).bookingHeroTitle || 'Book a service'
   const body = services.length === 0
     ? '<section class="book-empty"><div class="container"><h1>Bookings opening soon</h1><p>This business is setting up online booking. Use the contact form for now.</p></div></section>'
-    : `<section class="book-services"><div class="container"><h1 class="book-services__title">Book a service</h1><div class="book-services__grid">${services.map(s => {
+    : `<section class="book-services"><div class="container"><h1 class="book-services__title">${escape(heroTitle)}</h1>${(settings as any).bookingHeroSubtitle ? `<p class="book-services__subtitle">${escape((settings as any).bookingHeroSubtitle)}</p>` : ''}<div class="book-services__grid">${services.map(s => {
         const price = s.priceCents != null ? '$' + (s.priceCents / 100).toFixed(0) : ''
         const dur = s.durationMinutes >= 60 ? (s.durationMinutes / 60) + ' hr' : s.durationMinutes + ' min'
         return `<a class="service-card" href="/book/${escape(s.slug)}"><div class="service-card__body"><h2 class="service-card__name">${escape(s.name)}</h2>${s.description ? `<p class="service-card__desc">${escape(s.description)}</p>` : ''}<div class="service-card__meta"><span class="service-card__dur">${dur}</span>${price ? `<span class="service-card__price">${price}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`
@@ -295,7 +296,7 @@ app.get('/book/:serviceSlug', async (c) => {
           <label>Anything we should know? (optional)<textarea name="customerNotes" rows="3"></textarea></label>
           <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
           <input type="hidden" name="t" id="book-form-t">
-          <button type="submit" class="book-submit">Confirm booking</button>
+          <button type="submit" class="book-submit">${escape((settings as any).bookingConfirmCta || 'Confirm booking')}</button>
           <div class="book-error" id="book-error" hidden></div>
         </form>
       </div>
@@ -350,6 +351,7 @@ app.get('/book/:serviceSlug/slots', async (c) => {
       bufferBeforeMinutes: service.bufferBeforeMinutes,
       bufferAfterMinutes: service.bufferAfterMinutes,
       slotGranularityMinutes: service.slotGranularityMinutes,
+      capacityPerSlot: service.capacityPerSlot,
     },
     rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
     blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
@@ -434,7 +436,7 @@ app.get('/book/thanks', async (c) => {
   const dateStr = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: TENANT_TZ })
   const body = `<section class="book-thanks"><div class="container container--narrow">
     <div class="book-thanks__check">✓</div>
-    <h1>You're booked.</h1>
+    <h1>${escape((settings as any).bookingThanksMessage || "You're booked.")}</h1>
     <p class="book-thanks__lead">A confirmation is on its way to <strong>${escape(booking.customerEmail)}</strong>.</p>
     <div class="book-thanks__summary">
       <div><span>Service</span><strong>${escape(service?.name || 'Service')}</strong></div>
@@ -557,6 +559,7 @@ app.post('/book/:serviceSlug', async (c) => {
         bufferBeforeMinutes: service.bufferBeforeMinutes,
         bufferAfterMinutes: service.bufferAfterMinutes,
         slotGranularityMinutes: service.slotGranularityMinutes,
+        capacityPerSlot: service.capacityPerSlot,
       },
       rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
       blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
@@ -1073,6 +1076,33 @@ app.get('/api/internal/bookings', async (c) => {
   })
 })
 
+// ── Public: booking waitlist ──────────────────────────────────────────────
+// Customer joins the waitlist when no slots match their needs. When a
+// confirmed booking gets cancelled, we email waitlist members whose
+// date window overlaps.
+import { bookingWaitlist as waitlistTbl } from './db/schema'
+
+app.post('/book/:serviceSlug/waitlist', async (c) => {
+  const slug = c.req.param('serviceSlug')!
+  const body = await c.req.parseBody() as Record<string, any>
+  if (String(body.website || '').trim()) return c.json({ ok: true })  // honeypot
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.slug, slug)).limit(1))[0]
+  if (!service) return c.json({ error: 'service not found' }, 404)
+  const name = String(body.customerName || '').trim()
+  const email = String(body.customerEmail || '').trim()
+  if (!name || !email) return c.json({ error: 'name and email required' }, 400)
+  await db.insert(waitlistTbl).values({
+    serviceId: service.id,
+    customerName: name, customerEmail: email,
+    customerPhone: String(body.customerPhone || '').trim() || null,
+    customerZip: String(body.customerZip || '').trim() || null,
+    preferredFrom: String(body.preferredFrom || '').trim() || null,
+    preferredTo: String(body.preferredTo || '').trim() || null,
+    notes: String(body.notes || '').trim() || null,
+  })
+  return c.json({ ok: true, message: "You're on the list. We'll email if a slot opens up." })
+})
+
 // ── Factory internal: store Google Calendar OAuth tokens ──────────────────
 // The Factory orchestrates the OAuth flow with one global Google app and
 // POSTs the resulting tokens here, gated by FACTORY_SYNC_KEY. We upsert
@@ -1084,22 +1114,89 @@ app.post('/api/internal/calendar/store-tokens', async (c) => {
   if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
   if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
   const body = await c.req.json().catch(() => ({})) as any
-  if (!body.userId || body.provider !== 'google' || !body.accessToken) {
-    return c.json({ error: 'userId + provider=google + accessToken required' }, 400)
+  const provider = body.provider === 'outlook' ? 'outlook' : 'google'
+  if (!body.userId || !body.accessToken) {
+    return c.json({ error: 'userId + accessToken required' }, 400)
   }
   const expiresAt = new Date(Date.now() + ((body.expiresInSec || 3600) - 60) * 1000)
-  // Upsert: delete any existing google connection for this user, then insert
-  await db.delete(calConnTbl).where(and(eq(calConnTbl.userId, body.userId), eq(calConnTbl.provider, 'google')))
+  // Upsert: delete any existing connection of this provider for this user, then insert
+  await db.delete(calConnTbl).where(and(eq(calConnTbl.userId, body.userId), eq(calConnTbl.provider, provider)))
   const [row] = await db.insert(calConnTbl).values({
     userId: body.userId,
-    provider: 'google',
+    provider,
     externalAccountEmail: body.externalAccountEmail || null,
     accessToken: body.accessToken,
     refreshToken: body.refreshToken || null,
     expiresAt,
     calendarId: body.calendarId || 'primary',
   }).returning({ id: calConnTbl.id })
+
+  // Subscribe to Google push notifications best-effort. Outlook uses
+  // a different mechanism (graph subscriptions) — wire later.
+  if (provider === 'google') {
+    const { watchCalendar } = await import('./lib/google-calendar')
+    const webhookUrl = siteOrigin(c) + '/api/webhooks/google-calendar'
+    watchCalendar({ userId: body.userId, webhookUrl })
+      .then(async sub => {
+        if (sub) await db.update(calConnTbl).set({
+          syncChannelId: sub.channelId,
+          syncResourceId: sub.resourceId,
+          lastSyncAt: new Date(),
+        }).where(eq(calConnTbl.id, row.id)).catch(() => {})
+      })
+      .catch(() => {})
+  }
+
   return c.json({ ok: true, connectionId: row.id })
+})
+
+// Google Calendar webhook receiver. We don't actually do anything
+// fancy on push — slot generation pulls fresh events at slot-list
+// time, so the notification just means "next list will be fresher".
+// We log + 200 to acknowledge the channel.
+app.post('/api/webhooks/google-calendar', async (c) => {
+  const channelId = c.req.header('X-Goog-Channel-Id') || ''
+  const resourceState = c.req.header('X-Goog-Resource-State') || ''
+  if (channelId) {
+    await db.update(calConnTbl).set({ lastSyncAt: new Date() })
+      .where(eq(calConnTbl.syncChannelId, channelId))
+      .catch(() => {})
+  }
+  if (resourceState === 'sync') return c.body(null, 200)  // initial handshake
+  return c.body(null, 200)
+})
+
+// Cron: refresh Google watch channels approaching expiry. Hourly so we
+// can re-subscribe well before the 7-day TTL.
+app.post('/api/internal/calendar/refresh-watches', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { watchCalendar, unwatchCalendar } = await import('./lib/google-calendar')
+  // Connections with channels expiring within 24 hours
+  const dueSoon = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const stale = await db.select().from(calConnTbl).where(eq(calConnTbl.provider, 'google'))
+  let refreshed = 0
+  for (const conn of stale) {
+    if (!conn.lastSyncAt) continue
+    const guessedExpiry = new Date(conn.lastSyncAt.getTime() + 7 * 24 * 60 * 60 * 1000)
+    if (guessedExpiry > dueSoon) continue
+    // Stop the old channel, start a new one
+    if (conn.syncChannelId && conn.syncResourceId) {
+      await unwatchCalendar({ userId: conn.userId, channelId: conn.syncChannelId, resourceId: conn.syncResourceId }).catch(() => {})
+    }
+    const webhookUrl = siteOrigin(c) + '/api/webhooks/google-calendar'
+    const sub = await watchCalendar({ userId: conn.userId, webhookUrl })
+    if (sub) {
+      await db.update(calConnTbl).set({
+        syncChannelId: sub.channelId,
+        syncResourceId: sub.resourceId,
+        lastSyncAt: new Date(),
+      }).where(eq(calConnTbl.id, conn.id))
+      refreshed++
+    }
+  }
+  return c.json({ ok: true, refreshed })
 })
 
 // ── Factory internal: rebook nudge cron ───────────────────────────────────

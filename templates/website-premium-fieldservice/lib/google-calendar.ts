@@ -215,6 +215,58 @@ export async function listExternalBusyEvents(opts: {
   return out
 }
 
+/**
+ * Subscribe to Google Calendar push notifications via the watch API.
+ * Google POSTs to our webhook URL when ANY event changes on the
+ * calendar. Channels expire after ~7 days (max TTL is 1 hour for
+ * non-G-Suite, but in practice Google grants up to a week). Cron
+ * job re-subscribes before expiry.
+ *
+ * Returns the channel ID + resource ID needed to stop the channel.
+ */
+export async function watchCalendar(opts: {
+  userId: string
+  webhookUrl: string
+  ttlSeconds?: number
+}): Promise<{ channelId: string; resourceId: string; expirationMs: number } | null> {
+  const ctx = await getValidGoogleToken(opts.userId)
+  if (!ctx) return null
+  const channelId = 'twomiah-' + opts.userId + '-' + Date.now()
+  const ttl = opts.ttlSeconds ?? 7 * 24 * 60 * 60  // 7 days
+  const res = await fetch(API_BASE + '/calendars/' + encodeURIComponent(ctx.calendarId) + '/events/watch', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + ctx.accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: channelId,
+      type: 'web_hook',
+      address: opts.webhookUrl,
+      params: { ttl: String(ttl) },
+    }),
+  })
+  if (!res.ok) { console.warn('[gcal] watch failed:', res.status); return null }
+  const data: any = await res.json()
+  return {
+    channelId: data.id,
+    resourceId: data.resourceId,
+    expirationMs: parseInt(data.expiration, 10) || (Date.now() + ttl * 1000),
+  }
+}
+
+export async function unwatchCalendar(opts: {
+  userId: string
+  channelId: string
+  resourceId: string
+}): Promise<boolean> {
+  const ctx = await getValidGoogleToken(opts.userId)
+  if (!ctx) return false
+  const res = await fetch(API_BASE + '/channels/stop', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + ctx.accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: opts.channelId, resourceId: opts.resourceId }),
+  })
+  return res.ok || res.status === 404
+}
+
 export async function deleteBookingEvent(opts: {
   userId: string
   eventId: string

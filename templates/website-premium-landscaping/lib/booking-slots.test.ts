@@ -247,6 +247,42 @@ describe('generateSlots — concurrency edge: same booking time, different crews
   })
 })
 
+describe('generateSlots — group services (capacity > 1)', () => {
+  const GROUP_SVC: ServiceConfig = { durationMinutes: 60, bufferBeforeMinutes: 0, bufferAfterMinutes: 0, slotGranularityMinutes: 60, capacityPerSlot: 3 }
+
+  test('slot stays open when bookings < capacity', () => {
+    const slots = generateSlots({
+      dayOfWeek: 1,
+      service: GROUP_SVC,
+      rules: [MON_9_TO_5],
+      blackouts: [],
+      existingBookings: [
+        { assignedUserId: 'crew-1', startMinute: 10 * HOUR, endMinute: 11 * HOUR, status: 'confirmed' },
+        { assignedUserId: 'crew-1', startMinute: 10 * HOUR, endMinute: 11 * HOUR, status: 'confirmed' },
+      ],
+    })
+    const starts = slots.map(s => s.startMinute / HOUR)
+    expect(starts).toContain(10)  // 2 < capacity 3, still open
+  })
+
+  test('slot blocks when bookings == capacity', () => {
+    const slots = generateSlots({
+      dayOfWeek: 1,
+      service: GROUP_SVC,
+      rules: [MON_9_TO_5],
+      blackouts: [],
+      existingBookings: [
+        { assignedUserId: 'crew-1', startMinute: 10 * HOUR, endMinute: 11 * HOUR, status: 'confirmed' },
+        { assignedUserId: 'crew-1', startMinute: 10 * HOUR, endMinute: 11 * HOUR, status: 'confirmed' },
+        { assignedUserId: 'crew-1', startMinute: 10 * HOUR, endMinute: 11 * HOUR, status: 'confirmed' },
+      ],
+    })
+    const starts = slots.map(s => s.startMinute / HOUR)
+    expect(starts).not.toContain(10)
+    expect(starts).toContain(11)  // adjacent slot still open
+  })
+})
+
 describe('pickCrewForSlot', () => {
   test('prefers real crew over null wildcard', () => {
     expect(pickCrewForSlot(['crew-1', null])).toBe('crew-1')
