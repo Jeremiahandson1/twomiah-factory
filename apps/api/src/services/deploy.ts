@@ -1140,19 +1140,23 @@ export async function deployCustomer(
         // booting a broken server.
         //
         // Standard sites have no DB query path so they skip push entirely.
-        const premiumBoot = [
-          'export PATH=$HOME/.bun/bin:$PATH',
-          'PUSH_OK=false',
-          'for i in $(seq 1 60); do',
-          '  bunx drizzle-kit push --force',
-          '  RC=$?',
-          '  if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi',
-          '  echo "[boot] push attempt $i exited $RC, retrying in 10s"',
-          '  sleep 10',
-          'done',
-          'if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi',
-          'NODE_ENV=production exec bun server-static.ts',
-        ].join('; ')
+        // Note: shell `for ... do <CMD>` doesn't accept a `;` between
+        // `do` and the command — `for i in xs; do; bunx ...` is a syntax
+        // error. The body of for/then/else is space-separated, not
+        // semicolon-separated. Same for the body of `if ... then`. Crank
+        // this carefully or use a real script file in the template.
+        const premiumBoot =
+          'export PATH=$HOME/.bun/bin:$PATH; ' +
+          'PUSH_OK=false; ' +
+          'for i in $(seq 1 60); do ' +
+            'bunx drizzle-kit push --force; ' +
+            'RC=$?; ' +
+            'if [ $RC -eq 0 ]; then echo "[boot] push ok on attempt $i"; PUSH_OK=true; break; fi; ' +
+            'echo "[boot] push attempt $i exited $RC, retrying in 10s"; ' +
+            'sleep 10; ' +
+          'done; ' +
+          'if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never succeeded"; exit 1; fi; ' +
+          'NODE_ENV=production exec bun server-static.ts'
         const siteStartCommand = isPremiumSite
           ? premiumBoot
           : 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts'
