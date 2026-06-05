@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip, uploadIntakeAsset } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyPreviewReady, notifyIntakeFeedback, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyPreviewReady, notifyPreviewFollowup, notifyIntakeFeedback, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -1498,6 +1498,49 @@ factory.post('/internal/renewal-check', async (c) => {
     } catch (e: any) {
       results.errors.push(`teardown ${t.id}: ${e.message}`)
     }
+  }
+
+  // ── Premium preview 24h follow-up nudge ─────────────────────────────
+  // Customers who got a preview but never approved get one polite check-
+  // in email 24-72h after the preview generated. preview_followup_sent_at
+  // is the idempotency sentinel. We exclude tenants who already paid
+  // (stripe_subscription_id set) and offboarded ones.
+  try {
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const threeDaysAgo = new Date(now.getTime() - 72 * 60 * 60 * 1000)
+    const { data: stale, error: staleErr } = await supabase
+      .from('tenants')
+      .select('id, name, email, preview_premium_generated_at')
+      .is('preview_followup_sent_at', null)
+      .is('stripe_subscription_id', null)
+      .neq('status', 'offboarded')
+      .not('preview_premium_pages', 'is', null)
+      .gte('preview_premium_generated_at', threeDaysAgo.toISOString())
+      .lte('preview_premium_generated_at', oneDayAgo.toISOString())
+      .limit(50)
+    let nudged = 0
+    if (!staleErr && stale) {
+      const factoryUrl = process.env.TWOMIAH_FACTORY_URL || ''
+      for (const t of stale as any[]) {
+        if (!t.email || !factoryUrl) continue
+        try {
+          await notifyPreviewFollowup({
+            to: t.email,
+            businessName: t.name,
+            previewUrl: `${factoryUrl}/api/v1/factory/public/intake/${t.id}/preview-premium`,
+          }).catch(() => {})
+          await supabase.from('tenants').update({ preview_followup_sent_at: now.toISOString() }).eq('id', t.id)
+          nudged++
+        } catch (e: any) {
+          results.errors.push(`preview_followup ${t.id}: ${e.message}`)
+        }
+      }
+    } else if (staleErr) {
+      results.errors.push('preview_followup: ' + staleErr.message)
+    }
+    ;(results as any).preview_followups_sent = nudged
+  } catch (e: any) {
+    results.errors.push('preview_followup outer: ' + e.message)
   }
 
   console.log('[RenewalCheck]', JSON.stringify(results))

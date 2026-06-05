@@ -340,6 +340,23 @@ export async function notifyPreviewReady(
 }
 
 /**
+ * 24-hour follow-up nudge sent to customers who submitted an intake,
+ * received a preview, but haven't clicked Approve & buy yet. One-shot
+ * — sentinel `preview_followup_sent_at` prevents repeats.
+ */
+export async function notifyPreviewFollowup(
+  data: { to: string; businessName: string; previewUrl: string }
+): Promise<boolean> {
+  const body = `
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — just checking in on your <strong>${data.businessName}</strong> website preview.</p>
+    <p style="color:#333;line-height:1.6;">You opened the draft yesterday. If anything wasn't right, hit the <strong>Request changes</strong> button on any page and we'll send you an updated version in 1–2 minutes. We can iterate as many times as you want — there's no charge to revise.</p>
+    ${btn(data.previewUrl, 'Open your preview')}
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When you're happy, the <strong>Approve &amp; build my site</strong> button on the preview takes you to checkout. Live site within 10 minutes after that.</p>
+    <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Got questions? Just reply to this email — it goes straight to a human.</p>`
+  return sendEmail(data.to, `Anything you'd change about your ${data.businessName} preview?`, wrap('Still thinking about it?', body))
+}
+
+/**
  * Internal notification when a customer submits feedback on their
  * premium-website preview. Routed to STAFF_NOTIFY_EMAIL (falls back
  * to FACTORY_FROM_EMAIL) so somebody actually sees the request.
