@@ -70,10 +70,22 @@ async function renderPage(slug: string, currentPath: string): Promise<string | n
   return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath }) as Promise<string>
 }
 
+// Default placeholder served when the pages.home row doesn't exist yet
+// (fresh deploy before the AI composer or admin has seeded any content).
+// 200 status — the site is up and usable; the CMS admin link gets the
+// owner straight to the editor.
+function defaultHomePlaceholder(siteName: string): string {
+  const safe = siteName.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${safe}</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,-apple-system,sans-serif;margin:0;background:#fafaf7;color:#1a1a1a}main{max-width:680px;margin:10vh auto;padding:48px 32px;text-align:center}h1{font-size:2.5rem;margin:0 0 16px;letter-spacing:-.02em}p{color:#666;font-size:1.05rem;line-height:1.6;margin:0 0 32px}a.cta{display:inline-block;padding:14px 32px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px;font-weight:500}.tag{display:inline-block;font-size:.75rem;letter-spacing:.1em;text-transform:uppercase;color:#999;margin-bottom:24px}</style></head><body><main><span class="tag">Coming Soon</span><h1>${safe}</h1><p>Your premium website is being prepared. Sign in to the admin to add your home page content, or wait for our composition team to send your preview.</p><a class="cta" href="/admin">Open Admin</a></main></body></html>`
+}
+
 // ── Page routes ───────────────────────────────────────────────────────────
 app.get('/', async (c) => {
   const html = await renderPage('home', '/')
-  if (!html) return c.text('Home page not configured yet.', 503)
+  if (!html) {
+    const siteName = process.env.SITE_NAME || 'Your Site'
+    return c.html(defaultHomePlaceholder(siteName))
+  }
   return c.html(html)
 })
 
