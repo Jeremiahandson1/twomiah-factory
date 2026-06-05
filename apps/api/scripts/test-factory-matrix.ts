@@ -463,10 +463,11 @@ async function captureRenderBuildLogs(serviceIds: Record<string, string>, lastSt
 async function waitForRenderLive(serviceIds: Record<string, string>, opts: { maxMs?: number; pollMs?: number } = {}): Promise<{ ok: boolean; lastStatuses: Record<string, string> }> {
   // Realistic Render readiness is 2-5 min per service. Premium tests
   // wait on backend + site + db; with sequential build/start cycles
-  // each service can independently take a few minutes. 15 min ceiling
-  // gives enough slack for the slow end without letting a truly broken
-  // build hang forever.
-  const maxMs = opts.maxMs ?? 15 * 60 * 1000
+  // each service can independently take a few minutes. Bumped to 25 min
+  // after premium templates grew (16 tables + larger admin SPA bundle
+  // with qrcode); 15 min was enough for the simpler schema but cut it
+  // close on bun install of the admin dependencies.
+  const maxMs = opts.maxMs ?? 25 * 60 * 1000
   const pollMs = opts.pollMs ?? 15000          // poll every 15s
   const deadline = Date.now() + maxMs
   // Terminal failures we bail on. 'unknown' is NOT in here — Render returns
