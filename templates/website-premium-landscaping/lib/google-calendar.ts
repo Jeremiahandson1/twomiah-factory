@@ -163,6 +163,58 @@ export async function patchBookingEvent(opts: {
   return res.ok
 }
 
+/**
+ * Pull side: fetch events from this user's calendar between `timeMin`
+ * and `timeMax`. Events the assigned crew has blocked off in their own
+ * calendar (doctor appointment, lunch, etc.) become virtual blackouts
+ * for our slot generator. We skip events that *we* created (matched by
+ * `externalCalendarEventId` on a bookings row in the caller).
+ *
+ * Returns events as { startUtc, endUtc, summary, eventId } in UTC.
+ */
+export interface ExternalBusyEvent {
+  eventId: string
+  startUtc: Date
+  endUtc: Date
+  summary: string
+}
+
+export async function listExternalBusyEvents(opts: {
+  userId: string
+  timeMin: Date
+  timeMax: Date
+}): Promise<ExternalBusyEvent[] | null> {
+  const ctx = await getValidGoogleToken(opts.userId)
+  if (!ctx) return null
+  const url = API_BASE + '/calendars/' + encodeURIComponent(ctx.calendarId) + '/events?'
+    + new URLSearchParams({
+      timeMin: opts.timeMin.toISOString(),
+      timeMax: opts.timeMax.toISOString(),
+      singleEvents: 'true',
+      orderBy: 'startTime',
+      maxResults: '200',
+    }).toString()
+  const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + ctx.accessToken } })
+  if (!res.ok) { console.warn('[gcal] list failed:', res.status); return null }
+  const data: any = await res.json()
+  const out: ExternalBusyEvent[] = []
+  for (const ev of data.items || []) {
+    // Skip declined events and all-day events without a time
+    if (ev.status === 'cancelled') continue
+    if (!ev.start?.dateTime || !ev.end?.dateTime) continue
+    // Skip if user is "free" (transparency=transparent — that's how Google
+    // marks events that don't block time)
+    if (ev.transparency === 'transparent') continue
+    out.push({
+      eventId: ev.id,
+      startUtc: new Date(ev.start.dateTime),
+      endUtc: new Date(ev.end.dateTime),
+      summary: ev.summary || '(busy)',
+    })
+  }
+  return out
+}
+
 export async function deleteBookingEvent(opts: {
   userId: string
   eventId: string

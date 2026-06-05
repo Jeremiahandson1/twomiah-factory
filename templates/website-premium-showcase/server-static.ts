@@ -189,7 +189,7 @@ app.get('/blog/:slug', async (c) => {
 
 import { generateSlots, pickCrewForSlot } from './lib/booking-slots'
 import { sendBookingConfirmationEmail, notifyOwnerOfBooking } from './lib/email'
-import { pushBookingEvent, deleteBookingEvent } from './lib/google-calendar'
+import { pushBookingEvent, deleteBookingEvent, listExternalBusyEvents } from './lib/google-calendar'
 import {
   bookingServices as bookingServicesTbl,
   bookingAvailabilityRules as bookingAvailabilityRulesTbl,
@@ -329,6 +329,13 @@ app.get('/book/:serviceSlug/slots', async (c) => {
     status: b.status,
   }))
 
+  // External (Google Cal) busy events become virtual existing bookings.
+  // We dedupe against bookings we already pushed to those calendars.
+  const externalBusy = await externalBusyForDate({
+    dateStr, dayStart, dayEnd,
+    ourBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, externalCalendarEventId: b.externalCalendarEventId })),
+  })
+
   const slots = generateSlots({
     dayOfWeek,
     service: {
@@ -339,7 +346,7 @@ app.get('/book/:serviceSlug/slots', async (c) => {
     },
     rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
     blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
-    existingBookings: projected,
+    existingBookings: [...projected, ...externalBusy],
     zone: customerZip ? { customerZip, serviceZones: zones.map(z => ({ userId: z.userId, zipList: z.zipList })) } : undefined,
   })
 
@@ -351,6 +358,45 @@ app.get('/book/:serviceSlug/slots', async (c) => {
     })),
   })
 })
+
+// Fetches external busy events from every connected calendar that
+// overlaps the target date, projects them into the slot generator's
+// ExistingBooking shape, and dedupes against bookings we already pushed
+// to that calendar (so we don't double-count a booking we created).
+async function externalBusyForDate(opts: {
+  dateStr: string
+  dayStart: Date
+  dayEnd: Date
+  ourBookings: Array<{ assignedUserId: string | null; externalCalendarEventId: string | null }>
+}): Promise<Array<{ assignedUserId: string | null; startMinute: number; endMinute: number; status: string }>> {
+  // Find unique users with a Google calendar connection
+  const { bookingCalendarConnections } = await import('./db/schema')
+  const conns = await db.select({ userId: bookingCalendarConnections.userId })
+    .from(bookingCalendarConnections)
+    .where(eq(bookingCalendarConnections.provider, 'google'))
+  const seen = new Set<string>()
+  const uniqUsers = conns.filter(c => { if (seen.has(c.userId)) return false; seen.add(c.userId); return true }).map(c => c.userId)
+  if (uniqUsers.length === 0) return []
+
+  const ourEventIds = new Set(opts.ourBookings.map(b => b.externalCalendarEventId).filter(Boolean) as string[])
+
+  const out: Array<{ assignedUserId: string | null; startMinute: number; endMinute: number; status: string }> = []
+  for (const userId of uniqUsers) {
+    const events = await listExternalBusyEvents({ userId, timeMin: opts.dayStart, timeMax: opts.dayEnd })
+    if (!events) continue
+    for (const ev of events) {
+      if (ourEventIds.has(ev.eventId)) continue  // we put it there
+      const startProj = dateInTenantTz(ev.startUtc)
+      const endProj = dateInTenantTz(ev.endUtc)
+      // Clip to the day if the event spans midnight in tenant TZ
+      const startMin = startProj.isoDate === opts.dateStr ? startProj.minuteOfDay : 0
+      const endMin = endProj.isoDate === opts.dateStr ? endProj.minuteOfDay : 24 * 60
+      if (endMin <= startMin) continue
+      out.push({ assignedUserId: userId, startMinute: startMin, endMinute: endMin, status: 'confirmed' })
+    }
+  }
+  return out
+}
 
 function minuteToLabel(min: number): string {
   const h = Math.floor(min / 60), m = min % 60
@@ -488,8 +534,14 @@ app.post('/book/:serviceSlug', async (c) => {
     const rules = await db.select().from(bookingAvailabilityRulesTbl).where(eq(bookingAvailabilityRulesTbl.isActive, true))
     const blackouts = await db.select().from(bookingBlackoutsTbl).where(eq(bookingBlackoutsTbl.date, dateStr))
     const zones = await db.select().from(bookingServiceZonesTbl)
+    const verifyDayStart = tenantDateTimeToUtc(dateStr, 0)
+    const verifyDayEnd = tenantDateTimeToUtc(dateStr, 24 * 60)
     const dayBookings = await db.select().from(bookingsTbl)
-      .where(and(gte(bookingsTbl.startAt, tenantDateTimeToUtc(dateStr, 0)), lte(bookingsTbl.startAt, tenantDateTimeToUtc(dateStr, 24 * 60)), eq(bookingsTbl.status, 'confirmed')))
+      .where(and(gte(bookingsTbl.startAt, verifyDayStart), lte(bookingsTbl.startAt, verifyDayEnd), eq(bookingsTbl.status, 'confirmed')))
+    const externalBusy = await externalBusyForDate({
+      dateStr, dayStart: verifyDayStart, dayEnd: verifyDayEnd,
+      ourBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, externalCalendarEventId: b.externalCalendarEventId })),
+    })
     const slots = generateSlots({
       dayOfWeek,
       service: {
@@ -500,7 +552,10 @@ app.post('/book/:serviceSlug', async (c) => {
       },
       rules: rules.map(r => ({ userId: r.userId, dayOfWeek: r.dayOfWeek, startMinute: r.startMinute, endMinute: r.endMinute, isActive: r.isActive })),
       blackouts: blackouts.map(b => ({ userId: b.userId, date: b.date, startMinute: b.startMinute, endMinute: b.endMinute })),
-      existingBookings: dayBookings.map(b => ({ assignedUserId: b.assignedUserId, startMinute: dateInTenantTz(b.startAt as any).minuteOfDay, endMinute: dateInTenantTz(b.endAt as any).minuteOfDay, status: b.status })),
+      existingBookings: [
+        ...dayBookings.map(b => ({ assignedUserId: b.assignedUserId, startMinute: dateInTenantTz(b.startAt as any).minuteOfDay, endMinute: dateInTenantTz(b.endAt as any).minuteOfDay, status: b.status })),
+        ...externalBusy,
+      ],
       zone: String(body.customerZip || '').trim() ? { customerZip: String(body.customerZip).trim(), serviceZones: zones.map(z => ({ userId: z.userId, zipList: z.zipList })) } : undefined,
     })
     const matchingSlot = slots.find(s => s.startMinute === startMinuteWanted)

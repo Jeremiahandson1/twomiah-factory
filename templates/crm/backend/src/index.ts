@@ -245,6 +245,38 @@ app.post('/api/internal/sync-features', async (c) => {
   return c.json({ success: true, features: updated.enabledFeatures })
 })
 
+// Internal SMS send for Twomiah Bookings — the website-premium service
+// POSTs here when a booking is confirmed so we send the SMS via this
+// tenant's Twilio credentials (which only live in the CRM env).
+app.post('/api/internal/send-sms', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const sid = process.env.TWILIO_ACCOUNT_SID
+  const token = process.env.TWILIO_AUTH_TOKEN
+  const from = process.env.TWILIO_PHONE_NUMBER
+  if (!sid || !token || !from) return c.json({ error: 'Twilio not configured' }, 503)
+  const { to, body } = await c.req.json().catch(() => ({})) as { to?: string; body?: string }
+  if (!to || !body) return c.json({ error: 'to + body required' }, 400)
+  try {
+    const url = 'https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json'
+    const form = new URLSearchParams({ To: to, From: from, Body: body })
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from(sid + ':' + token).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: form,
+    })
+    if (!res.ok) return c.json({ error: 'Twilio: ' + (await res.text().catch(() => res.statusText)) }, 502)
+    const data: any = await res.json()
+    return c.json({ ok: true, sid: data.sid })
+  } catch (e: any) {
+    return c.json({ error: e?.message || 'send failed' }, 500)
+  }
+})
+
 app.onError(errorHandler)
 
 // MIME type map for Bun runtime (serveStatic sometimes serves as text/plain)
