@@ -1340,6 +1340,23 @@ app.patch('/bookings/:id', authMiddleware, async (c) => {
   // Push status changes to Google Calendar best-effort.
   // - cancelled: delete the event
   // - other transitions: leave the event as-is (could patch summary in V2)
+  // Fire outbound webhooks for status transitions
+  if (body.status && body.status !== before.status) {
+    const { fireBookingWebhook } = await import('../lib/webhooks')
+    if (body.status === 'cancelled') {
+      fireBookingWebhook('booking.cancelled', { id: before.id, reason: 'admin', cancelledAt: new Date().toISOString() }).catch(() => {})
+    } else if (body.status === 'completed') {
+      fireBookingWebhook('booking.completed', { id: before.id, completedAt: new Date().toISOString() }).catch(() => {})
+    }
+  }
+  if (body.startAt && body.startAt !== (before.startAt as Date).toISOString()) {
+    const { fireBookingWebhook } = await import('../lib/webhooks')
+    fireBookingWebhook('booking.rescheduled', {
+      id: before.id,
+      previousStartAt: (before.startAt as Date).toISOString(),
+      newStartAt: body.startAt,
+    }).catch(() => {})
+  }
   if (before.assignedUserId && before.externalCalendarEventId && body.status === 'cancelled' && before.status !== 'cancelled') {
     const { deleteBookingEvent } = await import('../lib/google-calendar')
     deleteBookingEvent({ userId: before.assignedUserId, eventId: before.externalCalendarEventId })
@@ -1421,6 +1438,55 @@ app.delete('/calendar/connections/:id', authMiddleware, async (c) => {
     .returning({ id: calConnTbl.id })
   if (result.length === 0) return c.json({ error: 'Connection not found' }, 404)
   return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — webhooks management ────────────────────────────
+import { bookingWebhooks as webhooksTbl } from '../db/schema'
+
+app.get('/booking-webhooks', authMiddleware, async (c) => {
+  const rows = await db.select().from(webhooksTbl).orderBy(desc(webhooksTbl.createdAt))
+  return c.json({ webhooks: rows })
+})
+
+app.post('/booking-webhooks', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as any
+  const url = String(body.url || '').trim()
+  if (!url.startsWith('https://') && !url.startsWith('http://localhost')) {
+    return c.json({ error: 'URL must be https (or http://localhost for testing)' }, 400)
+  }
+  const secret = crypto2.randomBytes(32).toString('base64url')
+  const events = typeof body.events === 'string' && body.events ? body.events : '*'
+  const [created] = await db.insert(webhooksTbl).values({ url, secret, events }).returning()
+  return c.json({ webhook: created, secret }, 201)
+})
+
+app.patch('/booking-webhooks/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const body = await c.req.json().catch(() => ({})) as any
+  const patch: Record<string, any> = {}
+  if (typeof body.events === 'string') patch.events = body.events
+  if (typeof body.isActive === 'boolean') patch.isActive = body.isActive
+  if (Object.keys(patch).length === 0) return c.json({ error: 'No allowed fields' }, 400)
+  const result = await db.update(webhooksTbl).set(patch).where(eq(webhooksTbl.id, id)).returning()
+  if (result.length === 0) return c.json({ error: 'Webhook not found' }, 404)
+  return c.json({ webhook: result[0] })
+})
+
+app.delete('/booking-webhooks/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const result = await db.delete(webhooksTbl).where(eq(webhooksTbl.id, id)).returning({ id: webhooksTbl.id })
+  if (result.length === 0) return c.json({ error: 'Webhook not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — iCal feed URL management ───────────────────────
+// One feed URL per tenant. Token stored on settings row.
+app.post('/booking-ical-feed/regenerate', authMiddleware, async (c) => {
+  const token = crypto2.randomBytes(24).toString('base64url')
+  const existing = await db.select().from(settingsTbl).limit(1)
+  if (!existing[0]) return c.json({ error: 'Settings not initialized' }, 409)
+  await db.update(settingsTbl).set({ bookingIcalFeedToken: token, updatedAt: new Date() }).where(eq(settingsTbl.id, existing[0].id))
+  return c.json({ ok: true, token })
 })
 
 // ─── Twomiah Bookings — customer history ────────────────────────────────

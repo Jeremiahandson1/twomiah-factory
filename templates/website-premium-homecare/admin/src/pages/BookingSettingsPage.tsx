@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff, Calendar, Link2, Link2Off, Type, MapPin, Users } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Edit3, X, Save, Clock, CalendarOff, Calendar, Link2, Link2Off, Type, MapPin, Users, Webhook, RefreshCw, Copy } from 'lucide-react'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
 
@@ -39,6 +39,8 @@ export function BookingSettingsPage() {
       <BlackoutsSection />
       <ZonesSection />
       <CalendarSyncSection />
+      <IcalFeedSection />
+      <WebhooksSection />
       <CopyCustomizationSection />
     </div>
   )
@@ -117,6 +119,143 @@ function ZonesSection() {
               </li>
             )
           })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+interface WebhookRow { id: string; url: string; events: string; isActive: boolean; lastDeliveryAt: string | null; lastStatus: number | null; failureCount: number }
+
+function IcalFeedSection() {
+  const [token, setToken] = useState('')
+  const [feedUrl, setFeedUrl] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    api.get<{ settings: any }>('/api/admin/settings').then(({ settings }) => {
+      const t = settings?.bookingIcalFeedToken || ''
+      setToken(t)
+      setFeedUrl(t ? window.location.origin + '/api/ical/bookings.ics?token=' + t : '')
+    }).catch(e => setError(e.message))
+  }, [])
+
+  const regenerate = async () => {
+    if (token && !confirm('Regenerate the feed URL? The old URL will stop working immediately.')) return
+    setBusy(true); setError(null)
+    try {
+      const { token: t } = await api.post<{ token: string }>('/api/admin/booking-ical-feed/regenerate')
+      setToken(t)
+      setFeedUrl(window.location.origin + '/api/ical/bookings.ics?token=' + t)
+    } catch (e: any) { setError(e?.message) }
+    finally { setBusy(false) }
+  }
+
+  const copy = () => {
+    if (!feedUrl) return
+    navigator.clipboard.writeText(feedUrl)
+    setCopied(true); setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <section className="card card-padding mt-6">
+      <h2 className="text-lg text-ink flex items-center gap-2 mb-3"><Calendar className="w-4 h-4" />Subscribe URL (iCal)</h2>
+      <p className="text-muted text-xs mb-4">Add this URL to Google Calendar, Apple Calendar, or Outlook (subscribe to calendar). Updates poll automatically. Anyone with the URL can see bookings — regenerate to revoke.</p>
+      {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
+      {feedUrl ? (
+        <div className="flex items-center gap-2">
+          <input readOnly value={feedUrl} onClick={(e) => (e.currentTarget.select())} className="input font-mono text-xs flex-1" />
+          <button onClick={copy} className="btn-secondary btn-sm inline-flex items-center gap-1.5"><Copy className="w-3.5 h-3.5" />{copied ? 'Copied' : 'Copy'}</button>
+          <button onClick={regenerate} disabled={busy} className="btn-secondary btn-sm text-red-600 inline-flex items-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" />Rotate</button>
+        </div>
+      ) : (
+        <button onClick={regenerate} disabled={busy} className="btn-primary btn-md">{busy ? 'Generating…' : 'Generate feed URL'}</button>
+      )}
+    </section>
+  )
+}
+
+function WebhooksSection() {
+  const [rows, setRows] = useState<WebhookRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [newUrl, setNewUrl] = useState('')
+  const [newEvents, setNewEvents] = useState('*')
+  const [revealedSecret, setRevealedSecret] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    api.get<{ webhooks: WebhookRow[] }>('/api/admin/booking-webhooks')
+      .then(({ webhooks }) => setRows(webhooks))
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(null); setRevealedSecret(null)
+    try {
+      const { secret } = await api.post<{ webhook: WebhookRow; secret: string }>('/api/admin/booking-webhooks', { url: newUrl, events: newEvents })
+      setNewUrl(''); setNewEvents('*'); setRevealedSecret(secret); load()
+    } catch (e: any) { setError(e?.message) }
+  }
+  const remove = async (w: WebhookRow) => {
+    if (!confirm('Delete this webhook? Deliveries stop immediately.')) return
+    try { await api.delete(`/api/admin/booking-webhooks/${w.id}`); load() }
+    catch (e: any) { setError(e?.message) }
+  }
+  const toggle = async (w: WebhookRow) => {
+    try { await api.patch(`/api/admin/booking-webhooks/${w.id}`, { isActive: !w.isActive }); load() }
+    catch (e: any) { setError(e?.message) }
+  }
+
+  return (
+    <section className="card card-padding mt-6">
+      <h2 className="text-lg text-ink flex items-center gap-2 mb-3"><Webhook className="w-4 h-4" />Webhooks</h2>
+      <p className="text-muted text-xs mb-4">Receive a JSON POST when a booking event fires. Verify with <code className="bg-paper px-1 rounded">X-Twomiah-Signature</code> (HMAC-SHA256 of body using your secret).</p>
+      {error && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
+      {revealedSecret && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-3 mb-3">
+          <div className="text-xs text-amber-800 mb-1 font-semibold">Save this secret now — it won't be shown again</div>
+          <code className="block font-mono text-xs bg-white p-2 rounded break-all">{revealedSecret}</code>
+        </div>
+      )}
+      <form onSubmit={add} className="flex items-end gap-2 mb-4 flex-wrap">
+        <div className="flex-1 min-w-[260px]">
+          <Label>Endpoint URL</Label>
+          <input required type="url" value={newUrl} onChange={e => setNewUrl(e.target.value)} placeholder="https://your-app.com/webhooks/twomiah" className="input" />
+        </div>
+        <div>
+          <Label>Events</Label>
+          <select value={newEvents} onChange={e => setNewEvents(e.target.value)} className="input" style={{ width: 200 }}>
+            <option value="*">All events</option>
+            <option value="booking.created">booking.created</option>
+            <option value="booking.cancelled">booking.cancelled</option>
+            <option value="booking.completed">booking.completed</option>
+            <option value="booking.rescheduled">booking.rescheduled</option>
+          </select>
+        </div>
+        <button type="submit" className="btn-primary btn-md">Add webhook</button>
+      </form>
+      {loading && <div className="text-muted text-sm">Loading…</div>}
+      {!loading && rows.length === 0 && <div className="text-muted text-sm">No webhooks configured.</div>}
+      {!loading && rows.length > 0 && (
+        <ul className="divide-y divide-line">
+          {rows.map(w => (
+            <li key={w.id} className="py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-mono text-xs text-ink truncate">{w.url}</div>
+                <div className="text-xs text-muted">
+                  {w.events === '*' ? 'All events' : w.events} · {w.lastDeliveryAt ? `Last: ${w.lastStatus || '?'} at ${new Date(w.lastDeliveryAt).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })}` : 'No deliveries yet'}
+                  {w.failureCount > 0 && <span className="text-red-600 ml-2">· {w.failureCount} failures</span>}
+                </div>
+              </div>
+              <button onClick={() => toggle(w)} className="btn-secondary btn-sm">{w.isActive ? 'Disable' : 'Enable'}</button>
+              <button onClick={() => remove(w)} className="btn-secondary btn-sm text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
+            </li>
+          ))}
         </ul>
       )}
     </section>

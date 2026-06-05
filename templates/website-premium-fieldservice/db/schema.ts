@@ -33,6 +33,10 @@ export const settings = pgTable('settings', {
   // Default drive-time minutes added as buffer between any two
   // confirmed bookings for the same crew on the same day. 0 = off.
   bookingDefaultDriveTimeMinutes: integer('booking_default_drive_time_minutes').notNull().default(0),
+  // Random token for the public iCal feed URL. Anyone with this token
+  // can subscribe — keeping it long-random + rotatable is good enough
+  // for V1 (no calendar discovery).
+  bookingIcalFeedToken: text('booking_ical_feed_token'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -132,6 +136,23 @@ export const userTokens = pgTable('user_tokens', {
   hashIdx: index('user_tokens_hash_idx').on(t.tokenHash),
   userKindIdx: index('user_tokens_user_kind_idx').on(t.userId, t.kind),
 }))
+
+// Outbound webhook destinations + delivery log. Admin registers a URL
+// + secret + which events to receive; we POST event payloads with an
+// HMAC-SHA256 signature header. Delivery attempts logged for retry +
+// admin visibility.
+export const bookingWebhooks = pgTable('booking_webhooks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  url: text('url').notNull(),
+  secret: text('secret').notNull(),
+  // Comma-separated event types: 'booking.created' | 'booking.cancelled' | 'booking.completed' | '*'
+  events: text('events').notNull().default('*'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastDeliveryAt: timestamp('last_delivery_at', { withTimezone: true }),
+  lastStatus: integer('last_status'),
+  failureCount: integer('failure_count').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 // Append-only audit log. Every admin action that mutates state writes
 // one row here. UI surfaces it under Settings → Activity for the owner.

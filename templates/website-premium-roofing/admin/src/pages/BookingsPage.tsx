@@ -4,6 +4,7 @@ import { Calendar, Clock, MapPin, Phone, Mail, ExternalLink, Plus, X, Search, Do
 import clsx from 'clsx'
 import { api } from '../api/client'
 import { Label } from '../components/Field'
+import { BookingOnboarding } from '../components/BookingOnboarding'
 
 interface Booking {
   id: string
@@ -95,6 +96,7 @@ export function BookingsPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
+      <BookingOnboarding />
       <div className="flex items-start justify-between mb-8">
         <div>
           <h1 className="text-3xl text-ink">Bookings</h1>

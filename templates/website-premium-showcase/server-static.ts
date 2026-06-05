@@ -615,6 +615,15 @@ app.post('/book/:serviceSlug', async (c) => {
       tenantTz: TENANT_TZ,
     }
     sendBookingConfirmationEmail(ctx).catch(e => console.warn('[book] customer email failed:', e?.message))
+    // Fire outbound webhooks for booking.created
+    const { fireBookingWebhook } = await import('./lib/webhooks')
+    fireBookingWebhook('booking.created', {
+      id: created.id,
+      serviceSlug: service.slug, serviceName: service.name,
+      startAt: startAt.toISOString(), endAt: endAt.toISOString(),
+      customerName: name, customerEmail: email,
+      customerPhone, customerAddress,
+    }).catch(() => {})
     if (ownerEmail) {
       notifyOwnerOfBooking({ ...ctx, ownerEmail }).catch(e => console.warn('[book] owner email failed:', e?.message))
     }
@@ -878,6 +887,11 @@ app.post('/booking/:token/cancel', async (c) => {
   }
   await db.update(bookingsTbl).set({ status: 'cancelled', cancelledAt: new Date(), cancelledReason: 'customer_self_service' })
     .where(eq(bookingsTbl.id, booking.id))
+  const { fireBookingWebhook } = await import('./lib/webhooks')
+  fireBookingWebhook('booking.cancelled', {
+    id: booking.id, reason: 'customer_self_service',
+    cancelledAt: new Date().toISOString(),
+  }).catch(() => {})
   // Best-effort: remove from crew's external calendar (Google or Outlook).
   // Try both — only the connected one will succeed.
   if (booking.assignedUserId && booking.externalCalendarEventId) {
@@ -1029,6 +1043,50 @@ app.get('/robots.txt', async (c) => {
 function escapeXml(s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] || c))
 }
+
+// ── Public iCal feed — subscribe URL for any calendar app ─────────────────
+// Token must match settings.bookingIcalFeedToken. Returns confirmed
+// + upcoming bookings as a standards-compliant VCALENDAR. Calendar
+// apps poll this URL periodically and surface changes automatically.
+import { bookings as bookingsTblIcal, bookingServices as bookingServicesTblIcal } from './db/schema'
+
+app.get('/api/ical/bookings.ics', async (c) => {
+  const token = c.req.query('token') || ''
+  const settings = await loadSettings()
+  if (!settings || !(settings as any).bookingIcalFeedToken || (settings as any).bookingIcalFeedToken !== token) {
+    return c.text('Invalid feed token', 401)
+  }
+  const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)  // include last 60 days
+  const rows = await db.select().from(bookingsTblIcal).where(gte(bookingsTblIcal.startAt, cutoff)).orderBy(asc(bookingsTblIcal.startAt))
+  const services = await db.select().from(bookingServicesTblIcal)
+  const svcById = new Map(services.map(s => [s.id, s]))
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+  const sanitize = (s: string) => (s || '').replace(/[\r\n,;]/g, ' ').slice(0, 250)
+  const events = rows.map(b => {
+    const svc = svcById.get(b.serviceId)
+    const summary = (b.status === 'cancelled' ? '[CANCELLED] ' : '') + sanitize((svc?.name || 'Booking') + ' — ' + b.customerName)
+    return [
+      'BEGIN:VEVENT',
+      'UID:booking-' + b.id + '@twomiah',
+      'DTSTAMP:' + fmt(new Date()),
+      'DTSTART:' + fmt(b.startAt as Date),
+      'DTEND:' + fmt(b.endAt as Date),
+      'SUMMARY:' + summary,
+      b.customerAddress ? 'LOCATION:' + sanitize(b.customerAddress) : '',
+      'DESCRIPTION:' + sanitize('Customer ' + b.customerEmail + (b.customerPhone ? ' / ' + b.customerPhone : '')),
+      b.status === 'cancelled' ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
+      'END:VEVENT',
+    ].filter(Boolean).join('\r\n')
+  })
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Twomiah//Bookings//EN',
+    'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'X-WR-CALNAME:' + sanitize(((settings as any)?.companyName || 'Bookings') + ' — Twomiah'),
+    ...events,
+    'END:VCALENDAR',
+  ].join('\r\n')
+  return new Response(ics, { headers: { 'Content-Type': 'text/calendar; charset=utf-8' } })
+})
 
 // ── Public: lead capture from the contact form ────────────────────────────
 app.post('/api/leads', async (c) => {
