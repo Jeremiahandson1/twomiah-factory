@@ -62,20 +62,27 @@ function wrap(title: string, body: string): string {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px;">
+<body style="margin:0;padding:0;background:#fafaf7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#fafaf7;padding:48px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-  <tr><td style="background:#1a1a2e;padding:24px 32px;">
-    <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">Twomiah Factory</h1>
+<table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(20,20,30,0.06);">
+  <tr><td style="padding:28px 36px 0;">
+    <a href="https://twomiah.com" style="text-decoration:none;color:#1a1a1a;font-size:13px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;">TWOMIAH</a>
   </td></tr>
-  <tr><td style="padding:32px;">
-    <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:18px;">${title}</h2>
+  <tr><td style="padding:24px 36px 8px;">
+    <h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;font-weight:700;line-height:1.3;">${title}</h2>
+  </td></tr>
+  <tr><td style="padding:8px 36px 36px;color:#3a3a3a;font-size:15px;line-height:1.6;">
     ${body}
   </td></tr>
-  <tr><td style="background:#f8f8fa;padding:16px 32px;text-align:center;">
-    <p style="margin:0;color:#999;font-size:12px;">Twomiah Software Ventures &middot; 2607 Beverly Hills Drive, Eau Claire, WI 54701</p>
-    <p style="margin:4px 0 0;color:#bbb;font-size:11px;"><a href="https://twomiah.com/terms" style="color:#bbb;">Terms</a> &middot; <a href="https://twomiah.com/privacy" style="color:#bbb;">Privacy</a> &middot; <a href="mailto:support@twomiah.com" style="color:#bbb;">Support</a></p>
+  <tr><td style="background:#fafaf7;padding:20px 36px;border-top:1px solid #eee;text-align:left;">
+    <p style="margin:0;color:#888;font-size:12px;line-height:1.5;">
+      Twomiah Software Ventures &middot; Eau Claire, WI<br>
+      <a href="https://twomiah.com" style="color:#888;text-decoration:underline;">twomiah.com</a> &middot;
+      <a href="https://twomiah.com/terms" style="color:#888;text-decoration:underline;">Terms</a> &middot;
+      <a href="https://twomiah.com/privacy" style="color:#888;text-decoration:underline;">Privacy</a> &middot;
+      <a href="mailto:hello@twomiah.com" style="color:#888;text-decoration:underline;">hello@twomiah.com</a>
+    </p>
   </td></tr>
 </table>
 </td></tr>
@@ -85,7 +92,7 @@ function wrap(title: string, body: string): string {
 }
 
 function btn(url: string, label: string): string {
-  return `<a href="${url}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:16px;">${label}</a>`
+  return `<a href="${url}" style="display:inline-block;background:#f97316;color:#ffffff;padding:14px 30px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0 4px;">${label}</a>`
 }
 
 function kv(label: string, value: string): string {
