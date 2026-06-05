@@ -263,7 +263,11 @@ function WebhooksSection() {
 }
 
 function CopyCustomizationSection() {
-  const [vals, setVals] = useState({ bookingHeroTitle: '', bookingHeroSubtitle: '', bookingConfirmCta: '', bookingThanksMessage: '', bookingDefaultDriveTimeMinutes: 0 })
+  const [vals, setVals] = useState({
+    bookingHeroTitle: '', bookingHeroSubtitle: '', bookingConfirmCta: '', bookingThanksMessage: '',
+    bookingConfirmEmailSubject: '', bookingConfirmEmailIntro: '',
+    bookingDefaultDriveTimeMinutes: 0,
+  })
   const [originalJson, setOriginalJson] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -278,6 +282,8 @@ function CopyCustomizationSection() {
           bookingHeroSubtitle: settings?.bookingHeroSubtitle || '',
           bookingConfirmCta: settings?.bookingConfirmCta || '',
           bookingThanksMessage: settings?.bookingThanksMessage || '',
+          bookingConfirmEmailSubject: settings?.bookingConfirmEmailSubject || '',
+          bookingConfirmEmailIntro: settings?.bookingConfirmEmailIntro || '',
           bookingDefaultDriveTimeMinutes: settings?.bookingDefaultDriveTimeMinutes || 0,
         }
         setVals(next)
@@ -296,6 +302,8 @@ function CopyCustomizationSection() {
         bookingHeroSubtitle: vals.bookingHeroSubtitle || null,
         bookingConfirmCta: vals.bookingConfirmCta || null,
         bookingThanksMessage: vals.bookingThanksMessage || null,
+        bookingConfirmEmailSubject: vals.bookingConfirmEmailSubject || null,
+        bookingConfirmEmailIntro: vals.bookingConfirmEmailIntro || null,
         bookingDefaultDriveTimeMinutes: Math.max(0, vals.bookingDefaultDriveTimeMinutes || 0),
       })
       setOriginalJson(JSON.stringify(vals))
@@ -329,6 +337,18 @@ function CopyCustomizationSection() {
             <Label>Thanks page title</Label>
             <input className="input" placeholder={'Default: "You\'re booked."'} value={vals.bookingThanksMessage} onChange={e => setVals({ ...vals, bookingThanksMessage: e.target.value })} />
           </div>
+          <hr className="border-line my-2" />
+          <p className="text-xs font-semibold text-ink-soft uppercase tracking-wider">Confirmation email</p>
+          <div>
+            <Label>Subject line override</Label>
+            <input className="input" placeholder="Default: Booking confirmed — {service}" value={vals.bookingConfirmEmailSubject} onChange={e => setVals({ ...vals, bookingConfirmEmailSubject: e.target.value })} />
+            <p className="text-xs text-muted mt-1">Use {'{service}'}, {'{customerName}'}, {'{when}'}, {'{company}'} for interpolation.</p>
+          </div>
+          <div>
+            <Label>Email intro paragraph</Label>
+            <textarea rows={3} className="input" placeholder={'Default: "Hi {customerName}, your booking is confirmed."'} value={vals.bookingConfirmEmailIntro} onChange={e => setVals({ ...vals, bookingConfirmEmailIntro: e.target.value })} />
+          </div>
+          <hr className="border-line my-2" />
           <div>
             <Label>Default drive time between bookings (minutes)</Label>
             <input type="number" min={0} max={240} className="input" value={vals.bookingDefaultDriveTimeMinutes} onChange={e => setVals({ ...vals, bookingDefaultDriveTimeMinutes: parseInt(e.target.value) || 0 })} />

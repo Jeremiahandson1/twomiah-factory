@@ -25,6 +25,7 @@ import { BookingsAnalyticsPage } from './pages/BookingsAnalyticsPage'
 import { BookingWaitlistPage } from './pages/BookingWaitlistPage'
 import { BookingCustomersPage } from './pages/BookingCustomersPage'
 import { BookingCustomerDetailPage } from './pages/BookingCustomerDetailPage'
+import { BookingBansPage } from './pages/BookingBansPage'
 import { PhotoPickerProvider } from './contexts/PhotoPickerContext'
 import { PhotoPickerModal } from './components/PhotoPickerModal'
 
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/bookings-waitlist" element={<BookingWaitlistPage />} />
           <Route path="/customers" element={<BookingCustomersPage />} />
           <Route path="/customers/:email" element={<BookingCustomerDetailPage />} />
+          <Route path="/booking-bans" element={<BookingBansPage />} />
           <Route path="/activity" element={<AuditLogPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/pages" replace />} />

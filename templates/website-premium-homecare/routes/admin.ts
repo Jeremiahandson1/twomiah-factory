@@ -766,6 +766,8 @@ const SETTINGS_FIELDS = [
   'companyName', 'tagline', 'phone', 'email', 'address',
   'seoTitle', 'seoDescription', 'contactCtaLabel',
   'bookingHeroTitle', 'bookingHeroSubtitle', 'bookingConfirmCta', 'bookingThanksMessage',
+  'bookingConfirmEmailSubject', 'bookingConfirmEmailIntro',
+  'bookingReminderEmailSubject', 'bookingReminderEmailIntro',
   'bookingDefaultDriveTimeMinutes',
   'primaryColor', 'secondaryColor', 'accentColor',
   'logoUrl', 'faviconUrl', 'nav',
@@ -1437,6 +1439,35 @@ app.delete('/calendar/connections/:id', authMiddleware, async (c) => {
     .where(and(eq(calConnTbl.id, id), eq(calConnTbl.userId, userId)))
     .returning({ id: calConnTbl.id })
   if (result.length === 0) return c.json({ error: 'Connection not found' }, 404)
+  return c.json({ ok: true })
+})
+
+// ─── Twomiah Bookings — banned customers ────────────────────────────────
+import { bookingBans as bansTbl } from '../db/schema'
+
+app.get('/booking-bans', authMiddleware, async (c) => {
+  const rows = await db.select().from(bansTbl).orderBy(desc(bansTbl.createdAt))
+  return c.json({ bans: rows })
+})
+
+app.post('/booking-bans', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const body = await c.req.json().catch(() => ({})) as any
+  const email = String(body.email || '').trim().toLowerCase() || null
+  const phone = String(body.phone || '').replace(/\D/g, '') || null
+  if (!email && !phone) return c.json({ error: 'email or phone is required' }, 400)
+  const [created] = await db.insert(bansTbl).values({
+    email, phone,
+    reason: String(body.reason || '').trim() || null,
+    addedByUserId: userId,
+  }).returning()
+  return c.json({ ban: created }, 201)
+})
+
+app.delete('/booking-bans/:id', authMiddleware, async (c) => {
+  const id = c.req.param('id')!
+  const result = await db.delete(bansTbl).where(eq(bansTbl.id, id)).returning({ id: bansTbl.id })
+  if (result.length === 0) return c.json({ error: 'Ban not found' }, 404)
   return c.json({ ok: true })
 })
 

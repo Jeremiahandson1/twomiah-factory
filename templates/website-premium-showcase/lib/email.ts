@@ -112,11 +112,22 @@ function fmtBookingDateTime(d: Date, tz?: string): string {
  * Lands in their inbox before they refresh the thank-you page. Includes
  * an .ics attachment so Apple Mail / Outlook can auto-add to calendar.
  */
-export async function sendBookingConfirmationEmail(opts: BookingEmailContext & { companyName?: string }): Promise<boolean> {
+function interpolate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_m, k) => escape(vars[k] || ''))
+}
+
+export async function sendBookingConfirmationEmail(opts: BookingEmailContext & { companyName?: string; subjectOverride?: string | null; introOverride?: string | null }): Promise<boolean> {
   const when = fmtBookingDateTime(opts.startAt, opts.tenantTz)
+  const vars = {
+    service: opts.serviceName, customerName: opts.customerName,
+    when, address: opts.customerAddress || '',
+    company: opts.companyName || '',
+  }
+  const intro = opts.introOverride
+    ? `<div style="margin:0 0 14px;color:#1a1a1a;">${interpolate(opts.introOverride, vars).replace(/\n/g, '<br>')}</div>`
+    : `<p style="margin:0 0 14px;">Hi ${escape(opts.customerName)},</p><p style="margin:0 0 14px;">Your booking is confirmed.</p>`
   const body = `
-    <p style="margin:0 0 14px;">Hi ${escape(opts.customerName)},</p>
-    <p style="margin:0 0 14px;">Your booking is confirmed.</p>
+    ${intro}
     <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
       <div style="margin-bottom:8px;"><strong style="color:#1a1a1a;">${escape(opts.serviceName)}</strong></div>
       <div style="color:#666;font-size:14px;">${escape(when)}</div>
@@ -132,9 +143,12 @@ export async function sendBookingConfirmationEmail(opts: BookingEmailContext & {
     description: 'Booking confirmation. Manage: ' + (opts.manageUrl || ''),
     uid: 'booking-' + opts.startAt.getTime() + '@twomiah',
   })
+  const subject = opts.subjectOverride
+    ? interpolate(opts.subjectOverride, vars)
+    : 'Booking confirmed — ' + opts.serviceName
   return sendEmail({
     to: opts.customerEmail,
-    subject: 'Booking confirmed — ' + opts.serviceName,
+    subject,
     html: wrap('Booking confirmed', body, opts.manageUrl ? { href: opts.manageUrl, label: 'Manage booking' } : undefined),
     attachments: [{
       filename: 'booking.ics',

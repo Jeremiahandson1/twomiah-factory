@@ -119,6 +119,20 @@
     stepForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // Tip selector
+  var tipRow = document.getElementById('book-tip-row');
+  if (tipRow) {
+    var base = parseInt(tipRow.dataset.base, 10) || 0;
+    var tipCents = document.getElementById('book-tip-cents');
+    tipRow.querySelectorAll('.book-tip-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var pct = parseInt(btn.dataset.tip, 10) || 0;
+        tipCents.value = Math.round(base * pct / 100);
+        tipRow.querySelectorAll('.book-tip-btn').forEach(function(b) { b.classList.toggle('is-active', b === btn); });
+      });
+    });
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.hidden = true;

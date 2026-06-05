@@ -294,6 +294,16 @@ app.get('/book/:serviceSlug', async (c) => {
           <label>Phone<input type="tel" name="customerPhone" autocomplete="tel"></label>
           <label>Address<input type="text" name="customerAddress" autocomplete="street-address"></label>
           <label>Anything we should know? (optional)<textarea name="customerNotes" rows="3"></textarea></label>
+          ${service.priceCents && (settings as any)?.bookingTipPromptEnabled !== false ? `<div class="book-tip">
+            <label>Add a tip (optional)</label>
+            <div class="book-tip-row" id="book-tip-row" data-base="${service.priceCents}">
+              <button type="button" data-tip="0" class="book-tip-btn is-active">None</button>
+              <button type="button" data-tip="15" class="book-tip-btn">15%</button>
+              <button type="button" data-tip="20" class="book-tip-btn">20%</button>
+              <button type="button" data-tip="25" class="book-tip-btn">25%</button>
+            </div>
+            <input type="hidden" name="tipAmountCents" id="book-tip-cents" value="0">
+          </div>` : ''}
           <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px;" aria-hidden="true">
           <input type="hidden" name="t" id="book-form-t">
           <button type="submit" class="book-submit">${escape((settings as any).bookingConfirmCta || 'Confirm booking')}</button>
@@ -538,6 +548,20 @@ app.post('/book/:serviceSlug', async (c) => {
     const email = String(body.customerEmail || '').trim()
     if (!name || !email) return c.json({ error: 'name and email are required' }, 400)
 
+    // Banned customer gate — silently 200 (don't tip them off to the ban).
+    // Match by lowercased email OR digits-only phone.
+    const { bookingBans } = await import('./db/schema')
+    const phoneDigits = String(body.customerPhone || '').replace(/\D/g, '')
+    const banChecks: any[] = []
+    if (email) banChecks.push(eq(bookingBans.email, email.toLowerCase()))
+    if (phoneDigits) banChecks.push(eq(bookingBans.phone, phoneDigits))
+    if (banChecks.length > 0) {
+      const banned = await db.select().from(bookingBans).where(banChecks.length === 1 ? banChecks[0] : (await import('drizzle-orm')).or(...banChecks)).limit(1)
+      if (banned[0]) {
+        return c.json({ ok: true, booking: { id: 'pending' } })  // silent drop
+      }
+    }
+
     // Re-verify this slot is still available, server-side. Cheap because
     // we're already in the same transaction shape.
     const settings = await loadSettings()
@@ -580,6 +604,8 @@ app.post('/book/:serviceSlug', async (c) => {
     const customerAddress = String(body.customerAddress || '').trim() || null
     const customerNotes = String(body.customerNotes || '').trim() || null
     const customerPhone = String(body.customerPhone || '').trim() || null
+    // Optional tip — sent as cents from the form's hidden field
+    const tipAmountCents = parseInt(String(body.tipAmountCents || '0'), 10) || null
     const [created] = await db.insert(bookingsTbl).values({
       serviceId: service.id,
       startAt, endAt,
@@ -595,6 +621,7 @@ app.post('/book/:serviceSlug', async (c) => {
       sourcePath: String(body.sourcePath || '').trim() || null,
       sourceReferrer: String(body.sourceReferrer || '').trim() || null,
       sourceVariant: String(body.sourceVariant || '').trim() || null,
+      tipAmountCents,
     }).returning({ id: bookingsTbl.id })
 
     // Fire-and-forget customer + owner emails. SMS to customer fires
@@ -614,7 +641,11 @@ app.post('/book/:serviceSlug', async (c) => {
       icsUrl: siteOrigin(c) + '/book/' + created.id + '/ics',
       tenantTz: TENANT_TZ,
     }
-    sendBookingConfirmationEmail(ctx).catch(e => console.warn('[book] customer email failed:', e?.message))
+    sendBookingConfirmationEmail({
+      ...ctx,
+      subjectOverride: (settingsForEmail as any)?.bookingConfirmEmailSubject || null,
+      introOverride: (settingsForEmail as any)?.bookingConfirmEmailIntro || null,
+    }).catch(e => console.warn('[book] customer email failed:', e?.message))
     // Fire outbound webhooks for booking.created
     const { fireBookingWebhook } = await import('./lib/webhooks')
     fireBookingWebhook('booking.created', {
@@ -661,15 +692,15 @@ app.post('/book/:serviceSlug', async (c) => {
       }).catch(e => console.warn('[book] customer sms failed:', e?.message))
     }
 
-    // Stripe deposit if the service requires one. If checkout session
-    // succeeds, return the URL so the client redirects to Stripe before
-    // confirmation. We pre-mark the booking depositStatus='pending';
-    // webhook flips it to 'paid' and the booking stays confirmed.
+    // Stripe deposit (+ optional tip rolled in). If service requires
+    // a deposit, customer's tip is added to the Checkout amount so we
+    // collect it in one transaction.
     const depositAmount = depositAmountFor(service)
-    if (depositAmount > 0) {
+    const totalDepositCents = depositAmount > 0 ? depositAmount + (tipAmountCents || 0) : 0
+    if (totalDepositCents > 0) {
       const checkout = await createDepositCheckoutSession({
-        amountCents: depositAmount,
-        serviceName: service.name,
+        amountCents: totalDepositCents,
+        serviceName: service.name + (tipAmountCents ? ' (incl. tip)' : ''),
         customerEmail: email,
         bookingId: created.id,
         successUrl: siteOrigin(c) + '/book/thanks?id=' + created.id + '&deposit=paid',

@@ -137,6 +137,21 @@ export const userTokens = pgTable('user_tokens', {
   userKindIdx: index('user_tokens_user_kind_idx').on(t.userId, t.kind),
 }))
 
+// Banned customers — emails/phones that can't book. Admin adds when
+// a customer no-shows once too often or causes problems. Public POST
+// /book/:slug rejects with a generic error if email or phone matches.
+export const bookingBans = pgTable('booking_bans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email'),  // normalize lowercase on insert
+  phone: text('phone'),  // normalize digits-only on insert
+  reason: text('reason'),
+  addedByUserId: uuid('added_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  emailIdx: index('booking_bans_email_idx').on(t.email),
+  phoneIdx: index('booking_bans_phone_idx').on(t.phone),
+}))
+
 // Outbound webhook destinations + delivery log. Admin registers a URL
 // + secret + which events to receive; we POST event payloads with an
 // HMAC-SHA256 signature header. Delivery attempts logged for retry +
@@ -236,6 +251,9 @@ export const bookingServices = pgTable('booking_services', {
   // For group services (classes, tours, etc.), how many customers can
   // book the same slot. Default 1 = 1-on-1 service. >1 = group service.
   capacityPerSlot: integer('capacity_per_slot').notNull().default(1),
+  // Optional tip/gratuity presets shown at booking time. JSON array
+  // of integer percents, e.g. [15, 20, 25]. null = no tip prompt.
+  tipPresetsPercent: jsonb('tip_presets_percent'),
   isActive: boolean('is_active').notNull().default(true),
   displayOrder: integer('display_order').notNull().default(0),
   // Days after completion to email "ready for your next [service]?" — null = no
@@ -361,6 +379,9 @@ export const bookings = pgTable('bookings', {
   depositPaymentIntentId: text('deposit_payment_intent_id'),
   depositAmountCents: integer('deposit_amount_cents'),
   depositStatus: text('deposit_status'),  // 'pending' | 'paid' | 'refunded' | null
+  // Tip amount (cents) the customer added at booking. Charged with
+  // the deposit if Stripe is in the flow; otherwise informational.
+  tipAmountCents: integer('tip_amount_cents'),
   reminder24hSentAt: timestamp('reminder_24h_sent_at', { withTimezone: true }),
   reminder24hSmsSentAt: timestamp('reminder_24h_sms_sent_at', { withTimezone: true }),
   rebookReminderSentAt: timestamp('rebook_reminder_sent_at', { withTimezone: true }),
