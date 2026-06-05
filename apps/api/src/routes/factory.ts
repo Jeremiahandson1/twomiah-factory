@@ -3243,6 +3243,26 @@ factory.get('/intake/premium-queue', requireRole('owner', 'admin', 'editor'), as
   }
   const { data, error } = await query
   if (error) return c.json({ error: error.message }, 500)
+
+  // Annotate each queue row with feedback counts so staff can see at-a-glance
+  // which intakes are mid-revision-cycle. Best-effort — table may not be
+  // migrated yet on some environments.
+  const tenantIds = (data || []).map((r: any) => r.id)
+  const feedbackByTenant: Record<string, { total: number; unprocessed: number }> = {}
+  if (tenantIds.length > 0) {
+    try {
+      const { data: fb } = await supabase.from('intake_feedback')
+        .select('tenant_id, status')
+        .in('tenant_id', tenantIds)
+      for (const row of (fb || []) as any[]) {
+        const e = feedbackByTenant[row.tenant_id] || { total: 0, unprocessed: 0 }
+        e.total++
+        if (row.status === 'new' || row.status === 'reviewed') e.unprocessed++
+        feedbackByTenant[row.tenant_id] = e
+      }
+    } catch { /* table may not exist yet */ }
+  }
+
   const items = (data || []).map((row: any) => {
     const intake = (row.intake_data && row.intake_data.intake) || {}
     const pages = (row.preview_premium_pages?.pages || {}) as Record<string, { sections?: any[] }>
@@ -3250,6 +3270,7 @@ factory.get('/intake/premium-queue', requireRole('owner', 'admin', 'editor'), as
     for (const [name, page] of Object.entries(pages)) {
       sectionCounts[name] = Array.isArray(page?.sections) ? page.sections.length : 0
     }
+    const fb = feedbackByTenant[row.id] || { total: 0, unprocessed: 0 }
     return {
       id: row.id,
       businessName: row.name || intake.businessName,
@@ -3262,9 +3283,29 @@ factory.get('/intake/premium-queue', requireRole('owner', 'admin', 'editor'), as
       approvedBy: row.preview_premium_approved_by,
       sectionCounts,
       rationale: row.preview_premium_pages?.rationale || null,
+      feedbackCount: fb.total,
+      feedbackUnprocessed: fb.unprocessed,
     }
   })
   return c.json({ items })
+})
+
+// Staff: fetch all feedback rows for a single intake (chronological). Powers
+// the feedback log in the premium-review detail view.
+factory.get('/intake/:id/feedback', requireRole('owner', 'admin', 'editor'), async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.json({ error: 'Invalid intake id' }, 400)
+  const { data, error } = await supabase.from('intake_feedback')
+    .select('id, message, status, recomposed_at, created_at')
+    .eq('tenant_id', id)
+    .order('created_at', { ascending: true })
+  if (error) {
+    if (error.code === '42P01' || (error.message || '').toLowerCase().includes('intake_feedback')) {
+      return c.json({ feedback: [], warning: 'intake_feedback table not migrated yet' })
+    }
+    return c.json({ error: error.message }, 500)
+  }
+  return c.json({ feedback: data || [] })
 })
 
 // Staff: full intake + composition for the detail view.

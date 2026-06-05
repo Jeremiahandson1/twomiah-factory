@@ -14,6 +14,8 @@ interface QueueItem {
   approvedBy: string | null
   sectionCounts: Record<string, number>
   rationale: string | null
+  feedbackCount: number
+  feedbackUnprocessed: number
 }
 
 interface DetailIntake {
@@ -115,6 +117,7 @@ export default function PremiumReviewPage() {
                 <th className="px-5 py-3 text-left font-semibold">Business</th>
                 <th className="px-5 py-3 text-left font-semibold">Type / Location</th>
                 <th className="px-5 py-3 text-left font-semibold">Section counts</th>
+                <th className="px-5 py-3 text-left font-semibold">Feedback</th>
                 <th className="px-5 py-3 text-left font-semibold">Composed</th>
                 <th className="px-5 py-3 text-right font-semibold w-0"></th>
               </tr>
@@ -143,6 +146,18 @@ export default function PremiumReviewPage() {
                       })}
                     </div>
                   </td>
+                  <td className="px-5 py-3 text-xs">
+                    {item.feedbackCount === 0 ? (
+                      <span className="text-gray-500">—</span>
+                    ) : (
+                      <span className={'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ' + (
+                        item.feedbackUnprocessed > 0 ? 'bg-orange-500/20 text-orange-300' : 'bg-gray-800 text-gray-400'
+                      )}>
+                        {item.feedbackCount} message{item.feedbackCount === 1 ? '' : 's'}
+                        {item.feedbackUnprocessed > 0 && <span className="font-bold">· {item.feedbackUnprocessed} new</span>}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-5 py-3 text-xs text-gray-400">
                     {item.composedAt ? new Date(item.composedAt).toLocaleString() : '—'}
                   </td>
@@ -165,6 +180,8 @@ export default function PremiumReviewPage() {
   )
 }
 
+interface FeedbackRow { id: string; message: string; status: string; recomposed_at: string | null; created_at: string }
+
 function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [intake, setIntake] = useState<DetailIntake | null>(null)
   const [loading, setLoading] = useState(true)
@@ -175,6 +192,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [busy, setBusy] = useState<'approving' | 'unapproving' | null>(null)
   const [showJsonEditor, setShowJsonEditor] = useState(false)
   const [jsonDraft, setJsonDraft] = useState('')
+  const [feedback, setFeedback] = useState<FeedbackRow[]>([])
 
   useEffect(() => {
     (async () => {
@@ -189,6 +207,11 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
         if (!res.ok) throw new Error(json?.error || res.statusText)
         setIntake(json.intake)
         setEditedPages(json.intake.preview_premium_pages?.pages || {})
+
+        // Fetch feedback log in parallel — non-blocking; empty array on error.
+        fetch(`${API}/api/v1/factory/intake/${id}/feedback`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }).then(r => r.json()).then(j => setFeedback(j.feedback || [])).catch(() => {})
       } catch (e: any) {
         setError(e.message || 'Failed to load intake')
       } finally {
@@ -318,6 +341,28 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
             <section className="mb-6">
               <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Model rationale</h3>
               <p className="text-sm text-gray-300 italic">{intake.preview_premium_pages.rationale}</p>
+            </section>
+          )}
+
+          {feedback.length > 0 && (
+            <section className="mb-6">
+              <h3 className="text-xs uppercase tracking-wider text-gray-500 mb-2">Customer feedback ({feedback.length})</h3>
+              <div className="space-y-2">
+                {feedback.map(f => (
+                  <div key={f.id} className={'rounded-lg p-3 border ' + (
+                    f.status === 'recomposed' ? 'bg-gray-900/40 border-gray-800' : 'bg-orange-500/10 border-orange-500/30'
+                  )}>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1.5">
+                      <span>{new Date(f.created_at).toLocaleString()}</span>
+                      <span className={'px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold ' + (
+                        f.status === 'recomposed' ? 'bg-gray-800 text-gray-400' : 'bg-orange-500 text-white'
+                      )}>{f.status}</span>
+                      {f.recomposed_at && <span className="text-gray-500">· recomposed {new Date(f.recomposed_at).toLocaleString()}</span>}
+                    </div>
+                    <div className="text-sm text-gray-200 whitespace-pre-wrap">{f.message}</div>
+                  </div>
+                ))}
+              </div>
             </section>
           )}
 
