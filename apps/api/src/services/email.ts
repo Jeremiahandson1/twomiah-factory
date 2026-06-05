@@ -347,6 +347,29 @@ export async function notifyPreviewReady(
 }
 
 /**
+ * Day-1 post-launch tips email. Sent ~24-72h after a premium tenant
+ * pays. Celebrates the launch and gives 3 concrete next steps.
+ */
+export async function notifyPostLaunchTips(
+  data: { to: string; businessName: string; siteUrl: string; adminUrl: string }
+): Promise<boolean> {
+  const body = `
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — your <strong>${data.businessName}</strong> site has been live for a day. Here's what most owners do this week to make it work harder for them:</p>
+    <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
+      <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">1. Share the link with three customers who'd say nice things</p>
+      <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">Their reactions are honest. Their feedback is gold. Their referrals are the cheapest marketing you'll ever pay for.</p>
+      <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">2. Add 2-3 real photos from a recent job</p>
+      <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">The composed draft uses stock for slots you didn't fill. Replacing them with actual work makes the site feel local and earned — buyers can tell the difference.</p>
+      <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">3. Add it to your Google Business Profile + email signature</p>
+      <p style="margin:0;color:#666;font-size:14px;line-height:1.5;">Two minutes each. Every quote you send for the next month carries your site on it.</p>
+    </div>
+    ${btn(data.adminUrl, 'Open your site admin')}
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When a contact form lead comes in, it'll land in your inbox automatically. Reply fast — most owners who reply within an hour close 30% more.</p>
+    <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Hit reply if you want a hand with any of the above.</p>`
+  return sendEmail(data.to, `Three things to do with your new ${data.businessName} site this week`, wrap('Your site is live — now what?', body))
+}
+
+/**
  * 24-hour follow-up nudge sent to customers who submitted an intake,
  * received a preview, but haven't clicked Approve & buy yet. One-shot
  * — sentinel `preview_followup_sent_at` prevents repeats.

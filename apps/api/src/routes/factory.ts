@@ -4,7 +4,7 @@ import { generate, listTemplates, cleanOldBuilds, type GenerateConfig } from '..
 import { isConfigured, getMissingConfig, deployCustomer, checkDeployStatus, redeployCustomer, updateCustomerCode, addCustomDomain, updateRenderServiceSettings, findRenderServicesBySlug, wireDomainInfrastructure } from '../services/deploy'
 import factoryStripe from '../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, deleteZip, uploadIntakeAsset } from '../services/factoryStorage'
-import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyPreviewReady, notifyPreviewFollowup, notifyIntakeFeedback, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
+import { notifyWelcome, notifyDeployComplete, notifyDeployFailed, notifyStillWorking, notifyNewTicket, notifyTicketReply, notifyNewIntake, notifyPreviewReady, notifyPreviewFollowup, notifyPostLaunchTips, notifyIntakeFeedback, notifyBillingPastDue, notifyTrialWarning, notifyTrialExpired, notifyDomainRenewal, notifySubscriptionRenewal, notifyOffboardStarted, notifyEppCode, notifyDataExportReady, notifyReactivated, notifyOffboardComplete } from '../services/email'
 import fs from 'fs'
 import path from 'path'
 import pg from 'pg'
@@ -1541,6 +1541,51 @@ factory.post('/internal/renewal-check', async (c) => {
     ;(results as any).preview_followups_sent = nudged
   } catch (e: any) {
     results.errors.push('preview_followup outer: ' + e.message)
+  }
+
+  // ── Day-1 post-launch tips ──────────────────────────────────────────
+  // ~24-72h after they paid, send the "your site is live — now what?"
+  // tips email. Limits to premium-website tenants (products contains
+  // 'website-premium') so CRM-only tenants don't get the website-tips
+  // copy. Caps at 50/run.
+  try {
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    const threeDaysAgo = new Date(now.getTime() - 72 * 60 * 60 * 1000)
+    const { data: launched } = await supabase
+      .from('tenants')
+      .select('id, name, email, products, paid_at, render_frontend_url, website_url')
+      .is('launch_followup_sent_at', null)
+      .not('stripe_subscription_id', 'is', null)
+      .neq('status', 'offboarded')
+      .gte('paid_at', threeDaysAgo.toISOString())
+      .lte('paid_at', oneDayAgo.toISOString())
+      .limit(50)
+    let nudged = 0
+    if (launched) {
+      for (const t of launched as any[]) {
+        const products: string[] = Array.isArray(t.products) ? t.products : []
+        if (!products.includes('website-premium')) continue
+        if (!t.email) continue
+        const siteUrl = t.website_url || t.render_frontend_url
+        if (!siteUrl) continue
+        const adminUrl = siteUrl.replace(/\/+$/, '') + '/admin'
+        try {
+          await notifyPostLaunchTips({
+            to: t.email,
+            businessName: t.name,
+            siteUrl,
+            adminUrl,
+          }).catch(() => {})
+          await supabase.from('tenants').update({ launch_followup_sent_at: now.toISOString() }).eq('id', t.id)
+          nudged++
+        } catch (e: any) {
+          results.errors.push(`launch_followup ${t.id}: ${e.message}`)
+        }
+      }
+    }
+    ;(results as any).launch_tips_sent = nudged
+  } catch (e: any) {
+    results.errors.push('launch_followup outer: ' + e.message)
   }
 
   console.log('[RenewalCheck]', JSON.stringify(results))
