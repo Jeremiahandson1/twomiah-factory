@@ -1142,6 +1142,10 @@ export async function deployCustomer(
             siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_ID',     value: process.env.GOOGLE_CALENDAR_CLIENT_ID })
             siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_SECRET', value: process.env.GOOGLE_CALENDAR_CLIENT_SECRET })
           }
+          if (process.env.OUTLOOK_CALENDAR_CLIENT_ID && process.env.OUTLOOK_CALENDAR_CLIENT_SECRET) {
+            siteEnvVars.push({ key: 'OUTLOOK_CALENDAR_CLIENT_ID',     value: process.env.OUTLOOK_CALENDAR_CLIENT_ID })
+            siteEnvVars.push({ key: 'OUTLOOK_CALENDAR_CLIENT_SECRET', value: process.env.OUTLOOK_CALENDAR_CLIENT_SECRET })
+          }
           // Pass through SMS internal URL so booking confirmations can
           // text the customer via the connected CRM's Twilio.
           if (results.apiUrl) {

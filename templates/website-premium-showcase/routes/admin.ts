@@ -1203,6 +1203,17 @@ app.get('/calendar/google/connect-url', authMiddleware, async (c) => {
   return c.json({ url: factoryUrl.replace(/\/$/, '') + '/calendar/google/auth?' + params.toString() })
 })
 
+app.get('/calendar/outlook/connect-url', authMiddleware, async (c) => {
+  const userId = c.get('userId')!
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const siteUrl = process.env.SITE_URL || ('https://' + (c.req.header('Host') || ''))
+  if (!factoryUrl || !tenantId) return c.json({ error: 'Calendar sync not configured on this site yet — contact support.' }, 503)
+  const returnUrl = siteUrl.replace(/\/$/, '') + '/admin/booking-settings'
+  const params = new URLSearchParams({ tenant: tenantId, user: userId, return: returnUrl })
+  return c.json({ url: factoryUrl.replace(/\/$/, '') + '/calendar/outlook/auth?' + params.toString() })
+})
+
 app.get('/calendar/connections', authMiddleware, async (c) => {
   const userId = c.get('userId')!
   const rows = await db.select({

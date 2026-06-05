@@ -190,6 +190,7 @@ app.get('/blog/:slug', async (c) => {
 import { generateSlots, pickCrewForSlot } from './lib/booking-slots'
 import { sendBookingConfirmationEmail, notifyOwnerOfBooking } from './lib/email'
 import { pushBookingEvent, deleteBookingEvent, listExternalBusyEvents } from './lib/google-calendar'
+import { pushBookingEventOutlook, deleteBookingEventOutlook, listExternalBusyEventsOutlook } from './lib/outlook-calendar'
 import {
   bookingServices as bookingServicesTbl,
   bookingAvailabilityRules as bookingAvailabilityRulesTbl,
@@ -369,31 +370,32 @@ async function externalBusyForDate(opts: {
   dayEnd: Date
   ourBookings: Array<{ assignedUserId: string | null; externalCalendarEventId: string | null }>
 }): Promise<Array<{ assignedUserId: string | null; startMinute: number; endMinute: number; status: string }>> {
-  // Find unique users with a Google calendar connection
   const { bookingCalendarConnections } = await import('./db/schema')
-  const conns = await db.select({ userId: bookingCalendarConnections.userId })
+  // Map userId -> set of providers they've connected
+  const conns = await db.select({ userId: bookingCalendarConnections.userId, provider: bookingCalendarConnections.provider })
     .from(bookingCalendarConnections)
-    .where(eq(bookingCalendarConnections.provider, 'google'))
-  const seen = new Set<string>()
-  const uniqUsers = conns.filter(c => { if (seen.has(c.userId)) return false; seen.add(c.userId); return true }).map(c => c.userId)
-  if (uniqUsers.length === 0) return []
+  if (conns.length === 0) return []
 
   const ourEventIds = new Set(opts.ourBookings.map(b => b.externalCalendarEventId).filter(Boolean) as string[])
 
   const out: Array<{ assignedUserId: string | null; startMinute: number; endMinute: number; status: string }> = []
-  for (const userId of uniqUsers) {
-    const events = await listExternalBusyEvents({ userId, timeMin: opts.dayStart, timeMax: opts.dayEnd })
-    if (!events) continue
-    for (const ev of events) {
-      if (ourEventIds.has(ev.eventId)) continue  // we put it there
-      const startProj = dateInTenantTz(ev.startUtc)
-      const endProj = dateInTenantTz(ev.endUtc)
-      // Clip to the day if the event spans midnight in tenant TZ
-      const startMin = startProj.isoDate === opts.dateStr ? startProj.minuteOfDay : 0
-      const endMin = endProj.isoDate === opts.dateStr ? endProj.minuteOfDay : 24 * 60
-      if (endMin <= startMin) continue
-      out.push({ assignedUserId: userId, startMinute: startMin, endMinute: endMin, status: 'confirmed' })
-    }
+  const projectEvent = (userId: string, ev: { eventId: string; startUtc: Date; endUtc: Date }) => {
+    if (ourEventIds.has(ev.eventId)) return
+    const startProj = dateInTenantTz(ev.startUtc)
+    const endProj = dateInTenantTz(ev.endUtc)
+    const startMin = startProj.isoDate === opts.dateStr ? startProj.minuteOfDay : 0
+    const endMin = endProj.isoDate === opts.dateStr ? endProj.minuteOfDay : 24 * 60
+    if (endMin <= startMin) return
+    out.push({ assignedUserId: userId, startMinute: startMin, endMinute: endMin, status: 'confirmed' })
+  }
+  for (const c of conns) {
+    const list = c.provider === 'google'
+      ? await listExternalBusyEvents({ userId: c.userId, timeMin: opts.dayStart, timeMax: opts.dayEnd })
+      : c.provider === 'outlook'
+        ? await listExternalBusyEventsOutlook({ userId: c.userId, timeMin: opts.dayStart, timeMax: opts.dayEnd })
+        : null
+    if (!list) continue
+    for (const ev of list) projectEvent(c.userId, ev)
   }
   return out
 }
@@ -604,20 +606,27 @@ app.post('/book/:serviceSlug', async (c) => {
     // Push to assigned crew's Google Calendar if connected. Capture the
     // event ID so admin updates/cancellations can patch the same event.
     if (assignedUserId) {
-      pushBookingEvent({
-        userId: assignedUserId,
-        booking: {
-          id: created.id,
-          startAt, endAt,
-          customerName: name, customerEmail: email,
-          customerPhone, customerAddress, customerNotes,
-          externalCalendarEventId: null,
-        },
-        service: { name: service.name, description: service.description },
-        companyName: (settingsForEmail as any)?.companyName || undefined,
-      }).then(eventId => {
-        if (eventId) db.update(bookingsTbl).set({ externalCalendarEventId: eventId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
-      }).catch(e => console.warn('[book] gcal push failed:', e?.message))
+      const bookingForCal = {
+        id: created.id,
+        startAt, endAt,
+        customerName: name, customerEmail: email,
+        customerPhone, customerAddress, customerNotes,
+        externalCalendarEventId: null,
+      }
+      const svc = { name: service.name, description: service.description }
+      const companyName = (settingsForEmail as any)?.companyName || undefined
+      // Try Google first, fall back to Outlook. A crew can only have one
+      // provider connected at a time in V1 — if both rows exist, Google wins.
+      pushBookingEvent({ userId: assignedUserId, booking: bookingForCal, service: svc, companyName })
+        .then(async eventId => {
+          if (eventId) {
+            await db.update(bookingsTbl).set({ externalCalendarEventId: eventId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
+            return
+          }
+          const outlookId = await pushBookingEventOutlook({ userId: assignedUserId, booking: bookingForCal, service: svc, companyName })
+          if (outlookId) await db.update(bookingsTbl).set({ externalCalendarEventId: outlookId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
+        })
+        .catch(e => console.warn('[book] external cal push failed:', e?.message))
     }
     if (customerPhone && process.env.SMS_INTERNAL_URL) {
       sendBookingSmsConfirmation({
@@ -679,9 +688,11 @@ app.post('/booking/:token/cancel', async (c) => {
   }
   await db.update(bookingsTbl).set({ status: 'cancelled', cancelledAt: new Date(), cancelledReason: 'customer_self_service' })
     .where(eq(bookingsTbl.id, booking.id))
-  // Best-effort: remove from crew's Google Calendar
+  // Best-effort: remove from crew's external calendar (Google or Outlook).
+  // Try both — only the connected one will succeed.
   if (booking.assignedUserId && booking.externalCalendarEventId) {
     deleteBookingEvent({ userId: booking.assignedUserId, eventId: booking.externalCalendarEventId }).catch(() => {})
+    deleteBookingEventOutlook({ userId: booking.assignedUserId, eventId: booking.externalCalendarEventId }).catch(() => {})
   }
   return c.redirect('/booking/' + token)
 })

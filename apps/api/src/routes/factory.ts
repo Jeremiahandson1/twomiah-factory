@@ -1524,6 +1524,100 @@ factory.get('/calendar/google/callback', async (c) => {
   return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'google=connected')
 })
 
+// ─── Twomiah Bookings Outlook Calendar OAuth orchestration ─────────────────
+// Mirror of the Google flow against Microsoft identity platform.
+// One approved Azure AD app for the platform; tokens forwarded to the
+// tenant by the same /api/internal/calendar/store-tokens endpoint.
+
+factory.get('/calendar/outlook/auth', async (c) => {
+  const clientId = process.env.OUTLOOK_CALENDAR_CLIENT_ID
+  if (!clientId) return c.json({ error: 'Outlook OAuth not configured' }, 503)
+  const tenantId = c.req.query('tenant')
+  const userId = c.req.query('user')
+  const returnUrl = c.req.query('return') || ''
+  if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
+  const { data: tenant } = await supabase.from('tenants').select('id, render_website_url').eq('id', tenantId).single()
+  if (!tenant) return c.json({ error: 'tenant not found' }, 404)
+  if (!returnUrl.startsWith(tenant.render_website_url || '') && !returnUrl.startsWith('http://localhost')) {
+    return c.json({ error: 'return URL must point to your tenant site' }, 400)
+  }
+  const state = newOauthState({ tenantId, userId, returnUrl })
+  const factoryUrl = process.env.FACTORY_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ''
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    redirect_uri: factoryUrl.replace(/\/$/, '') + '/calendar/outlook/callback',
+    scope: 'offline_access Calendars.ReadWrite User.Read',
+    response_mode: 'query',
+    state,
+  })
+  return c.redirect('https://login.microsoftonline.com/common/oauth2/v2.0/authorize?' + params.toString())
+})
+
+factory.get('/calendar/outlook/callback', async (c) => {
+  const code = c.req.query('code')
+  const state = c.req.query('state') || ''
+  const error = c.req.query('error')
+  const entry = consumeOauthState(state)
+  if (!entry) return c.html('<p>Sign-in session expired. Please try again from your admin.</p>', 400)
+  if (error || !code) return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'outlook=denied')
+
+  const clientId = process.env.OUTLOOK_CALENDAR_CLIENT_ID
+  const clientSecret = process.env.OUTLOOK_CALENDAR_CLIENT_SECRET
+  const factoryUrl = process.env.FACTORY_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ''
+  if (!clientId || !clientSecret) return c.html('<p>Server misconfiguration.</p>', 503)
+
+  let tokens: any
+  try {
+    const body = new URLSearchParams({
+      code, client_id: clientId, client_secret: clientSecret,
+      redirect_uri: factoryUrl.replace(/\/$/, '') + '/calendar/outlook/callback',
+      grant_type: 'authorization_code',
+      scope: 'offline_access Calendars.ReadWrite User.Read',
+    })
+    const res = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body,
+    })
+    if (!res.ok) return c.html('<p>Token exchange failed: ' + (await res.text().catch(() => '')) + '</p>', 502)
+    tokens = await res.json()
+  } catch (e: any) {
+    return c.html('<p>Token exchange error: ' + e?.message + '</p>', 502)
+  }
+
+  let externalEmail = ''
+  try {
+    const ures = await fetch('https://graph.microsoft.com/v1.0/me', { headers: { 'Authorization': 'Bearer ' + tokens.access_token } })
+    if (ures.ok) { const ud: any = await ures.json(); externalEmail = ud.mail || ud.userPrincipalName || '' }
+  } catch { /* non-fatal */ }
+
+  const { data: tenant } = await supabase.from('tenants').select('render_website_url, factory_sync_key').eq('id', entry.tenantId).single()
+  if (!tenant?.render_website_url || !tenant?.factory_sync_key) {
+    return c.html('<p>Tenant routing not configured.</p>', 502)
+  }
+  try {
+    const r = await fetch(tenant.render_website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
+      body: JSON.stringify({
+        userId: entry.userId,
+        provider: 'outlook',
+        externalAccountEmail: externalEmail,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiresInSec: tokens.expires_in || 3600,
+      }),
+    })
+    if (!r.ok) {
+      const text = await r.text().catch(() => '')
+      return c.html('<p>Tenant accept failed: ' + text + '</p>', 502)
+    }
+  } catch (e: any) {
+    return c.html('<p>Tenant call error: ' + e?.message + '</p>', 502)
+  }
+
+  return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'outlook=connected')
+})
+
 // ─── Twomiah Bookings 24h reminder cron ────────────────────────────────────
 // External scheduler hits this hourly. We fan out to every live tenant
 // that has the website-premium product and POST their internal
