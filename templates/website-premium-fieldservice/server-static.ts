@@ -1434,25 +1434,70 @@ app.post('/api/internal/booking-reminders', async (c) => {
       gte(bookingsTbl.startAt, windowStart),
       lte(bookingsTbl.startAt, windowEnd),
     ))
-  let sent = 0
+  let emailsSent = 0, smsSent = 0
   for (const b of due) {
-    if (b.reminder24hSentAt) continue
     const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, b.serviceId)).limit(1))[0]
     if (!service) continue
-    try {
-      await sendBookingReminderEmail({
-        serviceName: service.name,
-        startAt: b.startAt as Date, endAt: b.endAt as Date,
-        customerName: b.customerName, customerEmail: b.customerEmail,
-        customerAddress: b.customerAddress,
-        manageUrl: siteOrigin(c) + '/booking/' + b.confirmationToken,
-        tenantTz: TENANT_TZ,
-      })
-      await db.update(bookingsTbl).set({ reminder24hSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
-      sent++
-    } catch (err: any) {
-      console.warn('[reminder] failed for booking ' + b.id + ':', err?.message)
+    if (!b.reminder24hSentAt) {
+      try {
+        await sendBookingReminderEmail({
+          serviceName: service.name,
+          startAt: b.startAt as Date, endAt: b.endAt as Date,
+          customerName: b.customerName, customerEmail: b.customerEmail,
+          customerAddress: b.customerAddress,
+          manageUrl: siteOrigin(c) + '/booking/' + b.confirmationToken,
+          tenantTz: TENANT_TZ,
+        })
+        await db.update(bookingsTbl).set({ reminder24hSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+        emailsSent++
+      } catch (err: any) { console.warn('[reminder email] ' + b.id + ':', err?.message) }
     }
+    if (!b.reminder24hSmsSentAt && b.customerPhone && process.env.SMS_INTERNAL_URL) {
+      try {
+        const when = (b.startAt as Date).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: TENANT_TZ })
+        await sendBookingSmsConfirmation({
+          url: process.env.SMS_INTERNAL_URL,
+          key: process.env.FACTORY_SYNC_KEY || '',
+          to: b.customerPhone,
+          body: 'Reminder: ' + service.name + ' tomorrow at ' + when + '.',
+        })
+        await db.update(bookingsTbl).set({ reminder24hSmsSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+        smsSent++
+      } catch (err: any) { console.warn('[reminder sms] ' + b.id + ':', err?.message) }
+    }
+  }
+  return c.json({ ok: true, checked: due.length, emailsSent, smsSent })
+})
+
+// Post-job review-request SMS cron. Daily fan-out from Factory.
+// For bookings that ended 1-2 days ago and haven't sent a review SMS yet.
+app.post('/api/internal/booking-review-requests', async (c) => {
+  const factoryKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryKey) return c.json({ error: 'Factory sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== factoryKey) return c.json({ error: 'Unauthorized' }, 401)
+  const settings = await loadSettings()
+  const companyName = (settings as any)?.companyName || 'the team'
+  const reviewLink = (settings as any)?.googleReviewLink || ''
+  const now = Date.now()
+  const due = await db.select().from(bookingsTbl).where(and(
+    eq(bookingsTbl.status, 'completed'),
+    gte(bookingsTbl.endAt, new Date(now - 2 * 86400000)),
+    lte(bookingsTbl.endAt, new Date(now - 86400000)),
+  ))
+  let sent = 0
+  for (const b of due) {
+    if (b.reviewRequestSmsSentAt) continue
+    if (!b.customerPhone || !process.env.SMS_INTERNAL_URL) continue
+    try {
+      const msg = ('Hi ' + b.customerName.split(' ')[0] + ', thanks for choosing ' + companyName + '! If we did good work, a quick Google review would mean a lot' + (reviewLink ? ': ' + reviewLink : '. Just reply with your thoughts.')).slice(0, 320)
+      await sendBookingSmsConfirmation({
+        url: process.env.SMS_INTERNAL_URL,
+        key: process.env.FACTORY_SYNC_KEY || '',
+        to: b.customerPhone, body: msg,
+      })
+      await db.update(bookingsTbl).set({ reviewRequestSmsSentAt: new Date() }).where(eq(bookingsTbl.id, b.id))
+      sent++
+    } catch (err: any) { console.warn('[review sms] ' + b.id + ':', err?.message) }
   }
   return c.json({ ok: true, checked: due.length, sent })
 })

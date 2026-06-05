@@ -12,7 +12,7 @@ interface Analytics {
   noShowRate: number
   byDayOfWeek: number[]
   byHour: number[]
-  topServices: Array<{ id: string; name: string; count: number }>
+  topServices: Array<{ id: string; name: string; count: number; completedCount: number; revenueCents: number }>
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -92,15 +92,18 @@ export function BookingsAnalyticsPage() {
         </section>
 
         <section className="card card-padding">
-          <h2 className="text-sm font-semibold text-ink mb-4">Top services</h2>
+          <h2 className="text-sm font-semibold text-ink mb-4">Top services by revenue</h2>
           {data.topServices.length === 0 ? (
             <p className="text-sm text-muted">No bookings in this range.</p>
           ) : (
             <ul className="space-y-2">
               {data.topServices.map(s => (
                 <li key={s.id} className="flex items-center gap-3">
-                  <div className="flex-1 text-sm text-ink truncate">{s.name}</div>
-                  <div className="w-12 text-right text-sm text-muted font-mono">{s.count}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-ink truncate">{s.name}</div>
+                    <div className="text-xs text-muted">{s.completedCount} completed · {s.count} total</div>
+                  </div>
+                  <div className="text-sm font-mono text-ink">{dollars(s.revenueCents)}</div>
                 </li>
               ))}
             </ul>

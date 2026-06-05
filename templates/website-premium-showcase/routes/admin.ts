@@ -1456,10 +1456,20 @@ app.get('/bookings/analytics', authMiddleware, async (c) => {
     if (b.status === 'completed' || b.status === 'cancelled' || b.status === 'no_show') completedAndCancelledAndNoShow++
   }
 
-  const topServices = Object.entries(byServiceCount)
-    .sort(([, a], [, b]) => b - a)
+  // Revenue + completion count per service (top 5 by revenue)
+  const byServiceRevenue: Record<string, { count: number; completed: number; revenueCents: number }> = {}
+  for (const b of rows) {
+    if (!byServiceRevenue[b.serviceId]) byServiceRevenue[b.serviceId] = { count: 0, completed: 0, revenueCents: 0 }
+    byServiceRevenue[b.serviceId].count++
+    if (b.status === 'completed') {
+      byServiceRevenue[b.serviceId].completed++
+      byServiceRevenue[b.serviceId].revenueCents += priceById.get(b.serviceId) || 0
+    }
+  }
+  const topServices = Object.entries(byServiceRevenue)
+    .sort(([, a], [, b]) => b.revenueCents - a.revenueCents || b.count - a.count)
     .slice(0, 5)
-    .map(([id, count]) => ({ id, name: nameById.get(id) || 'Unknown', count }))
+    .map(([id, stats]) => ({ id, name: nameById.get(id) || 'Unknown', count: stats.count, completedCount: stats.completed, revenueCents: stats.revenueCents }))
 
   return c.json({
     rangeDays: days,

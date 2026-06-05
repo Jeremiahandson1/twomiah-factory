@@ -334,8 +334,10 @@ export const bookings = pgTable('bookings', {
   depositAmountCents: integer('deposit_amount_cents'),
   depositStatus: text('deposit_status'),  // 'pending' | 'paid' | 'refunded' | null
   reminder24hSentAt: timestamp('reminder_24h_sent_at', { withTimezone: true }),
+  reminder24hSmsSentAt: timestamp('reminder_24h_sms_sent_at', { withTimezone: true }),
   rebookReminderSentAt: timestamp('rebook_reminder_sent_at', { withTimezone: true }),
   reviewRequestSentAt: timestamp('review_request_sent_at', { withTimezone: true }),
+  reviewRequestSmsSentAt: timestamp('review_request_sms_sent_at', { withTimezone: true }),
   externalCalendarEventId: text('external_calendar_event_id'),  // for Phase 1 cal sync
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   cancelledReason: text('cancelled_reason'),
