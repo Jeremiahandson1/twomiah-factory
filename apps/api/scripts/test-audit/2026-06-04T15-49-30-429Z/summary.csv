@@ -1,7 +1,0 @@
-testId,vertical,plan,websiteMode,domainMode,outcome,totalMs,errorSteps
-001-contractor-entry-standard-buy,contractor,entry,standard,buy,pass,16215,""
-002-fieldservice-top-premium-byod,fieldservice,top,premium,byod,pass,16134,""
-003-homecare-entry-none-skip,homecare,entry,none,skip,pass,22940,""
-004-roofing-top-standard-byod,roofing,top,standard,byod,pass,15443,""
-005-landscaping-entry-premium-buy,landscaping,entry,premium,buy,pass,27557,""
-006-dispensary-top-standard-skip,dispensary,top,standard,skip,pass,18838,""

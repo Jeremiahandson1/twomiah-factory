@@ -1,3 +1,0 @@
-testId,vertical,plan,websiteMode,domainMode,outcome,totalMs,errorSteps
-001-contractor-entry-standard-buy,contractor,entry,standard,buy,pass,164203,""
-002-fieldservice-top-premium-byod,fieldservice,top,premium,byod,fail,137598,"wait_for_live"

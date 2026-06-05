@@ -1,6 +1,0 @@
-# 005-landscaping-entry-premium-buy :: site (service srv-d8gv6mtckfvc73dbkh20)
-# status: build_failed | latest deploy dep-d8gv6ndckfvc73dbkhpg status: build_failed
-# commit: Initial Twomiah Factory deployment
-# fetched: 2026-06-04T22:01:41.911Z
-
-(log fetch HTTP 400)

@@ -1,7 +1,0 @@
-testId,vertical,plan,websiteMode,domainMode,outcome,totalMs,errorSteps
-001-contractor-entry-standard-buy,contractor,entry,standard,buy,fail,669536,"wait_for_live"
-002-fieldservice-top-premium-byod,fieldservice,top,premium,byod,fail,91076,"wait_for_live"
-003-homecare-entry-none-skip,homecare,entry,none,skip,fail,662750,"wait_for_live"
-004-roofing-top-standard-byod,roofing,top,standard,byod,fail,181595,"wait_for_live"
-005-landscaping-entry-premium-buy,landscaping,entry,premium,buy,fail,94751,"wait_for_live"
-006-dispensary-top-standard-skip,dispensary,top,standard,skip,fail,663186,"wait_for_live"

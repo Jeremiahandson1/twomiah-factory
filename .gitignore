@@ -68,3 +68,6 @@ apps/mobile/google-services.json
 apps/mobile/google-services.*.json
 apps/mobile/google-play-service-account.json
 apps/mobile/AuthKey_*.p8
+
+# Test harness outputs — audit JSON per run; can be regenerated
+apps/api/scripts/test-audit/

@@ -1,4 +1,0 @@
-testId,vertical,plan,websiteMode,domainMode,outcome,totalMs,errorSteps
-001-fieldservice-top-premium-byod,fieldservice,top,premium,byod,fail,676056,"wait_for_live"
-002-roofing-top-standard-byod,roofing,top,standard,byod,fail,673734,"wait_for_live"
-003-landscaping-entry-premium-buy,landscaping,entry,premium,buy,fail,674590,"wait_for_live"

@@ -1,7 +1,0 @@
-testId,vertical,plan,websiteMode,domainMode,outcome,totalMs,errorSteps
-001-contractor-entry-standard-buy,contractor,entry,standard,buy,pass,183776,""
-002-fieldservice-top-premium-byod,fieldservice,top,premium,byod,fail,864243,"smoke_website_root;smoke_crm_root"
-003-homecare-entry-none-skip,homecare,entry,none,skip,pass,153002,""
-004-roofing-top-standard-byod,roofing,top,standard,byod,fail,595014,"smoke_crm_root"
-005-landscaping-entry-premium-buy,landscaping,entry,premium,buy,fail,652813,"smoke_website_root"
-006-dispensary-top-standard-skip,dispensary,top,standard,skip,pass,161112,""
