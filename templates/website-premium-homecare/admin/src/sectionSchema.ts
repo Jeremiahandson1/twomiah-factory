@@ -141,6 +141,18 @@ export const SECTION_DEFS: SectionDef[] = [
       responsePromise: 'We reply to project inquiries within one business day.',
     },
   },
+
+  // ── Gallery ─────────────────────────────────────────────────────────
+  {
+    type: 'gallery', variant: 'grid',
+    label: 'Gallery — Photo grid',
+    description: 'Responsive 3-column grid of photos. Best for showcasing recent work, projects, dishes, or before/after.',
+    defaultData: {
+      heading: 'Recent work',
+      intro: '',
+      photos: [],
+    },
+  },
 ]
 
 export function findSectionDef(type: string, variant: string): SectionDef | undefined {

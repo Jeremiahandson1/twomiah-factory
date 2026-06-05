@@ -11,6 +11,7 @@ import { CtaSplitForm } from './sectionForms/CtaSplitForm'
 import { AboutStoryForm } from './sectionForms/AboutStoryForm'
 import { TeamGridForm } from './sectionForms/TeamGridForm'
 import { ContactFormInfoForm } from './sectionForms/ContactFormInfoForm'
+import { GalleryGridForm } from './sectionForms/GalleryGridForm'
 
 interface Props {
   type: string
@@ -32,6 +33,7 @@ export function SectionFormDispatcher({ type, variant, data, onChange }: Props) 
     case 'about/story':           return <AboutStoryForm data={data} onChange={onChange} />
     case 'team/grid':             return <TeamGridForm data={data} onChange={onChange} />
     case 'contact/form-info':     return <ContactFormInfoForm data={data} onChange={onChange} />
+    case 'gallery/grid':          return <GalleryGridForm data={data} onChange={onChange} />
     default:
       return (
         <div className="text-sm text-muted bg-amber-50 border border-amber-200 rounded-lg p-3">

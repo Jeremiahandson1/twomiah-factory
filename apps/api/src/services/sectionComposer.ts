@@ -137,6 +137,13 @@ export const SECTION_SCHEMA = {
       use_when: 'main contact page body — form on one side, business details + hours + response promise on the other',
     },
   },
+  gallery: {
+    grid: {
+      required: ['photos'],
+      optional: ['heading', 'intro'],
+      use_when: 'showcase 6-12 photos of recent work, projects, dishes, builds, or before/after — best for visual businesses with portfolio-quality shots',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
