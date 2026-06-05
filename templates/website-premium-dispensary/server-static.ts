@@ -18,7 +18,7 @@ import { Hono } from 'hono'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/bun'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import ejs from 'ejs'
 import fs from 'fs'
 import path from 'path'
@@ -92,11 +92,53 @@ app.get('/', async (c) => {
 // Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health'].includes(slug)) return c.notFound()
+  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt'].includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
 })
+
+// ── SEO files ──────────────────────────────────────────────────────────
+// Dynamic sitemap + robots so search engines see whatever's currently
+// published in the pages table. Origin is derived from the incoming
+// request when nothing's been explicitly set.
+
+function getSiteOrigin(c: any): string {
+  const explicit = process.env.SITE_ORIGIN
+  if (explicit) return explicit.replace(/\/+$/, '')
+  const url = new URL(c.req.url)
+  return `${url.protocol}//${url.host}`
+}
+
+app.get('/sitemap.xml', async (c) => {
+  const origin = getSiteOrigin(c)
+  const rows = await db.select().from(pagesTbl).where(eq(pagesTbl.isPublished, true)).orderBy(asc(pagesTbl.navOrder), asc(pagesTbl.title))
+  const urls = rows.map(r => {
+    const loc = origin + (r.slug === 'home' ? '/' : '/' + r.slug)
+    const lastmod = r.updatedAt instanceof Date ? r.updatedAt.toISOString() : new Date(r.updatedAt as any).toISOString()
+    return `  <url><loc>${escapeXml(loc)}</loc><lastmod>${lastmod}</lastmod></url>`
+  })
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+    urls.join('\n') +
+    `\n</urlset>\n`
+  c.header('Content-Type', 'application/xml')
+  c.header('Cache-Control', 'public, max-age=3600')
+  return c.body(xml)
+})
+
+app.get('/robots.txt', async (c) => {
+  const origin = getSiteOrigin(c)
+  const body =
+    `User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`
+  c.header('Content-Type', 'text/plain')
+  c.header('Cache-Control', 'public, max-age=86400')
+  return c.body(body)
+})
+
+function escapeXml(s: string): string {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c] || c))
+}
 
 // ── Public: lead capture from the contact form ────────────────────────────
 app.post('/api/leads', async (c) => {
