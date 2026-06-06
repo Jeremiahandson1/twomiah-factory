@@ -1696,7 +1696,14 @@ const adminDistDir = path.join(__dirname, 'admin', 'dist')
 const hasAdminBuild = fs.existsSync(adminDistDir) && fs.existsSync(path.join(adminDistDir, 'index.html'))
 
 if (hasAdminBuild) {
-  app.use('/admin/assets/*', serveStatic({ root: './admin/dist' }))
+  // Hono's serveStatic joins root + c.req.path verbatim, so without a
+  // rewrite it would look for ./admin/dist/admin/assets/<file>. Strip
+  // the /admin prefix so the lookup lands at ./admin/dist/assets/<file>
+  // where Vite actually emits the build.
+  app.use('/admin/assets/*', serveStatic({
+    root: './admin/dist',
+    rewriteRequestPath: (p) => p.replace(/^\/admin/, ''),
+  }))
   app.get('/admin/*', (c) => {
     // SPA fallback — serve index.html for any /admin/* request that wasn't
     // an asset. React Router takes over from there.
