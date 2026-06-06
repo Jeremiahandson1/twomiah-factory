@@ -75,31 +75,28 @@ if (!premiumSiteSvc?.id) {
   console.error('Could not find premium-site Render service named', premiumSiteName)
   process.exit(1)
 }
-const envRes = await fetch('https://api.render.com/v1/services/' + premiumSiteSvc.id + '/env-vars/DATABASE_URL', { headers: renderHeaders })
-const envData = await envRes.json() as any
-const premiumDbUrl = envData.value
-if (!premiumDbUrl) {
-  console.error('Premium site has no DATABASE_URL env var set — cannot read owner credentials')
+// Fetch owner credentials via HTTP — Render gives services internal-only
+// DATABASE_URLs that we can't reach from this script's host. Premium
+// exposes /api/internal/owner-credentials (X-Factory-Key gated) for
+// exactly this purpose.
+const premiumSiteUrl = tenant.website_url || ('https://' + premiumSiteSvc.name + '.onrender.com')
+const premiumSyncKey = tenant.factory_sync_key
+if (!premiumSyncKey) {
+  console.error('Tenant row has no factory_sync_key — cannot authenticate to premium site. Bailing.')
   process.exit(1)
 }
-console.log('Found premium-site DATABASE_URL — reading owner user…')
-
-const { Client } = await import('pg')
-const pgClient = new Client({ connectionString: premiumDbUrl, ssl: { rejectUnauthorized: false } })
-await pgClient.connect()
-let ownerRow: { email: string; password_hash: string; name: string | null } | undefined
-try {
-  const r = await pgClient.query<any>(
-    "SELECT email, password_hash, name FROM users WHERE role IN ('owner','admin') ORDER BY created_at ASC LIMIT 1"
-  )
-  ownerRow = r.rows[0]
-} finally {
-  await pgClient.end()
-}
-if (!ownerRow) {
-  console.error('Premium site has no owner/admin user — cannot seed CRM with shared credentials. Bailing.')
+console.log('Fetching premium owner credentials via', premiumSiteUrl + '/api/internal/owner-credentials')
+const credRes = await fetch(premiumSiteUrl.replace(/\/+$/, '') + '/api/internal/owner-credentials', {
+  headers: { 'X-Factory-Key': premiumSyncKey },
+  signal: AbortSignal.timeout(15000),
+})
+if (!credRes.ok) {
+  console.error('Owner credentials lookup failed:', credRes.status, await credRes.text().catch(() => ''))
+  console.error('Bailing — without the owner email + hash we cannot set up shared sign-in.')
   process.exit(1)
 }
+const credJson = await credRes.json() as { email: string; passwordHash: string; name: string | null }
+const ownerRow = { email: credJson.email, password_hash: credJson.passwordHash, name: credJson.name }
 console.log('Owner found:', ownerRow.email)
 
 // Now invoke the existing deploy pipeline for CRM only. We pass

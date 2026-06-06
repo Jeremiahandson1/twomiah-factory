@@ -1318,6 +1318,32 @@ app.get('/api/admin/billing-portal', async (c) => {
   }
 })
 
+// Path A++ — internal: returns the premium owner's credentials so the
+// factory's provision script can seed the new CRM with matching
+// email + password hash. Render gives services internal-only
+// DATABASE_URLs that aren't reachable from outside its VPC, so the
+// script can't pg-connect directly; this endpoint is the supported
+// way to bridge.
+//
+// Returns the FIRST owner/admin user, ordered by created_at. The
+// password hash is exposed verbatim — that's by design: it's bcrypt,
+// X-Factory-Key gated, and the consumer needs it to seed the CRM
+// users table so cross-product sign-in works. Don't surface this
+// anywhere else.
+app.get('/api/internal/owner-credentials', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const { users: usersTbl } = await import('./db/schema')
+  const rows = await db.select({
+    email: usersTbl.email,
+    passwordHash: usersTbl.passwordHash,
+    name: usersTbl.name,
+  }).from(usersTbl).orderBy(asc(usersTbl.createdAt)).limit(1)
+  if (!rows[0]) return c.json({ error: 'No owner user found yet' }, 404)
+  return c.json(rows[0])
+})
+
 // Path A++ — internal: factory POSTs here after scripts/provision-crm-
 // for-tenant.ts succeeds. Sets settings.crmUrl + crmReadyAt so the
 // BillingPage flips from "Add CRM" to "Open CRM →" without a redeploy.
