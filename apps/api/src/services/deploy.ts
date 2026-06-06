@@ -876,7 +876,7 @@ export async function deployCustomer(
     if (twilioSid) integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: twilioSid })
     if (twilioToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: twilioToken })
     if (twilioPhone) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: twilioPhone })
-    const resendKey = integrations?.resendKey || process.env.TWOMIAH_RESEND_API_KEY || ''
+    const resendKey = integrations?.resendKey || process.env.TWOMIAH_RESEND_API_KEY || process.env.RESEND_API_KEY || ''
     if (resendKey) integrationEnvVars.push({ key: 'RESEND_API_KEY', value: resendKey })
     if (integrations?.stripe?.secretKey) {
       integrationEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripe.secretKey })
