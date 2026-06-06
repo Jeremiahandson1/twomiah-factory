@@ -10,6 +10,7 @@ import { spawnSync } from 'child_process'
 import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
 import { getFeaturesForPlan } from '../config/featureRegistry'
+import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost } from '../config/industryRouting'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
 const PACKAGES_ROOT = process.env.FACTORY_PACKAGES_DIR || path.resolve(process.cwd(), '..', '..', 'packages')
@@ -218,36 +219,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
       let websiteTemplate = 'website-general'
       if (isPremium) {
-        if (PREMIUM_ROOFING_INDUSTRIES.has(industry)) {
-          websiteTemplate = 'website-premium-roofing'
-        } else if (PREMIUM_HOMECARE_INDUSTRIES.has(industry)) {
-          websiteTemplate = 'website-premium-homecare'
-        } else if (PREMIUM_DISPENSARY_INDUSTRIES.has(industry)) {
-          websiteTemplate = 'website-premium-dispensary'
-        } else if (PREMIUM_LANDSCAPING_INDUSTRIES.has(industry)) {
-          websiteTemplate = 'website-premium-landscaping'
-        } else if (PREMIUM_SHOWCASE_INDUSTRIES.has(industry)) {
-          websiteTemplate = 'website-premium-showcase'
-        } else if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
-          websiteTemplate = 'website-premium-fieldservice'
-        } else if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
-          websiteTemplate = 'website-premium-contractor'
-        } else {
-          const supported = [
-            ...Array.from(PREMIUM_ROOFING_INDUSTRIES),
-            ...Array.from(PREMIUM_HOMECARE_INDUSTRIES),
-            ...Array.from(PREMIUM_DISPENSARY_INDUSTRIES),
-            ...Array.from(PREMIUM_LANDSCAPING_INDUSTRIES),
-            ...Array.from(PREMIUM_SHOWCASE_INDUSTRIES),
-            ...Array.from(PREMIUM_CONTRACTOR_INDUSTRIES),
-            ...Array.from(PREMIUM_FIELDSERVICE_INDUSTRIES),
-          ]
-          throw new Error(
-            `Premium website requested for industry='${industry}' but no premium template exists for this vertical yet. ` +
-            'Premium currently supports: ' + supported.join(', ') + '. ' +
-            'Either change industry or drop website-premium from products.'
-          )
-        }
+        // Use the central routing map so this stays in sync with the CRM
+        // template picker. Every industry resolves to a vertical (with
+        // contractor as fallback), so this can never throw.
+        websiteTemplate = premiumWebsiteTemplateFor(industry)
       } else if (industry === 'home_care') websiteTemplate = 'website-homecare'
       else if (industry === 'field_service') websiteTemplate = 'website-fieldservice'
       else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
@@ -318,7 +293,14 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
     if (products.some(p => p === 'crm' || p.startsWith('crm-'))) {
       const crmIndustry = config.company?.industry || ''
-      const crmTemplate = crmIndustry === 'home_care' ? 'crm-homecare' : FIELD_SERVICE_INDUSTRIES.has(crmIndustry) ? 'crm-fieldservice' : crmIndustry === 'automotive' ? 'crm-automotive' : crmIndustry === 'roofing' ? 'crm-roof' : crmIndustry === 'landscaping' ? 'crm-landscaping' : crmIndustry === 'dispensary' ? 'crm-dispensary' : 'crm'
+      // Resolve via the central routing map so the CRM template stays
+      // aligned with the website-premium template (used to drift — e.g.
+      // 'cleaning' got fieldservice premium but contractor CRM).
+      // Automotive is parked, so we keep the legacy branch for it
+      // outside the central map.
+      const crmTemplate = crmIndustry === 'automotive'
+        ? 'crm-automotive'
+        : crmTemplateFor(crmIndustry)
       const crmOutputDir = crmTemplate
       console.log('[Generator] CRM template:', crmTemplate, '→', path.join(workDir, crmOutputDir))
       copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), tokens)
@@ -489,8 +471,16 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
     '{{SITE_URL}}': c.siteUrl || ('https://' + (c.domain || slug + '.com')),
     '{{COMPANY_WEBSITE}}': 'https://' + (c.domain || slug + '.com'),
-    '{{BACKEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'landscaping' ? 'https://' + slug + '-landscape-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
-    '{{FRONTEND_URL}}': industry === 'home_care' ? 'https://' + slug + '-care-api.onrender.com' : FIELD_SERVICE_INDUSTRIES.has(industry) ? 'https://' + slug + '-wrench-api.onrender.com' : industry === 'automotive' ? 'https://' + slug + '-drive-api.onrender.com' : industry === 'roofing' ? 'https://' + slug + '-roof-api.onrender.com' : industry === 'landscaping' ? 'https://' + slug + '-landscape-api.onrender.com' : industry === 'dispensary' ? 'https://' + slug + '-leaf-api.onrender.com' : 'https://' + slug + '-api.onrender.com',
+    // Backend/frontend URLs need to match the CRM service naming
+    // (e.g. cleaning routes to crm-fieldservice → <slug>-wrench-api).
+    // Central routing keeps this aligned. Automotive stays inline so
+    // we don't disturb the parked template.
+    '{{BACKEND_URL}}': industry === 'automotive'
+      ? 'https://' + slug + '-drive-api.onrender.com'
+      : 'https://' + buildCrmApiHost(slug, industry),
+    '{{FRONTEND_URL}}': industry === 'automotive'
+      ? 'https://' + slug + '-drive-api.onrender.com'
+      : 'https://' + buildCrmApiHost(slug, industry),
     '{{INDUSTRY}}': industryLabel,
     '{{META_DESCRIPTION}}': industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'

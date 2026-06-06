@@ -10,6 +10,7 @@ import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
+import { verticalFor } from '../config/industryRouting'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
 
@@ -708,15 +709,18 @@ export async function deployCustomer(
   const { region = 'ohio', plan = 'starter', dbPlan = 'basic_256mb', products = factoryCustomer.products || ['crm'] } = options
   const slug = factoryCustomer.slug
   let ind = factoryCustomer.industry || factoryCustomer.config?.company?.industry || ''
-  // Normalize industry variants (e.g., home_care_nonmedical → home_care, hvac → field_service)
-  if (ind.startsWith('home_care')) ind = 'home_care'
-  if (['hvac', 'plumbing', 'electrical'].includes(ind) || ind.startsWith('field_service')) ind = 'field_service'
-  const isHomeCare = ind === 'home_care'
-  const isFieldService = ind === 'field_service'
-  const isAutomotive = ind === 'automotive'
-  const isRoofing = ind === 'roofing'
-  const isLandscaping = ind === 'landscaping'
-  const isDispensary = ind === 'dispensary'
+  // Resolve to a vertical via the central routing map. Any string that
+  // doesn't have an explicit mapping lands in 'contractor', which gives
+  // the right defaults (slug-api naming, base 'crm' template). Cleaning
+  // businesses, kitchen remodelers, etc. all route to the closest-fit
+  // vertical here rather than each callsite having to know about them.
+  const vertical = verticalFor(ind)
+  const isHomeCare = vertical === 'homecare'
+  const isFieldService = vertical === 'fieldservice'
+  const isAutomotive = ind === 'automotive' // parked vertical stays inline
+  const isRoofing = vertical === 'roofing'
+  const isLandscaping = vertical === 'landscaping'
+  const isDispensary = vertical === 'dispensary'
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')

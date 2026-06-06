@@ -1,0 +1,219 @@
+/**
+ * Industry → Template routing (single source of truth).
+ *
+ * Every signup specifies an industry. This file maps that industry
+ * string to:
+ *   1. The CRM template the tenant gets (templates/crm-...)
+ *   2. The premium-website template the tenant gets (templates/website-premium-...)
+ *   3. The legacy non-premium website template (templates/website-...)
+ *
+ * Until this file existed, the CRM and premium-website mappings drifted —
+ * e.g. `cleaning` correctly routed to website-premium-fieldservice, but
+ * the CRM picker had a narrower `FIELD_SERVICE_INDUSTRIES` set that
+ * didn't include cleaning, so a cleaning business got the wrong
+ * (contractor) CRM. Routing decisions now live here and only here.
+ *
+ * Adding a new industry: add it to the right vertical's set (or coin a
+ * new vertical if it warrants its own template). The fallback is the
+ * `crm` / `website-premium-contractor` pair — vague enough to read
+ * okay for unmatched industries, but you should explicitly map common
+ * cases here so customers get the closest-fit experience.
+ */
+
+export type CrmTemplate =
+  | 'crm'
+  | 'crm-fieldservice'
+  | 'crm-homecare'
+  | 'crm-roof'
+  | 'crm-landscaping'
+  | 'crm-dispensary'
+
+export type PremiumWebsiteTemplate =
+  | 'website-premium-contractor'
+  | 'website-premium-fieldservice'
+  | 'website-premium-homecare'
+  | 'website-premium-roofing'
+  | 'website-premium-landscaping'
+  | 'website-premium-dispensary'
+  | 'website-premium-showcase'
+
+export type LegacyWebsiteTemplate =
+  | 'website-general'
+  | 'website-contractor'
+  | 'website-fieldservice'
+  | 'website-homecare'
+  | 'website-roofing'
+  | 'website-landscaping'
+  | 'website-dispensary'
+  | 'website-showcase'
+
+export type Vertical =
+  | 'contractor'
+  | 'fieldservice'
+  | 'homecare'
+  | 'roofing'
+  | 'landscaping'
+  | 'dispensary'
+  | 'showcase'
+
+// ─── Industry sets per vertical ─────────────────────────────────────
+// These are the strings the intake form / wizard / API may receive.
+// Keep lowercase + snake_case. Any string not in any set falls back
+// to the contractor vertical.
+
+export const ROOFING_INDUSTRIES = new Set([
+  'roofing', 'roof', 'roofer', 'roof_repair',
+  'storm_restoration', 'siding_roofing',
+])
+
+export const HOMECARE_INDUSTRIES = new Set([
+  'home_care', 'homecare', 'in_home_care', 'senior_care',
+  'caregiving', 'companion_care', 'home_health',
+])
+
+export const DISPENSARY_INDUSTRIES = new Set([
+  'dispensary', 'cannabis', 'cannabis_retail',
+])
+
+export const LANDSCAPING_INDUSTRIES = new Set([
+  'landscaping', 'lawn_care', 'lawncare', 'landscape_design',
+  'snow_removal', 'tree_service', 'arborist', 'hardscape',
+])
+
+export const FIELDSERVICE_INDUSTRIES = new Set([
+  'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
+  // Cleaning businesses: the data model fits — recurring jobs,
+  // mobile crews, route/schedule, customer history. UI vocab is
+  // "tech" but customers map it to "cleaner" without friction.
+  'cleaning', 'house_cleaning', 'maid_service', 'janitorial',
+  'commercial_cleaning', 'carpet_cleaning', 'window_cleaning',
+  'pressure_washing', 'gutter_cleaning',
+  // Other recurring/mobile services that fit the same template:
+  'pest_control', 'exterminator', 'locksmith', 'garage_door',
+  'septic', 'pool_service', 'irrigation', 'handyman',
+  'painting',  // painters use jobs + crews like field service
+  'mobile_detailing', 'mobile_mechanic', 'pet_grooming', 'dog_walking',
+])
+
+export const SHOWCASE_INDUSTRIES = new Set([
+  'food', 'restaurant', 'hospitality', 'hotel', 'cafe',
+  'fitness', 'gym', 'yoga', 'beauty', 'salon', 'spa',
+  'events', 'wedding', 'catering', 'photography',
+])
+
+export const CONTRACTOR_INDUSTRIES = new Set([
+  'contractor', 'general_contractor', 'construction', 'remodeling',
+  'siding', 'home_improvement',
+  // Kitchen + bath remodelers (e.g. "The Kitchen Technique"):
+  'kitchen', 'kitchen_remodeling', 'kitchen_design', 'kitchen_installation',
+  'bath_remodeling', 'bathroom_remodeling',
+  // Other build-style trades:
+  'deck_builder', 'fence_installation', 'drywall', 'flooring',
+  'framing', 'concrete', 'masonry', 'tile', 'cabinet_maker',
+])
+
+// ─── Resolvers ──────────────────────────────────────────────────────
+
+/**
+ * Normalize variants the intake form sometimes sends (spaces, hyphens,
+ * "general contracting" → "general_contractor", etc.) before we look
+ * up. Anything that doesn't normalize cleanly falls through unchanged
+ * and gets the contractor fallback.
+ */
+export function normalizeIndustry(input: string | undefined | null): string {
+  if (!input) return ''
+  let s = String(input).toLowerCase().trim()
+  s = s.replace(/[\s\-]+/g, '_')
+  // Common phrasings the intake form might capture:
+  s = s.replace(/^general_contracting$/, 'general_contractor')
+  s = s.replace(/^lawn_and_landscape$/, 'landscaping')
+  s = s.replace(/^home_care_nonmedical$/, 'home_care')
+  s = s.replace(/^cleaning_service$/, 'cleaning')
+  s = s.replace(/^cleaning_services$/, 'cleaning')
+  s = s.replace(/^house_keeping$/, 'cleaning')
+  s = s.replace(/^housekeeping$/, 'cleaning')
+  return s
+}
+
+export function verticalFor(industry: string | undefined | null): Vertical {
+  const i = normalizeIndustry(industry)
+  if (ROOFING_INDUSTRIES.has(i)) return 'roofing'
+  if (HOMECARE_INDUSTRIES.has(i)) return 'homecare'
+  if (DISPENSARY_INDUSTRIES.has(i)) return 'dispensary'
+  if (LANDSCAPING_INDUSTRIES.has(i)) return 'landscaping'
+  if (FIELDSERVICE_INDUSTRIES.has(i)) return 'fieldservice'
+  if (SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
+  // Explicit contractor list + the empty/other fallback both land here.
+  // Showcase doesn't get the fallback — it's the most specialized vertical
+  // and would feel weird as a default for, say, a generic "services" intake.
+  return 'contractor'
+}
+
+export function crmTemplateFor(industry: string | undefined | null): CrmTemplate {
+  const v = verticalFor(industry)
+  switch (v) {
+    case 'homecare':     return 'crm-homecare'
+    case 'fieldservice': return 'crm-fieldservice'
+    case 'roofing':      return 'crm-roof'
+    case 'landscaping':  return 'crm-landscaping'
+    case 'dispensary':   return 'crm-dispensary'
+    // Showcase verticals (restaurants, salons, etc.) don't have a
+    // dedicated CRM template yet — most don't need full job/quote
+    // workflows. Default to the contractor base, which is the most
+    // general-purpose CRM we have (contacts, jobs, invoices).
+    case 'showcase':     return 'crm'
+    case 'contractor':   return 'crm'
+  }
+}
+
+export function premiumWebsiteTemplateFor(industry: string | undefined | null): PremiumWebsiteTemplate {
+  const v = verticalFor(industry)
+  return ('website-premium-' + v) as PremiumWebsiteTemplate
+}
+
+export function legacyWebsiteTemplateFor(industry: string | undefined | null): LegacyWebsiteTemplate {
+  const v = verticalFor(industry)
+  // The legacy website-* family doesn't have every vertical the premium
+  // family does — fall back to 'website-general' for cases without a
+  // matching template.
+  const map: Record<Vertical, LegacyWebsiteTemplate> = {
+    contractor:   'website-contractor',
+    fieldservice: 'website-fieldservice',
+    homecare:     'website-homecare',
+    roofing:      'website-roofing',
+    landscaping:  'website-landscaping',
+    dispensary:   'website-dispensary',
+    showcase:     'website-showcase',
+  }
+  return map[v] || 'website-general'
+}
+
+/**
+ * URL slug used in CRM service naming. Mirrors the existing per-industry
+ * suffix scheme: most verticals have a per-vertical word (e.g. -wrench-api,
+ * -care-api), contractor + showcase fall back to a plain {slug}-api with
+ * no infix word. Returns the full base name like 'wrench' or empty
+ * string for the no-infix case.
+ *
+ *   buildCrmApiHost('acme', 'cleaning')  → 'acme-wrench-api.onrender.com'
+ *   buildCrmApiHost('acme', 'remodeling')→ 'acme-api.onrender.com'
+ */
+export function crmServiceSuffixFor(industry: string | undefined | null): string {
+  const v = verticalFor(industry)
+  switch (v) {
+    case 'homecare':     return 'care'
+    case 'fieldservice': return 'wrench'
+    case 'roofing':      return 'roof'
+    case 'landscaping':  return 'landscape'
+    case 'dispensary':   return 'leaf'
+    case 'showcase':     return ''     // shares the contractor base CRM
+    case 'contractor':   return ''
+  }
+}
+
+export function buildCrmApiHost(slug: string, industry: string | undefined | null): string {
+  const suffix = crmServiceSuffixFor(industry)
+  return suffix
+    ? `${slug}-${suffix}-api.onrender.com`
+    : `${slug}-api.onrender.com`
+}
