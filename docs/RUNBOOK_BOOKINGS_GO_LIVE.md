@@ -68,10 +68,33 @@ FACTORY_PUBLIC_URL=https://<your-factory-url>
 Factory code falls back to that, but setting `FACTORY_PUBLIC_URL`
 explicitly is clearer for ops.
 
-## 4. Render cron jobs — ~5 min
+## 4. Scheduled jobs — built-in (free) or Render cron
 
-Two new scheduled jobs needed. Both are POSTs to the Factory with the
-existing `CRON_SECRET`.
+Three jobs need to fire on a schedule (24h reminders hourly; rebook
+nudges daily at 14:00 UTC; post-job review-request SMS daily at 16:00
+UTC). Pick **one** of:
+
+### Option A (recommended) — built-in scheduler, $0/mo
+
+The factory has an in-process scheduler that fires these three jobs on
+its own. Enable by setting `ENABLE_BUILTIN_CRON=true` on the factory's
+Render env (alongside the existing `CRON_SECRET`). Restart factory.
+
+Tradeoff: if the factory restarts, the in-memory timer resets — worst
+case is one missed hourly reminder window. Daily jobs always re-fire on
+the next scheduled UTC hour after boot.
+
+Verify it's running by tailing factory logs after restart — you'll see:
+```
+[scheduler] booking-reminders first fire in 1234s, then every hour
+[scheduler] booking-rebook-reminders first fire in 567min, then daily at 14:00 UTC
+[scheduler] booking-review-requests first fire in 678min, then daily at 16:00 UTC
+```
+
+### Option B — Render cron jobs ($1-3/mo each)
+
+If you'd rather keep schedule + factory loosely coupled. Each cron is a
+POST to the Factory with the existing `CRON_SECRET`.
 
 ### 24h booking reminders (hourly)
 
