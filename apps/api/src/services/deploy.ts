@@ -1156,6 +1156,14 @@ export async function deployCustomer(
           if (results.apiUrl) {
             siteEnvVars.push({ key: 'SMS_INTERNAL_URL', value: results.apiUrl.replace(/\/$/, '') + '/api/internal/send-sms' })
           }
+          // Premium-site needs SendGrid creds so lib/email.ts can actually
+          // send booking confirmations / waitlist notifications / reminder
+          // emails. Without these, every email path silently no-ops.
+          // CRM backend already gets these via integrationEnvVars above —
+          // the premium site is a separate service and was being skipped.
+          if (sendgridKey) siteEnvVars.push({ key: 'SENDGRID_API_KEY', value: sendgridKey })
+          const fromEmail = process.env.FACTORY_FROM_EMAIL || ''
+          if (fromEmail) siteEnvVars.push({ key: 'FACTORY_FROM_EMAIL', value: fromEmail })
           // Stash the generated password on the result so notifyDeployComplete
           // can include it in the customer's welcome email.
           ;(results as any).adminPassword = adminPassword
