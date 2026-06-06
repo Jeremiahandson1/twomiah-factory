@@ -12,6 +12,21 @@ const app = new Hono()
 // Health check before logger so it doesn't flood logs (Render pings every 5s)
 app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
 
+// Outbound-IP echo — used to find this service's external IP when
+// configuring API whitelists (Namecheap, etc.) on third-party
+// vendors. Calls api.ipify.org from inside the service so the
+// reported IP is whatever IP the third party will see us hit them
+// from. Public — no secret data, just an IPv4 string.
+app.get('/internal/whoami-ip', async (c) => {
+  try {
+    const r = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(8000) })
+    const j = await r.json() as { ip?: string }
+    return c.json({ ip: j.ip || null, source: 'ipify' })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 502)
+  }
+})
+
 app.use('*', logger())
 // Limit request body to 15 MB (covers branding data URLs)
 app.use('*', bodyLimit({ maxSize: 15 * 1024 * 1024, onError: (c) => c.json({ error: 'Request body too large (max 15 MB)' }, 413) }))
