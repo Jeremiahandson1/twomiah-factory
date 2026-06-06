@@ -3880,6 +3880,47 @@ factory.get('/internal/billing-portal/:tenantId', async (c) => {
   }
 })
 
+// Path A++ — create a Stripe Checkout session for the CRM add-on
+// against the tenant's existing Stripe customer. The tenant's premium
+// site calls this when the customer clicks "Add CRM — $49/mo" in
+// their /billing page. We return a Checkout URL; the tenant redirects.
+// On payment success, the customer lands back on the premium /billing
+// page with ?crm=ordered. The actual provisioning is gated behind
+// a manual run of scripts/provision-crm-for-tenant.ts (V1 caution
+// gate) — webhook auto-provision will replace this once we've run the
+// flow cleanly a few times.
+factory.get('/internal/checkout/crm-addon/:tenantId', async (c) => {
+  const tenantId = c.req.param('tenantId')
+  if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant id' }, 400)
+  const key = c.req.header('X-Factory-Key')
+  const { data: tenant, error } = await supabase.from('tenants')
+    .select('id, factory_sync_key, stripe_customer_id, products, website_url, render_frontend_url')
+    .eq('id', tenantId)
+    .single()
+  if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+  if (!key || key !== tenant.factory_sync_key) return c.json({ error: 'Bad sync key' }, 401)
+  if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant yet — finish initial billing first.' }, 409)
+  if ((tenant.products || []).includes('crm')) return c.json({ error: 'CRM is already active on this tenant.' }, 409)
+  const priceId = process.env.STRIPE_PRICE_PREMIUM_CRM_ADDON
+  if (!priceId) return c.json({ error: 'CRM add-on price not minted in Stripe yet — run create-stripe-products.ts.' }, 503)
+  const returnBase = (tenant.website_url || tenant.render_frontend_url || '').replace(/\/+$/, '')
+  if (!returnBase) return c.json({ error: 'Tenant has no site URL recorded.' }, 409)
+  try {
+    const session = await factoryStripe.createCheckoutSessionForExistingCustomer({
+      customerId: tenant.stripe_customer_id,
+      priceId,
+      mode: 'subscription',
+      successUrl: returnBase + '/admin/billing?crm=ordered',
+      cancelUrl: returnBase + '/admin/billing?crm=cancelled',
+      metadata: { tenant_id: tenantId, addon: 'crm' },
+    })
+    return c.json({ url: session.url })
+  } catch (e: any) {
+    console.error('[CrmAddonCheckout]', e.message)
+    return c.json({ error: 'Could not create checkout: ' + e.message }, 500)
+  }
+})
+
 // Internal: bootstrap payload for a freshly-deployed premium site.
 // Called by the premium template's bin/seed.ts on first boot (after
 // drizzle-kit push creates the schema). Returns the data needed to

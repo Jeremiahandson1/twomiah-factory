@@ -1318,6 +1318,34 @@ app.get('/api/admin/billing-portal', async (c) => {
   }
 })
 
+// Path A++ — proxy to the factory to start a Stripe Checkout for the
+// CRM add-on. Same pattern as billing-portal — factory holds the
+// Stripe secret, we forward the click. Customer pays, returns to
+// /admin/billing?crm=ordered, the BillingPage shows a "thanks, we'll
+// have it up within 24h" banner. Actual provisioning is gated by
+// Jeremiah running scripts/provision-crm-for-tenant.ts in V1.
+app.get('/api/admin/checkout/crm-addon', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) {
+    return c.json({ error: 'Upgrade not configured on this tenant.' }, 503)
+  }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/checkout/crm-addon/' + tenantId, {
+      headers: { 'X-Factory-Key': syncKey },
+      signal: AbortSignal.timeout(15000),
+    })
+    const body = await r.json()
+    if (!r.ok) return c.json(body, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 503)
+    return c.json(body)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
 // ── Factory internal: bookings list for CRM SchedulePage ──────────────────
 // CRM admin views jobs + bookings in one schedule view. The CRM backend
 // calls this endpoint server-to-server with FACTORY_SYNC_KEY. Returns

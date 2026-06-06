@@ -9,7 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { eq } from 'drizzle-orm'
-import { company } from '../db/schema.ts'
+import { company, user } from '../db/schema.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
@@ -224,6 +224,42 @@ app.post('/api/internal/sync-features', async (c) => {
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
   return c.json({ success: true, features: updated.enabledFeatures })
+})
+
+// Path A++ — seed the CRM's owner row with credentials matching the
+// existing premium-website admin. Called by the factory script
+// provision-crm-for-tenant.ts immediately after a Premium customer
+// adds the CRM via Stripe. The bcrypt hash is taken verbatim — bcryptjs
+// (premium) and Bun.password.verify (CRM) both accept $2a$ and $2b$
+// prefixes, so cross-implementation hashes interoperate.
+app.post('/api/internal/seed-from-premium', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({})) as { email?: string; passwordHash?: string; name?: string }
+  const email = String(body.email || '').trim().toLowerCase()
+  const passwordHash = String(body.passwordHash || '')
+  if (!email || !passwordHash) return c.json({ error: 'email and passwordHash required' }, 400)
+  const [comp] = await db.select().from(company).limit(1)
+  if (!comp) return c.json({ error: 'No company found' }, 404)
+  const [firstName, ...rest] = (body.name || '').trim().split(/\s+/)
+  const lastName = rest.join(' ') || ''
+  // Drizzle ORM lacks a clean ON CONFLICT for this composite key in
+  // every version, so do find-or-create with a guarded update.
+  const existing = (await db.select().from(user).where(eq(user.email, email)).limit(1))[0]
+  if (existing) {
+    await db.update(user).set({
+      passwordHash, role: 'owner', isActive: true, updatedAt: new Date(),
+    }).where(eq(user.id, existing.id))
+    return c.json({ success: true, action: 'updated', userId: existing.id })
+  }
+  const [created] = await db.insert(user).values({
+    email, passwordHash,
+    firstName: firstName || 'Owner', lastName: lastName || '',
+    role: 'owner', isActive: true,
+    companyId: comp.id,
+  }).returning({ id: user.id })
+  return c.json({ success: true, action: 'created', userId: created.id })
 })
 
 // CRM SchedulePage pulls Twomiah Bookings from the connected website-

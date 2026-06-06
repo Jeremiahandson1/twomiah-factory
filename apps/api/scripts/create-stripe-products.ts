@@ -260,6 +260,19 @@ async function main() {
   )
   await createPrice(premiumBuildProd, 'STRIPE_PRICE_PREMIUM_WEBSITE_BUILD', 100000, { nickname: 'Premium build fee ($1,000 one-time)' })
 
+  // CRM add-on for existing Premium customers. Attached as a separate
+  // subscription line item on the existing premium subscription so a
+  // customer can cancel CRM without losing their website. Provisioning
+  // is gated by Jeremiah's manual run of scripts/provision-crm-for-tenant.ts
+  // in V1; webhook-driven auto-provision will land once the manual flow
+  // has run cleanly a few times.
+  const premiumCrmAddonProd = await createProduct(
+    'Twomiah CRM Add-on (Premium Website customers)',
+    'Adds the full CRM to an existing Premium Website tenant. Same login, leads auto-flow to contacts, one billing relationship.',
+    { twomiah_tier: 'premium_crm_addon' }
+  )
+  await createPrice(premiumCrmAddonProd, 'STRIPE_PRICE_PREMIUM_CRM_ADDON', 4900, { recurring: { interval: 'month' }, nickname: 'CRM add-on ($49/mo)' })
+
   // Launch coupon — $499 off the build fee. Once-only. Valid 90 days from
   // creation. The Factory passes the coupon ID via STRIPE_COUPON_PREMIUM_
   // WEBSITE_LAUNCH; Stripe enforces its own expiry — if it's expired, the

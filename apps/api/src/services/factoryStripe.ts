@@ -421,6 +421,38 @@ export async function createBillingPortalSession(
   return { url: session.url }
 }
 
+/**
+ * Path A++ helper — build a Stripe Checkout session against an existing
+ * customer (used for the CRM add-on upgrade, where the customer already
+ * has a Premium subscription on the same Stripe customer). The new
+ * subscription line is a separate sub on the same customer, so the
+ * customer can cancel CRM without affecting their website.
+ */
+export async function createCheckoutSessionForExistingCustomer(opts: {
+  customerId: string
+  priceId: string
+  mode: 'subscription' | 'payment'
+  successUrl: string
+  cancelUrl: string
+  metadata?: Record<string, string>
+}): Promise<{ url: string | null; sessionId: string }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  if (!opts.customerId) throw new Error('customerId required')
+  if (!opts.priceId) throw new Error('priceId required')
+  const session = await stripe.checkout.sessions.create({
+    customer: opts.customerId,
+    mode: opts.mode,
+    line_items: [{ price: opts.priceId, quantity: 1 }],
+    success_url: opts.successUrl,
+    cancel_url: opts.cancelUrl,
+    subscription_data: opts.mode === 'subscription' && opts.metadata
+      ? { metadata: opts.metadata }
+      : undefined,
+    metadata: opts.metadata,
+  })
+  return { url: session.url, sessionId: session.id }
+}
+
 async function createCustomer(opts: { email: string; name: string; phone?: string; metadata?: Record<string, string> }): Promise<Stripe.Customer> {
   if (!stripe) throw new Error('Stripe not configured')
   return stripe.customers.create({
@@ -454,6 +486,7 @@ export default {
   createDeployCheckout,
   createPremiumWebsiteCheckout,
   createBillingPortalSession,
+  createCheckoutSessionForExistingCustomer,
   createAutoSubscription,
   createCustomer,
   cancelSubscription,
