@@ -101,15 +101,11 @@ console.log('Owner found:', ownerRow.email)
 
 // Now invoke the existing deploy pipeline for CRM only. We pass
 // products=['crm'] so the premium-site logic is never entered.
-// Pre-existing CRM services are caught by findAndDeleteRenderService
-// (destructive) — for safety, refuse if we detect one and require
-// --force.
-const isHomeCare = tenant.industry === 'home_care'
-const isFieldService = ['hvac', 'plumbing', 'electrical'].includes(tenant.industry) || tenant.industry?.startsWith('field_service')
-const isRoofing = tenant.industry === 'roofing'
-const isLandscaping = tenant.industry === 'landscaping'
-const isDispensary = tenant.industry === 'dispensary'
-const crmApiName = isHomeCare ? tenant.slug + '-care-api' : isFieldService ? tenant.slug + '-wrench-api' : isRoofing ? tenant.slug + '-roof-api' : isLandscaping ? tenant.slug + '-landscape-api' : isDispensary ? tenant.slug + '-leaf-api' : tenant.slug + '-api'
+// Service name must match what deploy.ts will actually create — use
+// the central routing config so e.g. cleaning → wrench, not just
+// the narrow hvac/plumbing/electrical set.
+const { buildCrmApiHost } = await import('../src/config/industryRouting.ts')
+const crmApiName = buildCrmApiHost(tenant.slug, tenant.industry || '').replace('.onrender.com', '')
 
 const checkExisting = await fetch('https://api.render.com/v1/services?name=' + crmApiName + '&limit=3', { headers: renderHeaders })
 const existingCrmList = await checkExisting.json() as any[]
@@ -192,26 +188,33 @@ if (existingTenantKey && freshlyGeneratedKey && existingTenantKey !== freshlyGen
   const crmSvcLookup = await fetch('https://api.render.com/v1/services?name=' + crmApiName + '&limit=3', { headers: renderHeaders })
   const crmList = await crmSvcLookup.json() as any[]
   const crmSvcId = (crmList?.[0]?.service?.id || crmList?.[0]?.id) as string | undefined
-  if (crmSvcId) {
-    await fetch('https://api.render.com/v1/services/' + crmSvcId + '/env-vars/FACTORY_SYNC_KEY', {
-      method: 'PUT',
-      headers: { ...renderHeaders, 'content-type': 'application/json' },
-      body: JSON.stringify({ value: existingTenantKey }),
-    })
-    await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys', {
-      method: 'POST', headers: { ...renderHeaders, 'content-type': 'application/json' },
-      body: JSON.stringify({ clearCache: 'do_not_clear' })
-    })
-    console.log('Patched FACTORY_SYNC_KEY + triggered CRM redeploy. Polling /health…')
-    for (let i = 0; i < 60; i++) {
-      try {
-        const h = await fetch(result.apiUrl + '/health', { signal: AbortSignal.timeout(5000) })
-        if (h.ok) break
-      } catch {}
-      await new Promise(r => setTimeout(r, 5000))
-    }
-  } else {
-    console.warn('Could not find CRM service to patch sync key — handoff may fail until manually aligned')
+  if (!crmSvcId) {
+    console.error('Could not find CRM service named "' + crmApiName + '" — alignment skipped, SSO handoff will fail.')
+    console.error('Bailing — seeding the CRM with a key it does not have leaves the customer permanently broken.')
+    process.exit(1)
+  }
+  await fetch('https://api.render.com/v1/services/' + crmSvcId + '/env-vars/FACTORY_SYNC_KEY', {
+    method: 'PUT',
+    headers: { ...renderHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify({ value: existingTenantKey }),
+  })
+  await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys', {
+    method: 'POST', headers: { ...renderHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify({ clearCache: 'do_not_clear' })
+  })
+  console.log('Patched FACTORY_SYNC_KEY + triggered CRM redeploy. Polling /health…')
+  // Wait for the redeploy to finish — /health responds during the
+  // old version too, so check the latest deploy's status via API.
+  await new Promise(r => setTimeout(r, 15000))  // grace period for deploy to register
+  for (let i = 0; i < 60; i++) {
+    try {
+      const dr = await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys?limit=1', { headers: renderHeaders })
+      const dj = await dr.json() as any[]
+      const status = dj?.[0]?.deploy?.status
+      if (status === 'live') { console.log('CRM redeploy live (with aligned key) after ' + (15 + i * 5) + 's'); break }
+      if (status && /failed|canceled/.test(status)) { console.error('CRM redeploy ' + status); process.exit(1) }
+    } catch {}
+    await new Promise(r => setTimeout(r, 5000))
   }
   factorySyncKey = existingTenantKey
 } else {
