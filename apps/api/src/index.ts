@@ -37,6 +37,13 @@ app.route('/api/v1/factory', factoryRoutes)
 app.route('/api/v1/qbwc', qbwcRoutes)
 app.route('/api/v1/brief', briefRoutes)
 
+// Also expose factory routes at root so the public OAuth + internal
+// cron endpoints work at their canonical URLs (e.g. /calendar/google/auth,
+// /internal/booking-reminders). Tenants and external schedulers build
+// these URLs without a /api/v1/factory prefix; the prefixed mount
+// above is retained for the platform admin SPA's existing calls.
+app.route('/', factoryRoutes)
+
 const port = Number(process.env.PORT || '3001') || 3001
 console.log(`[API] Twomiah Factory API running on port ${port}`)
 
