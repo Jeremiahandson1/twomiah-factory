@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { API_URL } from '../supabase'
 
-type Step = 'business' | 'location' | 'voice' | 'brand' | 'review' | 'submitted'
+type Step = 'business' | 'location' | 'voice' | 'domain' | 'brand' | 'review' | 'submitted'
 
 interface IntakeState {
   businessName: string
@@ -20,7 +20,17 @@ interface IntakeState {
   logo: File | null
   photos: File[]
   notes: string
+  // Optional — customer's preferred domain. Skip = launch on
+  // <slug>-site.onrender.com, decide later in admin.
+  requestedDomain: string
 }
+
+type DomainCheckState =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'available'; priceUsd?: number }
+  | { status: 'unavailable'; suggestions: Array<{ domain: string; priceUsd?: number }> }
+  | { status: 'error'; message: string }
 
 const INDUSTRIES = [
   { value: 'general_contractor', label: 'Contractor / Construction' },
@@ -48,7 +58,44 @@ export default function PublicIntakePage() {
     ownerName: '', city: '', state: '', serviceAreas: '',
     description: '', services: '', primaryColor: '#1a1a1a',
     brandColors: '', goals: '', logo: null, photos: [], notes: '',
+    requestedDomain: '',
   })
+  const [domainCheck, setDomainCheck] = useState<DomainCheckState>({ status: 'idle' })
+
+  // Debounced live availability check. Runs ~500ms after the customer
+  // stops typing in the domain field.
+  useEffect(() => {
+    const d = state.requestedDomain.trim().toLowerCase()
+    if (!d) { setDomainCheck({ status: 'idle' }); return }
+    if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.[a-z]{2,}$/.test(d)) {
+      setDomainCheck({ status: 'idle' }); return
+    }
+    let cancelled = false
+    setDomainCheck({ status: 'checking' })
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/factory/public/domain/check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain: d }),
+        })
+        if (cancelled) return
+        const data = await res.json()
+        if (!res.ok) { setDomainCheck({ status: 'error', message: data.error || 'Check failed' }); return }
+        if (data.available) {
+          setDomainCheck({ status: 'available', priceUsd: data.priceUsd })
+        } else {
+          setDomainCheck({
+            status: 'unavailable',
+            suggestions: (data.suggestions || []).map((s: any) => ({ domain: s.domain, priceUsd: s.priceUsd })),
+          })
+        }
+      } catch (e: any) {
+        if (!cancelled) setDomainCheck({ status: 'error', message: e.message })
+      }
+    }, 500)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [state.requestedDomain])
 
   const update = (patch: Partial<IntakeState>) => setState(s => ({ ...s, ...patch }))
 
@@ -71,6 +118,7 @@ export default function PublicIntakePage() {
       if (state.brandColors) fd.append('brandColors', state.brandColors)
       if (state.goals) fd.append('goals', state.goals)
       if (state.notes) fd.append('notes', state.notes)
+      if (state.requestedDomain.trim()) fd.append('requestedDomain', state.requestedDomain.trim().toLowerCase())
       if (state.logo) fd.append('logo', state.logo)
       for (const p of state.photos) fd.append('photos[]', p)
 
@@ -87,7 +135,7 @@ export default function PublicIntakePage() {
   }
 
   const StepBadge = ({ s, label, num }: { s: Step; label: string; num: number }) => {
-    const order: Step[] = ['business', 'location', 'voice', 'brand', 'review']
+    const order: Step[] = ['business', 'location', 'voice', 'domain', 'brand', 'review']
     const idx = order.indexOf(s)
     const cur = order.indexOf(step)
     const done = idx < cur
@@ -110,17 +158,18 @@ export default function PublicIntakePage() {
     if (step === 'business') return state.businessName.length >= 2 && state.businessType && state.contactEmail.includes('@')
     if (step === 'location') return true
     if (step === 'voice') return true
+    if (step === 'domain') return true   // domain is optional
     if (step === 'brand') return true
     return true
   })()
 
   const next = () => {
-    const order: Step[] = ['business', 'location', 'voice', 'brand', 'review']
+    const order: Step[] = ['business', 'location', 'voice', 'domain', 'brand', 'review']
     const i = order.indexOf(step)
     setStep(order[Math.min(i + 1, order.length - 1)])
   }
   const back = () => {
-    const order: Step[] = ['business', 'location', 'voice', 'brand', 'review']
+    const order: Step[] = ['business', 'location', 'voice', 'domain', 'brand', 'review']
     const i = order.indexOf(step)
     setStep(order[Math.max(i - 1, 0)])
   }
@@ -156,8 +205,9 @@ export default function PublicIntakePage() {
           <StepBadge s="business" label="Business" num={1} />
           <StepBadge s="location" label="Location" num={2} />
           <StepBadge s="voice" label="Voice" num={3} />
-          <StepBadge s="brand" label="Brand" num={4} />
-          <StepBadge s="review" label="Review" num={5} />
+          <StepBadge s="domain" label="Domain" num={4} />
+          <StepBadge s="brand" label="Brand" num={5} />
+          <StepBadge s="review" label="Review" num={6} />
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
@@ -215,6 +265,80 @@ export default function PublicIntakePage() {
               </Field>
             </div>
           )}
+          {step === 'domain' && (
+            <div className="space-y-5">
+              <h2 className="text-xl font-bold text-gray-900">Pick your domain</h2>
+              <p className="text-sm text-gray-500">
+                Have a domain in mind? Type it below and we'll check availability. Skip this step and we'll launch you
+                on a temporary <span className="font-mono text-gray-700">.twomiah.app</span> URL — you can hook up a real
+                domain whenever you're ready in admin.
+              </p>
+              <Field label="Domain you'd like (optional)" hint="No https://, just the name. We'll check if it's open.">
+                <input
+                  type="text"
+                  value={state.requestedDomain}
+                  onChange={e => update({ requestedDomain: e.target.value })}
+                  className="input font-mono"
+                  placeholder="e.g. madisonroofing.com"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                />
+              </Field>
+              {domainCheck.status === 'checking' && (
+                <div className="text-sm text-gray-500 flex items-center gap-2">
+                  <span className="inline-block w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  Checking…
+                </div>
+              )}
+              {domainCheck.status === 'available' && (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center justify-between">
+                  <div className="text-sm">
+                    <span className="font-semibold text-green-900">{state.requestedDomain}</span>
+                    <span className="text-green-800"> is available</span>
+                    {domainCheck.priceUsd && (
+                      <span className="text-green-700 ml-1">— ${domainCheck.priceUsd.toFixed(2)}/yr</span>
+                    )}
+                  </div>
+                  <span className="text-green-700 text-xl">✓</span>
+                </div>
+              )}
+              {domainCheck.status === 'unavailable' && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+                  <div className="text-sm text-orange-900 mb-3">
+                    <span className="font-semibold">{state.requestedDomain}</span> is taken.
+                    {domainCheck.suggestions.length > 0
+                      ? ' Here are some available alternatives:'
+                      : ' Try a different one.'}
+                  </div>
+                  {domainCheck.suggestions.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {domainCheck.suggestions.map(s => (
+                        <button
+                          key={s.domain}
+                          type="button"
+                          onClick={() => update({ requestedDomain: s.domain })}
+                          className="px-3 py-1.5 bg-white border border-orange-300 rounded-md text-sm font-mono text-gray-800 hover:bg-orange-100 hover:border-orange-400 transition"
+                        >
+                          {s.domain}
+                          {s.priceUsd && <span className="text-xs text-gray-500 ml-1.5">${s.priceUsd.toFixed(0)}/yr</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {domainCheck.status === 'error' && (
+                <div className="text-sm text-gray-500 italic">
+                  Live check is offline — that's fine. We'll verify availability when you approve your preview.
+                </div>
+              )}
+              <div className="text-xs text-gray-500 leading-relaxed pt-2 border-t border-gray-100">
+                <strong>Already own a domain?</strong> Type it here too — at launch we'll send you the DNS instructions to
+                point it at your site. No transfer required, you keep the registrar relationship.
+              </div>
+            </div>
+          )}
           {step === 'brand' && (
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">Brand basics</h2>
@@ -250,6 +374,7 @@ export default function PublicIntakePage() {
               {state.description && <ReviewRow label="About" value={state.description} multiline />}
               {state.services && <ReviewRow label="Services" value={state.services} multiline />}
               {state.goals && <ReviewRow label="Goals" value={state.goals} />}
+              {state.requestedDomain && <ReviewRow label="Domain" value={state.requestedDomain} />}
               <ReviewRow label="Brand color" value={
                 <span className="inline-flex items-center gap-2">
                   <span className="w-5 h-5 rounded border border-gray-300" style={{ background: state.primaryColor }} />

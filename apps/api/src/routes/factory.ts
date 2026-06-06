@@ -2846,9 +2846,11 @@ factory.post('/internal/trial-check', async (c) => {
   return c.json({ ok: true, timestamp: now.toISOString(), ...results })
 })
 
-// ─── Public domain availability check ───────────────────────────────────────
+// ─── Public domain availability check + suggestions ────────────────────────
 // Rate limited: 20 requests per 10 minutes per IP. Namecheap charges per call
 // and enforces its own rate caps — this protects both us and our quota.
+// When the requested name is unavailable, generates 10 nearby variants and
+// returns the available ones so the customer never hits a dead end.
 factory.post('/public/domain/check', rateLimit(10 * 60 * 1000, 20), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
@@ -2862,13 +2864,52 @@ factory.post('/public/domain/check', rateLimit(10 * 60 * 1000, 20), async (c) =>
       return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
     }
     const registrar = await getRegistrar()
-    const result = await registrar.checkAvailability(domain)
-    return c.json(result)
+    const primary = await registrar.checkAvailability(domain)
+    // If the customer's first pick is available, ship that and skip the
+    // expensive batch call. Keeps Namecheap quota low for the happy path.
+    if (primary.available) return c.json({ ...primary, suggestions: [] })
+
+    const variants = generateDomainVariants(domain)
+    const batched = variants.length > 0 ? await registrar.checkBatch(variants) : []
+    const suggestions = batched.filter(x => x.available && !x.premium).slice(0, 8)
+    return c.json({ ...primary, suggestions })
   } catch (err: any) {
     console.error('[Domain] Availability check failed:', err)
     return c.json({ error: err.message || 'Availability check failed' }, 500)
   }
 })
+
+/**
+ * Build a list of "close-enough" domain variants to check when the
+ * customer's first pick is taken. Mixes TLD swaps + common business
+ * suffixes + a couple of word reorderings. Caller dedupes against the
+ * original and against itself.
+ */
+function generateDomainVariants(input: string): string[] {
+  const m = input.match(/^([^.]+)\.(.+)$/)
+  if (!m) return []
+  const [, base, tld] = m
+  const baseClean = base.replace(/-+/g, '-')
+  const tldCandidates = [tld, 'com', 'co', 'net', 'us', 'io']
+  const suffixes = ['', 'co', 'inc', 'hq', 'group', 'team', 'pro', 'now', 'app', 'shop', 'go']
+  const out = new Set<string>()
+  for (const t of tldCandidates) {
+    for (const s of suffixes) {
+      if (!s && t === tld) continue  // identical to input
+      const stem = s ? baseClean + s : baseClean
+      if (stem.length > 30) continue  // avoid silly-long URLs
+      out.add(stem + '.' + t)
+    }
+  }
+  // Hyphenated split (handles "thekitchentechnique" → "the-kitchen-technique")
+  // ONLY if base has no hyphens already AND is long enough to plausibly split.
+  if (!baseClean.includes('-') && baseClean.length >= 10) {
+    const halves = Math.floor(baseClean.length / 2)
+    out.add(baseClean.slice(0, halves) + '-' + baseClean.slice(halves) + '.' + tld)
+  }
+  out.delete(input)
+  return Array.from(out).slice(0, 18)
+}
 
 factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
   try {
@@ -3161,6 +3202,11 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     const ownerName = getStr('ownerName') || null
     const description = getStr('description') || null
     const domain = getStr('domain') || null
+    // The /start intake's optional domain-step field. Distinct from
+    // `domain` (which is the customer's existing site, if any) — this
+    // is what they want for their NEW site. May fail availability at
+    // commit time; captured here only to surface in the review queue.
+    const requestedDomain = getStr('requestedDomain') || null
     const primaryColor = getStr('primaryColor') || null
     const secondaryColor = getStr('secondaryColor') || null
     const accentColor = getStr('accentColor') || null
@@ -3258,6 +3304,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
         },
         services: services.length ? services : undefined,
         wantsCrm,
+        requestedDomain: requestedDomain || undefined,
       },
     }
 

@@ -80,6 +80,42 @@ export function createNamecheapProvider(): RegistrarProvider {
       }
     },
 
+    async checkBatch(domains: string[]): Promise<DomainAvailability[]> {
+      if (domains.length === 0) return []
+      try {
+        // Namecheap's domains.check accepts up to 50 comma-separated domains
+        // per call. We cap at 20 to be polite + stay well inside the URL
+        // length limit (each variant is ~25 chars).
+        const list = domains.slice(0, 20).join(',')
+        const xml = await callApi('namecheap.domains.check', { DomainList: list })
+        // Extract one <DomainCheckResult ... /> per requested domain.
+        const matches = xml.match(/<DomainCheckResult\b[^/]*\/>/g) || []
+        const byDomain = new Map<string, DomainAvailability>()
+        for (const m of matches) {
+          const d = (m.match(/Domain="([^"]+)"/) || [])[1]
+          if (!d) continue
+          const avail = (m.match(/Available="([^"]+)"/) || [])[1] === 'true'
+          const isPrem = (m.match(/IsPremiumName="([^"]+)"/) || [])[1] === 'true'
+          const price = (m.match(/PremiumRegistrationPrice="([^"]+)"/) || [])[1]
+          byDomain.set(d.toLowerCase(), {
+            domain: d.toLowerCase(),
+            available: avail,
+            premium: isPrem,
+            priceUsd: price ? parseFloat(price) : undefined,
+            currency: 'USD',
+          })
+        }
+        // Preserve requested order; missing entries → unknown availability
+        return domains.map(d => byDomain.get(d.toLowerCase()) || {
+          domain: d.toLowerCase(),
+          available: false,
+          errorMessage: 'No response from registrar',
+        })
+      } catch (err: any) {
+        return domains.map(d => ({ domain: d.toLowerCase(), available: false, errorMessage: err.message }))
+      }
+    },
+
     async register(domain: string, opts: RegisterOptions): Promise<RegisterResult> {
       const c = opts.registrantContact
       const contactFields = {

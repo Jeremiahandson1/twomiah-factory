@@ -329,6 +329,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
             <div className="space-y-2 text-sm">
               <KV label="Type" value={intake.industry || intakeData.businessType || '—'} />
               <KV label="Phone" value={intake.phone || intakeData.phone || '—'} />
+              <KV label="Wants domain" value={intakeData.requestedDomain || '—'} />
               <KV label="Services" value={(intakeData.services || []).join(', ') || '—'} multiline />
               <KV label="Description" value={intakeData.description || '—'} multiline />
               <KV label="Goals" value={(intakeData.goals || []).join(' · ') || '—'} multiline />

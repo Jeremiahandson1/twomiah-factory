@@ -58,6 +58,10 @@ export interface RegistrarProvider {
   // Cheapest possible call — used by signup rate-limited availability endpoint
   checkAvailability(domain: string): Promise<DomainAvailability>
 
+  // Batched availability — used when we want to show alternative suggestions
+  // alongside the customer's first pick. Provider may cap internally.
+  checkBatch(domains: string[]): Promise<DomainAvailability[]>
+
   register(domain: string, opts: RegisterOptions): Promise<RegisterResult>
 
   renew(domain: string, years: number): Promise<{ success: boolean; expiresAt?: Date; error?: string }>
