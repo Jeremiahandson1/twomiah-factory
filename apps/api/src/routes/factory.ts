@@ -2437,7 +2437,7 @@ factory.post('/stripe/webhook', async (c) => {
     const body = await c.req.text()
     const sig = c.req.header('stripe-signature')
     if (!sig) return c.json({ error: 'Missing signature' }, 400)
-    event = factoryStripe.verifyWebhookSignature(body, sig)
+    event = await factoryStripe.verifyWebhookSignature(body, sig)
   } catch (err: any) {
     console.error('[Stripe] Webhook signature verification failed:', err.message)
     return c.json({ error: 'Signature verification failed' }, 400)

@@ -393,11 +393,19 @@ export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
   }
 }
 
-export function verifyWebhookSignature(payload: string | Buffer, signature: string): Stripe.Event {
+/**
+ * Verify a Stripe webhook signature. We run on Bun, which doesn't allow
+ * synchronous SubtleCrypto calls; Stripe's sync constructEvent() crashes
+ * with "SubtleCryptoProvider cannot be used in a synchronous context."
+ * The async variant works fine — same HMAC SHA-256, just resolved as a
+ * Promise. All callers were already in async handlers so this is a
+ * drop-in change.
+ */
+export async function verifyWebhookSignature(payload: string | Buffer, signature: string): Promise<Stripe.Event> {
   if (!stripe) throw new Error('Stripe not configured')
   const secret = process.env.STRIPE_FACTORY_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET
   if (!secret) throw new Error('Stripe webhook secret not configured (set STRIPE_FACTORY_WEBHOOK_SECRET or STRIPE_WEBHOOK_SECRET)')
-  return stripe.webhooks.constructEvent(payload, signature, secret)
+  return await stripe.webhooks.constructEventAsync(payload, signature, secret)
 }
 
 export function isConfigured(): boolean {
