@@ -181,8 +181,46 @@ for (let i = 0; i < maxPoll; i++) {
   if (i === maxPoll - 1) console.warn('CRM /health never responded within ' + (maxPoll * 5) + 's — continuing anyway')
 }
 
+// CRITICAL for SSO handoff: the factory signs handoff tokens with
+// tenant.factory_sync_key, the CRM verifies with its own
+// FACTORY_SYNC_KEY env var — these MUST match. deployCustomer just
+// generated a fresh key for this CRM; if the tenant already had one
+// (it does — premium was deployed earlier), we must overwrite the
+// CRM's env to the existing key + redeploy. Otherwise handoff fails.
+const existingTenantKey = tenant.factory_sync_key
+const freshlyGeneratedKey = result.factorySyncKey
+let factorySyncKey: string
+if (existingTenantKey && freshlyGeneratedKey && existingTenantKey !== freshlyGeneratedKey) {
+  console.log('CRM was deployed with a new sync key — aligning to existing tenant key for SSO handoff…')
+  const crmSvcLookup = await fetch('https://api.render.com/v1/services?name=' + crmApiName + '&limit=3', { headers: renderHeaders })
+  const crmList = await crmSvcLookup.json() as any[]
+  const crmSvcId = (crmList?.[0]?.service?.id || crmList?.[0]?.id) as string | undefined
+  if (crmSvcId) {
+    await fetch('https://api.render.com/v1/services/' + crmSvcId + '/env-vars/FACTORY_SYNC_KEY', {
+      method: 'PUT',
+      headers: { ...renderHeaders, 'content-type': 'application/json' },
+      body: JSON.stringify({ value: existingTenantKey }),
+    })
+    await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys', {
+      method: 'POST', headers: { ...renderHeaders, 'content-type': 'application/json' },
+      body: JSON.stringify({ clearCache: 'do_not_clear' })
+    })
+    console.log('Patched FACTORY_SYNC_KEY + triggered CRM redeploy. Polling /health…')
+    for (let i = 0; i < 60; i++) {
+      try {
+        const h = await fetch(result.apiUrl + '/health', { signal: AbortSignal.timeout(5000) })
+        if (h.ok) break
+      } catch {}
+      await new Promise(r => setTimeout(r, 5000))
+    }
+  } else {
+    console.warn('Could not find CRM service to patch sync key — handoff may fail until manually aligned')
+  }
+  factorySyncKey = existingTenantKey
+} else {
+  factorySyncKey = freshlyGeneratedKey || existingTenantKey || ''
+}
 console.log('Seeding CRM owner from premium credentials…')
-const factorySyncKey = result.factorySyncKey || tenant.factory_sync_key || ''
 if (!factorySyncKey) {
   console.warn('No factory_sync_key — skipping seed. Customer will need to use forgot-password flow.')
 } else {
@@ -206,6 +244,25 @@ await supabase.from('tenants').update({
   factory_sync_key: factorySyncKey || tenant.factory_sync_key,
 }).eq('id', tenant.id)
 console.log('Updated tenants.products →', JSON.stringify(newProducts))
+
+// Tell the premium site where its new CRM lives so the BillingPage
+// can show the "Open CRM →" button and the SSO handoff knows the
+// destination. We POST through the premium's own internal endpoint
+// (gated by FACTORY_SYNC_KEY) so this works even on existing tenants
+// whose deploy.ts wasn't yet aware of this column.
+if (factorySyncKey && tenant.website_url) {
+  try {
+    const r = await fetch(tenant.website_url.replace(/\/+$/, '') + '/api/internal/set-crm-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': factorySyncKey },
+      body: JSON.stringify({ crmUrl: result.apiUrl })
+    })
+    if (r.ok) console.log('Notified premium site of CRM URL')
+    else console.warn('set-crm-url returned', r.status, await r.text().catch(() => ''))
+  } catch (e: any) {
+    console.warn('Could not notify premium site:', e?.message)
+  }
+}
 
 // Notify the customer
 const { sendEmail } = await import('../src/services/email.ts')

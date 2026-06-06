@@ -1318,6 +1318,80 @@ app.get('/api/admin/billing-portal', async (c) => {
   }
 })
 
+// Path A++ — internal: factory POSTs here after scripts/provision-crm-
+// for-tenant.ts succeeds. Sets settings.crmUrl + crmReadyAt so the
+// BillingPage flips from "Add CRM" to "Open CRM →" without a redeploy.
+app.post('/api/internal/set-crm-url', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({})) as { crmUrl?: string }
+  const url = String(body.crmUrl || '').trim()
+  if (!url || !/^https:\/\//.test(url)) return c.json({ error: 'crmUrl required (https://…)' }, 400)
+  const existing = await db.select().from(settingsTbl).limit(1)
+  if (!existing[0]) return c.json({ error: 'Settings not initialized' }, 409)
+  await db.update(settingsTbl).set({
+    crmUrl: url,
+    crmReadyAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(settingsTbl.id, existing[0].id))
+  return c.json({ success: true })
+})
+
+// Path A++ — surfaces CRM availability to the admin SPA. Powers the
+// /admin/billing UI's choice between "Add CRM" tile and "Open CRM →"
+// button. Public endpoint shape (returns booleans + URL, never the
+// handoff token) — token mint happens via /api/admin/crm-handoff
+// behind the admin gate.
+app.get('/api/admin/crm-status', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  const s = (await db.select().from(settingsTbl).limit(1))[0]
+  const ready = !!(s as any)?.crmUrl
+  return c.json({
+    ready,
+    crmUrl: ready ? (s as any).crmUrl : null,
+    readyAt: ready ? (s as any).crmReadyAt : null,
+  })
+})
+
+// Path A++ — proxy to factory for a fresh handoff token + redirect URL.
+// Factory signs the token with the per-tenant FACTORY_SYNC_KEY so the
+// CRM (which has the same key) can verify. Token is single-use,
+// 60-second TTL, and carries the user's email so the CRM can match
+// to its local seeded user row.
+app.get('/api/admin/crm-handoff', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  const jwtSecret = process.env.JWT_SECRET
+  if (!factoryUrl || !tenantId || !syncKey || !jwtSecret) {
+    return c.json({ error: 'Handoff not configured on this tenant.' }, 503)
+  }
+  let email = ''
+  try {
+    const jwtLib = (await import('jsonwebtoken')).default
+    const decoded = jwtLib.verify(authz.replace(/^Bearer\s+/, ''), jwtSecret) as { email?: string }
+    email = String(decoded.email || '').toLowerCase()
+  } catch {
+    return c.json({ error: 'Invalid auth token' }, 401)
+  }
+  if (!email) return c.json({ error: 'No email on session' }, 401)
+  try {
+    const r = await fetch(
+      factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/crm-handoff/' + tenantId + '?email=' + encodeURIComponent(email),
+      { headers: { 'X-Factory-Key': syncKey }, signal: AbortSignal.timeout(15000) }
+    )
+    const body = await r.json()
+    if (!r.ok) return c.json(body, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 503)
+    return c.json(body)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
 // Path A++ — proxy to the factory to start a Stripe Checkout for the
 // CRM add-on. Same pattern as billing-portal — factory holds the
 // Stripe secret, we forward the click. Customer pays, returns to

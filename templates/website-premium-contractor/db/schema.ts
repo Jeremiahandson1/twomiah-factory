@@ -42,6 +42,11 @@ export const settings = pgTable('settings', {
   // lets them tweak page sections without seeing security/billing/etc.
   // Auto-generated on first boot, rotatable by admin if shared widely.
   customizerToken: text('customizer_token'),
+  // CRM Add-on. Set by the factory after scripts/provision-crm-for-
+  // tenant.ts succeeds. Drives the "Open CRM →" handoff button in
+  // /admin/billing.
+  crmUrl: text('crm_url'),
+  crmReadyAt: timestamp('crm_ready_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

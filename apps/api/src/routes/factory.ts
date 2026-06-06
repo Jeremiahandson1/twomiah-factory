@@ -3880,6 +3880,36 @@ factory.get('/internal/billing-portal/:tenantId', async (c) => {
   }
 })
 
+// Path A++ — mint a single-use, 60s-TTL handoff JWT for SSO from the
+// premium admin into the CRM admin. Signed with the tenant's
+// factory_sync_key — same key the CRM has, so the CRM can verify
+// without knowing about the factory. Audience claim scopes the token
+// to the CRM specifically (token stolen + used against any other
+// endpoint fails the aud check).
+factory.get('/internal/crm-handoff/:tenantId', async (c) => {
+  const tenantId = c.req.param('tenantId')
+  if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant id' }, 400)
+  const key = c.req.header('X-Factory-Key')
+  const email = (c.req.query('email') || '').toLowerCase().trim()
+  if (!email) return c.json({ error: 'email required' }, 400)
+  const { data: tenant, error } = await supabase.from('tenants')
+    .select('id, slug, industry, factory_sync_key, products')
+    .eq('id', tenantId)
+    .single()
+  if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+  if (!key || key !== tenant.factory_sync_key) return c.json({ error: 'Bad sync key' }, 401)
+  if (!(tenant.products || []).includes('crm')) return c.json({ error: 'No CRM on this tenant' }, 409)
+  const { buildCrmApiHost } = await import('../config/industryRouting')
+  const crmHost = buildCrmApiHost(tenant.slug, tenant.industry || '')
+  const jwtLib = (await import('jsonwebtoken')).default
+  const token = jwtLib.sign(
+    { sub: email, tenant_id: tenantId, aud: 'twomiah-crm', iss: 'twomiah-factory' },
+    tenant.factory_sync_key,
+    { expiresIn: '60s' }
+  )
+  return c.json({ url: 'https://' + crmHost + '/auth/handoff?token=' + encodeURIComponent(token) })
+})
+
 // Path A++ — create a Stripe Checkout session for the CRM add-on
 // against the tenant's existing Stripe customer. The tenant's premium
 // site calls this when the customer clicks "Add CRM — $49/mo" in

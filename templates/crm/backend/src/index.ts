@@ -248,6 +248,59 @@ app.post('/api/internal/sync-features', async (c) => {
   return c.json({ success: true, features: updated.enabledFeatures })
 })
 
+// Path A++ — SSO handoff. See crm-fieldservice for canonical
+// implementation + commentary.
+app.get('/auth/handoff', async (c) => {
+  const token = c.req.query('token') || ''
+  if (!token) return c.text('Missing handoff token', 400)
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.text('SSO not configured on this CRM', 503)
+  const jwtLib = (await import('jsonwebtoken')).default
+  let decoded: { sub?: string; aud?: string; iss?: string }
+  try {
+    decoded = jwtLib.verify(token, syncKey, { audience: 'twomiah-crm' }) as any
+  } catch (e: any) {
+    return c.text('Invalid or expired handoff token: ' + e?.message, 401)
+  }
+  const email = String(decoded.sub || '').toLowerCase().trim()
+  if (!email) return c.text('Token missing subject', 401)
+  const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1)
+  if (!foundUser || !foundUser.isActive) return c.text('User not found — try signing in directly.', 401)
+  const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
+  if (!foundCompany) return c.text('Company not found', 404)
+  const accessToken = jwtLib.sign(
+    { userId: foundUser.id, companyId: foundUser.companyId, email: foundUser.email, role: foundUser.role },
+    process.env.JWT_SECRET!,
+    { expiresIn: '15m' }
+  )
+  const refreshToken = jwtLib.sign(
+    { userId: foundUser.id, companyId: foundUser.companyId, type: 'refresh' },
+    process.env.JWT_REFRESH_SECRET!,
+    { expiresIn: '7d' }
+  )
+  await db.update(user)
+    .set({ refreshToken, lastLogin: new Date(), updatedAt: new Date() })
+    .where(eq(user.id, foundUser.id))
+  const safeAccess = JSON.stringify(accessToken)
+  const safeRefresh = JSON.stringify(refreshToken)
+  return c.html(`<!doctype html><meta charset="utf-8"><title>Signing you in…</title>
+<body style="margin:0;font:14px -apple-system,Segoe UI,Roboto,sans-serif;background:#fafaf7;color:#555;display:flex;align-items:center;justify-content:center;height:100vh;">
+  <div style="text-align:center;">
+    <div style="font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#888;margin-bottom:8px;">TWOMIAH</div>
+    <div>Signing you in to your CRM…</div>
+  </div>
+  <script>
+    try {
+      localStorage.setItem('accessToken', ${safeAccess});
+      localStorage.setItem('refreshToken', ${safeRefresh});
+      window.location.replace('/');
+    } catch (e) {
+      document.body.innerText = 'Could not complete sign-in: ' + (e && e.message ? e.message : e);
+    }
+  </script>
+</body>`)
+})
+
 // Path A++ — seed CRM owner with credentials matching the premium
 // admin so the customer logs in with the same email/password they
 // already use. See templates/crm-fieldservice/backend/src/index.ts

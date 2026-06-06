@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CreditCard, ExternalLink, Loader2, Sparkles, CheckCircle2, Users, FileText, ClipboardList } from 'lucide-react'
+import { CreditCard, ExternalLink, Loader2, Sparkles, CheckCircle2, Users, FileText, ClipboardList, ArrowUpRight } from 'lucide-react'
 import { api } from '../api/client'
 
 export function BillingPage() {
@@ -9,15 +9,35 @@ export function BillingPage() {
   const [crmError, setCrmError] = useState<string | null>(null)
   const [crmStatus, setCrmStatus] = useState<'inactive' | 'ordered' | 'active'>('inactive')
 
-  // Read ?crm= status from URL (set by Stripe Checkout success/cancel
-  // return). We don't store it client-side beyond the page load — the
-  // tenants.products in Supabase is the source of truth long-term.
+  // Read ?crm=ordered from Stripe Checkout return AND poll the live
+  // crm-status endpoint — when scripts/provision-crm-for-tenant.ts
+  // finishes and POSTs set-crm-url, this flips to 'active' on the
+  // next page load (or 60s poll tick) without a redeploy.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (params.get('crm') === 'ordered') setCrmStatus('ordered')
-    // 'active' would be derived from /api/admin/me.products in V2 when
-    // we wire that. V1 relies on the post-Checkout banner + email.
+    let cancelled = false
+    async function checkStatus() {
+      try {
+        const { ready } = await api.get<{ ready: boolean; crmUrl: string | null }>('/api/admin/crm-status')
+        if (cancelled) return
+        if (ready) setCrmStatus('active')
+        else if (params.get('crm') === 'ordered') setCrmStatus('ordered')
+      } catch { /* keep current state on transient failures */ }
+    }
+    checkStatus()
+    const t = setInterval(checkStatus, 60_000)
+    return () => { cancelled = true; clearInterval(t) }
   }, [])
+
+  const openCrm = async () => {
+    setCrmLoading(true); setCrmError(null)
+    try {
+      const { url } = await api.get<{ url: string }>('/api/admin/crm-handoff')
+      window.location.href = url
+    } catch (e: any) {
+      setCrmError(e.message); setCrmLoading(false)
+    }
+  }
 
   const openPortal = async () => {
     setLoading(true); setError(null)
@@ -79,7 +99,30 @@ export function BillingPage() {
         </div>
       </section>
 
-      {crmStatus !== 'active' && (
+      {crmStatus === 'active' ? (
+        <section className="card card-padding mt-6">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg text-ink mb-1">Your CRM is live</h2>
+              <p className="text-sm text-ink-soft mb-4">
+                Same login as here. Click to jump in — no second sign-in.
+              </p>
+              <button
+                onClick={openCrm}
+                disabled={crmLoading}
+                className="btn-primary btn-md inline-flex items-center gap-2 disabled:opacity-40"
+              >
+                {crmLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowUpRight className="w-4 h-4" />}
+                {crmLoading ? 'Signing you in…' : 'Open CRM'}
+              </button>
+              {crmError && <div className="text-red-700 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-4">{crmError}</div>}
+            </div>
+          </div>
+        </section>
+      ) : (
         <section className="card card-padding mt-6 border-2 border-dashed border-orange-200">
           <div className="flex items-start gap-4">
             <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-orange-100 to-amber-100 flex items-center justify-center flex-shrink-0">
