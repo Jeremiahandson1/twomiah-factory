@@ -1,17 +1,17 @@
 /**
- * SendGrid send + branded HTML wrap. One module so every transactional
+ * Resend send + branded HTML wrap. One module so every transactional
  * email shares the same look and we can swap providers from one place.
  */
-const SENDGRID_API = 'https://api.sendgrid.com/v3/mail/send'
+const RESEND_API = 'https://api.resend.com/emails'
 
 function escape(s: string): string {
   return s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
 }
 
-function fromAddress(): { email: string; name: string } {
-  const email = process.env.FROM_EMAIL || process.env.FACTORY_FROM_EMAIL || 'noreply@twomiah.app'
+function fromAddress(): string {
+  const email = process.env.FROM_EMAIL || process.env.FACTORY_FROM_EMAIL || 'onboarding@resend.dev'
   const name = process.env.COMPANY_NAME || 'Twomiah'
-  return { email, name }
+  return name + ' <' + email + '>'
 }
 
 export async function sendEmail(opts: {
@@ -21,28 +21,30 @@ export async function sendEmail(opts: {
   replyTo?: { email: string; name?: string }
   attachments?: Array<{ content: string; filename: string; type: string; disposition?: 'attachment' | 'inline' }>
 }): Promise<boolean> {
-  const apiKey = process.env.SENDGRID_API_KEY
-  if (!apiKey) { console.warn('[email] SENDGRID_API_KEY not set; skipping send'); return false }
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) { console.warn('[email] RESEND_API_KEY not set; skipping send'); return false }
   const body: any = {
-    personalizations: [{ to: [{ email: opts.to }], subject: opts.subject }],
     from: fromAddress(),
-    content: [{ type: 'text/html', value: opts.html }],
+    to: [opts.to],
+    subject: opts.subject,
+    html: opts.html,
   }
-  if (opts.replyTo) body.reply_to = opts.replyTo
+  if (opts.replyTo) body.reply_to = opts.replyTo.email
   if (opts.attachments && opts.attachments.length > 0) {
     body.attachments = opts.attachments.map(a => ({
-      content: a.content, filename: a.filename, type: a.type,
-      disposition: a.disposition || 'attachment',
+      filename: a.filename,
+      content: a.content,  // base64
+      content_type: a.type,
     }))
   }
-  const res = await fetch(SENDGRID_API, {
+  const res = await fetch(RESEND_API, {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    console.warn('[email] SendGrid ' + res.status + ': ' + text)
+    console.warn('[email] Resend ' + res.status + ': ' + text)
     return false
   }
   return true

@@ -1,17 +1,17 @@
 /**
  * Twomiah Factory — Email Notification Service
- * Uses SendGrid v3 API via raw fetch (no dependency needed).
- * Gracefully no-ops if SENDGRID_API_KEY is not configured.
+ * Uses Resend API via raw fetch (no dependency needed).
+ * Gracefully no-ops if RESEND_API_KEY is not configured.
  */
 
-const SENDGRID_API = 'https://api.sendgrid.com/v3/mail/send'
+const RESEND_API = 'https://api.resend.com/emails'
 
 function getApiKey(): string | undefined {
-  return process.env.SENDGRID_API_KEY
+  return process.env.RESEND_API_KEY
 }
 
 function getFromEmail(): string {
-  return process.env.FACTORY_FROM_EMAIL || 'noreply@twomiah.app'
+  return process.env.FACTORY_FROM_EMAIL || 'onboarding@resend.dev'
 }
 
 // ─── Base send ───────────────────────────────────────────────────────────────
@@ -19,7 +19,7 @@ function getFromEmail(): string {
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   const apiKey = getApiKey()
   if (!apiKey) {
-    console.warn('[Email] SENDGRID_API_KEY not set — skipping email:', subject)
+    console.warn('[Email] RESEND_API_KEY not set — skipping email:', subject)
     return false
   }
   if (!to) {
@@ -28,27 +28,28 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   }
 
   try {
-    const res = await fetch(SENDGRID_API, {
+    const res = await fetch(RESEND_API, {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + apiKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: getFromEmail(), name: 'Twomiah Factory' },
+        from: 'Twomiah Factory <' + getFromEmail() + '>',
+        to: [to],
         subject,
-        content: [{ type: 'text/html', value: html }],
+        html,
       }),
       signal: AbortSignal.timeout(30_000),
     })
 
-    if (res.status === 202 || res.status === 200) {
+    if (res.ok) {
       console.log('[Email] Sent:', subject, '→', to)
       return true
     }
 
-    console.error('[Email] SendGrid error:', res.status)
+    const errBody = await res.text().catch(() => '')
+    console.error('[Email] Resend error:', res.status, errBody.slice(0, 200))
     return false
   } catch (err: any) {
     console.error('[Email] Failed to send:', err.message)

@@ -876,8 +876,8 @@ export async function deployCustomer(
     if (twilioSid) integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: twilioSid })
     if (twilioToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: twilioToken })
     if (twilioPhone) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: twilioPhone })
-    const sendgridKey = integrations?.sendgrid?.apiKey || process.env.TWOMIAH_SENDGRID_API_KEY || ''
-    if (sendgridKey) integrationEnvVars.push({ key: 'SENDGRID_API_KEY', value: sendgridKey })
+    const resendKey = integrations?.resendKey || process.env.TWOMIAH_RESEND_API_KEY || ''
+    if (resendKey) integrationEnvVars.push({ key: 'RESEND_API_KEY', value: resendKey })
     if (integrations?.stripe?.secretKey) {
       integrationEnvVars.push({ key: 'STRIPE_SECRET_KEY', value: integrations.stripe.secretKey })
       if (integrations.stripe.publishableKey) integrationEnvVars.push({ key: 'STRIPE_PUBLISHABLE_KEY', value: integrations.stripe.publishableKey })
@@ -1156,12 +1156,12 @@ export async function deployCustomer(
           if (results.apiUrl) {
             siteEnvVars.push({ key: 'SMS_INTERNAL_URL', value: results.apiUrl.replace(/\/$/, '') + '/api/internal/send-sms' })
           }
-          // Premium-site needs SendGrid creds so lib/email.ts can actually
+          // Premium-site needs Resend creds so lib/email.ts can actually
           // send booking confirmations / waitlist notifications / reminder
           // emails. Without these, every email path silently no-ops.
           // CRM backend already gets these via integrationEnvVars above —
           // the premium site is a separate service and was being skipped.
-          if (sendgridKey) siteEnvVars.push({ key: 'SENDGRID_API_KEY', value: sendgridKey })
+          if (resendKey) siteEnvVars.push({ key: 'RESEND_API_KEY', value: resendKey })
           const fromEmail = process.env.FACTORY_FROM_EMAIL || ''
           if (fromEmail) siteEnvVars.push({ key: 'FACTORY_FROM_EMAIL', value: fromEmail })
           // Stash the generated password on the result so notifyDeployComplete
