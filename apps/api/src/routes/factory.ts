@@ -1420,6 +1420,71 @@ factory.post('/customers/:id/email-domain/verify', async (c) => {
 })
 
 
+// Domain buy flow — creates a Stripe Checkout session for the customer
+// to pay for a new domain registration. The actual Namecheap call
+// happens on the webhook (checkout.session.completed) so a customer
+// can't get charged without us also kicking off the registration.
+factory.post('/internal/domain/buy/:tenantId', async (c) => {
+  try {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant id' }, 400)
+    const key = c.req.header('X-Factory-Key') || ''
+    const body = await c.req.json().catch(() => ({})) as { domain?: string; years?: number }
+    const domain = (body.domain || '').trim().toLowerCase()
+    const years = Math.max(1, Math.min(10, Math.floor(body.years || 1) || 1))
+    if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
+
+    const { data: tenant } = await supabase.from('tenants')
+      .select('id, slug, factory_sync_key, stripe_customer_id, domain, website_url, render_frontend_url')
+      .eq('id', tenantId).single()
+    if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (tenant.factory_sync_key !== key) return c.json({ error: 'Unauthorized' }, 401)
+    if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant — finish initial billing first.' }, 409)
+    if (tenant.domain) return c.json({ error: 'This tenant already has a domain attached.' }, 409)
+
+    if (!isRegistrarConfigured()) return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
+
+    // Confirm availability one more time before charging — the catalog
+    // can change between the customer's click and our Checkout creation.
+    const registrar = await getRegistrar()
+    const avail = await registrar.checkAvailability(domain)
+    if (!avail.available) return c.json({ error: 'That domain is no longer available. Try a different one.' }, 409)
+    if (avail.premium) return c.json({ error: 'That is a Premium domain — pricing is non-standard and we do not auto-register Premium domains in this flow yet. Please contact support.' }, 422)
+
+    const { lookupDomainPrice } = await import('../config/domainPricing')
+    const price = lookupDomainPrice(domain, years)
+    if (!price.ok) {
+      if (price.reason === 'unsupported_tld') {
+        return c.json({
+          error: 'We do not support .' + price.tld + ' yet. Supported TLDs: ' + price.supportedTlds.join(', '),
+        }, 422)
+      }
+      return c.json({ error: 'Malformed domain' }, 400)
+    }
+
+    const returnBase = (tenant.website_url || tenant.render_frontend_url || '').replace(/\/+$/, '')
+    if (!returnBase) return c.json({ error: 'Tenant has no site URL recorded.' }, 409)
+    const session = await factoryStripe.createOneTimeCheckoutSession({
+      customerId: tenant.stripe_customer_id,
+      amountCents: price.retailCents,
+      productName: 'Domain registration — ' + domain,
+      description: price.description,
+      successUrl: returnBase + '/admin/domain?domain=registered&session={CHECKOUT_SESSION_ID}',
+      cancelUrl: returnBase + '/admin/domain?domain=cancelled',
+      metadata: {
+        purpose: 'domain_registration',
+        tenant_id: tenantId,
+        domain,
+        years: String(years),
+      },
+    })
+    return c.json({ url: session.url, sessionId: session.sessionId, priceCents: price.retailCents })
+  } catch (e: any) {
+    console.error('[Domain] buy failed:', e)
+    return c.json({ error: e.message || 'Buy flow failed' }, 500)
+  }
+})
+
 // ─── Customer custom domain attach + verify (post-deploy) ─────────────────
 // Called by the premium admin's Custom Domain page when the customer
 // pastes their domain. Updates the tenant row, kicks off full domain
@@ -2412,6 +2477,24 @@ factory.post('/stripe/webhook', async (c) => {
       )
     }
 
+    // Domain registration: customer paid for a new domain via /admin/domain
+    // → register at Namecheap → wire DNS infrastructure. If Namecheap fails,
+    // we refund the customer so they're never paying for nothing.
+    if (event.type === 'checkout.session.completed' && event.data?.object?.metadata?.purpose === 'domain_registration') {
+      const session = event.data.object
+      const meta = session.metadata || {}
+      const tenantId = meta.tenant_id
+      const domain = meta.domain
+      const years = parseInt(meta.years || '1', 10) || 1
+      const paymentIntent = session.payment_intent
+      if (tenantId && domain) {
+        handleDomainRegistration({ tenantId, domain, years, paymentIntent, sessionId: session.id })
+          .catch(err => console.error('[Domain] Post-payment registration failed:', err.message))
+      } else {
+        console.warn('[Domain] Webhook missing required metadata:', JSON.stringify(meta))
+      }
+    }
+
     // Send email notification for past-due billing
     if (result.handled && result.updates?.billing_status === 'past_due') {
       const lookupQuery = result.factoryCustomerId
@@ -2434,6 +2517,130 @@ factory.post('/stripe/webhook', async (c) => {
   }
 })
 
+
+/**
+ * Customer paid via Stripe → register at Namecheap → wire DNS. Called
+ * fire-and-forget from the webhook handler; logs everything but never
+ * re-throws because the webhook must always 200 back to Stripe.
+ *
+ * Failure handling: if Namecheap rejects the registration (insufficient
+ * funds, IP not whitelisted, domain became unavailable in the 30 seconds
+ * since the customer clicked Register), we refund the Stripe charge so
+ * the customer isn't out money for a domain they don't have. Then email
+ * them apologizing and pointing at BYOD as an alternative.
+ */
+async function handleDomainRegistration(opts: {
+  tenantId: string
+  domain: string
+  years: number
+  paymentIntent: string
+  sessionId: string
+}): Promise<void> {
+  const { tenantId, domain, years, paymentIntent, sessionId } = opts
+  console.log('[Domain] Processing registration:', domain, 'for tenant', tenantId)
+
+  const { data: tenant, error: tErr } = await supabase.from('tenants')
+    .select('id, slug, name, email, admin_email, phone, address, city, state, zip, factory_sync_key')
+    .eq('id', tenantId).single()
+  if (tErr || !tenant) {
+    console.error('[Domain] Tenant not found during registration:', tenantId)
+    return
+  }
+
+  const { getRegistrar } = await import('../services/registrar/index')
+  const registrar = await getRegistrar()
+  const ownerName = (tenant.name || 'Admin User').split(/\s+/)
+  const firstName = ownerName[0] || 'Admin'
+  const lastName = ownerName.slice(1).join(' ') || 'User'
+  // Namecheap requires phone for registration — if the tenant didn't
+  // provide one we can't proceed. Refund + email.
+  if (!tenant.phone) {
+    console.warn('[Domain] Tenant has no phone — refunding')
+    await refundAndEmail({ tenant, paymentIntent, domain, reason: 'no_phone' })
+    return
+  }
+  const reg = await registrar.register(domain, {
+    years,
+    whoisPrivacy: true,
+    autoRenew: true,
+    registrantContact: {
+      firstName, lastName,
+      email: tenant.admin_email || tenant.email,
+      phone: tenant.phone,
+      address1: tenant.address || '',
+      city: tenant.city || '',
+      stateProvince: tenant.state || '',
+      postalCode: tenant.zip || '',
+      country: 'US',
+      organization: tenant.name,
+    },
+  })
+  if (!reg.success) {
+    console.error('[Domain] Namecheap register failed:', reg.error)
+    await refundAndEmail({ tenant, paymentIntent, domain, reason: 'registrar_failed', detail: reg.error })
+    return
+  }
+  console.log('[Domain] Namecheap register OK for', domain, 'expires', reg.expiresAt)
+
+  // Persist the domain on the tenant row + record registrar metadata.
+  await supabase.from('tenants').update({
+    domain,
+    domain_registrar: 'namecheap',
+    domain_expires_at: reg.expiresAt || null,
+  }).eq('id', tenantId)
+
+  // Wire Cloudflare + Resend + Render custom-domain attachment.
+  const { findRenderServicesBySlug, wireDomainInfrastructure } = await import('../services/deploy')
+  const services = await findRenderServicesBySlug(tenant.slug)
+  const siteServiceId = services.site || services['website-premium'] || services.website
+  const backendServiceId = services.backend || services.api
+  try {
+    const wire = await wireDomainInfrastructure({ domain, siteServiceId, backendServiceId })
+    if (wire.cloudflareZoneId) {
+      await supabase.from('tenants').update({ cloudflare_zone_id: wire.cloudflareZoneId }).eq('id', tenantId)
+    }
+    if (wire.sendgridDomainAuthId) {
+      await supabase.from('tenants').update({ sendgrid_domain_auth_id: wire.sendgridDomainAuthId }).eq('id', tenantId)
+    }
+    console.log('[Domain] Wire infra:', wire.success ? 'ok' : 'partial', wire.errors)
+  } catch (e: any) {
+    console.error('[Domain] Wire infra threw:', e.message)
+    // Don't refund — the domain IS registered, just the DNS auto-wire
+    // hit a snag. Customer keeps the domain; we surface the issue in
+    // support so we can finish manually.
+  }
+}
+
+async function refundAndEmail(opts: {
+  tenant: { id: string; admin_email: string | null; email: string | null; name: string | null }
+  paymentIntent: string
+  domain: string
+  reason: 'no_phone' | 'registrar_failed' | string
+  detail?: string
+}): Promise<void> {
+  try {
+    const r = await factoryStripe.refundPaymentIntent(opts.paymentIntent, 'requested_by_customer')
+    console.log('[Domain] Refund issued:', r.refundId, r.status)
+  } catch (e: any) {
+    console.error('[Domain] Refund failed:', e.message)
+  }
+  const to = opts.tenant.admin_email || opts.tenant.email
+  if (!to) return
+  const { sendEmail } = await import('../services/email')
+  const reasonText = opts.reason === 'no_phone'
+    ? 'we did not have a phone number on file for your account, and the domain registrar requires one'
+    : 'the domain registrar rejected the request: ' + (opts.detail || 'unknown error')
+  await sendEmail(to,
+    'About your ' + opts.domain + ' registration',
+    '<p>Hi ' + (opts.tenant.name || 'there') + ',</p>' +
+    '<p>We tried to register <strong>' + opts.domain + '</strong> for you and it didn\'t go through — ' + reasonText + '.</p>' +
+    '<p>We\'ve fully refunded the charge to your card. It should appear back in your account in 5-10 business days.</p>' +
+    '<p>If you want to try again, you can either:</p>' +
+    '<ul><li>Go back to your admin → Domain → Buy a new one and try a different name</li>' +
+    '<li>Or if you already own a domain elsewhere, use the "I already own a domain" tab instead</li></ul>' +
+    '<p>Reply to this email if you want help — a real person reads it.</p>'
+  ).catch(e => console.warn('[Domain] Email send failed:', e?.message))
+}
 
 // ─── Billing Portal ─────────────────────────────────────────────────────────
 factory.post('/customers/:id/billing-portal', requireRole('owner', 'admin'), async (c) => {

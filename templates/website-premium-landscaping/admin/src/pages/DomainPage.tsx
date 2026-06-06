@@ -40,16 +40,23 @@ export function DomainPage() {
       setStatusLoading(false)
     }
   }
+  const params = new URLSearchParams(window.location.search)
+  const justRegistered = params.get('domain') === 'registered'
+  const wasCancelled = params.get('domain') === 'cancelled'
+
   useEffect(() => {
     fetchStatus()
-    // Poll every 30s while pending so the customer sees the "active" flip
-    // without having to refresh.
+    // Poll every 30s when in a transient state. After Stripe Checkout
+    // returns with ?domain=registered, poll faster (every 8s) for the
+    // first 2 minutes because that's when the webhook should fire.
+    const pollMs = justRegistered && status.status === 'unconfigured' ? 8_000 : 30_000
     const t = setInterval(() => {
-      if (status.status === 'pending_nameservers' || status.status === 'partial') fetchStatus()
-    }, 30_000)
+      if (status.status === 'pending_nameservers' || status.status === 'partial' ||
+          (justRegistered && status.status === 'unconfigured')) fetchStatus()
+    }, pollMs)
     return () => clearInterval(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status.status])
+  }, [status.status, justRegistered])
 
   const attach = async (mode: 'byod' | 'buy', domain: string) => {
     setByodSubmitting(true); setByodError(null)
@@ -61,6 +68,19 @@ export function DomainPage() {
       setByodError(e.message)
     } finally {
       setByodSubmitting(false)
+    }
+  }
+
+  // Buy flow — kick off Stripe Checkout. On success, customer returns
+  // to /admin/domain?domain=registered and the polling effect picks up
+  // the new state automatically.
+  const startBuyCheckout = async (domain: string) => {
+    setByodSubmitting(true); setByodError(null)
+    try {
+      const data = await api.post<{ url: string }>('/api/admin/domain/buy-checkout', { domain, years: 1 })
+      if (data.url) window.location.href = data.url
+    } catch (e: any) {
+      setByodError(e.message); setByodSubmitting(false)
     }
   }
 
@@ -109,6 +129,25 @@ export function DomainPage() {
         <h1 className="text-3xl text-ink">Domain</h1>
         <p className="text-muted text-sm mt-1">Your site's public address.</p>
       </div>
+
+      {justRegistered && status.status === 'unconfigured' && (
+        <div className="mb-6 rounded-lg border border-orange-200 bg-orange-50 px-5 py-4 flex items-start gap-3">
+          <Loader2 className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5 animate-spin" />
+          <div>
+            <div className="font-semibold text-orange-900 text-sm">Payment received — registering your domain…</div>
+            <div className="text-orange-800 text-sm mt-0.5">
+              This usually takes 30-60 seconds. This page auto-updates the moment the registrar confirms.
+              If it doesn't update within 2 minutes, refresh and we'll show you what's up.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {wasCancelled && (
+        <div className="mb-6 rounded-lg border border-line bg-paper-alt px-5 py-3 text-sm text-ink-soft">
+          Checkout cancelled — no charges made. Try a different domain below, or use the "I already own a domain" tab.
+        </div>
+      )}
 
       {/* Current state */}
       {status.status === 'active' && (
@@ -262,10 +301,10 @@ export function DomainPage() {
                     <span className="text-green-800"> is available</span>
                     {check.priceUsd && <span className="text-green-700 ml-1">— ${check.priceUsd.toFixed(2)}/yr</span>}
                   </div>
-                  <button onClick={() => attach('buy', check.domain)}
+                  <button onClick={() => startBuyCheckout(check.domain)}
                     disabled={byodSubmitting}
                     className="btn-primary btn-sm">
-                    Register
+                    {byodSubmitting ? 'Starting…' : 'Register'}
                   </button>
                 </div>
               )}

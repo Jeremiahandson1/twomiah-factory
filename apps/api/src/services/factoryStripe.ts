@@ -422,6 +422,69 @@ export async function createBillingPortalSession(
 }
 
 /**
+ * Inline-priced one-time payment Checkout session against an existing
+ * customer. Used for the domain registration buy flow — every TLD has
+ * its own price + markup that we don't want to pre-mint as a Stripe
+ * Price object, so we pass price_data inline.
+ *
+ * Metadata is the only persistent record of *what* the customer paid
+ * for — the webhook handler uses it to know which action to take on
+ * checkout.session.completed.
+ */
+export async function createOneTimeCheckoutSession(opts: {
+  customerId: string
+  amountCents: number
+  currency?: string
+  productName: string
+  description?: string
+  successUrl: string
+  cancelUrl: string
+  metadata?: Record<string, string>
+}): Promise<{ url: string | null; sessionId: string }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  if (!opts.customerId) throw new Error('customerId required')
+  if (!opts.amountCents || opts.amountCents < 50) throw new Error('amountCents must be ≥ 50')
+  const session = await stripe.checkout.sessions.create({
+    customer: opts.customerId,
+    mode: 'payment',
+    line_items: [{
+      price_data: {
+        currency: (opts.currency || 'usd').toLowerCase(),
+        unit_amount: opts.amountCents,
+        product_data: {
+          name: opts.productName,
+          ...(opts.description ? { description: opts.description } : {}),
+        },
+      },
+      quantity: 1,
+    }],
+    payment_intent_data: {
+      ...(opts.metadata ? { metadata: opts.metadata } : {}),
+    },
+    success_url: opts.successUrl,
+    cancel_url: opts.cancelUrl,
+    metadata: opts.metadata,
+  })
+  return { url: session.url, sessionId: session.id }
+}
+
+/**
+ * Issue a full refund against a PaymentIntent. Used by the domain
+ * registration flow when Namecheap fails to register after the
+ * customer has already paid — we'd rather refund + apologize than
+ * keep money for a domain they don't have.
+ */
+export async function refundPaymentIntent(paymentIntentId: string, reason?: string): Promise<{ refundId: string; status: string }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  if (!paymentIntentId) throw new Error('paymentIntentId required')
+  const refund = await stripe.refunds.create({
+    payment_intent: paymentIntentId,
+    ...(reason ? { reason: reason as any } : {}),
+  })
+  return { refundId: refund.id, status: refund.status || 'pending' }
+}
+
+/**
  * Path A++ helper — build a Stripe Checkout session against an existing
  * customer (used for the CRM add-on upgrade, where the customer already
  * has a Premium subscription on the same Stripe customer). The new
@@ -487,6 +550,8 @@ export default {
   createPremiumWebsiteCheckout,
   createBillingPortalSession,
   createCheckoutSessionForExistingCustomer,
+  createOneTimeCheckoutSession,
+  refundPaymentIntent,
   createAutoSubscription,
   createCustomer,
   cancelSubscription,

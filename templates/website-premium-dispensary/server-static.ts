@@ -1367,6 +1367,32 @@ app.get('/api/admin/domain/status', async (c) => {
   }
 })
 
+// Buy flow — proxy to factory to create a Stripe Checkout session for
+// the domain registration. The customer pays, the webhook fires the
+// actual Namecheap registration, then wireDomainInfrastructure runs.
+app.post('/api/admin/domain/buy-checkout', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) return c.json({ error: 'Custom domain not configured on this tenant.' }, 503)
+  const body = await c.req.json().catch(() => ({})) as { domain?: string; years?: number }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/domain/buy/' + tenantId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': syncKey },
+      body: JSON.stringify({ domain: body.domain, years: body.years || 1 }),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 409 | 422 | 500 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
 // Public: probe availability for the buy flow (proxies to factory).
 // Same rate-limiting story as the intake form — factory enforces.
 app.post('/api/admin/domain/check', async (c) => {
