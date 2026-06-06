@@ -2,8 +2,9 @@
 
 Everything you need to click before the first paying customer can use
 Twomiah Bookings end-to-end. The code is shipped and live-tested
-(walk-bookings.ts 14/14 on a real Render tenant, 2026-06-05). What's
-left is dashboard config that the codebase can't do for you.
+(walk-bookings.ts 24/24 on a real Render tenant, 2026-06-05, covering
+the full Phase 1+2+3 surface plus polish). What's left is dashboard
+config that the codebase can't do for you.
 
 Estimated time: **30-45 minutes** of clicking, mostly in browser
 dashboards.
@@ -222,5 +223,15 @@ WHERE c.provider='google';
 
 ---
 
-Last updated: 2026-06-05, after walk-bookings.ts passed 14/14 on a
-live Render tenant. Author: Claude.
+### Cron 3 — post-job review-request SMS (daily)
+
+- Name: `twomiah-booking-review-requests`
+- Schedule: `0 16 * * *` (16:00 UTC = 10am Central, 1-2 days after job ends)
+- Command:
+  ```
+  curl -fsS -X POST "$FACTORY_URL/internal/booking-review-requests" -H "x-cron-secret: $CRON_SECRET"
+  ```
+
+Last updated: 2026-06-05, after walk-bookings.ts passed 24/24 on a
+live Render tenant (route-order fix on /bookings/analytics shipped
+the same day). Author: Claude.

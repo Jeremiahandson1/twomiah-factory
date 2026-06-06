@@ -147,7 +147,9 @@ async function walkthrough(siteUrl: string) {
       t: String(Date.now() - 5000),  // past dwell-time
     })
     const r = await fetch(siteUrl + '/book/deep-clean', { method: 'POST', body: form })
-    const body = await r.json()
+    const raw = await r.text()
+    let body: any
+    try { body = JSON.parse(raw) } catch { throw new Error('non-JSON response status=' + r.status + ' content-type=' + r.headers.get('content-type') + ' body=' + raw.slice(0, 400)) }
     if (!r.ok) throw new Error('status=' + r.status + ' ' + JSON.stringify(body))
     bookingId = body.booking.id
     confirmationToken = body.booking.confirmationToken
@@ -214,6 +216,123 @@ async function walkthrough(siteUrl: string) {
     if (r.status !== 200) throw new Error('status=' + r.status)
     const text = await r.text()
     if (!text.includes('twomiah-book-height')) throw new Error('script content missing')
+  })
+
+  // ── Phase 2/3 + polish coverage ─────────────────────────────────────────
+
+  await time('Admin: manual booking POST', async () => {
+    const start = new Date(target)
+    start.setDate(start.getDate() + 28)
+    start.setHours(14, 0, 0, 0)
+    const { res, body } = await c.fetch('/api/admin/bookings', {
+      method: 'POST',
+      body: JSON.stringify({
+        serviceId,
+        startAt: start.toISOString(),
+        customerName: 'Phoned Customer', customerEmail: 'twomiah14+phone@gmail.com',
+        customerPhone: '+15555550101', customerAddress: '900 Phone Ave',
+      }),
+    })
+    if (res.status !== 201) throw new Error('status=' + res.status + ' ' + JSON.stringify(body))
+    if (body.booking.source !== 'admin_manual') throw new Error('expected source=admin_manual, got ' + body.booking.source)
+  })
+
+  await time('Analytics endpoint returns aggregates', async () => {
+    const { res, body } = await c.fetch('/api/admin/bookings/analytics?days=30')
+    if (res.status !== 200) throw new Error('status=' + res.status)
+    if (typeof body.totalBookings !== 'number') throw new Error('missing totalBookings')
+    if (!body.byDayOfWeek || body.byDayOfWeek.length !== 7) throw new Error('byDayOfWeek wrong shape')
+    if (!Array.isArray(body.topServices)) throw new Error('topServices not an array')
+  })
+
+  await time('Customer profile aggregates by email', async () => {
+    const { res, body } = await c.fetch('/api/admin/booking-customers')
+    if (res.status !== 200) throw new Error('status=' + res.status)
+    if (!Array.isArray(body.customers)) throw new Error('customers not an array')
+    if (body.customers.length === 0) throw new Error('expected at least 1 customer from the bookings we created')
+  })
+
+  await time('Waitlist join works', async () => {
+    const form = new URLSearchParams({
+      customerName: 'Waitlister', customerEmail: 'twomiah14+wait@gmail.com',
+      preferredFrom: dateStr, preferredTo: dateStr,
+    })
+    const r = await fetch(siteUrl + '/book/deep-clean/waitlist', { method: 'POST', body: form })
+    if (r.status !== 200) throw new Error('status=' + r.status)
+    // Admin can see it
+    const { res, body } = await c.fetch('/api/admin/booking-waitlist')
+    if (res.status !== 200) throw new Error('admin list status=' + res.status)
+    if (!body.waitlist?.some((w: any) => w.customerEmail === 'twomiah14+wait@gmail.com')) {
+      throw new Error('waitlist entry not visible in admin')
+    }
+  })
+
+  await time('Banned customer is silently rejected', async () => {
+    const bannedEmail = 'twomiah14+banned@gmail.com'
+    await c.fetch('/api/admin/booking-bans', { method: 'POST', body: JSON.stringify({ email: bannedEmail, reason: 'walkthrough test' }) })
+    // Re-grab slots to get a fresh available one
+    const { body: slotBody } = await c.fetch('/book/deep-clean/slots?date=' + dateStr)
+    const freeSlot = slotBody.slots?.[0]?.startAtIso
+    if (!freeSlot) throw new Error('no free slot to test ban against')
+    const form = new URLSearchParams({
+      serviceSlug: 'deep-clean', startAtIso: freeSlot,
+      customerName: 'Banned Person', customerEmail: bannedEmail,
+      t: String(Date.now() - 5000),
+    })
+    const r = await fetch(siteUrl + '/book/deep-clean', { method: 'POST', body: form })
+    const data = await r.json()
+    // Silent drop returns 200 with booking.id='pending'
+    if (data.booking?.id !== 'pending') throw new Error('ban not enforced; booking.id=' + data.booking?.id)
+  })
+
+  await time('iCal feed regenerates + serves VCALENDAR', async () => {
+    const gen = await c.fetch('/api/admin/booking-ical-feed/regenerate', { method: 'POST' })
+    if (gen.res.status !== 200) throw new Error('regenerate status=' + gen.res.status)
+    const token = gen.body.token
+    const r = await fetch(siteUrl + '/api/ical/bookings.ics?token=' + token)
+    if (r.status !== 200) throw new Error('feed status=' + r.status)
+    const text = await r.text()
+    if (!text.startsWith('BEGIN:VCALENDAR')) throw new Error('feed does not start with VCALENDAR')
+    if (!text.includes('BEGIN:VEVENT')) throw new Error('feed has no events')
+  })
+
+  await time('iCal feed rejects bad token', async () => {
+    const r = await fetch(siteUrl + '/api/ical/bookings.ics?token=garbage')
+    if (r.status !== 401) throw new Error('expected 401, got ' + r.status)
+  })
+
+  await time('Webhook CRUD works', async () => {
+    const create = await c.fetch('/api/admin/booking-webhooks', {
+      method: 'POST',
+      body: JSON.stringify({ url: 'https://example.com/webhook-test', events: 'booking.created' }),
+    })
+    if (create.res.status !== 201) throw new Error('create status=' + create.res.status)
+    if (!create.body.secret) throw new Error('secret not returned on create')
+    const id = create.body.webhook.id
+    const list = await c.fetch('/api/admin/booking-webhooks')
+    if (!list.body.webhooks?.some((w: any) => w.id === id)) throw new Error('webhook not in list')
+    const del = await c.fetch('/api/admin/booking-webhooks/' + id, { method: 'DELETE' })
+    if (del.res.status !== 200) throw new Error('delete status=' + del.res.status)
+  })
+
+  await time('Calendar connections list (empty is OK)', async () => {
+    const { res, body } = await c.fetch('/api/admin/calendar/connections')
+    if (res.status !== 200) throw new Error('status=' + res.status)
+    if (!Array.isArray(body.connections)) throw new Error('connections not an array')
+  })
+
+  await time('Settings PATCH accepts booking copy fields', async () => {
+    const { res, body } = await c.fetch('/api/admin/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        bookingHeroTitle: 'Test hero',
+        bookingConfirmEmailSubject: 'Walkthrough: {service} confirmed',
+        bookingDefaultDriveTimeMinutes: 15,
+      }),
+    })
+    if (res.status !== 200) throw new Error('status=' + res.status + ' ' + JSON.stringify(body))
+    if (body.settings?.bookingHeroTitle !== 'Test hero') throw new Error('hero title not saved')
+    if (body.settings?.bookingDefaultDriveTimeMinutes !== 15) throw new Error('drive time not saved')
   })
 }
 
