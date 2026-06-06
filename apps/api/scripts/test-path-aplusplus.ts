@@ -167,6 +167,33 @@ try {
   if (provRes.status !== 0) throw new Error('provision-crm-for-tenant exit=' + provRes.status)
   record('CRM provisioned', true, undefined, Date.now() - provisionStart)
 
+  // ── Phase 2.5: domain check works against Namecheap production ─────────
+  console.log('\n━━━ Phase 2.5: domain & checkout endpoints ━━━')
+  await time('Domain availability check (Namecheap prod)', async () => {
+    const r = await fetch('https://twomiah-factory-api.onrender.com/api/v1/factory/public/domain/check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: 'google.com' }),  // definitely taken — exercises suggestions path
+    })
+    if (!r.ok) throw new Error('status=' + r.status)
+    const body = await r.json() as any
+    if (body.available !== false) throw new Error('expected google.com taken, got ' + JSON.stringify(body))
+    if (!Array.isArray(body.suggestions) || body.suggestions.length === 0) {
+      throw new Error('expected suggestions[], got ' + JSON.stringify(body.suggestions))
+    }
+  })
+
+  await time('CRM checkout endpoint refuses (CRM already on tenant)', async () => {
+    // Tenant already has CRM at this point (Phase 2 just provisioned it).
+    // Checkout endpoint should 409 the "already active" case, NOT crash
+    // and NOT silently mint a duplicate subscription.
+    const r = await fetch(premium.siteUrl + '/api/admin/checkout/crm-addon', {
+      headers: { Authorization: 'Bearer ' + adminToken }
+    })
+    if (r.status !== 409) {
+      throw new Error('expected 409 (CRM already active), got ' + r.status + ' ' + (await r.text()).slice(0, 200))
+    }
+  })
+
   // ── Phase 3: verify everything is wired ────────────────────────────────
   console.log('\n━━━ Phase 3: verify the wiring ━━━')
   const { createClient } = await import('@supabase/supabase-js')

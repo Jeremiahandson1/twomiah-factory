@@ -9,7 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
 import { eq } from 'drizzle-orm'
-import { agencies } from '../db/schema.ts'
+import { agencies, users } from '../db/schema.ts'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
 import { authenticate } from './middleware/auth.ts'
@@ -269,6 +269,34 @@ app.post('/api/internal/sync-features', async (c) => {
   currentSettings.enabledFeatures = features
   await db.update(agencies).set({ settings: currentSettings }).where(eq(agencies.id, agency.id))
   return c.json({ success: true, features })
+})
+
+// Path A++ — seed CRM owner with credentials matching the premium
+// admin. Homecare-specific: uses `users` (plural) + no per-user
+// agencyId FK on the schema, so we don't need to look up the parent
+// agency. Default role is 'caregiver' in the schema; we force
+// 'owner' on the seeded row.
+app.post('/api/internal/seed-from-premium', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const body = await c.req.json().catch(() => ({})) as { email?: string; passwordHash?: string; name?: string }
+  const email = String(body.email || '').trim().toLowerCase()
+  const passwordHash = String(body.passwordHash || '')
+  if (!email || !passwordHash) return c.json({ error: 'email and passwordHash required' }, 400)
+  const [firstName, ...rest] = (body.name || '').trim().split(/\s+/)
+  const lastName = rest.join(' ') || ''
+  const existing = (await db.select().from(users).where(eq(users.email, email)).limit(1))[0]
+  if (existing) {
+    await db.update(users).set({ passwordHash, role: 'owner', isActive: true, updatedAt: new Date() }).where(eq(users.id, existing.id))
+    return c.json({ success: true, action: 'updated', userId: existing.id })
+  }
+  const [created] = await db.insert(users).values({
+    email, passwordHash,
+    firstName: firstName || 'Owner', lastName: lastName || '',
+    role: 'owner', isActive: true,
+  }).returning({ id: users.id })
+  return c.json({ success: true, action: 'created', userId: created.id })
 })
 
 // Internal SMS send for Twomiah Bookings — the website-premium service
