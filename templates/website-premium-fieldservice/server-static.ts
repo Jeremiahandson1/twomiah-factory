@@ -22,6 +22,7 @@ import { eq, asc, desc, and, gte, lte } from 'drizzle-orm'
 import ejs from 'ejs'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 import { db } from './db'
 import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl } from './db/schema'
 import adminRoutes from './routes/admin'
@@ -50,6 +51,62 @@ function leadClientIp(c: any): string {
 
 // ── Health ────────────────────────────────────────────────────────────────
 app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
+
+// ─── Customer customizer entry ────────────────────────────────────────────
+// One token per tenant lives in settings.customizerToken. The customer
+// follows the emailed link, we verify in constant time, find-or-create
+// the synthetic 'customer' user, and drop them into the admin SPA with
+// a role-scoped session. AdminLayout filters the nav to Pages + Photos
+// + Account when role==='customer' — no security/billing/etc surfaces.
+app.get('/customize/:token', async (c) => {
+  const provided = c.req.param('token') || ''
+  const settings = await loadSettings()
+  const expected = (settings as any)?.customizerToken || ''
+  const ok = expected && provided.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected))
+  if (!ok) {
+    return c.html('<!doctype html><meta charset="utf-8"><title>Link expired</title>' +
+      '<body style="font:16px system-ui;padding:48px;max-width:560px;margin:auto;color:#1a1a1a;">' +
+      '<h1>This customize link isn\'t valid anymore</h1>' +
+      '<p style="color:#666;">The owner of this site may have rotated the link. Ask them to send you a fresh one.</p>' +
+      '</body>', 404)
+  }
+  const { users: usersTbl, sessions: sessionsTbl } = await import('./db/schema')
+  const customerEmail = 'customer@local'
+  const existing = (await db.select().from(usersTbl).where(eq(usersTbl.email, customerEmail)).limit(1))[0]
+  let user = existing
+  if (!user) {
+    const bcrypt = await import('bcryptjs')
+    const placeholderHash = await bcrypt.default.hash(crypto.randomBytes(32).toString('hex'), 10)
+    const [created] = await db.insert(usersTbl).values({
+      email: customerEmail,
+      name: 'Customer',
+      role: 'customer',
+      passwordHash: placeholderHash,
+    }).returning()
+    user = created
+  } else if (user.role !== 'customer') {
+    await db.update(usersTbl).set({ role: 'customer' }).where(eq(usersTbl.id, user.id))
+    user.role = 'customer'
+  }
+  const jti = crypto.randomBytes(16).toString('base64url')
+  await db.insert(sessionsTbl).values({
+    userId: user.id, jti,
+    ip: (c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown').split(',')[0].trim(),
+    userAgent: (c.req.header('User-Agent') || '').slice(0, 500),
+  })
+  const jwtLib = (await import('jsonwebtoken')).default
+  const JWT_SECRET = process.env.JWT_SECRET || ''
+  if (!JWT_SECRET) return c.text('Server misconfigured (no JWT_SECRET)', 503)
+  const token = jwtLib.sign({ sub: user.id, email: user.email, role: 'customer', jti }, JWT_SECRET, { expiresIn: 60 * 60 * 12 })
+  const { setCookie } = await import('hono/cookie')
+  setCookie(c, 'auth', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Strict', path: '/', maxAge: 60 * 60 * 12,
+  })
+  return c.redirect('/admin/pages')
+})
 
 // RFC 9116 security disclosure file. Pointer to twomiah.com/security
 // keeps every tenant pointing to a single coordinated disclosure page.
@@ -199,7 +256,6 @@ import {
   bookingServiceZones as bookingServiceZonesTbl,
   bookings as bookingsTbl,
 } from './db/schema'
-import crypto from 'crypto'
 
 const TENANT_TZ = process.env.TENANT_TIMEZONE || 'America/Chicago'
 

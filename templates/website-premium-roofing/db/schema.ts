@@ -37,6 +37,11 @@ export const settings = pgTable('settings', {
   // can subscribe — keeping it long-random + rotatable is good enough
   // for V1 (no calendar discovery).
   bookingIcalFeedToken: text('booking_ical_feed_token'),
+  // Per-tenant token for the show-first customer customizer flow.
+  // Customer follows `/customize/<token>` → gets a scoped session that
+  // lets them tweak page sections without seeing security/billing/etc.
+  // Auto-generated on first boot, rotatable by admin if shared widely.
+  customizerToken: text('customizer_token'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

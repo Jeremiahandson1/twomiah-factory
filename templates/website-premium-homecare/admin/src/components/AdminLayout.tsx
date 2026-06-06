@@ -5,24 +5,28 @@ import clsx from 'clsx'
 import { useAuth } from '../contexts/AuthContext'
 import { api } from '../api/client'
 
-type NavItem = { to: string; label: string; Icon: typeof FileText; adminOnly?: boolean }
+type NavItem = { to: string; label: string; Icon: typeof FileText; adminOnly?: boolean; customerVisible?: boolean }
 
 const NAV: NavItem[] = [
-  { to: '/pages',    label: 'Pages',    Icon: FileText },
+  { to: '/pages',    label: 'Pages',    Icon: FileText,    customerVisible: true },
   { to: '/posts',    label: 'Blog',     Icon: Newspaper },
   { to: '/bookings', label: 'Bookings', Icon: Calendar },
-  { to: '/photos',   label: 'Photos',   Icon: ImageIcon },
+  { to: '/photos',   label: 'Photos',   Icon: ImageIcon,   customerVisible: true },
   { to: '/settings', label: 'Settings', Icon: Settings },
   { to: '/leads',    label: 'Leads',    Icon: Inbox },
-  { to: '/billing',  label: 'Billing',  Icon: CreditCard, adminOnly: true },
-  { to: '/users',    label: 'Users',    Icon: Users, adminOnly: true },
-  { to: '/activity', label: 'Activity', Icon: Shield, adminOnly: true },
+  { to: '/billing',  label: 'Billing',  Icon: CreditCard,  adminOnly: true },
+  { to: '/users',    label: 'Users',    Icon: Users,       adminOnly: true },
+  { to: '/activity', label: 'Activity', Icon: Shield,      adminOnly: true },
   { to: '/account',  label: 'Account',  Icon: UserCircle },
 ]
 
 export function AdminLayout() {
   const { user, logout } = useAuth()
-  const items = NAV.filter((n) => !n.adminOnly || user?.role === 'admin')
+  const isCustomer = user?.role === 'customer'
+  const items = NAV.filter((n) => {
+    if (isCustomer) return n.customerVisible
+    return !n.adminOnly || user?.role === 'admin'
+  })
   const [newLeadCount, setNewLeadCount] = useState<number>(0)
 
   // Poll new-lead count every 60s so customers see the badge update
@@ -45,8 +49,8 @@ export function AdminLayout() {
       {/* Sidebar */}
       <aside className="w-60 shrink-0 bg-brand-deep text-white flex flex-col">
         <div className="px-5 py-6 border-b border-white/10">
-          <div className="font-display text-xl font-semibold">Premium Admin</div>
-          <div className="text-xs text-white/50 mt-1">{user?.email}</div>
+          <div className="font-display text-xl font-semibold">{isCustomer ? 'Customize your site' : 'Premium Admin'}</div>
+          <div className="text-xs text-white/50 mt-1">{isCustomer ? 'Tweak text, swap photos, save when ready' : user?.email}</div>
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1">
           {items.map(({ to, label, Icon }) => {

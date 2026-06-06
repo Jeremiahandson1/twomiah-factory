@@ -154,6 +154,21 @@ async function authMiddleware(c: Context<{ Variables: AdminVars }>, next: () => 
     c.set('userId', decoded.sub)
     c.set('userEmail', decoded.email)
     c.set('userRole', decoded.role || 'admin')
+    // Customer role is scoped to a small whitelist — page editing, photo
+    // library, settings read, identity ping. Anything else is forbidden
+    // at the gateway so we don't have to remember to add requireAdmin to
+    // every sensitive route individually.
+    if (decoded.role === 'customer') {
+      const p = c.req.path
+      const m = c.req.method
+      const allow =
+        (p === '/api/admin/me' && m === 'GET') ||
+        (p === '/api/admin/logout' && m === 'POST') ||
+        (p.startsWith('/api/admin/pages') && (m === 'GET' || m === 'PATCH')) ||
+        (p.startsWith('/api/admin/photos') && (m === 'GET' || m === 'POST' || m === 'DELETE')) ||
+        (p === '/api/admin/settings' && m === 'GET')
+      if (!allow) return c.json({ error: 'Customer access does not include this action.' }, 403)
+    }
     await next()
   } catch {
     return c.json({ error: 'Invalid or expired token' }, 401)
@@ -1599,6 +1614,35 @@ app.post('/booking-ical-feed/regenerate', authMiddleware, async (c) => {
   if (!existing[0]) return c.json({ error: 'Settings not initialized' }, 409)
   await db.update(settingsTbl).set({ bookingIcalFeedToken: token, updatedAt: new Date() }).where(eq(settingsTbl.id, existing[0].id))
   return c.json({ ok: true, token })
+})
+
+// ─── Customer customizer link management ────────────────────────────────
+// One token per tenant; returns the canonical shareable URL. Rotate
+// when sharing widely or after the customer is done tweaking.
+// Customer role can't reach this — gated to admin only via requireAdmin.
+app.get('/customizer-link', authMiddleware, async (c) => {
+  const settings = (await db.select().from(settingsTbl).limit(1))[0]
+  let token = settings?.customizerToken
+  if (!token) {
+    token = crypto2.randomBytes(24).toString('base64url')
+    if (settings) await db.update(settingsTbl).set({ customizerToken: token, updatedAt: new Date() }).where(eq(settingsTbl.id, settings.id))
+  }
+  const host = c.req.header('Host') || ''
+  const proto = c.req.header('X-Forwarded-Proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http')
+  return c.json({ token, url: proto + '://' + host + '/customize/' + token })
+})
+
+app.post('/customizer-link/rotate', authMiddleware, requireAdmin, async (c) => {
+  const token = crypto2.randomBytes(24).toString('base64url')
+  const existing = await db.select().from(settingsTbl).limit(1)
+  if (!existing[0]) return c.json({ error: 'Settings not initialized' }, 409)
+  await db.update(settingsTbl).set({ customizerToken: token, updatedAt: new Date() }).where(eq(settingsTbl.id, existing[0].id))
+  // Invalidate any active customer sessions
+  const customer = (await db.select().from(usersTbl).where(eq(usersTbl.email, 'customer@local')).limit(1))[0]
+  if (customer) await db.update(usersTbl).set({ tokensInvalidatedAt: new Date() }).where(eq(usersTbl.id, customer.id))
+  const host = c.req.header('Host') || ''
+  const proto = c.req.header('X-Forwarded-Proto') || (process.env.NODE_ENV === 'production' ? 'https' : 'http')
+  return c.json({ ok: true, token, url: proto + '://' + host + '/customize/' + token })
 })
 
 // ─── Twomiah Bookings — customer history ────────────────────────────────
