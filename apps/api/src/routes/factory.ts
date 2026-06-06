@@ -1457,9 +1457,9 @@ factory.get('/calendar/google/auth', async (c) => {
   const returnUrl = c.req.query('return') || ''
   if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
   // Verify tenant exists and the return URL points to it (anti-redirect-abuse)
-  const { data: tenant } = await supabase.from('tenants').select('id, render_website_url').eq('id', tenantId).single()
+  const { data: tenant } = await supabase.from('tenants').select('id, website_url').eq('id', tenantId).single()
   if (!tenant) return c.json({ error: 'tenant not found' }, 404)
-  if (!returnUrl.startsWith(tenant.render_website_url || '') && !returnUrl.startsWith('http://localhost')) {
+  if (!returnUrl.startsWith(tenant.website_url || '') && !returnUrl.startsWith('http://localhost')) {
     return c.json({ error: 'return URL must point to your tenant site' }, 400)
   }
   const state = newOauthState({ tenantId, userId, returnUrl })
@@ -1514,12 +1514,12 @@ factory.get('/calendar/google/callback', async (c) => {
   } catch { /* non-fatal */ }
 
   // Forward tokens to the tenant
-  const { data: tenant } = await supabase.from('tenants').select('render_website_url, factory_sync_key').eq('id', entry.tenantId).single()
-  if (!tenant?.render_website_url || !tenant?.factory_sync_key) {
+  const { data: tenant } = await supabase.from('tenants').select('website_url, factory_sync_key').eq('id', entry.tenantId).single()
+  if (!tenant?.website_url || !tenant?.factory_sync_key) {
     return c.html('<p>Tenant routing not configured.</p>', 502)
   }
   try {
-    const r = await fetch(tenant.render_website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
+    const r = await fetch(tenant.website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
       body: JSON.stringify({
@@ -1555,9 +1555,9 @@ factory.get('/calendar/outlook/auth', async (c) => {
   const userId = c.req.query('user')
   const returnUrl = c.req.query('return') || ''
   if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
-  const { data: tenant } = await supabase.from('tenants').select('id, render_website_url').eq('id', tenantId).single()
+  const { data: tenant } = await supabase.from('tenants').select('id, website_url').eq('id', tenantId).single()
   if (!tenant) return c.json({ error: 'tenant not found' }, 404)
-  if (!returnUrl.startsWith(tenant.render_website_url || '') && !returnUrl.startsWith('http://localhost')) {
+  if (!returnUrl.startsWith(tenant.website_url || '') && !returnUrl.startsWith('http://localhost')) {
     return c.json({ error: 'return URL must point to your tenant site' }, 400)
   }
   const state = newOauthState({ tenantId, userId, returnUrl })
@@ -1609,12 +1609,12 @@ factory.get('/calendar/outlook/callback', async (c) => {
     if (ures.ok) { const ud: any = await ures.json(); externalEmail = ud.mail || ud.userPrincipalName || '' }
   } catch { /* non-fatal */ }
 
-  const { data: tenant } = await supabase.from('tenants').select('render_website_url, factory_sync_key').eq('id', entry.tenantId).single()
-  if (!tenant?.render_website_url || !tenant?.factory_sync_key) {
+  const { data: tenant } = await supabase.from('tenants').select('website_url, factory_sync_key').eq('id', entry.tenantId).single()
+  if (!tenant?.website_url || !tenant?.factory_sync_key) {
     return c.html('<p>Tenant routing not configured.</p>', 502)
   }
   try {
-    const r = await fetch(tenant.render_website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
+    const r = await fetch(tenant.website_url.replace(/\/$/, '') + '/api/internal/calendar/store-tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
       body: JSON.stringify({
@@ -1643,14 +1643,14 @@ factory.post('/internal/booking-review-requests', async (c) => {
   const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
   if (!expectedSecret || gotSecret !== expectedSecret) return c.json({ error: 'Unauthorized' }, 401)
   const { data: tenants, error } = await supabase
-    .from('tenants').select('id, slug, render_website_url, factory_sync_key, status')
+    .from('tenants').select('id, slug, website_url, factory_sync_key, status')
     .eq('status', 'live').contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
   const results: any[] = []
   for (const t of tenants || []) {
-    if (!t.render_website_url || !t.factory_sync_key) continue
+    if (!t.website_url || !t.factory_sync_key) continue
     try {
-      const res = await fetch(t.render_website_url.replace(/\/$/, '') + '/api/internal/booking-review-requests', {
+      const res = await fetch(t.website_url.replace(/\/$/, '') + '/api/internal/booking-review-requests', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
         signal: AbortSignal.timeout(30_000),
       })
@@ -1671,16 +1671,16 @@ factory.post('/internal/booking-rebook-reminders', async (c) => {
 
   const { data: tenants, error } = await supabase
     .from('tenants')
-    .select('id, slug, render_website_url, factory_sync_key, status')
+    .select('id, slug, website_url, factory_sync_key, status')
     .eq('status', 'live')
     .contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
 
   const results: any[] = []
   for (const t of tenants || []) {
-    if (!t.render_website_url || !t.factory_sync_key) continue
+    if (!t.website_url || !t.factory_sync_key) continue
     try {
-      const res = await fetch(t.render_website_url.replace(/\/$/, '') + '/api/internal/booking-rebook-reminders', {
+      const res = await fetch(t.website_url.replace(/\/$/, '') + '/api/internal/booking-rebook-reminders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
         signal: AbortSignal.timeout(30_000),
@@ -1706,19 +1706,19 @@ factory.post('/internal/booking-reminders', async (c) => {
 
   const { data: tenants, error } = await supabase
     .from('tenants')
-    .select('id, slug, render_website_url, factory_sync_key, products, status')
+    .select('id, slug, website_url, factory_sync_key, products, status')
     .eq('status', 'live')
     .contains('products', ['website-premium'])
   if (error) return c.json({ error: error.message }, 500)
 
   const results: any[] = []
   for (const t of tenants || []) {
-    if (!t.render_website_url || !t.factory_sync_key) {
+    if (!t.website_url || !t.factory_sync_key) {
       results.push({ slug: t.slug, ok: false, reason: 'missing url or sync key' })
       continue
     }
     try {
-      const res = await fetch(t.render_website_url.replace(/\/$/, '') + '/api/internal/booking-reminders', {
+      const res = await fetch(t.website_url.replace(/\/$/, '') + '/api/internal/booking-reminders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Factory-Key': t.factory_sync_key },
         signal: AbortSignal.timeout(30_000),
