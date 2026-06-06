@@ -10,6 +10,7 @@ import { LeadsPage } from './pages/LeadsPage'
 import { UsersPage } from './pages/UsersPage'
 import { AccountPage } from './pages/AccountPage'
 import { BillingPage } from './pages/BillingPage'
+import { DomainPage } from './pages/DomainPage'
 import { PostsListPage } from './pages/PostsListPage'
 import { PostEditPage } from './pages/PostEditPage'
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage'
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/users" element={<UsersPage />} />
           <Route path="/account" element={<AccountPage />} />
           <Route path="/billing" element={<BillingPage />} />
+          <Route path="/domain" element={<DomainPage />} />
           <Route path="/posts" element={<PostsListPage />} />
           <Route path="/posts/:slug" element={<PostEditPage />} />
           <Route path="/bookings" element={<BookingsPage />} />

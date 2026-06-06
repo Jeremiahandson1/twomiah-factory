@@ -72,6 +72,17 @@ export async function deleteZone(zoneId: string): Promise<void> {
   await cfFetch('/zones/' + zoneId, { method: 'DELETE' })
 }
 
+/** Read current zone state — used by the customer-facing domain page
+ * to tell the customer "your nameservers are still pending" vs "active". */
+export async function getCloudflareZoneStatus(zoneId: string): Promise<{ status: string; nameServers: string[]; domain: string }> {
+  const result = await cfFetch('/zones/' + zoneId)
+  return {
+    status: result.status,
+    nameServers: result.name_servers || [],
+    domain: result.name,
+  }
+}
+
 export type DnsRecordType = 'A' | 'AAAA' | 'CNAME' | 'TXT' | 'MX'
 
 export interface DnsRecordSpec {

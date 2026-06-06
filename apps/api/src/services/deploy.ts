@@ -13,6 +13,7 @@ import AdmZip from 'adm-zip'
 import { verticalFor } from '../config/industryRouting'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
+import * as resend from './resend'
 
 const RENDER_API = 'https://api.render.com/v1'
 const GITHUB_API = 'https://api.github.com'
@@ -1651,8 +1652,14 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
     result.errors.push('Cloudflare not configured')
     return result
   }
-  if (!sendgrid.isSendGridConfigured()) {
-    result.errors.push('SendGrid not configured')
+  // Email-auth provider: prefer Resend if configured (current default),
+  // fall back to SendGrid for any legacy tenant that still has its
+  // sendgrid_domain_auth_id set from before the swap. At least one of
+  // the two must be configured or we can't authenticate domains for
+  // outbound DKIM/SPF.
+  const emailAuthProvider = resend.isResendConfigured() ? 'resend' : (sendgrid.isSendGridConfigured() ? 'sendgrid' : null)
+  if (!emailAuthProvider) {
+    result.errors.push('No email-auth provider configured (set RESEND_API_KEY)')
     return result
   }
 
@@ -1719,41 +1726,46 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
     }
   }
 
-  // ─── 4. SendGrid domain authentication ──────────────────────────────────
+  // ─── 4. Email domain authentication (Resend or legacy SendGrid) ─────────
+  // Records the provider returns get written to Cloudflare. The shape of
+  // both provider responses is normalized to the same DomainAuthRecord
+  // type, so the write loop doesn't branch.
   let sgId = opts.existingSendgridDomainAuthId
   try {
     if (!sgId) {
-      const auth = await sendgrid.authenticateDomain(opts.domain)
-      sgId = auth.id
-      result.sendgridDomainAuthId = auth.id
-      // Write each returned CNAME to Cloudflare — these are the SPF/DKIM records SendGrid checks
+      const auth = emailAuthProvider === 'resend'
+        ? await resend.authenticateDomain(opts.domain)
+        : await sendgrid.authenticateDomain(opts.domain)
+      // Both providers return { id, records[] } — for legacy SendGrid the
+      // id is numeric; for Resend it's a UUID string. The schema column
+      // (sendgrid_domain_auth_id) tolerates either since it's used opaquely.
+      sgId = auth.id as any
+      result.sendgridDomainAuthId = auth.id as any
       for (const rec of auth.records) {
-        // SendGrid's host field includes the full FQDN — strip the base domain so
-        // Cloudflare treats it as a relative record under the zone.
         const rel = rec.host.endsWith('.' + opts.domain) ? rec.host.slice(0, -(opts.domain.length + 1)) : rec.host
         if (rec.type === 'cname') {
-          await writeRecord({ type: 'CNAME', name: rel, content: rec.data, proxied: false }, 'sendgrid_' + rel)
+          await writeRecord({ type: 'CNAME', name: rel, content: rec.data, proxied: false }, emailAuthProvider + '_' + rel)
         } else if (rec.type === 'txt') {
-          await writeRecord({ type: 'TXT', name: rel, content: rec.data }, 'sendgrid_txt_' + rel)
+          await writeRecord({ type: 'TXT', name: rel, content: rec.data }, emailAuthProvider + '_txt_' + rel)
         } else if (rec.type === 'mx') {
-          // MX is managed by Cloudflare Email Routing for the apex; SendGrid's inbound-parse MX lives on a dedicated hostname we run factory-wide. Skip per-tenant SendGrid MX.
-          result.steps.push({ step: 'sendgrid_mx_' + rel, status: 'skipped', detail: 'factory-wide parse MX handles this' })
+          result.steps.push({ step: emailAuthProvider + '_mx_' + rel, status: 'skipped', detail: 'factory-wide parse MX handles this' })
         }
       }
-      result.steps.push({ step: 'sendgrid_authenticate', status: 'ok', detail: 'id=' + auth.id })
+      result.steps.push({ step: emailAuthProvider + '_authenticate', status: 'ok', detail: 'id=' + auth.id })
     } else {
       result.sendgridDomainAuthId = sgId
-      result.steps.push({ step: 'sendgrid_authenticate', status: 'ok', detail: 'reused id=' + sgId })
+      result.steps.push({ step: emailAuthProvider + '_authenticate', status: 'ok', detail: 'reused id=' + sgId })
     }
   } catch (e: any) {
-    result.steps.push({ step: 'sendgrid_authenticate', status: 'error', detail: e.message })
-    result.errors.push('SendGrid: ' + e.message)
+    result.steps.push({ step: emailAuthProvider + '_authenticate', status: 'error', detail: e.message })
+    result.errors.push(emailAuthProvider + ': ' + e.message)
   }
 
   // ─── 5. SPF + DMARC ─────────────────────────────────────────────────────
-  // SPF is additive to whatever SendGrid's CNAMEs publish — this consolidated
-  // TXT at the apex advertises SendGrid as the only authorized sender.
-  await writeRecord({ type: 'TXT', name: '@', content: 'v=spf1 include:sendgrid.net -all' }, 'spf')
+  // SPF advertises the active provider as the authorized sender. Resend's
+  // SPF include is _spf.resend.com; SendGrid's is sendgrid.net.
+  const spfInclude = emailAuthProvider === 'resend' ? 'include:_spf.resend.com' : 'include:sendgrid.net'
+  await writeRecord({ type: 'TXT', name: '@', content: 'v=spf1 ' + spfInclude + ' -all' }, 'spf')
 
   // DMARC p=none per plan decision: monitor-only for the first 30 days so we
   // can tighten to quarantine/reject after clean reports come in.

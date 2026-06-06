@@ -1318,6 +1318,78 @@ app.get('/api/admin/billing-portal', async (c) => {
   }
 })
 
+// Custom domain — attach the customer's BYOD domain to this tenant.
+// Proxies to factory which does the actual Cloudflare zone creation
+// + Render custom-domain attachment. Returns the nameservers the
+// customer needs to set at their registrar.
+app.post('/api/admin/domain/attach', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) return c.json({ error: 'Custom domain not configured on this tenant.' }, 503)
+  const body = await c.req.json().catch(() => ({})) as { domain?: string; mode?: 'byod' | 'buy' }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/domain/attach/' + tenantId, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': syncKey },
+      body: JSON.stringify({ domain: body.domain, mode: body.mode || 'byod' }),
+      signal: AbortSignal.timeout(30000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 409 | 500 | 501 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Read current custom-domain status — drives the admin page's banner
+// (pending nameservers / active / not configured).
+app.get('/api/admin/domain/status', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  const factoryUrl = process.env.FACTORY_URL
+  const tenantId = process.env.TENANT_ID
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!factoryUrl || !tenantId || !syncKey) return c.json({ status: 'unconfigured' })
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/internal/domain/status/' + tenantId, {
+      headers: { 'X-Factory-Key': syncKey },
+      signal: AbortSignal.timeout(15000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 500 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
+// Public: probe availability for the buy flow (proxies to factory).
+// Same rate-limiting story as the intake form — factory enforces.
+app.post('/api/admin/domain/check', async (c) => {
+  const authz = c.req.header('Authorization') || ''
+  if (!authz.startsWith('Bearer ')) return c.json({ error: 'Missing auth token' }, 401)
+  const factoryUrl = process.env.FACTORY_URL
+  if (!factoryUrl) return c.json({ error: 'Not configured' }, 503)
+  const body = await c.req.json().catch(() => ({})) as { domain?: string }
+  try {
+    const r = await fetch(factoryUrl.replace(/\/+$/, '') + '/api/v1/factory/public/domain/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: body.domain }),
+      signal: AbortSignal.timeout(15000),
+    })
+    const data = await r.json()
+    if (!r.ok) return c.json(data, r.status as 400 | 401 | 403 | 404 | 500 | 503)
+    return c.json(data)
+  } catch (e: any) {
+    return c.json({ error: 'Factory unreachable: ' + e.message }, 502)
+  }
+})
+
 // Path A++ — internal: returns the premium owner's credentials so the
 // factory's provision script can seed the new CRM with matching
 // email + password hash. Render gives services internal-only

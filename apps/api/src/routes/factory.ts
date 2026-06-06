@@ -1420,6 +1420,111 @@ factory.post('/customers/:id/email-domain/verify', async (c) => {
 })
 
 
+// ─── Customer custom domain attach + verify (post-deploy) ─────────────────
+// Called by the premium admin's Custom Domain page when the customer
+// pastes their domain. Updates the tenant row, kicks off full domain
+// infrastructure wiring (Cloudflare zone, DNS records, SendGrid/Resend
+// DKIM, Render custom-domain attachment), and returns the nameservers
+// the customer needs to set at their registrar.
+//
+// Idempotent on retry — if the tenant already has a domain and we're
+// being asked to attach the same one, returns the current state instead
+// of re-wiring.
+factory.post('/internal/domain/attach/:tenantId', async (c) => {
+  try {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const key = c.req.header('X-Factory-Key') || ''
+    const body = await c.req.json().catch(() => ({})) as { domain?: string; mode?: 'byod' | 'buy' }
+    const domain = (body.domain || '').trim().toLowerCase()
+    const mode = body.mode === 'buy' ? 'buy' : 'byod'  // 'buy' path TBD until Namecheap prod keys
+    if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
+
+    const { data: tenant, error: tErr } = await supabase.from('tenants')
+      .select('id, slug, factory_sync_key, domain, domain_registrar, cloudflare_zone_id, sendgrid_domain_auth_id')
+      .eq('id', tenantId).single()
+    if (tErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+    if (tenant.factory_sync_key !== key) return c.json({ error: 'Unauthorized' }, 401)
+
+    if (mode === 'buy') {
+      return c.json({ error: 'Domain purchase is not wired in this build yet. Use BYOD for now.' }, 501)
+    }
+
+    // BYOD path — already attached? Return current state.
+    if (tenant.domain && tenant.domain.toLowerCase() === domain && tenant.cloudflare_zone_id) {
+      const { getCloudflareZoneStatus } = await import('../services/cloudflare')
+      const status = await getCloudflareZoneStatus(tenant.cloudflare_zone_id).catch(() => null)
+      return c.json({
+        domain,
+        status: status?.status === 'active' ? 'active' : 'pending_nameservers',
+        nameservers: status?.nameServers || [],
+        records: [],
+      })
+    }
+
+    // Find the tenant's Render service IDs so we can attach Render custom
+    // domains too. Reuses the wireDomainInfrastructure path that signup uses.
+    const { findRenderServicesBySlug, wireDomainInfrastructure } = await import('../services/deploy')
+    const services = await findRenderServicesBySlug(tenant.slug)
+    const siteServiceId = services.site || services['website-premium'] || services.website
+    const backendServiceId = services.backend || services.api
+
+    // Persist the domain on the tenant row before wiring so retries are idempotent.
+    await supabase.from('tenants').update({
+      domain, domain_registrar: 'byod',
+    }).eq('id', tenant.id)
+
+    const result = await wireDomainInfrastructure({
+      domain,
+      siteServiceId, backendServiceId,
+      existingCloudflareZoneId: tenant.cloudflare_zone_id || undefined,
+      existingSendgridDomainAuthId: tenant.sendgrid_domain_auth_id || undefined,
+    })
+    if (result.cloudflareZoneId) {
+      await supabase.from('tenants').update({ cloudflare_zone_id: result.cloudflareZoneId }).eq('id', tenant.id)
+    }
+    if (result.sendgridDomainAuthId) {
+      await supabase.from('tenants').update({ sendgrid_domain_auth_id: result.sendgridDomainAuthId }).eq('id', tenant.id)
+    }
+    return c.json({
+      domain,
+      status: result.success ? 'pending_nameservers' : 'partial',
+      nameservers: result.cloudflareNameServers || [],
+      steps: result.steps,
+      errors: result.errors,
+    })
+  } catch (e: any) {
+    console.error('[Domain] attach failed:', e)
+    return c.json({ error: e.message || 'Attach failed' }, 500)
+  }
+})
+
+// Returns current attach + verification state. Cheap call — pulls the
+// Cloudflare zone status (which reflects whether the customer pointed
+// their nameservers at us yet) and the Render custom-domain status.
+factory.get('/internal/domain/status/:tenantId', async (c) => {
+  try {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+    const key = c.req.header('X-Factory-Key') || ''
+    const { data: tenant } = await supabase.from('tenants')
+      .select('id, slug, factory_sync_key, domain, cloudflare_zone_id')
+      .eq('id', tenantId).single()
+    if (!tenant || tenant.factory_sync_key !== key) return c.json({ error: 'Unauthorized' }, 401)
+    if (!tenant.domain) return c.json({ status: 'unconfigured', domain: null, nameservers: [] })
+
+    const { getCloudflareZoneStatus } = await import('../services/cloudflare')
+    const zoneStatus = tenant.cloudflare_zone_id ? await getCloudflareZoneStatus(tenant.cloudflare_zone_id).catch(() => null) : null
+    return c.json({
+      status: zoneStatus?.status === 'active' ? 'active' : 'pending_nameservers',
+      domain: tenant.domain,
+      nameservers: zoneStatus?.nameServers || [],
+    })
+  } catch (e: any) {
+    return c.json({ error: e.message }, 500)
+  }
+})
+
 // ─── Twomiah Bookings Google Calendar OAuth orchestration ─────────────────
 // One Google OAuth app for the whole platform. Tenants don't approve
 // their own — the admin redirects to this Factory endpoint, we send them
