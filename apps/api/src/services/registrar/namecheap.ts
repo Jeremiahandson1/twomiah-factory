@@ -52,6 +52,30 @@ async function callApi(command: string, extra: Record<string, string>): Promise<
 // Minimal XML attr extractor — Namecheap responses are flat enough that a
 // regex scan beats pulling in a full XML parser dep. If structure gets
 // nested we'll swap to fast-xml-parser or similar.
+/**
+ * Namecheap requires phones in the format `+CountryCode.NumberOnly` —
+ * e.g. `+1.6085550142`. Spaces, dashes, parens, even contiguous digits
+ * after a leading `+` all get rejected with "Parameter RegistrantPhone
+ * is Invalid". This normalizer takes whatever the customer entered and
+ * converts to the strict format. Country fallback: 'US' → +1.
+ */
+function normalizeNamecheapPhone(raw: string, country: string): string {
+  const digits = (raw || '').replace(/\D/g, '')
+  if (!digits) return raw
+  // Country dial codes — extend as we add countries beyond US/CA.
+  const dialCodes: Record<string, string> = {
+    US: '1', CA: '1', GB: '44', AU: '61', NZ: '64', IE: '353',
+    MX: '52', DE: '49', FR: '33', NL: '31', BR: '55', IN: '91',
+  }
+  const cc = dialCodes[(country || 'US').toUpperCase()] || '1'
+  // If the customer typed the country code prefix, strip it before reformatting.
+  let local = digits
+  if (local.startsWith(cc) && local.length > cc.length + 6) local = local.slice(cc.length)
+  // 10-digit guard for US/CA — Namecheap accepts 7-15 digit subscriber numbers.
+  if (local.length < 7) return raw  // leave alone; let Namecheap surface the real error
+  return '+' + cc + '.' + local
+}
+
 function attr(xml: string, tag: string, attr: string): string | undefined {
   const re = new RegExp('<' + tag + '[^>]*\\b' + attr + '="([^"]*)"', 'i')
   const m = xml.match(re)
@@ -126,7 +150,7 @@ export function createNamecheapProvider(): RegistrarProvider {
         'RegistrantStateProvince': c.stateProvince,
         'RegistrantPostalCode': c.postalCode,
         'RegistrantCountry':   c.country,
-        'RegistrantPhone':     c.phone,
+        'RegistrantPhone':     normalizeNamecheapPhone(c.phone, c.country),
         'RegistrantEmailAddress': c.email,
       } as Record<string, string>
       if (c.address2)      contactFields['RegistrantAddress2'] = c.address2
