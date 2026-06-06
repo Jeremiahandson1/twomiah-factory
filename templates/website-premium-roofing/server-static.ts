@@ -257,6 +257,35 @@ app.get('/book', async (c) => {
   return c.html(html)
 })
 
+// MUST be declared before `/book/:serviceSlug` so Hono doesn't try to
+// look up a service with slug="thanks" → 404.
+app.get('/book/thanks', async (c) => {
+  const settings = await loadSettings()
+  if (!settings) return c.text('Bookings not configured yet.', 503)
+  const id = c.req.query('id')
+  if (!id) return c.notFound()
+  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id as string)).limit(1)
+  const booking = rows[0]
+  if (!booking) return c.notFound()
+  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
+  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
+  const dateStr = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: TENANT_TZ })
+  const body = `<section class="book-thanks"><div class="container container--narrow">
+    <div class="book-thanks__check">✓</div>
+    <h1>${escape((settings as any).bookingThanksMessage || "You're booked.")}</h1>
+    <p class="book-thanks__lead">A confirmation is on its way to <strong>${escape(booking.customerEmail)}</strong>.</p>
+    <div class="book-thanks__summary">
+      <div><span>Service</span><strong>${escape(service?.name || 'Service')}</strong></div>
+      <div><span>When</span><strong>${escape(dateStr)}</strong></div>
+      ${booking.customerAddress ? `<div><span>Where</span><strong>${escape(booking.customerAddress)}</strong></div>` : ''}
+    </div>
+    <p class="book-thanks__addcal">Add to your calendar: <a href="/book/${booking.id}/ics">Apple / Outlook</a> · <a href="${googleCalendarLink(booking, service?.name || 'Booking')}" target="_blank" rel="noopener noreferrer">Google</a></p>
+  </div></section>`
+  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Booking confirmed', seoDescription: 'Your booking is confirmed.', nav: settings.nav || [] }
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/thanks' }) as string
+  return c.html(html)
+})
+
 app.get('/book/:serviceSlug', async (c) => {
   const slug = c.req.param('serviceSlug')!
   const settings = await loadSettings()
@@ -434,33 +463,6 @@ function bookIp(c: any): string {
   if (xff) return xff.split(',')[0].trim()
   return c.req.header('CF-Connecting-IP') || c.req.header('X-Real-IP') || 'unknown'
 }
-
-app.get('/book/thanks', async (c) => {
-  const settings = await loadSettings()
-  if (!settings) return c.text('Bookings not configured yet.', 503)
-  const id = c.req.query('id')
-  if (!id) return c.notFound()
-  const rows = await db.select().from(bookingsTbl).where(eq(bookingsTbl.id, id as string)).limit(1)
-  const booking = rows[0]
-  if (!booking) return c.notFound()
-  const service = (await db.select().from(bookingServicesTbl).where(eq(bookingServicesTbl.id, booking.serviceId)).limit(1))[0]
-  const escape = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] || c))
-  const dateStr = (booking.startAt as Date).toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZone: TENANT_TZ })
-  const body = `<section class="book-thanks"><div class="container container--narrow">
-    <div class="book-thanks__check">✓</div>
-    <h1>${escape((settings as any).bookingThanksMessage || "You're booked.")}</h1>
-    <p class="book-thanks__lead">A confirmation is on its way to <strong>${escape(booking.customerEmail)}</strong>.</p>
-    <div class="book-thanks__summary">
-      <div><span>Service</span><strong>${escape(service?.name || 'Service')}</strong></div>
-      <div><span>When</span><strong>${escape(dateStr)}</strong></div>
-      ${booking.customerAddress ? `<div><span>Where</span><strong>${escape(booking.customerAddress)}</strong></div>` : ''}
-    </div>
-    <p class="book-thanks__addcal">Add to your calendar: <a href="/book/${booking.id}/ics">Apple / Outlook</a> · <a href="${googleCalendarLink(booking, service?.name || 'Booking')}" target="_blank" rel="noopener noreferrer">Google</a></p>
-  </div></section>`
-  const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Booking confirmed', seoDescription: 'Your booking is confirmed.', nav: settings.nav || [] }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/thanks' }) as string
-  return c.html(html)
-})
 
 // SMS via the connected CRM's Twilio. We don't bundle Twilio here —
 // the CRM holds the credentials. Internal endpoint protected by
@@ -660,7 +662,17 @@ app.post('/book/:serviceSlug', async (c) => {
     }
     // Push to assigned crew's Google Calendar if connected. Capture the
     // event ID so admin updates/cancellations can patch the same event.
-    if (assignedUserId) {
+    // Fallback: when the booking has no assigned crew (availability rules
+    // use the null wildcard for solo operators), push to whoever has a
+    // calendar connected — otherwise the connected calendar would
+    // silently never receive events.
+    let pushUserId: string | null = assignedUserId
+    if (!pushUserId) {
+      const { bookingCalendarConnections: bcc } = await import('./db/schema')
+      const conn = await db.select({ userId: bcc.userId }).from(bcc).limit(1)
+      pushUserId = conn[0]?.userId || null
+    }
+    if (pushUserId) {
       const bookingForCal = {
         id: created.id,
         startAt, endAt,
@@ -672,13 +684,13 @@ app.post('/book/:serviceSlug', async (c) => {
       const companyName = (settingsForEmail as any)?.companyName || undefined
       // Try Google first, fall back to Outlook. A crew can only have one
       // provider connected at a time in V1 — if both rows exist, Google wins.
-      pushBookingEvent({ userId: assignedUserId, booking: bookingForCal, service: svc, companyName })
+      pushBookingEvent({ userId: pushUserId, booking: bookingForCal, service: svc, companyName })
         .then(async eventId => {
           if (eventId) {
             await db.update(bookingsTbl).set({ externalCalendarEventId: eventId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
             return
           }
-          const outlookId = await pushBookingEventOutlook({ userId: assignedUserId, booking: bookingForCal, service: svc, companyName })
+          const outlookId = await pushBookingEventOutlook({ userId: pushUserId!, booking: bookingForCal, service: svc, companyName })
           if (outlookId) await db.update(bookingsTbl).set({ externalCalendarEventId: outlookId }).where(eq(bookingsTbl.id, created.id)).catch(() => {})
         })
         .catch(e => console.warn('[book] external cal push failed:', e?.message))
