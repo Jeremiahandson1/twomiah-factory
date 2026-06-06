@@ -238,6 +238,21 @@ if (existingTenantKey && freshlyGeneratedKey && existingTenantKey !== freshlyGen
     console.error('CRM redeploy did not reach live within 6min — bailing to avoid key mismatch')
     process.exit(1)
   }
+  // Diagnostic: read the env var back from Render and confirm it
+  // actually persisted to existingTenantKey. If not, the deploy
+  // succeeded but with stale env — we'd hit a 401 storm downstream.
+  const verifyRes = await fetch('https://api.render.com/v1/services/' + crmSvcId + '/env-vars/FACTORY_SYNC_KEY', { headers: renderHeaders })
+  const verifyJson = await verifyRes.json() as any
+  const persistedVal = verifyJson?.value || verifyJson?.envVar?.value
+  if (persistedVal !== existingTenantKey) {
+    console.error('Render shows FACTORY_SYNC_KEY="' + (persistedVal ? persistedVal.slice(0,12) + '…' : '<empty>') + '" but expected "' + existingTenantKey.slice(0,12) + '…" — PUT silently failed')
+    process.exit(1)
+  }
+  console.log('Verified env var persisted on Render')
+  // Wait a beat for the new container's load-balancer slot to fully
+  // take over from the old one (Render reports 'live' on the new
+  // deploy slightly before in-flight requests stop hitting the old).
+  await new Promise(r => setTimeout(r, 10000))
   factorySyncKey = existingTenantKey
 } else {
   factorySyncKey = freshlyGeneratedKey || existingTenantKey || ''
