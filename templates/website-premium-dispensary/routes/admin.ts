@@ -1418,11 +1418,33 @@ app.patch('/bookings/:id', authMiddleware, async (c) => {
       newStartAt: body.startAt,
     }).catch(() => {})
   }
-  if (before.assignedUserId && before.externalCalendarEventId && body.status === 'cancelled' && before.status !== 'cancelled') {
-    const { deleteBookingEvent } = await import('../lib/google-calendar')
-    deleteBookingEvent({ userId: before.assignedUserId, eventId: before.externalCalendarEventId })
-      .then(ok => { if (ok) db.update(bookingsTbl).set({ externalCalendarEventId: null }).where(eq(bookingsTbl.id, id)).catch(() => {}) })
-      .catch(() => {})
+  if (before.externalCalendarEventId && body.status === 'cancelled' && before.status !== 'cancelled') {
+    // Same null-assignee fallback as the create path: solo operators use
+    // userId=null on availability rules, so bookings end up unassigned;
+    // we still need to delete the event the create path pushed via the
+    // first connected calendar.
+    let delUserId: string | null = before.assignedUserId
+    if (!delUserId) {
+      const { bookingCalendarConnections: bcc } = await import('../db/schema')
+      const conn = await db.select({ userId: bcc.userId }).from(bcc).limit(1)
+      delUserId = conn[0]?.userId || null
+    }
+    if (delUserId) {
+      const { deleteBookingEvent } = await import('../lib/google-calendar')
+      const { deleteBookingEventOutlook } = await import('../lib/outlook-calendar').catch(() => ({ deleteBookingEventOutlook: null as any }))
+      deleteBookingEvent({ userId: delUserId, eventId: before.externalCalendarEventId })
+        .then(async ok => {
+          if (ok) {
+            await db.update(bookingsTbl).set({ externalCalendarEventId: null }).where(eq(bookingsTbl.id, id)).catch(() => {})
+            return
+          }
+          if (deleteBookingEventOutlook) {
+            const outOk = await deleteBookingEventOutlook({ userId: delUserId!, eventId: before.externalCalendarEventId })
+            if (outOk) await db.update(bookingsTbl).set({ externalCalendarEventId: null }).where(eq(bookingsTbl.id, id)).catch(() => {})
+          }
+        })
+        .catch(e => console.warn('[admin] cancel cal delete failed:', e?.message))
+    }
   }
   // Cancelled bookings free up a slot — notify any waitlist entries
   // for this service whose date window overlaps.

@@ -9,7 +9,11 @@ function escape(s: string): string {
 }
 
 function fromAddress(): string {
-  const email = process.env.FROM_EMAIL || process.env.FACTORY_FROM_EMAIL || 'onboarding@resend.dev'
+  // FACTORY_FROM_EMAIL wins because it's set by the factory to a verified
+  // sender. FROM_EMAIL is a placeholder from .env.template that ships
+  // hello@example.com — never used in prod, only present so the tenant
+  // can boot before the factory wires the real sender.
+  const email = process.env.FACTORY_FROM_EMAIL || process.env.FROM_EMAIL || 'onboarding@resend.dev'
   const name = process.env.COMPANY_NAME || 'Twomiah'
   return name + ' <' + email + '>'
 }
