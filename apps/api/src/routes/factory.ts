@@ -118,7 +118,26 @@ async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } |
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/health', '/plans']
   const isPublicFeatures = c.req.path.endsWith('/features') && !c.req.path.includes('/customers/')
-  if (pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures || c.req.path.includes('/public/') || c.req.path.includes('/stripe/webhook') || c.req.path.includes('/internal/trial-check') || c.req.path.includes('/download/') || c.req.path.includes('/deploy/stream') || c.req.path.endsWith('/cleanup') || c.req.path.includes('/website-themes') || (c.req.method === 'GET' && c.req.path.includes('/support/kb')) || c.req.path.includes('/integrations/qbo/callback')) return next()
+  // /calendar/* — public OAuth start + Google's redirect-back callback.
+  //   The flow is browser-driven (no Authorization header available)
+  //   and is protected by signed state tokens inside the handlers.
+  // /internal/* — cron + scheduler endpoints. Each handler does its own
+  //   x-cron-secret / X-Factory-Key check; gating them again here just
+  //   masks the right 401 ("bad secret") with a generic one ("missing
+  //   Authorization header") and breaks the in-process scheduler.
+  if (
+    pub.some(p => c.req.path.endsWith(p)) || isPublicFeatures
+    || c.req.path.includes('/public/')
+    || c.req.path.includes('/stripe/webhook')
+    || c.req.path.includes('/internal/')
+    || c.req.path.includes('/calendar/')
+    || c.req.path.includes('/download/')
+    || c.req.path.includes('/deploy/stream')
+    || c.req.path.endsWith('/cleanup')
+    || c.req.path.includes('/website-themes')
+    || (c.req.method === 'GET' && c.req.path.includes('/support/kb'))
+    || c.req.path.includes('/integrations/qbo/callback')
+  ) return next()
   return authenticate(c, next)
 })
 
