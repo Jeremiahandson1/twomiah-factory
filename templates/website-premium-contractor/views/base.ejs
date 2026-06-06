@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <% var seoTitle = settings.seoTitle || settings.companyName || 'Website'; %>
+  <% var seoDescription = settings.seoDescription || ''; %>
+  <% var canonicalBase = (settings.siteOrigin || '').replace(/\/+$/, ''); %>
+  <% var canonical = canonicalBase ? canonicalBase + (currentPath || '/') : ''; %>
+  <% var ogImage = settings.logoUrl || settings.heroPhotoUrl || ''; %>
+  <title><%= seoTitle %></title>
+  <meta name="description" content="<%= seoDescription %>">
+  <% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
+  <meta name="robots" content="index, follow">
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><meta name="twomiah-crm-url" content="<%= crmApiUrl %>"><% } %>
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="<%= seoTitle %>">
+  <meta property="og:description" content="<%= seoDescription %>">
+  <% if (canonical) { %><meta property="og:url" content="<%= canonical %>"><% } %>
+  <% if (ogImage) { %><meta property="og:image" content="<%= ogImage %>"><% } %>
+  <% if (settings.companyName) { %><meta property="og:site_name" content="<%= settings.companyName %>"><% } %>
+  <meta name="twitter:card" content="<%= ogImage ? 'summary_large_image' : 'summary' %>">
+  <meta name="twitter:title" content="<%= seoTitle %>">
+  <meta name="twitter:description" content="<%= seoDescription %>">
+  <% if (ogImage) { %><meta name="twitter:image" content="<%= ogImage %>"><% } %>
+  <% if (settings.faviconUrl) { %><link rel="icon" href="<%= settings.faviconUrl %>"><% } %>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/main.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="<%= settings.homeHref || '/' %>"><%= settings.companyName || 'Your Company' %></a>
+      <nav class="primary-nav" aria-label="Primary">
+        <% (settings.nav || []).forEach(function(item) { %>
+          <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+        <% }) %>
+      </nav>
+      <a class="header-cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+      <button class="mobile-nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-nav">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile primary" hidden>
+      <% (settings.nav || []).forEach(function(item) { %>
+        <a href="<%= item.href %>"<%= currentPath && currentPath === item.href ? ' aria-current="page"' : '' %>><%= item.label %></a>
+      <% }) %>
+      <a class="mobile-nav__cta" href="<%= settings.contactHref || '/contact' %>"><%= settings.contactCtaLabel || 'Get a quote' %></a>
+    </nav>
+  </header>
+  <script>
+    (function(){
+      var btn = document.querySelector('.mobile-nav-toggle');
+      var nav = document.getElementById('mobile-nav');
+      if (!btn || !nav) return;
+      btn.addEventListener('click', function(){
+        var open = nav.hasAttribute('hidden') ? false : true;
+        if (open) { nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); }
+        else { nav.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); btn.classList.add('is-open'); }
+      });
+      // Close on link tap so SPA-like navigation feels right
+      nav.querySelectorAll('a').forEach(function(a){
+        a.addEventListener('click', function(){ nav.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); btn.classList.remove('is-open'); });
+      });
+    })();
+  </script>
+
+  <main>
+    <%- body %>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <div>
+        <div class="footer-brand"><%= settings.companyName || 'Your Company' %></div>
+        <div class="footer-tagline"><%= settings.tagline || '' %></div>
+      </div>
+      <div class="footer-contact">
+        <% if (settings.phone) { %><a href="tel:<%= settings.phone %>"><%= settings.phone %></a><% } %>
+        <% if (settings.email) { %><a href="mailto:<%= settings.email %>"><%= settings.email %></a><% } %>
+      </div>
+    </div>
+  </footer>
+  <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
+</body>
+</html>

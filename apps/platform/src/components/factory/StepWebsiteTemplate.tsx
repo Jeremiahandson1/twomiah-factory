@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { Sparkles, Wand2, Eye } from 'lucide-react'
 import type { FactoryConfig } from './types'
 import { NavButtons } from './StepProducts'
+import { pickPremiumTrack, premiumTrackLabel } from './premiumIndustries'
 
 type Props = {
   config: FactoryConfig
@@ -101,6 +103,10 @@ function MiniPreview({ theme, companyName, primaryColor }: { theme: ThemeOption;
 }
 
 export default function StepWebsiteTemplate({ config, update, onNext, onBack }: Props) {
+  const isPremium = config.products.includes('website-premium')
+  if (isPremium) {
+    return <PremiumTemplatePanel config={config} onNext={onNext} onBack={onBack} />
+  }
   const category = getCategory(config.company.industry)
   const themes = THEMES[category] || THEMES.general
   const [selected, setSelected] = useState(config.websiteTheme || themes[0]?.id || '')
@@ -166,6 +172,76 @@ export default function StepWebsiteTemplate({ config, update, onNext, onBack }: 
       </p>
 
       <NavButtons onBack={onBack} onNext={handleNext} />
+    </div>
+  )
+}
+
+function PremiumTemplatePanel({ config, onNext, onBack }: { config: FactoryConfig; onNext: () => void; onBack: () => void }) {
+  const track = pickPremiumTrack(config.company.industry)
+  const primary = config.branding.primaryColor || '#8b5cf6'
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <Sparkles size={18} className="text-purple-400" />
+        <h2 className="text-xl font-bold text-white">Premium — AI-composed</h2>
+      </div>
+      <p className="text-gray-400 text-sm mb-6">
+        Premium sites skip the theme picker. The composer chooses sections + variants per build so no two sites look identical.
+      </p>
+
+      <div className="rounded-xl border-2 border-purple-500/40 bg-purple-500/5 p-5 mb-4">
+        <div className="grid grid-cols-3 gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+              <Wand2 size={16} className="text-purple-300" />
+            </div>
+            <div>
+              <div className="text-white text-sm font-semibold">Composer picks the layout</div>
+              <div className="text-gray-400 text-xs mt-0.5">Hero variant, section order, CTA shape — chosen per build from the intake answers.</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: primary + '33' }}>
+              <span className="w-4 h-4 rounded-full" style={{ backgroundColor: primary }} />
+            </div>
+            <div>
+              <div className="text-white text-sm font-semibold">Brand color drives the palette</div>
+              <div className="text-gray-400 text-xs mt-0.5">Each template family has its own typographic + structural baseline; your primary color tunes it.</div>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+              <Eye size={16} className="text-purple-300" />
+            </div>
+            <div>
+              <div className="text-white text-sm font-semibold">Customer reviews the draft</div>
+              <div className="text-gray-400 text-xs mt-0.5">Approve from the preview link before the $1,000 build fee charges — no surprises.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {track ? (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 mb-4">
+          <div className="text-xs uppercase tracking-wider text-gray-500 mb-1">Template family</div>
+          <div className="text-white font-semibold">{premiumTrackLabel(track)}</div>
+          <div className="text-gray-400 text-xs mt-1">
+            Resolved from industry <span className="font-mono">{config.company.industry || '(unset)'}</span>.
+            Edit on the Company step if you need a different track.
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 mb-4 text-yellow-300 text-sm">
+          No premium template exists for industry <span className="font-mono">{config.company.industry || '(unset)'}</span> yet.
+          Go back to the Products step and switch to the Standard tier, or pick a supported industry on the Company step.
+        </div>
+      )}
+
+      <p className="text-xs text-gray-600 mb-6">
+        Final composition is generated after Content + Generate steps. You'll see the preview URL on the Generate step.
+      </p>
+
+      <NavButtons onBack={onBack} onNext={onNext} canNext={!!track} />
     </div>
   )
 }

@@ -1,0 +1,68 @@
+name: Security scan
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Re-scan main weekly so newly-published CVEs against pinned deps
+    # show up even when no code changed.
+    - cron: '0 12 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  bun-audit:
+    name: bun audit (high+critical fail build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Audit factory + platform deps
+        run: |
+          set -e
+          for dir in apps/api apps/platform; do
+            echo "::group::bun audit $dir"
+            (cd "$dir" && bun install --frozen-lockfile && bun audit --audit-level=high) || exit 1
+            echo "::endgroup::"
+          done
+      - name: Audit each premium template
+        run: |
+          set -e
+          for d in templates/website-premium-*; do
+            if [ -f "$d/package.json" ]; then
+              echo "::group::bun audit $d"
+              (cd "$d" && bun install && bun audit --audit-level=high) || exit 1
+              echo "::endgroup::"
+            fi
+            if [ -f "$d/admin/package.json" ]; then
+              echo "::group::bun audit $d/admin"
+              (cd "$d/admin" && bun install && bun audit --audit-level=high) || exit 1
+              echo "::endgroup::"
+            fi
+          done
+
+  semgrep:
+    name: Semgrep static analysis
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
+        run: |
+          semgrep \
+            --config p/owasp-top-ten \
+            --config p/javascript \
+            --config p/typescript \
+            --config p/react \
+            --config p/secrets \
+            --exclude '**/node_modules/**' \
+            --exclude '**/dist/**' \
+            --exclude '**/build/**' \
+            --error \
+            --severity ERROR

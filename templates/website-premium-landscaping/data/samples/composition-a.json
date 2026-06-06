@@ -1,0 +1,68 @@
+{
+  "_note": "Composition A — seasonal craft led. Full-bleed landscape-in-progress hero, alternating services with seasonal scope, photo-led closing CTA.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "full-bleed",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=2000&q=80",
+        "eyebrow": "Family-run · Family-mowed · Since 2011",
+        "title": "Lawns and landscapes the neighbors notice",
+        "subtitle": "Recurring weekly mowing, full landscape installations, and snow management across the Driftless region. Same crew every visit, same standard whether you're a $35 weekly mow or a $35,000 install.",
+        "primaryCta": { "label": "Get a quote", "href": "#contact" },
+        "secondaryCta": { "label": "See our work", "href": "#services" }
+      }
+    },
+    {
+      "type": "services",
+      "variant": "alternating",
+      "data": {
+        "heading": "What we do — every season",
+        "intro": "Weekly mowing is most of what we do, but we earn the relationship by handling the spring cleanup, the summer install, the fall leaves, and the 6am driveway plow without anyone needing to ask.",
+        "items": [
+          {
+            "title": "Lawn care",
+            "description": "Weekly mowing with sharp blades on zero-turns — your lawn reads cleaner than what the national chains leave behind. Fertilization, aeration, overseeding, and weed control on quarterly visits.",
+            "image": "https://images.unsplash.com/photo-1592501624394-3a4731afa2b1?w=1400&q=80",
+            "bullets": ["Same crew every visit when possible", "Sharp-blade mowing — never one-pass-and-out", "Quarterly fertilization + weed control program"]
+          },
+          {
+            "title": "Landscape design + install",
+            "description": "From a 12-foot bed refresh to a full backyard redesign with hardscape, plantings, and lighting. We design in-house and install with our own crew — no subs.",
+            "image": "https://images.unsplash.com/photo-1558904541-c19784525cf4?w=1400&q=80",
+            "bullets": ["In-house designer — no $5k design fee before any quote", "Native-plant-forward palettes that thrive in this climate", "Two-year plant warranty on installed material"]
+          },
+          {
+            "title": "Spring + fall cleanups",
+            "description": "Beds opened in spring, leaves and beds put to bed in fall. The kind of seasonal work that turns a one-time customer into a recurring client when we show up before they have to call.",
+            "image": "https://images.unsplash.com/photo-1542456885-89667376a074?w=1400&q=80",
+            "bullets": ["Pre-emptive scheduling — we call you", "Curb-and-haul or compost-in-place, your choice"]
+          },
+          {
+            "title": "Snow & ice management",
+            "description": "Residential and commercial. Driveways, walks, and parking lots. We start when the snow does, not when it stops.",
+            "image": "https://images.unsplash.com/photo-1576421252720-31de1ba34f80?w=1400&q=80",
+            "bullets": ["Per-push, per-event, and seasonal-contract pricing", "Commercial liability and insurance documented", "Sidewalks and ADA-required walkways included"]
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1558904541-c19784525cf4?w=1400&q=80",
+        "heading": "Let's walk the property together",
+        "subtitle": "Free on-site quote for any service. We'll walk through what's there, what's possible, and what's worth the money — even if some of it isn't us.",
+        "bullets": [
+          "Free on-site assessment with the owner",
+          "Honest 'leave it alone' recommendations when that's the right call",
+          "Per-visit, monthly, and seasonal-contract pricing on request",
+          "Family-run since 2011 · WI licensed · fully insured"
+        ],
+        "primaryCta": { "label": "Schedule walkthrough", "href": "#contact" },
+        "phone": "608-555-3344"
+      }
+    }
+  ]
+}

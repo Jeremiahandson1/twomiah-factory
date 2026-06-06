@@ -1,0 +1,32 @@
+<%
+  // Founder/firm story section: portrait + multi-paragraph narrative.
+  // The voice piece — where the customer reads the people behind the work.
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || 'Our story'
+  const portrait = data.portrait || ''
+  const paragraphs = Array.isArray(data.paragraphs) ? data.paragraphs : []
+  const signature = data.signature || ''
+  const stats = Array.isArray(data.stats) ? data.stats : []
+%>
+<section class="story">
+  <div class="container story__grid">
+    <div class="story__portrait" style="background-image: url('<%= portrait %>')"></div>
+    <div class="story__copy">
+      <% if (eyebrow) { %><div class="story__eyebrow"><%= eyebrow %></div><% } %>
+      <h1 class="story__title"><%= title %></h1>
+      <% for (const p of paragraphs) { %>
+        <p class="story__paragraph"><%= p %></p>
+      <% } %>
+      <% if (signature) { %>
+        <div class="story__signature"><%= signature %></div>
+      <% } %>
+      <% if (stats.length) { %>
+        <div class="story__stats">
+          <% for (const s of stats) { %>
+            <div class="story__stat"><div class="story__stat-num"><%= s.value %></div><div class="story__stat-label"><%= s.label %></div></div>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</section>

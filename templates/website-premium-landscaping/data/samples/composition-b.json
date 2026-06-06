@@ -1,0 +1,80 @@
+{
+  "_note": "Composition B — stats-and-process led. Stats hero (years, routes, properties), about-us split with owner voice, services cards grid, banner CTA.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "centered-stats",
+      "data": {
+        "eyebrow": "Family-run · Madison + Driftless · Since 2011",
+        "title": "The crew the neighbors keep recommending",
+        "subtitle": "Driftless Land & Lawn started with one truck and one mower in 2011. Fourteen years later, we still have one crew per route — the people who mow your lawn this week are the same people who'll be here in October.",
+        "primaryCta": { "label": "Get a quote", "href": "#contact" },
+        "stats": [
+          { "value": "14 yrs", "label": "Family-run" },
+          { "value": "320+", "label": "Recurring properties" },
+          { "value": "4.9 ★", "label": "Google rating" },
+          { "value": "0", "label": "Sub-contracted mowing" }
+        ]
+      }
+    },
+    {
+      "type": "hero",
+      "variant": "split",
+      "data": {
+        "flip": true,
+        "eyebrow": "Our approach",
+        "title": "Route caps, not customer caps. So the crew that knows your lawn shows up every week.",
+        "subtitle": "Most landscaping companies scale by adding clients to existing routes until quality drops. We cap each crew at the number of properties they can hit twice a week if it rains all month. When we're full, we wait-list.",
+        "image": "https://images.unsplash.com/photo-1592501624394-3a4731afa2b1?w=1400&q=80",
+        "primaryCta": { "label": "See our services", "href": "#services" },
+        "stats": [
+          { "value": "4", "label": "Crews on the road" },
+          { "value": "1", "label": "Owner-operator per crew" }
+        ]
+      }
+    },
+    {
+      "type": "services",
+      "variant": "cards-grid",
+      "data": {
+        "heading": "Four service lines, every season",
+        "intro": "Most clients use two or three. The same crew handles them all.",
+        "items": [
+          {
+            "title": "Lawn care",
+            "description": "Weekly mowing, fertilization, aeration, overseeding. Sharp-blade standard.",
+            "image": "https://images.unsplash.com/photo-1592501624394-3a4731afa2b1?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Landscape design",
+            "description": "In-house design + install. Native-plant-forward. Two-year plant warranty.",
+            "image": "https://images.unsplash.com/photo-1558904541-c19784525cf4?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Cleanups",
+            "description": "Spring opens, fall puts-to-bed, gutters, beds, hauling. Pre-emptive scheduling.",
+            "image": "https://images.unsplash.com/photo-1542456885-89667376a074?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Snow & ice",
+            "description": "Residential and commercial. Per-push, per-event, or seasonal contract pricing.",
+            "image": "https://images.unsplash.com/photo-1576421252720-31de1ba34f80?w=900&q=80",
+            "href": "#contact"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "Want to be on the spring route?",
+        "subtitle": "Most new recurring slots fill by mid-February. Free walkthrough — we'll know within 15 minutes whether we're a fit.",
+        "primaryCta": { "label": "Schedule walkthrough", "href": "#contact" }
+      }
+    }
+  ]
+}

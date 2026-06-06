@@ -13,6 +13,7 @@ import { company } from '../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
+import { authenticate } from './middleware/auth.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
@@ -224,6 +225,8 @@ app.route('/api/warranties', warrantiesRoutes)
 app.route('/api/weather', weatherRoutes)
 app.route('/api/support', supportRoutes)
 app.route('/api/ads', adsRoutes)
+const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
+app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/leads', leadsRoutes)
 app.route('/api/wisetack', wisetackRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
@@ -243,6 +246,60 @@ app.post('/api/internal/sync-features', async (c) => {
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
   return c.json({ success: true, features: updated.enabledFeatures })
+})
+
+// Internal SMS send for Twomiah Bookings — the website-premium service
+// POSTs here when a booking is confirmed so we send the SMS via this
+// tenant's Twilio credentials (which only live in the CRM env).
+// CRM SchedulePage pulls Twomiah Bookings from the connected website-
+// premium service. Auth-gated by the CRM's own JWT (whoever can see
+// jobs can see bookings); server-to-server call uses FACTORY_SYNC_KEY.
+app.get('/api/bookings/external', authenticate, async (c) => {
+  const websiteUrl = process.env.WEBSITE_PREMIUM_URL
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!websiteUrl || !syncKey) return c.json({ bookings: [] })
+  const fromQ = c.req.query('from')
+  const toQ = c.req.query('to')
+  const url = new URL(websiteUrl.replace(/\/$/, '') + '/api/internal/bookings')
+  if (fromQ) url.searchParams.set('from', fromQ)
+  if (toQ) url.searchParams.set('to', toQ)
+  try {
+    const r = await fetch(url.toString(), { headers: { 'X-Factory-Key': syncKey } })
+    if (!r.ok) return c.json({ bookings: [], error: 'upstream ' + r.status }, 502)
+    const data = await r.json() as any
+    return c.json({ bookings: data.bookings || [] })
+  } catch (e: any) {
+    return c.json({ bookings: [], error: e?.message || 'fetch failed' }, 502)
+  }
+})
+
+app.post('/api/internal/send-sms', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  if (c.req.header('X-Factory-Key') !== syncKey) return c.json({ error: 'Unauthorized' }, 401)
+  const sid = process.env.TWILIO_ACCOUNT_SID
+  const token = process.env.TWILIO_AUTH_TOKEN
+  const from = process.env.TWILIO_PHONE_NUMBER
+  if (!sid || !token || !from) return c.json({ error: 'Twilio not configured' }, 503)
+  const { to, body } = await c.req.json().catch(() => ({})) as { to?: string; body?: string }
+  if (!to || !body) return c.json({ error: 'to + body required' }, 400)
+  try {
+    const url = 'https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json'
+    const form = new URLSearchParams({ To: to, From: from, Body: body })
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Basic ' + Buffer.from(sid + ':' + token).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: form,
+    })
+    if (!res.ok) return c.json({ error: 'Twilio: ' + (await res.text().catch(() => res.statusText)) }, 502)
+    const data: any = await res.json()
+    return c.json({ ok: true, sid: data.sid })
+  } catch (e: any) {
+    return c.json({ error: e?.message || 'send failed' }, 500)
+  }
 })
 
 app.onError(errorHandler)

@@ -1511,6 +1511,7 @@ const SchedulingHub = () => {
 
       <div style={{ display: 'flex', borderBottom: '2px solid #E5E7EB', marginBottom: '1.25rem', overflowX: 'auto' }}>
         <button style={mainTabStyle(mainTab === 'schedule')} onClick={() => setMainTab('schedule')}>📅 Schedule</button>
+        <button style={mainTabStyle(mainTab === 'bookings')} onClick={() => setMainTab('bookings')}>🗓️ Bookings</button>
         <button style={mainTabStyle(mainTab === 'tools')}    onClick={() => setMainTab('tools')}>🔧 Tools</button>
         <button style={mainTabStyle(mainTab === 'staffing')} onClick={() => setMainTab('staffing')}>
           👥 Staffing {pendingSwaps > 0 && <span style={{ ...bge('#DC2626', '#fff'), marginLeft: '0.4rem' }}>{pendingSwaps}</span>}
@@ -1518,6 +1519,7 @@ const SchedulingHub = () => {
       </div>
 
       {mainTab === 'schedule' && renderScheduleTab()}
+      {mainTab === 'bookings' && <BookingsTab />}
       {mainTab === 'tools'    && renderToolsTab()}
       {mainTab === 'staffing' && renderStaffingTab()}
 
@@ -1806,5 +1808,51 @@ const SchedulingHub = () => {
     </>
   );
 };
+
+// Twomiah Bookings tab — pulls bookings from the connected website-premium
+// service via the CRM backend proxy.
+function BookingsTab() {
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const from = new Date(); from.setHours(0, 0, 0, 0);
+    const to = new Date(from); to.setDate(to.getDate() + 30);
+    fetch('/api/bookings/external?from=' + from.toISOString() + '&to=' + to.toISOString(), { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => setBookings(data.bookings || []))
+      .catch((e: any) => setError(e?.message || 'Failed to load bookings'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div style={{ padding: '2rem', color: '#6B7280' }}>Loading bookings…</div>;
+  if (error) return <div style={{ padding: '2rem', color: '#DC2626' }}>{error}</div>;
+  if (bookings.length === 0) return <div style={{ padding: '2rem', color: '#6B7280' }}>No bookings yet. Customers can self-book through your public site at <code>/book</code>.</div>;
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem', color: '#6B7280', fontSize: '0.875rem' }}>Next 30 days · {bookings.length} booking{bookings.length === 1 ? '' : 's'}</div>
+      <div style={{ display: 'grid', gap: '0.75rem' }}>
+        {bookings.map((b: any) => {
+          const dt = new Date(b.startAt);
+          return (
+            <div key={b.id} style={{ padding: '1rem 1.25rem', background: '#fff', border: '1px solid #E5E7EB', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ minWidth: '100px' }}>
+                <div style={{ fontWeight: 700, fontSize: '1rem' }}>{dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>{dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600 }}>{b.customerName}</div>
+                <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>{b.serviceName || 'Service'}{b.customerAddress ? ' · ' + b.customerAddress : ''}</div>
+              </div>
+              <span style={{ padding: '0.25rem 0.625rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600, background: b.status === 'confirmed' ? '#DBEAFE' : b.status === 'completed' ? '#D1FAE5' : '#F3F4F6', color: b.status === 'confirmed' ? '#1E40AF' : b.status === 'completed' ? '#065F46' : '#6B7280' }}>{b.status}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default SchedulingHub;

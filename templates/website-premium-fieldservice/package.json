@@ -1,0 +1,32 @@
+{
+  "name": "{{COMPANY_SLUG}}-site",
+  "version": "1.0.0",
+  "description": "Premium website for {{COMPANY_NAME}} — section-composition architecture",
+  "main": "server-static.ts",
+  "scripts": {
+    "start": "bun server-static.ts",
+    "dev": "NODE_ENV=development bun --watch server-static.ts",
+    "db:generate": "bunx drizzle-kit generate",
+    "db:migrate": "bunx drizzle-kit migrate",
+    "db:push": "bunx drizzle-kit push"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@sendgrid/mail": "^8.1.0",
+    "bcryptjs": "^2.4.3",
+    "drizzle-orm": "^0.45.2",
+    "ejs": "^3.1.9",
+    "hono": "^4.4.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
+    "sharp": "^0.33.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/bun": "^1.3.14",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/pg": "^8.10.9",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.3.3"
+  }
+}

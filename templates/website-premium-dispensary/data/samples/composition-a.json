@@ -1,0 +1,68 @@
+{
+  "_note": "Composition A — boutique retail led. Atmospheric product hero, alternating product categories with sourcing stories, split CTA with store hours + 'first visit' welcome.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "full-bleed",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1603909223429-69bb7101f420?w=2000&q=80",
+        "eyebrow": "Locally curated · Independently owned",
+        "title": "Cannabis chosen the way you'd choose wine",
+        "subtitle": "Every flower on the shelf comes from a Wisconsin, Illinois, or Michigan cultivator we've personally visited. Edibles are kitchen-tested. Our budtenders know the lineage of everything they put in your hand.",
+        "primaryCta": { "label": "Visit the shop", "href": "#contact" },
+        "secondaryCta": { "label": "What's on the menu", "href": "#services" }
+      }
+    },
+    {
+      "type": "services",
+      "variant": "alternating",
+      "data": {
+        "heading": "What we carry",
+        "intro": "Four categories. Each one is curated — we don't carry a SKU unless we'd recommend it ourselves.",
+        "items": [
+          {
+            "title": "Flower",
+            "description": "Indica, sativa, and hybrid from small upper-Midwest cultivators. We rotate the menu monthly so the harvests on the shelf are always within 90 days of cure.",
+            "image": "https://images.unsplash.com/photo-1603909223429-69bb7101f420?w=1400&q=80",
+            "bullets": ["12–18 strains in rotation at any time", "Live-resin and infused pre-rolls available", "House-curated 'budtender's pick' refreshes weekly"]
+          },
+          {
+            "title": "Edibles",
+            "description": "Chocolates, gummies, beverages, and baked goods. Every product is dose-tested in our shop kitchen — we taste before we stock.",
+            "image": "https://images.unsplash.com/photo-1626078436693-fbb9b27cd35d?w=1400&q=80",
+            "bullets": ["5mg, 10mg, and microdose options", "Vegan, gluten-free, and sugar-free selections", "Locally-baked and shelf-stable both stocked"]
+          },
+          {
+            "title": "Concentrates & vapes",
+            "description": "Live rosin, hash, distillate carts, and rosin-pressed cartridges. Lab tests posted at the register for every batch.",
+            "image": "https://images.unsplash.com/photo-1583912267550-d4b67ba90b08?w=1400&q=80",
+            "bullets": ["Full COA available for every concentrate", "Solventless and solvent-extracted both stocked", "Battery hardware QC'd in-house"]
+          },
+          {
+            "title": "Accessories & glass",
+            "description": "Locally-blown glass, premium grinders, storage, papers. The basics done well, plus pieces from a few Wisconsin and Minnesota artisans.",
+            "image": "https://images.unsplash.com/photo-1606191671193-ce39db17d33b?w=1400&q=80",
+            "bullets": ["Hand-blown glass from regional artists", "Storage and curing accessories for serious users"]
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1610476085824-3e2ca65d9b13?w=1400&q=80",
+        "heading": "First visit? You're in good hands",
+        "subtitle": "Our budtenders don't push, don't upsell, and have all the time in the world to walk you through your first purchase. Bring ID, your questions, and your preferences.",
+        "bullets": [
+          "Daily 10am–9pm · open seven days a week",
+          "21+ recreational and registered medical patients welcome",
+          "Cash, debit, and on-site ATM. No credit cards (federal banking)",
+          "First-visit 10% off — just tell the budtender it's your first time"
+        ],
+        "primaryCta": { "label": "Visit the shop", "href": "#contact" },
+        "phone": "608-555-4200"
+      }
+    }
+  ]
+}

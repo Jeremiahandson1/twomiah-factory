@@ -918,6 +918,11 @@ export async function deployCustomer(
         }
         // Always include ADS_URL so the ads page works from first deploy
         backendEnvVars.push({ key: 'ADS_URL', value: process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com' })
+        // If this tenant has a premium website, the CRM SchedulePage
+        // pulls bookings from it. URL is predictable from the slug.
+        if (products.includes('website-premium')) {
+          backendEnvVars.push({ key: 'WEBSITE_PREMIUM_URL', value: 'https://' + slug + '-site.onrender.com' })
+        }
         if (dbConnectionString) backendEnvVars.push({ key: 'DATABASE_URL', value: dbConnectionString })
         if (supabaseProject) {
           backendEnvVars.push({ key: 'SUPABASE_URL', value: supabaseProject.supabaseUrl })
@@ -1051,6 +1056,58 @@ export async function deployCustomer(
       try {
         await findAndDeleteRenderService(slug + '-site')
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
+
+        // ── Premium-site DB provisioning ──────────────────────────────────
+        // The premium templates (templates/website-premium-*) need their own
+        // dedicated Postgres for CMS data (pages.sections jsonb, users,
+        // photos, leads, settings). The Hono server reads DATABASE_URL on
+        // boot and crashes ENOTFOUND when the host is unresolvable, which
+        // 500s every request — discovered via test harness 2026-06-04
+        // probe-final3. Skipped for standard websites (they don't query
+        // any DB from server-static.ts).
+        const isPremiumSite = products.includes('website-premium')
+        let siteDbConnectionString: string | null = null
+        if (isPremiumSite) {
+          try {
+            const siteDbName = slug + '-site'  // creates {slug}-site-db once -db suffix is applied by createRenderDatabase
+            const existingSiteDb = await findExistingDatabase(siteDbName + '-db')
+            if (existingSiteDb) {
+              console.log('[Deploy] Reusing existing premium site DB:', siteDbName + '-db', existingSiteDb.id)
+              createdResources.push({ type: 'database', id: existingSiteDb.id, name: siteDbName + '-db' })
+              if (existingSiteDb.id) deployedResourceIds.push(existingSiteDb.id)
+              const connInfo = await getDatabaseConnectionInfo(existingSiteDb.id)
+              if (connInfo?.internalConnectionString) siteDbConnectionString = connInfo.internalConnectionString
+            }
+            if (!siteDbConnectionString) {
+              console.log('[Deploy] Creating premium site DB:', siteDbName + '-db')
+              const siteDb = await createRenderDatabase(siteDbName, region, dbPlan)
+              createdResources.push({ type: 'database', id: siteDb.id, name: siteDbName + '-db' })
+              if (siteDb.id) deployedResourceIds.push(siteDb.id)
+              // Poll for connection string — same pattern as CRM DB above.
+              for (let attempt = 0; attempt < 20; attempt++) {
+                await sleep(15000)
+                try {
+                  const connInfo = await getDatabaseConnectionInfo(siteDb.id)
+                  if (connInfo?.internalConnectionString) {
+                    siteDbConnectionString = connInfo.internalConnectionString
+                    console.log('[Deploy] Premium site DB connection string received (attempt ' + (attempt + 1) + ')')
+                    break
+                  }
+                } catch (_e) { /* not ready yet */ }
+              }
+              if (!siteDbConnectionString) throw new Error('Premium site DB did not become ready in time')
+            }
+            results.steps.push({ step: 'render_site_db', status: 'ok' })
+          } catch (siteDbErr: any) {
+            results.steps.push({ step: 'render_site_db', status: 'error', error: siteDbErr.message })
+            results.errors.push('Premium site DB: ' + siteDbErr.message)
+            // Don't bail — let the site service get created without DB and
+            // surface the failure via /health. (The site will 500 until
+            // DATABASE_URL is set manually, but at least the deploy completes
+            // far enough to be diagnosable.)
+          }
+        }
+
         const siteEnvVars: Array<{ key: string; value: string }> = [
             { key: 'NODE_ENV', value: 'production' },
             { key: 'PORT', value: '10000' },
@@ -1059,6 +1116,50 @@ export async function deployCustomer(
             { key: 'TENANT_SLUG', value: slug },
             ...r2EnvVars,
         ]
+        if (siteDbConnectionString) {
+          siteEnvVars.push({ key: 'DATABASE_URL', value: siteDbConnectionString })
+        }
+        // Premium site bootstrap requires identity to itself + auth back to
+        // the factory so initDb.ts can fetch the customer's composed pages
+        // and admin credentials. Mirrors the pattern used by the CRM side.
+        if (isPremiumSite) {
+          const factoryUrl = process.env.TWOMIAH_FACTORY_URL || ''
+          const adminEmail = factoryCustomer.config?.company?.email || factoryCustomer.config?.company?.admin_email || ''
+          // generator.ts auto-generates a defaultPassword but on a fresh
+          // config copy — direct deployCustomer callers (test harness,
+          // re-deploy paths) might not see it. Generate inline if missing
+          // so the seed never lands on an empty password.
+          let adminPassword = factoryCustomer.config?.company?.defaultPassword || ''
+          if (!adminPassword) {
+            adminPassword = crypto.randomBytes(8).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 12) + '!'
+            console.log('[Deploy] No defaultPassword on config — generated one for premium site admin')
+          }
+          siteEnvVars.push({ key: 'FACTORY_URL',           value: factoryUrl })
+          siteEnvVars.push({ key: 'TENANT_ID',             value: factoryCustomer.id })
+          siteEnvVars.push({ key: 'FACTORY_SYNC_KEY',      value: factorySyncKey })
+          siteEnvVars.push({ key: 'ADMIN_EMAIL',           value: adminEmail })
+          siteEnvVars.push({ key: 'ADMIN_INITIAL_PASSWORD',value: adminPassword })
+          siteEnvVars.push({ key: 'COMPANY_NAME',          value: factoryCustomer.name || slug })
+          // Pass through Google Calendar OAuth creds so the tenant can
+          // refresh access tokens. Initial token exchange is done by
+          // the Factory (one approved app, one redirect URI).
+          if (process.env.GOOGLE_CALENDAR_CLIENT_ID && process.env.GOOGLE_CALENDAR_CLIENT_SECRET) {
+            siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_ID',     value: process.env.GOOGLE_CALENDAR_CLIENT_ID })
+            siteEnvVars.push({ key: 'GOOGLE_CALENDAR_CLIENT_SECRET', value: process.env.GOOGLE_CALENDAR_CLIENT_SECRET })
+          }
+          if (process.env.OUTLOOK_CALENDAR_CLIENT_ID && process.env.OUTLOOK_CALENDAR_CLIENT_SECRET) {
+            siteEnvVars.push({ key: 'OUTLOOK_CALENDAR_CLIENT_ID',     value: process.env.OUTLOOK_CALENDAR_CLIENT_ID })
+            siteEnvVars.push({ key: 'OUTLOOK_CALENDAR_CLIENT_SECRET', value: process.env.OUTLOOK_CALENDAR_CLIENT_SECRET })
+          }
+          // Pass through SMS internal URL so booking confirmations can
+          // text the customer via the connected CRM's Twilio.
+          if (results.apiUrl) {
+            siteEnvVars.push({ key: 'SMS_INTERNAL_URL', value: results.apiUrl.replace(/\/$/, '') + '/api/internal/send-sms' })
+          }
+          // Stash the generated password on the result so notifyDeployComplete
+          // can include it in the customer's welcome email.
+          ;(results as any).adminPassword = adminPassword
+        }
         if (hasVisualizerFeature) {
           siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
@@ -1070,10 +1171,54 @@ export async function deployCustomer(
           siteEnvVars.push({ key: 'CRM_API_URL', value: results.apiUrl })
           siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
         }
+        // Premium sites push their drizzle schema to the dedicated DB on
+        // boot (no migration files exist — they're greenfield templates).
+        // Realistic Render Postgres readiness is 2-5 min after the API
+        // returns a connection string.
+        //
+        // First attempt used `bunx drizzle-kit push --force && break ||
+        // sleep 10` but probe-final-final 2026-06-05 02:30 showed the
+        // server starting 1s after the first push failed — the shell
+        // construct exited the loop early (suspected: a sub-shell or
+        // signal interaction with bunx). Refactored to explicit if-check
+        // with RC capture, plus a final exit 1 when all 60 attempts fail
+        // so Render marks the deploy update_failed instead of incorrectly
+        // booting a broken server.
+        //
+        // Standard sites have no DB query path so they skip push entirely.
+        // Two important shell things to know:
+        // 1. `for ... do <CMD>` doesn't accept a `;` between `do` and the
+        //    first command — `do; bunx ...` is a syntax error. Same for
+        //    `if ... then`. Space-separated, not semicolon-separated.
+        // 2. drizzle-kit push exits 0 even on connection failures (saw
+        //    ECONNREFUSED + immediate exit 0 in landscaping 2026-06-05
+        //    probe-dns). So `$? -eq 0` is a misleading success signal.
+        //    Reliable signal: look for 'Changes applied' or 'No changes'
+        //    in stdout — drizzle prints one of those when push really
+        //    works against a real DB.
+        const premiumBoot =
+          'export PATH=$HOME/.bun/bin:$PATH; ' +
+          'PUSH_OK=false; ' +
+          'for i in $(seq 1 60); do ' +
+            'OUT=$(bunx drizzle-kit push --force 2>&1); ' +
+            'echo "$OUT"; ' +
+            'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] push verified on attempt $i"; PUSH_OK=true; break; fi; ' +
+            'echo "[boot] push attempt $i did not verify (likely DB not ready), retrying in 10s"; ' +
+            'sleep 10; ' +
+          'done; ' +
+          'if [ "$PUSH_OK" != "true" ]; then echo "[boot] FATAL: push never verified"; exit 1; fi; ' +
+          // Seed step: tries to fetch composed pages + admin from the
+          // factory, falls back to env-var defaults. Non-fatal if it
+          // fails — the site still boots and renders the placeholder.
+          'bun run scripts/initDb.ts || echo "[boot] WARN: initDb.ts exited non-zero — server will start anyway"; ' +
+          'NODE_ENV=production exec bun server-static.ts'
+        const siteStartCommand = isPremiumSite
+          ? premiumBoot
+          : 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts'
         const site = await createRenderWebService({
           name: slug + '-site', repoFullName: repo.full_name, rootDir: 'website',
           buildCommand: siteBunSetup + ' && bun install --no-verify && if [ -f admin/package.json ]; then cd admin && bun install --no-verify && bun run build:quick && cd ..; fi',
-          startCommand: 'export PATH=$HOME/.bun/bin:$PATH && NODE_ENV=production bun server-static.ts',
+          startCommand: siteStartCommand,
           envVars: siteEnvVars,
           plan, region,
         })

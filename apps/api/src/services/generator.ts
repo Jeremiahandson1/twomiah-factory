@@ -178,8 +178,77 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
 
     if (products.includes('website')) {
       const industry = config.company?.industry || ''
+
+      // Premium tier — section-composition templates with AI-driven layout.
+      // The $19/standard tier flow below is untouched; premium tenants land
+      // in a separate template family entirely. Industry coverage expands
+      // via #26 (multi-industry premium templates).
+      const isPremium = products.includes('website-premium')
+      // Per-industry premium template sets. Order of check matters in
+      // the routing block below — more-specific industries take priority
+      // over the contractor catch-all even when they're contractor-family
+      // trades.
+      const PREMIUM_ROOFING_INDUSTRIES = new Set([
+        'roofing', 'roof', 'storm_restoration', 'siding_roofing',
+      ])
+      const PREMIUM_HOMECARE_INDUSTRIES = new Set([
+        'home_care', 'homecare', 'in_home_care', 'senior_care',
+        'caregiving', 'companion_care',
+      ])
+      const PREMIUM_DISPENSARY_INDUSTRIES = new Set([
+        'dispensary', 'cannabis', 'cannabis_retail',
+      ])
+      const PREMIUM_LANDSCAPING_INDUSTRIES = new Set([
+        'landscaping', 'lawn_care', 'lawncare', 'landscape_design',
+        'snow_removal', 'tree_service',
+      ])
+      const PREMIUM_SHOWCASE_INDUSTRIES = new Set([
+        'food', 'restaurant', 'hospitality', 'hotel', 'cafe',
+        'fitness', 'gym', 'yoga', 'beauty', 'salon', 'spa',
+        'events', 'wedding', 'catering',
+      ])
+      const PREMIUM_CONTRACTOR_INDUSTRIES = new Set([
+        'contractor', 'general_contractor', 'construction', 'remodeling',
+        'siding', 'home_improvement',
+      ])
+      const PREMIUM_FIELDSERVICE_INDUSTRIES = new Set([
+        'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
+        'cleaning', 'pest_control', 'locksmith', 'garage_door',
+      ])
+
       let websiteTemplate = 'website-general'
-      if (industry === 'home_care') websiteTemplate = 'website-homecare'
+      if (isPremium) {
+        if (PREMIUM_ROOFING_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-roofing'
+        } else if (PREMIUM_HOMECARE_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-homecare'
+        } else if (PREMIUM_DISPENSARY_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-dispensary'
+        } else if (PREMIUM_LANDSCAPING_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-landscaping'
+        } else if (PREMIUM_SHOWCASE_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-showcase'
+        } else if (PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
+          websiteTemplate = 'website-premium-fieldservice'
+        } else if (PREMIUM_CONTRACTOR_INDUSTRIES.has(industry) || !industry || industry === 'other') {
+          websiteTemplate = 'website-premium-contractor'
+        } else {
+          const supported = [
+            ...Array.from(PREMIUM_ROOFING_INDUSTRIES),
+            ...Array.from(PREMIUM_HOMECARE_INDUSTRIES),
+            ...Array.from(PREMIUM_DISPENSARY_INDUSTRIES),
+            ...Array.from(PREMIUM_LANDSCAPING_INDUSTRIES),
+            ...Array.from(PREMIUM_SHOWCASE_INDUSTRIES),
+            ...Array.from(PREMIUM_CONTRACTOR_INDUSTRIES),
+            ...Array.from(PREMIUM_FIELDSERVICE_INDUSTRIES),
+          ]
+          throw new Error(
+            `Premium website requested for industry='${industry}' but no premium template exists for this vertical yet. ` +
+            'Premium currently supports: ' + supported.join(', ') + '. ' +
+            'Either change industry or drop website-premium from products.'
+          )
+        }
+      } else if (industry === 'home_care') websiteTemplate = 'website-homecare'
       else if (industry === 'field_service') websiteTemplate = 'website-fieldservice'
       else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
       else if (industry === 'landscaping') websiteTemplate = 'website-landscaping'
@@ -223,8 +292,24 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       }
 
       if (products.includes('cms')) {
-        copyTemplate('cms', path.join(workDir, 'website', 'admin'), tokens)
-        await writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding, config.company?.name)
+        // Premium templates bring their OWN admin SPA at website-premium-*/admin/
+        // — with its own package.json + postcss.config.js + tailwind.config.js
+        // wired together as a matched set. Overlaying the standalone `cms`
+        // template on top creates a Frankenstein admin: cms's package.json
+        // (no tailwindcss) on top of premium's postcss.config.js (requires
+        // tailwindcss), which breaks vite build. Skip the overlay for
+        // premium and trust the template's own admin.
+        if (!isPremium) {
+          copyTemplate('cms', path.join(workDir, 'website', 'admin'), tokens)
+          await writeBrandingAssets(path.join(workDir, 'website', 'admin'), config.branding, config.company?.name)
+        } else {
+          // Premium already has its admin — just paint the branding assets
+          // into the existing folder so logo/favicon reflect this tenant.
+          const premiumAdminDir = path.join(workDir, 'website', 'admin')
+          if (fs.existsSync(premiumAdminDir)) {
+            await writeBrandingAssets(premiumAdminDir, config.branding, config.company?.name)
+          }
+        }
       }
     } else if (products.includes('cms')) {
       copyTemplate('cms', path.join(workDir, 'cms'), tokens)

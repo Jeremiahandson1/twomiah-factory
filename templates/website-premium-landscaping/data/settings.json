@@ -1,0 +1,16 @@
+{
+  "companyName": "Driftless Land & Lawn",
+  "tagline": "Lawn care, landscape design, and snow management across the Driftless region",
+  "phone": "608-555-3344",
+  "email": "office@driftlesslandandlawn.com",
+  "seoTitle": "Driftless Land & Lawn — Madison-area lawn care, landscape design, snow removal",
+  "seoDescription": "Recurring mowing, full landscape installations, and seasonal cleanups across Madison, Verona, and the Driftless region. Family-run since 2011.",
+  "homeHref": "index.html",
+  "contactHref": "contact.html",
+  "contactCtaLabel": "Get a quote",
+  "nav": [
+    { "label": "Services", "href": "services.html" },
+    { "label": "About", "href": "about.html" },
+    { "label": "Contact", "href": "contact.html" }
+  ]
+}

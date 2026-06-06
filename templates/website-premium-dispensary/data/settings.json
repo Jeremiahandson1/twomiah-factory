@@ -1,0 +1,16 @@
+{
+  "companyName": "Bluff Country Provisions",
+  "tagline": "Locally-curated cannabis, Driftless region",
+  "phone": "608-555-4200",
+  "email": "hello@bluffcountryprovisions.com",
+  "seoTitle": "Bluff Country Provisions — Boutique cannabis dispensary | Madison, WI",
+  "seoDescription": "Locally-curated cannabis from the upper Midwest's most respected cultivators. Flower, edibles, concentrates, accessories — knowledgeable budtenders, no upsell pressure.",
+  "homeHref": "index.html",
+  "contactHref": "contact.html",
+  "contactCtaLabel": "Visit us",
+  "nav": [
+    { "label": "Shop", "href": "services.html" },
+    { "label": "About", "href": "about.html" },
+    { "label": "Visit", "href": "contact.html" }
+  ]
+}

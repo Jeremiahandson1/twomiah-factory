@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, Users, Factory, LogOut, Zap, LifeBuoy, BarChart3, Settings, DollarSign, FileBarChart } from 'lucide-react'
+import { LayoutDashboard, Users, Factory, LogOut, Zap, LifeBuoy, BarChart3, Settings, DollarSign, FileBarChart, Eye } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { supabase, API_URL as API } from '../supabase'
 import { useUser, type UserRole } from '../contexts/UserContext'
@@ -41,6 +41,7 @@ export default function AppLayout() {
     { to: '/tenants', icon: Users, label: 'Customers' },
     { to: '/factory', icon: Factory, label: 'Factory', roles: ['owner', 'admin', 'editor'] },
     { to: '/roof-review', icon: FileBarChart, label: 'Roof Review', roles: ['owner', 'admin'] },
+    { to: '/premium-review', icon: Eye, label: 'Premium Review', roles: ['owner', 'admin', 'editor'] },
     { to: '/support', icon: LifeBuoy, label: 'Support' },
     { to: '/analytics', icon: BarChart3, label: 'Analytics' },
     { to: '/pricing', icon: DollarSign, label: 'Pricing', roles: ['owner', 'admin'] },

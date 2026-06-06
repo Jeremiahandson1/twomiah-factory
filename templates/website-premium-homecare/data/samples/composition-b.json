@@ -1,0 +1,80 @@
+{
+  "_note": "Composition B — story-and-stats led. Centered hero with light credibility stats, about-us split with the founder's voice, services cards-grid, banner CTA. Reads as 'small agency you'd actually trust with your mother.'",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "centered-stats",
+      "data": {
+        "eyebrow": "Family-owned · Licensed since 2014",
+        "title": "Senior care from a family who got into this for the right reasons",
+        "subtitle": "Driftless Care Companions started when our founder couldn't find someone to care for her own mother. Eleven years later, we still hire and train every caregiver personally.",
+        "primaryCta": { "label": "Schedule consultation", "href": "#contact" },
+        "stats": [
+          { "value": "11 yrs", "label": "Family-owned" },
+          { "value": "4.9 ★", "label": "Google rating" },
+          { "value": "<24 hr", "label": "Initial response" },
+          { "value": "2x", "label": "Background-check standard" }
+        ]
+      }
+    },
+    {
+      "type": "hero",
+      "variant": "split",
+      "data": {
+        "flip": true,
+        "eyebrow": "Our standard",
+        "title": "Every caregiver is trained by someone whose name is on the agency",
+        "subtitle": "We don't subcontract. We don't use agencies-of-agencies. The caregivers who walk through your loved one's door went through training led by the same family who'd send their own parents to the same care.",
+        "image": "https://images.unsplash.com/photo-1581579188871-45ea61f2a0c8?w=1400&q=80",
+        "primaryCta": { "label": "See how we hire", "href": "#services" },
+        "stats": [
+          { "value": "100%", "label": "W-2 employees (no contractors)" },
+          { "value": "12 wks", "label": "Avg training before first shift" }
+        ]
+      }
+    },
+    {
+      "type": "services",
+      "variant": "cards-grid",
+      "data": {
+        "heading": "What we cover",
+        "intro": "Four service tracks. Most clients use two or three over time as needs change. The same caregiver carries the relationship through.",
+        "items": [
+          {
+            "title": "Companion care",
+            "description": "Conversation, meals, light housekeeping, errands. The hours when family can't be there.",
+            "image": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Personal care",
+            "description": "Bathing, dressing, grooming, mobility, medication reminders. CBRF-certified, dignity-first.",
+            "image": "https://images.unsplash.com/photo-1576765608535-5f04d1e3f289?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Dementia specialty",
+            "description": "Teepa Snow Positive Approach trained. Continuity of caregiver to reduce confusion.",
+            "image": "https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Hospice support",
+            "description": "Continuous bedside presence. Coordinates with your hospice nurse + chaplain.",
+            "image": "https://images.unsplash.com/photo-1574631818862-08ce1c6cee59?w=900&q=80",
+            "href": "#contact"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "Talk to someone today",
+        "subtitle": "Free, confidential consultation. We'll listen first and tell you straight whether we're the right fit.",
+        "primaryCta": { "label": "Schedule consultation", "href": "#contact" }
+      }
+    }
+  ]
+}

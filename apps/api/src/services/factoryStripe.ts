@@ -161,6 +161,90 @@ export async function createLicenseCheckout(
   return { sessionId: session.id, url: session.url, stripeCustomerId }
 }
 
+// ── Premium-website checkout (subscription + one-time build fee) ────────────
+//
+// The standalone $75/mo + $1k one-time build product. One checkout session
+// combines:
+//   - subscription line item: STRIPE_PRICE_PREMIUM_WEBSITE_MONTHLY or _ANNUAL
+//   - add_invoice_items:      STRIPE_PRICE_PREMIUM_WEBSITE_BUILD (one-time
+//                              fee added to the first invoice)
+//   - discounts (optional):   STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH applied
+//                              automatically when the env var is set
+//                              (Stripe enforces the coupon's own valid_until
+//                              window — if it's expired, Stripe rejects it)
+//
+// Webhook auto-deploys via the existing checkout.session.completed →
+// triggerAutoDeploy path (routes/factory.ts:1777). The tenant's `products`
+// column must already include 'website-premium' before payment so the
+// generator picks the right template.
+export async function createPremiumWebsiteCheckout(
+  factoryCustomer: {
+    id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string
+  },
+  options: { billingCycle?: 'monthly' | 'annual'; intakeId?: string }
+) {
+  if (!stripe) throw new Error('Stripe not configured')
+  const cycle: 'monthly' | 'annual' = options.billingCycle === 'annual' ? 'annual' : 'monthly'
+
+  const monthlyPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_PREMIUM_WEBSITE_MONTHLY as string | undefined
+  const annualPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_PREMIUM_WEBSITE_ANNUAL as string | undefined
+  const buildPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_PREMIUM_WEBSITE_BUILD as string | undefined
+  const launchCoupon = (STRIPE_PRICES as any).STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH as string | undefined
+
+  const recurringPriceId = cycle === 'annual' ? annualPriceId : monthlyPriceId
+  if (!recurringPriceId) {
+    throw new Error(
+      'Premium website price not minted in Stripe yet. Set STRIPE_PRICE_PREMIUM_WEBSITE_' +
+      (cycle === 'annual' ? 'ANNUAL' : 'MONTHLY') + ' (and STRIPE_PRICE_PREMIUM_WEBSITE_BUILD) in env, ' +
+      'then redeploy. See project_v1_deploy_config memory.'
+    )
+  }
+  if (!buildPriceId) {
+    throw new Error('Premium build fee price not set. Mint STRIPE_PRICE_PREMIUM_WEBSITE_BUILD on the Stripe dashboard.')
+  }
+
+  const stripeCustomerId = await ensureCustomer(factoryCustomer)
+
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    customer: stripeCustomerId,
+    mode: 'subscription',
+    line_items: [{ price: recurringPriceId, quantity: 1 }],
+    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
+    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
+    metadata: {
+      factory_customer_id: factoryCustomer.id,
+      product: 'website-premium',
+      billing_type: 'subscription',
+      billing_cycle: cycle,
+      intake_id: options.intakeId || '',
+    },
+    subscription_data: {
+      metadata: {
+        factory_customer_id: factoryCustomer.id,
+        product: 'website-premium',
+      },
+    },
+  }
+  // $1k one-time build fee added to the first invoice of the subscription.
+  // Stripe's HTTP API supports `subscription_data[add_invoice_items]`
+  // (https://docs.stripe.com/api/checkout/sessions/create#create_checkout_session-subscription_data-add_invoice_items)
+  // but the typed SDK has not yet surfaced the field — write via cast on
+  // subscription_data so the request serializes correctly. Confirmed via
+  // grep: add_invoice_items only appears on Subscriptions/Invoices types,
+  // not at top-level on SessionCreateParams.
+  ;(sessionParams.subscription_data as any).add_invoice_items = [{ price: buildPriceId, quantity: 1 }]
+
+  // Launch coupon (e.g. $499 off the build fee). Stripe rejects expired
+  // coupons automatically — they expire on the coupon's own valid_until,
+  // not ours.
+  if (launchCoupon) {
+    sessionParams.discounts = [{ coupon: launchCoupon }]
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams)
+  return { sessionId: session.id, url: session.url, stripeCustomerId }
+}
+
 // ── Deploy service checkout (one-time) ───────────────────────────────────────
 
 export async function createDeployCheckout(
@@ -368,6 +452,7 @@ export default {
   createSubscriptionCheckout,
   createLicenseCheckout,
   createDeployCheckout,
+  createPremiumWebsiteCheckout,
   createBillingPortalSession,
   createAutoSubscription,
   createCustomer,

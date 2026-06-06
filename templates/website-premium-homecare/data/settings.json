@@ -1,0 +1,16 @@
+{
+  "companyName": "Driftless Care Companions",
+  "tagline": "In-home senior care across Madison, Verona, and the Driftless region",
+  "phone": "608-555-2266",
+  "email": "hello@driftlesscare.com",
+  "seoTitle": "Driftless Care Companions — In-home senior care | Madison, WI",
+  "seoDescription": "Licensed, bonded, and family-vetted caregivers for in-home senior care across the Driftless region. Companion care, personal care, dementia specialty, hospice support.",
+  "homeHref": "index.html",
+  "contactHref": "contact.html",
+  "contactCtaLabel": "Schedule a free consultation",
+  "nav": [
+    { "label": "Services", "href": "services.html" },
+    { "label": "About", "href": "about.html" },
+    { "label": "Contact", "href": "contact.html" }
+  ]
+}

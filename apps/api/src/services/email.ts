@@ -62,20 +62,27 @@ function wrap(title: string, body: string): string {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7;padding:40px 20px;">
+<body style="margin:0;padding:0;background:#fafaf7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#fafaf7;padding:48px 16px;">
 <tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-  <tr><td style="background:#1a1a2e;padding:24px 32px;">
-    <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;">Twomiah Factory</h1>
+<table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(20,20,30,0.06);">
+  <tr><td style="padding:28px 36px 0;">
+    <a href="https://twomiah.com" style="text-decoration:none;color:#1a1a1a;font-size:13px;font-weight:700;letter-spacing:0.16em;text-transform:uppercase;">TWOMIAH</a>
   </td></tr>
-  <tr><td style="padding:32px;">
-    <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:18px;">${title}</h2>
+  <tr><td style="padding:24px 36px 8px;">
+    <h2 style="margin:0 0 8px;color:#1a1a1a;font-size:22px;font-weight:700;line-height:1.3;">${title}</h2>
+  </td></tr>
+  <tr><td style="padding:8px 36px 36px;color:#3a3a3a;font-size:15px;line-height:1.6;">
     ${body}
   </td></tr>
-  <tr><td style="background:#f8f8fa;padding:16px 32px;text-align:center;">
-    <p style="margin:0;color:#999;font-size:12px;">Twomiah Software Ventures &middot; 2607 Beverly Hills Drive, Eau Claire, WI 54701</p>
-    <p style="margin:4px 0 0;color:#bbb;font-size:11px;"><a href="https://twomiah.com/terms" style="color:#bbb;">Terms</a> &middot; <a href="https://twomiah.com/privacy" style="color:#bbb;">Privacy</a> &middot; <a href="mailto:support@twomiah.com" style="color:#bbb;">Support</a></p>
+  <tr><td style="background:#fafaf7;padding:20px 36px;border-top:1px solid #eee;text-align:left;">
+    <p style="margin:0;color:#888;font-size:12px;line-height:1.5;">
+      Twomiah Software Ventures &middot; Eau Claire, WI<br>
+      <a href="https://twomiah.com" style="color:#888;text-decoration:underline;">twomiah.com</a> &middot;
+      <a href="https://twomiah.com/terms" style="color:#888;text-decoration:underline;">Terms</a> &middot;
+      <a href="https://twomiah.com/privacy" style="color:#888;text-decoration:underline;">Privacy</a> &middot;
+      <a href="mailto:hello@twomiah.com" style="color:#888;text-decoration:underline;">hello@twomiah.com</a>
+    </p>
   </td></tr>
 </table>
 </td></tr>
@@ -85,7 +92,7 @@ function wrap(title: string, body: string): string {
 }
 
 function btn(url: string, label: string): string {
-  return `<a href="${url}" style="display:inline-block;background:#4f46e5;color:#ffffff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;margin-top:16px;">${label}</a>`
+  return `<a href="${url}" style="display:inline-block;background:#f97316;color:#ffffff;padding:14px 30px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0 4px;">${label}</a>`
 }
 
 function kv(label: string, value: string): string {
@@ -141,9 +148,21 @@ export async function notifyDeployComplete(
 
   const product = getProductName(tenant.industry, tenant.products)
 
+  const products = tenant.products || []
+  const hasWebsite = products.includes('website') || products.includes('website-premium')
+  const isPremiumWebsite = products.includes('website-premium')
+  // Website admins live at <site>/admin — the SPA bundled inside the
+  // tenant's website service. CRMs handle their own auth at the deployed
+  // CRM URL above, so we only surface the website admin when a website
+  // product is included.
+  const websiteAdminUrl = hasWebsite && urls.siteUrl
+    ? urls.siteUrl.replace(/\/+$/, '') + '/admin'
+    : null
+
   const urlLines: string[] = []
   if (urls.deployedUrl) urlLines.push(kv('CRM', `<a href="${urls.deployedUrl}">${urls.deployedUrl}</a>`))
   if (urls.siteUrl) urlLines.push(kv('Website', `<a href="${urls.siteUrl}">${urls.siteUrl}</a>`))
+  if (websiteAdminUrl) urlLines.push(kv('Website admin', `<a href="${websiteAdminUrl}">${websiteAdminUrl}</a>`))
   if (urls.apiUrl && urls.apiUrl !== urls.deployedUrl) urlLines.push(kv('API', `<a href="${urls.apiUrl}">${urls.apiUrl}</a>`))
 
   const passwordLine = tenant.admin_password
@@ -165,8 +184,13 @@ export async function notifyDeployComplete(
         <li>Invite your team members from Settings</li>
       </ol>
     </div>
+    ${isPremiumWebsite ? `
+    <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;padding:16px;margin:16px 0;">
+      <p style="margin:0 0 4px;color:#6b21a8;font-weight:600;">Tweak your AI-composed site</p>
+      <p style="margin:0;color:#581c87;font-size:14px;">Open the Website admin to edit any section's wording, swap photos, reorder, or add a new page. The composed draft is yours to refine.</p>
+    </div>` : ''}
     <p style="color:#666;font-size:14px;">Services may take a few minutes to fully start up after deployment.</p>
-    ${urls.deployedUrl ? btn(urls.deployedUrl, 'Log In to Your CRM') : ''}`
+    ${urls.deployedUrl ? btn(urls.deployedUrl, 'Log In to Your CRM') : websiteAdminUrl ? btn(websiteAdminUrl, 'Open Website Admin') : urls.siteUrl ? btn(urls.siteUrl, 'View Your Website') : ''}`
 
   return sendEmail(
     tenant.email,
@@ -301,6 +325,85 @@ export async function notifyNewIntake(
     ${data.intakeId ? btn('https://twomiah-factory-platform.onrender.com/tenants/' + data.intakeId, 'View in Factory Platform') : ''}`
 
   return sendEmail(to, 'New website intake: ' + data.businessName, wrap('New Local-Business Intake', body))
+}
+
+/**
+ * Fires when staff approves a composed premium preview — sends the
+ * prospect the link to view it. Until this fires, the public preview
+ * URL returns "not ready yet" so the prospect never sees unreviewed
+ * AI output.
+ */
+export async function notifyPreviewReady(
+  data: { to: string; businessName: string; previewUrl: string }
+): Promise<boolean> {
+  const body = `
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there — your <strong>${data.businessName}</strong> website preview is ready for review.</p>
+    <p style="color:#333;line-height:1.6;">We built a 4-page draft based on what you shared. Open the link below to look it over and tell us what you'd like changed.</p>
+    ${btn(data.previewUrl, 'View your preview')}
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">There's a "Request changes" button at the bottom right of every page — use it to send us tweaks. We turn around revisions in one business day.</p>
+    <p style="color:#666;line-height:1.6;font-size:14px;">When the preview is exactly what you want, the "Approve & build my site" button on the same preview takes you to checkout. We'll deploy the live version within an hour of payment clearing.</p>`
+
+  return sendEmail(data.to, `Your ${data.businessName} website preview is ready`, wrap('Your preview is ready', body))
+}
+
+/**
+ * Day-1 post-launch tips email. Sent ~24-72h after a premium tenant
+ * pays. Celebrates the launch and gives 3 concrete next steps.
+ */
+export async function notifyPostLaunchTips(
+  data: { to: string; businessName: string; siteUrl: string; adminUrl: string }
+): Promise<boolean> {
+  const body = `
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — your <strong>${data.businessName}</strong> site has been live for a day. Here's what most owners do this week to make it work harder for them:</p>
+    <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
+      <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">1. Share the link with three customers who'd say nice things</p>
+      <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">Their reactions are honest. Their feedback is gold. Their referrals are the cheapest marketing you'll ever pay for.</p>
+      <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">2. Add 2-3 real photos from a recent job</p>
+      <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">The composed draft uses stock for slots you didn't fill. Replacing them with actual work makes the site feel local and earned — buyers can tell the difference.</p>
+      <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">3. Add it to your Google Business Profile + email signature</p>
+      <p style="margin:0;color:#666;font-size:14px;line-height:1.5;">Two minutes each. Every quote you send for the next month carries your site on it.</p>
+    </div>
+    ${btn(data.adminUrl, 'Open your site admin')}
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When a contact form lead comes in, it'll land in your inbox automatically. Reply fast — most owners who reply within an hour close 30% more.</p>
+    <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Hit reply if you want a hand with any of the above.</p>`
+  return sendEmail(data.to, `Three things to do with your new ${data.businessName} site this week`, wrap('Your site is live — now what?', body))
+}
+
+/**
+ * 24-hour follow-up nudge sent to customers who submitted an intake,
+ * received a preview, but haven't clicked Approve & buy yet. One-shot
+ * — sentinel `preview_followup_sent_at` prevents repeats.
+ */
+export async function notifyPreviewFollowup(
+  data: { to: string; businessName: string; previewUrl: string }
+): Promise<boolean> {
+  const body = `
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — just checking in on your <strong>${data.businessName}</strong> website preview.</p>
+    <p style="color:#333;line-height:1.6;">You opened the draft yesterday. If anything wasn't right, hit the <strong>Request changes</strong> button on any page and we'll send you an updated version in 1–2 minutes. We can iterate as many times as you want — there's no charge to revise.</p>
+    ${btn(data.previewUrl, 'Open your preview')}
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When you're happy, the <strong>Approve &amp; build my site</strong> button on the preview takes you to checkout. Live site within 10 minutes after that.</p>
+    <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Got questions? Just reply to this email — it goes straight to a human.</p>`
+  return sendEmail(data.to, `Anything you'd change about your ${data.businessName} preview?`, wrap('Still thinking about it?', body))
+}
+
+/**
+ * Internal notification when a customer submits feedback on their
+ * premium-website preview. Routed to STAFF_NOTIFY_EMAIL (falls back
+ * to FACTORY_FROM_EMAIL) so somebody actually sees the request.
+ */
+export async function notifyIntakeFeedback(
+  data: { businessName: string; intakeId: string; message: string; contactEmail?: string }
+): Promise<boolean> {
+  const to = process.env.STAFF_NOTIFY_EMAIL || process.env.FACTORY_FROM_EMAIL || ''
+  if (!to) return false
+
+  const escaped = data.message.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] || c))
+  const body = `
+    <p style="color:#333;line-height:1.6;">New preview feedback from <strong>${data.businessName}</strong>${data.contactEmail ? ' (' + data.contactEmail + ')' : ''}:</p>
+    <div style="background:#f8f8fa;border-left:3px solid #f97316;padding:14px 18px;margin:16px 0;border-radius:4px;white-space:pre-wrap;color:#1a1a1a;line-height:1.55;">${escaped}</div>
+    <p style="color:#666;font-size:14px;">Open Premium Review on the platform to see all feedback for this intake and trigger a recompose.</p>
+    <p style="color:#999;font-size:12px;">Intake: <code>${data.intakeId}</code></p>`
+  return sendEmail(to, `[Preview feedback] ${data.businessName}`, wrap('Preview feedback received', body))
 }
 
 // ─── Trial lifecycle notifications ───────────────────────────────────────────

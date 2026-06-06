@@ -1959,3 +1959,46 @@ export const payrollLineItems = pgTable('payroll_line_items', {
 }, (t) => [
   index('payroll_line_items_payroll_record_id_idx').on(t.payrollRecordId),
 ])
+
+// ─── Twomiah Ads — A/B experiments ─────────────────────────────────────────
+// Each experiment tests variants of a landing page against ad traffic.
+// We record one row per visitor assignment + one per conversion event.
+export const adsExperiment = pgTable('ads_experiment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  path: text('path').notNull(),
+  status: text('status').notNull().default('draft'),
+  variants: json('variants').notNull().default([]),
+  winnerKey: text('winner_key'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ads_experiment_company_status_idx').on(t.companyId, t.status),
+])
+
+export const adsExperimentAssignment = pgTable('ads_experiment_assignment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  experimentId: text('experiment_id').notNull().references(() => adsExperiment.id, { onDelete: 'cascade' }),
+  variantKey: text('variant_key').notNull(),
+  visitorId: text('visitor_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ads_exp_assignment_exp_idx').on(t.experimentId, t.variantKey),
+  index('ads_exp_assignment_visitor_idx').on(t.experimentId, t.visitorId),
+])
+
+export const adsExperimentConversion = pgTable('ads_experiment_conversion', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  experimentId: text('experiment_id').notNull().references(() => adsExperiment.id, { onDelete: 'cascade' }),
+  variantKey: text('variant_key').notNull(),
+  visitorId: text('visitor_id').notNull(),
+  eventType: text('event_type').notNull().default('lead'),
+  targetId: text('target_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ads_exp_conversion_exp_idx').on(t.experimentId, t.variantKey),
+])
+

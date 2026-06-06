@@ -1,0 +1,80 @@
+{
+  "_note": "Composition B — curation-and-craft led. Centered hero with sourcing stats, about-us with the owners' voice, cards-grid product categories, banner CTA with store info.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "centered-stats",
+      "data": {
+        "eyebrow": "Independently owned · Madison since 2024",
+        "title": "The cannabis shop your friend who knows wine would recommend",
+        "subtitle": "We curate every product on the shelf the way a sommelier curates a wine list — direct relationships with growers, tasting before we stock, and budtenders who can talk lineage as easily as effect.",
+        "primaryCta": { "label": "Visit the shop", "href": "#contact" },
+        "stats": [
+          { "value": "18", "label": "Regional cultivators" },
+          { "value": "<90 days", "label": "Avg cure on flower" },
+          { "value": "100%", "label": "COA-tested concentrates" },
+          { "value": "0", "label": "Upsell quotas" }
+        ]
+      }
+    },
+    {
+      "type": "hero",
+      "variant": "split",
+      "data": {
+        "flip": true,
+        "eyebrow": "Our standard",
+        "title": "Every product is chosen by someone whose name is on the door",
+        "subtitle": "Most dispensaries take whatever the distributor offers. We don't. The owners pick every strain, taste every edible, and pull anything off the shelf that doesn't hold up.",
+        "image": "https://images.unsplash.com/photo-1610476085824-3e2ca65d9b13?w=1400&q=80",
+        "primaryCta": { "label": "See the menu", "href": "#services" },
+        "stats": [
+          { "value": "Weekly", "label": "Menu refresh" },
+          { "value": "3", "label": "Owner-curators" }
+        ]
+      }
+    },
+    {
+      "type": "services",
+      "variant": "cards-grid",
+      "data": {
+        "heading": "Four categories, all curated",
+        "intro": "We refresh the menu weekly and rotate cultivators monthly — the shelves always read like the best of what's growing right now.",
+        "items": [
+          {
+            "title": "Flower",
+            "description": "Indica, sativa, hybrid from small Wisconsin/Illinois/Michigan cultivators. 12–18 strains in rotation.",
+            "image": "https://images.unsplash.com/photo-1603909223429-69bb7101f420?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Edibles",
+            "description": "Chocolate, gummies, beverages, baked goods. Microdose to 100mg. Vegan + GF options.",
+            "image": "https://images.unsplash.com/photo-1626078436693-fbb9b27cd35d?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Concentrates",
+            "description": "Live rosin, hash, distillate carts. Full COA posted at the register for every batch.",
+            "image": "https://images.unsplash.com/photo-1583912267550-d4b67ba90b08?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Accessories",
+            "description": "Hand-blown glass from regional artists, premium grinders, storage, papers.",
+            "image": "https://images.unsplash.com/photo-1606191671193-ce39db17d33b?w=900&q=80",
+            "href": "#contact"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "Come see us",
+        "subtitle": "Open daily 10am–9pm. 21+ recreational and registered medical patients welcome. First-time visitor? Just ask — we'll take care of you.",
+        "primaryCta": { "label": "Get directions", "href": "#contact" }
+      }
+    }
+  ]
+}

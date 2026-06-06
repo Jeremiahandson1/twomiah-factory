@@ -452,4 +452,10 @@ alter table tenants add column if not exists offboard_grace_ends_at timestamptz;
 alter table tenants add column if not exists epp_code_sent_at timestamptz;
 
 create index if not exists tenants_domain_expires_idx on tenants(domain_expires_at) where domain_expires_at is not null;
+
+-- ─── Test-tenant flag ──────────────────────────────────────────────────────
+-- Set true for tenants spun up by scripts/test-factory-matrix.ts. Gates the
+-- hardDeleteTestTenant cleanup path AND drives the 6h orphan-cleanup cron.
+alter table tenants add column if not exists is_test_tenant boolean not null default false;
+create index if not exists tenants_is_test_tenant_created_at_idx on tenants(is_test_tenant, created_at) where is_test_tenant = true;
 create index if not exists tenants_offboard_grace_idx on tenants(offboard_grace_ends_at) where offboard_grace_ends_at is not null;

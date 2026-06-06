@@ -232,6 +232,62 @@ async function main() {
   }
 
   // ═══════════════════════════════════════════════════
+  // 6. PREMIUM WEBSITE (standalone $75/mo + $1k build)
+  // ═══════════════════════════════════════════════════
+  // Section-composition AI-composed sites under templates/website-premium-*.
+  // The Factory's /public/intake/:id/checkout-premium endpoint references
+  // these price IDs by env-var name; the launch coupon auto-applies if set.
+  console.log('\n═══ Premium Website ═══')
+
+  const premiumMonthlyProd = await createProduct(
+    'Twomiah Premium Website — Monthly',
+    'Standalone premium website with AI-composed sections, per-vertical template family, full CMS admin. Monthly billing.',
+    { twomiah_tier: 'premium_website_monthly' }
+  )
+  await createPrice(premiumMonthlyProd, 'STRIPE_PRICE_PREMIUM_WEBSITE_MONTHLY', 7500, { recurring: { interval: 'month' }, nickname: 'Premium Website ($75/mo)' })
+
+  const premiumAnnualProd = await createProduct(
+    'Twomiah Premium Website — Annual',
+    'Annual billing of Premium Website. 15% off vs monthly ($765/yr).',
+    { twomiah_tier: 'premium_website_annual' }
+  )
+  await createPrice(premiumAnnualProd, 'STRIPE_PRICE_PREMIUM_WEBSITE_ANNUAL', 76500, { recurring: { interval: 'year' }, nickname: 'Premium Website ($765/yr)' })
+
+  const premiumBuildProd = await createProduct(
+    'Twomiah Premium Website — Build Fee',
+    'One-time build fee for Premium Website. Charged on the first invoice of the subscription.',
+    { twomiah_tier: 'premium_website_build' }
+  )
+  await createPrice(premiumBuildProd, 'STRIPE_PRICE_PREMIUM_WEBSITE_BUILD', 100000, { nickname: 'Premium build fee ($1,000 one-time)' })
+
+  // Launch coupon — $499 off the build fee. Once-only. Valid 90 days from
+  // creation. The Factory passes the coupon ID via STRIPE_COUPON_PREMIUM_
+  // WEBSITE_LAUNCH; Stripe enforces its own expiry — if it's expired, the
+  // checkout call silently drops it rather than failing.
+  console.log('\n═══ Premium Website Launch Coupon ═══')
+  const couponName = 'Premium Website Launch'
+  const existingCoupons = await stripe.coupons.list({ limit: 100 })
+  const existingCoupon = existingCoupons.data.find(c => c.name === couponName)
+  let couponId: string
+  if (existingCoupon) {
+    couponId = existingCoupon.id
+    console.log(`  Coupon exists: ${couponName} (${couponId})`)
+  } else {
+    const ninetyDaysOut = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60
+    const coupon = await stripe.coupons.create({
+      name: couponName,
+      amount_off: 49900,
+      currency: 'usd',
+      duration: 'once',
+      redeem_by: ninetyDaysOut,
+      metadata: { twomiah_key: 'STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH' },
+    })
+    couponId = coupon.id
+    console.log(`  Created coupon: ${couponName} (${couponId}) — $499 off, valid 90 days`)
+  }
+  results.STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH = couponId
+
+  // ═══════════════════════════════════════════════════
   // DONE — Write config
   // ═══════════════════════════════════════════════════
   console.log('\n\n════════════════════════════════════════')
