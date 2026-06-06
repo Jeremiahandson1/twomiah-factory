@@ -213,10 +213,28 @@ if (existingTenantKey && freshlyGeneratedKey && existingTenantKey !== freshlyGen
     console.error('POST /deploys failed: status=' + triggerRes.status + ' body=' + await triggerRes.text().catch(() => ''))
     process.exit(1)
   }
-  const triggerJson = await triggerRes.json() as { id?: string; deploy?: { id?: string } }
-  const newDeployId = triggerJson?.deploy?.id || triggerJson?.id
+  // Render's response shape varies — sometimes { id }, sometimes
+  // { deploy: { id } }, sometimes { deployId }, sometimes null body
+  // (202 with no payload). Read as text first so we can debug, parse
+  // best-effort, fall back to polling the latest deploy id.
+  const triggerText = await triggerRes.text()
+  let triggerJson: any = null
+  try { triggerJson = triggerText ? JSON.parse(triggerText) : null } catch {}
+  let newDeployId: string | undefined =
+    triggerJson?.id || triggerJson?.deploy?.id || triggerJson?.deployId
   if (!newDeployId) {
-    console.error('Could not extract new deploy id from trigger response:', JSON.stringify(triggerJson))
+    // Fallback: look up the most recent deploy on this service.
+    // This works because the POST /deploys we just made is the
+    // freshest event in Render's queue — its id is whatever the
+    // service's deploys list returns first.
+    await new Promise(r => setTimeout(r, 3000))  // brief settle
+    const lookupRes = await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys?limit=1', { headers: renderHeaders })
+    const lookupJson = await lookupRes.json() as any[]
+    newDeployId = lookupJson?.[0]?.deploy?.id || lookupJson?.[0]?.id
+    console.log('Trigger response was empty (' + triggerText.length + ' bytes); falling back to latest deploy id:', newDeployId)
+  }
+  if (!newDeployId) {
+    console.error('Could not determine new deploy id. Trigger body:', triggerText.slice(0, 300))
     process.exit(1)
   }
   console.log('Patched FACTORY_SYNC_KEY + triggered CRM redeploy ' + newDeployId + '. Polling specifically for it to go live…')
