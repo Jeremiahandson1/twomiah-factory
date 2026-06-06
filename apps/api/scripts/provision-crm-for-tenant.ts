@@ -193,28 +193,50 @@ if (existingTenantKey && freshlyGeneratedKey && existingTenantKey !== freshlyGen
     console.error('Bailing — seeding the CRM with a key it does not have leaves the customer permanently broken.')
     process.exit(1)
   }
-  await fetch('https://api.render.com/v1/services/' + crmSvcId + '/env-vars/FACTORY_SYNC_KEY', {
+  const putEnvRes = await fetch('https://api.render.com/v1/services/' + crmSvcId + '/env-vars/FACTORY_SYNC_KEY', {
     method: 'PUT',
     headers: { ...renderHeaders, 'content-type': 'application/json' },
     body: JSON.stringify({ value: existingTenantKey }),
   })
-  await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys', {
+  if (!putEnvRes.ok) {
+    console.error('PUT FACTORY_SYNC_KEY failed: status=' + putEnvRes.status + ' body=' + await putEnvRes.text().catch(() => ''))
+    process.exit(1)
+  }
+  // Trigger a fresh deploy and capture its id so we can poll it
+  // specifically — not whatever 'latest' deploy is when we ask, since
+  // the original deploy is already 'live' from a few seconds ago.
+  const triggerRes = await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys', {
     method: 'POST', headers: { ...renderHeaders, 'content-type': 'application/json' },
     body: JSON.stringify({ clearCache: 'do_not_clear' })
   })
-  console.log('Patched FACTORY_SYNC_KEY + triggered CRM redeploy. Polling /health…')
-  // Wait for the redeploy to finish — /health responds during the
-  // old version too, so check the latest deploy's status via API.
-  await new Promise(r => setTimeout(r, 15000))  // grace period for deploy to register
-  for (let i = 0; i < 60; i++) {
+  if (!triggerRes.ok) {
+    console.error('POST /deploys failed: status=' + triggerRes.status + ' body=' + await triggerRes.text().catch(() => ''))
+    process.exit(1)
+  }
+  const triggerJson = await triggerRes.json() as { id?: string; deploy?: { id?: string } }
+  const newDeployId = triggerJson?.deploy?.id || triggerJson?.id
+  if (!newDeployId) {
+    console.error('Could not extract new deploy id from trigger response:', JSON.stringify(triggerJson))
+    process.exit(1)
+  }
+  console.log('Patched FACTORY_SYNC_KEY + triggered CRM redeploy ' + newDeployId + '. Polling specifically for it to go live…')
+  let redeployedOk = false
+  for (let i = 0; i < 72; i++) {
     try {
-      const dr = await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys?limit=1', { headers: renderHeaders })
-      const dj = await dr.json() as any[]
-      const status = dj?.[0]?.deploy?.status
-      if (status === 'live') { console.log('CRM redeploy live (with aligned key) after ' + (15 + i * 5) + 's'); break }
-      if (status && /failed|canceled/.test(status)) { console.error('CRM redeploy ' + status); process.exit(1) }
+      const dr = await fetch('https://api.render.com/v1/services/' + crmSvcId + '/deploys/' + newDeployId, { headers: renderHeaders })
+      const dj = await dr.json() as any
+      const status = dj?.status
+      if (status === 'live') { console.log('CRM redeploy live (with aligned key) after ' + (i * 5) + 's'); redeployedOk = true; break }
+      if (status && /failed|canceled|deactivated/.test(status)) {
+        console.error('CRM redeploy ended with status=' + status)
+        process.exit(1)
+      }
     } catch {}
     await new Promise(r => setTimeout(r, 5000))
+  }
+  if (!redeployedOk) {
+    console.error('CRM redeploy did not reach live within 6min — bailing to avoid key mismatch')
+    process.exit(1)
   }
   factorySyncKey = existingTenantKey
 } else {
