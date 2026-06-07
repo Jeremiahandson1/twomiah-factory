@@ -186,12 +186,12 @@ function injectFeedbackWidget(html: string): string {
   #__fb_status.ok{display:block;color:#0f5132}
   #__fb_status.err{display:block;color:#991b1b}
 </style>
-<button id="__fb_fab" type="button" aria-label="Request changes to this preview">Request changes</button>
+<button id="__fb_fab" type="button" aria-label="Talk to our team about this preview">Something's off</button>
 <div id="__fb_modal" role="dialog" aria-modal="true" aria-labelledby="__fb_h">
   <div id="__fb_card">
-    <h2 id="__fb_h">Tell us what to change</h2>
-    <p>Specific is better. "Make the hero green and remove the testimonials section" beats "I don't love it."</p>
-    <textarea id="__fb_textarea" placeholder="e.g. The hero copy is too long â€” keep it to one sentence. Swap the third service card from 'Custom builds' to 'Insurance claims'. Use a warmer beige instead of the off-white."></textarea>
+    <h2 id="__fb_h">Tell us what's off</h2>
+    <p>Use this if the <em>direction</em> isn't right â€” wrong industry, wrong tone, missing something important. For small edits (swap a photo, tweak copy, change a service title), you'll do those yourself in a simple editor once your site is live.</p>
+    <textarea id="__fb_textarea" placeholder="e.g. I'm a food truck, not a restaurant. Or: the whole tone feels too corporate for what I do. Or: there's no menu section and I really need one."></textarea>
     <div id="__fb_status"></div>
     <div id="__fb_actions">
       <button id="__fb_cancel" type="button">Cancel</button>

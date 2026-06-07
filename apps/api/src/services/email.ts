@@ -338,11 +338,11 @@ export async function notifyPreviewReady(
   data: { to: string; businessName: string; previewUrl: string }
 ): Promise<boolean> {
   const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there â€” your <strong>${data.businessName}</strong> website preview is ready for review.</p>
-    <p style="color:#333;line-height:1.6;">We built a 4-page draft based on what you shared. Open the link below to look it over and tell us what you'd like changed.</p>
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there â€” your <strong>${data.businessName}</strong> website preview is ready.</p>
+    <p style="color:#333;line-height:1.6;">This is a 4-page draft of what your site could look like, built from what you shared at sign-up. It's meant to show you the <em>shape</em> of the site â€” the structure, voice, and direction. The small details (the exact copy, the photos, the specific service descriptions) are yours to fine-tune once you're in.</p>
     ${btn(data.previewUrl, 'View your preview')}
-    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">There's a "Request changes" button at the bottom right of every page â€” use it to send us tweaks. We turn around revisions in one business day.</p>
-    <p style="color:#666;line-height:1.6;font-size:14px;">When the preview is exactly what you want, the "Approve & build my site" button on the same preview takes you to checkout. We'll deploy the live version within an hour of payment clearing.</p>`
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;"><strong>When the direction feels right,</strong> hit "Approve &amp; build my site" on the preview page. We'll deploy the live version within an hour of payment clearing, and you'll get login details to swap photos, edit copy, and add your own touches through a simple editor â€” no code, no design tools to learn.</p>
+    <p style="color:#666;line-height:1.6;font-size:14px;"><strong>If the vibe is off</strong> (wrong industry, wrong tone, wrong feel) use the "Request changes" button at the bottom right of any preview page â€” someone on our team will read it and follow up within one business day.</p>`
 
   return sendEmail(data.to, `Your ${data.businessName} website preview is ready`, wrap('Your preview is ready', body))
 }

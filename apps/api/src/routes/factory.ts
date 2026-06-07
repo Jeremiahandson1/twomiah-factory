@@ -4548,17 +4548,17 @@ factory.post('/public/intake/:id/feedback', rateLimit(60 * 60 * 1000, 20), async
     contactEmail: tenant.email || undefined,
   }).catch((e: any) => console.warn('[Email] Feedback notification failed:', e.message))
 
-  // Fire-and-forget auto-recompose. We DON'T block the customer's response
-  // on this â€” the composer takes 30-60s and the customer's already moved
-  // on. When the recompose finishes, the preview JSON is updated and we
-  // email the customer a fresh "your updated preview is ready" link.
-  // Wrapped in setTimeout so the response goes out first.
-  setTimeout(() => {
-    recomposePreviewWithFeedback(id).catch((e: any) =>
-      console.warn('[Feedback] auto-recompose failed for ' + id + ':', e.message))
-  }, 100)
-
-  return c.json({ success: true, message: "Got it â€” we'll send you an updated preview in 10-15 minutes." })
+  // Staff-routed only. Auto-recompose was removed 2026-06-07 â€” the
+  // right path for content tweaks (swap a photo, edit copy, change a
+  // service title) is the post-purchase customizer where the customer
+  // self-edits. The feedback widget is for situations the customizer
+  // can't address: "you got my industry wrong", "the whole vibe is off",
+  // "I want a different vertical". Staff reviews each one and triggers
+  // a recompose via the staff queue if needed. Keeping this gated behind
+  // a human prevents runaway AI cost AND prevents customers from
+  // training themselves to ask the AI for things they should do
+  // themselves once the site is live.
+  return c.json({ success: true, message: "Got it â€” someone on our team will read this and follow up by email within one business day." })
 })
 
 // Re-runs the composer using the original intake_data + every piece of
