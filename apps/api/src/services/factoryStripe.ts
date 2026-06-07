@@ -226,13 +226,12 @@ export async function createPremiumWebsiteCheckout(
     },
   }
   // $1k one-time build fee added to the first invoice of the subscription.
-  // Stripe's HTTP API supports `subscription_data[add_invoice_items]`
-  // (https://docs.stripe.com/api/checkout/sessions/create#create_checkout_session-subscription_data-add_invoice_items)
-  // but the typed SDK has not yet surfaced the field — write via cast on
-  // subscription_data so the request serializes correctly. Confirmed via
-  // grep: add_invoice_items only appears on Subscriptions/Invoices types,
-  // not at top-level on SessionCreateParams.
-  ;(sessionParams.subscription_data as any).add_invoice_items = [{ price: buildPriceId, quantity: 1 }]
+  // On Checkout Sessions, add_invoice_items is a TOP-LEVEL field (not
+  // under subscription_data — Stripe rejects that with "Received unknown
+  // parameter: subscription_data[add_invoice_items]"). The typed SDK
+  // surfaces it at top level too; the earlier cast under subscription_data
+  // was a real bug.
+  ;(sessionParams as any).add_invoice_items = [{ price: buildPriceId, quantity: 1 }]
 
   // Launch coupon (e.g. $499 off the build fee). Stripe rejects expired
   // coupons automatically — they expire on the coupon's own valid_until,
