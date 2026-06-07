@@ -1375,13 +1375,20 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   // still being a fraction of its 200K context limit.
   const maxTokens = _isExtended ? 32000 : 8000
 
+  // Use streaming — required by the Anthropic SDK for requests where
+  // (max_tokens × estimated-per-token) might exceed 10 minutes. With 32K
+  // max_tokens on Opus, the SDK refuses non-streaming requests with:
+  // "Streaming is strongly recommended for operations that may take
+  // longer than 10 minutes." Streaming aggregates internally; finalMessage()
+  // returns the same shape as create() would.
   const callOnce = async (extraSystem?: string) => {
-    return anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
       max_tokens: maxTokens,
       system: 'You compose multi-page website schemas. Output strict JSON only. No prose, no markdown fences.' + (extraSystem ? ' ' + extraSystem : ''),
       messages: [{ role: 'user', content: prompt }],
     })
+    return stream.finalMessage()
   }
 
   const tryParse = (text: string): { pages: any; rationale?: string } | null => {
