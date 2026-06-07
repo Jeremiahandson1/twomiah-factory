@@ -538,6 +538,10 @@ cta/split: { "heading": "...", "subtitle": "...", "image": "<url>", "bullets": [
 about/story: { "eyebrow": "...", "title": "Our story", "portrait": "<headshot url>", "paragraphs": ["...", "..."], "signature": "<name>, <role>", "stats": [{ "value": "...", "label": "..." }] }
 team/grid: { "heading": "...", "intro": "...", "members": [{ "name": "...", "role": "...", "bio": "...", "portrait": "<url>" }] }
 contact/form-info: { "heading": "...", "intro": "...", "phone": "${input.phone || ''}", "email": "${input.email || ''}", "address": "...", "hours": ["..."], "responsePromise": "..." }
+gallery/grid: { "heading": "...", "intro": "...", "photos": [{ "url": "<url>", "alt": "...", "caption": "..." }] }
+testimonials/quotes: { "heading": "...", "intro": "...", "items": [{ "quote": "<customer quote>", "author": "...", "role": "...", "photo": "<headshot url>" }] }
+stats/bar: { "heading": "...", "items": [{ "value": "...", "label": "..." }] }
+faq/accordion: { "heading": "...", "intro": "...", "items": [{ "question": "...", "answer": "..." }] }
 
 # Output schema (strict)
 {
