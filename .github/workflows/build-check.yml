@@ -1,0 +1,45 @@
+name: Build check
+
+# Runs the same build the deploy pipeline runs. Tonight (2026-06-06) a
+# tsc unused-var error in apps/platform silently failed every Render
+# deploy for hours — Render's API only surfaces "Exited with status 2"
+# without log detail. Catching this in CI surfaces the actual error
+# message at push time instead of after a failed deploy.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-api:
+    name: apps/api — bun build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Install + build
+        working-directory: apps/api
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+  build-platform:
+    name: apps/platform — tsc + vite build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - name: Install + build
+        working-directory: apps/platform
+        run: |
+          bun install --frozen-lockfile
+          bun run build
