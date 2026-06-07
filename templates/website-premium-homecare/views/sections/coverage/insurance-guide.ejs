@@ -1,0 +1,49 @@
+<%
+  // Insurance / payment-source explainer cards. Top-funnel SEO play.
+  // Each card: source (Medicare, Medicaid, VA Aid & Attendance, LTC
+  // insurance, Private pay), eligibility, what it covers, how to
+  // apply, the agency's role.
+  var heading = data.heading || 'How families pay for in-home care'
+  var intro = data.intro || ''
+  var items = Array.isArray(data.items) ? data.items.filter(function(i){ return i && i.source }) : []
+  if (items.length === 0) return
+%>
+<section id="coverage" class="coverage coverage--guide">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="cov-grid" role="list">
+      <% items.forEach(function(it) { %>
+        <li class="cov-card">
+          <div class="cov-card__source"><%= it.source %></div>
+          <% if (it.eligibility) { %>
+            <div class="cov-card__row">
+              <div class="cov-card__row-label">Who it's for</div>
+              <div class="cov-card__row-body"><%= it.eligibility %></div>
+            </div>
+          <% } %>
+          <% if (it.whatItCovers) { %>
+            <div class="cov-card__row">
+              <div class="cov-card__row-label">What it covers</div>
+              <div class="cov-card__row-body"><%= it.whatItCovers %></div>
+            </div>
+          <% } %>
+          <% if (it.howToApply) { %>
+            <div class="cov-card__row">
+              <div class="cov-card__row-label">How to apply</div>
+              <div class="cov-card__row-body"><%= it.howToApply %></div>
+            </div>
+          <% } %>
+          <% if (it.ourRole) { %>
+            <div class="cov-card__row cov-card__row--ours">
+              <div class="cov-card__row-label">Our role</div>
+              <div class="cov-card__row-body"><%= it.ourRole %></div>
+            </div>
+          <% } %>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+</section>

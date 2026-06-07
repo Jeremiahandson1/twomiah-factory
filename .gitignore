@@ -12,8 +12,10 @@ dist
 # generated builds
 generated/
 
-# code coverage
-coverage
+# code coverage (root-level only — don't match templates' coverage/
+# insurance-guide section partials, which use the same word semantically)
+/coverage
+**/.nyc_output
 *.lcov
 
 # logs
