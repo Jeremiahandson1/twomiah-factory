@@ -188,7 +188,7 @@ export default function PublicIntakePage() {
             this whole block when the promo ends. */}
         <div className="relative bg-white border-2 border-orange-300 rounded-xl p-5 mb-8 overflow-hidden">
           <div className="absolute top-0 right-0 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">
-            Launch Special — Save $499
+            Launch Special — Save $501
           </div>
           <div className="grid grid-cols-3 gap-4 text-center pt-3">
             <div>
@@ -198,7 +198,7 @@ export default function PublicIntakePage() {
             <div className="border-x border-gray-200">
               <div className="flex items-baseline justify-center gap-2">
                 <span className="text-base text-gray-400 line-through font-medium">$1,000</span>
-                <span className="text-2xl font-bold text-orange-600">$501</span>
+                <span className="text-2xl font-bold text-orange-600">$499</span>
               </div>
               <div className="text-xs text-gray-500 mt-1">One-time build, only if you approve</div>
             </div>
@@ -209,7 +209,7 @@ export default function PublicIntakePage() {
           </div>
           <div className="text-xs text-gray-500 text-center mt-4">
             No charge until you click <span className="font-semibold text-gray-700">Approve &amp; build my site</span> on the preview.
-            The <span className="font-semibold text-orange-600">$499 launch discount</span> is automatic at checkout.
+            The <span className="font-semibold text-orange-600">$501 launch discount</span> is automatic at checkout — you pay $499.
           </div>
         </div>
 
