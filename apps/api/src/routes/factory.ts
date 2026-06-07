@@ -3900,6 +3900,7 @@ const PREMIUM_PAGE_TITLES: Record<string, string> = {
   menu: 'Menu', schedule: 'Schedule', catering: 'Catering',
   strains: 'Strains', deals: 'Deals', visit: 'Visit',
   quote: 'Estimator', storm: 'Storm damage', projects: 'Projects',
+  packages: 'Packages',
 }
 
 // Nav labels per page slug. 'home' is omitted (it's the brand logo).
@@ -3917,6 +3918,7 @@ const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
   quote: 'Estimator',
   storm: 'Storm damage',
   projects: 'Projects',
+  packages: 'Packages',
   about: 'About',
 }
 
@@ -3927,7 +3929,7 @@ function buildPremiumNav(
   // Stable per-vertical order: the thing they sell first (menu/services/
   // strains), then secondary funnels (find us/catering/deals/visit), then
   // about.
-  const order = ['menu', 'services', 'quote', 'strains', 'projects', 'storm', 'schedule', 'catering', 'deals', 'visit', 'about']
+  const order = ['menu', 'services', 'packages', 'quote', 'strains', 'projects', 'storm', 'schedule', 'catering', 'deals', 'visit', 'about']
   const present = new Set(pageSlugs)
   const out: Array<{ label: string; href: string }> = []
   for (const slug of order) {

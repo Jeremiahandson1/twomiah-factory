@@ -478,3 +478,107 @@ a { color: inherit; text-decoration: none; }
 .book-tip-btn { background: var(--white); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; cursor: pointer; font-family: inherit; font-size: 14px; transition: border-color .15s, background .15s; }
 .book-tip-btn:hover { border-color: var(--brand); }
 .book-tip-btn.is-active { background: var(--brand); color: var(--white); border-color: var(--brand); }
+
+/* ── Landscaping section styles (reuses many from roofing) ──────────── */
+
+/* Reused: quote/instant-address — copy roofing's .quote, .ba-* styles */
+.quote--instant { background: var(--paper); padding: var(--space) 0; }
+.quote__layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 32px; align-items: start; }
+@media (max-width: 880px) { .quote__layout { grid-template-columns: 1fr; } }
+.quote__form { background: var(--white); border-radius: 14px; padding: 28px; box-shadow: 0 2px 16px rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 18px; }
+.quote__field { display: flex; flex-direction: column; gap: 8px; }
+.quote__label { font-size: 13px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; }
+.quote__form input { padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; font-family: inherit; font-size: 16px; background: var(--paper); color: var(--ink); }
+.quote__form input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(0,0,0,0.06); }
+.quote__hint { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.quote__result { background: var(--white); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 16px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+.quote__map { aspect-ratio: 4 / 3; background: linear-gradient(135deg, #1e293b, #475569); position: relative; }
+.quote__estimate { padding: 28px; display: flex; flex-direction: column; gap: 12px; }
+.quote__estimate-label { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.quote__estimate-amount { font-size: 36px; font-weight: 700; color: var(--brand); line-height: 1; }
+.quote__estimate-note { font-size: 13px; color: var(--ink-soft); line-height: 1.5; }
+.quote__estimate .btn { align-self: flex-start; margin-top: 6px; }
+
+/* Reused: before/after slider */
+.before-after { padding: var(--space) 0; }
+.before-after__filters { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 32px; }
+.before-after__filter { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 14px; }
+.before-after__filter summary { cursor: pointer; font-weight: 500; }
+.before-after__filter ul { list-style: none; padding: 12px 0 4px; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ba-chip { background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; color: var(--ink-soft); }
+.ba-chip:hover { border-color: var(--brand); color: var(--brand); }
+.ba-chip.is-active { background: var(--brand); color: var(--white); border-color: var(--brand); }
+.before-after__grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 28px; }
+.ba-card[hidden] { display: none !important; }
+.ba-card__slider { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 12px; user-select: none; cursor: ew-resize; touch-action: pan-y; }
+.ba-card__after, .ba-card__before { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+.ba-card__before-wrap { position: absolute; inset: 0; width: 50%; overflow: hidden; }
+.ba-card__handle { position: absolute; top: 0; bottom: 0; left: 50%; width: 4px; background: var(--white); transform: translateX(-50%); pointer-events: none; }
+.ba-card__handle-dot { position: absolute; top: 50%; left: 50%; width: 36px; height: 36px; transform: translate(-50%, -50%); background: var(--white); border-radius: 50%; box-shadow: 0 4px 14px rgba(0,0,0,0.3); display: grid; place-items: center; pointer-events: auto; cursor: ew-resize; }
+.ba-card__handle-dot::before, .ba-card__handle-dot::after { content: ''; width: 8px; height: 8px; border-top: 2px solid var(--brand); border-right: 2px solid var(--brand); position: absolute; transform: rotate(45deg); }
+.ba-card__handle-dot::before { left: 9px; transform: rotate(-135deg); }
+.ba-card__handle-dot::after { right: 9px; }
+.ba-card__label { position: absolute; top: 14px; padding: 4px 10px; background: rgba(0,0,0,0.6); color: var(--white); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 4px; }
+.ba-card__label--before { left: 14px; }
+.ba-card__label--after { right: 14px; }
+.ba-card__meta { padding: 14px 4px 4px; }
+.ba-card__caption { font-size: 15px; color: var(--ink); font-weight: 500; }
+.ba-card__sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+
+/* Seasonal packages */
+.packages { padding: var(--space) 0; position: relative; }
+.packages__grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px; align-items: stretch; }
+.package-card { background: var(--white); border-radius: 14px; padding: 28px 24px 24px; box-shadow: 0 2px 14px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 14px; position: relative; border: 2px solid transparent; transition: transform .15s, box-shadow .15s, border-color .15s; }
+.package-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.08); }
+.package-card--now { border-color: var(--brand); }
+.package-card__badge { position: absolute; top: -10px; left: 18px; background: var(--brand); color: var(--white); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 12px; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.package-card__badge--alt { background: var(--accent); color: var(--brand-deep); }
+.package-card__head { display: flex; flex-direction: column; gap: 4px; }
+.package-card__tier { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.package-card__title { margin: 0; font-size: 24px; line-height: 1.1; color: var(--ink); }
+.package-card__price { display: flex; align-items: baseline; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.package-card__price-num { font-size: 32px; font-weight: 700; color: var(--brand); line-height: 1; }
+.package-card__price-unit { font-size: 14px; color: var(--ink-soft); }
+.package-card__price-from { font-size: 13px; color: var(--muted); }
+.package-card__includes { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 7px; font-size: 14px; color: var(--ink-soft); }
+.package-card__includes li { position: relative; padding-left: 22px; }
+.package-card__includes li::before { content: '\2713  '; position: absolute; left: 0; top: 0; color: var(--brand); font-weight: 700; }
+.package-card__note { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.package-card__season { font-size: 11px; color: var(--muted); text-transform: capitalize; letter-spacing: 0.06em; }
+.package-card__cta { margin-top: auto; align-self: stretch; text-align: center; }
+
+/* Season-aware delight — falling leaves in autumn, snow in winter */
+.packages--seasonal[data-season="fall"]::after,
+.packages--seasonal[data-season="winter"]::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; overflow: hidden; opacity: 0.55;
+}
+.packages--seasonal[data-season="fall"]::after {
+  background-image:
+    radial-gradient(circle 2px at 15% 20%, #c2410c 50%, transparent 51%),
+    radial-gradient(circle 1.5px at 35% 50%, #d97706 50%, transparent 51%),
+    radial-gradient(circle 2.5px at 60% 30%, #92400e 50%, transparent 51%),
+    radial-gradient(circle 1.5px at 80% 65%, #b45309 50%, transparent 51%);
+  background-size: 100% 100%;
+  animation: leaves-drift 14s linear infinite;
+}
+.packages--seasonal[data-season="winter"]::after {
+  background-image:
+    radial-gradient(circle 1.5px at 20% 30%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(circle 1px at 45% 65%, rgba(255,255,255,0.7) 50%, transparent 51%),
+    radial-gradient(circle 2px at 70% 25%, rgba(255,255,255,0.85) 50%, transparent 51%),
+    radial-gradient(circle 1px at 85% 55%, rgba(255,255,255,0.6) 50%, transparent 51%);
+  background-size: 100% 100%;
+  animation: snow-drift 18s linear infinite;
+}
+@keyframes leaves-drift {
+  from { transform: translateY(-15%) translateX(0); }
+  to   { transform: translateY(115%) translateX(40px); }
+}
+@keyframes snow-drift {
+  from { transform: translateY(-10%) translateX(0); }
+  to   { transform: translateY(110%) translateX(20px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .packages--seasonal[data-season="fall"]::after,
+  .packages--seasonal[data-season="winter"]::after { display: none; }
+}

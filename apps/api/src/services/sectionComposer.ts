@@ -263,6 +263,14 @@ export const SECTION_SCHEMA = {
       use_when: 'roofing (GAF Master Elite, Owens Corning Preferred, CertainTeed SELECT), contractor (BBB A+, Houzz Pro, Angi badges), home care (state licensure, bonded/insured, BBB), any vertical where third-party credentials = currency. Grid of badge items: { name, image, url? }. NEVER fabricate credentials — only include badges the customer actually has.',
     },
   },
+  // ─── Landscaping / recurring-service section type ──────────────────────
+  packages: {
+    seasonal: {
+      required: ['items'],
+      optional: ['heading', 'intro', 'currentSeason'],
+      use_when: 'landscaping, lawn care, snow removal, pool service, pest control — any vertical that sells recurring service packages OR seasonal contracts. Stack of package cards with the current-season-relevant one highlighted. Items: { title, tier (basic/standard/premium), pricePerMonth, includes[], seasonOnly?, badge? }. The renderer auto-detects current month and badges the seasonally relevant tier.',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
@@ -538,6 +546,43 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Landscaping is recurring-service-first (weekly mow, monthly maintenance,
+// seasonal contracts) — generic services/cards-grid doesn't surface the
+// SUBSCRIPTION nature of how this business actually makes money.
+// Reuses quote/instant-address from roofing for property-size quotes.
+const LANDSCAPING_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a landscaping / lawn-care business. Lead with the seasonally-relevant package, then property quote, then proof.',
+    allowed_types: ['hero', 'packages', 'quote', 'services', 'before_after', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (the work itself in golden-hour photography, NOT a generic "trusted landscapers" stock), 1 packages/seasonal (current-season-tier highlighted), 1 quote/instant-address (property-size based estimate, pricePerSqFt 0.04-0.10 for mow contracts), optional 1 services/cards-grid for one-off jobs, 1 before_after/slider (3-4 transformations), close with 1 cta/split',
+  },
+  packages: {
+    purpose: 'The recurring-service catalog. Compare tiers, see what is in each. This is the page that closes the subscription sale.',
+    allowed_types: ['hero', 'packages', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Packages"), 1 packages/seasonal showing all tiers in detail, 1 faq about cancellation, pause-for-vacation, billing cadence, weather guarantees, close with 1 cta',
+  },
+  quote: {
+    purpose: 'Standalone property-size estimator. SEO-targeted to "lawn care cost" / "landscaping quote" searches.',
+    allowed_types: ['hero', 'quote', 'packages', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Estimator"), 1 quote/instant-address, 1 packages/seasonal (lighter, just the tiers without full lists), 1 faq, close with 1 cta',
+  },
+  projects: {
+    purpose: 'Portfolio — design-builds, transformations, recurring-customer yards.',
+    allowed_types: ['hero', 'before_after', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/centered-stats, 1 before_after/slider (6-8 items, filterable by service type), optional 1 gallery/grid for design-build projects, optional 1 testimonials, close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner story + crew + equipment. The trust page.',
+    allowed_types: ['about', 'team', 'stats', 'gallery', 'cta'],
+    required_sequence: '1 about/story (owner portrait + what got them into landscaping), optional 1 stats/bar (years, properties maintained, crew size, trucks), optional 1 team/grid, optional 1 gallery/grid (the trucks, the equipment, the shop), close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for one-off jobs and questions.',
+    allowed_types: ['hero', 'contact', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 faq',
+  },
+} as const
+
 // Roofing is a multi-page vertical because the conversion journey
 // branches: "I had a storm" → /storm; "I want a ballpark" → /quote;
 // "show me your work" → /projects. Generic 4-page doesn't fit.
@@ -662,13 +707,16 @@ function buildSitePrompt(input: ComposerInput): string {
   const ft = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessType)
   const dispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessType)
   const roofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessType)
+  const landscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
       ? DISPENSARY_PAGE_RECIPES
       : roofing
         ? ROOFING_PAGE_RECIPES
-        : PAGE_RECIPES
+        : landscaping
+          ? LANDSCAPING_PAGE_RECIPES
+          : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -728,7 +776,39 @@ Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
 ${photosSection}
-${roofing ? `
+${landscaping ? `
+# Industry note — LANDSCAPING / LAWN CARE / SNOW
+This is a landscaping / lawn-care / snow-removal business. Guidance:
+
+1. Recurring service is the business model. The site should sell the
+   SUBSCRIPTION (weekly mow contract, monthly maintenance, seasonal
+   plow contract), NOT one-off jobs. packages/seasonal is on the home
+   page after the hero. Each tier has a price-per-month, what's included,
+   and a season tag (spring-fall / winter / year-round).
+2. Realistic 2026 pricing for the Midwest: weekly mow + trim $35-60
+   per visit for a quarter-acre lot ($140-240/mo), full maintenance
+   (mow + bed weeding + bush trim + spring/fall cleanup) $80-150/visit.
+   Snow contracts $250-450/mo for residential, depending on push trigger
+   depth. Annual landscape design $3k-15k.
+3. Property-quote uses square FOOT of lawn (not roof). pricePerSqFt
+   for mow contracts: $0.04-0.10 / sq ft of turf. The customer types
+   their lot size or address, gets a per-visit + monthly range.
+4. Banned phrases: "your trusted landscaping partner", "premier lawn
+   care", "complete lawn solutions", "quality lawn care you can trust".
+   Use specifics: "Same crew every week — you'll know their names by
+   July", "Weekly mow starts $145/mo on quarter-acre lots", "Snow
+   contracts include 1 truck + 1 walker + salt walkways".
+5. Seasonal awareness: if intake mentions snow removal, the home page
+   should default the seasonal-packages highlight to winter from
+   October through March. If the intake is mow + maintenance only,
+   default to weekly tier from April through September. The renderer
+   handles this automatically — composer just needs to make sure the
+   intake's services are reflected in tiers.
+6. Before/after: lawn-care doesn't have dramatic transformations in the
+   weekly-mow business, BUT spring cleanup and design-build projects
+   do. Use before/after items for cleanup/design pages, not for routine
+   maintenance.
+` : ''}${roofing ? `
 # Industry note — ROOFING CONTRACTOR
 This is a residential roofing business. Industry-specific guidance:
 
@@ -881,6 +961,7 @@ banner/storm-alert: { "heading": "Hail storm in Eau Claire on May 12", "subtitle
 before_after/slider: { "heading": "Before & after", "intro": "...", "filters": ["material", "year"], "items": [{ "beforeImage": "<url>", "afterImage": "<url>", "caption": "Re-roof after July 2024 hail", "location": "Eau Claire, WI", "year": 2024, "material": "GAF Timberline HDZ" }] }
 financing/calculator: { "heading": "Roof financing from $99/mo", "intro": "...", "fromMonthly": 99, "maxTermMonths": 84, "apr": 7.99, "minLoanAmount": 3000, "maxLoanAmount": 35000, "ctaLabel": "Get my estimate" }
 trust/badges: { "heading": "Credentials", "intro": "...", "items": [{ "name": "GAF Master Elite", "image": "<url>", "url": "..." }, { "name": "BBB A+", "image": "<url>" }] }
+packages/seasonal: { "heading": "Packages", "intro": "...", "items": [{ "title": "Weekly mow", "tier": "standard", "pricePerMonth": 180, "includes": ["Mow + trim", "Edge driveways", "Blow off hardscape"], "seasonOnly": "spring-fall" }, { "title": "Snow contract", "tier": "premium", "pricePerMonth": 320, "includes": ["Push at 2 inches", "Salt walkways", "Tracker app access"], "seasonOnly": "winter" }] }
 
 # Output schema (strict)
 {
@@ -955,7 +1036,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const _isExtended =
     /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(_btForTokens) ||
     /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(_btForTokens) ||
-    /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(_btForTokens)
+    /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(_btForTokens) ||
+    /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(_btForTokens)
   const maxTokens = _isExtended ? 16000 : 8000
 
   const callOnce = async (extraSystem?: string) => {
@@ -1000,13 +1082,16 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isFoodTruck = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessTypeIn)
   const isDispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessTypeIn)
   const isRoofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessTypeIn)
+  const isLandscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
       ? Object.keys(DISPENSARY_PAGE_RECIPES)
       : isRoofing
         ? Object.keys(ROOFING_PAGE_RECIPES)
-        : Object.keys(PAGE_RECIPES)
+        : isLandscaping
+          ? Object.keys(LANDSCAPING_PAGE_RECIPES)
+          : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {

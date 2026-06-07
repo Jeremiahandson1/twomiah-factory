@@ -1,0 +1,77 @@
+<%
+  // Seasonal package cards. Server-rendered current-season highlight
+  // so a visitor in February sees Snow contract badged, in May sees
+  // Weekly mow badged. The composer doesn't have to compute this —
+  // it just provides the tiers with seasonOnly tags.
+  var heading = data.heading || 'Packages'
+  var intro = data.intro || ''
+  var items = Array.isArray(data.items) ? data.items.filter(function(i){ return i && i.title }) : []
+  if (items.length === 0) return
+
+  // Determine current season server-side. Northern hemisphere assumed.
+  var month = new Date().getMonth() + 1
+  var currentSeason
+  if (month >= 3 && month <= 5) currentSeason = 'spring'
+  else if (month >= 6 && month <= 8) currentSeason = 'summer'
+  else if (month >= 9 && month <= 11) currentSeason = 'fall'
+  else currentSeason = 'winter'
+  if (data.currentSeason) currentSeason = String(data.currentSeason).toLowerCase()
+
+  function isCurrentSeason(it) {
+    var s = String(it.seasonOnly || '').toLowerCase()
+    if (!s || s === 'year-round') return true  // always relevant
+    if (s.indexOf(currentSeason) >= 0) return true
+    // Range support: "spring-fall" means spring + summer + fall
+    var seasons = ['winter','spring','summer','fall']
+    var m = s.match(/(\w+)\s*-\s*(\w+)/)
+    if (m) {
+      var start = seasons.indexOf(m[1])
+      var end = seasons.indexOf(m[2])
+      if (start >= 0 && end >= 0) {
+        var cur = seasons.indexOf(currentSeason)
+        if (start <= end) return cur >= start && cur <= end
+        return cur >= start || cur <= end  // wraps around (e.g. fall-spring)
+      }
+    }
+    return false
+  }
+%>
+<section id="packages" class="packages packages--seasonal" data-season="<%= currentSeason %>">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ul class="packages__grid" role="list">
+      <% for (var i = 0; i < items.length; i++) { var it = items[i]; var isNow = isCurrentSeason(it); %>
+        <li class="package-card<%= isNow ? ' package-card--now' : '' %>" data-tier="<%= String(it.tier || 'standard').toLowerCase() %>">
+          <% if (isNow) { %><span class="package-card__badge">In season now</span><% } %>
+          <% if (it.badge && !isNow) { %><span class="package-card__badge package-card__badge--alt"><%= it.badge %></span><% } %>
+          <div class="package-card__head">
+            <div class="package-card__tier"><%= it.tier || 'Standard' %></div>
+            <h3 class="package-card__title"><%= it.title %></h3>
+          </div>
+          <% if (it.pricePerMonth) { %>
+            <div class="package-card__price">
+              <span class="package-card__price-num mono">$<%= it.pricePerMonth %></span>
+              <span class="package-card__price-unit">/month</span>
+            </div>
+          <% } else if (it.priceFrom) { %>
+            <div class="package-card__price">
+              <span class="package-card__price-from">from</span>
+              <span class="package-card__price-num mono">$<%= it.priceFrom %></span>
+            </div>
+          <% } %>
+          <% if (Array.isArray(it.includes) && it.includes.length) { %>
+            <ul class="package-card__includes">
+              <% it.includes.forEach(function(line) { %><li><%= line %></li><% }) %>
+            </ul>
+          <% } %>
+          <% if (it.note) { %><div class="package-card__note"><%= it.note %></div><% } %>
+          <% if (it.seasonOnly) { %><div class="package-card__season mono"><%= it.seasonOnly %></div><% } %>
+          <a class="btn btn--lg btn--outline package-card__cta" href="#contact">Get this package</a>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+</section>

@@ -1,0 +1,102 @@
+<%
+  // Instant roof estimate from address + sq-ft.
+  //
+  // Customer enters their address, Mapbox flies-to (zoom from space)
+  // the satellite imagery, customer enters their roof's sq ft (with a
+  // helper of "the average single-family is 1500-2500 sq ft"), and
+  // JS multiplies by pricePerSqFt + a typical range factor to show
+  // a ballpark. Routes to /contact with the values pre-filled.
+  const heading = data.heading || 'Get a ballpark estimate in 30 seconds'
+  const intro = data.intro || 'Drop your address, tell us about your roof, get a real range.'
+  const pricePerSqFt = parseFloat(data.pricePerSqFt) || 5.5
+  const minSqFt = parseInt(data.minSqFt, 10) || 800
+  const maxSqFt = parseInt(data.maxSqFt, 10) || 4500
+  const callToAction = data.callToAction || 'See my range'
+  const mapboxToken = (settings && settings.mapboxPublicToken) || ''
+%>
+<section id="quote" class="quote quote--instant">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="quote__layout">
+      <form class="quote__form" id="quote-form" autocomplete="off">
+        <label class="quote__field">
+          <span class="quote__label">Street address</span>
+          <input type="text" name="address" id="quote-address" placeholder="123 Main St, Eau Claire, WI" required>
+        </label>
+        <label class="quote__field">
+          <span class="quote__label">Approximate roof sq ft</span>
+          <input type="number" name="sqft" id="quote-sqft" min="<%= minSqFt %>" max="<%= maxSqFt %>" step="50" placeholder="1800">
+          <span class="quote__hint">Most single-family homes are 1500–2500 sq ft. Not sure? Add 30% to your home's floor footprint.</span>
+        </label>
+        <button type="submit" class="btn btn--xl btn--primary"><%= callToAction %></button>
+      </form>
+      <div class="quote__result" id="quote-result" aria-live="polite">
+        <div class="quote__map" id="quote-map" data-token="<%= mapboxToken %>" aria-hidden="true"></div>
+        <div class="quote__estimate">
+          <div class="quote__estimate-label">Your ballpark</div>
+          <div class="quote__estimate-amount mono" id="quote-amount">—</div>
+          <div class="quote__estimate-note">Range covers tear-off, GAF Timberline HDZ asphalt shingle install, basic ventilation, debris haul. Actual quote requires an on-site inspection.</div>
+          <a class="btn btn--lg btn--outline" href="#contact" id="quote-go">Get the real quote</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<% if (mapboxToken) { %>
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js" defer></script>
+<% } %>
+<script>
+(function(){
+  var PRICE = <%= pricePerSqFt %>;
+  var f = document.getElementById('quote-form');
+  var addr = document.getElementById('quote-address');
+  var sq = document.getElementById('quote-sqft');
+  var amt = document.getElementById('quote-amount');
+  var mapEl = document.getElementById('quote-map');
+  var goBtn = document.getElementById('quote-go');
+  var map = null;
+
+  function fmt(n){ return '$' + Math.round(n).toLocaleString(); }
+  function calcRange(sqft){
+    var low = sqft * PRICE * 0.85;
+    var high = sqft * PRICE * 1.15;
+    return fmt(low) + ' – ' + fmt(high);
+  }
+
+  function flyToAddress(address) {
+    if (!mapEl) return;
+    var token = mapEl.dataset.token;
+    if (!token || typeof mapboxgl === 'undefined') return;
+    if (!map) {
+      mapboxgl.accessToken = token;
+      map = new mapboxgl.Map({
+        container: 'quote-map',
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [-90.31, 44.81], zoom: 3, attributionControl: false,
+      });
+    }
+    // Geocode then fly. Uses Mapbox Geocoding API; falls back if it fails.
+    var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(address) + '.json?country=US&types=address&limit=1&access_token=' + token;
+    fetch(url).then(function(r){ return r.json(); }).then(function(j){
+      var coords = j && j.features && j.features[0] && j.features[0].center;
+      if (!coords) return;
+      map.flyTo({ center: coords, zoom: 19, pitch: 45, bearing: 0, duration: 3500, essential: true, curve: 1.7 });
+    }).catch(function(){});
+  }
+
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    var sqft = parseInt(sq.value, 10);
+    if (isNaN(sqft) || sqft < 400) { sq.focus(); return; }
+    amt.textContent = calcRange(sqft);
+    f.parentElement.classList.add('quote__layout--result-on');
+    flyToAddress(addr.value);
+    var qs = '?address=' + encodeURIComponent(addr.value) + '&sqft=' + sqft + '&estimate=' + encodeURIComponent(calcRange(sqft));
+    goBtn.setAttribute('href', '#contact' + qs);
+  });
+})();
+</script>
