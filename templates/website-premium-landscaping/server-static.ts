@@ -154,8 +154,16 @@ async function renderPage(slug: string, currentPath: string): Promise<string | n
     seoDescription: page.metaDescription || settings.seoDescription || '',
   }
 
+  // LCP preload: the first hero section's image is almost always the
+  // Largest Contentful Paint on mobile. Emitting <link rel="preload"
+  // as="image" fetchpriority="high"> lets the browser kick off the fetch
+  // during HTML parse instead of waiting for the EJS section render to
+  // discover the <img>. Mobile LCP typically improves 400-800ms.
+  const firstHero = (homepage.sections as any[]).find(s => s && s.type === 'hero')
+  const lcpImage = firstHero?.data?.image && typeof firstHero.data.image === 'string' ? firstHero.data.image : ''
+
   const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings }) as string
-  return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath }) as Promise<string>
+  return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage }) as Promise<string>
 }
 
 // Default placeholder served when the pages.home row doesn't exist yet
