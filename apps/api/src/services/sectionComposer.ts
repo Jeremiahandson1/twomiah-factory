@@ -828,10 +828,21 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
 
   const prompt = buildSitePrompt(input)
 
+  // Vertical-specific recipes (food truck, dispensary, future ones)
+  // produce 6 pages with rich data per section — strain catalog cards
+  // alone can run 200+ tokens each × 8-12 strains. Plain 4-page model
+  // fits comfortably in 8K; 6-page verticals need more room or the
+  // response truncates mid-JSON and tryParse silently fails.
+  const _btForTokens = input.businessType || ''
+  const _isExtended =
+    /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(_btForTokens) ||
+    /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(_btForTokens)
+  const maxTokens = _isExtended ? 16000 : 8000
+
   const callOnce = async (extraSystem?: string) => {
     return anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
+      max_tokens: maxTokens,
       system: 'You compose multi-page website schemas. Output strict JSON only. No prose, no markdown fences.' + (extraSystem ? ' ' + extraSystem : ''),
       messages: [{ role: 'user', content: prompt }],
     })
