@@ -96,5 +96,28 @@
     </div>
   </footer>
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
+  <div class="text-size-toggle" role="group" aria-label="Adjust text size">
+    <button type="button" data-size="default" aria-label="Default text size" title="Default size">Aa</button>
+    <button type="button" data-size="large" aria-label="Larger text" title="Larger">Aa+</button>
+    <button type="button" data-size="xlarge" aria-label="Largest text" title="Largest">Aa++</button>
+  </div>
+  <script>
+    // Aa+ toggle persists to localStorage so the size sticks across visits.
+    (function(){
+      var KEY = 'cf_text_size';
+      var btns = document.querySelectorAll('.text-size-toggle button');
+      function apply(size) {
+        document.documentElement.classList.remove('cf-text-large', 'cf-text-xlarge');
+        if (size === 'large') document.documentElement.classList.add('cf-text-large');
+        else if (size === 'xlarge') document.documentElement.classList.add('cf-text-xlarge');
+        btns.forEach(function(b){ b.classList.toggle('is-active', b.dataset.size === size); });
+        try { localStorage.setItem(KEY, size); } catch(e) {}
+      }
+      var saved;
+      try { saved = localStorage.getItem(KEY); } catch(e) {}
+      apply(saved || 'default');
+      btns.forEach(function(b){ b.addEventListener('click', function(){ apply(b.dataset.size); }); });
+    })();
+  </script>
 </body>
 </html>

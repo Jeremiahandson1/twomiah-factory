@@ -263,6 +263,28 @@ export const SECTION_SCHEMA = {
       use_when: 'roofing (GAF Master Elite, Owens Corning Preferred, CertainTeed SELECT), contractor (BBB A+, Houzz Pro, Angi badges), home care (state licensure, bonded/insured, BBB), any vertical where third-party credentials = currency. Grid of badge items: { name, image, url? }. NEVER fabricate credentials — only include badges the customer actually has.',
     },
   },
+  // ─── Home care section types ───────────────────────────────────────────
+  care: {
+    finder: {
+      required: ['heading'],
+      optional: ['intro', 'relationships', 'careTypes', 'hoursOptions', 'ctaLabel', 'responsePromise'],
+      use_when: 'home-care agencies, in-home senior care. Multi-step wizard: who needs care → what kind → hours per week → ZIP → schedule no-cost in-home assessment. Routes to /api/leads with full context pre-filled. Converts 3-4x over a generic contact form for this audience (adult children 45-70 researching care for a parent).',
+    },
+  },
+  caregivers: {
+    grid: {
+      required: ['items'],
+      optional: ['heading', 'intro', 'filters'],
+      use_when: 'home-care agencies. Anonymized caregiver profile cards: { name (first-only OR alias), yearsExperience, certifications (CNA/HHA/RN), specialties (dementia/hospice/recovery/companion), languages, photo, blurb }. Filterable by specialty. Humanizes the brand massively — adult children hire a person, not an agency.',
+    },
+  },
+  coverage: {
+    'insurance-guide': {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'home-care agencies, medical practices. Stack of coverage-source explainers (Medicare, Medicaid, VA Aid & Attendance, LTC insurance, private pay). Each card: { source, eligibility, whatItCovers, howToApply, ourRole }. Top-funnel SEO play — adult children search "does medicare cover home care" at the start of their journey.',
+    },
+  },
   // ─── Landscaping / recurring-service section type ──────────────────────
   packages: {
     seasonal: {
@@ -546,6 +568,45 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Home care is the audience-distinct vertical — decision-makers are
+// adult children 45-70 years old researching care for a parent. Page
+// recipe leads with trust + a guided care-finder wizard (3-4x better
+// conversion than a generic contact form), then humanizes through
+// caregiver profiles, then top-funnels SEO via insurance coverage
+// explainers.
+const HOMECARE_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a home-care agency. Empathetic but concrete trust signals, then a guided care-finder wizard, then humanize with caregivers.',
+    allowed_types: ['hero', 'trust', 'stats', 'care', 'caregivers', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed or hero/split (owner-or-caregiver-with-client portrait, NOT generic hands-on-shoulder stock), 1 trust/badges (state license #, bonded/insured, BBB, years in business — concrete signals only), optional 1 stats/bar anchored in real numbers, 1 care/finder (this is the conversion engine), optional 1 caregivers/grid showing 3-4 sample profiles, optional 1 testimonials block (real adult-child quotes only), close with 1 cta',
+  },
+  'find-care': {
+    purpose: 'The standalone care-finder wizard page. Quiet, focused, no distraction. Where qualified leads convert.',
+    allowed_types: ['hero', 'care', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Find care", title sets expectation), 1 care/finder with full wizard, 1 faq about what happens after the form (call timing, in-home assessment, cost transparency), close with 1 cta',
+  },
+  caregivers: {
+    purpose: 'The full caregiver roster. Adult children hire a person, not an agency — the more they can see and learn about the people, the higher the trust.',
+    allowed_types: ['hero', 'caregivers', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Our caregivers"), 1 caregivers/grid with 6-12 profiles, optional 1 faq about caregiver matching + background checks, close with 1 cta',
+  },
+  coverage: {
+    purpose: 'Insurance + payment coverage explainer. Top-funnel SEO — adult children search "does medicare cover home care" early in research.',
+    allowed_types: ['hero', 'coverage', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Coverage + payment"), 1 coverage/insurance-guide covering Medicare, Medicaid, VA, LTC insurance, private pay, 1 faq about cost transparency and what families typically end up paying, close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner story + team + credentials. The deep-trust page.',
+    allowed_types: ['about', 'team', 'stats', 'trust', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (owner portrait + the "why this agency" — almost always personal/family), optional 1 team/grid (leadership not caregivers — that lives on /caregivers), optional 1 stats/bar (real numbers only), optional 1 trust/badges, optional 1 testimonials block, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page. Quiet, direct, response promise.',
+    allowed_types: ['hero', 'contact', 'faq'],
+    required_sequence: 'optional 1 hero (short, empathetic), 1 contact/form-info with response-time promise, optional 1 faq',
+  },
+} as const
+
 // Landscaping is recurring-service-first (weekly mow, monthly maintenance,
 // seasonal contracts) — generic services/cards-grid doesn't surface the
 // SUBSCRIPTION nature of how this business actually makes money.
@@ -708,6 +769,7 @@ function buildSitePrompt(input: ComposerInput): string {
   const dispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessType)
   const roofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessType)
   const landscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessType)
+  const homecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
@@ -716,7 +778,9 @@ function buildSitePrompt(input: ComposerInput): string {
         ? ROOFING_PAGE_RECIPES
         : landscaping
           ? LANDSCAPING_PAGE_RECIPES
-          : PAGE_RECIPES
+          : homecare
+            ? HOMECARE_PAGE_RECIPES
+            : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -776,7 +840,55 @@ Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
 ${photosSection}
-${landscaping ? `
+${homecare ? `
+# Industry note — HOME CARE AGENCY
+This is an in-home senior care agency. The decision-maker audience is
+adult children 45-70 years old researching care for an aging parent.
+Treat them as such: empathetic, but concrete and respectful — they're
+exhausted, scared, and pattern-matching for whether you're trustworthy.
+
+1. Hero copy is the most important sentence on the site. Specific
+   reassurance beats emotional poetry every time. Pattern: take a
+   concrete position, anchor in a fact from the intake.
+   Good: "We've been the morning shift for 12 Eau Claire families
+   since 2019. Same caregiver every visit."
+   Bad: "Compassionate care that keeps families together" (banned).
+   Bad: "Your trusted partner in caring for your loved one" (banned).
+2. trust/badges with concrete signals only — state license number,
+   bonded/insured statement, BBB rating, years in business, owner
+   name. NEVER fabricate a license number. If the intake doesn't
+   provide one, omit the badge and lean on years + bonded/insured.
+3. care/finder on the home page is the conversion engine. It MUST be
+   on the home page (after hero + trust). Customize the relationships,
+   careTypes, and hoursOptions to match what the intake says they
+   actually offer — don't list dementia care if they don't do dementia.
+4. caregivers/grid: 3-4 sample profiles on home, 6-12 on /caregivers.
+   First-name only OR composite/anonymized names ("Maria, an 8-year
+   CNA"). Real-sounding specialties: dementia, hospice/end-of-life,
+   companion, post-surgical recovery, fall-risk reduction. Languages
+   if intake mentions multilingual staff. Include realistic blurbs:
+   "Specializes in afternoon sundowning support and gentle redirection."
+   Use stock professional headshots (warm, smiling, older-skewing).
+5. coverage/insurance-guide on /coverage: Medicare (does NOT cover
+   non-medical home care — critical to clarify, this is the #1
+   confused-customer search), Medicaid (state-specific waiver
+   programs), VA Aid & Attendance (for veterans), LTC insurance
+   (private), private pay. Each card explains eligibility, what's
+   actually covered, how to apply, and the agency's role.
+6. Banned phrases (in addition to the global list, with extra emphasis):
+   "compassionate care", "loving care", "care you can trust", "second
+   family", "tender", "passionate about helping", "make a difference
+   in their life". These read as marketing-speak to exhausted family
+   decision-makers. Use specific: "Same two caregivers rotate the
+   morning shift for your parent — no surprise faces", "8-hour minimum
+   visit so we can actually finish what we start".
+7. Tone is empathetic but ADULT. Not maudlin. Not over-friendly.
+   Like an experienced nurse who's been doing this for 20 years and
+   has seen everything.
+8. NO autoplay video. NO bright accent colors. NO motion that goes
+   faster than 280ms per transition. The renderer will enforce
+   prefers-reduced-motion + AAA contrast — the content should match.
+` : ''}${landscaping ? `
 # Industry note — LANDSCAPING / LAWN CARE / SNOW
 This is a landscaping / lawn-care / snow-removal business. Guidance:
 
@@ -962,6 +1074,9 @@ before_after/slider: { "heading": "Before & after", "intro": "...", "filters": [
 financing/calculator: { "heading": "Roof financing from $99/mo", "intro": "...", "fromMonthly": 99, "maxTermMonths": 84, "apr": 7.99, "minLoanAmount": 3000, "maxLoanAmount": 35000, "ctaLabel": "Get my estimate" }
 trust/badges: { "heading": "Credentials", "intro": "...", "items": [{ "name": "GAF Master Elite", "image": "<url>", "url": "..." }, { "name": "BBB A+", "image": "<url>" }] }
 packages/seasonal: { "heading": "Packages", "intro": "...", "items": [{ "title": "Weekly mow", "tier": "standard", "pricePerMonth": 180, "includes": ["Mow + trim", "Edge driveways", "Blow off hardscape"], "seasonOnly": "spring-fall" }, { "title": "Snow contract", "tier": "premium", "pricePerMonth": 320, "includes": ["Push at 2 inches", "Salt walkways", "Tracker app access"], "seasonOnly": "winter" }] }
+care/finder: { "heading": "Find the right care for your loved one", "intro": "...", "relationships": ["My parent", "My spouse", "Myself", "Another family member"], "careTypes": ["Companion care", "Personal care", "Skilled nursing", "Dementia / Alzheimer's", "Hospice / end-of-life"], "hoursOptions": ["A few hours a week", "10–25 hours", "25–40 hours", "40+ hours", "24/7 live-in"], "ctaLabel": "Schedule a free assessment", "responsePromise": "We respond within one business day. No phone trees, no sales pressure." }
+caregivers/grid: { "heading": "Meet some of our caregivers", "intro": "...", "filters": ["specialty", "languages"], "items": [{ "name": "Maria", "yearsExperience": 8, "certifications": ["CNA"], "specialties": ["Dementia", "Companion care"], "languages": ["English", "Spanish"], "photo": "<url>", "blurb": "Former hospital aide. Specializes in afternoon sundowning support and gentle redirection." }] }
+coverage/insurance-guide: { "heading": "Coverage", "intro": "...", "items": [{ "source": "Medicare", "eligibility": "Age 65+ or qualifying disability", "whatItCovers": "Home health (skilled, time-limited, doctor-ordered). Does NOT cover non-medical in-home care.", "howToApply": "Through your doctor + Medicare-certified agency", "ourRole": "We can refer to a Medicare-certified home health partner when skilled care is what you need" }] }
 
 # Output schema (strict)
 {
@@ -1037,7 +1152,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(_btForTokens) ||
     /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(_btForTokens) ||
     /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(_btForTokens) ||
-    /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(_btForTokens)
+    /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(_btForTokens) ||
+    /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(_btForTokens)
   const maxTokens = _isExtended ? 16000 : 8000
 
   const callOnce = async (extraSystem?: string) => {
@@ -1083,6 +1199,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isDispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessTypeIn)
   const isRoofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessTypeIn)
   const isLandscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessTypeIn)
+  const isHomecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
@@ -1091,7 +1208,9 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
         ? Object.keys(ROOFING_PAGE_RECIPES)
         : isLandscaping
           ? Object.keys(LANDSCAPING_PAGE_RECIPES)
-          : Object.keys(PAGE_RECIPES)
+          : isHomecare
+            ? Object.keys(HOMECARE_PAGE_RECIPES)
+            : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {

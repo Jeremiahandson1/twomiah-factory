@@ -478,3 +478,88 @@ a { color: inherit; text-decoration: none; }
 .book-tip-btn { background: var(--white); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; cursor: pointer; font-family: inherit; font-size: 14px; transition: border-color .15s, background .15s; }
 .book-tip-btn:hover { border-color: var(--brand); }
 .book-tip-btn.is-active { background: var(--brand); color: var(--white); border-color: var(--brand); }
+
+/* ── Home care accessibility baseline (WCAG 2.2 AAA target) ────────── */
+/* Body type bumps to 18px+, no fast animations, real focus rings. */
+body { font-size: 18px; line-height: 1.6; }
+.section-intro, p { font-size: 17px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+/* When user dials up text via the Aa+ toggle we apply --text-scale */
+html { --text-scale: 1; }
+body { font-size: calc(18px * var(--text-scale)); }
+html.cf-text-large { --text-scale: 1.15; }
+html.cf-text-xlarge { --text-scale: 1.3; }
+
+/* ── Care finder wizard ──────────────────────────────────────────────── */
+.care--finder { padding: var(--space) 0; }
+.cf-form { background: var(--white); border-radius: 16px; padding: 36px; max-width: 720px; margin: 0 auto; box-shadow: 0 2px 20px rgba(0,0,0,0.05); }
+.cf-progress { list-style: none; padding: 0; margin: 0 0 32px; display: flex; gap: 0; justify-content: space-between; }
+.cf-progress__step { flex: 1; display: flex; align-items: center; gap: 8px; padding: 8px 6px; font-size: 14px; color: var(--muted); font-weight: 500; border-bottom: 2px solid var(--line); transition: color .25s, border-color .25s; }
+.cf-progress__step span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--paper); color: var(--muted); font-weight: 700; font-size: 13px; }
+.cf-progress__step.is-current { color: var(--brand); border-bottom-color: var(--brand); }
+.cf-progress__step.is-current span { background: var(--brand); color: var(--white); }
+.cf-progress__step.is-done { color: var(--ink-soft); border-bottom-color: var(--brand); }
+.cf-progress__step.is-done span { background: var(--brand); color: var(--white); }
+.cf-step { border: 0; padding: 0; margin: 0; transition: opacity .28s; }
+.cf-step__legend { font-size: 22px; font-weight: 600; color: var(--ink); margin-bottom: 24px; padding: 0; }
+.cf-choices { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+.cf-choices--checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.cf-choice { display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: var(--paper); border: 2px solid transparent; border-radius: 10px; cursor: pointer; font-size: 17px; transition: border-color .15s, background .15s; }
+.cf-choice:hover { border-color: var(--brand); background: var(--white); }
+.cf-choice:has(input:checked) { border-color: var(--brand); background: var(--white); }
+.cf-choice input { transform: scale(1.2); accent-color: var(--brand); }
+.cf-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.cf-label { font-size: 15px; font-weight: 600; color: var(--ink-soft); }
+.cf-input { padding: 14px 16px; border: 2px solid var(--line); border-radius: 10px; font-family: inherit; font-size: 17px; background: var(--paper); color: var(--ink); }
+.cf-input:focus { outline: none; border-color: var(--brand); }
+.cf-promise { background: var(--paper); border-left: 4px solid var(--brand); padding: 14px 18px; border-radius: 0 8px 8px 0; font-size: 15px; color: var(--ink-soft); margin: 20px 0; line-height: 1.5; }
+.cf-actions { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
+.cf-done { text-align: center; padding: 32px 0; }
+.cf-done h3 { font-size: 28px; margin: 0 0 12px; color: var(--brand); }
+.cf-step--invalid .cf-choice, .cf-step--invalid .cf-input { border-color: #b91c1c; }
+@media (prefers-reduced-motion: reduce) { .cf-step, .cf-progress__step, .cf-choice { transition: none; } }
+
+/* ── Caregiver profile cards ─────────────────────────────────────────── */
+.caregivers { padding: var(--space) 0; }
+.cg-filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 36px; }
+.cg-chip { background: var(--white); border: 2px solid var(--line); border-radius: 999px; padding: 8px 18px; font-family: inherit; font-size: 15px; cursor: pointer; color: var(--ink-soft); font-weight: 500; }
+.cg-chip:hover { border-color: var(--brand); color: var(--brand); }
+.cg-chip.is-active { background: var(--brand); color: var(--white); border-color: var(--brand); }
+.cg-chip--lang { font-style: italic; }
+.cg-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 28px; }
+.cg-card { background: var(--white); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 14px rgba(0,0,0,0.04); transition: transform .25s, box-shadow .25s; display: flex; flex-direction: column; }
+.cg-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,0.08); }
+.cg-card[hidden] { display: none !important; }
+.cg-card__photo { aspect-ratio: 1; background-size: cover; background-position: center 25%; background-color: var(--paper); filter: sepia(0.15) saturate(0.85) brightness(0.98); transition: filter .35s; }
+.cg-card:hover .cg-card__photo { filter: sepia(0) saturate(1) brightness(1); }
+.cg-card__photo--placeholder { background: linear-gradient(135deg, var(--paper), var(--accent)); }
+.cg-card__body { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 10px; }
+.cg-card__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.cg-card__name { margin: 0; font-size: 22px; color: var(--ink); line-height: 1.15; }
+.cg-card__years { font-size: 14px; color: var(--brand); font-weight: 600; }
+.cg-card__certs { font-size: 13px; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600; }
+.cg-card__blurb { margin: 4px 0 6px; font-size: 15.5px; color: var(--ink-soft); line-height: 1.55; }
+.cg-card__spec-list { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.cg-card__spec { font-size: 12px; padding: 4px 10px; background: var(--paper); color: var(--ink); border-radius: 4px; font-weight: 500; }
+.cg-card__lang { font-size: 13px; color: var(--muted); font-style: italic; margin-top: 6px; }
+
+/* ── Coverage / insurance guide ──────────────────────────────────────── */
+.coverage { padding: var(--space) 0; }
+.cov-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+.cov-card { background: var(--white); border-radius: 14px; padding: 28px 26px 24px; box-shadow: 0 2px 14px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 14px; border-top: 4px solid var(--brand); }
+.cov-card__source { font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.cov-card__row { display: flex; flex-direction: column; gap: 4px; }
+.cov-card__row-label { font-size: 11.5px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.cov-card__row-body { font-size: 15px; color: var(--ink-soft); line-height: 1.55; }
+.cov-card__row--ours { background: var(--paper); padding: 14px 16px; border-radius: 8px; margin-top: 4px; }
+.cov-card__row--ours .cov-card__row-label { color: var(--brand); }
+
+/* ── Aa+ font-size toggle (lives in header) ──────────────────────────── */
+.text-size-toggle { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; gap: 4px; background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+.text-size-toggle button { background: transparent; border: 0; padding: 6px 12px; border-radius: 999px; cursor: pointer; font-family: inherit; font-weight: 600; color: var(--ink-soft); }
+.text-size-toggle button.is-active { background: var(--brand); color: var(--white); }
+.text-size-toggle button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

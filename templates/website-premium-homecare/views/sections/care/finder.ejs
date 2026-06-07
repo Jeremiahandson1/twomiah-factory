@@ -1,0 +1,128 @@
+<%
+  // Multi-step care-finder wizard. Five steps:
+  //   1. Who needs care?
+  //   2. What kind of care?
+  //   3. How many hours per week?
+  //   4. ZIP code
+  //   5. Email + name + phone → schedule assessment
+  //
+  // Single-page progressive disclosure (steps fade in/out, no route
+  // change). On submit, POSTs to /api/leads with source=care-finder
+  // and full context so the agency's CRM knows exactly who they're
+  // calling. Server-side respect for prefers-reduced-motion.
+  var heading = data.heading || 'Find the right care for your loved one'
+  var intro = data.intro || ''
+  var relationships = Array.isArray(data.relationships) && data.relationships.length
+    ? data.relationships
+    : ['My parent', 'My spouse', 'Myself', 'Another family member']
+  var careTypes = Array.isArray(data.careTypes) && data.careTypes.length
+    ? data.careTypes
+    : ['Companion care', 'Personal care', 'Skilled nursing', "Dementia / Alzheimer's", 'Hospice / end-of-life']
+  var hoursOptions = Array.isArray(data.hoursOptions) && data.hoursOptions.length
+    ? data.hoursOptions
+    : ['A few hours a week', '10–25 hours', '25–40 hours', '40+ hours', '24/7 live-in']
+  var ctaLabel = data.ctaLabel || 'Schedule a free assessment'
+  var responsePromise = data.responsePromise || 'We respond within one business day. No phone trees, no sales pressure.'
+%>
+<section id="find-care" class="care care--finder">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <form class="cf-form" id="cf-form" novalidate aria-label="Care finder">
+      <ol class="cf-progress" aria-hidden="true">
+        <li class="cf-progress__step is-current" data-step="1"><span>1</span> Who</li>
+        <li class="cf-progress__step" data-step="2"><span>2</span> Type</li>
+        <li class="cf-progress__step" data-step="3"><span>3</span> Hours</li>
+        <li class="cf-progress__step" data-step="4"><span>4</span> Where</li>
+        <li class="cf-progress__step" data-step="5"><span>5</span> You</li>
+      </ol>
+      <fieldset class="cf-step is-current" data-step="1">
+        <legend class="cf-step__legend">Who needs care?</legend>
+        <div class="cf-choices">
+          <% for (var i = 0; i < relationships.length; i++) { %>
+            <label class="cf-choice"><input type="radio" name="relationship" value="<%= relationships[i] %>" required><span><%= relationships[i] %></span></label>
+          <% } %>
+        </div>
+        <div class="cf-actions"><button type="button" class="btn btn--lg btn--primary cf-next" data-from="1">Next</button></div>
+      </fieldset>
+      <fieldset class="cf-step" data-step="2" hidden>
+        <legend class="cf-step__legend">What kind of care?</legend>
+        <div class="cf-choices cf-choices--checks">
+          <% for (var i = 0; i < careTypes.length; i++) { %>
+            <label class="cf-choice"><input type="checkbox" name="careType" value="<%= careTypes[i] %>"><span><%= careTypes[i] %></span></label>
+          <% } %>
+        </div>
+        <div class="cf-actions"><button type="button" class="btn btn--ghost cf-back" data-from="2">Back</button><button type="button" class="btn btn--lg btn--primary cf-next" data-from="2">Next</button></div>
+      </fieldset>
+      <fieldset class="cf-step" data-step="3" hidden>
+        <legend class="cf-step__legend">How many hours per week?</legend>
+        <div class="cf-choices">
+          <% for (var i = 0; i < hoursOptions.length; i++) { %>
+            <label class="cf-choice"><input type="radio" name="hours" value="<%= hoursOptions[i] %>" required><span><%= hoursOptions[i] %></span></label>
+          <% } %>
+        </div>
+        <div class="cf-actions"><button type="button" class="btn btn--ghost cf-back" data-from="3">Back</button><button type="button" class="btn btn--lg btn--primary cf-next" data-from="3">Next</button></div>
+      </fieldset>
+      <fieldset class="cf-step" data-step="4" hidden>
+        <legend class="cf-step__legend">What ZIP code is the care for?</legend>
+        <input class="cf-input" type="text" name="zip" pattern="[0-9]{5}" inputmode="numeric" autocomplete="postal-code" placeholder="54703" required>
+        <div class="cf-actions"><button type="button" class="btn btn--ghost cf-back" data-from="4">Back</button><button type="button" class="btn btn--lg btn--primary cf-next" data-from="4">Next</button></div>
+      </fieldset>
+      <fieldset class="cf-step" data-step="5" hidden>
+        <legend class="cf-step__legend">Where should we send next steps?</legend>
+        <label class="cf-field"><span class="cf-label">Your name</span><input class="cf-input" type="text" name="name" autocomplete="name" required></label>
+        <label class="cf-field"><span class="cf-label">Email</span><input class="cf-input" type="email" name="email" autocomplete="email" required></label>
+        <label class="cf-field"><span class="cf-label">Phone (optional, but speeds things up)</span><input class="cf-input" type="tel" name="phone" autocomplete="tel"></label>
+        <div class="cf-promise"><%= responsePromise %></div>
+        <div class="cf-actions"><button type="button" class="btn btn--ghost cf-back" data-from="5">Back</button><button type="submit" class="btn btn--xl btn--primary cf-submit"><%= ctaLabel %></button></div>
+      </fieldset>
+      <div class="cf-done" hidden>
+        <h3>Thank you.</h3>
+        <p><%= responsePromise %></p>
+      </div>
+    </form>
+  </div>
+</section>
+<script>
+(function(){
+  var f = document.getElementById('cf-form');
+  if (!f) return;
+  function steps(){ return f.querySelectorAll('.cf-step'); }
+  function progress(){ return f.querySelectorAll('.cf-progress__step'); }
+  function show(n){
+    steps().forEach(function(s){ s.hidden = parseInt(s.dataset.step, 10) !== n; s.classList.toggle('is-current', parseInt(s.dataset.step, 10) === n); });
+    progress().forEach(function(p){ var sn = parseInt(p.dataset.step, 10); p.classList.toggle('is-current', sn === n); p.classList.toggle('is-done', sn < n); });
+    var cur = f.querySelector('.cf-step.is-current input, .cf-step.is-current select, .cf-step.is-current textarea');
+    if (cur) cur.focus();
+  }
+  function valid(n){
+    var step = f.querySelector('.cf-step[data-step="' + n + '"]');
+    if (!step) return true;
+    var radios = step.querySelectorAll('input[type="radio"][required]');
+    if (radios.length && !Array.from(radios).some(function(r){ return r.checked; })) return false;
+    var inputs = step.querySelectorAll('input[required]:not([type="radio"])');
+    return Array.from(inputs).every(function(i){ return i.checkValidity(); });
+  }
+  f.querySelectorAll('.cf-next').forEach(function(b){ b.addEventListener('click', function(){
+    var from = parseInt(b.dataset.from, 10);
+    if (!valid(from)) { f.querySelector('.cf-step[data-step="' + from + '"]').classList.add('cf-step--invalid'); return; }
+    show(from + 1);
+  }); });
+  f.querySelectorAll('.cf-back').forEach(function(b){ b.addEventListener('click', function(){ show(parseInt(b.dataset.from, 10) - 1); }); });
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    if (!valid(5)) return;
+    var fd = new FormData(f);
+    var payload = { source: 'care-finder' };
+    fd.forEach(function(v, k){
+      if (payload[k]) { if (Array.isArray(payload[k])) payload[k].push(v); else payload[k] = [payload[k], v]; }
+      else payload[k] = v;
+    });
+    fetch('/api/leads', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(function(){ steps().forEach(function(s){ s.hidden = true; }); f.querySelector('.cf-done').hidden = false; })
+      .catch(function(){ steps().forEach(function(s){ s.hidden = true; }); f.querySelector('.cf-done').hidden = false; });
+  });
+})();
+</script>
