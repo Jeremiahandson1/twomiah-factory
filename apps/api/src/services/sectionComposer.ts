@@ -263,6 +263,14 @@ export const SECTION_SCHEMA = {
       use_when: 'roofing (GAF Master Elite, Owens Corning Preferred, CertainTeed SELECT), contractor (BBB A+, Houzz Pro, Angi badges), home care (state licensure, bonded/insured, BBB), any vertical where third-party credentials = currency. Grid of badge items: { name, image, url? }. NEVER fabricate credentials — only include badges the customer actually has.',
     },
   },
+  // ─── Restaurant section types ──────────────────────────────────────────
+  reservation: {
+    widget: {
+      required: ['heading'],
+      optional: ['intro', 'partySizes', 'maxLeadDays', 'note', 'bookingPath'],
+      use_when: 'sit-down restaurants, boutique hotels, salons that want a party-size + date + time picker that deep-links into Twomiah Bookings. Customer fills party-size/date/time on the home page, click → Bookings page with values pre-filled. Better than a generic "book a table" button — sets the right expectation that booking is the next step.',
+    },
+  },
   // ─── Field service section types (HVAC / plumbing / electrical) ───────
   emergency: {
     bar: {
@@ -590,6 +598,44 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Restaurant (sit-down, dinner-focused, brunch spots, neighborhood
+// gastropubs). Reservation widget above-the-fold drives more bookings
+// than a "book a table" link. Menu prominent, chef story matters,
+// tonight's specials gives the site a heartbeat that staff can update
+// daily without touching the layout.
+const RESTAURANT_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a sit-down restaurant. Reserve a table is the conversion engine. Menu second. Chef + provenance differentiates from chain dining.',
+    allowed_types: ['hero', 'reservation', 'deals', 'menu', 'about', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (dining-room-at-golden-hour photography, signature dish, OR chef portrait — NOT generic stock plates), 1 reservation/widget (above-the-fold conversion driver), optional 1 deals/strip retitled as "Tonight" or "This week" for specials, 1 menu/cards (4-8 signature items with prices + dietary chips — not the FULL menu, that lives on /menu), optional 1 about/story snippet (chef-driven, NOT "our journey"), optional 1 gallery/grid, optional 1 testimonials block, close with 1 cta',
+  },
+  menu: {
+    purpose: 'The full menu. Filterable by dietary, course, time of day. SEO target: "[restaurant name] menu" + "[cuisine type] [city]".',
+    allowed_types: ['hero', 'menu', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Menu"), 1 menu/cards with the full lineup, 1 faq about allergens / substitutions / large parties / kids menu / corkage, close with 1 cta',
+  },
+  reservations: {
+    purpose: 'Standalone reservations page — for diners who clicked from social or a "book now" search.',
+    allowed_types: ['hero', 'reservation', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Reserve"), 1 reservation/widget, 1 faq (no-show policy, large-party threshold, walk-ins, dietary heads-up), close with 1 cta',
+  },
+  about: {
+    purpose: 'Chef + house + provenance + history. The trust + voice page.',
+    allowed_types: ['about', 'team', 'stats', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (chef portrait + the WHY of the menu / restaurant), optional 1 stats/bar with real anchored numbers (seats, years, chef tenure — not vanity), optional 1 team/grid (chef + sous + manager), optional 1 gallery (the room, the kitchen, the producers), optional 1 testimonials, close with 1 cta',
+  },
+  'private-dining': {
+    purpose: 'Private dining + buyouts + catering. Highest-margin revenue for most restaurants.',
+    allowed_types: ['hero', 'catering', 'gallery', 'faq', 'cta'],
+    required_sequence: '1 hero/full-bleed (private-event photography), 1 catering/inquiry-form (event date + headcount + venue type + dietary), optional 1 gallery/grid of past events, 1 faq (capacities, minimums, what is included, deposit, lead time), close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for non-reservation contact (press, vendor, hires).',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/widget for "or reserve a table instead", optional 1 faq',
+  },
+} as const
+
 // Field service (HVAC / plumbing / electrical / cleaning) — the work
 // model varies meaningfully across these (emergency-first HVAC vs
 // recurring cleaning contracts) but the page set is consistent. The
@@ -831,6 +877,7 @@ function buildSitePrompt(input: ComposerInput): string {
   const landscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessType)
   const homecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessType)
   const fieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessType)
+  const restaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
@@ -843,7 +890,9 @@ function buildSitePrompt(input: ComposerInput): string {
             ? HOMECARE_PAGE_RECIPES
             : fieldservice
               ? FIELDSERVICE_PAGE_RECIPES
-              : PAGE_RECIPES
+              : restaurant
+                ? RESTAURANT_PAGE_RECIPES
+                : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -903,7 +952,49 @@ Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
 ${photosSection}
-${fieldservice ? `
+${restaurant ? `
+# Industry note — RESTAURANT (sit-down, dinner-focused)
+This is a sit-down restaurant. Guidance:
+
+1. Reservation widget is the conversion engine — reservation/widget
+   above-the-fold on home page is mandatory unless the intake says
+   they're walk-in-only.
+2. Hero takes a position about THIS restaurant. Anchor in a real fact
+   from the intake: seat count, chef name + background, signature dish,
+   sourcing, year founded, neighborhood. Pattern reference:
+   "Five courses. One chef. The whole room hears the kitchen." (28-seat
+   tasting-menu spot)
+   "Wood-fired Neapolitan and three natural wines on tap." (pizzeria)
+   "Chef Anika cooks for 28 people a night. Reservations open four
+   weeks ahead." (small fine-dining)
+3. Banned phrases (in addition to the global list, this vertical gets
+   the harshest treatment): "farm-to-table experience", "culinary
+   journey", "elevated dining", "celebrating local ingredients",
+   "passionate about food", "your destination for fine dining",
+   "tastebuds will dance", "where flavor meets tradition", "premier
+   dining destination", "exceptional dining experience". These read
+   as small-business marketing-speak. Better: name the producer,
+   describe ONE specific dish, take a position about how dinner
+   actually works ("five courses, one seating, no menu — chef cooks
+   what's good that day").
+4. menu/cards on home shows 4-8 SIGNATURE items, not the full menu
+   (that lives on /menu). Each item has the actual name, the actual
+   price, a one-sentence description with sensory detail, and dietary
+   tags. Realistic 2026 dinner pricing: small plates $12-22, mains
+   $24-48, tasting menu $85-150.
+5. Tonight's specials uses deals/strip retitled — "Tonight" or "This
+   week" — for daily-changing items. Only include if the intake
+   suggests they do specials.
+6. Chef-driven about/story matters more here than almost anywhere
+   else. The "why this restaurant" is almost always the chef's
+   biography. Pull from intake fields ownerName + description.
+7. Photography: hero should be either a signature dish, the dining
+   room at golden hour, or the chef in motion. NOT a generic plate
+   of pasta. If customerPhotos has dishes, use those over Unsplash.
+8. Private dining is a high-margin page when the intake mentions
+   buyouts, private events, holiday parties — use the
+   /private-dining page recipe.
+` : ''}${fieldservice ? `
 # Industry note — FIELD SERVICE (HVAC / plumbing / electrical / cleaning)
 The work model varies within this template. Read the intake first:
 
@@ -1196,6 +1287,7 @@ coverage/insurance-guide: { "heading": "Coverage", "intro": "...", "items": [{ "
 emergency/bar: { "heading": "Furnace out? Pipe leaking? Power out?", "phone": "555-123-4567", "subtext": "We pick up. Even at 2am.", "businessHours": "7am-7pm", "afterHoursLabel": "After-hours call", "normalHoursLabel": "Open now — call now" }
 service_area/zip-check: { "heading": "Do we come to you?", "intro": "...", "serviceZips": ["54701", "54702", "54703", "54720", "54729"], "yesLabel": "Yes, we serve <ZIP>", "noLabel": "Not yet in <ZIP> — leave your info and we'll let you know when we expand", "yesHref": "#contact", "noEmail": true }
 pricing/flat-rate-menu: { "heading": "Flat-rate menu", "intro": "...", "disclaimer": "All prices include parts unless noted. Final quote written before any work starts.", "items": [{ "service": "Drain clear (main line)", "priceLabel": "$285", "includes": ["Camera inspection", "Snake to 100ft", "Recommendations if root intrusion found"] }, { "service": "Water heater install (40-gal gas)", "priceLabel": "from $1,850", "includes": ["GE / Rheem / Bradford White", "Tank pull + haul", "Permits + inspection", "6yr labor warranty"], "note": "Add $150 for hard-to-reach attic install" }] }
+reservation/widget: { "heading": "Reserve a table", "intro": "...", "partySizes": [1, 2, 3, 4, 5, 6, 7, 8], "maxLeadDays": 60, "note": "Parties of 8+ contact us directly.", "bookingPath": "/book" }
 
 # Output schema (strict)
 {
@@ -1273,7 +1365,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(_btForTokens) ||
     /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(_btForTokens) ||
     /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(_btForTokens) ||
-    /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(_btForTokens)
+    /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(_btForTokens) ||
+    /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(_btForTokens)
   const maxTokens = _isExtended ? 16000 : 8000
 
   const callOnce = async (extraSystem?: string) => {
@@ -1321,6 +1414,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isLandscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessTypeIn)
   const isHomecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessTypeIn)
   const isFieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessTypeIn)
+  const isRestaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
@@ -1333,7 +1427,9 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
             ? Object.keys(HOMECARE_PAGE_RECIPES)
             : isFieldservice
               ? Object.keys(FIELDSERVICE_PAGE_RECIPES)
-              : Object.keys(PAGE_RECIPES)
+              : isRestaurant
+                ? Object.keys(RESTAURANT_PAGE_RECIPES)
+                : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {
