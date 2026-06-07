@@ -1,0 +1,70 @@
+<%
+  // Financing widget — pure marketing calc. Shows "starting at $X/mo"
+  // with a slider that lets the customer adjust loan amount + term.
+  // Routes to /contact with the values pre-filled. NOT a real lending
+  // API — the actual financing is a side deal the customer arranges.
+  var heading = data.heading || 'Roof financing'
+  var intro = data.intro || ''
+  var fromMonthly = parseInt(data.fromMonthly, 10) || 99
+  var maxTerm = parseInt(data.maxTermMonths, 10) || 84
+  var apr = parseFloat(data.apr) || 7.99
+  var minLoan = parseInt(data.minLoanAmount, 10) || 3000
+  var maxLoan = parseInt(data.maxLoanAmount, 10) || 35000
+  var ctaLabel = data.ctaLabel || 'Get my estimate'
+%>
+<section id="financing" class="financing">
+  <div class="container">
+    <div class="financing__card">
+      <div class="financing__head">
+        <div class="financing__eyebrow">Financing</div>
+        <h2 class="financing__heading"><%= heading %></h2>
+        <% if (intro) { %><p class="financing__intro"><%= intro %></p><% } %>
+        <div class="financing__lede">starting at <span class="financing__lede-num mono">$<%= fromMonthly %>/mo</span></div>
+      </div>
+      <div class="financing__calc">
+        <div class="financing__field">
+          <label for="fin-amount" class="financing__label">Loan amount</label>
+          <input type="range" id="fin-amount" min="<%= minLoan %>" max="<%= maxLoan %>" step="500" value="<%= Math.round((minLoan + maxLoan) / 2) %>">
+          <span class="financing__value mono" id="fin-amount-v">—</span>
+        </div>
+        <div class="financing__field">
+          <label for="fin-term" class="financing__label">Term</label>
+          <input type="range" id="fin-term" min="12" max="<%= maxTerm %>" step="6" value="60">
+          <span class="financing__value mono" id="fin-term-v">— mo</span>
+        </div>
+        <div class="financing__result">
+          <div class="financing__result-label">Estimated payment</div>
+          <div class="financing__result-num mono" id="fin-pay">—</div>
+          <div class="financing__result-fine"><%= apr %>% APR · subject to credit · final terms set by lender</div>
+        </div>
+        <a class="btn btn--xl btn--primary financing__cta" id="fin-cta" href="#contact"><%= ctaLabel %></a>
+      </div>
+    </div>
+    <% if (data.delightRain !== false) { %><div class="financing__rain" aria-hidden="true"></div><% } %>
+  </div>
+</section>
+<script>
+(function(){
+  var APR = <%= apr %>;
+  var amt = document.getElementById('fin-amount');
+  var term = document.getElementById('fin-term');
+  var amtV = document.getElementById('fin-amount-v');
+  var termV = document.getElementById('fin-term-v');
+  var pay = document.getElementById('fin-pay');
+  var cta = document.getElementById('fin-cta');
+  function fmtUSD(n){ return '$' + Math.round(n).toLocaleString(); }
+  function calc() {
+    var P = parseFloat(amt.value);
+    var n = parseFloat(term.value);
+    var r = APR / 100 / 12;
+    var M = r === 0 ? P / n : P * (r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+    amtV.textContent = fmtUSD(P);
+    termV.textContent = n + ' mo';
+    pay.textContent = fmtUSD(M) + '/mo';
+    cta.setAttribute('href', '#contact?financing=1&amount=' + P + '&term=' + n + '&payment=' + Math.round(M));
+  }
+  amt.addEventListener('input', calc);
+  term.addEventListener('input', calc);
+  calc();
+})();
+</script>

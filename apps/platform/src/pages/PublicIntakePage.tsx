@@ -179,8 +179,8 @@ export default function PublicIntakePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto p-6 pt-12 pb-24">
         <div className="mb-2 text-xs font-semibold tracking-wider text-orange-600 uppercase">Twomiah Premium Website</div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Get your AI-composed preview in minutes</h1>
-        <p className="text-gray-600 mb-6">Tell us about your business. We'll compose a 4-page site you can review before paying.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Get your preview in minutes</h1>
+        <p className="text-gray-600 mb-6">Tell us about your business. We'll send you a complete preview to review before paying.</p>
 
         {/* Launch promo banner — the $499-off coupon is configured in Stripe
             (STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH) and auto-applies at

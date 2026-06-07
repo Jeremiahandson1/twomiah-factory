@@ -1,0 +1,128 @@
+<%
+  // Before/after slider gallery. Each item has a draggable handle
+  // that wipes between the before and after images. Filterable by
+  // material, year, or city if filters[] is provided.
+  var heading = data.heading || 'Before & after'
+  var intro = data.intro || ''
+  var items = Array.isArray(data.items) ? data.items.filter(function(i){ return i && i.beforeImage && i.afterImage }) : []
+  if (items.length === 0) return
+
+  // Collect filter values from items + intersect with declared filters[].
+  var filterKeys = Array.isArray(data.filters) ? data.filters : []
+  var filterValues = {}
+  for (var k = 0; k < filterKeys.length; k++) {
+    var fk = filterKeys[k]
+    var seen = new Set()
+    for (var j = 0; j < items.length; j++) {
+      var v = items[j][fk]
+      if (v !== undefined && v !== null && v !== '') seen.add(String(v))
+    }
+    filterValues[fk] = Array.from(seen).sort()
+  }
+%>
+<section id="projects-before-after" class="before-after">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <% if (filterKeys.length > 0) { %>
+      <div class="before-after__filters" role="group" aria-label="Filter projects">
+        <% filterKeys.forEach(function(fk) { %>
+          <% if (filterValues[fk] && filterValues[fk].length > 0) { %>
+            <details class="before-after__filter">
+              <summary><%= fk.charAt(0).toUpperCase() + fk.slice(1) %></summary>
+              <ul>
+                <li><button type="button" class="ba-chip is-active" data-key="<%= fk %>" data-value="">All</button></li>
+                <% filterValues[fk].forEach(function(v) { %>
+                  <li><button type="button" class="ba-chip" data-key="<%= fk %>" data-value="<%= v %>"><%= v %></button></li>
+                <% }) %>
+              </ul>
+            </details>
+          <% } %>
+        <% }) %>
+      </div>
+    <% } %>
+    <ul class="before-after__grid" role="list">
+      <% for (var i = 0; i < items.length; i++) { var item = items[i]; %>
+        <li class="ba-card" data-attrs="<%= JSON.stringify(item).replace(/&/g, '&amp;').replace(/"/g, '&quot;') %>">
+          <div class="ba-card__slider" data-handle-pos="50">
+            <img class="ba-card__after" src="<%= item.afterImage %>" alt="After: <%= item.caption || '' %>" loading="lazy" decoding="async">
+            <div class="ba-card__before-wrap" aria-hidden="false">
+              <img class="ba-card__before" src="<%= item.beforeImage %>" alt="Before: <%= item.caption || '' %>" loading="lazy" decoding="async">
+            </div>
+            <div class="ba-card__handle" role="slider" aria-label="Drag to reveal before/after" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50" tabindex="0">
+              <span class="ba-card__handle-bar"></span>
+              <span class="ba-card__handle-dot"></span>
+            </div>
+            <span class="ba-card__label ba-card__label--before">Before</span>
+            <span class="ba-card__label ba-card__label--after">After</span>
+          </div>
+          <div class="ba-card__meta">
+            <% if (item.caption) { %><div class="ba-card__caption"><%= item.caption %></div><% } %>
+            <div class="ba-card__sub mono">
+              <% if (item.location) { %><%= item.location %><% } %>
+              <% if (item.year) { %><%= item.location ? ' · ' : '' %><%= item.year %><% } %>
+              <% if (item.material) { %><%= (item.location || item.year) ? ' · ' : '' %><%= item.material %><% } %>
+            </div>
+          </div>
+        </li>
+      <% } %>
+    </ul>
+  </div>
+</section>
+<script>
+(function(){
+  // Drag handle
+  document.querySelectorAll('.ba-card__slider').forEach(function(s){
+    var beforeWrap = s.querySelector('.ba-card__before-wrap');
+    var handle = s.querySelector('.ba-card__handle');
+    if (!beforeWrap || !handle) return;
+    var pos = 50;
+    function set(p) {
+      pos = Math.max(0, Math.min(100, p));
+      beforeWrap.style.width = pos + '%';
+      handle.style.left = pos + '%';
+      handle.setAttribute('aria-valuenow', String(Math.round(pos)));
+    }
+    set(50);
+    function fromEvent(e) {
+      var rect = s.getBoundingClientRect();
+      var x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+      set(x / rect.width * 100);
+    }
+    var dragging = false;
+    function down(e) { dragging = true; fromEvent(e); e.preventDefault(); }
+    function move(e) { if (dragging) fromEvent(e); }
+    function up() { dragging = false; }
+    s.addEventListener('mousedown', down);
+    s.addEventListener('touchstart', down, { passive: false });
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchend', up);
+    handle.addEventListener('keydown', function(e){
+      if (e.key === 'ArrowLeft') { set(pos - 4); e.preventDefault(); }
+      else if (e.key === 'ArrowRight') { set(pos + 4); e.preventDefault(); }
+    });
+  });
+  // Filter chips
+  var active = {};
+  document.querySelectorAll('.before-after__filters .ba-chip').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var k = btn.dataset.key, v = btn.dataset.value;
+      // Toggle is-active in the same group
+      btn.parentElement.parentElement.querySelectorAll('.ba-chip').forEach(function(b){
+        b.classList.toggle('is-active', b === btn);
+      });
+      if (!v) delete active[k]; else active[k] = v;
+      document.querySelectorAll('.ba-card').forEach(function(card){
+        var attrs = {};
+        try { attrs = JSON.parse(card.dataset.attrs.replace(/&quot;/g, '"').replace(/&amp;/g, '&')); } catch(e) {}
+        var ok = Object.keys(active).every(function(key){ return String(attrs[key]) === active[key]; });
+        card.hidden = !ok;
+      });
+    });
+  });
+})();
+</script>

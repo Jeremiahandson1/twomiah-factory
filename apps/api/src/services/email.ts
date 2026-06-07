@@ -187,8 +187,8 @@ export async function notifyDeployComplete(
     </div>
     ${isPremiumWebsite ? `
     <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;padding:16px;margin:16px 0;">
-      <p style="margin:0 0 4px;color:#6b21a8;font-weight:600;">Tweak your AI-composed site</p>
-      <p style="margin:0;color:#581c87;font-size:14px;">Open the Website admin to edit any section's wording, swap photos, reorder, or add a new page. The composed draft is yours to refine.</p>
+      <p style="margin:0 0 4px;color:#6b21a8;font-weight:600;">Tweak your site</p>
+      <p style="margin:0;color:#581c87;font-size:14px;">Open the Website admin to edit any section's wording, swap photos, reorder, or add a new page. The draft is yours to refine.</p>
     </div>` : ''}
     <p style="color:#666;font-size:14px;">Services may take a few minutes to fully start up after deployment.</p>
     ${urls.deployedUrl ? btn(urls.deployedUrl, 'Log In to Your CRM') : websiteAdminUrl ? btn(websiteAdminUrl, 'Open Website Admin') : urls.siteUrl ? btn(urls.siteUrl, 'View Your Website') : ''}`

@@ -1,0 +1,53 @@
+<%
+  // Server-rendered storm alert banner. Only renders when current date
+  // is between startDate and endDate. Dismissable; remembered via
+  // localStorage so a customer who closes it doesn't see it again on
+  // this device.
+  var heading = data.heading || ''
+  var subtitle = data.subtitle || ''
+  var cta = data.cta || null
+  var dismissable = data.dismissable !== false
+  if (!heading) return
+
+  // Date gate. If start/endDate are set, only render in window.
+  var now = new Date()
+  if (data.startDate) {
+    var s = new Date(String(data.startDate))
+    if (!isNaN(s.getTime()) && now < s) return
+  }
+  if (data.endDate) {
+    var e = new Date(String(data.endDate))
+    if (!isNaN(e.getTime()) && now > e) return
+  }
+
+  // Storage key tied to the heading so swapping content shows the banner again.
+  var storageKey = 'storm-alert:' + Math.abs(heading.split('').reduce(function(a,c){return ((a<<5)-a+c.charCodeAt(0))|0}, 0))
+%>
+<aside class="storm-alert" data-storage-key="<%= storageKey %>" role="alert">
+  <div class="container storm-alert__inner">
+    <div class="storm-alert__copy">
+      <strong class="storm-alert__heading"><%= heading %></strong>
+      <% if (subtitle) { %><span class="storm-alert__subtitle"><%= subtitle %></span><% } %>
+    </div>
+    <% if (cta && cta.label) { %>
+      <a class="storm-alert__cta btn btn--lg btn--primary" href="<%= cta.href || '#contact' %>"><%= cta.label %></a>
+    <% } %>
+    <% if (dismissable) { %>
+      <button class="storm-alert__close" type="button" aria-label="Dismiss storm alert">&times;</button>
+    <% } %>
+  </div>
+</aside>
+<script>
+(function(){
+  var b = document.querySelector('.storm-alert');
+  if (!b) return;
+  var key = b.dataset.storageKey;
+  try { if (localStorage.getItem(key) === 'dismissed') { b.remove(); return; } } catch(e) {}
+  var close = b.querySelector('.storm-alert__close');
+  if (close) close.addEventListener('click', function(){
+    try { localStorage.setItem(key, 'dismissed'); } catch(e) {}
+    b.classList.add('storm-alert--out');
+    setTimeout(function(){ b.remove(); }, 280);
+  });
+})();
+</script>

@@ -227,6 +227,42 @@ export const SECTION_SCHEMA = {
       use_when: 'dispensaries / cafes / any business with daily/weekly specials. Horizontal scroll strip of current deals (e.g. "Wax Wednesday: 30% off concentrates", "Senior Sundays: 10% off everything"). Each card has the deal name, brief description, valid-through date.',
     },
   },
+  // ─── Roofing-specific section types (some reusable across other trades) ──
+  quote: {
+    'instant-address': {
+      required: ['heading'],
+      optional: ['intro', 'pricePerSqFt', 'minSqFt', 'maxSqFt', 'mapCenter', 'mapZoom', 'callToAction', 'showFinancing'],
+      use_when: 'roofers + landscapers + any home-services business that can give a ballpark estimate from address + size. Mapbox satellite map with address-search, customer enters approximate sq ft, JS calculates a range from pricePerSqFt config. Single biggest conversion lever in roofing — crushes "fill out a form and we\'ll call you".',
+    },
+  },
+  banner: {
+    'storm-alert': {
+      required: ['heading'],
+      optional: ['subtitle', 'cta', 'startDate', 'endDate', 'dismissable'],
+      use_when: 'roofers, restoration contractors. Server-rendered geo+date awareness with a dismissable promo bar — "Storm passed through Eau Claire 2026-05-12. Free inspection if you suspect damage." Only renders when current date is between startDate/endDate. Strong post-event conversion.',
+    },
+  },
+  before_after: {
+    slider: {
+      required: ['items'],
+      optional: ['heading', 'intro', 'filters'],
+      use_when: 'roofing, contractor, landscaping, salon, painting — any vertical where the visual transformation is the proof. Side-by-side image slider with drag-to-reveal handle. Filterable by material, city, year. Each item: { beforeImage, afterImage, caption, location, year, material }.',
+    },
+  },
+  financing: {
+    calculator: {
+      required: ['heading'],
+      optional: ['intro', 'fromMonthly', 'maxTermMonths', 'apr', 'minLoanAmount', 'maxLoanAmount', 'ctaLabel'],
+      use_when: 'roofing / contractor / HVAC / landscaping — any vertical where the average ticket is $5k+. Shows "starting at $99/mo" with a slider that lets the customer adjust loan amount + term. Pure marketing widget — NOT a real lending API. Routes to a contact form with budget context pre-filled.',
+    },
+  },
+  trust: {
+    badges: {
+      required: ['items'],
+      optional: ['heading', 'intro'],
+      use_when: 'roofing (GAF Master Elite, Owens Corning Preferred, CertainTeed SELECT), contractor (BBB A+, Houzz Pro, Angi badges), home care (state licensure, bonded/insured, BBB), any vertical where third-party credentials = currency. Grid of badge items: { name, image, url? }. NEVER fabricate credentials — only include badges the customer actually has.',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
@@ -502,6 +538,42 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Roofing is a multi-page vertical because the conversion journey
+// branches: "I had a storm" → /storm; "I want a ballpark" → /quote;
+// "show me your work" → /projects. Generic 4-page doesn't fit.
+const ROOFING_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a roofer. Insurance-claim positioning first, instant-quote second, trust badges third, work proof fourth.',
+    allowed_types: ['hero', 'banner', 'quote', 'trust', 'services', 'before_after', 'stats', 'cta'],
+    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider (3-4 items), close with 1 cta/split',
+  },
+  quote: {
+    purpose: 'Standalone estimator page. SEO-targeted to "roof replacement cost" / "ballpark roof estimate" searches.',
+    allowed_types: ['hero', 'quote', 'financing', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Estimator"), 1 quote/instant-address, 1 financing/calculator, 1 faq/accordion (sq-ft estimation, what the range includes, insurance overlap), close with 1 cta',
+  },
+  storm: {
+    purpose: 'Storm-damage / insurance-claim landing page. This is where high-ticket post-event jobs come from. SEO-targeted to "hail damage roof inspection" / "storm damage insurance claim" searches.',
+    allowed_types: ['hero', 'banner', 'services', 'faq', 'before_after', 'cta'],
+    required_sequence: 'optional 1 banner/storm-alert (if intake supplies dates), 1 hero/full-bleed (storm-imagery hero with claim-help framing), 1 services (insurance-claim walkthrough), 1 faq about claim process (does inspection cost anything, what if my deductible is high, do you meet my adjuster on the roof), optional 1 before_after slider showing post-storm work, close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner story + team + credentials. The trust page for prospects doing due diligence.',
+    allowed_types: ['about', 'team', 'stats', 'trust', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (owner portrait + the "why" of starting), optional 1 stats/bar (years, roofs done, crew size, owner-on-every-roof), optional 1 team/grid (the crew), optional 1 trust/badges, optional 1 testimonials block (real quotes only), close with 1 cta',
+  },
+  projects: {
+    purpose: 'Portfolio. Before/after gallery filterable by material + city + year.',
+    allowed_types: ['hero', 'before_after', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Recent work"), 1 before_after/slider (6-10 items), optional 1 gallery/grid for project photos that aren\'t before/after, optional 1 testimonials block, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page. Form + business details + response promise.',
+    allowed_types: ['hero', 'contact', 'faq', 'banner'],
+    required_sequence: 'optional 1 banner/storm-alert if active, 1 hero (short), 1 contact/form-info, optional 1 faq covering pre-call questions',
+  },
+} as const
+
 // Cannabis dispensaries have legal + product-discovery constraints the
 // generic 4-page model can't serve. Age-gate is required on first visit
 // in most states. The strain catalog IS the product — page recipe leads
@@ -589,11 +661,14 @@ function buildSitePrompt(input: ComposerInput): string {
   const businessType = input.businessType || ''
   const ft = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessType)
   const dispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessType)
+  const roofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
       ? DISPENSARY_PAGE_RECIPES
-      : PAGE_RECIPES
+      : roofing
+        ? ROOFING_PAGE_RECIPES
+        : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -653,7 +728,45 @@ Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
 ${photosSection}
-${dispensary ? `
+${roofing ? `
+# Industry note — ROOFING CONTRACTOR
+This is a residential roofing business. Industry-specific guidance:
+
+1. Insurance-claim posture is the dominant frame. Most high-ticket roofing
+   work is post-event hail/wind damage paid by the homeowner's insurance.
+   The headline should reflect this. Best-pattern reference:
+   "After the hail, you call your insurer. Then you call <Owner>." NOT
+   "Trusted roofing experts" or "Complete roofing solutions."
+2. quote/instant-address goes on the home page above-the-fold (after the
+   hero). It is the SINGLE biggest conversion lever in this vertical.
+   Set pricePerSqFt to a realistic regional number ($4.50-7.50/sq ft is
+   typical for asphalt shingle in 2026; metal $9-14; tile $15-25).
+3. Lead with owner-on-every-roof as a trust signal if the intake supports
+   it. Most independent roofers compete with bigger franchises by being
+   the one who actually shows up.
+4. Banned phrases for this vertical (in addition to the global list):
+   "premier roofing experts", "trusted roofing professionals", "complete
+   roofing solutions", "your trusted roofing partner", "from inspection
+   to installation", "quality you can trust". Use specific language
+   instead: "GAF Master Elite installer since 2014", "owner walks every
+   roof with your adjuster", "we work to the insurance company's spec,
+   not above and not below."
+5. Storm landing page (/storm) is SEO gold — geotargeted to recent
+   hail/wind events in the service area. If the intake mentions specific
+   storm dates or recent events, include a banner/storm-alert on the
+   home page and /storm pages with the date and inspection offer.
+6. Financing: include financing/calculator only if the intake indicates
+   they actually offer financing. Don't fabricate a financing program
+   that doesn't exist. The widget is a marketing tool — the actual
+   financing is a side deal the customer arranges with their lender.
+7. before_after/slider: include 3-6 items on /projects, 3-4 on home.
+   Use realistic Wisconsin/Midwest cities, GAF Timberline HDZ as a
+   common shingle product if material isn't specified, real years in
+   the 2022-2025 range.
+8. trust/badges: ONLY include badges the intake actually mentions
+   (GAF Master Elite, Owens Corning Preferred Contractor, CertainTeed
+   SELECT ShingleMaster, BBB rating). Never fabricate credentials.
+` : ''}${dispensary ? `
 # Industry note — CANNABIS DISPENSARY
 This is a cannabis dispensary. Industry-specific guidance:
 
@@ -763,6 +876,11 @@ social/feed: { "heading": "...", "intro": "...", "handle": "@username", "platfor
 age/modal: { "gateAge": 21, "heading": "Are you 21 or older?", "message": "<short legal copy>", "stateSelector": <bool>, "exitUrl": "https://google.com" }
 strain/grid: { "heading": "...", "intro": "...", "filters": ["indica", "sativa", "hybrid"], "items": [{ "name": "Blue Dream", "type": "Hybrid", "thc": "21%", "cbd": "0.5%", "effects": ["relaxed", "creative"], "terpenes": ["myrcene", "pinene"], "price": "$45/eighth", "image": "<url>" }] }
 deals/strip: { "heading": "Today's specials", "intro": "...", "expiresLabel": "Today only", "items": [{ "title": "Wax Wednesday", "description": "30% off concentrates", "validThrough": "..." }] }
+quote/instant-address: { "heading": "Get a ballpark estimate", "intro": "...", "pricePerSqFt": 5.50, "minSqFt": 800, "maxSqFt": 4000, "callToAction": "See my range" }
+banner/storm-alert: { "heading": "Hail storm in Eau Claire on May 12", "subtitle": "Free post-storm roof inspection — claim help included.", "cta": { "label": "Schedule inspection", "href": "/contact" }, "startDate": "2026-05-12", "endDate": "2026-08-12", "dismissable": true }
+before_after/slider: { "heading": "Before & after", "intro": "...", "filters": ["material", "year"], "items": [{ "beforeImage": "<url>", "afterImage": "<url>", "caption": "Re-roof after July 2024 hail", "location": "Eau Claire, WI", "year": 2024, "material": "GAF Timberline HDZ" }] }
+financing/calculator: { "heading": "Roof financing from $99/mo", "intro": "...", "fromMonthly": 99, "maxTermMonths": 84, "apr": 7.99, "minLoanAmount": 3000, "maxLoanAmount": 35000, "ctaLabel": "Get my estimate" }
+trust/badges: { "heading": "Credentials", "intro": "...", "items": [{ "name": "GAF Master Elite", "image": "<url>", "url": "..." }, { "name": "BBB A+", "image": "<url>" }] }
 
 # Output schema (strict)
 {
@@ -836,7 +954,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const _btForTokens = input.businessType || ''
   const _isExtended =
     /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(_btForTokens) ||
-    /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(_btForTokens)
+    /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(_btForTokens) ||
+    /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(_btForTokens)
   const maxTokens = _isExtended ? 16000 : 8000
 
   const callOnce = async (extraSystem?: string) => {
@@ -880,11 +999,14 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const businessTypeIn = input.businessType || ''
   const isFoodTruck = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessTypeIn)
   const isDispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessTypeIn)
+  const isRoofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
       ? Object.keys(DISPENSARY_PAGE_RECIPES)
-      : Object.keys(PAGE_RECIPES)
+      : isRoofing
+        ? Object.keys(ROOFING_PAGE_RECIPES)
+        : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {
