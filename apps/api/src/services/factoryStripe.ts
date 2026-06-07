@@ -205,10 +205,24 @@ export async function createPremiumWebsiteCheckout(
 
   const stripeCustomerId = await ensureCustomer(factoryCustomer)
 
+  // Subscription mode with a one-time setup fee: per Stripe's docs
+  // (https://docs.stripe.com/api/checkout/sessions/create — "For
+  // subscription mode, there is a maximum of 20 line items with recurring
+  // Prices and 20 line items with one-time Prices. Line items with
+  // one-time Prices will be on the initial invoice only"), the supported
+  // pattern is mixing recurring + one-time prices directly in line_items.
+  //
+  // `add_invoice_items` does NOT exist on Checkout Sessions — it's a
+  // parameter on the raw Subscriptions/Invoices API. Earlier code tried
+  // it both under subscription_data and at top level; Stripe rejected
+  // both with "Received unknown parameter".
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     customer: stripeCustomerId,
     mode: 'subscription',
-    line_items: [{ price: recurringPriceId, quantity: 1 }],
+    line_items: [
+      { price: recurringPriceId, quantity: 1 },
+      { price: buildPriceId, quantity: 1 },
+    ],
     success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
     cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
     metadata: {
@@ -225,13 +239,6 @@ export async function createPremiumWebsiteCheckout(
       },
     },
   }
-  // $1k one-time build fee added to the first invoice of the subscription.
-  // On Checkout Sessions, add_invoice_items is a TOP-LEVEL field (not
-  // under subscription_data — Stripe rejects that with "Received unknown
-  // parameter: subscription_data[add_invoice_items]"). The typed SDK
-  // surfaces it at top level too; the earlier cast under subscription_data
-  // was a real bug.
-  ;(sessionParams as any).add_invoice_items = [{ price: buildPriceId, quantity: 1 }]
 
   // Launch coupon (e.g. $499 off the build fee). Stripe rejects expired
   // coupons automatically — they expire on the coupon's own valid_until,
