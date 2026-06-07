@@ -1,0 +1,48 @@
+<%
+  // Sticky tap-to-call bar with after-hours pulse. Server-renders the
+  // currently-open / after-hours state by parsing businessHours (e.g.
+  // "7am-7pm") against the current local time. If after-hours, the
+  // phone button pulses red and shows the after-hours label.
+  var phone = data.phone || ''
+  if (!phone) return
+  var heading = data.heading || ''
+  var subtext = data.subtext || ''
+  var businessHours = data.businessHours || ''
+  var afterHoursLabel = data.afterHoursLabel || 'After-hours — we still answer'
+  var normalHoursLabel = data.normalHoursLabel || 'Open now — call now'
+
+  // Parse "7am-7pm" → { startHour: 7, endHour: 19 }. Defaults to "open
+  // now" if parse fails so we never accidentally suppress the CTA.
+  function parseHour(s) {
+    var m = String(s || '').trim().toLowerCase().match(/^(\d{1,2})\s*(am|pm)?$/)
+    if (!m) return null
+    var h = parseInt(m[1], 10)
+    if (isNaN(h)) return null
+    if (m[2] === 'pm' && h < 12) h += 12
+    if (m[2] === 'am' && h === 12) h = 0
+    return h
+  }
+  var startHour = 0, endHour = 24, parsedOK = false
+  var parts = String(businessHours || '').split(/[-–—]/)
+  if (parts.length === 2) {
+    var s = parseHour(parts[0]), e = parseHour(parts[1])
+    if (s !== null && e !== null) { startHour = s; endHour = e; parsedOK = true }
+  }
+  var now = new Date()
+  var localHour = now.getHours()
+  var isOpenNow = !parsedOK || (localHour >= startHour && localHour < endHour)
+  var stateLabel = isOpenNow ? normalHoursLabel : afterHoursLabel
+
+  var telHref = 'tel:' + phone.replace(/[^0-9+]/g, '')
+%>
+<aside class="emergency-bar<%= isOpenNow ? '' : ' emergency-bar--after-hours' %>" role="region" aria-label="24/7 emergency contact">
+  <div class="container emergency-bar__inner">
+    <% if (heading) { %><div class="emergency-bar__heading"><%= heading %></div><% } %>
+    <% if (subtext) { %><div class="emergency-bar__subtext"><%= subtext %></div><% } %>
+    <a class="emergency-bar__call" href="<%= telHref %>" aria-label="Call <%= phone %>">
+      <span class="emergency-bar__dot" aria-hidden="true"></span>
+      <span class="emergency-bar__label"><%= stateLabel %></span>
+      <span class="emergency-bar__phone mono"><%= phone %></span>
+    </a>
+  </div>
+</aside>

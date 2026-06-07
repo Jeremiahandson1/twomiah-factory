@@ -1,0 +1,61 @@
+<%
+  // Instant ZIP service-area check. Customer types ZIP, gets yes/no
+  // in <100ms. On yes, smooth-scrolls to yesHref (default #contact).
+  // On no, optionally shows an email capture for "let me know when you
+  // expand here". No server round-trip required.
+  var heading = data.heading || 'Do we come to you?'
+  var intro = data.intro || ''
+  var serviceZips = Array.isArray(data.serviceZips) ? data.serviceZips.map(String) : []
+  if (serviceZips.length === 0) return
+  var yesLabel = data.yesLabel || 'Yes — we serve <ZIP>'
+  var noLabel = data.noLabel || 'Not yet in <ZIP>, but we are growing'
+  var yesHref = data.yesHref || '#contact'
+  var noEmail = data.noEmail !== false
+%>
+<section id="service-area" class="service-area service-area--zip">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <form class="sa-form" id="sa-form" autocomplete="off" data-yes-href="<%= yesHref %>" data-yes-label="<%= yesLabel %>" data-no-label="<%= noLabel %>" data-no-email="<%= noEmail ? '1' : '0' %>">
+      <input class="sa-input" type="text" id="sa-zip" pattern="[0-9]{5}" inputmode="numeric" autocomplete="postal-code" placeholder="Your ZIP" required>
+      <button type="submit" class="btn btn--lg btn--primary">Check</button>
+    </form>
+    <div class="sa-result" id="sa-result" aria-live="polite" hidden></div>
+  </div>
+</section>
+<script>
+(function(){
+  var ZIPS = <%- JSON.stringify(serviceZips) %>;
+  var f = document.getElementById('sa-form');
+  var inp = document.getElementById('sa-zip');
+  var out = document.getElementById('sa-result');
+  if (!f || !inp || !out) return;
+  f.addEventListener('submit', function(e){
+    e.preventDefault();
+    var z = (inp.value || '').trim();
+    if (!/^[0-9]{5}$/.test(z)) { inp.focus(); return; }
+    out.hidden = false;
+    if (ZIPS.indexOf(z) >= 0) {
+      out.className = 'sa-result sa-result--yes';
+      out.innerHTML = '<div class=\"sa-result__head\">' + f.dataset.yesLabel.replace('<ZIP>', z) + '</div><a class=\"btn btn--lg btn--primary\" href=\"' + f.dataset.yesHref + '\">Book a visit</a>';
+    } else {
+      out.className = 'sa-result sa-result--no';
+      var label = f.dataset.noLabel.replace('<ZIP>', z);
+      var html = '<div class=\"sa-result__head\">' + label + '</div>';
+      if (f.dataset.noEmail === '1') {
+        html += '<form class=\"sa-notify\" action=\"/api/leads\" method=\"POST\">' +
+          '<input type=\"hidden\" name=\"source\" value=\"service-area-waitlist\">' +
+          '<input type=\"hidden\" name=\"zip\" value=\"' + z + '\">' +
+          '<label class=\"sr-only\" for=\"sa-notify-email\">Email</label>' +
+          '<input id=\"sa-notify-email\" type=\"email\" name=\"email\" placeholder=\"Email me when you expand\" required>' +
+          '<button type=\"submit\" class=\"btn btn--lg btn--outline\">Notify me</button>' +
+          '</form>';
+      }
+      out.innerHTML = html;
+    }
+    out.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+})();
+</script>

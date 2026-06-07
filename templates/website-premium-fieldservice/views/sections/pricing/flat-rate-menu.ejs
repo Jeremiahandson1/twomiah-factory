@@ -1,0 +1,35 @@
+<%
+  // Transparent flat-rate pricing menu. Each item: service name, price
+  // (string label like "$285" or "from $1,850"), what's included as
+  // bullets, optional note. Disclaimer applies to the whole menu.
+  var heading = data.heading || 'Flat-rate menu'
+  var intro = data.intro || ''
+  var disclaimer = data.disclaimer || 'All prices include parts unless noted. Written quote before any work starts.'
+  var items = Array.isArray(data.items) ? data.items.filter(function(i){ return i && i.service }) : []
+  if (items.length === 0) return
+%>
+<section id="pricing" class="pricing pricing--flat-rate">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <ol class="pr-grid" role="list">
+      <% items.forEach(function(it) { %>
+        <li class="pr-card">
+          <div class="pr-card__head">
+            <h3 class="pr-card__service"><%= it.service %></h3>
+            <% if (it.priceLabel) { %><div class="pr-card__price mono"><%= it.priceLabel %></div><% } %>
+          </div>
+          <% if (Array.isArray(it.includes) && it.includes.length) { %>
+            <ul class="pr-card__includes">
+              <% it.includes.forEach(function(line) { %><li><%= line %></li><% }) %>
+            </ul>
+          <% } %>
+          <% if (it.note) { %><div class="pr-card__note"><%= it.note %></div><% } %>
+        </li>
+      <% }) %>
+    </ol>
+    <% if (disclaimer) { %><p class="pr-disclaimer"><%= disclaimer %></p><% } %>
+  </div>
+</section>

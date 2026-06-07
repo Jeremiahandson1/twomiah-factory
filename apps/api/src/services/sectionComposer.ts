@@ -263,6 +263,28 @@ export const SECTION_SCHEMA = {
       use_when: 'roofing (GAF Master Elite, Owens Corning Preferred, CertainTeed SELECT), contractor (BBB A+, Houzz Pro, Angi badges), home care (state licensure, bonded/insured, BBB), any vertical where third-party credentials = currency. Grid of badge items: { name, image, url? }. NEVER fabricate credentials — only include badges the customer actually has.',
     },
   },
+  // ─── Field service section types (HVAC / plumbing / electrical) ───────
+  emergency: {
+    bar: {
+      required: ['phone'],
+      optional: ['heading', 'subtext', 'businessHours', 'afterHoursLabel', 'normalHoursLabel'],
+      use_when: 'HVAC, plumbing, electrical — anything where same-day emergency calls are the highest-margin work. Sticky mobile-bottom tap-to-call bar. Server-rendered after-hours state pulses red when current local time is outside businessHours, signaling "we will pick up at 2am even though no one else will." Single biggest mobile conversion lever in this vertical.',
+    },
+  },
+  service_area: {
+    'zip-check': {
+      required: ['serviceZips'],
+      optional: ['heading', 'intro', 'yesLabel', 'noLabel', 'yesHref', 'noEmail'],
+      use_when: 'service businesses with a defined coverage area. Customer types ZIP, gets instant yes/no, on yes routes to booking/contact. Eliminates the "do you even come to my town" friction. Better than listing service-area cities in body text — instant answer.',
+    },
+  },
+  pricing: {
+    'flat-rate-menu': {
+      required: ['items'],
+      optional: ['heading', 'intro', 'disclaimer'],
+      use_when: 'HVAC / plumbing / electrical / handyman. Transparent flat-rate pricing for common jobs (drain clear $X, water-heater install starting $Y, panel upgrade $Z, ductless mini-split $W). Yelp showed price transparency lifts conversion ~25%. Each item: { service, priceLabel, includes[], note? }. Use realistic 2026 regional pricing — DO NOT fabricate numbers if intake does not provide them; instead pick from common-industry ranges and disclose "starting at" or "typical range".',
+    },
+  },
   // ─── Home care section types ───────────────────────────────────────────
   care: {
     finder: {
@@ -568,6 +590,44 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Field service (HVAC / plumbing / electrical / cleaning) — the work
+// model varies meaningfully across these (emergency-first HVAC vs
+// recurring cleaning contracts) but the page set is consistent. The
+// composer guidance below differentiates voice + which sections to
+// emphasize per the actual business.
+const FIELDSERVICE_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for HVAC / plumbing / electrical / cleaning. Emergency-first if applicable, then prove you actually answer the phone, then transparent pricing, then book.',
+    allowed_types: ['emergency', 'hero', 'service_area', 'trust', 'services', 'pricing', 'before_after', 'stats', 'cta'],
+    required_sequence: 'For HVAC/plumbing/electrical: optional 1 emergency/bar at the very top if 24/7 service, 1 hero/full-bleed (specific specialty headline — NOT "premier HVAC service"), 1 service_area/zip-check, optional 1 trust/badges (licenses, master plumber, BBB), 1 services/cards-grid, 1 pricing/flat-rate-menu (the conversion lever), close with 1 cta/split. For cleaning: skip emergency/bar, lead with packages-style recurring contracts using services/alternating instead of pricing/flat-rate-menu.',
+  },
+  emergency: {
+    purpose: 'Dedicated emergency landing — for after-hours / weekend / holiday calls. SEO-targeted to "emergency plumber near me" / "AC repair tonight".',
+    allowed_types: ['emergency', 'hero', 'service_area', 'services', 'faq', 'cta'],
+    required_sequence: '1 emergency/bar at the very top, 1 hero/centered-stats (eyebrow="24/7", title takes the position that you DO actually answer at 2am), 1 service_area/zip-check, 1 services/cards-grid (emergency-only services), 1 faq/accordion (after-hours fee, response time, what counts as an emergency), close with 1 cta',
+  },
+  services: {
+    purpose: 'The full service menu — what they fix, install, replace.',
+    allowed_types: ['hero', 'services', 'pricing', 'before_after', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats, 1 services/alternating (more space per item than cards-grid), optional 1 pricing/flat-rate-menu (subset of common jobs), optional 1 before_after/slider (installation transformations), optional 1 faq, close with 1 cta',
+  },
+  pricing: {
+    purpose: 'Transparent pricing page. Customers searching for "drain clear cost" / "water heater install cost" land here.',
+    allowed_types: ['hero', 'pricing', 'financing', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Pricing", title that takes the transparency-position), 1 pricing/flat-rate-menu (the full menu), optional 1 financing/calculator for $5k+ jobs, 1 faq (diagnostic fee, why prices are firm, what changes the price), close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner + crew + credentials + history. Where adult homeowners decide whether to trust you with their utility lines.',
+    allowed_types: ['about', 'team', 'stats', 'trust', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (owner portrait + why), optional 1 stats/bar (years, master licenses held, jobs done), optional 1 team/grid, optional 1 trust/badges (Master licenses, BBB, manufacturer certifications), optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for non-emergency contact.',
+    allowed_types: ['hero', 'contact', 'service_area', 'faq', 'emergency'],
+    required_sequence: 'optional 1 emergency/bar (if emergency-first vertical), 1 hero (short), 1 contact/form-info, optional 1 service_area/zip-check, optional 1 faq',
+  },
+} as const
+
 // Home care is the audience-distinct vertical — decision-makers are
 // adult children 45-70 years old researching care for a parent. Page
 // recipe leads with trust + a guided care-finder wizard (3-4x better
@@ -770,6 +830,7 @@ function buildSitePrompt(input: ComposerInput): string {
   const roofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessType)
   const landscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessType)
   const homecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessType)
+  const fieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
@@ -780,7 +841,9 @@ function buildSitePrompt(input: ComposerInput): string {
           ? LANDSCAPING_PAGE_RECIPES
           : homecare
             ? HOMECARE_PAGE_RECIPES
-            : PAGE_RECIPES
+            : fieldservice
+              ? FIELDSERVICE_PAGE_RECIPES
+              : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -840,7 +903,60 @@ Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
 ${photosSection}
-${homecare ? `
+${fieldservice ? `
+# Industry note — FIELD SERVICE (HVAC / plumbing / electrical / cleaning)
+The work model varies within this template. Read the intake first:
+
+A. **HVAC / plumbing / drain / leak / no-hot-water** — emergency-first.
+   - Hero takes a position on availability: "We pick up at 2am. The
+     other guys don't." or "Same-day if you call before 3, even on a
+     Sunday." NOT "Premier HVAC service" (banned).
+   - emergency/bar at top of home page is mandatory if intake says 24/7.
+   - service_area/zip-check at hero — answer "do you even come to me"
+     in one click.
+   - Voice example: "Furnace out? You're talking to a Master Mechanic in
+     the next 20 minutes, not a dispatcher. We have parts trucks in
+     three towns." Specific. No marketing-speak.
+
+B. **Electrical** — licensed-safety voice (vs emergency-first).
+   - Hero: "Master Electrician on every job, written panel diagrams,
+     all permits pulled." Trust + competence over availability.
+   - Emergency bar still valuable (no-power-after-storm calls) but
+     less central than for HVAC/plumbing.
+
+C. **Cleaning (residential / commercial / janitorial)** — recurring,
+   not emergency. Skip emergency/bar. Lead the home page with
+   services/alternating describing the recurring service tiers (weekly,
+   bi-weekly, monthly). Voice example: "Same two cleaners every visit.
+   Your house, your products if you want, our products if you don't."
+
+D. **Cross-vertical (pest control, locksmith, garage door, handyman,
+   septic, pool, irrigation, painting, mobile detailing, etc.)** —
+   if same-day matters, treat like HVAC. If recurring, treat like
+   cleaning. Use the intake to decide.
+
+Universal rules across this template:
+1. Banned phrases (in addition to global list): "premier HVAC service",
+   "trusted plumbers", "your trusted electrician", "complete plumbing
+   solutions", "from diagnosis to installation", "quality service you
+   can trust", "your one-stop shop". Generic interchangeable language.
+2. pricing/flat-rate-menu: include realistic 2026 Midwest pricing.
+   Drain clear main line: $250-350. Water heater install (40-gal gas):
+   $1500-2200 starting. Furnace install (residential 80%): $4500-7000.
+   AC install (3-ton): $4500-8000. Panel upgrade (200A): $2500-4500.
+   Toilet install: $250-400 labor. NEVER fabricate exact numbers if the
+   intake gives them; otherwise pick from the range and label "starting at".
+3. service_area/zip-check: pull the ZIP list from the intake's
+   serviceAreas + nearbyCities. If the intake gives city names but not
+   ZIPs, the renderer can match on city — you just need to populate
+   serviceZips with at least the city center ZIPs you know (Wisconsin
+   examples: Eau Claire 54701-54703, Madison 53703-53719, Milwaukee
+   53201-53259). It's fine to err on broader inclusion.
+4. NEVER fabricate Master license numbers, BBB years, or certifications
+   the intake doesn't mention.
+5. After-hours pulse on emergency/bar is automatic — just provide
+   businessHours like "7am-7pm". The renderer handles the rest.
+` : ''}${homecare ? `
 # Industry note — HOME CARE AGENCY
 This is an in-home senior care agency. The decision-maker audience is
 adult children 45-70 years old researching care for an aging parent.
@@ -1077,6 +1193,9 @@ packages/seasonal: { "heading": "Packages", "intro": "...", "items": [{ "title":
 care/finder: { "heading": "Find the right care for your loved one", "intro": "...", "relationships": ["My parent", "My spouse", "Myself", "Another family member"], "careTypes": ["Companion care", "Personal care", "Skilled nursing", "Dementia / Alzheimer's", "Hospice / end-of-life"], "hoursOptions": ["A few hours a week", "10–25 hours", "25–40 hours", "40+ hours", "24/7 live-in"], "ctaLabel": "Schedule a free assessment", "responsePromise": "We respond within one business day. No phone trees, no sales pressure." }
 caregivers/grid: { "heading": "Meet some of our caregivers", "intro": "...", "filters": ["specialty", "languages"], "items": [{ "name": "Maria", "yearsExperience": 8, "certifications": ["CNA"], "specialties": ["Dementia", "Companion care"], "languages": ["English", "Spanish"], "photo": "<url>", "blurb": "Former hospital aide. Specializes in afternoon sundowning support and gentle redirection." }] }
 coverage/insurance-guide: { "heading": "Coverage", "intro": "...", "items": [{ "source": "Medicare", "eligibility": "Age 65+ or qualifying disability", "whatItCovers": "Home health (skilled, time-limited, doctor-ordered). Does NOT cover non-medical in-home care.", "howToApply": "Through your doctor + Medicare-certified agency", "ourRole": "We can refer to a Medicare-certified home health partner when skilled care is what you need" }] }
+emergency/bar: { "heading": "Furnace out? Pipe leaking? Power out?", "phone": "555-123-4567", "subtext": "We pick up. Even at 2am.", "businessHours": "7am-7pm", "afterHoursLabel": "After-hours call", "normalHoursLabel": "Open now — call now" }
+service_area/zip-check: { "heading": "Do we come to you?", "intro": "...", "serviceZips": ["54701", "54702", "54703", "54720", "54729"], "yesLabel": "Yes, we serve <ZIP>", "noLabel": "Not yet in <ZIP> — leave your info and we'll let you know when we expand", "yesHref": "#contact", "noEmail": true }
+pricing/flat-rate-menu: { "heading": "Flat-rate menu", "intro": "...", "disclaimer": "All prices include parts unless noted. Final quote written before any work starts.", "items": [{ "service": "Drain clear (main line)", "priceLabel": "$285", "includes": ["Camera inspection", "Snake to 100ft", "Recommendations if root intrusion found"] }, { "service": "Water heater install (40-gal gas)", "priceLabel": "from $1,850", "includes": ["GE / Rheem / Bradford White", "Tank pull + haul", "Permits + inspection", "6yr labor warranty"], "note": "Add $150 for hard-to-reach attic install" }] }
 
 # Output schema (strict)
 {
@@ -1153,7 +1272,8 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(_btForTokens) ||
     /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(_btForTokens) ||
     /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(_btForTokens) ||
-    /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(_btForTokens)
+    /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(_btForTokens) ||
+    /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(_btForTokens)
   const maxTokens = _isExtended ? 16000 : 8000
 
   const callOnce = async (extraSystem?: string) => {
@@ -1200,6 +1320,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isRoofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessTypeIn)
   const isLandscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessTypeIn)
   const isHomecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessTypeIn)
+  const isFieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
@@ -1210,7 +1331,9 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
           ? Object.keys(LANDSCAPING_PAGE_RECIPES)
           : isHomecare
             ? Object.keys(HOMECARE_PAGE_RECIPES)
-            : Object.keys(PAGE_RECIPES)
+            : isFieldservice
+              ? Object.keys(FIELDSERVICE_PAGE_RECIPES)
+              : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {

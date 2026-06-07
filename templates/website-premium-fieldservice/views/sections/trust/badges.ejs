@@ -1,0 +1,28 @@
+<%
+  // Grid of credential badges. NEVER fabricate these — composer's
+  // instructions say only include badges the customer actually has.
+  var heading = data.heading || 'Credentials'
+  var intro = data.intro || ''
+  var items = Array.isArray(data.items) ? data.items.filter(function(i){ return i && i.name }) : []
+  if (items.length === 0) return
+%>
+<section id="credentials" class="trust trust--badges">
+  <div class="container">
+    <% if (heading) { %><h2 class="trust__heading"><%= heading %></h2><% } %>
+    <% if (intro) { %><p class="trust__intro"><%= intro %></p><% } %>
+    <ul class="trust__grid" role="list">
+      <% items.forEach(function(it) { %>
+        <li class="trust-badge">
+          <% if (it.url) { %><a href="<%= it.url %>" target="_blank" rel="noopener"><% } %>
+            <% if (it.image) { %>
+              <img src="<%= it.image %>" alt="<%= it.name %>" loading="lazy" decoding="async">
+            <% } else { %>
+              <div class="trust-badge__text"><%= it.name %></div>
+            <% } %>
+            <span class="trust-badge__name"><%= it.name %></span>
+          <% if (it.url) { %></a><% } %>
+        </li>
+      <% }) %>
+    </ul>
+  </div>
+</section>
