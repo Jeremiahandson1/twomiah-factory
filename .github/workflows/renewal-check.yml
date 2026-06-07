@@ -1,0 +1,24 @@
+name: Daily renewal check
+
+on:
+  schedule:
+    # 14:00 UTC = 09:00 Central — far enough into the work day for any
+    # follow-up that lands in support@ to get answered same-day.
+    - cron: '0 14 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit /internal/renewal-check
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET repo secret is not set"
+            exit 1
+          fi
+          curl --fail --show-error --silent \
+            -X POST https://twomiah-factory-api.onrender.com/api/v1/factory/internal/renewal-check \
+            -H "x-cron-secret: $CRON_SECRET"
