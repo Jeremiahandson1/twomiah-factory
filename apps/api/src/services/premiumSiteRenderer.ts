@@ -166,7 +166,7 @@ function injectFeedbackWidget(html: string): string {
   // Positioned to the LEFT of the buy widget so they don't overlap.
   const widget = `
 <style data-feedback-widget>
-  #__fb_fab{position:fixed;bottom:20px;right:280px;z-index:2147483645;background:#fff;color:#1a2e22;border:1px solid #1a2e22;border-radius:999px;padding:14px 22px;font:600 14px/1 'Inter',system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.15)}
+  #__fb_fab{position:fixed;bottom:20px;right:380px;z-index:2147483645;background:#fff;color:#1a2e22;border:1px solid #1a2e22;border-radius:999px;padding:14px 22px;font:600 14px/1 'Inter',system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 8px 30px rgba(0,0,0,.15)}
   #__fb_fab:hover{background:#f5f5f0;transform:translateY(-1px)}
   @media (max-width: 720px){#__fb_fab{right:20px;bottom:80px}}
   #__fb_modal{display:none;position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:20px}
