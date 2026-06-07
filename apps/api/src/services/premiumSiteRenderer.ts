@@ -1,11 +1,11 @@
-/**
- * premiumSiteRenderer — renders a single page of the multi-page premium
+﻿/**
+ * premiumSiteRenderer â€” renders a single page of the multi-page premium
  * preview from pre-composed sections + settings.
  *
  * Distinct from previewRenderer (which runs the full generate() pipeline
  * to produce a standard-template preview). The premium preview's
  * sections are already composed by composeSite() and persisted on the
- * tenant — this renderer just turns them into HTML at request time.
+ * tenant â€” this renderer just turns them into HTML at request time.
  *
  * Returns a self-contained HTML page (CSS inlined) so the preview link
  * works without backend asset requests other than the page itself.
@@ -21,7 +21,7 @@ const DEFAULT_TEMPLATE = 'website-premium-contractor'
 // Resolve the right premium template dir for a tenant based on its
 // products + industry. Mirrors the routing logic in
 // services/generator.ts so previews land in the same template the deploy
-// will use. Falls back to contractor when nothing matches — same behavior
+// will use. Falls back to contractor when nothing matches â€” same behavior
 // as the deploy throw, but for previews we render something rather than
 // error (staff sees the wrong template instead of a 500, which is easier
 // to debug).
@@ -102,7 +102,7 @@ const DEFAULT_NAV: Array<{ label: string; href: string }> = [
 
 /**
  * Render one page. previewBasePath is what the renderer prefixes nav
- * hrefs with — for the public preview we use the route stem so nav
+ * hrefs with â€” for the public preview we use the route stem so nav
  * links navigate within the preview (e.g.
  * /api/v1/factory/public/intake/:id/preview-premium/about).
  *
@@ -191,7 +191,7 @@ function injectFeedbackWidget(html: string): string {
   <div id="__fb_card">
     <h2 id="__fb_h">Tell us what to change</h2>
     <p>Specific is better. "Make the hero green and remove the testimonials section" beats "I don't love it."</p>
-    <textarea id="__fb_textarea" placeholder="e.g. The hero copy is too long — keep it to one sentence. Swap the third service card from 'Custom builds' to 'Insurance claims'. Use a warmer beige instead of the off-white."></textarea>
+    <textarea id="__fb_textarea" placeholder="e.g. The hero copy is too long â€” keep it to one sentence. Swap the third service card from 'Custom builds' to 'Insurance claims'. Use a warmer beige instead of the off-white."></textarea>
     <div id="__fb_status"></div>
     <div id="__fb_actions">
       <button id="__fb_cancel" type="button">Cancel</button>
@@ -241,7 +241,7 @@ function injectApproveAndBuyWidget(html: string): string {
 </style>
 <button id="__buy_fab" type="button" aria-label="Approve and start checkout">
   <span id="__buy_dot" aria-hidden="true"></span>
-  Approve & build my site — $499 launch
+  Approve & build my site â€” $499 launch
 </button>
 <div id="__buy_status" role="alert"></div>
 <script data-buy-widget>
@@ -258,8 +258,8 @@ function injectApproveAndBuyWidget(html: string): string {
       body:JSON.stringify({billingCycle:'monthly'})
     }).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(o){
       if(o.ok&&o.j&&o.j.url){location.href=o.j.url}
-      else{fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError((o.j&&o.j.error)||'Could not start checkout. Try again or email hello@twomiah.com.')}
-    }).catch(function(){fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError('Network error. Try again or email hello@twomiah.com.')});
+      else{fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError((o.j&&o.j.error)||'Could not start checkout. Try again or email support@twomiah.com.')}
+    }).catch(function(){fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError('Network error. Try again or email support@twomiah.com.')});
   });
 })();
 </script>`

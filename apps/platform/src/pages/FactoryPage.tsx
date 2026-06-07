@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useSearchParams, useParams } from 'react-router-dom'
 import { CheckCircle, Users, Package, Building2, Globe, Palette, LayoutTemplate, Settings2, Zap, Sparkles, Download, CreditCard } from 'lucide-react'
 import { supabase } from '../supabase'
@@ -40,7 +40,7 @@ const DEFAULT_PLAN: PlanSelection = {
 // Public-signup gate. Verticals listed here are reachable via /signup/:product
 // without a flag; anything else needs its own VITE_ENABLE_<NAME>_SIGNUP=true.
 // Internal Factory operators (logged in at /factory) can still pick any
-// vertical from StepProducts — the gate only blocks the public signup path.
+// vertical from StepProducts â€” the gate only blocks the public signup path.
 const PUBLIC_SIGNUP_VERTICALS = new Set<string>(['build', 'care', 'wrench', 'roof', 'leaf'])
 const GATED_VERTICALS: Record<string, { envVar: string; label: string }> = {
   landscaping: { envVar: 'VITE_ENABLE_LANDSCAPING_SIGNUP', label: 'Landscaping' },
@@ -120,7 +120,7 @@ export default function FactoryPage() {
   const maxStep = hasPlanStep ? WIZARD_STEPS.length - 1 : WIZARD_STEPS.length - 1
   const minStep = hasPlanStep ? -1 : 0
 
-  // Gate render — placed AFTER all hook calls (useState, useEffect above)
+  // Gate render â€” placed AFTER all hook calls (useState, useEffect above)
   // so hook order stays stable when navigating between gated and ungated
   // verticals without a full unmount.
   if (isGatedSignup) {
@@ -132,10 +132,10 @@ export default function FactoryPage() {
           We're putting the finishing touches on the {label} product. If you'd like to be
           notified when it goes live, email us at{' '}
           <a
-            href={`mailto:hello@twomiah.com?subject=Notify%20me%20when%20${encodeURIComponent(String(label))}%20launches`}
+            href={`mailto:support@twomiah.com?subject=Notify%20me%20when%20${encodeURIComponent(String(label))}%20launches`}
             className="text-blue-600 underline"
           >
-            hello@twomiah.com
+            support@twomiah.com
           </a>.
         </p>
       </div>
@@ -166,7 +166,7 @@ export default function FactoryPage() {
       style={isPublicSignup ? { background: '#fff' } : undefined}>
       <div className="mb-8">
         <h1 className={`text-2xl font-bold ${isPublicSignup ? 'text-gray-900' : 'text-white'}`}>
-          {isPublicSignup && ps ? `Get Started — ${ps.label} Software` : 'Twomiah Factory'}
+          {isPublicSignup && ps ? `Get Started â€” ${ps.label} Software` : 'Twomiah Factory'}
         </h1>
         <p className={`text-sm mt-1 ${isPublicSignup ? 'text-gray-500' : 'text-gray-400'}`}>
           {isPublicSignup && ps ? ps.tagline : 'Generate a deployable software package for your customer'}

@@ -1,5 +1,5 @@
-/**
- * Twomiah Factory — Email Notification Service
+﻿/**
+ * Twomiah Factory â€” Email Notification Service
  * Uses Resend API via raw fetch (no dependency needed).
  * Gracefully no-ops if RESEND_API_KEY is not configured.
  */
@@ -14,16 +14,16 @@ function getFromEmail(): string {
   return process.env.FACTORY_FROM_EMAIL || 'onboarding@resend.dev'
 }
 
-// ─── Base send ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Base send â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<boolean> {
   const apiKey = getApiKey()
   if (!apiKey) {
-    console.warn('[Email] RESEND_API_KEY not set — skipping email:', subject)
+    console.warn('[Email] RESEND_API_KEY not set â€” skipping email:', subject)
     return false
   }
   if (!to) {
-    console.warn('[Email] No recipient — skipping email:', subject)
+    console.warn('[Email] No recipient â€” skipping email:', subject)
     return false
   }
 
@@ -44,7 +44,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     })
 
     if (res.ok) {
-      console.log('[Email] Sent:', subject, '→', to)
+      console.log('[Email] Sent:', subject, 'â†’', to)
       return true
     }
 
@@ -57,7 +57,7 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   }
 }
 
-// ─── HTML helpers ────────────────────────────────────────────────────────────
+// â”€â”€â”€ HTML helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function wrap(title: string, body: string): string {
   return `<!DOCTYPE html>
@@ -82,7 +82,7 @@ function wrap(title: string, body: string): string {
       <a href="https://twomiah.com" style="color:#888;text-decoration:underline;">twomiah.com</a> &middot;
       <a href="https://twomiah.com/terms" style="color:#888;text-decoration:underline;">Terms</a> &middot;
       <a href="https://twomiah.com/privacy" style="color:#888;text-decoration:underline;">Privacy</a> &middot;
-      <a href="mailto:hello@twomiah.com" style="color:#888;text-decoration:underline;">hello@twomiah.com</a>
+      <a href="mailto:support@twomiah.com" style="color:#888;text-decoration:underline;">support@twomiah.com</a>
     </p>
   </td></tr>
 </table>
@@ -100,7 +100,7 @@ function kv(label: string, value: string): string {
   return `<p style="margin:4px 0;color:#333;"><strong style="color:#666;">${label}:</strong> ${value}</p>`
 }
 
-// ─── Product name helper ────────────────────────────────────────────────────
+// â”€â”€â”€ Product name helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function getProductName(industry?: string, products?: string[]): string {
   if (industry === 'home_care') return 'Care'
@@ -112,7 +112,7 @@ function getProductName(industry?: string, products?: string[]): string {
   return 'Build'
 }
 
-// ─── Notification helpers ────────────────────────────────────────────────────
+// â”€â”€â”€ Notification helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function notifyWelcome(
   tenant: { name: string; email?: string; plan?: string; industry?: string; products?: string[] }
@@ -136,7 +136,7 @@ export async function notifyWelcome(
 
   return sendEmail(
     tenant.email,
-    `Welcome to Twomiah ${product} — your trial has started`,
+    `Welcome to Twomiah ${product} â€” your trial has started`,
     wrap(`Welcome to Twomiah ${product}`, body)
   )
 }
@@ -152,7 +152,7 @@ export async function notifyDeployComplete(
   const products = tenant.products || []
   const hasWebsite = products.includes('website') || products.includes('website-premium')
   const isPremiumWebsite = products.includes('website-premium')
-  // Website admins live at <site>/admin — the SPA bundled inside the
+  // Website admins live at <site>/admin â€” the SPA bundled inside the
   // tenant's website service. CRMs handle their own auth at the deployed
   // CRM URL above, so we only surface the website admin when a website
   // product is included.
@@ -209,7 +209,7 @@ export async function notifyStillWorking(
 
   const body = `
     <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
-    <p style="color:#333;line-height:1.6;">Your <strong>Twomiah ${product}</strong> build is taking a little longer than usual — we&rsquo;re still working on it. No action needed on your end.</p>
+    <p style="color:#333;line-height:1.6;">Your <strong>Twomiah ${product}</strong> build is taking a little longer than usual â€” we&rsquo;re still working on it. No action needed on your end.</p>
     <div style="background:#fefce8;border:1px solid #fde68a;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0;color:#92400e;">This sometimes happens on first deploys while cloud infrastructure provisions. You&rsquo;ll get another email as soon as your CRM is live.</p>
     </div>
@@ -257,7 +257,7 @@ export async function notifyNewTicket(
     ${ticket.description ? `<p style="color:#333;font-size:14px;line-height:1.6;"><strong>Description:</strong><br>${ticket.description.substring(0, 500)}</p>` : ''}
     <p style="color:#666;font-size:14px;">Our team will respond as soon as possible.</p>`
 
-  return sendEmail(to, 'Ticket Created: ' + ticket.number + ' — ' + ticket.subject, wrap('New Support Ticket', body))
+  return sendEmail(to, 'Ticket Created: ' + ticket.number + ' â€” ' + ticket.subject, wrap('New Support Ticket', body))
 }
 
 export async function notifyTicketReply(
@@ -273,7 +273,7 @@ export async function notifyTicketReply(
   const body = `
     <p style="color:#333;line-height:1.6;">A new reply has been added to ticket <strong>${ticket.number}</strong>.</p>
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
-      ${kv('Ticket', ticket.number + ' — ' + ticket.subject)}
+      ${kv('Ticket', ticket.number + ' â€” ' + ticket.subject)}
       ${kv('From', senderLabel)}
     </div>
     <div style="background:#f8f8fa;border-radius:6px;padding:16px;margin:16px 0;">
@@ -283,7 +283,7 @@ export async function notifyTicketReply(
   return sendEmail(to, 'Reply on ' + ticket.number + ': ' + ticket.subject, wrap('Ticket Reply', body))
 }
 
-// ─── Local-business intake notifications ─────────────────────────────────────
+// â”€â”€â”€ Local-business intake notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Fires when a visitor submits the website-intake form on /businesses.
@@ -304,11 +304,11 @@ export async function notifyNewIntake(
     intakeId?: string
   }
 ): Promise<boolean> {
-  const to = process.env.INTAKE_NOTIFY_EMAIL || 'hello@twomiah.com'
+  const to = process.env.INTAKE_NOTIFY_EMAIL || 'support@twomiah.com'
 
   const photoLinks = (data.photoUrls || [])
     .map((u, i) => '<a href="' + u + '" target="_blank">Photo ' + (i + 1) + '</a>')
-    .join(' &nbsp;·&nbsp; ')
+    .join(' &nbsp;Â·&nbsp; ')
 
   const body = `
     <p style="color:#333;line-height:1.6;">A new local-business website intake came in via <strong>twomiah.com/businesses</strong>. Respond within one business day.</p>
@@ -329,7 +329,7 @@ export async function notifyNewIntake(
 }
 
 /**
- * Fires when staff approves a composed premium preview — sends the
+ * Fires when staff approves a composed premium preview â€” sends the
  * prospect the link to view it. Until this fires, the public preview
  * URL returns "not ready yet" so the prospect never sees unreviewed
  * AI output.
@@ -338,10 +338,10 @@ export async function notifyPreviewReady(
   data: { to: string; businessName: string; previewUrl: string }
 ): Promise<boolean> {
   const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there — your <strong>${data.businessName}</strong> website preview is ready for review.</p>
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi there â€” your <strong>${data.businessName}</strong> website preview is ready for review.</p>
     <p style="color:#333;line-height:1.6;">We built a 4-page draft based on what you shared. Open the link below to look it over and tell us what you'd like changed.</p>
     ${btn(data.previewUrl, 'View your preview')}
-    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">There's a "Request changes" button at the bottom right of every page — use it to send us tweaks. We turn around revisions in one business day.</p>
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">There's a "Request changes" button at the bottom right of every page â€” use it to send us tweaks. We turn around revisions in one business day.</p>
     <p style="color:#666;line-height:1.6;font-size:14px;">When the preview is exactly what you want, the "Approve & build my site" button on the same preview takes you to checkout. We'll deploy the live version within an hour of payment clearing.</p>`
 
   return sendEmail(data.to, `Your ${data.businessName} website preview is ready`, wrap('Your preview is ready', body))
@@ -355,35 +355,35 @@ export async function notifyPostLaunchTips(
   data: { to: string; businessName: string; siteUrl: string; adminUrl: string }
 ): Promise<boolean> {
   const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — your <strong>${data.businessName}</strong> site has been live for a day. Here's what most owners do this week to make it work harder for them:</p>
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi â€” your <strong>${data.businessName}</strong> site has been live for a day. Here's what most owners do this week to make it work harder for them:</p>
     <div style="background:#fafaf7;border-radius:10px;padding:18px 22px;margin:18px 0;">
       <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">1. Share the link with three customers who'd say nice things</p>
       <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">Their reactions are honest. Their feedback is gold. Their referrals are the cheapest marketing you'll ever pay for.</p>
       <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">2. Add 2-3 real photos from a recent job</p>
-      <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">The composed draft uses stock for slots you didn't fill. Replacing them with actual work makes the site feel local and earned — buyers can tell the difference.</p>
+      <p style="margin:0 0 16px;color:#666;font-size:14px;line-height:1.5;">The composed draft uses stock for slots you didn't fill. Replacing them with actual work makes the site feel local and earned â€” buyers can tell the difference.</p>
       <p style="margin:0 0 10px;color:#1a1a1a;font-weight:600;">3. Add it to your Google Business Profile + email signature</p>
       <p style="margin:0;color:#666;font-size:14px;line-height:1.5;">Two minutes each. Every quote you send for the next month carries your site on it.</p>
     </div>
     ${btn(data.adminUrl, 'Open your site admin')}
-    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When a contact form lead comes in, it'll land in your inbox automatically. Reply fast — most owners who reply within an hour close 30% more.</p>
+    <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When a contact form lead comes in, it'll land in your inbox automatically. Reply fast â€” most owners who reply within an hour close 30% more.</p>
     <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Hit reply if you want a hand with any of the above.</p>`
-  return sendEmail(data.to, `Three things to do with your new ${data.businessName} site this week`, wrap('Your site is live — now what?', body))
+  return sendEmail(data.to, `Three things to do with your new ${data.businessName} site this week`, wrap('Your site is live â€” now what?', body))
 }
 
 /**
  * 24-hour follow-up nudge sent to customers who submitted an intake,
  * received a preview, but haven't clicked Approve & buy yet. One-shot
- * — sentinel `preview_followup_sent_at` prevents repeats.
+ * â€” sentinel `preview_followup_sent_at` prevents repeats.
  */
 export async function notifyPreviewFollowup(
   data: { to: string; businessName: string; previewUrl: string }
 ): Promise<boolean> {
   const body = `
-    <p style="color:#333;line-height:1.6;font-size:16px;">Hi — just checking in on your <strong>${data.businessName}</strong> website preview.</p>
-    <p style="color:#333;line-height:1.6;">You opened the draft yesterday. If anything wasn't right, hit the <strong>Request changes</strong> button on any page and we'll send you an updated version in 1–2 minutes. We can iterate as many times as you want — there's no charge to revise.</p>
+    <p style="color:#333;line-height:1.6;font-size:16px;">Hi â€” just checking in on your <strong>${data.businessName}</strong> website preview.</p>
+    <p style="color:#333;line-height:1.6;">You opened the draft yesterday. If anything wasn't right, hit the <strong>Request changes</strong> button on any page and we'll send you an updated version in 1â€“2 minutes. We can iterate as many times as you want â€” there's no charge to revise.</p>
     ${btn(data.previewUrl, 'Open your preview')}
     <p style="color:#666;line-height:1.6;font-size:14px;margin-top:24px;">When you're happy, the <strong>Approve &amp; build my site</strong> button on the preview takes you to checkout. Live site within 10 minutes after that.</p>
-    <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Got questions? Just reply to this email — it goes straight to a human.</p>`
+    <p style="color:#999;line-height:1.6;font-size:12px;margin-top:24px;">Got questions? Just reply to this email â€” it goes straight to a human.</p>`
   return sendEmail(data.to, `Anything you'd change about your ${data.businessName} preview?`, wrap('Still thinking about it?', body))
 }
 
@@ -407,10 +407,10 @@ export async function notifyIntakeFeedback(
   return sendEmail(to, `[Preview feedback] ${data.businessName}`, wrap('Preview feedback received', body))
 }
 
-// ─── Trial lifecycle notifications ───────────────────────────────────────────
+// â”€â”€â”€ Trial lifecycle notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
- * Generic trial warning — sends a "your trial is ending" email with days
+ * Generic trial warning â€” sends a "your trial is ending" email with days
  * remaining. Used for 7-day, 3-day, and 1-day warnings with escalating
  * urgency copy.
  */
@@ -438,14 +438,14 @@ export async function notifyTrialWarning(
        </div>`
 
   const subject = urgent
-    ? (daysRemaining === 1 ? `Last day of your Twomiah ${product} trial` : `${daysRemaining} days left — upgrade your Twomiah ${product}`)
+    ? (daysRemaining === 1 ? `Last day of your Twomiah ${product} trial` : `${daysRemaining} days left â€” upgrade your Twomiah ${product}`)
     : `${daysRemaining} days left in your Twomiah ${product} trial`
 
   const body = `
     <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
     ${banner}
     <p style="color:#333;line-height:1.6;">Your <strong>Twomiah ${product}</strong> free trial has been up and running for ${30 - daysRemaining} days. You still have full access to every feature on the <strong>${planLabel}</strong> plan.</p>
-    <p style="color:#333;line-height:1.6;">When your trial ends, your CRM will enter a read-only paywall state until you add a payment method. Your data stays safe — upgrade any time to unlock it.</p>
+    <p style="color:#333;line-height:1.6;">When your trial ends, your CRM will enter a read-only paywall state until you add a payment method. Your data stays safe â€” upgrade any time to unlock it.</p>
     ${btn(upgradeUrl, 'Upgrade Now')}
     <p style="color:#666;font-size:14px;margin-top:24px;">Questions? Just reply to this email and we will help.</p>`
 
@@ -474,12 +474,12 @@ export async function notifyTrialExpired(
 
   return sendEmail(
     tenant.email,
-    `Your Twomiah ${product} trial has ended — upgrade to unlock your CRM`,
+    `Your Twomiah ${product} trial has ended â€” upgrade to unlock your CRM`,
     wrap('Trial Ended', body)
   )
 }
 
-// ─── Domain + subscription renewal warnings ──────────────────────────────────
+// â”€â”€â”€ Domain + subscription renewal warnings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function renewalBanner(daysRemaining: number, kind: 'domain' | 'subscription'): string {
   const urgent = daysRemaining <= 7
@@ -532,7 +532,7 @@ export async function notifySubscriptionRenewal(
   return sendEmail(to, subject, wrap('Subscription Renewal Coming Up', body))
 }
 
-// ─── Offboard lifecycle ───────────────────────────────────────────────────────
+// â”€â”€â”€ Offboard lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function notifyOffboardStarted(
   tenant: { name: string; email?: string; admin_email?: string | null; domain?: string | null; render_frontend_url?: string | null },
@@ -547,17 +547,17 @@ export async function notifyOffboardStarted(
     <p style="color:#333;line-height:1.6;">We've started offboarding your Twomiah account. Here's what happens next:</p>
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
       <p style="margin:0 0 8px;color:#1e3a8a;font-weight:600;">Your 30-day grace period</p>
-      <p style="margin:0;color:#1e3a8a;font-size:14px;">Your CRM, website, and data stay live until <strong>${graceStr}</strong>. If you change your mind, reactivate any time during this window — nothing gets deleted.</p>
+      <p style="margin:0;color:#1e3a8a;font-size:14px;">Your CRM, website, and data stay live until <strong>${graceStr}</strong>. If you change your mind, reactivate any time during this window â€” nothing gets deleted.</p>
     </div>
     <ul style="color:#333;line-height:1.8;font-size:14px;padding-left:20px;">
       <li>Your subscription is cancelled at the end of the current billing period (no further charges).</li>
-      <li>Your domain ${tenant.domain ? '<strong>' + tenant.domain + '</strong>' : ''} has been unlocked for transfer — a separate email with the auth (EPP) code is on its way.</li>
+      <li>Your domain ${tenant.domain ? '<strong>' + tenant.domain + '</strong>' : ''} has been unlocked for transfer â€” a separate email with the auth (EPP) code is on its way.</li>
       <li>A data export (CSV + JSON) will be emailed to you shortly.</li>
       <li>After ${graceStr}, your Render services and Cloudflare zone are decommissioned.</li>
     </ul>
-    ${reactivationUrl ? btn(reactivationUrl, 'Change my mind — reactivate') : ''}
+    ${reactivationUrl ? btn(reactivationUrl, 'Change my mind â€” reactivate') : ''}
     <p style="color:#666;font-size:14px;margin-top:16px;">Questions? Just reply to this email and we'll help.</p>`
-  return sendEmail(to, `Offboarding started — grace period through ${graceStr}`, wrap('Offboarding Started', body))
+  return sendEmail(to, `Offboarding started â€” grace period through ${graceStr}`, wrap('Offboarding Started', body))
 }
 
 export async function notifyEppCode(
@@ -579,7 +579,7 @@ export async function notifyEppCode(
       <li>Paste this EPP code when asked.</li>
       <li>Approve the transfer email that arrives at the domain's registrant email.</li>
     </ol>
-    <p style="color:#666;font-size:14px;">The transfer usually completes within 5–7 days. Your domain is unlocked on our side so there's nothing else to do here.</p>`
+    <p style="color:#666;font-size:14px;">The transfer usually completes within 5â€“7 days. Your domain is unlocked on our side so there's nothing else to do here.</p>`
   return sendEmail(to, `Your EPP code for ${tenant.domain || 'domain transfer'}`, wrap('Domain Transfer Authorization Code', body))
 }
 
@@ -605,7 +605,7 @@ export async function notifyReactivated(
   const to = tenant.admin_email || tenant.email
   if (!to) return false
   const body = `
-    <p style="color:#333;line-height:1.6;">Welcome back, ${tenant.name} — your account has been reactivated.</p>
+    <p style="color:#333;line-height:1.6;">Welcome back, ${tenant.name} â€” your account has been reactivated.</p>
     <p style="color:#333;line-height:1.6;">Your subscription has been restored and the offboard timer has been cancelled. Nothing was deleted during the grace period, so everything picks up where you left off.</p>`
   return sendEmail(to, 'Your Twomiah account is reactivated', wrap('Welcome Back', body))
 }
@@ -617,7 +617,7 @@ export async function notifyOffboardComplete(
   if (!to) return false
   const body = `
     <p style="color:#333;line-height:1.6;">Hi ${tenant.name},</p>
-    <p style="color:#333;line-height:1.6;">Your offboarding is complete. Your Twomiah services have been decommissioned per the plan you chose. Thanks for trying us — if you ever come back, your slug is still reserved and the door is always open.</p>`
+    <p style="color:#333;line-height:1.6;">Your offboarding is complete. Your Twomiah services have been decommissioned per the plan you chose. Thanks for trying us â€” if you ever come back, your slug is still reserved and the door is always open.</p>`
   return sendEmail(to, 'Offboarding complete', wrap('Goodbye (for now)', body))
 }
 
