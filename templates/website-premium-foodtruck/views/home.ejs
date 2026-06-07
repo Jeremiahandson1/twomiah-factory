@@ -17,7 +17,11 @@
     const variant = (section && section.variant) ? String(section.variant).replace(/[^a-z0-9_-]/gi, '') : 'default'
     const data = (section && section.data) || {}
     if (!type) { continue }
+    // Single-page mode: the first section of each former "page" gets a
+    // scroll anchor so the nav (#menu, #schedule, etc.) can target it.
+    const onepageAnchor = section._onepageAnchor ? String(section._onepageAnchor).replace(/[^a-z0-9_-]/gi, '') : ''
   %>
+  <% if (onepageAnchor) { %><span id="<%= onepageAnchor %>" class="onepage-anchor" aria-hidden="true"></span><% } %>
   <% try { %>
     <%- include('sections/' + type + '/' + variant, { data: data, settings: settings }) %>
   <% } catch (e) { /* missing partial — skip, don't crash */ } %>

@@ -242,3 +242,31 @@ export function buildCrmApiHost(slug: string, industry: string | undefined | nul
     ? `${slug}-${suffix}-api.onrender.com`
     : `${slug}-api.onrender.com`
 }
+
+// ─── Site layout mode per vertical ───────────────────────────────────────
+// Some verticals naturally want a one-page scroll (food truck: location +
+// menu + schedule + catering all flow on one phone screen, IG-bio-link
+// optimized). Others need deep multi-page sites (dispensary with a 30+
+// strain catalog and education hub; hotel with multiple rooms +
+// editorial + local map). The composer produces the same content shape
+// either way; the RENDERER decides whether to stitch them into one
+// scroll or serve them as separate routes.
+export type LayoutMode = 'single-page' | 'multi-page'
+
+const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
+  foodtruck: 'single-page',
+  // Everything else is multi-page until we add intake-driven detection
+  // for "solo-stylist salon", "neighborhood cafe", "personal trainer",
+  // etc. that would benefit from single-page too.
+  contractor: 'multi-page',
+  fieldservice: 'multi-page',
+  homecare: 'multi-page',
+  roofing: 'multi-page',
+  landscaping: 'multi-page',
+  dispensary: 'multi-page',
+  showcase: 'multi-page',
+}
+
+export function layoutModeFor(industry: string | undefined | null): LayoutMode {
+  return LAYOUT_MODE_BY_VERTICAL[verticalFor(industry)]
+}

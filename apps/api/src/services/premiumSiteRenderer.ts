@@ -121,12 +121,17 @@ export async function renderPremiumPage(
   const buildDir = path.join(resolvedDir, 'build')
 
   // Settings get a runtime-resolved nav + brand link aimed at this preview.
+  // Anchor hrefs (`#menu`, `#schedule`) for single-page verticals are
+  // passed through unprefixed; route hrefs get the preview base path.
   const nav = (settings.nav && settings.nav.length ? settings.nav : DEFAULT_NAV).map(item => ({
     label: item.label,
-    href: previewBasePath + (item.href.startsWith('/') ? item.href : '/' + item.href),
+    href: item.href.startsWith('#')
+      ? item.href
+      : previewBasePath + (item.href.startsWith('/') ? item.href : '/' + item.href),
   }))
+  const isOnePage = (settings as any).layoutMode === 'single-page'
   const homeHref = previewBasePath
-  const contactHref = previewBasePath + '/contact'
+  const contactHref = isOnePage ? '#contact' : previewBasePath + '/contact'
 
   const effectiveSettings = {
     ...settings,

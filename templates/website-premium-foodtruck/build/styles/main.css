@@ -635,3 +635,34 @@ a { color: inherit; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   .hero--full-bleed::after { display: none; }
 }
+
+/* ── Single-page (anchor-scroll) mode ─────────────────────────────────── */
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Invisible anchor marker. scroll-margin-top moves the scroll target
+ * down by the sticky header height so the section title isn't covered. */
+.onepage-anchor {
+  display: block;
+  height: 1px;
+  margin-top: -1px;
+  scroll-margin-top: 88px;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+/* Active section highlight in nav */
+.primary-nav a.is-active {
+  color: var(--brand);
+  font-weight: 600;
+  position: relative;
+}
+.primary-nav a.is-active::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -8px;
+  height: 2px;
+  background: var(--brand);
+  border-radius: 999px;
+}
+.mobile-nav a.is-active { color: var(--brand); }

@@ -100,5 +100,48 @@
     </div>
   </footer>
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><script src="/scripts/ab.js" defer></script><% } %>
+  <script>
+    // ── Single-page nav: smooth scroll, URL hash sync, active highlight ──
+    (function(){
+      var anchors = document.querySelectorAll('.onepage-anchor');
+      if (anchors.length === 0) return;  // multi-page mode, skip everything below
+
+      // Smooth scroll on nav link click. Use the standard hash navigation
+      // but offset by the sticky header height. The scrollMarginTop on
+      // .onepage-anchor in CSS handles that natively.
+      document.querySelectorAll('a[href^="#"]').forEach(function(a){
+        a.addEventListener('click', function(e){
+          var id = a.getAttribute('href').slice(1);
+          if (!id) return;
+          var el = document.getElementById(id);
+          if (!el) return;
+          e.preventDefault();
+          history.replaceState(null, '', '#' + id);
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+
+      // Active-section highlight: which anchor are we currently looking at?
+      // IntersectionObserver with a generous top margin so the active link
+      // changes when a section enters the upper third of the viewport.
+      var navLinks = document.querySelectorAll('.primary-nav a[href^="#"], .mobile-nav a[href^="#"]');
+      var byId = {};
+      navLinks.forEach(function(a){
+        var id = a.getAttribute('href').slice(1);
+        if (id) (byId[id] = byId[id] || []).push(a);
+      });
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){
+          if (!en.isIntersecting) return;
+          var id = en.target.id;
+          Object.keys(byId).forEach(function(k){
+            byId[k].forEach(function(a){ a.classList.toggle('is-active', k === id); });
+          });
+          history.replaceState(null, '', '#' + id);
+        });
+      }, { rootMargin: '-30% 0px -55% 0px', threshold: 0 });
+      anchors.forEach(function(el){ io.observe(el); });
+    })();
+  </script>
 </body>
 </html>

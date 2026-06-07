@@ -3916,7 +3916,10 @@ const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
   about: 'About',
 }
 
-function buildPremiumNav(pageSlugs: string[]): Array<{ label: string; href: string }> {
+function buildPremiumNav(
+  pageSlugs: string[],
+  layoutMode: 'single-page' | 'multi-page' = 'multi-page',
+): Array<{ label: string; href: string }> {
   // Stable per-vertical order: the thing they sell first (menu/services/
   // strains), then secondary funnels (find us/catering/deals/visit), then
   // about.
@@ -3925,8 +3928,17 @@ function buildPremiumNav(pageSlugs: string[]): Array<{ label: string; href: stri
   const out: Array<{ label: string; href: string }> = []
   for (const slug of order) {
     if (present.has(slug) && PREMIUM_PAGE_NAV_LABEL[slug]) {
-      out.push({ label: PREMIUM_PAGE_NAV_LABEL[slug], href: slug })
+      // Single-page verticals use anchor hrefs (#menu) so the renderer's
+      // path-prefix logic emits them as in-page links. Multi-page stays
+      // with route hrefs which get prefixed with the preview base path.
+      const href = layoutMode === 'single-page' ? '#' + slug : slug
+      out.push({ label: PREMIUM_PAGE_NAV_LABEL[slug], href })
     }
+  }
+  // Single-page sites benefit from a "Contact" anchor link in nav since
+  // there's no separate /contact page to navigate to via the header CTA.
+  if (layoutMode === 'single-page' && present.has('contact')) {
+    out.push({ label: 'Contact', href: '#contact' })
   }
   return out
 }
@@ -3957,14 +3969,51 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     )
   }
   const composed = tenant.preview_premium_pages as { pages: Record<string, { sections: any[] }> }
-  const page = composed.pages?.[slug]
-  if (!page) return c.text('Page not found', 404)
+  const composedPageSlugs = Object.keys(composed.pages || {})
+
+  const { layoutModeFor } = await import('../config/industryRouting')
+  const layoutMode = layoutModeFor(tenant.industry)
+  const isSinglePage = layoutMode === 'single-page'
+
+  // Single-page verticals (food truck etc.) — every "page" the composer
+  // produced becomes an anchor section on /. Sub-page URLs redirect to
+  // /#slug so deep links still work, and the LLM doesn't have to know
+  // anything about layout mode.
+  if (isSinglePage && slug !== 'home') {
+    const fragment = composedPageSlugs.includes(slug) ? '#' + slug : ''
+    return c.redirect('/api/v1/factory/public/intake/' + id + '/preview-premium' + fragment, 302)
+  }
 
   const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
-  // Build nav from the actual composed page set so vertical-specific
-  // page slugs (menu, schedule, catering) show up correctly and
-  // verticals without a services page don't get a dead 'Services' link.
-  const composedPageSlugs = Object.keys(composed.pages || {})
+
+  // For single-page, sections are the concatenation of every composed
+  // page wrapped with a section-anchor (id="<slug>") so the nav can
+  // scroll to them. The hero of the home page stays first; subsequent
+  // page heroes are demoted to section-eyebrow style by the renderer.
+  let sectionsToRender: any[]
+  if (isSinglePage) {
+    sectionsToRender = []
+    const order = ['home', 'menu', 'services', 'strains', 'schedule', 'catering', 'deals', 'about', 'visit', 'contact']
+    const seen = new Set<string>()
+    const walk = (key: string) => {
+      const p = composed.pages?.[key]
+      if (!p || seen.has(key)) return
+      seen.add(key)
+      const pageSections = (p.sections || []).map((s: any, i: number) => ({
+        ...s,
+        _onepageAnchor: i === 0 ? key : undefined,  // first section of each page gets the anchor id
+      }))
+      sectionsToRender.push(...pageSections)
+    }
+    for (const k of order) walk(k)
+    // Catch-all: include any composed pages not in the canonical order.
+    for (const k of composedPageSlugs) walk(k)
+  } else {
+    const page = composed.pages?.[slug]
+    if (!page) return c.text('Page not found', 404)
+    sectionsToRender = page.sections
+  }
+
   const settings = {
     companyName: tenant.name || 'Your Company',
     tagline: intake.description ? String(intake.description).slice(0, 120) : undefined,
@@ -3972,13 +4021,14 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     email: tenant.email || intake.email,
     seoTitle: tenant.name,
     seoDescription: intake.description,
-    nav: buildPremiumNav(composedPageSlugs),
+    nav: buildPremiumNav(composedPageSlugs, layoutMode),
+    layoutMode,
   }
 
   const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
   const templateDir = pickPremiumTemplateDir(tenant.industry)
   const rendered = await renderPremiumPage(
-    { slug, title: PREMIUM_PAGE_TITLES[slug] || slug, sections: page.sections },
+    { slug: isSinglePage ? 'home' : slug, title: PREMIUM_PAGE_TITLES[slug] || slug, sections: sectionsToRender },
     settings,
     previewBasePath,
     templateDir,
