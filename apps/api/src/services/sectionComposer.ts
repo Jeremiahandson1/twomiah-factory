@@ -664,6 +664,163 @@ const CAFE_PAGE_RECIPES = {
   },
 } as const
 
+// Salon (hair, nails, spa, barber, esthetician). Bookings-first —
+// every CTA goes to the Twomiah Bookings widget. Services menu is the
+// second engine. Stylist profiles humanize. Gallery shows actual work
+// (cuts, colors, nail sets). Trust signals: licenses, years, brands
+// carried. Pricing transparent.
+const SALON_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a salon/spa/barbershop. Bookings widget above-fold + services + stylist profiles + gallery. SEO targets: "[city] hair salon", "[city] barber", "best [service] [city]".',
+    allowed_types: ['hero', 'reservation', 'services', 'team', 'gallery', 'about', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (real-client-portrait, the chair at golden hour, a signature color/cut — NOT generic stock model), 1 reservation/widget above-the-fold (Twomiah Bookings — this is the conversion engine), 1 services/cards-grid (signature services with prices), optional 1 team/grid (stylists with specialties + booking links per-stylist), optional 1 gallery/grid of actual work (NOT stock), optional 1 about/story snippet, optional 1 testimonials, close with 1 cta',
+  },
+  services: {
+    purpose: 'Full services menu with transparent pricing. SEO targets: "[city] balayage cost", "men\'s cut [city]".',
+    allowed_types: ['hero', 'services', 'reservation', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Services"), 1 services/alternating (each service with description + price range + duration), 1 reservation/widget, 1 faq (cancellation policy, retouching, color consultations, hair history disclosure, deposits), close with 1 cta',
+  },
+  stylists: {
+    purpose: 'Stylist/barber/esthetician profiles. Each profile drives per-stylist bookings.',
+    allowed_types: ['hero', 'team', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Our team"), 1 team/grid (3-12 profiles — name + specialty + years + book link to that stylist), optional 1 gallery/grid mixing each stylist\'s work, optional 1 testimonials per-stylist, close with 1 cta',
+  },
+  gallery: {
+    purpose: 'Portfolio of actual work — before/after, finished cuts, color transformations, nail sets. The "can they do what I want" page.',
+    allowed_types: ['hero', 'gallery', 'before_after', 'testimonials', 'reservation', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Gallery"), 1 gallery/grid (12-30 real-work shots, organized by category — color, cuts, nails, brows), optional 1 before_after/slider for transformation pieces, optional 1 testimonials, 1 reservation/widget, close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner + house + brands carried + history. Trust + voice.',
+    allowed_types: ['about', 'team', 'stats', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (owner portrait + the WHY of the salon — what they specialize in, what brands they carry, what kind of clients fit), optional 1 stats/bar (years, stylists, brands carried, color education hours), optional 1 team/grid, optional 1 gallery (the room, the bar, the products), optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for non-booking contact (press, vendor, employment).',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/widget for "or book instead", optional 1 faq',
+  },
+} as const
+
+// Fitness (gym, yoga studio, pilates, CrossFit, boxing, personal training).
+// Class schedule + intro offer + trainer profiles + transformation gallery.
+// Twomiah Bookings powers class signups + PT booking.
+const FITNESS_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a gym/studio. Intro offer + class schedule + trainer profiles + transformation gallery. SEO: "[city] yoga studio", "CrossFit [city]", "personal trainer [city]".',
+    allowed_types: ['hero', 'deals', 'schedule', 'services', 'team', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (real-member-mid-workout, the studio space, NOT generic-model-stock), optional 1 deals/strip retitled "Intro offer" with the actual first-week/first-month deal, 1 schedule/week-strip showing this week\'s classes (or 1 services/cards-grid for personal training), optional 1 team/grid (3-8 trainers/instructors with specialties), optional 1 gallery showing the space + actual members, optional 1 testimonials (real member quotes with results), close with 1 cta',
+  },
+  schedule: {
+    purpose: 'Full class schedule — by day, by class type, by instructor. SEO: "yoga schedule [city]", "morning CrossFit [city]".',
+    allowed_types: ['hero', 'schedule', 'reservation', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Schedule"), 1 schedule/week-strip (full week, filterable), 1 reservation/widget (Twomiah Bookings for class signup), 1 faq (drop-in policy, late arrival, levels, what to bring, childcare), close with 1 cta',
+  },
+  classes: {
+    purpose: 'Class type descriptions — what each class actually is, who it\'s for, what level. SEO: "[class type] for beginners [city]".',
+    allowed_types: ['hero', 'services', 'team', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Classes"), 1 services/alternating (each class type with description + level + duration + format), optional 1 team/grid showing which instructor teaches what, optional 1 gallery of classes in progress, optional 1 testimonials, close with 1 cta',
+  },
+  trainers: {
+    purpose: 'Trainer/instructor profiles. Each drives per-trainer PT bookings.',
+    allowed_types: ['hero', 'team', 'gallery', 'testimonials', 'reservation', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Our team"), 1 team/grid (3-12 profiles — name + specialty + certifications + book link), optional 1 gallery, optional 1 testimonials, 1 reservation/widget, close with 1 cta',
+  },
+  pricing: {
+    purpose: 'Memberships, drop-ins, packages — transparent pricing.',
+    allowed_types: ['hero', 'pricing', 'deals', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Pricing"), 1 pricing/flat-rate-menu (memberships + drop-in + class packs + PT packages), optional 1 deals/strip for intro offers, 1 faq (cancellation, freezing membership, family plans, refund), close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner + studio philosophy + history + community.',
+    allowed_types: ['about', 'team', 'stats', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (owner/coach portrait + the WHY of the studio — philosophy, who you serve), optional 1 stats/bar (members, years, classes taught, certifications), optional 1 team/grid, optional 1 gallery, optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for non-class contact (corporate wellness, press, hires).',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/widget for "or just sign up for a class", optional 1 faq',
+  },
+} as const
+
+// Hotel / B&B / boutique inn / vacation rental. Rooms catalog + reservation
+// engine + amenities + local map + editorial. Decision-maker is usually
+// pricing-sensitive but trust-led — reviews + real-room photography
+// + transparent pricing matter more than aspirational copy.
+const HOTEL_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a hotel/B&B/inn. Reservation widget + rooms preview + amenities + location. SEO: "[city] hotel", "boutique hotel [city]", "B&B [city]".',
+    allowed_types: ['hero', 'reservation', 'services', 'gallery', 'about', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (the actual property exterior or the most photogenic real room — NOT generic luxury-hotel stock), 1 reservation/widget above-fold (Twomiah Bookings or booking engine — primary conversion), 1 services/cards-grid showing 3-5 room types with starting rates, optional 1 about/story snippet (innkeeper-driven), optional 1 gallery of real rooms + common areas, optional 1 testimonials (real guest quotes), close with 1 cta',
+  },
+  rooms: {
+    purpose: 'Full rooms catalog. Each room with photography + amenities + occupancy + starting rate. SEO: "[hotel name] rooms", "[room type] [city]".',
+    allowed_types: ['hero', 'services', 'reservation', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Rooms"), 1 services/alternating (each room: name + photos + sleeps + amenities + rate "from $X"), 1 reservation/widget, 1 faq (check-in/out times, dog policy, parking, breakfast, kid policy, accessibility), close with 1 cta',
+  },
+  amenities: {
+    purpose: 'Property amenities — pool, restaurant, spa, gym, breakfast, parking, wifi.',
+    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Amenities"), 1 services/cards-grid (each amenity with photo + description), optional 1 gallery, 1 faq (hours, fees, reservations needed, guest-only), close with 1 cta',
+  },
+  local: {
+    purpose: 'Local area guide — what to do, where to eat, distances to landmarks. SEO: "things to do near [hotel name]".',
+    allowed_types: ['hero', 'services', 'gallery', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="The area"), 1 services/alternating (3-8 local highlights — restaurants, attractions, day trips — each with photo + distance + why-go), optional 1 gallery, close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner + history + house philosophy. The trust + voice page.',
+    allowed_types: ['about', 'team', 'stats', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (innkeeper portrait + history of the property + what makes the house different), optional 1 stats/bar (rooms, years, repeat-guest %, awards — real anchored numbers), optional 1 team/grid, optional 1 gallery, optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for non-booking contact (events, press, group inquiries).',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/widget, optional 1 faq',
+  },
+} as const
+
+// Events venue / wedding venue / banquet hall. Venue gallery + packages
+// + capacity + booking inquiry form. Bookings happen via inquiry (deposit
+// + custom date), not real-time widget — most venues require consultation.
+const EVENTS_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for an events venue. Venue photography + packages + capacity + inquiry form. SEO: "[city] wedding venue", "[city] event space", "rustic barn wedding [city]".',
+    allowed_types: ['hero', 'gallery', 'services', 'catering', 'testimonials', 'about', 'cta'],
+    required_sequence: '1 hero/full-bleed (the actual venue in event mode — set up for a real wedding/event, NOT empty room or stock), 1 gallery/grid of the space across configurations, 1 services/cards-grid (3-5 package tiers with starting prices + included amenities + capacity), 1 catering/inquiry-form (event date + headcount + event type + budget range), optional 1 testimonials (real couples + planners), optional 1 about/story snippet, close with 1 cta',
+  },
+  venue: {
+    purpose: 'Full venue details — every space, capacity, layouts. SEO: "[venue name] capacity", "[venue type] [city]".',
+    allowed_types: ['hero', 'gallery', 'services', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="The venue"), 1 gallery/grid (every space — ceremony, reception, prep rooms, exterior), 1 services/alternating (each space: dimensions + capacity seated/cocktail + included equipment + photos), 1 faq (rentals, vendor restrictions, sound limits, alcohol, accessibility, parking), close with 1 cta',
+  },
+  packages: {
+    purpose: 'Package tiers — what\'s included at each price point. SEO: "[venue name] pricing", "wedding venue cost [city]".',
+    allowed_types: ['hero', 'services', 'pricing', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Packages"), 1 services/alternating OR 1 pricing/flat-rate-menu (3-5 tiers with starting prices, included hours, capacity, included amenities), 1 faq (what\'s NOT included, vendor list, payment schedule, cancellation, weather, off-season pricing), close with 1 cta',
+  },
+  vendors: {
+    purpose: 'Preferred vendor list — caterers, florists, photographers, planners, DJs. Adds value + earns referral fees.',
+    allowed_types: ['hero', 'services', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Vendors we love"), 1 services/cards-grid (8-20 vendors categorized — each with name, category, contact, why-we-recommend), close with 1 cta',
+  },
+  gallery: {
+    purpose: 'Real events portfolio — actual weddings, corporate events, parties. The "can I see myself here" page.',
+    allowed_types: ['hero', 'gallery', 'testimonials', 'catering', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Real events"), 1 gallery/grid (30-50 shots from real events — weddings, corporate, parties), optional 1 testimonials (real couples + planners), 1 catering/inquiry-form, close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner/family + property history + philosophy.',
+    allowed_types: ['about', 'stats', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (owner/family portrait + the WHY of the venue — restoration, family farm, historical building), optional 1 stats/bar (events/year, years operating, capacity), optional 1 gallery, optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page — for tours, vendor inquiries, press.',
+    allowed_types: ['hero', 'contact', 'catering', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, 1 catering/inquiry-form (for date inquiries), optional 1 faq',
+  },
+} as const
+
 // Field service (HVAC / plumbing / electrical / cleaning) — the work
 // model varies meaningfully across these (emergency-first HVAC vs
 // recurring cleaning contracts) but the page set is consistent. The
@@ -907,6 +1064,10 @@ function buildSitePrompt(input: ComposerInput): string {
   const fieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessType)
   const restaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessType)
   const cafe = /^cafe$|^caf[eé]$|^coffee[_-]?shop$|^coffeeshop$|^coffee$|^tea[_-]?room$|^tearoom$|^espresso[_-]?bar$|^bakery[_-]?caf[eé]?$/i.test(businessType)
+  const salon = /^salon$|^hair[_-]?salon$|^hairdresser$|^barber$|^barbershop$|^nail[_-]?salon$|^nails$|^spa$|^day[_-]?spa$|^esthetician$|^esthetics$|^beauty[_-]?salon$|^beauty$|^lash$|^lash[_-]?bar$|^brow[_-]?bar$|^medspa$|^med[_-]?spa$|^waxing$/i.test(businessType)
+  const fitness = /^gym$|^fitness$|^fitness[_-]?studio$|^yoga$|^yoga[_-]?studio$|^pilates$|^pilates[_-]?studio$|^crossfit$|^cross[_-]?fit$|^boxing$|^boxing[_-]?gym$|^martial[_-]?arts$|^mma$|^personal[_-]?training$|^personal[_-]?trainer$|^trainer$|^spin[_-]?studio$|^cycling[_-]?studio$|^barre$|^dance[_-]?studio$/i.test(businessType)
+  const hotel = /^hotel$|^boutique[_-]?hotel$|^b[_-]?and[_-]?b$|^bandb$|^bnb$|^bed[_-]?and[_-]?breakfast$|^inn$|^lodge$|^motel$|^vacation[_-]?rental$|^short[_-]?term[_-]?rental$|^airbnb$|^guest[_-]?house$|^cabin$/i.test(businessType)
+  const events = /^event[_-]?venue$|^events$|^wedding[_-]?venue$|^banquet[_-]?hall$|^banquet$|^venue$|^party[_-]?venue$|^corporate[_-]?venue$|^reception[_-]?hall$|^barn[_-]?venue$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
@@ -923,7 +1084,15 @@ function buildSitePrompt(input: ComposerInput): string {
                 ? CAFE_PAGE_RECIPES
                 : restaurant
                   ? RESTAURANT_PAGE_RECIPES
-                  : PAGE_RECIPES
+                  : salon
+                    ? SALON_PAGE_RECIPES
+                    : fitness
+                      ? FITNESS_PAGE_RECIPES
+                      : hotel
+                        ? HOTEL_PAGE_RECIPES
+                        : events
+                          ? EVENTS_PAGE_RECIPES
+                          : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -1067,6 +1236,196 @@ This is a walk-in café. Guidance:
    hours and address. faq covers wifi, outlets, laptop policy,
    dog-friendly, parking, accessibility, kid-friendly. These are
    the actual questions customers ask before deciding to drive over.
+` : ''}${salon ? `
+# Industry note — SALON / SPA / BARBER / NAILS / ESTHETICIAN
+This is a salon, spa, barbershop, nail salon, or beauty service business.
+The conversion engine is online booking.
+
+1. reservation/widget (Twomiah Bookings) above-the-fold on home page is
+   mandatory. Salons live or die on online booking — every minute the
+   chair is empty is unrecoverable. Lead with booking, services second.
+2. Hero takes a position about THIS salon. Anchor in a real fact:
+   specialty (balayage, curl, low-maintenance color, men's grooming,
+   bridal), education (Vidal Sassoon, Bumble + bumble University,
+   apprenticed under [name]), brands carried, stylist count, year founded.
+   Patterns:
+   "Specialists in lived-in color. We don't do solid black or platinum.
+   We do everything in between." (color-specialist salon)
+   "Eight chairs. Bumble + bumble exclusive. Walk-ins for cuts, color
+   by appointment." (specialty boutique)
+   "Master barber + apprentice. Straight razor every cut. $50 includes
+   the hot towel." (classic barber)
+3. Banned phrases (in addition to global list): "your beauty destination",
+   "where beauty meets art", "passion for beauty", "let our talented
+   team", "transform your look", "indulge yourself", "premier salon",
+   "we pride ourselves", "luxurious experience", "boutique experience".
+   These read as small-business marketing-speak. Better: name the brand
+   they carry, the technique they specialize in, the actual price.
+4. services/cards-grid with REAL prices. Realistic 2026 pricing ranges:
+   women's cut $55-110, men's cut $35-65, root retouch $80-130, balayage
+   $180-380, full color $120-220, blowout $40-65, gel manicure $40-65,
+   regular manicure $25-40, pedicure $45-75, facials $85-180, brows
+   $25-50, lash extensions $150-300 (full set), waxing $20-80 per area.
+   Higher in major metros. NEVER fabricate exact numbers if intake gave
+   ranges; pick from the realistic range and label "starting at".
+5. team/grid is conversion-critical. Each stylist should have a per-stylist
+   booking link if the intake suggests they take their own clients.
+   Specialties matter: "balayage + curl", "men's classic + skin fades",
+   "color correction + corrective", "bridal + special occasion".
+6. gallery/grid: 12-30 shots of ACTUAL work — finished color, finished
+   cuts, nail sets, lash sets, finished brows. NOT stock models. If
+   customerPhotos has finished-work shots, those are tier-1 always.
+   This is the "can they do what I want" page.
+7. Cancellation/no-show policy in services FAQ — be direct. Industry
+   standard: 24-48h cancellation, 50-100% charge for no-show. State
+   the actual policy from the intake or use industry-standard 48h/50%.
+8. Hair-history disclosure FAQ for color clients — protect both parties.
+   "Box dye, henna, or smoothing treatments in the last 18 months?
+   Tell us during consultation."
+` : ''}${fitness ? `
+# Industry note — FITNESS (gym / studio / personal training / yoga / CrossFit)
+This is a fitness facility. Class schedule, intro offer, trainer
+profiles, transformation gallery. Twomiah Bookings powers class signups
+and PT sessions.
+
+1. Read the intake first to identify the modality:
+   A. **Group class studio** (yoga, pilates, CrossFit, spin, boxing,
+      barre) — schedule is the conversion engine. Lead with schedule
+      + intro offer ($30 first week, free first class, etc.).
+   B. **Open gym + classes** (CrossFit boxes, hybrid gyms) — emphasize
+      the community + coaches + class types.
+   C. **Personal training only** — lead with trainer profiles + assessment
+      consult booking. Skip schedule/week-strip.
+2. Hero takes a position. Patterns:
+   "Five-class week, 28 minute strength sessions. We don't do 90-minute
+   workouts." (Hour-conscious busy adults)
+   "Vinyasa, slow flow, restorative. Hot in the back room, room temp
+   in the front." (yoga studio with multiple modalities)
+   "We coach lifters. Forty members. Coaches programmed your last
+   meet." (powerlifting-focused gym)
+3. Banned phrases (in addition to global list): "your fitness journey",
+   "transform your body", "results-driven training", "premier gym",
+   "unleash your potential", "no excuses", "fitness lifestyle",
+   "best version of yourself", "passion for fitness", "elite training".
+   This vocabulary is bootcamp-2014 cliché. Better: state who you
+   coach, what programming you actually do, what makes the room
+   different from a Planet Fitness.
+4. Intro offer is critical — most gyms convert 60-80% of intro-week
+   trials into members if the offer is real. "First week free", "30
+   days for $30", "first class on us" — pull from intake or use
+   industry-standard for the modality.
+5. schedule/week-strip: real classes, real times, real instructors.
+   Pull from intake if provided. Day labels Mon-Sun. Time + class
+   name + instructor + level. Boxes that conflict (two studios) need
+   room labels.
+6. Pricing transparency: drop-in ($20-35), 10-pack ($150-280), monthly
+   unlimited ($120-220), annual ($1100-2000), PT package (8 sessions:
+   $400-800). NEVER fabricate prices the intake doesn't give.
+7. Trainer/coach profiles drive trust + PT bookings. Real certs:
+   NSCA, NASM, ACE, CrossFit L2, RRCA, RYT-200, RYT-500. NEVER
+   fabricate certs the intake doesn't mention.
+8. Transformation gallery — if intake provided member success stories
+   or photos, use them (with permission noted in intake). Otherwise
+   skip — stock-model transformation photos hurt trust.
+` : ''}${hotel ? `
+# Industry note — HOTEL / B&B / INN / VACATION RENTAL
+This is a lodging business. Booking engine + rooms catalog + amenities
++ local area. Decision-makers are usually skimming 4-6 options on a
+travel site — concrete signals beat aspirational copy.
+
+1. reservation/widget above-the-fold on home page is the primary
+   conversion. If the intake says they use a specific booking engine
+   (Cloudbeds, Mews, Hostfully, Airbnb), use Twomiah Bookings as a
+   pre-screening inquiry that hands off, OR direct-deep-link to the
+   booking engine. NEVER replace a working booking engine.
+2. Hero takes a position. Patterns:
+   "Six rooms. Built 1898. Kitchen-table breakfast at 8am sharp."
+   (small B&B, historical)
+   "Sleeps fourteen, lake-facing, four kayaks at the dock."
+   (vacation rental cabin)
+   "Twelve rooms, four blocks from downtown, all on the ground floor.
+   Continental breakfast included, parking included, no resort fees."
+   (boutique downtown hotel)
+3. Banned phrases (in addition to global list): "your home away from
+   home", "unforgettable experience", "luxury accommodations", "perfect
+   getaway", "where memories are made", "exceptional stay", "your
+   destination for", "indulge in", "warm hospitality", "boutique
+   experience". Replace with: actual rooms count, actual rate range,
+   actual amenities the property offers, actual distance to the
+   landmark guests are coming for.
+4. services/cards-grid for rooms — each room: name, photos (real, not
+   stock), bed configuration, sleeps, room size, amenities (private
+   bath, fireplace, view, kitchenette), rate "from $X" or "from $X/night".
+   Realistic 2026 pricing: economy hotel $90-150, mid-tier $130-220,
+   boutique $180-380, B&B $130-250, luxury inn $280-600, vacation
+   rental varies wildly by location.
+5. Amenities page: be specific. NOT "all the comforts of home". Yes:
+   "Heated saltwater pool, May-October, 7am-10pm. Towels at the front
+   desk." Photo of the actual pool. If intake doesn't mention an
+   amenity, don't list it.
+6. Local area page is undervalued — it's a major differentiator for
+   small properties. Distance to landmarks (the lake, the town,
+   the trailhead, the venue), 3-8 restaurant recommendations the
+   innkeeper actually eats at, day-trip options. SEO bonus.
+7. faq/accordion on rooms page: check-in/out times, dog policy
+   (specific: "two dogs under 40lb, $30/night/dog"), parking
+   (free/paid/street), breakfast (included/extra/none), kid policy,
+   accessibility (specific: "elevator to floors 2-3, all rooms on 1
+   have step-in showers").
+8. Testimonials only from real guests. Pull recent ones from the
+   intake. NEVER fabricate. "Recent guest, Eau Claire, MN — May 2026."
+` : ''}${events ? `
+# Industry note — EVENTS / WEDDING VENUE / BANQUET HALL
+This is an events venue. Bookings happen via inquiry + consultation,
+not real-time widget. Most weddings + corporate events require a
+walk-through. Use catering/inquiry-form as the conversion engine.
+
+1. catering/inquiry-form on home + packages + gallery pages is
+   mandatory. Fields: event date (date picker, or "still flexible"),
+   headcount range, event type (wedding, corporate, anniversary, etc.),
+   budget range, name, email, phone. Optional: preferred contact method,
+   how they heard about you.
+2. Hero takes a position. Patterns:
+   "Eighteenth-century barn, 200-guest capacity, on-site ceremony
+   meadow. Two weddings a weekend, May through October."
+   (rustic barn venue)
+   "Eight thousand square feet, glass front, downtown Eau Claire.
+   Corporate by day, weddings on weekends."
+   (urban modern venue)
+   "Six-acre garden, three ceremony sites depending on weather,
+   protected pavilion for receptions to 175."
+   (garden venue)
+3. Banned phrases (in addition to global list): "your dream wedding",
+   "the wedding of your dreams", "your perfect day", "magical
+   celebration", "where dreams come true", "unforgettable memories",
+   "your special day", "passionate about events", "let us help you
+   create", "elegant venue". These read as wedding-vendor-2010 cliché.
+   Replace with: actual capacity, actual rental cost, actual included
+   amenities, actual restrictions (vendor list? alcohol? sound limits?
+   ceremony rain plan?).
+4. services/alternating for packages — each tier: name, included hours,
+   capacity, included amenities (tables, chairs, linens, AV, kitchen
+   access), what's NOT included (catering, alcohol, flowers), starting
+   price. Realistic 2026 venue pricing for the Midwest: small (50-100
+   guests) $2500-6000 rental, mid (100-200 guests) $5000-12000, large
+   (200+ guests) $10000-25000. Major-metro venues 2-4x higher.
+5. gallery/grid is critical — actual events, not styled-shoot photos.
+   Real couples, real receptions, real decor. If intake has photos
+   from past events (always ask), those beat stock every time. 30-50
+   shots organized by space + event type.
+6. vendors page is undervalued — adds value to couples + can earn
+   referral fees. Categorized list (caterers, florists, photographers,
+   DJs, planners, officiants, transportation) with name + contact +
+   one-line why-we-recommend.
+7. faq is critical at this price point. Cover: vendor restrictions
+   (open list, closed list, in-house?), alcohol (BYOB? bar service
+   required?), sound limits, ceremony rain plan, parking capacity,
+   accessibility, getting-ready spaces, payment schedule (typical:
+   25% deposit at signing, 50% 90-days-out, 25% 30-days-out),
+   cancellation policy, weather policy for outdoor events.
+8. Testimonials from real couples + planners. Couple names + wedding
+   month. Planner names + their company. NEVER fabricate. If intake
+   provided reviews, use those. If not, omit the testimonials block.
 ` : ''}${fieldservice ? `
 # Industry note — FIELD SERVICE (HVAC / plumbing / electrical / cleaning)
 The work model varies within this template. Read the intake first:
@@ -1502,6 +1861,10 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isFieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessTypeIn)
   const isRestaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessTypeIn)
   const isCafe = /^cafe$|^caf[eé]$|^coffee[_-]?shop$|^coffeeshop$|^coffee$|^tea[_-]?room$|^tearoom$|^espresso[_-]?bar$|^bakery[_-]?caf[eé]?$/i.test(businessTypeIn)
+  const isSalon = /^salon$|^hair[_-]?salon$|^hairdresser$|^barber$|^barbershop$|^nail[_-]?salon$|^nails$|^spa$|^day[_-]?spa$|^esthetician$|^esthetics$|^beauty[_-]?salon$|^beauty$|^lash$|^lash[_-]?bar$|^brow[_-]?bar$|^medspa$|^med[_-]?spa$|^waxing$/i.test(businessTypeIn)
+  const isFitness = /^gym$|^fitness$|^fitness[_-]?studio$|^yoga$|^yoga[_-]?studio$|^pilates$|^pilates[_-]?studio$|^crossfit$|^cross[_-]?fit$|^boxing$|^boxing[_-]?gym$|^martial[_-]?arts$|^mma$|^personal[_-]?training$|^personal[_-]?trainer$|^trainer$|^spin[_-]?studio$|^cycling[_-]?studio$|^barre$|^dance[_-]?studio$/i.test(businessTypeIn)
+  const isHotel = /^hotel$|^boutique[_-]?hotel$|^b[_-]?and[_-]?b$|^bandb$|^bnb$|^bed[_-]?and[_-]?breakfast$|^inn$|^lodge$|^motel$|^vacation[_-]?rental$|^short[_-]?term[_-]?rental$|^airbnb$|^guest[_-]?house$|^cabin$/i.test(businessTypeIn)
+  const isEvents = /^event[_-]?venue$|^events$|^wedding[_-]?venue$|^banquet[_-]?hall$|^banquet$|^venue$|^party[_-]?venue$|^corporate[_-]?venue$|^reception[_-]?hall$|^barn[_-]?venue$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
@@ -1518,7 +1881,15 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
                 ? Object.keys(CAFE_PAGE_RECIPES)
                 : isRestaurant
                   ? Object.keys(RESTAURANT_PAGE_RECIPES)
-                  : Object.keys(PAGE_RECIPES)
+                  : isSalon
+                    ? Object.keys(SALON_PAGE_RECIPES)
+                    : isFitness
+                      ? Object.keys(FITNESS_PAGE_RECIPES)
+                      : isHotel
+                        ? Object.keys(HOTEL_PAGE_RECIPES)
+                        : isEvents
+                          ? Object.keys(EVENTS_PAGE_RECIPES)
+                          : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {
