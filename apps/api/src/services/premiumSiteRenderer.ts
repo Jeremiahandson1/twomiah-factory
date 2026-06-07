@@ -19,55 +19,14 @@ const TEMPLATES_ROOT = path.resolve(__dirname, '../../../../templates')
 const DEFAULT_TEMPLATE = 'website-premium-contractor'
 
 // Resolve the right premium template dir for a tenant based on its
-// products + industry. Mirrors the routing logic in
-// services/generator.ts so previews land in the same template the deploy
-// will use. Falls back to contractor when nothing matches â€” same behavior
-// as the deploy throw, but for previews we render something rather than
-// error (staff sees the wrong template instead of a 500, which is easier
-// to debug).
-const PREMIUM_ROOFING_INDUSTRIES = new Set([
-  'roofing', 'roof', 'storm_restoration', 'siding_roofing',
-])
-const PREMIUM_HOMECARE_INDUSTRIES = new Set([
-  'home_care', 'homecare', 'in_home_care', 'senior_care',
-  'caregiving', 'companion_care',
-])
-const PREMIUM_DISPENSARY_INDUSTRIES = new Set([
-  'dispensary', 'cannabis', 'cannabis_retail',
-])
-const PREMIUM_LANDSCAPING_INDUSTRIES = new Set([
-  'landscaping', 'lawn_care', 'lawncare', 'landscape_design',
-  'snow_removal', 'tree_service',
-])
-const PREMIUM_SHOWCASE_INDUSTRIES = new Set([
-  'food', 'restaurant', 'hospitality', 'hotel', 'cafe',
-  'fitness', 'gym', 'yoga', 'beauty', 'salon', 'spa',
-  'events', 'wedding', 'catering',
-])
-const PREMIUM_FIELDSERVICE_INDUSTRIES = new Set([
-  'field_service', 'hvac', 'plumbing', 'electrical', 'appliance_repair',
-  'cleaning', 'pest_control', 'locksmith', 'garage_door',
-])
+// Picks the template dir for a given industry. Delegates to the central
+// industryRouting helper so this file stays in sync — earlier versions
+// duplicated the industry sets here and silently drifted (e.g. food_truck
+// wasn't in this file's roster and was rendering through the contractor
+// template, silently dropping every food-truck-specific section partial).
+import { premiumWebsiteTemplateFor } from '../config/industryRouting'
 export function pickPremiumTemplateDir(industry?: string | null): string {
-  if (industry && PREMIUM_ROOFING_INDUSTRIES.has(industry)) {
-    return path.join(TEMPLATES_ROOT, 'website-premium-roofing')
-  }
-  if (industry && PREMIUM_HOMECARE_INDUSTRIES.has(industry)) {
-    return path.join(TEMPLATES_ROOT, 'website-premium-homecare')
-  }
-  if (industry && PREMIUM_DISPENSARY_INDUSTRIES.has(industry)) {
-    return path.join(TEMPLATES_ROOT, 'website-premium-dispensary')
-  }
-  if (industry && PREMIUM_LANDSCAPING_INDUSTRIES.has(industry)) {
-    return path.join(TEMPLATES_ROOT, 'website-premium-landscaping')
-  }
-  if (industry && PREMIUM_SHOWCASE_INDUSTRIES.has(industry)) {
-    return path.join(TEMPLATES_ROOT, 'website-premium-showcase')
-  }
-  if (industry && PREMIUM_FIELDSERVICE_INDUSTRIES.has(industry)) {
-    return path.join(TEMPLATES_ROOT, 'website-premium-fieldservice')
-  }
-  return path.join(TEMPLATES_ROOT, DEFAULT_TEMPLATE)
+  return path.join(TEMPLATES_ROOT, premiumWebsiteTemplateFor(industry || undefined))
 }
 
 export interface RenderedPage {
