@@ -598,6 +598,40 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Contractor (general, remodeling, kitchen, bath, deck, fence, concrete,
+// masonry, tile, flooring, framing, drywall, cabinet). Portfolio is the
+// conversion engine — "look at this kitchen we did" beats any copy. Trust
+// signals (license, insured, BBB, years) matter more than for showcase
+// businesses. Pricing is project-by-project so no flat-rate menu —
+// instead, give realistic ranges in the about/voice + faq.
+const CONTRACTOR_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a contractor. Hero takes a position about their specialty. Portfolio preview → services → about. SEO targets: "[city] kitchen remodel", "[city] general contractor", "[city] deck builder".',
+    allowed_types: ['hero', 'services', 'gallery', 'stats', 'testimonials', 'about', 'cta'],
+    required_sequence: '1 hero/full-bleed (a finished project at golden hour, an in-progress build, or owner-on-jobsite — NOT generic stock tools), 1 services/cards-grid (3-6 specialties), 1 gallery/grid (8-12 finished-project shots from real jobs — portfolio is the conversion driver), optional 1 stats/bar (years, jobs completed, licenses held — real anchored numbers), optional 1 testimonials block (real homeowner quotes only), optional 1 about/story snippet, close with 1 cta',
+  },
+  services: {
+    purpose: 'The full services menu — what they build, install, remodel. Each service with description + scope.',
+    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Services"), 1 services/alternating (each specialty: description, typical scope, what\'s included, photo from a finished project), optional 1 gallery, 1 faq (free estimates, lead time, permits, financing), close with 1 cta',
+  },
+  projects: {
+    purpose: 'Portfolio of finished work — kitchens, baths, decks, additions, full builds. The "can they actually do this" page.',
+    allowed_types: ['hero', 'gallery', 'services', 'testimonials', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Projects"), 1 gallery/grid (20-40 photos organized by project type — each project caption gives location-only, scope, materials), optional 1 services/alternating retitled as "Recent builds" if intake has detailed project descriptions, optional 1 testimonials, close with 1 cta',
+  },
+  about: {
+    purpose: 'Owner + crew + credentials + history. Where homeowners decide whether to hand you the keys to their house.',
+    allowed_types: ['about', 'team', 'stats', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (owner portrait + WHY this contracting business — apprenticeship, family trade, specialty), optional 1 stats/bar (years, jobs completed, licenses, insurance carried — concrete anchored numbers), optional 1 team/grid (lead carpenter, project manager, key subs), optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for estimate requests + general contact.',
+    allowed_types: ['hero', 'contact', 'faq', 'cta'],
+    required_sequence: 'optional 1 hero (short, set expectation: "free estimates, typically [X] day response"), 1 contact/form-info, 1 faq (estimate process, lead time, financing, permits, project minimum), close with 1 cta',
+  },
+} as const
+
 // Restaurant (sit-down, dinner-focused, brunch spots, neighborhood
 // gastropubs). Reservation widget above-the-fold drives more bookings
 // than a "book a table" link. Menu prominent, chef story matters,
@@ -1068,6 +1102,11 @@ function buildSitePrompt(input: ComposerInput): string {
   const fitness = /^gym$|^fitness$|^fitness[_-]?studio$|^yoga$|^yoga[_-]?studio$|^pilates$|^pilates[_-]?studio$|^crossfit$|^cross[_-]?fit$|^boxing$|^boxing[_-]?gym$|^martial[_-]?arts$|^mma$|^personal[_-]?training$|^personal[_-]?trainer$|^trainer$|^spin[_-]?studio$|^cycling[_-]?studio$|^barre$|^dance[_-]?studio$/i.test(businessType)
   const hotel = /^hotel$|^boutique[_-]?hotel$|^b[_-]?and[_-]?b$|^bandb$|^bnb$|^bed[_-]?and[_-]?breakfast$|^inn$|^lodge$|^motel$|^vacation[_-]?rental$|^short[_-]?term[_-]?rental$|^airbnb$|^guest[_-]?house$|^cabin$/i.test(businessType)
   const events = /^event[_-]?venue$|^events$|^wedding[_-]?venue$|^banquet[_-]?hall$|^banquet$|^venue$|^party[_-]?venue$|^corporate[_-]?venue$|^reception[_-]?hall$|^barn[_-]?venue$/i.test(businessType)
+  // Contractor catches general contracting + the specific build-trade verticals
+  // (kitchen, bath, deck, fence, concrete, masonry, tile, etc.). Falls AFTER
+  // the others so a "kitchen" intake routes here, but a "restaurant" with the
+  // word "kitchen" in description doesn't.
+  const contractor = /^contractor$|^general[_-]?contractor$|^construction$|^remodeling$|^remodeler$|^siding$|^home[_-]?improvement$|^kitchen$|^kitchen[_-]?remodeling$|^kitchen[_-]?design$|^kitchen[_-]?installation$|^bath[_-]?remodeling$|^bathroom[_-]?remodeling$|^deck[_-]?builder$|^fence[_-]?installation$|^drywall$|^flooring$|^framing$|^concrete$|^masonry$|^tile$|^cabinet[_-]?maker$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
@@ -1092,7 +1131,9 @@ function buildSitePrompt(input: ComposerInput): string {
                         ? HOTEL_PAGE_RECIPES
                         : events
                           ? EVENTS_PAGE_RECIPES
-                          : PAGE_RECIPES
+                          : contractor
+                            ? CONTRACTOR_PAGE_RECIPES
+                            : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -1426,6 +1467,67 @@ walk-through. Use catering/inquiry-form as the conversion engine.
 8. Testimonials from real couples + planners. Couple names + wedding
    month. Planner names + their company. NEVER fabricate. If intake
    provided reviews, use those. If not, omit the testimonials block.
+` : ''}${contractor ? `
+# Industry note — CONTRACTOR (general / remodeling / kitchen / bath / build trades)
+This is a contracting business. Portfolio is the conversion engine —
+homeowners want to see WORK, not read about a "passion for quality."
+The decision-maker is usually doing a $20k-$200k+ project and is
+pattern-matching across 3-5 contractors before requesting an estimate.
+
+1. Hero takes a position about THIS contractor. Anchor in a real fact:
+   specialty (kitchens only, full builds, historic restoration,
+   high-end finish carpentry, ADU specialists), trade pedigree (third-
+   generation, apprenticed under [name], custom-cabinet shop in-house),
+   geographic focus, year founded, license held.
+   Patterns:
+   "Twenty-six years of kitchens. We do six a year. Our own millwork shop."
+   (high-end kitchen specialist)
+   "Family-owned since 1987. Decks, additions, garages — the projects
+   most contractors don't return calls for." (mid-tier generalist)
+   "Master carpenter + lead PM. Two crews. We pull every permit, every
+   time." (mid-size operator)
+2. Banned phrases (in addition to global list): "quality craftsmanship",
+   "your trusted contractor", "we take pride", "exceeding expectations",
+   "from concept to completion", "your dream home", "passion for the
+   craft", "your one-stop construction partner", "we treat your home
+   like our own", "second to none". These signal small-business
+   marketing-speak. Replace with: name the project type, name the
+   neighborhood you work in, name the specific subcontractor you
+   work with (cabinetmaker, electrician, etc.), state the actual
+   project minimum or scope.
+3. gallery/grid is the most important section on the site. 8-12 shots
+   on home, 20-40 on /projects. ALWAYS prefer Tier 1 customer photos
+   (real finished work). If forced to use stock, pick photos that
+   genuinely look like "a contractor took this on their jobsite" not
+   "Home & Garden magazine cover." Caption each project with: location
+   (neighborhood-level, NOT exact address — privacy), project type,
+   scope, finishes used, project length.
+4. services/cards-grid: 3-6 specialties. Each item: actual name
+   (Kitchen Remodels, Full-Home Additions, Custom Decks), one-sentence
+   scope description, typical price range or "starting at" if intake
+   gives ranges, photo of a finished project. Realistic 2026 ranges
+   for the Midwest: kitchen remodel $35k-150k (full $75k-300k+),
+   bath remodel $18k-60k (master $40k-120k+), deck $8k-35k, ADU/in-law
+   suite $90k-250k, addition $50k-300k, full custom home $400k-2M+.
+5. Trust signals matter. If intake provides license number, BBB rating,
+   years in business, projects/year, list them in stats/bar or about/story.
+   NEVER fabricate a license number. NEVER fabricate BBB rating.
+   If the intake doesn't provide them, omit and lean on years +
+   testimonials.
+6. testimonials only from real homeowners. Pull from intake. Real
+   names + neighborhoods + project types ("Kitchen remodel, Eau Claire
+   eastside, 2024"). If intake doesn't provide any, OMIT the block —
+   don't fabricate.
+7. Photography: hero should be a finished project at golden hour, an
+   in-progress build at scale, or owner-on-jobsite-with-clipboard.
+   NOT a generic tools-on-tool-bag or hammer-on-wood. If customerPhotos
+   has jobsite/finished photos, those beat Unsplash every time.
+8. FAQ must cover: estimate process (free? in-home? virtual?), lead
+   time (current — pull from intake if given, otherwise omit the
+   specific number), permits (who pulls them — answer is "we do" for
+   licensed contractors), financing (if intake mentions options),
+   project minimum (a lot of contractors won't do <$15k jobs — be
+   upfront if applicable).
 ` : ''}${fieldservice ? `
 # Industry note — FIELD SERVICE (HVAC / plumbing / electrical / cleaning)
 The work model varies within this template. Read the intake first:
@@ -1865,6 +1967,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isFitness = /^gym$|^fitness$|^fitness[_-]?studio$|^yoga$|^yoga[_-]?studio$|^pilates$|^pilates[_-]?studio$|^crossfit$|^cross[_-]?fit$|^boxing$|^boxing[_-]?gym$|^martial[_-]?arts$|^mma$|^personal[_-]?training$|^personal[_-]?trainer$|^trainer$|^spin[_-]?studio$|^cycling[_-]?studio$|^barre$|^dance[_-]?studio$/i.test(businessTypeIn)
   const isHotel = /^hotel$|^boutique[_-]?hotel$|^b[_-]?and[_-]?b$|^bandb$|^bnb$|^bed[_-]?and[_-]?breakfast$|^inn$|^lodge$|^motel$|^vacation[_-]?rental$|^short[_-]?term[_-]?rental$|^airbnb$|^guest[_-]?house$|^cabin$/i.test(businessTypeIn)
   const isEvents = /^event[_-]?venue$|^events$|^wedding[_-]?venue$|^banquet[_-]?hall$|^banquet$|^venue$|^party[_-]?venue$|^corporate[_-]?venue$|^reception[_-]?hall$|^barn[_-]?venue$/i.test(businessTypeIn)
+  const isContractor = /^contractor$|^general[_-]?contractor$|^construction$|^remodeling$|^remodeler$|^siding$|^home[_-]?improvement$|^kitchen$|^kitchen[_-]?remodeling$|^kitchen[_-]?design$|^kitchen[_-]?installation$|^bath[_-]?remodeling$|^bathroom[_-]?remodeling$|^deck[_-]?builder$|^fence[_-]?installation$|^drywall$|^flooring$|^framing$|^concrete$|^masonry$|^tile$|^cabinet[_-]?maker$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
@@ -1889,7 +1992,9 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
                         ? Object.keys(HOTEL_PAGE_RECIPES)
                         : isEvents
                           ? Object.keys(EVENTS_PAGE_RECIPES)
-                          : Object.keys(PAGE_RECIPES)
+                          : isContractor
+                            ? Object.keys(CONTRACTOR_PAGE_RECIPES)
+                            : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {
