@@ -3898,25 +3898,29 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
 const PREMIUM_PAGE_TITLES: Record<string, string> = {
   home: 'Home', about: 'About', services: 'Services', contact: 'Contact',
   menu: 'Menu', schedule: 'Schedule', catering: 'Catering',
+  strains: 'Strains', deals: 'Deals', visit: 'Visit',
 }
 
 // Nav labels per page slug. 'home' is omitted (it's the brand logo).
 // 'contact' is omitted because the header CTA points to /contact already
-// — including it in nav doubles up. Vertical-specific slugs (menu,
-// schedule, catering) get the human-readable label for the food truck
-// + similar verticals.
+// — including it in nav doubles up. Vertical-specific slugs get the
+// human-readable label for the food truck / dispensary / etc.
 const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
   menu: 'Menu',
   services: 'Services',
   schedule: 'Find us',
   catering: 'Catering',
+  strains: 'Strains',
+  deals: 'Deals',
+  visit: 'Visit',
   about: 'About',
 }
 
 function buildPremiumNav(pageSlugs: string[]): Array<{ label: string; href: string }> {
-  // Stable per-vertical order: menu / services first (the thing they sell),
-  // then "find us / catering" (location/event funnels), then about.
-  const order = ['menu', 'services', 'schedule', 'catering', 'about']
+  // Stable per-vertical order: the thing they sell first (menu/services/
+  // strains), then secondary funnels (find us/catering/deals/visit), then
+  // about.
+  const order = ['menu', 'services', 'strains', 'schedule', 'catering', 'deals', 'visit', 'about']
   const present = new Set(pageSlugs)
   const out: Array<{ label: string; href: string }> = []
   for (const slug of order) {

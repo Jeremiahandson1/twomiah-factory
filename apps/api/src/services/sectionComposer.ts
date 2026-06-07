@@ -205,6 +205,28 @@ export const SECTION_SCHEMA = {
       use_when: 'businesses where social IS the marketing — food trucks (Instagram is lifeblood), salons (stylist work), gyms (transformations). Embeds the 6-9 most recent posts in a responsive grid with hover-to-see-caption.',
     },
   },
+  // ─── Dispensary-specific section types ─────────────────────────────────
+  age: {
+    modal: {
+      required: ['gateAge'],
+      optional: ['heading', 'message', 'stateSelector', 'exitUrl'],
+      use_when: 'cannabis dispensaries (legally required in most states), bars/breweries, vape shops, sometimes alcohol delivery. Full-screen modal on first visit, localStorage-persisted so it never appears again. Includes DOB or 21+/18+ confirmation, optional state selector for compliance routing.',
+    },
+  },
+  strain: {
+    grid: {
+      required: ['items'],
+      optional: ['heading', 'intro', 'filters'],
+      use_when: 'cannabis dispensaries — filterable card grid of strains/products with THC%, CBD%, indica/sativa/hybrid type, terpene profile, effects (relaxed/focused/sleepy/euphoric), price per gram/eighth. Filter chips (NOT dropdowns) above the grid. Cards link to detail pages when present, otherwise just informational.',
+    },
+  },
+  deals: {
+    strip: {
+      required: ['items'],
+      optional: ['heading', 'intro', 'expiresLabel'],
+      use_when: 'dispensaries / cafes / any business with daily/weekly specials. Horizontal scroll strip of current deals (e.g. "Wax Wednesday: 30% off concentrates", "Senior Sundays: 10% off everything"). Each card has the deal name, brief description, valid-through date.',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
@@ -480,6 +502,44 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Cannabis dispensaries have legal + product-discovery constraints the
+// generic 4-page model can't serve. Age-gate is required on first visit
+// in most states. The strain catalog IS the product — page recipe leads
+// with it. Education is a strong top-funnel SEO play. Deals drive
+// repeat traffic.
+const DISPENSARY_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a cannabis dispensary. Age-gate first, then the strain catalog, deals, and brand. The visitor is either a regular checking deals or a new customer scoping fit.',
+    allowed_types: ['age', 'hero', 'deals', 'strain', 'stats', 'cta'],
+    required_sequence: '1 age/modal (legally required, first), 1 hero/full-bleed or hero/centered-stats with brand-forward copy (no "compassionate care" language — banned phrase list applies double here), 1 deals/strip (drives repeat visits), 1 strain/grid (3-6 featured items, NOT the full menu — that lives on /strains), 1 stats/bar for credibility (years in business, awards, growers partnered with), close with 1 cta',
+  },
+  strains: {
+    purpose: 'The full filterable strain catalog. SEO gold — every strain that gets indexed is organic traffic for that strain name.',
+    allowed_types: ['hero', 'strain', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Strains"), 1 strain/grid with the full catalog, optional 1 faq about strain-type questions ("what\'s the difference between indica and sativa"), close with 1 cta',
+  },
+  deals: {
+    purpose: 'Current promotions + loyalty signup. Highest-converting page for repeat customers.',
+    allowed_types: ['hero', 'deals', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Deals"), 1 deals/strip with current specials, close with 1 cta directing to loyalty signup',
+  },
+  about: {
+    purpose: 'The brand story — founder, sourcing, what makes this dispensary different from the corporate chains down the street.',
+    allowed_types: ['about', 'stats', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (founder portrait + 2-4 paragraphs about why this dispensary), optional 1 stats/bar with anchored numbers, optional 1 gallery/grid (storefront, growers visited, team), optional 1 testimonials block, close with 1 cta',
+  },
+  visit: {
+    purpose: 'How to physically visit — address, hours, what to expect, ID requirements, parking.',
+    allowed_types: ['hero', 'contact', 'faq', 'cta'],
+    required_sequence: '1 hero (short, location-focused), 1 contact/form-info with address + hours + parking notes, 1 faq covering "what ID do I need", "first-time customer", "delivery options", close with 1 cta',
+  },
+  contact: {
+    purpose: 'Catch-all contact for press, vendor offers, partnerships.',
+    allowed_types: ['hero', 'contact', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 faq',
+  },
+} as const
+
 // Food trucks are a fundamentally different business model from generic
 // services — location matters more than "services", menu is the second
 // most important thing after location, social-following IS the marketing.
@@ -523,13 +583,17 @@ function buildSitePrompt(input: ComposerInput): string {
     `  ${type}: ${Object.keys(variants).join(', ')}`
   ).join('\n')
 
-  // Industry-specific recipe overrides. Food trucks get a fundamentally
-  // different page model (home → location → menu vs home → services → cta)
-  // because the customer journey is "where are you / what do you serve"
-  // not "what do you do / get a quote." If we add more vertical-specific
-  // recipe overrides, layer them in the same way.
-  const ft = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(input.businessType || '')
-  const recipes = ft ? FOODTRUCK_PAGE_RECIPES : PAGE_RECIPES
+  // Industry-specific recipe overrides. Each vertical that needs a
+  // fundamentally different page model gets its own recipe set; the
+  // generic 4-page PAGE_RECIPES is the fallback.
+  const businessType = input.businessType || ''
+  const ft = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessType)
+  const dispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessType)
+  const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
+    ? FOODTRUCK_PAGE_RECIPES
+    : dispensary
+      ? DISPENSARY_PAGE_RECIPES
+      : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -589,7 +653,41 @@ Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
 ${photosSection}
-${ft ? `
+${dispensary ? `
+# Industry note — CANNABIS DISPENSARY
+This is a cannabis dispensary. Industry-specific guidance:
+
+1. Age-gate the home page. Include an age/modal section as the FIRST section
+   of the home page. gateAge is 21 in adult-use states, 18 in some medical-only
+   states. Don't editorialize the gate copy — keep it short and legally clean.
+2. The strain catalog IS the product. Lead the home page with a featured
+   strain/grid (3-6 items), then push customers to /strains for the full
+   filterable catalog. Each strain has a real name (Blue Dream, Wedding Cake,
+   GG4, etc.), realistic THC% (typically 16-28% for flower), CBD% if relevant,
+   indica/sativa/hybrid, top 2-3 effects, top 2 terpenes (myrcene, limonene,
+   pinene, caryophyllene, linalool, terpinolene), and a believable price
+   (eighth: $25-65 depending on tier).
+3. NEVER fabricate exact potency numbers. Use realistic ranges and round to
+   whole percents. If the intake doesn't supply specific products, generate
+   plausible strain names + realistic numbers but make clear via copy these
+   are sample strains.
+4. Voice — banned phrases for this vertical (in addition to the global ones):
+   "elevated cannabis experience", "compassionate care" (used by many but
+   reads like home-health language), "premier dispensary", "top-shelf",
+   "curated for connoisseurs", "ultra-premium". Use specific language:
+   "Michigan-grown indoor flower from 4 farms within 60 miles", "small-batch
+   live rosin pressed in-house", "no-pesticide flower certified by third-party lab."
+5. Deals strip on home page is mandatory if dispensary mentions any daily/
+   weekly specials. Pattern: "Wax Wednesday", "Senior Sundays", "Industry
+   Mondays", "First-time customer 20% off". The strip is high-frequency
+   change content — it's what brings regulars back.
+6. Stats/bar should anchor real numbers if the intake supports them: years
+   in business, awards, partner growers, lab-test pass rate. Don't fabricate.
+7. SEO play: include 2-3 strain-education FAQ items even if not requested
+   ("what's the difference between indica and sativa", "how is THC different
+   from CBD", "how do terpenes affect the experience"). These bring top-
+   funnel organic search.
+` : ''}${ft ? `
 # Industry note — FOOD TRUCK
 This is a food truck (mobile food business). The customer journey is different
 from a generic service business:
@@ -662,6 +760,9 @@ location/live-map: { "heading": "...", "intro": "...", "currentAddress": "...", 
 schedule/week-strip: { "heading": "...", "intro": "...", "days": [{ "dayLabel": "Tue", "location": "Dane County Farmers Market", "hours": "9am – 1pm", "tag": "Market" }] }
 catering/inquiry-form: { "heading": "...", "intro": "...", "minHeadcount": <number>, "leadTimeWeeks": <number>, "venueTypes": ["Wedding", "Birthday", "Corporate"], "responsePromise": "..." }
 social/feed: { "heading": "...", "intro": "...", "handle": "@username", "platform": "instagram", "limit": 9 }
+age/modal: { "gateAge": 21, "heading": "Are you 21 or older?", "message": "<short legal copy>", "stateSelector": <bool>, "exitUrl": "https://google.com" }
+strain/grid: { "heading": "...", "intro": "...", "filters": ["indica", "sativa", "hybrid"], "items": [{ "name": "Blue Dream", "type": "Hybrid", "thc": "21%", "cbd": "0.5%", "effects": ["relaxed", "creative"], "terpenes": ["myrcene", "pinene"], "price": "$45/eighth", "image": "<url>" }] }
+deals/strip: { "heading": "Today's specials", "intro": "...", "expiresLabel": "Today only", "items": [{ "title": "Wax Wednesday", "description": "30% off concentrates", "validThrough": "..." }] }
 
 # Output schema (strict)
 {
@@ -763,14 +864,16 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     console.log('[Composer] home sections length:', parsed.pages?.home?.sections?.length)
   }
 
-  // Page set is determined by industry — food trucks need different pages
-  // (menu/schedule/catering) than the generic 4-page model. Derived from
-  // whichever recipe set was used for the prompt above so the LLM output
-  // matches what we're looking for.
-  const isFoodTruck = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(input.businessType || '')
+  // Page set is determined by industry — different verticals get different
+  // page recipes. Generic fallback is the 4-page model.
+  const businessTypeIn = input.businessType || ''
+  const isFoodTruck = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessTypeIn)
+  const isDispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
-    : Object.keys(PAGE_RECIPES)
+    : isDispensary
+      ? Object.keys(DISPENSARY_PAGE_RECIPES)
+      : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {

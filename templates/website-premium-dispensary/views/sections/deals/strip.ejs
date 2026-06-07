@@ -1,0 +1,29 @@
+<%
+  // Horizontal scroll of today's deals. Each card: deal title, brief
+  // description, valid-through date. Small "today only" badge on the
+  // most-time-sensitive items.
+  const heading = data.heading || "Today's deals"
+  const intro = data.intro || ''
+  const expiresLabel = data.expiresLabel || ''
+  const items = Array.isArray(data.items) ? data.items.filter(i => i && i.title) : []
+  if (items.length === 0) return
+%>
+<section id="deals" class="deals deals--strip">
+  <div class="container">
+    <div class="deals__head">
+      <h2 class="section-title deals__title"><%= heading %></h2>
+      <% if (intro) { %><p class="deals__intro"><%= intro %></p><% } %>
+      <% if (expiresLabel) { %><span class="deals__expires-label"><%= expiresLabel %></span><% } %>
+    </div>
+    <ol class="deals__strip" role="list">
+      <% for (let i = 0; i < items.length; i++) { const d = items[i]; %>
+        <li class="deals-card">
+          <% if (d.badge) { %><span class="deals-card__badge"><%= d.badge %></span><% } %>
+          <h3 class="deals-card__title"><%= d.title %></h3>
+          <% if (d.description) { %><p class="deals-card__desc"><%= d.description %></p><% } %>
+          <% if (d.validThrough) { %><div class="deals-card__valid mono">Through <%= d.validThrough %></div><% } %>
+        </li>
+      <% } %>
+    </ol>
+  </div>
+</section>

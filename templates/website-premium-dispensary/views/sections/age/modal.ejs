@@ -1,0 +1,70 @@
+<%
+  // Age-gate modal. Renders inline at the top of the page but uses CSS +
+  // a tiny JS shim to (a) hide once dismissed (localStorage), and (b)
+  // prevent the rest of the page from scrolling while it's open.
+  // Compliant approach: explicit DOB or 21+/18+ confirmation, optional
+  // state selector for jurisdictional compliance, "leave site" exit link
+  // for under-age visitors.
+  const gateAge = parseInt(data.gateAge || 21, 10) || 21
+  const heading = data.heading || ('Are you ' + gateAge + ' or older?')
+  const message = data.message || 'You must be ' + gateAge + ' or older to view this site. Please confirm your age to continue.'
+  const showStates = data.stateSelector !== false
+  const exitUrl = data.exitUrl || 'https://www.google.com/'
+%>
+<div id="age-gate" class="age-gate" role="dialog" aria-modal="true" aria-labelledby="age-gate-h">
+  <div class="age-gate__card">
+    <div class="age-gate__head">
+      <h2 id="age-gate-h" class="age-gate__title"><%= heading %></h2>
+      <p class="age-gate__msg"><%= message %></p>
+    </div>
+    <% if (showStates) { %>
+      <label class="age-gate__state">
+        <span>Your state</span>
+        <select id="age-gate-state" autocomplete="off">
+          <option value="">Choose…</option>
+          <option>Alabama</option><option>Alaska</option><option>Arizona</option><option>Arkansas</option>
+          <option>California</option><option>Colorado</option><option>Connecticut</option><option>Delaware</option>
+          <option>Florida</option><option>Georgia</option><option>Hawaii</option><option>Idaho</option>
+          <option>Illinois</option><option>Indiana</option><option>Iowa</option><option>Kansas</option>
+          <option>Kentucky</option><option>Louisiana</option><option>Maine</option><option>Maryland</option>
+          <option>Massachusetts</option><option>Michigan</option><option>Minnesota</option><option>Mississippi</option>
+          <option>Missouri</option><option>Montana</option><option>Nebraska</option><option>Nevada</option>
+          <option>New Hampshire</option><option>New Jersey</option><option>New Mexico</option><option>New York</option>
+          <option>North Carolina</option><option>North Dakota</option><option>Ohio</option><option>Oklahoma</option>
+          <option>Oregon</option><option>Pennsylvania</option><option>Rhode Island</option><option>South Carolina</option>
+          <option>South Dakota</option><option>Tennessee</option><option>Texas</option><option>Utah</option>
+          <option>Vermont</option><option>Virginia</option><option>Washington</option><option>West Virginia</option>
+          <option>Wisconsin</option><option>Wyoming</option>
+        </select>
+      </label>
+    <% } %>
+    <div class="age-gate__actions">
+      <button id="age-gate-yes" type="button" class="btn btn--xl btn--primary">I'm <%= gateAge %> or older</button>
+      <a id="age-gate-no" class="btn btn--xl btn--ghost" href="<%= exitUrl %>">I'm not</a>
+    </div>
+    <p class="age-gate__fine">By entering this site, you confirm you are of legal age in your jurisdiction. We do not share, sell, or store the information you enter here beyond your browser.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var KEY = 'ag_v1';
+  var gate = document.getElementById('age-gate');
+  if (!gate) return;
+  try {
+    if (localStorage.getItem(KEY) === 'ok') {
+      gate.remove();
+      return;
+    }
+  } catch(e) {}
+  document.documentElement.classList.add('age-gate-on');
+  var yes = document.getElementById('age-gate-yes');
+  var state = document.getElementById('age-gate-state');
+  if (yes) yes.addEventListener('click', function(){
+    if (state && state.value === '') { state.focus(); state.style.borderColor = '#c2410c'; return; }
+    try { localStorage.setItem(KEY, 'ok'); } catch(e) {}
+    gate.classList.add('age-gate--leaving');
+    document.documentElement.classList.remove('age-gate-on');
+    setTimeout(function(){ gate.remove(); }, 250);
+  });
+})();
+</script>
