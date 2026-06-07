@@ -1367,7 +1367,13 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(_btForTokens) ||
     /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(_btForTokens) ||
     /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(_btForTokens)
-  const maxTokens = _isExtended ? 16000 : 8000
+  // 6-page extended verticals run 25-30 sections of rich data (menu items
+  // with descriptions + prices + dietary, strain catalogs, before/after
+  // items with image URLs + captions, FAQ items, etc.). The 16K cap
+  // started silently truncating for restaurant (28 sections; data: {}
+  // empty across the board). 32K gives Opus plenty of headroom while
+  // still being a fraction of its 200K context limit.
+  const maxTokens = _isExtended ? 32000 : 8000
 
   const callOnce = async (extraSystem?: string) => {
     return anthropic.messages.create({
