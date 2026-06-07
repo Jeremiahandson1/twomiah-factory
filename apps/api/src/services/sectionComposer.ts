@@ -636,6 +636,34 @@ const RESTAURANT_PAGE_RECIPES = {
   },
 } as const
 
+// Cafe (coffee shop, tea room, neighborhood café, bakery-café). Walk-in
+// only — no reservation widget. Daily-changing specials matter more than
+// menu (regulars come for the new seasonal latte). Cozy atmosphere is
+// the differentiator vs Starbucks. Founder/roaster story is the trust
+// signal — "we roast on a 5kg Diedrich" beats "premium coffee".
+const CAFE_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a neighborhood café. Hero + today\'s feature drink + signature menu items + atmosphere. Walk-in only — no reservation widget. SEO targets: "[city] coffee shop", "best latte [city]".',
+    allowed_types: ['hero', 'deals', 'menu', 'about', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (latte-art close-up, the interior at golden hour, or the espresso machine in action — NOT generic coffee-cup-on-saucer stock), optional 1 deals/strip retitled "Today" for daily-changing drink/pastry special, 1 menu/cards (4-8 signature drinks + 2-3 pastries with prices — not the FULL menu), optional 1 about/story snippet (roaster/baker/founder), optional 1 gallery/grid (interior + people + drinks), optional 1 testimonials, close with 1 cta',
+  },
+  menu: {
+    purpose: 'The full café menu — drinks, food, retail beans. SEO target: "[café name] menu".',
+    allowed_types: ['hero', 'menu', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Menu"), 1 menu/cards with the full lineup organized by category (espresso, drip, tea, food, retail), 1 faq (milk alternatives, decaf, allergens, dietary, beans-to-go), close with 1 cta',
+  },
+  about: {
+    purpose: 'Founder + roastery/bakery + sourcing. The trust + voice page.',
+    allowed_types: ['about', 'team', 'stats', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (founder portrait + WHY this café — roastery, baking, neighborhood), optional 1 stats/bar (years, drinks/day, farms sourced from, baristas trained — real anchored numbers), optional 1 team/grid (baristas + roaster + baker), optional 1 gallery (the bar, the roastery, the producers), optional 1 testimonials, close with 1 cta',
+  },
+  visit: {
+    purpose: 'Hours, address, parking, wifi, dog-friendly, accessibility. The "are you open + can I work from there" page.',
+    allowed_types: ['hero', 'contact', 'faq', 'gallery', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Visit"), 1 contact/form-info (address + hours prominent), 1 faq (wifi, outlets, laptop policy, dog-friendly, parking, accessible entry, kid-friendly), optional 1 gallery of the space, close with 1 cta',
+  },
+} as const
+
 // Field service (HVAC / plumbing / electrical / cleaning) — the work
 // model varies meaningfully across these (emergency-first HVAC vs
 // recurring cleaning contracts) but the page set is consistent. The
@@ -878,6 +906,7 @@ function buildSitePrompt(input: ComposerInput): string {
   const homecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessType)
   const fieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessType)
   const restaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessType)
+  const cafe = /^cafe$|^caf[eé]$|^coffee[_-]?shop$|^coffeeshop$|^coffee$|^tea[_-]?room$|^tearoom$|^espresso[_-]?bar$|^bakery[_-]?caf[eé]?$/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
@@ -890,9 +919,11 @@ function buildSitePrompt(input: ComposerInput): string {
             ? HOMECARE_PAGE_RECIPES
             : fieldservice
               ? FIELDSERVICE_PAGE_RECIPES
-              : restaurant
-                ? RESTAURANT_PAGE_RECIPES
-                : PAGE_RECIPES
+              : cafe
+                ? CAFE_PAGE_RECIPES
+                : restaurant
+                  ? RESTAURANT_PAGE_RECIPES
+                  : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -994,6 +1025,48 @@ This is a sit-down restaurant. Guidance:
 8. Private dining is a high-margin page when the intake mentions
    buyouts, private events, holiday parties — use the
    /private-dining page recipe.
+` : ''}${cafe ? `
+# Industry note — CAFE (coffee shop, tea room, neighborhood café)
+This is a walk-in café. Guidance:
+
+1. NO reservation widget. Cafes are walk-in. The conversion goal is
+   "come visit + try our [feature drink]" — not a booking.
+2. Hero takes a position about THIS café. Anchor in a real fact from
+   the intake: roaster, baker, neighborhood, signature drink, year
+   founded, atmosphere. Patterns:
+   "We roast 5 kg every Tuesday on a Diedrich. The Ethiopian Yirgacheffe
+   sells out by Saturday." (in-house roaster)
+   "Twelve seats, one espresso machine, every drink poured by the
+   owner." (owner-operator espresso bar)
+   "Sourdough morning bun. Cardamom roll. Hand-rolled at 4am, gone
+   by 11." (bakery-café)
+3. Banned phrases (in addition to the global list): "your neighborhood
+   coffee experience", "premium coffee", "artisan blend", "passion for
+   coffee", "perfectly crafted", "exceptional brew", "your daily ritual",
+   "third place", "café experience", "where coffee lovers gather". This
+   vocabulary signals corporate-clone. Replace with the actual roaster
+   name, the actual bean origin, the actual baker's name, the specific
+   pastry that sells out first.
+4. menu/cards on home shows 4-8 SIGNATURE items, not the full menu (that
+   lives on /menu). Each item: actual name (Cortado, Iced Honey Latte,
+   Cardamom Bun), actual price, one-sentence description with sensory
+   detail. Realistic 2026 café pricing: espresso $3.50-4, cortado
+   $4.50-5, latte $5.50-6.50, drip $3.50-4.50, pour-over $5-7,
+   pastries $4-6, breakfast sandwich $9-13, bowls $13-17.
+5. "Today" specials uses deals/strip retitled — daily-rotating items.
+   Only include if the intake suggests they rotate (seasonal lattes,
+   daily pastry, soup of the day).
+6. Founder/roaster/baker about/story matters. The "why this café" is
+   usually the founder's biography or the bean-sourcing story. Pull
+   from intake fields ownerName + description.
+7. Photography: hero should be latte art close-up, the interior at
+   golden hour, the espresso machine in action, or pastries cooling.
+   NOT a generic coffee-cup-on-saucer. If customerPhotos has drinks
+   or interior shots, use those over Unsplash.
+8. Visit page is the conversion page — not "contact". Lead with
+   hours and address. faq covers wifi, outlets, laptop policy,
+   dog-friendly, parking, accessibility, kid-friendly. These are
+   the actual questions customers ask before deciding to drive over.
 ` : ''}${fieldservice ? `
 # Industry note — FIELD SERVICE (HVAC / plumbing / electrical / cleaning)
 The work model varies within this template. Read the intake first:
@@ -1428,6 +1501,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isHomecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessTypeIn)
   const isFieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessTypeIn)
   const isRestaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessTypeIn)
+  const isCafe = /^cafe$|^caf[eé]$|^coffee[_-]?shop$|^coffeeshop$|^coffee$|^tea[_-]?room$|^tearoom$|^espresso[_-]?bar$|^bakery[_-]?caf[eé]?$/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
@@ -1440,9 +1514,11 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
             ? Object.keys(HOMECARE_PAGE_RECIPES)
             : isFieldservice
               ? Object.keys(FIELDSERVICE_PAGE_RECIPES)
-              : isRestaurant
-                ? Object.keys(RESTAURANT_PAGE_RECIPES)
-                : Object.keys(PAGE_RECIPES)
+              : isCafe
+                ? Object.keys(CAFE_PAGE_RECIPES)
+                : isRestaurant
+                  ? Object.keys(RESTAURANT_PAGE_RECIPES)
+                  : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {
