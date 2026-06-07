@@ -23,11 +23,15 @@ for (const rawLine of envContent.split('\n')) {
   if (match) envVars[match[1].trim()] = match[2].trim()
 }
 
-const STRIPE_KEY = envVars.STRIPE_SECRET_KEY
+// process.env wins over .env so callers like flip-stripe-to-live.ts can
+// override the key when spawning this script. Without this, the override
+// is silently ignored and prices get minted in whichever mode .env says.
+const STRIPE_KEY = process.env.STRIPE_SECRET_KEY || envVars.STRIPE_SECRET_KEY
 if (!STRIPE_KEY) {
-  console.error('ERROR: STRIPE_SECRET_KEY not found in apps/api/.env')
+  console.error('ERROR: STRIPE_SECRET_KEY not found in process.env or apps/api/.env')
   process.exit(1)
 }
+console.log('Stripe mode:', STRIPE_KEY.startsWith('sk_live_') ? 'LIVE' : 'TEST')
 
 const stripe = new Stripe(STRIPE_KEY)
 
