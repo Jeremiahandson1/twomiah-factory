@@ -1,0 +1,105 @@
+<%
+  // Live "where are you right now" Mapbox section for food trucks.
+  //
+  // The map is rendered with Mapbox GL JS using the factory's platform
+  // public token (set in settings.mapboxPublicToken by the deploy pipeline
+  // — owner doesn't supply it). Origin-restricted at the Mapbox dashboard.
+  //
+  // currentAddress is owner-editable from the admin and gets POSTed
+  // to /api/internal/location as they move during service. mapCenter
+  // is the lat/lng pair to drop the truck pin on.
+  //
+  // smsOptIn (boolean) toggles the "Text me when you're within 5 miles"
+  // widget which collects phone+ZIP and routes to the tenant's Twilio.
+  const heading = data.heading || "Where we're at"
+  const intro = data.intro || ''
+  const currentAddress = data.currentAddress || ''
+  const currentUntil = data.currentUntil || ''
+  const mapCenter = Array.isArray(data.mapCenter) && data.mapCenter.length === 2 ? data.mapCenter : null
+  const mapZoom = typeof data.mapZoom === 'number' ? data.mapZoom : 13
+  const recent = Array.isArray(data.recentLocations) ? data.recentLocations : []
+  const smsOptIn = data.smsOptIn !== false  // default ON; explicit false to hide
+  const mapboxToken = (settings && settings.mapboxPublicToken) || ''
+  const isOpenNow = !!currentAddress && !!currentUntil
+%>
+<section id="location" class="location location--live">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title"><%= heading %></h2>
+      <% if (intro) { %><p class="section-intro"><%= intro %></p><% } %>
+    </div>
+    <div class="location__layout">
+      <div class="location__map-wrap">
+        <% if (mapboxToken && mapCenter) { %>
+          <div id="ft-map" class="location__map" aria-label="Map showing current truck location" data-token="<%= mapboxToken %>" data-lat="<%= mapCenter[0] %>" data-lng="<%= mapCenter[1] %>" data-zoom="<%= mapZoom %>"></div>
+          <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css">
+          <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js" defer></script>
+          <script>
+            window.addEventListener('load', function() {
+              if (typeof mapboxgl === 'undefined') return;
+              var el = document.getElementById('ft-map');
+              if (!el) return;
+              mapboxgl.accessToken = el.dataset.token;
+              var lat = parseFloat(el.dataset.lat), lng = parseFloat(el.dataset.lng);
+              var map = new mapboxgl.Map({
+                container: 'ft-map',
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [lng, lat],
+                zoom: parseFloat(el.dataset.zoom) || 13,
+                attributionControl: false,
+              });
+              // Custom truck pin — pulse ring if open now.
+              var pin = document.createElement('div');
+              pin.className = 'truck-pin' + (<%= isOpenNow ? 'true' : 'false' %> ? ' truck-pin--open' : '');
+              pin.innerHTML = '<div class="truck-pin__inner" aria-hidden="true"></div>';
+              new mapboxgl.Marker({ element: pin }).setLngLat([lng, lat]).addTo(map);
+            });
+          </script>
+        <% } else { %>
+          <div class="location__map location__map--placeholder">
+            <% if (!mapboxToken) { %>
+              <p>Map will appear once a Mapbox token is configured on the platform.</p>
+            <% } else { %>
+              <p>Owner will set this week's location from the admin — check back soon.</p>
+            <% } %>
+          </div>
+        <% } %>
+      </div>
+      <aside class="location__side">
+        <% if (currentAddress) { %>
+          <div class="location__current">
+            <div class="location__current-label">Right now</div>
+            <div class="location__current-addr"><%= currentAddress %></div>
+            <% if (currentUntil) { %><div class="location__current-until truck-pin__hours">Open until <%= currentUntil %></div><% } %>
+          </div>
+        <% } else { %>
+          <div class="location__current">
+            <div class="location__current-label">Off duty</div>
+            <div class="location__current-addr">Check the schedule for our next stop.</div>
+          </div>
+        <% } %>
+        <% if (recent.length > 0) { %>
+          <div class="location__recent">
+            <div class="location__recent-label">Recent stops</div>
+            <ul class="location__recent-list">
+              <% for (const r of recent.slice(0, 5)) { %>
+                <li><span class="mono"><%= r.when || '' %></span> <%= r.label || '' %></li>
+              <% } %>
+            </ul>
+          </div>
+        <% } %>
+        <% if (smsOptIn) { %>
+          <form class="location__sms" method="POST" action="/api/sms-subscribe" aria-label="Get a text when the truck is nearby">
+            <div class="location__sms-label">Get a text when we're 5 miles from your block</div>
+            <div class="location__sms-row">
+              <input type="tel" name="phone" required placeholder="Phone" aria-label="Phone number" autocomplete="tel">
+              <input type="text" name="zip" required pattern="[0-9]{5}" placeholder="ZIP" aria-label="ZIP code" inputmode="numeric" autocomplete="postal-code">
+              <button type="submit" class="btn btn--lg btn--primary">Notify me</button>
+            </div>
+            <div class="location__sms-fine">We'll text you when we're within 5 miles. Reply STOP anytime.</div>
+          </form>
+        <% } %>
+      </aside>
+    </div>
+  </div>
+</section>

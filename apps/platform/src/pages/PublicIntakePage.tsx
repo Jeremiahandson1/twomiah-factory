@@ -40,6 +40,7 @@ const INDUSTRIES = [
   { value: 'landscaping', label: 'Landscaping / Lawn Care' },
   { value: 'dispensary', label: 'Cannabis Dispensary' },
   { value: 'restaurant', label: 'Restaurant / Food Service' },
+  { value: 'food_truck', label: 'Food Truck / Mobile Food' },
   { value: 'cafe', label: 'Café / Bakery' },
   { value: 'fitness', label: 'Gym / Fitness / Yoga' },
   { value: 'salon', label: 'Salon / Spa / Beauty' },

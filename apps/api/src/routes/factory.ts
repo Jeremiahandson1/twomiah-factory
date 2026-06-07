@@ -3882,12 +3882,12 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       previewUrl: `${origin}/api/v1/factory/public/intake/${id}/preview-premium`,
       generatedAt,
       rationale: composed.rationale,
-      sections: {
-        home: composed.pages.home.sections.map(s => s.type + '/' + s.variant),
-        about: composed.pages.about.sections.map(s => s.type + '/' + s.variant),
-        services: composed.pages.services.sections.map(s => s.type + '/' + s.variant),
-        contact: composed.pages.contact.sections.map(s => s.type + '/' + s.variant),
-      },
+      sections: Object.fromEntries(
+        Object.entries(composed.pages).map(([page, p]) => [
+          page,
+          (p as { sections: { type: string; variant: string }[] }).sections.map(s => s.type + '/' + s.variant),
+        ])
+      ),
     })
   } catch (err: any) {
     console.error('[PremiumPreview] Compose failed:', err?.message || err)
@@ -3897,6 +3897,7 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
 
 const PREMIUM_PAGE_TITLES: Record<string, string> = {
   home: 'Home', about: 'About', services: 'Services', contact: 'Contact',
+  menu: 'Menu', schedule: 'Schedule', catering: 'Catering',
 }
 
 async function renderPremiumPreviewPage(id: string, slug: string, c: any) {

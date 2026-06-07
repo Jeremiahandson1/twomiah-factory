@@ -1,0 +1,37 @@
+<%
+  // Split hero: copy on the left, image on the right (or reverse via
+  // data.flip). For businesses where the message is the lead, not the
+  // photo — and where two pieces of equal weight read better than a
+  // single dominant image.
+  const flip = !!data.flip
+  const eyebrow = data.eyebrow || ''
+  const title = data.title || ''
+  const subtitle = data.subtitle || ''
+  const image = data.image || ''
+  const primaryCta = data.primaryCta || null
+  const secondaryCta = data.secondaryCta || null
+  const stats = Array.isArray(data.stats) ? data.stats : []
+%>
+<section class="hero hero--split <%= flip ? 'hero--split-flip' : '' %>">
+  <div class="container hero__split-grid">
+    <div class="hero__copy">
+      <% if (eyebrow) { %><div class="hero__eyebrow"><%= eyebrow %></div><% } %>
+      <h1 class="hero__title"><%= title %></h1>
+      <% if (subtitle) { %><p class="hero__subtitle"><%= subtitle %></p><% } %>
+      <% if (primaryCta || secondaryCta) { %>
+        <div class="hero__ctas">
+          <% if (primaryCta) { %><a class="btn btn--primary btn--lg" href="<%= primaryCta.href || '#contact' %>"><%= primaryCta.label %></a><% } %>
+          <% if (secondaryCta) { %><a class="btn btn--outline btn--lg" href="<%= secondaryCta.href || '#services' %>"><%= secondaryCta.label %></a><% } %>
+        </div>
+      <% } %>
+      <% if (stats.length) { %>
+        <div class="hero__stats">
+          <% for (const s of stats) { %>
+            <div class="hero__stat"><div class="hero__stat-num"><%= s.value %></div><div class="hero__stat-label"><%= s.label %></div></div>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+    <div class="hero__image" style="background-image: url('<%= image %>')"></div>
+  </div>
+</section>

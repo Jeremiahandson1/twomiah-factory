@@ -36,6 +36,7 @@ export type PremiumWebsiteTemplate =
   | 'website-premium-landscaping'
   | 'website-premium-dispensary'
   | 'website-premium-showcase'
+  | 'website-premium-foodtruck'
 
 export type LegacyWebsiteTemplate =
   | 'website-general'
@@ -55,6 +56,7 @@ export type Vertical =
   | 'landscaping'
   | 'dispensary'
   | 'showcase'
+  | 'foodtruck'
 
 // ─── Industry sets per vertical ─────────────────────────────────────
 // These are the strings the intake form / wizard / API may receive.
@@ -96,9 +98,14 @@ export const FIELDSERVICE_INDUSTRIES = new Set([
 ])
 
 export const SHOWCASE_INDUSTRIES = new Set([
-  'food', 'restaurant', 'hospitality', 'hotel', 'cafe',
+  'restaurant', 'hospitality', 'hotel', 'cafe',
   'fitness', 'gym', 'yoga', 'beauty', 'salon', 'spa',
   'events', 'wedding', 'catering', 'photography',
+])
+
+export const FOODTRUCK_INDUSTRIES = new Set([
+  'food_truck', 'foodtruck', 'food', 'mobile_food',
+  'food_cart', 'mobile_kitchen', 'pop_up_kitchen',
 ])
 
 export const CONTRACTOR_INDUSTRIES = new Set([
@@ -132,11 +139,21 @@ export function normalizeIndustry(input: string | undefined | null): string {
   s = s.replace(/^cleaning_services$/, 'cleaning')
   s = s.replace(/^house_keeping$/, 'cleaning')
   s = s.replace(/^housekeeping$/, 'cleaning')
+  // Food truck variants: people type "mobile food", "food truck",
+  // "foodtruck", "food cart", "mobile kitchen" — all should route to
+  // the dedicated food truck template, not the generic showcase.
+  s = s.replace(/^food_truck_business$/, 'food_truck')
+  s = s.replace(/^mobile_food_truck$/, 'food_truck')
+  s = s.replace(/^food_trucks$/, 'food_truck')
   return s
 }
 
 export function verticalFor(industry: string | undefined | null): Vertical {
   const i = normalizeIndustry(industry)
+  // Food truck must check BEFORE showcase — 'food' used to fall through
+  // to showcase (restaurant template); now it goes to the dedicated
+  // food truck template which is purpose-built for mobile food.
+  if (FOODTRUCK_INDUSTRIES.has(i)) return 'foodtruck'
   if (ROOFING_INDUSTRIES.has(i)) return 'roofing'
   if (HOMECARE_INDUSTRIES.has(i)) return 'homecare'
   if (DISPENSARY_INDUSTRIES.has(i)) return 'dispensary'
@@ -162,6 +179,10 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     // workflows. Default to the contractor base, which is the most
     // general-purpose CRM we have (contacts, jobs, invoices).
     case 'showcase':     return 'crm'
+    // Food trucks share the showcase CRM model — contacts (catering
+    // leads), jobs (events), invoices. No specialized truck-CRM
+    // template yet; the contractor base is the right fit.
+    case 'foodtruck':    return 'crm'
     case 'contractor':   return 'crm'
   }
 }
@@ -184,6 +205,9 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
     landscaping:  'website-landscaping',
     dispensary:   'website-dispensary',
     showcase:     'website-showcase',
+    // No legacy food truck template — falls back to website-general.
+    // Premium customers always get the dedicated foodtruck template.
+    foodtruck:    'website-general' as LegacyWebsiteTemplate,
   }
   return map[v] || 'website-general'
 }
@@ -207,6 +231,7 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'landscaping':  return 'landscape'
     case 'dispensary':   return 'leaf'
     case 'showcase':     return ''     // shares the contractor base CRM
+    case 'foodtruck':    return ''     // shares the contractor base CRM
     case 'contractor':   return ''
   }
 }

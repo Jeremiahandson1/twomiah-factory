@@ -1,0 +1,16 @@
+{
+  "companyName": "Ridge & Field",
+  "tagline": "A farm-to-table dinner house in the Driftless region",
+  "phone": "608-555-8866",
+  "email": "table@ridgeandfield.com",
+  "seoTitle": "Ridge & Field — A farm-to-table dinner house | Mineral Point, WI",
+  "seoDescription": "Five-course tasting menus from a Driftless-region kitchen sourcing within 30 miles. Reservations Tuesday through Saturday.",
+  "homeHref": "index.html",
+  "contactHref": "contact.html",
+  "contactCtaLabel": "Reservations",
+  "nav": [
+    { "label": "Menu", "href": "services.html" },
+    { "label": "About", "href": "about.html" },
+    { "label": "Visit", "href": "contact.html" }
+  ]
+}

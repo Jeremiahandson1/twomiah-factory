@@ -165,6 +165,46 @@ export const SECTION_SCHEMA = {
       use_when: 'pre-empt the 5-8 most common buyer questions for this business — pricing, process, lead time, coverage area, what is included, what to expect, scheduling, payment, warranty/guarantee. Strong SEO win. PROACTIVELY GENERATE these questions from the business description even when the intake didn\'t explicitly ask for an FAQ — the questions and answers should be plausibly true given what the business said about itself.',
     },
   },
+  // ─── Food truck-specific section types ─────────────────────────────────
+  // Available to food_truck industry. Showcase / restaurant / cafe verticals
+  // can use them too where appropriate (e.g. a restaurant with a true daily
+  // menu benefits from menu/cards, a beach-pop-up cafe might use
+  // location/live-map).
+  menu: {
+    cards: {
+      required: ['items'],
+      optional: ['heading', 'intro', 'dietary_legend'],
+      use_when: 'food businesses with a real menu — food truck, restaurant, cafe, bakery. Each item has name, price, description, dietary tags (GF/V/DF/contains nut), optional image. Filter chips above the grid. Better than services/cards-grid for food because it surfaces price and dietary at-a-glance.',
+    },
+  },
+  location: {
+    'live-map': {
+      required: ['heading'],
+      optional: ['intro', 'currentAddress', 'currentUntil', 'recentLocations', 'mapCenter', 'mapZoom', 'smsOptIn'],
+      use_when: 'food trucks and other mobile businesses — embeds a Mapbox map showing the truck right now. "Open until 8pm" status badge, last 3-5 recent stops as a small list under the map. Optional SMS opt-in ("Text me when you\'re within 5 miles") wired to the tenant\'s Twilio.',
+    },
+  },
+  schedule: {
+    'week-strip': {
+      required: ['days'],
+      optional: ['heading', 'intro'],
+      use_when: 'food truck or pop-up business — horizontal scroll of the next 7 days with location + hours per day. Tagged "Market" / "Private Event" / "Catering" / "Closed" per day. Beats a buried calendar — gives a one-glance answer to "where will you be this week".',
+    },
+  },
+  catering: {
+    'inquiry-form': {
+      required: ['heading'],
+      optional: ['intro', 'minHeadcount', 'leadTimeWeeks', 'venueTypes', 'responsePromise'],
+      use_when: 'food businesses with catering revenue — food truck, restaurant, cafe doing private events. Different from a generic contact form: collects event date, headcount, venue type (wedding/birthday/corporate/community), and special dietary needs. Highest-margin lead type for food trucks.',
+    },
+  },
+  social: {
+    feed: {
+      required: ['handle'],
+      optional: ['heading', 'intro', 'platform', 'limit'],
+      use_when: 'businesses where social IS the marketing — food trucks (Instagram is lifeblood), salons (stylist work), gyms (transformations). Embeds the 6-9 most recent posts in a responsive grid with hover-to-see-caption.',
+    },
+  },
 } as const
 
 type SectionType = keyof typeof SECTION_SCHEMA
@@ -401,12 +441,12 @@ export async function composeHomepageSections(input: ComposerInput): Promise<Com
 // ─── Multi-page composer ─────────────────────────────────────────────────
 
 export interface SiteResult {
-  pages: {
-    home: ComposerResult
-    about: ComposerResult
-    services: ComposerResult
-    contact: ComposerResult
-  }
+  // Page set varies by industry — generic verticals get home/about/services/contact,
+  // food trucks get home/menu/about/schedule/catering/contact, future verticals
+  // will define their own recipe sets. Keys are always strings, values always
+  // have a `sections` array; downstream renderers iterate over whatever keys
+  // are present.
+  pages: Record<string, ComposerResult>
   rationale?: string
 }
 
@@ -440,12 +480,58 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Food trucks are a fundamentally different business model from generic
+// services — location matters more than "services", menu is the second
+// most important thing after location, social-following IS the marketing.
+// Override the recipes accordingly. Selected by buildSitePrompt when
+// input.businessType maps to the foodtruck vertical.
+const FOODTRUCK_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a mobile food business. Answer "where are you right now" and "what do you serve" in the first three seconds.',
+    allowed_types: ['hero', 'location', 'menu', 'social', 'gallery', 'cta'],
+    required_sequence: '1 hero/full-bleed (truck/owner/signature dish, NOT a stock food photo), then 1 location/live-map (current address + open until + recent stops), then 1 menu/cards (3-6 signature items with price + dietary), optionally 1 social/feed or 1 gallery/grid, close with 1 cta/banner directing to catering or schedule',
+  },
+  menu: {
+    purpose: 'The menu page. Full menu — every item, price, dietary, description. The page people land on from a "what do you serve" Google search.',
+    allowed_types: ['hero', 'menu', 'gallery', 'cta'],
+    required_sequence: 'optional 1 hero/centered-stats with menu-board feel (eyebrow="The menu"), 1 menu/cards with the full lineup, optional 1 gallery/grid if customer has food photos, close with 1 cta directing to catering or schedule',
+  },
+  about: {
+    purpose: 'The owner-story page. Food truck customers want to know WHO is cooking — chef-owner background, what made them quit their day job, why this food.',
+    allowed_types: ['about', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (portrait of the owner + 2-4 paragraphs of voice-of-the-chef), optional 1 gallery (in-the-kitchen / behind-the-truck shots) or 1 testimonials block, close with 1 cta',
+  },
+  schedule: {
+    purpose: 'Where to find the truck this week + how to book private events.',
+    allowed_types: ['hero', 'schedule', 'location', 'cta'],
+    required_sequence: 'optional short 1 hero (eyebrow="This week"), 1 schedule/week-strip with day-by-day breakdown, optional 1 location/live-map showing current spot, close with 1 cta',
+  },
+  catering: {
+    purpose: 'Convert private-event leads — weddings, corporate parties, birthdays. Highest-margin revenue source for most trucks.',
+    allowed_types: ['hero', 'catering', 'gallery', 'faq', 'cta'],
+    required_sequence: '1 hero/full-bleed (wedding or event photo), 1 catering/inquiry-form (with event date, headcount, venue type), optional 1 gallery/grid showing past events, 1 faq/accordion (lead time, headcount range, deposit), close with 1 cta',
+  },
+  contact: {
+    purpose: 'Conversion page for the rest — questions, press, vendor offers.',
+    allowed_types: ['hero', 'contact', 'social', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 social/feed under the form (food truck visitors want to follow on IG), optional 1 faq',
+  },
+} as const
+
 function buildSitePrompt(input: ComposerInput): string {
   const schemaSummary = Object.entries(SECTION_SCHEMA).map(([type, variants]) =>
     `  ${type}: ${Object.keys(variants).join(', ')}`
   ).join('\n')
 
-  const recipesSummary = Object.entries(PAGE_RECIPES).map(([page, recipe]) =>
+  // Industry-specific recipe overrides. Food trucks get a fundamentally
+  // different page model (home → location → menu vs home → services → cta)
+  // because the customer journey is "where are you / what do you serve"
+  // not "what do you do / get a quote." If we add more vertical-specific
+  // recipe overrides, layer them in the same way.
+  const ft = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(input.businessType || '')
+  const recipes = ft ? FOODTRUCK_PAGE_RECIPES : PAGE_RECIPES
+
+  const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
   ).join('\n')
 
@@ -503,9 +589,38 @@ Phone: ${input.phone || ''}
 Email: ${input.email || ''}
 Service area: ${[input.city, ...(input.nearbyCities || [])].filter(Boolean).join(', ')}
 ${photosSection}
+${ft ? `
+# Industry note — FOOD TRUCK
+This is a food truck (mobile food business). The customer journey is different
+from a generic service business:
+
+1. The single biggest question a visitor has is "where can I find you?". Answer
+   that first. The home page leads with location, not "services."
+2. The second biggest question is "what do you serve?". Menu is prominent —
+   not buried inside a "services" section. Use the menu/cards section type,
+   not services/cards-grid. Items have NAMES, PRICES, DESCRIPTIONS, DIETARY
+   TAGS (GF / V / DF / contains nut / spicy) — show all of them.
+3. Catering / private events / weddings are typically the highest-margin
+   revenue. Surface a catering page with its own inquiry form (catering/inquiry-form,
+   NOT contact/form-info — they collect different fields). Mention typical
+   lead time, headcount range, deposit posture.
+4. Social media — especially Instagram — IS the marketing for most trucks.
+   If the intake mentions IG or describes regular posting, include a social/feed
+   section. Use the handle the intake gives you (otherwise omit).
+5. The truck's voice is the chef-owner's voice. Specific, sensory, no
+   marketing-speak. "Five dollar tacos. Three kinds. Tuesdays at the brewery."
+   NOT "Premier mobile dining experience." Stats anchored in real facts from
+   the intake (years on the road, items on the menu, days/week active).
+6. If the intake hints at a wedding focus (mentions weddings, catering,
+   private events as primary revenue), the catering page is the most important
+   page after home. Lead with availability + date + headcount form.
+7. If the intake hints at a market focus (farmers markets, brewery residencies,
+   regular spots), the schedule page is most important after home. Lead with
+   this-week schedule.
+` : ''}
 
 # Your job
-Compose FOUR pages: home, about, services, contact. Each page is its own ordered list of sections.
+Compose ${ft ? 'SIX' : 'FOUR'} pages: ${Object.keys(recipes).join(', ')}. Each page is its own ordered list of sections.
 
 # Available section types and variants
 
@@ -542,6 +657,11 @@ gallery/grid: { "heading": "...", "intro": "...", "photos": [{ "url": "<url>", "
 testimonials/quotes: { "heading": "...", "intro": "...", "items": [{ "quote": "<customer quote>", "author": "...", "role": "...", "photo": "<headshot url>" }] }
 stats/bar: { "heading": "...", "items": [{ "value": "...", "label": "..." }] }
 faq/accordion: { "heading": "...", "intro": "...", "items": [{ "question": "...", "answer": "..." }] }
+menu/cards: { "heading": "...", "intro": "...", "items": [{ "name": "...", "description": "...", "price": "$X", "dietary": ["GF", "V", "DF"], "image": "<url>" }] }
+location/live-map: { "heading": "...", "intro": "...", "currentAddress": "...", "currentUntil": "...", "recentLocations": [{ "label": "...", "when": "..." }], "smsOptIn": <bool> }
+schedule/week-strip: { "heading": "...", "intro": "...", "days": [{ "dayLabel": "Tue", "location": "Dane County Farmers Market", "hours": "9am – 1pm", "tag": "Market" }] }
+catering/inquiry-form: { "heading": "...", "intro": "...", "minHeadcount": <number>, "leadTimeWeeks": <number>, "venueTypes": ["Wedding", "Birthday", "Corporate"], "responsePromise": "..." }
+social/feed: { "heading": "...", "intro": "...", "handle": "@username", "platform": "instagram", "limit": 9 }
 
 # Output schema (strict)
 {
@@ -643,57 +763,62 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     console.log('[Composer] home sections length:', parsed.pages?.home?.sections?.length)
   }
 
+  // Page set is determined by industry — food trucks need different pages
+  // (menu/schedule/catering) than the generic 4-page model. Derived from
+  // whichever recipe set was used for the prompt above so the LLM output
+  // matches what we're looking for.
+  const isFoodTruck = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(input.businessType || '')
+  const expectedPages: string[] = isFoodTruck
+    ? Object.keys(FOODTRUCK_PAGE_RECIPES)
+    : Object.keys(PAGE_RECIPES)
+
   let pages = parsed.pages || {}
-  let sanitized = {
-    home:     sanitizeSections(pages.home?.sections),
-    about:    sanitizeSections(pages.about?.sections),
-    services: sanitizeSections(pages.services?.sections),
-    contact:  sanitizeSections(pages.contact?.sections),
+  const sanitizeAll = (src: any): Record<string, Section[]> => {
+    const out: Record<string, Section[]> = {}
+    for (const page of expectedPages) {
+      out[page] = sanitizeSections(src[page]?.sections)
+    }
+    return out
   }
+  let sanitized = sanitizeAll(pages)
 
   // Claude occasionally returns a parseable JSON shell where one or more
-  // pages have empty sections arrays — verified during post-fix testing.
-  // When that happens, retry once with explicit instruction to fill every
-  // page. If the retry also returns empty pages, surface a clear error
-  // instead of silently shipping a blank site.
-  const emptyPages = (Object.entries(sanitized) as Array<[string, Section[]]>)
-    .filter(([, sections]) => sections.length === 0)
-    .map(([name]) => name)
+  // pages have empty sections arrays. When that happens, retry once with
+  // explicit instruction to fill every page. If the retry also returns
+  // empty pages, surface a clear error instead of silently shipping a
+  // blank site.
+  const findEmpty = (s: Record<string, Section[]>) =>
+    Object.entries(s).filter(([, sections]) => sections.length === 0).map(([name]) => name)
 
+  const emptyPages = findEmpty(sanitized)
   if (emptyPages.length > 0) {
     if (process.env.COMPOSER_DEBUG) console.log('[Composer] Retrying — empty pages:', emptyPages.join(', '))
     const res3 = await callOnce(
-      'Your previous output had pages with no sections. Every page (home, about, services, contact) MUST have at least 2 sections. ' +
+      `Your previous output had pages with no sections. Every page (${expectedPages.join(', ')}) MUST have at least 2 sections. ` +
       'Empty sections arrays are not acceptable. Compose again, in full.'
     )
     const text3 = res3.content[0]?.type === 'text' ? res3.content[0].text : ''
     const reparsed = tryParse(text3)
     if (reparsed) {
       pages = reparsed.pages || {}
-      sanitized = {
-        home:     sanitizeSections(pages.home?.sections),
-        about:    sanitizeSections(pages.about?.sections),
-        services: sanitizeSections(pages.services?.sections),
-        contact:  sanitizeSections(pages.contact?.sections),
-      }
+      sanitized = sanitizeAll(pages)
       if (typeof reparsed.rationale === 'string') parsed.rationale = reparsed.rationale
     }
 
-    const stillEmpty = (Object.entries(sanitized) as Array<[string, Section[]]>)
-      .filter(([, sections]) => sections.length === 0)
-      .map(([name]) => name)
+    const stillEmpty = findEmpty(sanitized)
     if (stillEmpty.length > 0) {
       throw new Error('Site composer returned empty sections for: ' + stillEmpty.join(', ') + ' (even after retry)')
     }
   }
 
+  // Wrap the section arrays back into { sections } shape per page.
+  const finalPages: Record<string, { sections: Section[] }> = {}
+  for (const page of expectedPages) {
+    finalPages[page] = { sections: sanitized[page] }
+  }
+
   return {
-    pages: {
-      home:     { sections: sanitized.home },
-      about:    { sections: sanitized.about },
-      services: { sections: sanitized.services },
-      contact:  { sections: sanitized.contact },
-    },
+    pages: finalPages,
     rationale: typeof parsed.rationale === 'string' ? parsed.rationale : undefined,
   }
 }
