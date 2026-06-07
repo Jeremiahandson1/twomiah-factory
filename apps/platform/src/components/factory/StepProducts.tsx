@@ -34,7 +34,6 @@ export default function StepProducts({ config, update, onNext, onBack }: Props) 
     update({ products })
   }
 
-  const hasWebsite = config.products.includes('website')
   const isPremium = config.products.includes('website-premium')
   const setPremium = (next: boolean) => {
     const products = next
