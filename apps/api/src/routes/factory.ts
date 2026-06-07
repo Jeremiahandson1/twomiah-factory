@@ -3900,6 +3900,33 @@ const PREMIUM_PAGE_TITLES: Record<string, string> = {
   menu: 'Menu', schedule: 'Schedule', catering: 'Catering',
 }
 
+// Nav labels per page slug. 'home' is omitted (it's the brand logo).
+// 'contact' is omitted because the header CTA points to /contact already
+// — including it in nav doubles up. Vertical-specific slugs (menu,
+// schedule, catering) get the human-readable label for the food truck
+// + similar verticals.
+const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
+  menu: 'Menu',
+  services: 'Services',
+  schedule: 'Find us',
+  catering: 'Catering',
+  about: 'About',
+}
+
+function buildPremiumNav(pageSlugs: string[]): Array<{ label: string; href: string }> {
+  // Stable per-vertical order: menu / services first (the thing they sell),
+  // then "find us / catering" (location/event funnels), then about.
+  const order = ['menu', 'services', 'schedule', 'catering', 'about']
+  const present = new Set(pageSlugs)
+  const out: Array<{ label: string; href: string }> = []
+  for (const slug of order) {
+    if (present.has(slug) && PREMIUM_PAGE_NAV_LABEL[slug]) {
+      out.push({ label: PREMIUM_PAGE_NAV_LABEL[slug], href: slug })
+    }
+  }
+  return out
+}
+
 async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
   const { data: tenant } = await supabase
     .from('tenants')
@@ -3930,6 +3957,10 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
   if (!page) return c.text('Page not found', 404)
 
   const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
+  // Build nav from the actual composed page set so vertical-specific
+  // page slugs (menu, schedule, catering) show up correctly and
+  // verticals without a services page don't get a dead 'Services' link.
+  const composedPageSlugs = Object.keys(composed.pages || {})
   const settings = {
     companyName: tenant.name || 'Your Company',
     tagline: intake.description ? String(intake.description).slice(0, 120) : undefined,
@@ -3937,6 +3968,7 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     email: tenant.email || intake.email,
     seoTitle: tenant.name,
     seoDescription: intake.description,
+    nav: buildPremiumNav(composedPageSlugs),
   }
 
   const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
@@ -4150,6 +4182,7 @@ async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
   if (!page) return c.text('Page not found', 404)
 
   const intake = (tenant.intake_data && tenant.intake_data.intake) || {}
+  const composedPageSlugs = Object.keys(composed.pages || {})
   const settings = {
     companyName: tenant.name || 'Your Company',
     tagline: intake.description ? String(intake.description).slice(0, 120) : undefined,
@@ -4157,6 +4190,7 @@ async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
     email: tenant.email || intake.email,
     seoTitle: tenant.name,
     seoDescription: intake.description,
+    nav: buildPremiumNav(composedPageSlugs),
   }
 
   // basePath is the STAFF route stem with the token preserved, so nav
@@ -4335,20 +4369,23 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   const composed = (tenant.preview_premium_pages || {}) as { pages?: Record<string, { sections: any[] }> }
   const composedPages = composed.pages || {}
 
-  // Normalize the standard 4-page set. Anything missing renders as the
-  // placeholder until the admin adds it. Sections that aren't in the
-  // composed output get an empty array â€” the renderer handles that.
-  const pageDefs = [
-    { slug: 'home',     title: 'Home',     navOrder: 0 },
-    { slug: 'about',    title: 'About',    navOrder: 1 },
-    { slug: 'services', title: 'Services', navOrder: 2 },
-    { slug: 'contact',  title: 'Contact',  navOrder: 3 },
-  ]
-  const pages = pageDefs.map(def => ({
-    slug: def.slug,
-    title: def.title,
-    sections: composedPages[def.slug]?.sections || [],
-    navOrder: def.navOrder,
+  // Page set is whatever the composer actually produced. Generic verticals
+  // get home/about/services/contact; food trucks get home/menu/about/
+  // schedule/catering/contact; future verticals will define their own.
+  // Falls back to the generic 4-page set when no composition exists yet
+  // (e.g. first boot before AI compose completes).
+  const PAGE_TITLE_BY_SLUG: Record<string, string> = {
+    home: 'Home', about: 'About', services: 'Services', contact: 'Contact',
+    menu: 'Menu', schedule: 'Find us', catering: 'Catering',
+  }
+  const FALLBACK_SLUGS = ['home', 'about', 'services', 'contact']
+  const composedSlugs = Object.keys(composedPages)
+  const slugs = composedSlugs.length > 0 ? composedSlugs : FALLBACK_SLUGS
+  const pages = slugs.map((slug, i) => ({
+    slug,
+    title: PAGE_TITLE_BY_SLUG[slug] || slug.charAt(0).toUpperCase() + slug.slice(1),
+    sections: composedPages[slug]?.sections || [],
+    navOrder: i,
     isPublished: true,
   }))
 
@@ -4366,11 +4403,11 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     seoTitle: tenant.name,
     seoDescription: tenant.name + ' â€” Premium website',
     contactCtaLabel: 'Get in touch',
-    nav: [
-      { label: 'About',    href: 'about' },
-      { label: 'Services', href: 'services' },
-      { label: 'Contact',  href: 'contact' },
-    ],
+    // Nav derived from the page set the composer actually produced —
+    // food trucks get Menu/Find us/Catering, generic verticals get
+    // Services/About. Same buildPremiumNav helper used by the preview
+    // endpoints above.
+    nav: buildPremiumNav(pages.map(p => p.slug)),
   }
 
   // Note: admin credentials are NOT returned here. The seed reads them
