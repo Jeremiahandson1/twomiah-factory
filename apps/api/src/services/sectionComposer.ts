@@ -1940,17 +1940,49 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
     } catch { return null }
   }
 
+  // Quality check: Claude occasionally returns valid JSON with empty
+  // hero title (~1 in 4 calls on the longest-guidance verticals — salon,
+  // hotel). The structure parses cleanly but content is a husk: empty
+  // hero, generic "What we do" / "The team" headings, no images. This
+  // looks fine to tryParse but produces an unusable preview for the
+  // customer. Catch it explicitly and retry with a sharper system prompt.
+  const isHusk = (p: any): boolean => {
+    const home = p?.pages?.home?.sections
+    if (!Array.isArray(home) || home.length === 0) return true
+    const hero = home.find((s: any) => s?.type === 'hero')
+    if (!hero) return false
+    const heroTitle = (hero.data?.title || hero.data?.headline || '').trim()
+    return heroTitle.length === 0
+  }
+
   const res1 = await callOnce()
   const text1 = res1.content[0]?.type === 'text' ? res1.content[0].text : ''
   let parsed = tryParse(text1)
+  let rawText = text1
 
   if (!parsed) {
     const res2 = await callOnce('Your previous output was not valid JSON. Output ONLY the raw JSON object.')
     const text2 = res2.content[0]?.type === 'text' ? res2.content[0].text : ''
     parsed = tryParse(text2)
+    rawText = text2
+  } else if (isHusk(parsed)) {
+    // Got JSON but the home page is a husk — same retry pattern but
+    // with a quality-focused nudge instead of a JSON-shape nudge.
+    const res2 = await callOnce(
+      'Your previous output had an empty hero title and generic placeholders. EVERY section must have substantive content drawn from this specific business — actual names, prices, facts, voice from the intake. The hero/full-bleed section MUST have a non-empty `title` field with a concrete, intake-anchored headline. Output ONLY the raw JSON object.'
+    )
+    const text2 = res2.content[0]?.type === 'text' ? res2.content[0].text : ''
+    const parsed2 = tryParse(text2)
+    if (parsed2 && !isHusk(parsed2)) {
+      parsed = parsed2
+      rawText = text2
+    }
+    // If the retry is still a husk, fall through with parsed1 — half a
+    // preview is better than throwing. Customer can request changes.
   }
 
   if (!parsed) throw new Error('Site composer returned un-parseable output after retry')
+  void rawText  // suppress unused-var lint; the variable is read for logging in COMPOSER_DEBUG below
 
   if (process.env.COMPOSER_DEBUG) {
     console.log('[Composer] raw response head:', text1.slice(0, 300))

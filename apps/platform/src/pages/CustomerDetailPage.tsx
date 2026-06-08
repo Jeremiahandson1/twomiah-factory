@@ -21,6 +21,7 @@ type Tenant = {
   stripe_customer_id?: string; stripe_subscription_id?: string
   render_frontend_url?: string; render_backend_url?: string; website_url?: string
   domain?: string
+  twomiah_subdomain?: string | null
 }
 
 type FactoryJob = {
@@ -716,6 +717,39 @@ export default function CustomerDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Twomiah subdomain (auto-attached on premium deploy) */}
+          {tenant.twomiah_subdomain && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+                <Globe size={16} className="text-orange-400" /> Twomiah subdomain
+              </h2>
+              <p className="text-xs text-gray-500 mb-3">
+                Free auto-attached URL. Always works, never breaks, no DNS for the customer. Coexists with any custom domain they add later.
+              </p>
+              <div className="flex items-center gap-2 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2">
+                <a
+                  href={tenant.twomiah_subdomain}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-orange-300 hover:text-orange-200 underline flex-1 truncate"
+                >
+                  {tenant.twomiah_subdomain}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(tenant.twomiah_subdomain || '').catch(() => {})
+                    showToast('Copied', 'success')
+                  }}
+                  className="text-xs text-gray-400 hover:text-white px-2 py-1 border border-gray-700 hover:border-gray-500 rounded"
+                  aria-label="Copy subdomain URL"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Custom Domain */}
           {(tenant.website_url || tenant.render_frontend_url) && (
