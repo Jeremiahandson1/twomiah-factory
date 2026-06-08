@@ -27,7 +27,7 @@ type FactoryAuthVariables = {
 const factory = new Hono<{ Variables: FactoryAuthVariables }>()
 const FRONTEND_URL = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
 
-// â”€â”€â”€ Rate Limiting (in-memory, per IP) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Rate Limiting (in-memory, per IP) ──────────────────────────────────────
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
 function rateLimit(windowMs: number, maxRequests: number) {
   return async (c: any, next: any) => {
@@ -56,7 +56,7 @@ setInterval(() => {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DOMAIN_RE = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/
 
-// â”€â”€â”€ QBO OAuth state tokens (in-memory, 10min expiry) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── QBO OAuth state tokens (in-memory, 10min expiry) ────────────────────────
 const qboOAuthStates = new Map<string, number>()  // state -> expiry timestamp
 function cleanExpiredStates() {
   const now = Date.now()
@@ -65,7 +65,7 @@ function cleanExpiredStates() {
   }
 }
 
-// â”€â”€â”€ Tenant Audit Helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tenant Audit Helper ─────────────────────────────────────────────────────
 // Logs a row into tenant_audit_log whenever a tenant is modified.
 async function logTenantAudit(
   tenantId: string,
@@ -114,14 +114,14 @@ async function parseJsonBody(c: any): Promise<{ data: any; error?: undefined } |
   }
 }
 
-// â”€â”€â”€ Auth on all routes except public ones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Auth on all routes except public ones ────────────────────────────────────
 factory.use('*', async (c, next) => {
   const pub = ['/templates', '/health', '/plans']
   const isPublicFeatures = c.req.path.endsWith('/features') && !c.req.path.includes('/customers/')
-  // /calendar/* â€” public OAuth start + Google's redirect-back callback.
+  // /calendar/* — public OAuth start + Google's redirect-back callback.
   //   The flow is browser-driven (no Authorization header available)
   //   and is protected by signed state tokens inside the handlers.
-  // /internal/* â€” cron + scheduler endpoints. Each handler does its own
+  // /internal/* — cron + scheduler endpoints. Each handler does its own
   //   x-cron-secret / X-Factory-Key check; gating them again here just
   //   masks the right 401 ("bad secret") with a generic one ("missing
   //   Authorization header") and breaks the in-process scheduler.
@@ -142,7 +142,7 @@ factory.use('*', async (c, next) => {
 })
 
 
-// â”€â”€â”€ Generate (editor+) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Generate (editor+) ───────────────────────────────────────────────────────
 factory.post('/generate', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const config = await c.req.json() as GenerateConfig
@@ -153,20 +153,20 @@ factory.post('/generate', requireRole('owner', 'admin', 'editor'), async (c) => 
     const invalid = config.products.filter(p => !validProducts.includes(p))
     if (invalid.length) return c.json({ error: 'Invalid products: ' + invalid.join(', ') }, 400)
 
-    console.log('[Factory] Generating build for "' + config.company.name + '" â€” products:', config.products.join(', '))
+    console.log('[Factory] Generating build for "' + config.company.name + '" — products:', config.products.join(', '))
     const startTime = Date.now()
 
     const result = await generate(config)
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    console.log('[Factory] Build complete in ' + elapsed + 's â€” ' + result.zipName)
+    console.log('[Factory] Build complete in ' + elapsed + 's — ' + result.zipName)
 
     // Upload to storage (S3/R2 if configured, otherwise stays local)
     const storage = await uploadZip(result.zipPath, result.zipName)
 
     // Track factory_job in Supabase
     const tenantId = config.tenant_id || (config as any).tenantId
-    console.log('[Factory] tenant_id for job insert:', tenantId || 'NONE â€” skipping insert')
+    console.log('[Factory] tenant_id for job insert:', tenantId || 'NONE — skipping insert')
     if (tenantId) {
       const jobRecord: Record<string, any> = {
         tenant_id: tenantId,
@@ -215,7 +215,7 @@ factory.post('/generate', requireRole('owner', 'admin', 'editor'), async (c) => 
 })
 
 
-// â”€â”€â”€ Download â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Download ─────────────────────────────────────────────────────────────────
 factory.get('/download/:buildId/:filename', async (c) => {
   const { buildId, filename } = c.req.param()
   if (!UUID_RE.test(buildId) || !/^[a-zA-Z0-9_-]+\.zip$/.test(filename)) {
@@ -275,7 +275,7 @@ factory.get('/download/:buildId/:filename', async (c) => {
 })
 
 
-// â”€â”€â”€ Generate Content with AI (editor+) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Generate Content with AI (editor+) ──────────────────────────────────────
 factory.post('/generate-content', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const parsed = await parseJsonBody(c)
@@ -284,7 +284,7 @@ factory.post('/generate-content', requireRole('owner', 'admin', 'editor'), async
     if (!companyName) return c.json({ error: 'companyName is required' }, 400)
     if (!process.env.ANTHROPIC_API_KEY) return c.json({ error: 'AI content generation not configured (missing ANTHROPIC_API_KEY)' }, 503)
 
-    // Full AI generation mode â€” generates all website data files
+    // Full AI generation mode — generates all website data files
     if (mode === 'full') {
       const { generateWebsiteContent } = await import('../services/contentGenerator')
       const result = await generateWebsiteContent({
@@ -300,7 +300,7 @@ factory.post('/generate-content', requireRole('owner', 'admin', 'editor'), async
       return c.json(result)
     }
 
-    // Legacy mode â€” simple hero/about/cta generation
+    // Legacy mode — simple hero/about/cta generation
     const isHomeCare = industry === 'home_care'
     const location = [city, state].filter(Boolean).join(', ') || 'your area'
     const region = serviceRegion || city || 'the area'
@@ -338,12 +338,12 @@ factory.post('/generate-content', requireRole('owner', 'admin', 'editor'), async
 })
 
 
-// â”€â”€â”€ Templates & Features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Templates & Features ─────────────────────────────────────────────────────
 factory.get('/templates', (c) => {
   return c.json({ templates: listTemplates() })
 })
 
-// â”€â”€â”€ Website Themes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Website Themes ───────────────────────────────────────────────────────────
 factory.get('/website-themes', (c) => {
   try {
     const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
@@ -490,7 +490,7 @@ factory.get('/features', (c) => {
 })
 
 
-// â”€â”€â”€ Deploy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Deploy ───────────────────────────────────────────────────────────────────
 factory.get('/deploy/config', (c) => {
   return c.json({ configured: isConfigured() })
 })
@@ -588,7 +588,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     // Use stored config if available, otherwise reconstruct from tenant + job
     const config: GenerateConfig = job.config || buildConfigFromTenantAndJob(tenant, job)
 
-    // Always override features with the latest from the tenant record â€”
+    // Always override features with the latest from the tenant record —
     // job.config may have stale features from a previous generation
     if (tenant.features?.length) {
       config.features = { ...config.features, crm: tenant.features }
@@ -637,7 +637,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
     }
 
     if (result.repoUrl) {
-      // Critical fields â€” must be saved even if optional columns fail
+      // Critical fields — must be saved even if optional columns fail
       const criticalUpdate: Record<string, any> = { status: 'active' }
       if (result.deployedUrl) criticalUpdate.render_frontend_url = result.deployedUrl
       if (result.apiUrl) criticalUpdate.render_backend_url = result.apiUrl
@@ -645,12 +645,12 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       if (result.dbConnectionString) criticalUpdate.database_url = result.dbConnectionString
       if (result.factorySyncKey) criticalUpdate.factory_sync_key = result.factorySyncKey
       // Persist the generator-minted admin password (the one seeded into the CRM DB) so
-      // it shows up on the customer detail page. Don't overwrite an existing one â€” that
+      // it shows up on the customer detail page. Don't overwrite an existing one — that
       // would clobber a password the customer may have already changed.
       if (genResult.defaultPassword && !tenant.admin_password) {
         criticalUpdate.admin_password = genResult.defaultPassword
       }
-      // Same for admin_email â€” fall back to email if admin_email isn't already set.
+      // Same for admin_email — fall back to email if admin_email isn't already set.
       if (!tenant.admin_email && tenant.email) {
         criticalUpdate.admin_email = tenant.email
       }
@@ -660,7 +660,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
         console.error('[Deploy] CRITICAL tenant update failed:', criticalErr.message, JSON.stringify(criticalUpdate))
       } else {
         console.log('[Deploy] Critical tenant fields saved (status, urls, database_url) for', tenant.slug)
-        // Audit log for deploy â€” mask sensitive fields
+        // Audit log for deploy — mask sensitive fields
         const auditChanges: Record<string, { old: any; new: any }> = {}
         if (criticalUpdate.status) auditChanges.status = { old: tenant.status, new: criticalUpdate.status }
         if (criticalUpdate.render_frontend_url) auditChanges.render_frontend_url = { old: tenant.render_frontend_url || null, new: criticalUpdate.render_frontend_url }
@@ -698,7 +698,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
         }
       }
 
-      // Optional fields â€” save separately so a missing column doesn't block critical data
+      // Optional fields — save separately so a missing column doesn't block critical data
       const optionalUpdate: Record<string, any> = {}
       if (result.siteUrl) optionalUpdate.website_url = result.siteUrl
       if (result.adsUrl) optionalUpdate.ads_url = result.adsUrl
@@ -749,10 +749,10 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
 
-    // â”€â”€â”€ Domain infrastructure wiring (non-fatal) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Domain infrastructure wiring (non-fatal) ───────────────────────────
     // Runs after Render services are known. Creates Cloudflare zone, writes
     // DNS/SPF/DMARC/SendGrid auth records, enables Email Routing, attaches
-    // custom domains to Render. Failures here don't kill the deploy â€” admin
+    // custom domains to Render. Failures here don't kill the deploy — admin
     // can re-trigger via /customers/:id/domain once the issue is resolved.
     if (tenant.domain && result.success) {
       try {
@@ -817,7 +817,7 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
       }
     }
 
-    // Send email notification â€” send credentials email even on partial success if CRM is reachable
+    // Send email notification — send credentials email even on partial success if CRM is reachable
     clearTimeout(stillWorkingTimer)
     if (result.success || result.deployedUrl || result.apiUrl) {
       // Merge in the premium-site admin password (generated by deploy.ts
@@ -840,10 +840,10 @@ async function runDeploy(tenant: any, job: any, options: { region?: string; plan
 }
 
 
-// â”€â”€â”€ Auto-Deploy after Stripe Checkout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Auto-Deploy after Stripe Checkout ────────────────────────────────────────
 async function triggerAutoDeploy(tenantId: string) {
   if (!isConfigured()) {
-    console.warn('[AutoDeploy] Skipping â€” deploy infrastructure not configured')
+    console.warn('[AutoDeploy] Skipping — deploy infrastructure not configured')
     return
   }
 
@@ -866,7 +866,7 @@ async function triggerAutoDeploy(tenantId: string) {
   // Get latest factory job (must have a generated build)
   const { data: job } = await supabase.from('factory_jobs').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }).limit(1).maybeSingle()
   if (!job) {
-    console.warn('[AutoDeploy] No build found for tenant:', tenant.slug, 'â€” skipping auto-deploy')
+    console.warn('[AutoDeploy] No build found for tenant:', tenant.slug, '— skipping auto-deploy')
     return
   }
 
@@ -878,7 +878,7 @@ async function triggerAutoDeploy(tenantId: string) {
   // Set job status to deploying
   await supabase.from('factory_jobs').update({ status: 'deploying' }).eq('id', job.id)
 
-  // Fire-and-forget â€” same pattern as admin deploy button. On success
+  // Fire-and-forget — same pattern as admin deploy button. On success
   // for a premium tenant, also push the intake photos into the new
   // tenant's photo library via /api/internal/seed-photos so the photos
   // survive past the 30-day signed-URL window.
@@ -896,7 +896,7 @@ async function triggerAutoDeploy(tenantId: string) {
 
 // Posts every intake photo (regenerated as a 30-day signed URL) to the
 // new tenant's /api/internal/seed-photos endpoint so they're copied to
-// the tenant's own R2 bucket. Skips non-premium tenants â€” standard
+// the tenant's own R2 bucket. Skips non-premium tenants — standard
 // tenants don't have this endpoint.
 async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
   const { data: tenant } = await supabase
@@ -908,11 +908,11 @@ async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
   const products: string[] = Array.isArray(tenant.products) ? tenant.products : []
   if (!products.includes('website-premium')) return
   if (!tenant.render_frontend_url) {
-    console.warn('[SeedPhotos] No render_frontend_url for', tenant.slug, 'â€” skipping')
+    console.warn('[SeedPhotos] No render_frontend_url for', tenant.slug, '— skipping')
     return
   }
   if (!tenant.factory_sync_key) {
-    console.warn('[SeedPhotos] No factory_sync_key for', tenant.slug, 'â€” skipping')
+    console.warn('[SeedPhotos] No factory_sync_key for', tenant.slug, '— skipping')
     return
   }
 
@@ -958,7 +958,7 @@ async function seedIntakePhotosIfPremium(tenantId: string): Promise<void> {
   }
 }
 
-// â”€â”€â”€ Deploy Status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Deploy Status ────────────────────────────────────────────────────────────
 factory.get('/customers/:id/deploy/status', async (c) => {
   const id = c.req.param('id')
   if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -973,7 +973,7 @@ factory.get('/customers/:id/deploy/status', async (c) => {
 })
 
 
-// â”€â”€â”€ Deploy Status SSE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Deploy Status SSE ───────────────────────────────────────────────────────
 factory.get('/customers/:id/deploy/stream', async (c) => {
   const id = c.req.param('id')
   if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
@@ -1025,7 +1025,7 @@ factory.get('/customers/:id/deploy/stream', async (c) => {
 })
 
 
-// â”€â”€â”€ Redeploy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Redeploy ─────────────────────────────────────────────────────────────────
 factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
   const id = c.req.param('id')
@@ -1054,7 +1054,7 @@ factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c)
 })
 
 
-// â”€â”€â”€ Update Code (safe â€” no data loss) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Update Code (safe — no data loss) ──────────────────────────────────────
 // Regenerates code from template and pushes to existing repo + redeploys.
 // Does NOT touch the database, does NOT recreate services.
 factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async (c) => {
@@ -1077,7 +1077,7 @@ factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async 
   const config = (tenant.config || job?.config || {}) as GenerateConfig
   const { zipPath } = await generate(config)
 
-  // Push code update â€” safe, no destructive operations
+  // Push code update — safe, no destructive operations
   const result = await updateCustomerCode(
     { id: tenant.id, slug: tenant.slug, name: tenant.name, renderServiceIds: serviceIds },
     zipPath,
@@ -1089,7 +1089,7 @@ factory.post('/customers/:id/update-code', requireRole('owner', 'admin'), async 
   return c.json(result)
 })
 
-// â”€â”€â”€ Update Service Settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Update Service Settings ─────────────────────────────────────────────────
 factory.patch('/customers/:id/service/:role', requireRole('owner', 'admin'), async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)
   const id = c.req.param('id')
@@ -1109,9 +1109,9 @@ factory.patch('/customers/:id/service/:role', requireRole('owner', 'admin'), asy
   return c.json({ success: true, serviceId, updated: Object.keys(body).filter(k => k !== 'redeploy') })
 })
 
-// â”€â”€â”€ Cleanup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// â”€â”€â”€ Test-tenant cleanup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Hard-delete a single test tenant â€” Render services, Render DB, Cloudflare
+// ─── Cleanup ──────────────────────────────────────────────────────────────────
+// ─── Test-tenant cleanup ─────────────────────────────────────────────────
+// Hard-delete a single test tenant — Render services, Render DB, Cloudflare
 // zone, Stripe sub, Supabase row, etc. Refuses on real customers (the
 // is_test_tenant flag is the gate, enforced inside hardDeleteTestTenant).
 factory.post('/test/cleanup-tenant/:id', requireRole('owner', 'admin'), async (c) => {
@@ -1185,7 +1185,7 @@ factory.post('/cleanup', async (c) => {
 })
 
 
-// â”€â”€â”€ Regenerate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Regenerate ──────────────────────────────────────────────────────────────
 factory.post('/customers/:id/regenerate', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -1245,7 +1245,7 @@ factory.post('/customers/:id/regenerate', requireRole('owner', 'admin', 'editor'
 })
 
 
-// â”€â”€â”€ Resync shared code (tenant-ui + tenant-backend) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Resync shared code (tenant-ui + tenant-backend) ────────────────────────
 // Pushes the latest packages/tenant-ui + packages/tenant-backend into an
 // existing tenant's repo so they pick up bug fixes to shared components.
 // For V1 this re-runs the full generate + push pipeline (the generator always
@@ -1287,7 +1287,7 @@ factory.post('/customers/:id/resync-shared-code', requireRole('owner', 'admin'),
 })
 
 
-// â”€â”€â”€ SendGrid Inbound Parse webhook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SendGrid Inbound Parse webhook ─────────────────────────────────────────
 // Registered once per factory-owned parse hostname with SendGrid. When an
 // email arrives at <tenant-id-no-dashes>-<localPart>@<parseHost>, SendGrid
 // POSTs a multipart/form-data payload here. We identify the tenant from the
@@ -1339,7 +1339,7 @@ factory.post('/inbound-parse/:secret', async (c) => {
     const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, render_backend_url, status').eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant.render_backend_url || !tenant.factory_sync_key) return c.json({ error: 'Tenant not fully provisioned' }, 400)
-    if (tenant.status === 'offboarded') return c.json({ error: 'Tenant is offboarded â€” dropping' }, 410)
+    if (tenant.status === 'offboarded') return c.json({ error: 'Tenant is offboarded — dropping' }, 410)
 
     // Extract sender email + display name. "From" is typically formatted
     // like: `Display Name <user@example.com>` or just `user@example.com`.
@@ -1353,7 +1353,7 @@ factory.post('/inbound-parse/:secret', async (c) => {
 
     // Forward to tenant backend. Fire-and-forget with timeout so a slow
     // tenant doesn't stall SendGrid retries (SendGrid retries on non-200
-    // for ~3 days â€” we want a clean ack immediately).
+    // for ~3 days — we want a clean ack immediately).
     const ingestUrl = tenant.render_backend_url.replace(/\/$/, '') + '/api/internal/inbound-email'
     const ingestRes = await fetch(ingestUrl, {
       method: 'POST',
@@ -1376,7 +1376,7 @@ factory.post('/inbound-parse/:secret', async (c) => {
     })
     if (!ingestRes.ok) {
       console.warn('[InboundParse] Tenant ingestion failed:', ingestRes.status, 'for', tenantId)
-      // Still return 200 to SendGrid â€” the message is in their logs; retrying won't help if the tenant is down.
+      // Still return 200 to SendGrid — the message is in their logs; retrying won't help if the tenant is down.
     }
     return c.json({ success: true, tenantId, localPart })
   } catch (err: any) {
@@ -1387,7 +1387,7 @@ factory.post('/inbound-parse/:secret', async (c) => {
 })
 
 
-// â”€â”€â”€ Offboard status (tenant â†’ factory, X-Factory-Key auth) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Offboard status (tenant → factory, X-Factory-Key auth) ────────────────
 factory.get('/customers/:id/offboard/status', async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -1408,7 +1408,7 @@ factory.get('/customers/:id/offboard/status', async (c) => {
 })
 
 
-// â”€â”€â”€ Email domain status + verify (tenant â†’ factory) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Email domain status + verify (tenant → factory) ───────────────────────
 // The tenant backend proxies UI requests here so tenant frontends don't need
 // SendGrid credentials. X-Factory-Key auth matches the email-alias-sync pattern.
 
@@ -1458,7 +1458,7 @@ factory.post('/customers/:id/email-domain/verify', async (c) => {
 })
 
 
-// Domain buy flow â€” creates a Stripe Checkout session for the customer
+// Domain buy flow — creates a Stripe Checkout session for the customer
 // to pay for a new domain registration. The actual Namecheap call
 // happens on the webhook (checkout.session.completed) so a customer
 // can't get charged without us also kicking off the registration.
@@ -1477,17 +1477,17 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
       .eq('id', tenantId).single()
     if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (tenant.factory_sync_key !== key) return c.json({ error: 'Unauthorized' }, 401)
-    if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant â€” finish initial billing first.' }, 409)
+    if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant — finish initial billing first.' }, 409)
     if (tenant.domain) return c.json({ error: 'This tenant already has a domain attached.' }, 409)
 
     if (!isRegistrarConfigured()) return c.json({ error: 'Domain purchase is not configured on this environment' }, 503)
 
-    // Confirm availability one more time before charging â€” the catalog
+    // Confirm availability one more time before charging — the catalog
     // can change between the customer's click and our Checkout creation.
     const registrar = await getRegistrar()
     const avail = await registrar.checkAvailability(domain)
     if (!avail.available) return c.json({ error: 'That domain is no longer available. Try a different one.' }, 409)
-    if (avail.premium) return c.json({ error: 'That is a Premium domain â€” pricing is non-standard and we do not auto-register Premium domains in this flow yet. Please contact support.' }, 422)
+    if (avail.premium) return c.json({ error: 'That is a Premium domain — pricing is non-standard and we do not auto-register Premium domains in this flow yet. Please contact support.' }, 422)
 
     const { lookupDomainPrice } = await import('../config/domainPricing')
     const price = lookupDomainPrice(domain, years)
@@ -1505,7 +1505,7 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
     const session = await factoryStripe.createOneTimeCheckoutSession({
       customerId: tenant.stripe_customer_id,
       amountCents: price.retailCents,
-      productName: 'Domain registration â€” ' + domain,
+      productName: 'Domain registration — ' + domain,
       description: price.description,
       successUrl: returnBase + '/admin/domain?domain=registered&session={CHECKOUT_SESSION_ID}',
       cancelUrl: returnBase + '/admin/domain?domain=cancelled',
@@ -1523,14 +1523,14 @@ factory.post('/internal/domain/buy/:tenantId', async (c) => {
   }
 })
 
-// â”€â”€â”€ Customer custom domain attach + verify (post-deploy) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Customer custom domain attach + verify (post-deploy) ─────────────────
 // Called by the premium admin's Custom Domain page when the customer
 // pastes their domain. Updates the tenant row, kicks off full domain
 // infrastructure wiring (Cloudflare zone, DNS records, SendGrid/Resend
 // DKIM, Render custom-domain attachment), and returns the nameservers
 // the customer needs to set at their registrar.
 //
-// Idempotent on retry â€” if the tenant already has a domain and we're
+// Idempotent on retry — if the tenant already has a domain and we're
 // being asked to attach the same one, returns the current state instead
 // of re-wiring.
 factory.post('/internal/domain/attach/:tenantId', async (c) => {
@@ -1553,7 +1553,7 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
       return c.json({ error: 'Domain purchase is not wired in this build yet. Use BYOD for now.' }, 501)
     }
 
-    // BYOD path â€” already attached? Return current state.
+    // BYOD path — already attached? Return current state.
     if (tenant.domain && tenant.domain.toLowerCase() === domain && tenant.cloudflare_zone_id) {
       const { getCloudflareZoneStatus } = await import('../services/cloudflare')
       const status = await getCloudflareZoneStatus(tenant.cloudflare_zone_id).catch(() => null)
@@ -1602,7 +1602,7 @@ factory.post('/internal/domain/attach/:tenantId', async (c) => {
   }
 })
 
-// Returns current attach + verification state. Cheap call â€” pulls the
+// Returns current attach + verification state. Cheap call — pulls the
 // Cloudflare zone status (which reflects whether the customer pointed
 // their nameservers at us yet) and the Render custom-domain status.
 factory.get('/internal/domain/status/:tenantId', async (c) => {
@@ -1628,9 +1628,9 @@ factory.get('/internal/domain/status/:tenantId', async (c) => {
   }
 })
 
-// â”€â”€â”€ Twomiah Bookings Google Calendar OAuth orchestration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Twomiah Bookings Google Calendar OAuth orchestration ─────────────────
 // One Google OAuth app for the whole platform. Tenants don't approve
-// their own â€” the admin redirects to this Factory endpoint, we send them
+// their own — the admin redirects to this Factory endpoint, we send them
 // through Google's consent screen, exchange the code for tokens, then
 // forward those tokens to the right tenant's internal endpoint. Admin
 // browser lands back on the tenant's booking-settings page.
@@ -1751,7 +1751,7 @@ factory.get('/calendar/google/callback', async (c) => {
   return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'google=connected')
 })
 
-// â”€â”€â”€ Twomiah Bookings Outlook Calendar OAuth orchestration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Twomiah Bookings Outlook Calendar OAuth orchestration ─────────────────
 // Mirror of the Google flow against Microsoft identity platform.
 // One approved Azure AD app for the platform; tokens forwarded to the
 // tenant by the same /api/internal/calendar/store-tokens endpoint.
@@ -1845,7 +1845,7 @@ factory.get('/calendar/outlook/callback', async (c) => {
   return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'outlook=connected')
 })
 
-// â”€â”€â”€ Twomiah Bookings post-job review request SMS (daily) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Twomiah Bookings post-job review request SMS (daily) ──────────────────
 factory.post('/internal/booking-review-requests', async (c) => {
   const expectedSecret = process.env.CRON_SECRET
   const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
@@ -1869,7 +1869,7 @@ factory.post('/internal/booking-review-requests', async (c) => {
   return c.json({ ok: true, tenants: results.length, results })
 })
 
-// â”€â”€â”€ Twomiah Bookings rebook nudge daily cron â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Twomiah Bookings rebook nudge daily cron ──────────────────────────────
 // Daily cron. Fans out to every live premium-website tenant; each
 // tenant decides per-service whether to send (rebookIntervalDays).
 factory.post('/internal/booking-rebook-reminders', async (c) => {
@@ -1902,7 +1902,7 @@ factory.post('/internal/booking-rebook-reminders', async (c) => {
   return c.json({ ok: true, tenants: results.length, results })
 })
 
-// â”€â”€â”€ Twomiah Bookings 24h reminder cron â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Twomiah Bookings 24h reminder cron ────────────────────────────────────
 // External scheduler hits this hourly. We fan out to every live tenant
 // that has the website-premium product and POST their internal
 // /api/internal/booking-reminders endpoint, which sends emails for any
@@ -1941,9 +1941,9 @@ factory.post('/internal/booking-reminders', async (c) => {
   return c.json({ ok: true, tenants: results.length, totalSent, results })
 })
 
-// â”€â”€â”€ Renewal check cron (domain + sub renewals + teardown pickup) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Renewal check cron (domain + sub renewals + teardown pickup) ──────────
 // Runs daily via external scheduler (same x-cron-secret pattern as /internal/trial-check).
-// Idempotent â€” sentinel columns prevent duplicate warnings.
+// Idempotent — sentinel columns prevent duplicate warnings.
 factory.post('/internal/renewal-check', async (c) => {
   const expectedSecret = process.env.CRON_SECRET
   const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
@@ -2013,7 +2013,7 @@ factory.post('/internal/renewal-check', async (c) => {
 
   // Teardown pickup: tenants whose grace period has ended.
   // Soft-teardown only: delete Cloudflare zone + SendGrid domain auth, mark
-  // status='offboarded'. Render services stay â€” destructive service deletion
+  // status='offboarded'. Render services stay — destructive service deletion
   // is left to a human admin (see /customers/:id/teardown below).
   const { data: overdue, error: teardownErr } = await supabase
     .from('tenants')
@@ -2040,7 +2040,7 @@ factory.post('/internal/renewal-check', async (c) => {
     }
   }
 
-  // â”€â”€ Premium preview 24h follow-up nudge â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Premium preview 24h follow-up nudge ─────────────────────────────
   // Customers who got a preview but never approved get one polite check-
   // in email 24-72h after the preview generated. preview_followup_sent_at
   // is the idempotency sentinel. We exclude tenants who already paid
@@ -2083,8 +2083,8 @@ factory.post('/internal/renewal-check', async (c) => {
     results.errors.push('preview_followup outer: ' + e.message)
   }
 
-  // â”€â”€ Day-1 post-launch tips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // ~24-72h after they paid, send the "your site is live â€” now what?"
+  // ── Day-1 post-launch tips ──────────────────────────────────────────
+  // ~24-72h after they paid, send the "your site is live — now what?"
   // tips email. Limits to premium-website tenants (products contains
   // 'website-premium') so CRM-only tenants don't get the website-tips
   // copy. Caps at 50/run.
@@ -2133,7 +2133,7 @@ factory.post('/internal/renewal-check', async (c) => {
 })
 
 
-// â”€â”€â”€ Offboard + reactivate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Offboard + reactivate ──────────────────────────────────────────────────
 factory.post('/customers/:id/offboard', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -2186,7 +2186,7 @@ factory.post('/customers/:id/offboard', requireRole('owner', 'admin'), async (c)
         steps.push({ step: 'registrar_unlock', status: 'warning', detail: e.message })
       }
     } else {
-      steps.push({ step: 'registrar_unlock', status: 'skipped', detail: tenant.domain_registrar === 'byod' ? 'BYOD domain â€” customer already owns it' : 'no domain' })
+      steps.push({ step: 'registrar_unlock', status: 'skipped', detail: tenant.domain_registrar === 'byod' ? 'BYOD domain — customer already owns it' : 'no domain' })
     }
 
     // 3. Set offboard sentinels
@@ -2196,7 +2196,7 @@ factory.post('/customers/:id/offboard', requireRole('owner', 'admin'), async (c)
       epp_code_sent_at: eppCode ? now.toISOString() : null,
     }).eq('id', tenantId)
 
-    // 4. Data export â€” dumps every public-schema table from the tenant DB to
+    // 4. Data export — dumps every public-schema table from the tenant DB to
     // a JSON bundle on R2, emails a 7-day signed download link. Non-blocking
     // so an R2 outage doesn't stop the offboard.
     if (tenant.database_url) {
@@ -2249,7 +2249,7 @@ factory.post('/customers/:id/reactivate', requireRole('owner', 'admin'), async (
     if (tenantErr || !tenant) return c.json({ error: 'Tenant not found' }, 404)
     if (!tenant.offboard_started_at) return c.json({ error: 'Tenant is not in an offboarding state' }, 400)
     const graceEnd = tenant.offboard_grace_ends_at ? new Date(tenant.offboard_grace_ends_at) : null
-    if (graceEnd && graceEnd < new Date()) return c.json({ error: 'Grace period has ended â€” reactivation not available' }, 410)
+    if (graceEnd && graceEnd < new Date()) return c.json({ error: 'Grace period has ended — reactivation not available' }, 410)
 
     // Reverse Stripe cancellation (remove cancel_at_period_end)
     if (tenant.stripe_subscription_id) {
@@ -2280,7 +2280,7 @@ factory.post('/customers/:id/reactivate', requireRole('owner', 'admin'), async (
 })
 
 
-// â”€â”€â”€ Email alias sync (tenant â†’ factory) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Email alias sync (tenant → factory) ────────────────────────────────────
 // Called by the tenant's CRM backend whenever an email_alias is created,
 // updated, or deleted. The factory reflects the change in Cloudflare Email
 // Routing on the tenant's zone. Auth: tenant's factory_sync_key in X-Factory-Key.
@@ -2307,13 +2307,13 @@ factory.post('/customers/:id/email-alias-sync', async (c) => {
     const existingRules = await cf.listEmailRoutingRules(tenant.cloudflare_zone_id)
     const existing = existingRules.find(r => r.matcherValue.toLowerCase() === matcherValue.toLowerCase())
 
-    // Disabled or deleted alias â†’ remove rule if present
+    // Disabled or deleted alias → remove rule if present
     if (enabled === false) {
       if (existing) await cf.deleteEmailRoutingRule(tenant.cloudflare_zone_id, existing.tag)
       return c.json({ success: true, action: existing ? 'removed' : 'noop' })
     }
 
-    // Determine destination â€” forward mode sends to external email; crm mode
+    // Determine destination — forward mode sends to external email; crm mode
     // sends to the factory-wide SendGrid Inbound Parse hostname (if configured).
     let destination = ''
     if (routingMode === 'crm') {
@@ -2325,7 +2325,7 @@ factory.post('/customers/:id/email-alias-sync', async (c) => {
       if (!forwardTo || !String(forwardTo).includes('@')) return c.json({ error: 'forwardTo required for forward mode' }, 400)
       destination = String(forwardTo)
       // Cloudflare requires destination addresses to be verified before use.
-      // Try to add it â€” noop if already exists. The verification email fires once per destination.
+      // Try to add it — noop if already exists. The verification email fires once per destination.
       try { await cf.addEmailDestinationAddress(destination) } catch (e: any) {
         if (!String(e.message).toLowerCase().includes('already')) {
           console.warn('[EmailAliasSync] add destination failed (non-blocking):', e.message)
@@ -2348,7 +2348,7 @@ factory.post('/customers/:id/email-alias-sync', async (c) => {
 })
 
 
-// â”€â”€â”€ Delete Job â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Delete Job ──────────────────────────────────────────────────────────────
 factory.delete('/jobs/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const jobId = c.req.param('id')
@@ -2373,13 +2373,13 @@ factory.delete('/jobs/:id', requireRole('owner', 'admin'), async (c) => {
 })
 
 
-// â”€â”€â”€ Stripe Config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Stripe Config ───────────────────────────────────────────────────────────
 factory.get('/stripe/config', (c) => {
   return c.json({ configured: factoryStripe.isConfigured(), publishableKey: factoryStripe.getPublishableKey() })
 })
 
 
-// â”€â”€â”€ Checkout: Subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Checkout: Subscription ─────────────────────────────────────────────────
 factory.post('/customers/:id/checkout/subscription', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -2409,7 +2409,7 @@ factory.post('/customers/:id/checkout/subscription', requireRole('owner', 'admin
 })
 
 
-// â”€â”€â”€ Checkout: License â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Checkout: License ──────────────────────────────────────────────────────
 factory.post('/customers/:id/checkout/license', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -2437,7 +2437,7 @@ factory.post('/customers/:id/checkout/license', requireRole('owner', 'admin'), a
 })
 
 
-// â”€â”€â”€ Checkout: Deploy Service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Checkout: Deploy Service ────────────────────────────────────────────────
 factory.post('/customers/:id/checkout/deploy-service', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -2468,7 +2468,7 @@ factory.post('/customers/:id/checkout/deploy-service', requireRole('owner', 'adm
 })
 
 
-// â”€â”€â”€ Stripe Webhook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Stripe Webhook ─────────────────────────────────────────────────────────
 factory.post('/stripe/webhook', async (c) => {
   let event: any
   try {
@@ -2516,7 +2516,7 @@ factory.post('/stripe/webhook', async (c) => {
     }
 
     // Domain registration: customer paid for a new domain via /admin/domain
-    // â†’ register at Namecheap â†’ wire DNS infrastructure. If Namecheap fails,
+    // → register at Namecheap → wire DNS infrastructure. If Namecheap fails,
     // we refund the customer so they're never paying for nothing.
     if (event.type === 'checkout.session.completed' && event.data?.object?.metadata?.purpose === 'domain_registration') {
       const session = event.data.object
@@ -2557,7 +2557,7 @@ factory.post('/stripe/webhook', async (c) => {
 
 
 /**
- * Customer paid via Stripe â†’ register at Namecheap â†’ wire DNS. Called
+ * Customer paid via Stripe → register at Namecheap → wire DNS. Called
  * fire-and-forget from the webhook handler; logs everything but never
  * re-throws because the webhook must always 200 back to Stripe.
  *
@@ -2590,10 +2590,10 @@ async function handleDomainRegistration(opts: {
   const ownerName = (tenant.name || 'Admin User').split(/\s+/)
   const firstName = ownerName[0] || 'Admin'
   const lastName = ownerName.slice(1).join(' ') || 'User'
-  // Namecheap requires phone for registration â€” if the tenant didn't
+  // Namecheap requires phone for registration — if the tenant didn't
   // provide one we can't proceed. Refund + email.
   if (!tenant.phone) {
-    console.warn('[Domain] Tenant has no phone â€” refunding')
+    console.warn('[Domain] Tenant has no phone — refunding')
     await refundAndEmail({ tenant, paymentIntent, domain, reason: 'no_phone' })
     return
   }
@@ -2643,7 +2643,7 @@ async function handleDomainRegistration(opts: {
     console.log('[Domain] Wire infra:', wire.success ? 'ok' : 'partial', wire.errors)
   } catch (e: any) {
     console.error('[Domain] Wire infra threw:', e.message)
-    // Don't refund â€” the domain IS registered, just the DNS auto-wire
+    // Don't refund — the domain IS registered, just the DNS auto-wire
     // hit a snag. Customer keeps the domain; we surface the issue in
     // support so we can finish manually.
   }
@@ -2671,16 +2671,16 @@ async function refundAndEmail(opts: {
   await sendEmail(to,
     'About your ' + opts.domain + ' registration',
     '<p>Hi ' + (opts.tenant.name || 'there') + ',</p>' +
-    '<p>We tried to register <strong>' + opts.domain + '</strong> for you and it didn\'t go through â€” ' + reasonText + '.</p>' +
+    '<p>We tried to register <strong>' + opts.domain + '</strong> for you and it didn\'t go through — ' + reasonText + '.</p>' +
     '<p>We\'ve fully refunded the charge to your card. It should appear back in your account in 5-10 business days.</p>' +
     '<p>If you want to try again, you can either:</p>' +
-    '<ul><li>Go back to your admin â†’ Domain â†’ Buy a new one and try a different name</li>' +
+    '<ul><li>Go back to your admin → Domain → Buy a new one and try a different name</li>' +
     '<li>Or if you already own a domain elsewhere, use the "I already own a domain" tab instead</li></ul>' +
-    '<p>Reply to this email if you want help â€” a real person reads it.</p>'
+    '<p>Reply to this email if you want help — a real person reads it.</p>'
   ).catch(e => console.warn('[Domain] Email send failed:', e?.message))
 }
 
-// â”€â”€â”€ Billing Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Billing Portal ─────────────────────────────────────────────────────────
 factory.post('/customers/:id/billing-portal', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -2699,7 +2699,7 @@ factory.post('/customers/:id/billing-portal', requireRole('owner', 'admin'), asy
 })
 
 
-// â”€â”€â”€ Reset Stripe Customer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Reset Stripe Customer ──────────────────────────────────────────────────
 // Creates a new Stripe customer (or verifies existing), updates the tenant record.
 // Use when stripe_customer_id is stale/invalid (e.g., test mode ID in live mode).
 factory.post('/customers/:id/reset-stripe', requireRole('owner', 'admin'), async (c) => {
@@ -2725,7 +2725,7 @@ factory.post('/customers/:id/reset-stripe', requireRole('owner', 'admin'), async
   }
 })
 
-// â”€â”€â”€ Switch Billing Mode â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Switch Billing Mode ────────────────────────────────────────────────────
 // Quick-switch between subscription, owned (one-time), and free
 factory.post('/customers/:id/switch-billing', requireRole('owner', 'admin'), async (c) => {
   try {
@@ -2770,7 +2770,7 @@ factory.post('/customers/:id/switch-billing', requireRole('owner', 'admin'), asy
   }
 })
 
-// â”€â”€â”€ Billing Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Billing Summary ────────────────────────────────────────────────────────
 factory.get('/billing/summary', async (c) => {
   try {
     // Single query instead of 3 sequential queries (fixes 23s response times)
@@ -2806,7 +2806,7 @@ factory.get('/billing/summary', async (c) => {
 })
 
 
-// â”€â”€â”€ Analytics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Analytics ──────────────────────────────────────────────────────────────
 factory.get('/analytics', async (c) => {
   try {
     const from = c.req.query('from')
@@ -2936,7 +2936,7 @@ factory.get('/analytics', async (c) => {
 })
 
 
-// â”€â”€â”€ Plans (public) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Plans (public) ─────────────────────────────────────────────────────────
 // Reads pricing from factory_pricing table per product. Falls back to defaults.
 // Usage: /plans?product=crm-fieldservice (defaults to 'crm')
 factory.get('/plans', async (c) => {
@@ -2969,8 +2969,8 @@ factory.get('/plans', async (c) => {
   })
 })
 
-// â”€â”€â”€ Pricing Admin (authenticated) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// GET /pricing â€” returns all products' pricing
+// ─── Pricing Admin (authenticated) ──────────────────────────────────────────
+// GET /pricing — returns all products' pricing
 factory.get('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
   const { data, error: selectErr } = await supabase.from('factory_pricing').select('*').order('product')
   if (selectErr) {
@@ -2994,7 +2994,7 @@ factory.get('/pricing', authenticate, requireRole('owner', 'admin'), async (c) =
   return c.json({ products: PRODUCTS, pricing: data })
 })
 
-// PUT /pricing â€” saves pricing for a specific product
+// PUT /pricing — saves pricing for a specific product
 factory.put('/pricing', authenticate, requireRole('owner', 'admin'), async (c) => {
   const body = await c.req.json()
   if (!body.product) return c.json({ error: 'product is required' }, 400)
@@ -3013,7 +3013,7 @@ factory.put('/pricing', authenticate, requireRole('owner', 'admin'), async (c) =
 })
 
 
-// â”€â”€â”€ Inbound Email Router (SendGrid Inbound Parse â†’ tenant CRM) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Inbound Email Router (SendGrid Inbound Parse → tenant CRM) ──────────────
 // SendGrid posts ALL inbound emails to this single endpoint. We extract the
 // company ID prefix + platform from the To address and forward to the tenant.
 factory.post('/public/inbound-email', async (c) => {
@@ -3082,21 +3082,21 @@ factory.post('/public/inbound-email', async (c) => {
 })
 
 
-// â”€â”€â”€ Public Signup (no auth required â€” path contains /public/) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Public Signup (no auth required — path contains /public/) ──────────────
 // Rate limit: 5 signups per IP per hour
-// â”€â”€â”€ Trial lifecycle cron â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Trial lifecycle cron ────────────────────────────────────────────────────
 // Runs daily (via Render cron or external scheduler). Authenticated by a
 // shared secret (CRON_SECRET) so it can be called without a user JWT.
 //
 // Logic:
-//   - tenants with trial_ends_at between NOW+6d and NOW+8d â†’ send 7-day warning
-//   - tenants with trial_ends_at between NOW+2d and NOW+4d â†’ send 3-day warning
-//   - tenants with trial_ends_at in the last 24h             â†’ send day-of warning
-//   - tenants with trial_ends_at < NOW and no subscription    â†’ set trial_expired_at,
+//   - tenants with trial_ends_at between NOW+6d and NOW+8d → send 7-day warning
+//   - tenants with trial_ends_at between NOW+2d and NOW+4d → send 3-day warning
+//   - tenants with trial_ends_at in the last 24h             → send day-of warning
+//   - tenants with trial_ends_at < NOW and no subscription    → set trial_expired_at,
 //     status='trial_expired' (triggers the paywall lock in each template)
 //
 // Uses trial_warning_{7d,3d,0d}_sent_at sentinels so each email is sent once.
-// Safe to run multiple times per day â€” idempotent.
+// Safe to run multiple times per day — idempotent.
 factory.post('/internal/trial-check', async (c) => {
   const expectedSecret = process.env.CRON_SECRET
   const gotSecret = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '')
@@ -3196,9 +3196,9 @@ factory.post('/internal/trial-check', async (c) => {
   return c.json({ ok: true, timestamp: now.toISOString(), ...results })
 })
 
-// â”€â”€â”€ Public domain availability check + suggestions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Public domain availability check + suggestions ────────────────────────
 // Rate limited: 20 requests per 10 minutes per IP. Namecheap charges per call
-// and enforces its own rate caps â€” this protects both us and our quota.
+// and enforces its own rate caps — this protects both us and our quota.
 // When the requested name is unavailable, generates 10 nearby variants and
 // returns the available ones so the customer never hits a dead end.
 factory.post('/public/domain/check', rateLimit(10 * 60 * 1000, 20), async (c) => {
@@ -3251,7 +3251,7 @@ function generateDomainVariants(input: string): string[] {
       out.add(stem + '.' + t)
     }
   }
-  // Hyphenated split (handles "thekitchentechnique" â†’ "the-kitchen-technique")
+  // Hyphenated split (handles "thekitchentechnique" → "the-kitchen-technique")
   // ONLY if base has no hyphens already AND is long enough to plausibly split.
   if (!baseClean.includes('-') && baseClean.length >= 10) {
     const halves = Math.floor(baseClean.length / 2)
@@ -3282,9 +3282,9 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       return c.json({ error: 'A company with a similar name already exists. Please contact support or use a different name.' }, 409)
     }
 
-    // â”€â”€â”€ Domain mode handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Domain mode handling ─────────────────────────────────────────────────
     // domainMode: 'skip' (default, no domain) | 'byod' (customer owns domain) |
-    // 'buy' (we register via Namecheap synchronously before creating tenant â€”
+    // 'buy' (we register via Namecheap synchronously before creating tenant —
     // fail-fast so the customer isn't charged for a domain attached to a
     // half-created account).
     const domainMode: 'skip' | 'byod' | 'buy' = body.domainMode === 'byod' || body.domainMode === 'buy' ? body.domainMode : 'skip'
@@ -3337,7 +3337,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       resolvedExpiresAt = reg.expiresAt || null
     }
 
-    // Start the 30-day free trial clock at signup. No credit card required â€” the
+    // Start the 30-day free trial clock at signup. No credit card required — the
     // tenant's CRM is provisioned immediately and they get 30 days to try it.
     // Warning emails fire at day 23 (7 left), day 27 (3 left), and day 30.
     // At day 30 the CRM locks to a paywall until they upgrade.
@@ -3419,7 +3419,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       },
     }
 
-    // Run generation + auto-deploy in background â€” don't block the signup response.
+    // Run generation + auto-deploy in background — don't block the signup response.
     // "No credit card required" flow: deploy fires immediately on signup, customer
     // gets a live CRM within ~5 min, trial starts at tenant.trial_ends_at.
     // Stripe is touched only later when they upgrade from inside the CRM.
@@ -3450,11 +3450,11 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
             console.error('[Signup] Job insert error:', jobErr.message)
           }
         }
-        console.log('[Signup] Build generated successfully for', tenant.slug, 'â€” firing immediate auto-deploy')
+        console.log('[Signup] Build generated successfully for', tenant.slug, '— firing immediate auto-deploy')
 
-        // Immediate auto-deploy â€” no Stripe checkout gating. triggerAutoDeploy
+        // Immediate auto-deploy — no Stripe checkout gating. triggerAutoDeploy
         // looks up the latest factory_jobs row for this tenant and kicks off
-        // runDeploy in the background. Idempotent â€” safe to call even if a
+        // runDeploy in the background. Idempotent — safe to call even if a
         // deploy is already in progress.
         if (tenantRecord.deployment_model === 'saas') {
           await triggerAutoDeploy(tenant.id).catch(err =>
@@ -3471,7 +3471,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       tenantId: tenant.id,
       slug: tenant.slug,
       trialEndsAt: trialEndsAt.toISOString(),
-      message: 'Account created successfully â€” your CRM is being provisioned. You will receive an email when it is ready.',
+      message: 'Account created successfully — your CRM is being provisioned. You will receive an email when it is ready.',
     })
   } catch (err: any) {
     console.error('[Signup] Error:', err.message)
@@ -3480,7 +3480,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
 })
 
 
-// â”€â”€â”€ Public local-business website intake â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Public local-business website intake ───────────────────────────────────
 //
 // Fired by the form on twomiah.com/businesses. Distinct flow from /public/signup:
 //   * No Stripe customer, no trial clock, no CRM provisioning.
@@ -3494,7 +3494,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
 // the endpoint falls back to writing only to the notes column.
 factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
   try {
-    // Multipart parse â€” { all: true } gives arrays for repeated fields like photos[].
+    // Multipart parse — { all: true } gives arrays for repeated fields like photos[].
     const body = await c.req.parseBody({ all: true }) as Record<string, any>
 
     const getStr = (key: string): string => {
@@ -3543,7 +3543,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     const brandColors = getStr('brandColors') || null
     const intakeNotes = getStr('notes') || null
 
-    // â”€â”€â”€ Rich intake fields â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Rich intake fields ────────────────────────────────────────────────
     // Optional. These map 1:1 onto briefBuilder's Intake interface so a captured
     // lead can be handed straight to buildBrief() with no transformation.
     const city = getStr('city') || null
@@ -3553,7 +3553,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     const description = getStr('description') || null
     const domain = getStr('domain') || null
     // The /start intake's optional domain-step field. Distinct from
-    // `domain` (which is the customer's existing site, if any) â€” this
+    // `domain` (which is the customer's existing site, if any) — this
     // is what they want for their NEW site. May fail availability at
     // commit time; captured here only to surface in the review queue.
     const requestedDomain = getStr('requestedDomain') || null
@@ -3561,13 +3561,13 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     const secondaryColor = getStr('secondaryColor') || null
     const accentColor = getStr('accentColor') || null
     const services = getArr('services')
-    const competitors = getArr('competitors', 10)  // "sites you like" â€” inspiration
+    const competitors = getArr('competitors', 10)  // "sites you like" — inspiration
     const goals = getArr('goals', 10)               // e.g. orders, leads, bookings, info
     const serviceAreas = getArr('serviceAreas', 12)
     const nearbyCities = serviceAreas.length ? serviceAreas : getArr('nearbyCities', 12)  // manual "areas you serve"
     const wantsCrm = getBool('wantsCrm')
 
-    // â”€â”€â”€ Slug â€” collision-resistant â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Slug — collision-resistant ────────────────────────────────────────
     // Intake slugs are suffixed with '-intake' so they're visually distinct
     // from real tenants and won't collide with a future tenant of the same
     // business name (when an intake converts, the team renames cleanly).
@@ -3578,7 +3578,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       slug = baseSlug + '-intake-' + Math.floor(Date.now() / 1000)
     }
 
-    // â”€â”€â”€ File validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── File validation ──────────────────────────────────────────────────
     const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/gif']
     const MAX_FILE_SIZE = 8 * 1024 * 1024  // 8 MB per file; full request still capped at 15 MB by index.ts
 
@@ -3590,7 +3590,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       return null
     }
 
-    // â”€â”€â”€ Upload logo (single) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Upload logo (single) ─────────────────────────────────────────────
     let logoStorageKey: string | null = null
     let logoStorageType: 's3' | 'local' | null = null
     let logoUrl: string | null = null
@@ -3604,7 +3604,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       logoUrl = await getZipDownloadUrl(result.storageKey, result.storageType, 7 * 24 * 60 * 60)
     }
 
-    // â”€â”€â”€ Upload photos (up to 5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Upload photos (up to 5) ──────────────────────────────────────────
     const rawPhotos = body.photos || body['photos[]']
     const photoCandidates: any[] = Array.isArray(rawPhotos) ? rawPhotos : rawPhotos ? [rawPhotos] : []
     const photoStorageKeys: { storageKey: string; storageType: 's3' | 'local' }[] = []
@@ -3620,7 +3620,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       if (url) photoUrls.push(url)
     }
 
-    // â”€â”€â”€ Persist â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Persist ──────────────────────────────────────────────────────────
     const intakeData = {
       source: 'businesses-intake-form',
       submittedAt: new Date().toISOString(),
@@ -3628,7 +3628,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       logo: logoStorageKey ? { storageKey: logoStorageKey, storageType: logoStorageType } : null,
       photos: photoStorageKeys,
       freeFormNotes: intakeNotes || null,
-      // Brief-ready intake â€” mirrors briefBuilder's Intake interface exactly so
+      // Brief-ready intake — mirrors briefBuilder's Intake interface exactly so
       // buildBrief(intakeData.intake) works with no glue. Keys with no value are
       // dropped on serialization, leaving a clean partial.
       intake: {
@@ -3675,7 +3675,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
 
     let { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
     // Fallback for environments where the intake_data column migration hasn't
-    // been applied yet OR PostgREST's schema cache is stale â€” stash the JSON
+    // been applied yet OR PostgREST's schema cache is stale — stash the JSON
     // in notes so we don't lose the lead. 42703 = Postgres native undefined_column,
     // PGRST204 = PostgREST schema cache miss, message-substring catches the rest.
     const isMissingColumn = insertErr && (
@@ -3684,7 +3684,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
       (typeof insertErr.message === 'string' && insertErr.message.toLowerCase().includes('intake_data'))
     )
     if (isMissingColumn) {
-      console.warn('[Intake] intake_data column missing or stale in schema cache â€” falling back to notes-only storage. Error:', insertErr?.code, insertErr?.message)
+      console.warn('[Intake] intake_data column missing or stale in schema cache — falling back to notes-only storage. Error:', insertErr?.code, insertErr?.message)
       const fallback = { ...tenantRecord }
       delete fallback.intake_data
       fallback.notes = (intakeNotes ? intakeNotes + '\n\n' : '') + '---\nintake_data: ' + JSON.stringify(intakeData)
@@ -3727,7 +3727,7 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
     return c.json({
       success: true,
       intakeId: tenant.id,
-      message: "Thanks! We're composing your preview now â€” you'll get an email within 15 minutes.",
+      message: "Thanks! We're composing your preview now — you'll get an email within 15 minutes.",
     })
   } catch (err: any) {
     console.error('[Intake] Error:', err.message || err)
@@ -3735,10 +3735,10 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
   }
 })
 
-// â”€â”€â”€ Show-first preview (staff-triggered draft render) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Show-first preview (staff-triggered draft render) ─────────────────────────
 // Renders a website-only DRAFT of an intake lead to a self-contained HTML page
 // and stores it so it can be shared via a public link. This NEVER touches the
-// deploy pipeline (no GitHub/Render/DB) â€” the real factory build only runs when
+// deploy pipeline (no GitHub/Render/DB) — the real factory build only runs when
 // the customer buys. Re-running overwrites the same preview, so nothing piles up.
 factory.post('/intake/:id/preview', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
@@ -3762,7 +3762,7 @@ factory.post('/intake/:id/preview', requireRole('owner', 'admin', 'editor'), asy
       state: tenant.state || undefined,
     }
     if (!intake.businessName || !intake.businessType) {
-      return c.json({ error: 'Lead is missing a business name or type â€” cannot build a preview.' }, 422)
+      return c.json({ error: 'Lead is missing a business name or type — cannot build a preview.' }, 422)
     }
 
     const brief = buildBrief(intake)
@@ -3810,7 +3810,7 @@ factory.get('/public/intake/:id/preview', async (c) => {
   return c.html(tenant.preview_html)
 })
 
-// â”€â”€â”€ Premium preview: multi-page section-composition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Premium preview: multi-page section-composition ──────────────────────
 // The premium tier produces a 4-page site (home/about/services/contact),
 // composed by Claude. Stored as the raw SiteResult JSON in
 // tenants.preview_premium_pages; rendered on-demand below so staff can
@@ -3836,14 +3836,14 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       state: tenant.state || undefined,
     }
     if (!intake.businessName || !intake.businessType) {
-      return c.json({ error: 'Lead is missing business name or type â€” cannot compose preview.' }, 422)
+      return c.json({ error: 'Lead is missing business name or type — cannot compose preview.' }, 422)
     }
 
-    // Customer photos from the intake â€” flow into the composer so the AI
+    // Customer photos from the intake — flow into the composer so the AI
     // can place them in real section slots instead of Unsplash defaults.
     // The intake stores:
-    //   intake_data.logo:   { storageKey, storageType }  â€” for the logo
-    //   intake_data.photos: [{ storageKey, storageType }] â€” reference photos
+    //   intake_data.logo:   { storageKey, storageType }  — for the logo
+    //   intake_data.photos: [{ storageKey, storageType }] — reference photos
     //   intake_data.intake.branding.logo: signed URL (7-day TTL at intake time)
     // The signed URL at intake time has likely expired by composer-trigger
     // time, so we regenerate from storageKeys with a 30-day TTL. After deploy,
@@ -3895,7 +3895,7 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
     })
 
     // Unsplash terms: ping /photos/:id/download for every photo we
-    // could conceivably use. Fire-and-forget â€” we don't block the
+    // could conceivably use. Fire-and-forget — we don't block the
     // response on Unsplash's ping endpoint.
     for (const p of stockPhotos) {
       trackUnsplashDownload(p.unsplashId).catch(() => {})
@@ -4125,7 +4125,7 @@ factory.get('/public/intake/:id/preview-premium/:slug', async (c) => {
   return renderPremiumPreviewPage(id, slug, c)
 })
 
-// Staff approval â€” flips the gate so the public preview link renders.
+// Staff approval — flips the gate so the public preview link renders.
 // Optionally PATCHes the composition first (staff can fix wording, swap
 // section variants, etc. before approving). Sends the prospect the
 // "preview is ready" email with the link.
@@ -4197,7 +4197,7 @@ factory.get('/intake/premium-queue', requireRole('owner', 'admin', 'editor'), as
   if (error) return c.json({ error: error.message }, 500)
 
   // Annotate each queue row with feedback counts so staff can see at-a-glance
-  // which intakes are mid-revision-cycle. Best-effort â€” table may not be
+  // which intakes are mid-revision-cycle. Best-effort — table may not be
   // migrated yet on some environments.
   const tenantIds = (data || []).map((r: any) => r.id)
   const feedbackByTenant: Record<string, { total: number; unprocessed: number }> = {}
@@ -4274,7 +4274,7 @@ factory.get('/intake/:id/premium-detail', requireRole('owner', 'admin', 'editor'
   return c.json({ intake: data })
 })
 
-// Staff preview routes â€” same renderer as the public preview but
+// Staff preview routes — same renderer as the public preview but
 // bypasses the approval gate. Accepts the auth token via Authorization
 // header OR ?token=<jwt> query param. Iframes can't add custom headers
 // so the query-param path is necessary for the platform's review UI.
@@ -4335,7 +4335,7 @@ async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
     templateDir,
   )).html
   if (token) {
-    // Append ?token=â€¦ to every same-origin nav href so the iframe can
+    // Append ?token=… to every same-origin nav href so the iframe can
     // navigate without losing auth. Only matches hrefs that start with
     // the previewBasePath we just emitted.
     renderedHtml = renderedHtml.replace(
@@ -4392,7 +4392,7 @@ factory.get('/internal/billing-portal/:tenantId', async (c) => {
     .single()
   if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
   if (!key || key !== tenant.factory_sync_key) return c.json({ error: 'Bad sync key' }, 401)
-  if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant yet â€” billing portal unavailable until first payment.' }, 409)
+  if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant yet — billing portal unavailable until first payment.' }, 409)
   const returnUrl = (tenant.website_url || tenant.render_frontend_url || 'https://twomiah.com').replace(/\/+$/, '') + '/admin/account'
   try {
     const session = await factoryStripe.createBillingPortalSession(tenant.stripe_customer_id, returnUrl)
@@ -4403,9 +4403,9 @@ factory.get('/internal/billing-portal/:tenantId', async (c) => {
   }
 })
 
-// Path A++ â€” mint a single-use, 60s-TTL handoff JWT for SSO from the
+// Path A++ — mint a single-use, 60s-TTL handoff JWT for SSO from the
 // premium admin into the CRM admin. Signed with the tenant's
-// factory_sync_key â€” same key the CRM has, so the CRM can verify
+// factory_sync_key — same key the CRM has, so the CRM can verify
 // without knowing about the factory. Audience claim scopes the token
 // to the CRM specifically (token stolen + used against any other
 // endpoint fails the aud check).
@@ -4433,14 +4433,14 @@ factory.get('/internal/crm-handoff/:tenantId', async (c) => {
   return c.json({ url: 'https://' + crmHost + '/auth/handoff?token=' + encodeURIComponent(token) })
 })
 
-// Path A++ â€” create a Stripe Checkout session for the CRM add-on
+// Path A++ — create a Stripe Checkout session for the CRM add-on
 // against the tenant's existing Stripe customer. The tenant's premium
-// site calls this when the customer clicks "Add CRM â€” $49/mo" in
+// site calls this when the customer clicks "Add CRM — $49/mo" in
 // their /billing page. We return a Checkout URL; the tenant redirects.
 // On payment success, the customer lands back on the premium /billing
 // page with ?crm=ordered. The actual provisioning is gated behind
 // a manual run of scripts/provision-crm-for-tenant.ts (V1 caution
-// gate) â€” webhook auto-provision will replace this once we've run the
+// gate) — webhook auto-provision will replace this once we've run the
 // flow cleanly a few times.
 factory.get('/internal/checkout/crm-addon/:tenantId', async (c) => {
   const tenantId = c.req.param('tenantId')
@@ -4452,10 +4452,10 @@ factory.get('/internal/checkout/crm-addon/:tenantId', async (c) => {
     .single()
   if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
   if (!key || key !== tenant.factory_sync_key) return c.json({ error: 'Bad sync key' }, 401)
-  if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant yet â€” finish initial billing first.' }, 409)
+  if (!tenant.stripe_customer_id) return c.json({ error: 'No Stripe customer on this tenant yet — finish initial billing first.' }, 409)
   if ((tenant.products || []).includes('crm')) return c.json({ error: 'CRM is already active on this tenant.' }, 409)
   const priceId = process.env.STRIPE_PRICE_PREMIUM_CRM_ADDON
-  if (!priceId) return c.json({ error: 'CRM add-on price not minted in Stripe yet â€” run create-stripe-products.ts.' }, 503)
+  if (!priceId) return c.json({ error: 'CRM add-on price not minted in Stripe yet — run create-stripe-products.ts.' }, 503)
   const returnBase = (tenant.website_url || tenant.render_frontend_url || '').replace(/\/+$/, '')
   if (!returnBase) return c.json({ error: 'Tenant has no site URL recorded.' }, 409)
   try {
@@ -4482,7 +4482,7 @@ factory.get('/internal/checkout/crm-addon/:tenantId', async (c) => {
 //
 // Auth: X-Factory-Key header must match tenants.factory_sync_key. We
 // generate that key during deploy and inject it as FACTORY_SYNC_KEY
-// in the site service's env vars â€” same pattern as the CRM /api/
+// in the site service's env vars — same pattern as the CRM /api/
 // internal/sync-features path.
 factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   const tenantId = c.req.param('tenantId')
@@ -4519,7 +4519,7 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   }))
 
   // Standard CMS-defaults for a fresh tenant. The composer doesn't
-  // currently emit settings â€” we synthesize them from the tenant row.
+  // currently emit settings — we synthesize them from the tenant row.
   const settings = {
     companyName: tenant.name,
     tagline: '',
@@ -4530,7 +4530,7 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     secondaryColor: tenant.secondary_color || '#666666',
     accentColor: tenant.primary_color || '#1a1a1a',
     seoTitle: tenant.name,
-    seoDescription: tenant.name + ' â€” Premium website',
+    seoDescription: tenant.name + ' — Premium website',
     contactCtaLabel: 'Get in touch',
     // Nav derived from the page set the composer actually produced —
     // food trucks get Menu/Find us/Catering, generic verticals get
@@ -4542,7 +4542,7 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
   // Note: admin credentials are NOT returned here. The seed reads them
   // from ADMIN_EMAIL + ADMIN_INITIAL_PASSWORD env vars (set by the
   // deploy). Writing the password to the tenant row would require an
-  // extra UPDATE during deploy and adds nothing â€” the env-var path is
+  // extra UPDATE during deploy and adds nothing — the env-var path is
   // already populated by every deploy that runs initDb.ts.
   return c.json({ settings, pages })
 })
@@ -4571,7 +4571,7 @@ factory.get('/public/intake/:id/status', async (c) => {
 
 // Auto-compose path. Called from /public/intake right after the row
 // lands. Mirrors the staff-triggered /intake/:id/preview-premium logic
-// â€” pulls intake_data, signs customer photo URLs, fetches stock photos
+// — pulls intake_data, signs customer photo URLs, fetches stock photos
 // if configured, calls composeSite, saves preview_premium_pages, fires
 // the preview-ready email. Idempotent: skips when the tenant already
 // has preview_premium_pages set.
@@ -4585,11 +4585,11 @@ async function autoComposeForNewIntake(tenantId: string): Promise<void> {
     return
   }
   if (tenant.preview_premium_pages) {
-    console.log('[AutoCompose] tenant ' + tenantId + ' already has a preview â€” skipping.')
+    console.log('[AutoCompose] tenant ' + tenantId + ' already has a preview — skipping.')
     return
   }
   if (!tenant.intake_data) {
-    console.warn('[AutoCompose] tenant ' + tenantId + ' has no intake_data â€” cannot compose.')
+    console.warn('[AutoCompose] tenant ' + tenantId + ' has no intake_data — cannot compose.')
     return
   }
 
@@ -4651,7 +4651,7 @@ async function autoComposeForNewIntake(tenantId: string): Promise<void> {
   }).eq('id', tenantId)
 
   // Email the prospect the preview link. We do NOT gate on staff approval
-  // here â€” the self-serve flow assumes the AI output is fine to show and
+  // here — the self-serve flow assumes the AI output is fine to show and
   // staff steps in only when feedback comes back through the widget or
   // when a quality issue surfaces.
   const factoryUrl = process.env.TWOMIAH_FACTORY_URL || ''
@@ -4691,7 +4691,7 @@ factory.post('/public/intake/:id/feedback', rateLimit(60 * 60 * 1000, 20), async
     .single()
   if (tErr || !tenant) return c.json({ error: 'Preview not found.' }, 404)
   if (!tenant.preview_premium_pages) {
-    return c.json({ error: 'No preview composed yet â€” nothing to give feedback on.' }, 400)
+    return c.json({ error: 'No preview composed yet — nothing to give feedback on.' }, 400)
   }
 
   const { error: insertErr } = await supabase.from('intake_feedback').insert({
@@ -4715,7 +4715,7 @@ factory.post('/public/intake/:id/feedback', rateLimit(60 * 60 * 1000, 20), async
     contactEmail: tenant.email || undefined,
   }).catch((e: any) => console.warn('[Email] Feedback notification failed:', e.message))
 
-  // Staff-routed only. Auto-recompose was removed 2026-06-07 â€” the
+  // Staff-routed only. Auto-recompose was removed 2026-06-07 — the
   // right path for content tweaks (swap a photo, edit copy, change a
   // service title) is the post-purchase customizer where the customer
   // self-edits. The feedback widget is for situations the customizer
@@ -4725,7 +4725,7 @@ factory.post('/public/intake/:id/feedback', rateLimit(60 * 60 * 1000, 20), async
   // a human prevents runaway AI cost AND prevents customers from
   // training themselves to ask the AI for things they should do
   // themselves once the site is live.
-  return c.json({ success: true, message: "Got it â€” someone on our team will read this and follow up by email within one business day." })
+  return c.json({ success: true, message: "Got it — someone on our team will read this and follow up by email within one business day." })
 })
 
 // Re-runs the composer using the original intake_data + every piece of
@@ -4740,7 +4740,7 @@ async function recomposePreviewWithFeedback(tenantId: string): Promise<void> {
     .eq('id', tenantId)
     .single()
   if (error || !tenant || !tenant.intake_data) {
-    console.warn('[Recompose] No intake_data on tenant ' + tenantId + ' â€” cannot recompose')
+    console.warn('[Recompose] No intake_data on tenant ' + tenantId + ' — cannot recompose')
     return
   }
 
@@ -4803,7 +4803,7 @@ async function recomposePreviewWithFeedback(tenantId: string): Promise<void> {
 //
 // Rate-limited because the only thing standing between the public web and
 // Stripe Checkout creation is this endpoint. Per-IP limit is intentionally
-// loose â€” a prospect may legitimately click buy more than once.
+// loose — a prospect may legitimately click buy more than once.
 factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10), async (c) => {
   try {
     const id = c.req.param('id')
@@ -4823,7 +4823,7 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
     }
 
     // Mark products so the eventual deploy picks the website-premium
-    // template. Note: 'website' MUST stay in products â€” the generator's
+    // template. Note: 'website' MUST stay in products — the generator's
     // premium branch is INSIDE `if (products.includes('website'))`, so
     // dropping 'website' would skip the entire website pipeline.
     const productsSet = new Set<string>(Array.isArray(tenant.products) ? tenant.products : [])
@@ -4837,7 +4837,7 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
 
     // Generate the build NOW so a factory_jobs row exists when the Stripe
     // webhook calls triggerAutoDeploy on checkout.session.completed. The
-    // generate step is fast (~seconds) and idempotent â€” if a build already
+    // generate step is fast (~seconds) and idempotent — if a build already
     // exists for this tenant, we skip and reuse. Without this, payment
     // succeeds but the deploy never fires (triggerAutoDeploy bails on
     // "No build found for tenant").
@@ -4929,7 +4929,7 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
 })
 
 
-// â”€â”€â”€ Support Tickets (Level 1: CRM customers â†’ Twomiah) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Support Tickets (Level 1: CRM customers → Twomiah) ─────────────────────
 
 // List all support tickets (Factory team view)
 factory.get('/support/tickets', async (c) => {
@@ -5146,7 +5146,7 @@ factory.post('/support/tickets/:id/rate', async (c) => {
   return c.json(data)
 })
 
-// â”€â”€â”€ Customer-facing ticket endpoints (public, by tenant) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Customer-facing ticket endpoints (public, by tenant) ────────────────────
 
 factory.post('/public/support/tickets', async (c) => {
   const parsed = await parseJsonBody(c)
@@ -5196,7 +5196,7 @@ factory.get('/public/support/tickets', async (c) => {
   return c.json(data || [])
 })
 
-// â”€â”€â”€ Knowledge Base (Factory-level) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Knowledge Base (Factory-level) ──────────────────────────────────────────
 
 factory.get('/support/kb', async (c) => {
   const search = c.req.query('search')
@@ -5253,7 +5253,7 @@ factory.delete('/support/kb/:id', async (c) => {
   return c.json({ success: true })
 })
 
-// â”€â”€â”€ Product Feedback (Level 5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Product Feedback (Level 5) ──────────────────────────────────────────────
 
 factory.get('/support/feedback', async (c) => {
   const status = c.req.query('status')
@@ -5300,7 +5300,7 @@ factory.patch('/support/feedback/:id', async (c) => {
   return c.json(data)
 })
 
-// â”€â”€â”€ Pattern Detection Dashboard (Level 5) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Pattern Detection Dashboard (Level 5) ──────────────────────────────────
 
 factory.get('/support/patterns', async (c) => {
   // Category distribution
@@ -5338,7 +5338,7 @@ factory.get('/support/patterns', async (c) => {
 })
 
 
-// â”€â”€â”€ Preview â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Preview ────────────────────────────────────────────────────────────────
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
@@ -5370,7 +5370,7 @@ factory.post('/preview', requireRole('owner', 'admin', 'editor'), async (c) => {
 })
 
 
-// â”€â”€â”€ Update Tenant (general fields with audit) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Update Tenant (general fields with audit) ──────────────────────────────
 factory.patch('/customers/:id', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id')
@@ -5424,7 +5424,7 @@ factory.patch('/customers/:id', requireRole('owner', 'admin'), async (c) => {
 })
 
 
-// â”€â”€â”€ Tenant Audit Log (read) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tenant Audit Log (read) ─────────────────────────────────────────────────
 factory.get('/customers/:id/audit-log', requireRole('owner', 'admin'), async (c) => {
   try {
     const id = c.req.param('id')
@@ -5448,7 +5448,7 @@ factory.get('/customers/:id/audit-log', requireRole('owner', 'admin'), async (c)
 })
 
 
-// â”€â”€â”€ Customer Domain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Customer Domain ────────────────────────────────────────────────────────
 factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -5488,7 +5488,7 @@ factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) =
           const wwwResult = await addCustomDomain(primaryServiceId, 'www.' + domain)
           if (!wwwResult.success && !wwwResult.error?.includes('already')) renderErrors.push('Primary service (www): ' + wwwResult.error)
         }
-        // CRM backend gets app.<domain> â€” this is what the tenant's team logs into
+        // CRM backend gets app.<domain> — this is what the tenant's team logs into
         const backendServiceId = serviceIds.backend || serviceIds.api
         if (backendServiceId) {
           const appResult = await addCustomDomain(backendServiceId, 'app.' + domain)
@@ -5504,7 +5504,7 @@ factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) =
 })
 
 
-// â”€â”€â”€ Customer Domain DNS Verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Customer Domain DNS Verification ────────────────────────────────────────
 factory.get('/customers/:id/domain/status', requireRole('owner', 'admin', 'editor'), async (c) => {
   try {
     const tenantId = c.req.param('id')
@@ -5573,11 +5573,11 @@ factory.get('/customers/:id/domain/status', requireRole('owner', 'admin', 'edito
         type: 'A/CNAME',
         name: domain,
         status: pointsToRender ? 'verified' : 'pending',
-        current: cnameAnswers.length > 0 ? 'CNAME â†’ ' + cnameAnswers[0] : rootAnswers.length > 0 ? 'A â†’ ' + rootAnswers[0] : 'Not configured',
-        expected: 'CNAME â†’ ' + renderHost,
+        current: cnameAnswers.length > 0 ? 'CNAME → ' + cnameAnswers[0] : rootAnswers.length > 0 ? 'A → ' + rootAnswers[0] : 'Not configured',
+        expected: 'CNAME → ' + renderHost,
       })
     } catch {
-      results.push({ type: 'A/CNAME', name: domain, status: 'error', expected: 'CNAME â†’ ' + renderHost })
+      results.push({ type: 'A/CNAME', name: domain, status: 'error', expected: 'CNAME → ' + renderHost })
     }
 
     // Check www subdomain
@@ -5593,11 +5593,11 @@ factory.get('/customers/:id/domain/status', requireRole('owner', 'admin', 'edito
         type: 'CNAME',
         name: 'www.' + domain,
         status: wwwPointsToRender ? 'verified' : 'pending',
-        current: wwwAnswers.length > 0 ? 'CNAME â†’ ' + wwwAnswers[0] : 'Not configured',
-        expected: 'CNAME â†’ ' + renderHost,
+        current: wwwAnswers.length > 0 ? 'CNAME → ' + wwwAnswers[0] : 'Not configured',
+        expected: 'CNAME → ' + renderHost,
       })
     } catch {
-      results.push({ type: 'CNAME', name: 'www.' + domain, status: 'error', expected: 'CNAME â†’ ' + renderHost })
+      results.push({ type: 'CNAME', name: 'www.' + domain, status: 'error', expected: 'CNAME → ' + renderHost })
     }
 
     // Check SSL (try HTTPS on the domain)
@@ -5632,7 +5632,7 @@ factory.get('/customers/:id/domain/status', requireRole('owner', 'admin', 'edito
 })
 
 
-// â”€â”€â”€ Settings: Current User Profile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Settings: Current User Profile ──────────────────────────────────────────
 factory.get('/settings/profile', async (c) => {
   try {
     const userId = c.get('userId')
@@ -5668,7 +5668,7 @@ factory.patch('/settings/profile', async (c) => {
 })
 
 
-// â”€â”€â”€ Settings: Team Management (owner/admin only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Settings: Team Management (owner/admin only) ────────────────────────────
 factory.get('/settings/users', requireRole('owner', 'admin'), async (c) => {
   try {
     const { data, error } = await supabase
@@ -5699,7 +5699,7 @@ factory.post('/settings/users', requireRole('owner', 'admin'), async (c) => {
       .maybeSingle()
     if (existing) return c.json({ error: 'User with this email already exists' }, 409)
 
-    // Create a placeholder entry â€” auth_id will be filled when they log in
+    // Create a placeholder entry — auth_id will be filled when they log in
     // For now use a deterministic UUID from email or generate one
     const { data: authUser } = await (supabase.auth.admin as any).getUserByEmail(email)
     const authId = authUser?.user?.id || null
@@ -5791,7 +5791,7 @@ factory.delete('/settings/users/:id', requireRole('owner', 'admin'), async (c) =
 })
 
 
-// â”€â”€â”€ Feature Management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Feature Management ──────────────────────────────────────────────────────
 
 // Get features for a tenant (with registry metadata + audit log)
 factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), async (c) => {
@@ -5879,7 +5879,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
 
     // Sync to deployed CRM via HTTP API (preferred) or direct DB (fallback).
     // Verify-after-push: read what the CRM returned and confirm it matches
-    // what we sent â€” silently dropped features would otherwise look like success.
+    // what we sent — silently dropped features would otherwise look like success.
     let syncedToCrm = false
     let syncError: string | null = null
     let syncMode: 'http' | 'db' | 'none' = 'none'
@@ -5957,7 +5957,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
     const user = c.get('user')
     const adminEmail = user?.email || 'unknown'
 
-    // Write audit log â€” always, even on resync-no-diff, so failures leave a trace.
+    // Write audit log — always, even on resync-no-diff, so failures leave a trace.
     const changedFeatures = [...added, ...removed]
     const auditAction = changedFeatures.length === 0 ? 'resync' : action
     await supabase.from('tenant_feature_audit').insert({
@@ -5987,7 +5987,7 @@ factory.patch('/customers/:id/features', requireRole('owner', 'admin'), async (c
 })
 
 
-// â”€â”€â”€ Tenant Database Health Check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tenant Database Health Check ─────────────────────────────────────────────
 
 // Diagnostic: check all tenants for missing database_url
 factory.get('/admin/db-health', requireRole('owner', 'admin'), async (c) => {
@@ -6086,7 +6086,7 @@ factory.post('/customers/:id/repair-db-url', requireRole('owner', 'admin'), asyn
     }
 
     if (!tenant.supabase_project_ref) {
-      return c.json({ error: 'No supabase_project_ref â€” cannot recover connection string. Use PATCH /database-url to set manually.' }, 400)
+      return c.json({ error: 'No supabase_project_ref — cannot recover connection string. Use PATCH /database-url to set manually.' }, 400)
     }
 
     // Try to get the connection string from Supabase Management API
@@ -6127,7 +6127,7 @@ factory.post('/customers/:id/repair-db-url', requireRole('owner', 'admin'), asyn
   }
 })
 
-// â”€â”€â”€ Settings: Integration Status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Settings: Integration Status ────────────────────────────────────────────
 factory.get('/settings/integrations', async (c) => {
   try {
     const integrations = {
@@ -6146,11 +6146,11 @@ factory.get('/settings/integrations', async (c) => {
 })
 
 
-// â”€â”€â”€ QBO OAuth: Initiate Connection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── QBO OAuth: Initiate Connection ──────────────────────────────────────────
 factory.get('/integrations/qbo/connect', requireRole('owner', 'admin'), async (c) => {
   try {
     if (!process.env.QBO_CLIENT_ID || !process.env.QBO_CLIENT_SECRET) {
-      return c.json({ error: 'QuickBooks Online is not configured â€” set QBO_CLIENT_ID and QBO_CLIENT_SECRET' }, 400)
+      return c.json({ error: 'QuickBooks Online is not configured — set QBO_CLIENT_ID and QBO_CLIENT_SECRET' }, 400)
     }
     cleanExpiredStates()
     const state = crypto.randomUUID()
@@ -6163,7 +6163,7 @@ factory.get('/integrations/qbo/connect', requireRole('owner', 'admin'), async (c
   }
 })
 
-// â”€â”€â”€ QBO OAuth: Callback (public â€” Intuit redirects here) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── QBO OAuth: Callback (public — Intuit redirects here) ────────────────────
 factory.get('/integrations/qbo/callback', async (c) => {
   const platformUrl = process.env.PLATFORM_URL || (process.env.NODE_ENV === 'production' ? 'https://twomiah-factory-platform.onrender.com' : 'http://localhost:5173')
   try {
@@ -6186,7 +6186,7 @@ factory.get('/integrations/qbo/callback', async (c) => {
     const expiry = qboOAuthStates.get(state)
     if (!expiry || Date.now() > expiry) {
       qboOAuthStates.delete(state)
-      return c.redirect(`${platformUrl}/settings?qbo=error&message=${encodeURIComponent('OAuth state expired or invalid â€” please try again')}`)
+      return c.redirect(`${platformUrl}/settings?qbo=error&message=${encodeURIComponent('OAuth state expired or invalid — please try again')}`)
     }
     qboOAuthStates.delete(state)
 
@@ -6220,7 +6220,7 @@ factory.get('/integrations/qbo/callback', async (c) => {
   }
 })
 
-// â”€â”€â”€ QBO OAuth: Connection Status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── QBO OAuth: Connection Status ────────────────────────────────────────────
 factory.get('/integrations/qbo/status', async (c) => {
   try {
     const { data, error } = await supabase
@@ -6251,7 +6251,7 @@ factory.get('/integrations/qbo/status', async (c) => {
   }
 })
 
-// â”€â”€â”€ QBO OAuth: Disconnect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── QBO OAuth: Disconnect ───────────────────────────────────────────────────
 factory.post('/integrations/qbo/disconnect', requireRole('owner', 'admin'), async (c) => {
   try {
     const { error } = await supabase
@@ -6268,7 +6268,7 @@ factory.post('/integrations/qbo/disconnect', requireRole('owner', 'admin'), asyn
   }
 })
 
-// â”€â”€â”€ QBO OAuth: Refresh Token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── QBO OAuth: Refresh Token ────────────────────────────────────────────────
 factory.post('/integrations/qbo/refresh', requireRole('owner', 'admin'), async (c) => {
   try {
     const { data, error } = await supabase
@@ -6278,7 +6278,7 @@ factory.post('/integrations/qbo/refresh', requireRole('owner', 'admin'), async (
       .maybeSingle()
 
     if (error || !data?.config?.refresh_token) {
-      return c.json({ error: 'No QBO connection found â€” connect first' }, 400)
+      return c.json({ error: 'No QBO connection found — connect first' }, 400)
     }
 
     const tokens = await refreshAccessToken(data.config.refresh_token)
@@ -6304,7 +6304,7 @@ factory.post('/integrations/qbo/refresh', requireRole('owner', 'admin'), async (
 })
 
 
-// â”€â”€â”€ Roof Report Review Queue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Roof Report Review Queue ─────────────────────────────────────────────────
 
 // Store pending reports in-memory (backed by Supabase for persistence)
 // Each entry: { reportId, address, companyId, backendUrl, createdAt }

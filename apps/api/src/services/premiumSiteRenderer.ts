@@ -1,11 +1,11 @@
 ﻿/**
- * premiumSiteRenderer â€” renders a single page of the multi-page premium
+ * premiumSiteRenderer — renders a single page of the multi-page premium
  * preview from pre-composed sections + settings.
  *
  * Distinct from previewRenderer (which runs the full generate() pipeline
  * to produce a standard-template preview). The premium preview's
  * sections are already composed by composeSite() and persisted on the
- * tenant â€” this renderer just turns them into HTML at request time.
+ * tenant — this renderer just turns them into HTML at request time.
  *
  * Returns a self-contained HTML page (CSS inlined) so the preview link
  * works without backend asset requests other than the page itself.
@@ -61,7 +61,7 @@ const DEFAULT_NAV: Array<{ label: string; href: string }> = [
 
 /**
  * Render one page. previewBasePath is what the renderer prefixes nav
- * hrefs with â€” for the public preview we use the route stem so nav
+ * hrefs with — for the public preview we use the route stem so nav
  * links navigate within the preview (e.g.
  * /api/v1/factory/public/intake/:id/preview-premium/about).
  *
@@ -228,7 +228,7 @@ function injectFeedbackWidget(html: string): string {
 <div id="__fb_modal" role="dialog" aria-modal="true" aria-labelledby="__fb_h">
   <div id="__fb_card">
     <h2 id="__fb_h">Tell us what's off</h2>
-    <p>Use this if the <em>direction</em> isn't right â€” wrong industry, wrong tone, missing something important. For small edits (swap a photo, tweak copy, change a service title), you'll do those yourself in a simple editor once your site is live.</p>
+    <p>Use this if the <em>direction</em> isn't right — wrong industry, wrong tone, missing something important. For small edits (swap a photo, tweak copy, change a service title), you'll do those yourself in a simple editor once your site is live.</p>
     <textarea id="__fb_textarea" placeholder="e.g. I'm a food truck, not a restaurant. Or: the whole tone feels too corporate for what I do. Or: there's no menu section and I really need one."></textarea>
     <div id="__fb_status"></div>
     <div id="__fb_actions">
@@ -279,7 +279,7 @@ function injectApproveAndBuyWidget(html: string): string {
 </style>
 <button id="__buy_fab" type="button" aria-label="Approve and start checkout">
   <span id="__buy_dot" aria-hidden="true"></span>
-  Approve & build my site â€” $499 launch
+  Approve & build my site — $499 launch
 </button>
 <div id="__buy_status" role="alert"></div>
 <script data-buy-widget>
