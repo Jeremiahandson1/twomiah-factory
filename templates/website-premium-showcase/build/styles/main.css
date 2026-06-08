@@ -550,3 +550,56 @@ a { color: inherit; text-decoration: none; }
 .catering__sidebar-label { font-size: 13px; color: var(--ink-soft); }
 .catering__sidebar-list { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--ink); }
 .catering__sidebar-list li::before { content: '\2713  '; color: var(--brand); font-weight: 700; }
+
+/* ─── schedule/week-strip (fitness class schedule, foodtruck route) ─── */
+.schedule-strip { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(7, minmax(160px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x mandatory; }
+.schedule-strip__day { background: var(--white); border-radius: 12px; padding: 18px 16px 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); scroll-snap-align: start; display: flex; flex-direction: column; gap: 8px; min-height: 160px; position: relative; }
+.schedule-strip__tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; align-self: flex-start; margin-bottom: 4px; }
+.schedule-strip__tag--market { background: #fef3c7; color: #92400e; }
+.schedule-strip__tag--private { background: #e0e7ff; color: #3730a3; }
+.schedule-strip__tag--catering { background: #fecaca; color: #991b1b; }
+.schedule-strip__tag--off { background: #e7e5e4; color: #57534e; }
+.schedule-strip__tag--default { background: var(--accent); color: var(--brand-deep); }
+.schedule-strip__date { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; color: var(--brand); }
+.schedule-strip__location { font-size: 14.5px; color: var(--ink); font-weight: 500; line-height: 1.3; }
+.schedule-strip__hours { font-size: 13px; color: var(--ink-soft); }
+.schedule-strip__note { font-size: 12px; color: var(--muted); font-style: italic; }
+
+/* ─── before_after/slider (salon gallery, contractor projects) ─── */
+.before-after { padding: var(--space) 0; }
+.before-after__filters { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-bottom: 32px; }
+.before-after__filter { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; font-size: 14px; }
+.before-after__filter summary { cursor: pointer; font-weight: 500; }
+.before-after__filter ul { list-style: none; padding: 12px 0 4px; margin: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ba-chip { background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px; cursor: pointer; color: var(--ink-soft); }
+.ba-chip:hover { border-color: var(--brand); color: var(--brand); }
+.ba-chip.is-active { background: var(--brand); color: var(--white); border-color: var(--brand); }
+.before-after__grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 28px; }
+.ba-card[hidden] { display: none !important; }
+.ba-card__slider { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 12px; user-select: none; cursor: ew-resize; touch-action: pan-y; }
+.ba-card__after, .ba-card__before { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; -webkit-user-drag: none; }
+.ba-card__before-wrap { position: absolute; inset: 0; width: 50%; overflow: hidden; }
+.ba-card__handle { position: absolute; top: 0; bottom: 0; left: 50%; width: 4px; background: var(--white); transform: translateX(-50%); pointer-events: none; }
+.ba-card__handle-dot { position: absolute; top: 50%; left: 50%; width: 36px; height: 36px; transform: translate(-50%, -50%); background: var(--white); border-radius: 50%; box-shadow: 0 4px 14px rgba(0,0,0,0.3); display: grid; place-items: center; pointer-events: auto; cursor: ew-resize; }
+.ba-card__handle-dot::before, .ba-card__handle-dot::after { content: ''; width: 8px; height: 8px; border-top: 2px solid var(--brand); border-right: 2px solid var(--brand); position: absolute; transform: rotate(45deg); }
+.ba-card__handle-dot::before { left: 9px; transform: rotate(-135deg); }
+.ba-card__handle-dot::after { right: 9px; }
+.ba-card__label { position: absolute; top: 14px; padding: 4px 10px; background: rgba(0,0,0,0.6); color: var(--white); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; border-radius: 4px; }
+.ba-card__label--before { left: 14px; }
+.ba-card__label--after { right: 14px; }
+.ba-card__meta { padding: 14px 4px 4px; }
+.ba-card__caption { font-size: 15px; color: var(--ink); font-weight: 500; }
+.ba-card__sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+
+/* ─── pricing/flat-rate-menu (fitness membership tiers, events packages) ─── */
+.pricing { padding: var(--space) 0; }
+.pr-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 22px; }
+.pr-card { background: var(--white); border-radius: 14px; padding: 24px 24px 22px; box-shadow: 0 2px 14px rgba(0,0,0,0.04); display: flex; flex-direction: column; gap: 12px; border-left: 4px solid var(--brand); }
+.pr-card__head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.pr-card__service { margin: 0; font-size: 20px; line-height: 1.15; color: var(--ink); flex: 1 1 200px; }
+.pr-card__price { font-size: 24px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+.pr-card__includes { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--ink-soft); }
+.pr-card__includes li { position: relative; padding-left: 20px; line-height: 1.45; }
+.pr-card__includes li::before { content: '\2713'; position: absolute; left: 0; top: 0; color: var(--brand); font-weight: 700; }
+.pr-card__note { font-size: 12.5px; color: var(--muted); font-style: italic; margin-top: 4px; }
+.pr-disclaimer { text-align: center; font-size: 13px; color: var(--muted); margin: 36px auto 0; max-width: 560px; line-height: 1.5; font-style: italic; }
