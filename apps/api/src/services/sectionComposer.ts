@@ -270,6 +270,11 @@ export const SECTION_SCHEMA = {
       optional: ['intro', 'partySizes', 'maxLeadDays', 'note', 'bookingPath'],
       use_when: 'sit-down restaurants, boutique hotels, salons that want a party-size + date + time picker that deep-links into Twomiah Bookings. Customer fills party-size/date/time on the home page, click → Bookings page with values pre-filled. Better than a generic "book a table" button — sets the right expectation that booking is the next step.',
     },
+    cta: {
+      required: ['heading', 'buttonLabel'],
+      optional: ['intro', 'bookingPath', 'note'],
+      use_when: 'service businesses (contractor, HVAC/plumbing/electrical, landscaping, roofing, home care) where the conversion is "schedule an estimate" or "book service" — not a party-size dinner reservation. Renders as a headline + intro + single CTA button that deep-links to Twomiah Bookings, where the customer picks from real availability. Use this anywhere the customer needs to book an appointment with a person but the inline party/date picker doesn\'t fit. Labels: "Schedule a free estimate" (contractor/landscaping/roofing), "Book service" (HVAC/plumbing/cleaning), "Schedule a consultation" (home care).',
+    },
   },
   // ─── Field service section types (HVAC / plumbing / electrical) ───────
   emergency: {
@@ -607,8 +612,8 @@ const PAGE_RECIPES = {
 const CONTRACTOR_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a contractor. Hero takes a position about their specialty. Portfolio preview → services → about. SEO targets: "[city] kitchen remodel", "[city] general contractor", "[city] deck builder".',
-    allowed_types: ['hero', 'services', 'gallery', 'stats', 'testimonials', 'about', 'cta'],
-    required_sequence: '1 hero/full-bleed (a finished project at golden hour, an in-progress build, or owner-on-jobsite — NOT generic stock tools), 1 services/cards-grid (3-6 specialties), 1 gallery/grid (8-12 finished-project shots from real jobs — portfolio is the conversion driver), optional 1 stats/bar (years, jobs completed, licenses held — real anchored numbers), optional 1 testimonials block (real homeowner quotes only), optional 1 about/story snippet, close with 1 cta',
+    allowed_types: ['hero', 'services', 'reservation', 'gallery', 'stats', 'testimonials', 'about', 'cta'],
+    required_sequence: '1 hero/full-bleed (a finished project at golden hour, an in-progress build, or owner-on-jobsite — NOT generic stock tools), 1 services/cards-grid (3-6 specialties), 1 reservation/cta with heading "Ready to talk about your project?" and buttonLabel "Schedule a free estimate" (Twomiah Bookings — this is the primary conversion for contractors; homeowners want to book a walkthrough, not call), 1 gallery/grid (8-12 finished-project shots from real jobs — portfolio is the conversion driver), optional 1 stats/bar (years, jobs completed, licenses held — real anchored numbers), optional 1 testimonials block (real homeowner quotes only), optional 1 about/story snippet, close with 1 cta',
   },
   services: {
     purpose: 'The full services menu — what they build, install, remodel. Each service with description + scope.',
@@ -627,8 +632,8 @@ const CONTRACTOR_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page for estimate requests + general contact.',
-    allowed_types: ['hero', 'contact', 'faq', 'cta'],
-    required_sequence: 'optional 1 hero (short, set expectation: "free estimates, typically [X] day response"), 1 contact/form-info, 1 faq (estimate process, lead time, financing, permits, project minimum), close with 1 cta',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq', 'cta'],
+    required_sequence: 'optional 1 hero (short, set expectation: "free estimates, typically [X] day response"), 1 contact/form-info, 1 reservation/cta with heading "Or grab a time on the calendar" and buttonLabel "Schedule a free estimate" (Twomiah Bookings — for homeowners who would rather book directly than wait for a callback), 1 faq (estimate process, lead time, financing, permits, project minimum), close with 1 cta',
   },
 } as const
 
@@ -863,8 +868,8 @@ const EVENTS_PAGE_RECIPES = {
 const FIELDSERVICE_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for HVAC / plumbing / electrical / cleaning. Emergency-first if applicable, then prove you actually answer the phone, then transparent pricing, then book.',
-    allowed_types: ['emergency', 'hero', 'service_area', 'trust', 'services', 'pricing', 'before_after', 'stats', 'cta'],
-    required_sequence: 'For HVAC/plumbing/electrical: optional 1 emergency/bar at the very top if 24/7 service, 1 hero/full-bleed (specific specialty headline — NOT "premier HVAC service"), 1 service_area/zip-check, optional 1 trust/badges (licenses, master plumber, BBB), 1 services/cards-grid, 1 pricing/flat-rate-menu (the conversion lever), close with 1 cta/split. For cleaning: skip emergency/bar, lead with packages-style recurring contracts using services/alternating instead of pricing/flat-rate-menu.',
+    allowed_types: ['emergency', 'hero', 'service_area', 'trust', 'services', 'pricing', 'reservation', 'before_after', 'stats', 'cta'],
+    required_sequence: 'For HVAC/plumbing/electrical: optional 1 emergency/bar at the very top if 24/7 service, 1 hero/full-bleed (specific specialty headline — NOT "premier HVAC service"), 1 service_area/zip-check, optional 1 trust/badges (licenses, master plumber, BBB), 1 services/cards-grid, 1 pricing/flat-rate-menu (the conversion lever), 1 reservation/cta with heading "Book the next available tech" and buttonLabel "Schedule a service call" (Twomiah Bookings — non-emergency customers want to pick a slot, not wait on hold), close with 1 cta/split. For cleaning: skip emergency/bar, lead with packages-style recurring contracts using services/alternating instead of pricing/flat-rate-menu, and use reservation/cta with buttonLabel "Schedule your first clean".',
   },
   emergency: {
     purpose: 'Dedicated emergency landing — for after-hours / weekend / holiday calls. SEO-targeted to "emergency plumber near me" / "AC repair tonight".',
@@ -888,8 +893,8 @@ const FIELDSERVICE_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page for non-emergency contact.',
-    allowed_types: ['hero', 'contact', 'service_area', 'faq', 'emergency'],
-    required_sequence: 'optional 1 emergency/bar (if emergency-first vertical), 1 hero (short), 1 contact/form-info, optional 1 service_area/zip-check, optional 1 faq',
+    allowed_types: ['hero', 'contact', 'reservation', 'service_area', 'faq', 'emergency'],
+    required_sequence: 'optional 1 emergency/bar (if emergency-first vertical), 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a service call" (Twomiah Bookings), optional 1 service_area/zip-check, optional 1 faq',
   },
 } as const
 
@@ -902,8 +907,8 @@ const FIELDSERVICE_PAGE_RECIPES = {
 const HOMECARE_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a home-care agency. Empathetic but concrete trust signals, then a guided care-finder wizard, then humanize with caregivers.',
-    allowed_types: ['hero', 'trust', 'stats', 'care', 'caregivers', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed or hero/split (owner-or-caregiver-with-client portrait, NOT generic hands-on-shoulder stock), 1 trust/badges (state license #, bonded/insured, BBB, years in business — concrete signals only), optional 1 stats/bar anchored in real numbers, 1 care/finder (this is the conversion engine), optional 1 caregivers/grid showing 3-4 sample profiles, optional 1 testimonials block (real adult-child quotes only), close with 1 cta',
+    allowed_types: ['hero', 'trust', 'stats', 'care', 'reservation', 'caregivers', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed or hero/split (owner-or-caregiver-with-client portrait, NOT generic hands-on-shoulder stock), 1 trust/badges (state license #, bonded/insured, BBB, years in business — concrete signals only), optional 1 stats/bar anchored in real numbers, 1 care/finder (this is the conversion engine), 1 reservation/cta with heading "Or skip the form and book a call" and buttonLabel "Schedule a free consultation" (Twomiah Bookings — adult children who already know what they need want to grab a slot, not fill out another form), optional 1 caregivers/grid showing 3-4 sample profiles, optional 1 testimonials block (real adult-child quotes only), close with 1 cta',
   },
   'find-care': {
     purpose: 'The standalone care-finder wizard page. Quiet, focused, no distraction. Where qualified leads convert.',
@@ -927,8 +932,8 @@ const HOMECARE_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page. Quiet, direct, response promise.',
-    allowed_types: ['hero', 'contact', 'faq'],
-    required_sequence: 'optional 1 hero (short, empathetic), 1 contact/form-info with response-time promise, optional 1 faq',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short, empathetic), 1 contact/form-info with response-time promise, optional 1 reservation/cta with heading "Or schedule a call directly" and buttonLabel "Schedule a free consultation" (Twomiah Bookings), optional 1 faq',
   },
 } as const
 
@@ -939,8 +944,8 @@ const HOMECARE_PAGE_RECIPES = {
 const LANDSCAPING_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a landscaping / lawn-care business. Lead with the seasonally-relevant package, then property quote, then proof.',
-    allowed_types: ['hero', 'packages', 'quote', 'services', 'before_after', 'testimonials', 'cta'],
-    required_sequence: '1 hero/full-bleed (the work itself in golden-hour photography, NOT a generic "trusted landscapers" stock), 1 packages/seasonal (current-season-tier highlighted), 1 quote/instant-address (property-size based estimate, pricePerSqFt 0.04-0.10 for mow contracts), optional 1 services/cards-grid for one-off jobs, 1 before_after/slider (3-4 transformations), close with 1 cta/split',
+    allowed_types: ['hero', 'packages', 'quote', 'reservation', 'services', 'before_after', 'testimonials', 'cta'],
+    required_sequence: '1 hero/full-bleed (the work itself in golden-hour photography, NOT a generic "trusted landscapers" stock), 1 packages/seasonal (current-season-tier highlighted), 1 quote/instant-address (property-size based estimate, pricePerSqFt 0.04-0.10 for mow contracts), 1 reservation/cta with heading "Prefer to talk it through?" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings deep-link — gives customers who don\'t want an instant quote a path to a real conversation), optional 1 services/cards-grid for one-off jobs, 1 before_after/slider (3-4 transformations), close with 1 cta/split',
   },
   packages: {
     purpose: 'The recurring-service catalog. Compare tiers, see what is in each. This is the page that closes the subscription sale.',
@@ -964,8 +969,8 @@ const LANDSCAPING_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page for one-off jobs and questions.',
-    allowed_types: ['hero', 'contact', 'faq'],
-    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 faq',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or just book a time" and buttonLabel "Schedule an estimate visit" (Twomiah Bookings), optional 1 faq',
   },
 } as const
 
@@ -975,8 +980,8 @@ const LANDSCAPING_PAGE_RECIPES = {
 const ROOFING_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a roofer. Insurance-claim positioning first, instant-quote second, trust badges third, work proof fourth.',
-    allowed_types: ['hero', 'banner', 'quote', 'trust', 'services', 'before_after', 'stats', 'cta'],
-    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider (3-4 items), close with 1 cta/split',
+    allowed_types: ['hero', 'banner', 'quote', 'reservation', 'trust', 'services', 'before_after', 'stats', 'cta'],
+    required_sequence: 'optional 1 banner/storm-alert at the very top if a recent storm in the service area is referenced in the intake, then 1 hero/full-bleed or hero/split (insurance-claim voice, owner-on-every-roof signal), 1 quote/instant-address (the single biggest conversion lever), 1 reservation/cta with heading "Want eyes on it?" and buttonLabel "Schedule a free inspection" (Twomiah Bookings — pairs with the instant quote for customers who want a person on the roof not a calculator), 1 trust/badges if intake supports them, 1 services/cards-grid, 1 before_after/slider (3-4 items), close with 1 cta/split',
   },
   quote: {
     purpose: 'Standalone estimator page. SEO-targeted to "roof replacement cost" / "ballpark roof estimate" searches.',
@@ -1000,8 +1005,8 @@ const ROOFING_PAGE_RECIPES = {
   },
   contact: {
     purpose: 'Conversion page. Form + business details + response promise.',
-    allowed_types: ['hero', 'contact', 'faq', 'banner'],
-    required_sequence: 'optional 1 banner/storm-alert if active, 1 hero (short), 1 contact/form-info, optional 1 faq covering pre-call questions',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq', 'banner'],
+    required_sequence: 'optional 1 banner/storm-alert if active, 1 hero (short), 1 contact/form-info, optional 1 reservation/cta with heading "Or grab a slot directly" and buttonLabel "Schedule a free inspection" (Twomiah Bookings), optional 1 faq covering pre-call questions',
   },
 } as const
 
@@ -1089,24 +1094,32 @@ function buildSitePrompt(input: ComposerInput): string {
   // Industry-specific recipe overrides. Each vertical that needs a
   // fundamentally different page model gets its own recipe set; the
   // generic 4-page PAGE_RECIPES is the fallback.
+  //
+  // Matching uses word boundaries (\b) so customer-typed strings like
+  // "Italian restaurant" or "neighborhood cafe" still route correctly,
+  // not just exact tokens like "restaurant". Ordering of the ternary
+  // chain matters when a businessType contains multiple matching words:
+  // the first match in the chain below wins. Place more specific verticals
+  // (food truck, dispensary, vertical specialties) BEFORE more generic
+  // ones (restaurant, contractor) so a "food truck catering" routes to
+  // foodtruck not events.
   const businessType = input.businessType || ''
-  const ft = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessType)
-  const dispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessType)
-  const roofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessType)
-  const landscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessType)
-  const homecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessType)
-  const fieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessType)
-  const restaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessType)
-  const cafe = /^cafe$|^caf[eé]$|^coffee[_-]?shop$|^coffeeshop$|^coffee$|^tea[_-]?room$|^tearoom$|^espresso[_-]?bar$|^bakery[_-]?caf[eé]?$/i.test(businessType)
-  const salon = /^salon$|^hair[_-]?salon$|^hairdresser$|^barber$|^barbershop$|^nail[_-]?salon$|^nails$|^spa$|^day[_-]?spa$|^esthetician$|^esthetics$|^beauty[_-]?salon$|^beauty$|^lash$|^lash[_-]?bar$|^brow[_-]?bar$|^medspa$|^med[_-]?spa$|^waxing$/i.test(businessType)
-  const fitness = /^gym$|^fitness$|^fitness[_-]?studio$|^yoga$|^yoga[_-]?studio$|^pilates$|^pilates[_-]?studio$|^crossfit$|^cross[_-]?fit$|^boxing$|^boxing[_-]?gym$|^martial[_-]?arts$|^mma$|^personal[_-]?training$|^personal[_-]?trainer$|^trainer$|^spin[_-]?studio$|^cycling[_-]?studio$|^barre$|^dance[_-]?studio$/i.test(businessType)
-  const hotel = /^hotel$|^boutique[_-]?hotel$|^b[_-]?and[_-]?b$|^bandb$|^bnb$|^bed[_-]?and[_-]?breakfast$|^inn$|^lodge$|^motel$|^vacation[_-]?rental$|^short[_-]?term[_-]?rental$|^airbnb$|^guest[_-]?house$|^cabin$/i.test(businessType)
-  const events = /^event[_-]?venue$|^events$|^wedding[_-]?venue$|^banquet[_-]?hall$|^banquet$|^venue$|^party[_-]?venue$|^corporate[_-]?venue$|^reception[_-]?hall$|^barn[_-]?venue$/i.test(businessType)
-  // Contractor catches general contracting + the specific build-trade verticals
-  // (kitchen, bath, deck, fence, concrete, masonry, tile, etc.). Falls AFTER
-  // the others so a "kitchen" intake routes here, but a "restaurant" with the
-  // word "kitchen" in description doesn't.
-  const contractor = /^contractor$|^general[_-]?contractor$|^construction$|^remodeling$|^remodeler$|^siding$|^home[_-]?improvement$|^kitchen$|^kitchen[_-]?remodeling$|^kitchen[_-]?design$|^kitchen[_-]?installation$|^bath[_-]?remodeling$|^bathroom[_-]?remodeling$|^deck[_-]?builder$|^fence[_-]?installation$|^drywall$|^flooring$|^framing$|^concrete$|^masonry$|^tile$|^cabinet[_-]?maker$/i.test(businessType)
+  const ft = /\b(food[_\s\-]?truck|mobile[_\s\-]?food|food[_\s\-]?cart|mobile[_\s\-]?kitchen|pop[_\s\-]?up[_\s\-]?kitchen)\b/i.test(businessType)
+  const dispensary = /\b(dispensary|cannabis|cannabis[_\s\-]?retail)\b/i.test(businessType)
+  const roofing = /\b(roofing|roof|roofer|storm[_\s\-]?restoration|siding[_\s\-]?roofing)\b/i.test(businessType)
+  const landscaping = /\b(landscaping|lawn[_\s\-]?care|lawncare|landscape[_\s\-]?design|snow[_\s\-]?removal|tree[_\s\-]?service|arborist|hardscape)\b/i.test(businessType)
+  const homecare = /\b(home[_\s\-]?care|homecare|in[_\s\-]?home[_\s\-]?care|senior[_\s\-]?care|caregiving|companion[_\s\-]?care|home[_\s\-]?health)\b/i.test(businessType)
+  const fieldservice = /\b(field[_\s\-]?service|hvac|plumbing|plumber|electrical|electrician|appliance[_\s\-]?repair|cleaning|house[_\s\-]?cleaning|maid[_\s\-]?service|janitorial|commercial[_\s\-]?cleaning|pest[_\s\-]?control|exterminator|locksmith|garage[_\s\-]?door|septic|pool[_\s\-]?service|irrigation|handyman|painting|mobile[_\s\-]?detailing|mobile[_\s\-]?mechanic|pet[_\s\-]?grooming|dog[_\s\-]?walking)\b/i.test(businessType)
+  const cafe = /\b(cafe|caf[eé]|coffee[_\s\-]?shop|coffeeshop|coffee[_\s\-]?house|tea[_\s\-]?room|tearoom|espresso[_\s\-]?bar|bakery[_\s\-]?caf[eé]?)\b/i.test(businessType)
+  const restaurant = /\b(restaurant|bistro|gastropub|eatery|diner|pizzeria|trattoria|brasserie|taqueria|ramen[_\s\-]?shop|sushi[_\s\-]?bar)\b/i.test(businessType)
+  const salon = /\b(salon|hair[_\s\-]?salon|hairdresser|barber|barbershop|nail[_\s\-]?salon|nail[_\s\-]?bar|spa|day[_\s\-]?spa|esthetician|esthetics|beauty[_\s\-]?salon|lash[_\s\-]?bar|brow[_\s\-]?bar|medspa|med[_\s\-]?spa|waxing)\b/i.test(businessType)
+  const fitness = /\b(gym|fitness|fitness[_\s\-]?studio|yoga|yoga[_\s\-]?studio|pilates|pilates[_\s\-]?studio|crossfit|cross[_\s\-]?fit|boxing|boxing[_\s\-]?gym|martial[_\s\-]?arts|mma|personal[_\s\-]?training|personal[_\s\-]?trainer|spin[_\s\-]?studio|cycling[_\s\-]?studio|barre|dance[_\s\-]?studio)\b/i.test(businessType)
+  const hotel = /\b(hotel|boutique[_\s\-]?hotel|b[_\s\-]?and[_\s\-]?b|b&b|bandb|bnb|bed[_\s\-]?and[_\s\-]?breakfast|inn|lodge|motel|vacation[_\s\-]?rental|short[_\s\-]?term[_\s\-]?rental|airbnb|guest[_\s\-]?house|cabin[_\s\-]?rental)\b/i.test(businessType)
+  const events = /\b(event[_\s\-]?venue|wedding[_\s\-]?venue|banquet[_\s\-]?hall|banquet|venue|party[_\s\-]?venue|corporate[_\s\-]?venue|reception[_\s\-]?hall|barn[_\s\-]?venue|events)\b/i.test(businessType)
+  // Contractor catches general contracting + the specific build-trade verticals.
+  // Falls AFTER the others so a "kitchen" intake routes here, but a businessType
+  // with the word "kitchen" in a cafe context ("kitchen cafe") routes to cafe.
+  const contractor = /\b(contractor|general[_\s\-]?contractor|construction|remodeling|remodeler|siding|home[_\s\-]?improvement|kitchen|kitchen[_\s\-]?remodeling|kitchen[_\s\-]?design|kitchen[_\s\-]?installation|bath[_\s\-]?remodeling|bathroom[_\s\-]?remodeling|deck[_\s\-]?builder|fence[_\s\-]?installation|drywall|flooring|framing|concrete|masonry|tile[_\s\-]?installer|cabinet[_\s\-]?maker)\b/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : dispensary
@@ -1955,19 +1968,22 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   // Page set is determined by industry — different verticals get different
   // page recipes. Generic fallback is the 4-page model.
   const businessTypeIn = input.businessType || ''
-  const isFoodTruck = /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(businessTypeIn)
-  const isDispensary = /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(businessTypeIn)
-  const isRoofing = /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(businessTypeIn)
-  const isLandscaping = /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(businessTypeIn)
-  const isHomecare = /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(businessTypeIn)
-  const isFieldservice = /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(businessTypeIn)
-  const isRestaurant = /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(businessTypeIn)
-  const isCafe = /^cafe$|^caf[eé]$|^coffee[_-]?shop$|^coffeeshop$|^coffee$|^tea[_-]?room$|^tearoom$|^espresso[_-]?bar$|^bakery[_-]?caf[eé]?$/i.test(businessTypeIn)
-  const isSalon = /^salon$|^hair[_-]?salon$|^hairdresser$|^barber$|^barbershop$|^nail[_-]?salon$|^nails$|^spa$|^day[_-]?spa$|^esthetician$|^esthetics$|^beauty[_-]?salon$|^beauty$|^lash$|^lash[_-]?bar$|^brow[_-]?bar$|^medspa$|^med[_-]?spa$|^waxing$/i.test(businessTypeIn)
-  const isFitness = /^gym$|^fitness$|^fitness[_-]?studio$|^yoga$|^yoga[_-]?studio$|^pilates$|^pilates[_-]?studio$|^crossfit$|^cross[_-]?fit$|^boxing$|^boxing[_-]?gym$|^martial[_-]?arts$|^mma$|^personal[_-]?training$|^personal[_-]?trainer$|^trainer$|^spin[_-]?studio$|^cycling[_-]?studio$|^barre$|^dance[_-]?studio$/i.test(businessTypeIn)
-  const isHotel = /^hotel$|^boutique[_-]?hotel$|^b[_-]?and[_-]?b$|^bandb$|^bnb$|^bed[_-]?and[_-]?breakfast$|^inn$|^lodge$|^motel$|^vacation[_-]?rental$|^short[_-]?term[_-]?rental$|^airbnb$|^guest[_-]?house$|^cabin$/i.test(businessTypeIn)
-  const isEvents = /^event[_-]?venue$|^events$|^wedding[_-]?venue$|^banquet[_-]?hall$|^banquet$|^venue$|^party[_-]?venue$|^corporate[_-]?venue$|^reception[_-]?hall$|^barn[_-]?venue$/i.test(businessTypeIn)
-  const isContractor = /^contractor$|^general[_-]?contractor$|^construction$|^remodeling$|^remodeler$|^siding$|^home[_-]?improvement$|^kitchen$|^kitchen[_-]?remodeling$|^kitchen[_-]?design$|^kitchen[_-]?installation$|^bath[_-]?remodeling$|^bathroom[_-]?remodeling$|^deck[_-]?builder$|^fence[_-]?installation$|^drywall$|^flooring$|^framing$|^concrete$|^masonry$|^tile$|^cabinet[_-]?maker$/i.test(businessTypeIn)
+  // Match definitions MUST mirror the ternary in buildSitePrompt above —
+  // any change there must be reflected here. Both use word-boundary
+  // matching for resilience against multi-word customer inputs.
+  const isFoodTruck = /\b(food[_\s\-]?truck|mobile[_\s\-]?food|food[_\s\-]?cart|mobile[_\s\-]?kitchen|pop[_\s\-]?up[_\s\-]?kitchen)\b/i.test(businessTypeIn)
+  const isDispensary = /\b(dispensary|cannabis|cannabis[_\s\-]?retail)\b/i.test(businessTypeIn)
+  const isRoofing = /\b(roofing|roof|roofer|storm[_\s\-]?restoration|siding[_\s\-]?roofing)\b/i.test(businessTypeIn)
+  const isLandscaping = /\b(landscaping|lawn[_\s\-]?care|lawncare|landscape[_\s\-]?design|snow[_\s\-]?removal|tree[_\s\-]?service|arborist|hardscape)\b/i.test(businessTypeIn)
+  const isHomecare = /\b(home[_\s\-]?care|homecare|in[_\s\-]?home[_\s\-]?care|senior[_\s\-]?care|caregiving|companion[_\s\-]?care|home[_\s\-]?health)\b/i.test(businessTypeIn)
+  const isFieldservice = /\b(field[_\s\-]?service|hvac|plumbing|plumber|electrical|electrician|appliance[_\s\-]?repair|cleaning|house[_\s\-]?cleaning|maid[_\s\-]?service|janitorial|commercial[_\s\-]?cleaning|pest[_\s\-]?control|exterminator|locksmith|garage[_\s\-]?door|septic|pool[_\s\-]?service|irrigation|handyman|painting|mobile[_\s\-]?detailing|mobile[_\s\-]?mechanic|pet[_\s\-]?grooming|dog[_\s\-]?walking)\b/i.test(businessTypeIn)
+  const isCafe = /\b(cafe|caf[eé]|coffee[_\s\-]?shop|coffeeshop|coffee[_\s\-]?house|tea[_\s\-]?room|tearoom|espresso[_\s\-]?bar|bakery[_\s\-]?caf[eé]?)\b/i.test(businessTypeIn)
+  const isRestaurant = /\b(restaurant|bistro|gastropub|eatery|diner|pizzeria|trattoria|brasserie|taqueria|ramen[_\s\-]?shop|sushi[_\s\-]?bar)\b/i.test(businessTypeIn)
+  const isSalon = /\b(salon|hair[_\s\-]?salon|hairdresser|barber|barbershop|nail[_\s\-]?salon|nail[_\s\-]?bar|spa|day[_\s\-]?spa|esthetician|esthetics|beauty[_\s\-]?salon|lash[_\s\-]?bar|brow[_\s\-]?bar|medspa|med[_\s\-]?spa|waxing)\b/i.test(businessTypeIn)
+  const isFitness = /\b(gym|fitness|fitness[_\s\-]?studio|yoga|yoga[_\s\-]?studio|pilates|pilates[_\s\-]?studio|crossfit|cross[_\s\-]?fit|boxing|boxing[_\s\-]?gym|martial[_\s\-]?arts|mma|personal[_\s\-]?training|personal[_\s\-]?trainer|spin[_\s\-]?studio|cycling[_\s\-]?studio|barre|dance[_\s\-]?studio)\b/i.test(businessTypeIn)
+  const isHotel = /\b(hotel|boutique[_\s\-]?hotel|b[_\s\-]?and[_\s\-]?b|b&b|bandb|bnb|bed[_\s\-]?and[_\s\-]?breakfast|inn|lodge|motel|vacation[_\s\-]?rental|short[_\s\-]?term[_\s\-]?rental|airbnb|guest[_\s\-]?house|cabin[_\s\-]?rental)\b/i.test(businessTypeIn)
+  const isEvents = /\b(event[_\s\-]?venue|wedding[_\s\-]?venue|banquet[_\s\-]?hall|banquet|venue|party[_\s\-]?venue|corporate[_\s\-]?venue|reception[_\s\-]?hall|barn[_\s\-]?venue|events)\b/i.test(businessTypeIn)
+  const isContractor = /\b(contractor|general[_\s\-]?contractor|construction|remodeling|remodeler|siding|home[_\s\-]?improvement|kitchen|kitchen[_\s\-]?remodeling|kitchen[_\s\-]?design|kitchen[_\s\-]?installation|bath[_\s\-]?remodeling|bathroom[_\s\-]?remodeling|deck[_\s\-]?builder|fence[_\s\-]?installation|drywall|flooring|framing|concrete|masonry|tile[_\s\-]?installer|cabinet[_\s\-]?maker)\b/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
