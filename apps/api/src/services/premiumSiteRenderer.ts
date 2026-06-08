@@ -90,7 +90,13 @@ export async function renderPremiumPage(
   }))
   const isOnePage = (settings as any).layoutMode === 'single-page'
   const homeHref = previewBasePath
-  const contactHref = isOnePage ? '#contact' : previewBasePath + '/contact'
+  // The header "Get in touch" CTA used to hardcode /contact, which 404s
+  // for verticals whose recipe doesn't produce a contact page (cafes use
+  // /visit, restaurants use /reservations, etc.). Pick from the nav the
+  // composer actually emitted, in priority order.
+  const contactHref = isOnePage
+    ? '#contact'
+    : pickContactHref(nav, previewBasePath)
 
   const effectiveSettings = {
     ...settings,
@@ -132,6 +138,24 @@ export async function renderPremiumPage(
   inlined = injectFeedbackWidget(inlined)
 
   return { html: inlined, bytes: inlined.length }
+}
+
+// Priority order for the "Get in touch" CTA in the header — whichever
+// of these the composer actually emitted gets used. Falls back to home
+// if none are present (very edge — every recipe ships at least one of
+// these).
+const CONTACT_HREF_PRIORITY = ['contact', 'visit', 'reservations', 'find-care', 'quote', 'packages', 'menu']
+
+function pickContactHref(
+  nav: Array<{ label: string; href: string }>,
+  homeHref: string,
+): string {
+  for (const slug of CONTACT_HREF_PRIORITY) {
+    const suffix = '/' + slug
+    const found = nav.find(item => item.href.endsWith(suffix))
+    if (found) return found.href
+  }
+  return homeHref
 }
 
 // Known internal page slugs we rewrite to preview routes. Anything not
