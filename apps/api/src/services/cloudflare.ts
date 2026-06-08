@@ -119,6 +119,71 @@ export async function deleteDnsRecord(zoneId: string, recordId: string): Promise
   await cfFetch('/zones/' + zoneId + '/dns_records/' + recordId, { method: 'DELETE' })
 }
 
+// ─── Twomiah subdomain auto-attach ──────────────────────────────────────────
+// Every premium tenant gets a `<slug>.twomiah.app` URL pointed at their
+// Render website service. Customers can keep this as their public URL
+// indefinitely, or layer their own BYOD domain on top of it later — both
+// can coexist on the same Render service.
+//
+// Requires the twomiah.app zone to exist in Cloudflare under our account and
+// its zone id set in env var TWOMIAH_APP_ZONE_ID. Returns null when the env
+// var is unset so deploys still succeed in dev environments without the
+// zone configured (caller logs but doesn't fail the deploy).
+
+export function twomiahAppZoneId(): string | null {
+  return process.env.TWOMIAH_APP_ZONE_ID || null
+}
+
+export function isTwomiahSubdomainConfigured(): boolean {
+  return !!(twomiahAppZoneId() && isCloudflareConfigured())
+}
+
+/**
+ * Idempotently create `<slug>.twomiah.app CNAME → <renderHost>`. If a record
+ * already exists with that exact name, we keep it (re-deploy of the same
+ * tenant won't duplicate records). If a record exists pointing to a
+ * different target — e.g. tenant rotated Render services — we delete and
+ * recreate so the new host wins.
+ *
+ * Returns the full subdomain (e.g. "acme-cleaning-mq2v.twomiah.app") on
+ * success, null when not configured, throws on Cloudflare API error.
+ */
+export async function attachTwomiahSubdomain(
+  slug: string,
+  renderHost: string,
+): Promise<string | null> {
+  const zoneId = twomiahAppZoneId()
+  if (!zoneId) return null
+  // Cloudflare wants the FULL hostname here, not the leaf — listDnsRecords
+  // returns names like "acme.twomiah.app" and addDnsRecord accepts the same.
+  const fullName = slug + '.twomiah.app'
+
+  const existing = await listDnsRecords(zoneId)
+  const match = existing.find(r => r.type === 'CNAME' && r.name === fullName)
+  if (match && match.content === renderHost) return fullName  // already wired
+  if (match) await deleteDnsRecord(zoneId, match.id)  // stale target — recreate
+
+  await addDnsRecord(zoneId, {
+    type: 'CNAME',
+    name: fullName,
+    content: renderHost,
+    proxied: false,  // Render terminates TLS at their edge; never proxy
+  })
+  return fullName
+}
+
+export async function detachTwomiahSubdomain(slug: string): Promise<void> {
+  const zoneId = twomiahAppZoneId()
+  if (!zoneId) return
+  const fullName = slug + '.twomiah.app'
+  const existing = await listDnsRecords(zoneId)
+  for (const r of existing) {
+    if (r.type === 'CNAME' && r.name === fullName) {
+      await deleteDnsRecord(zoneId, r.id).catch(() => {})  // best-effort
+    }
+  }
+}
+
 // ─── WAF custom rules (Rulesets API) ────────────────────────────────────────
 // We push our standard tenant ruleset to each customer zone idempotently —
 // list the http_request_firewall_custom rulesets, find ours by description,

@@ -1595,11 +1595,57 @@ export async function addCustomDomain(serviceId: string, domain: string): Promis
     })
     if (!res.ok) {
       const err = await res.json() as any
+      // Render returns 409 if the domain is already attached — treat as success
+      // so re-deploys don't fail. Anything else is a real error.
+      if (res.status === 409) return { success: true }
       return { success: false, error: err.message || JSON.stringify(err) }
     }
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message }
+  }
+}
+
+/**
+ * Wire up `<slug>.twomiah.app` as a free auto-attached subdomain on every
+ * premium tenant. Two steps:
+ *   1. Create CNAME in Cloudflare's twomiah.app zone pointing at the
+ *      tenant's Render website service hostname.
+ *   2. Add the custom domain to that Render service so Render terminates
+ *      TLS and issues a Let's Encrypt cert.
+ *
+ * Render's custom-domain verification is asynchronous — it polls DNS and
+ * marks the domain healthy when the CNAME resolves. We don't poll here;
+ * the cert is usually ready within a couple minutes and the URL just
+ * starts working. If anything fails, returns the error so the caller can
+ * log it without killing the deploy.
+ *
+ * Returns the subdomain URL on success, null when not configured (no
+ * TWOMIAH_APP_ZONE_ID or Render API key), or { error } on failure.
+ */
+export async function attachTwomiahSubdomain(opts: {
+  slug: string
+  websiteServiceId: string
+  websiteRenderHost: string
+}): Promise<{ subdomain?: string; error?: string }> {
+  const { attachTwomiahSubdomain: cfAttach, isTwomiahSubdomainConfigured } =
+    await import('./cloudflare')
+
+  if (!isTwomiahSubdomainConfigured() || !process.env.RENDER_API_KEY) {
+    return { error: 'twomiah subdomain not configured (need CLOUDFLARE_API_TOKEN + TWOMIAH_APP_ZONE_ID + RENDER_API_KEY)' }
+  }
+
+  try {
+    const fullName = await cfAttach(opts.slug, opts.websiteRenderHost)
+    if (!fullName) return { error: 'twomiah subdomain not configured' }
+
+    const renderResult = await addCustomDomain(opts.websiteServiceId, fullName)
+    if (!renderResult.success) {
+      return { error: 'Render addCustomDomain failed: ' + renderResult.error }
+    }
+    return { subdomain: 'https://' + fullName }
+  } catch (e: any) {
+    return { error: e.message }
   }
 }
 

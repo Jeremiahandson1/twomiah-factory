@@ -1900,27 +1900,20 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
 
   const prompt = buildSitePrompt(input)
 
-  // Vertical-specific recipes (food truck, dispensary, future ones)
-  // produce 6 pages with rich data per section — strain catalog cards
-  // alone can run 200+ tokens each × 8-12 strains. Plain 4-page model
-  // fits comfortably in 8K; 6-page verticals need more room or the
-  // response truncates mid-JSON and tryParse silently fails.
-  const _btForTokens = input.businessType || ''
-  const _isExtended =
-    /^food[_-]?truck|^mobile[_-]?food|^food[_-]?cart$/i.test(_btForTokens) ||
-    /^dispensary|^cannabis|^cannabis[_-]?retail/i.test(_btForTokens) ||
-    /^roofing$|^roof$|^roofer$|^storm[_-]?restoration$|^siding[_-]?roofing$/i.test(_btForTokens) ||
-    /^landscaping$|^lawn[_-]?care$|^lawncare$|^landscape[_-]?design$|^snow[_-]?removal$|^tree[_-]?service$/i.test(_btForTokens) ||
-    /^home[_-]?care$|^homecare$|^in[_-]?home[_-]?care$|^senior[_-]?care$|^caregiving$|^companion[_-]?care$|^home[_-]?health$/i.test(_btForTokens) ||
-    /^field[_-]?service$|^hvac$|^plumbing$|^plumber$|^electrical$|^electrician$|^appliance[_-]?repair$|^cleaning$|^house[_-]?cleaning$|^maid[_-]?service$|^janitorial$|^commercial[_-]?cleaning$|^pest[_-]?control$|^exterminator$|^locksmith$|^garage[_-]?door$|^septic$|^pool[_-]?service$|^irrigation$|^handyman$|^painting$|^mobile[_-]?detailing$/i.test(_btForTokens) ||
-    /^restaurant$|^bistro$|^gastropub$|^eatery$|^diner$|^pizzeria$/i.test(_btForTokens)
-  // 6-page extended verticals run 25-30 sections of rich data (menu items
-  // with descriptions + prices + dietary, strain catalogs, before/after
-  // items with image URLs + captions, FAQ items, etc.). The 16K cap
-  // started silently truncating for restaurant (28 sections; data: {}
-  // empty across the board). 32K gives Opus plenty of headroom while
-  // still being a fraction of its 200K context limit.
-  const maxTokens = _isExtended ? 32000 : 8000
+  // Every vertical now ships a 4-7 page recipe with rich per-section data
+  // (menu items, strain catalogs, room cards, gallery items, etc.). 8K
+  // tokens truncates mid-JSON the moment a recipe has 5+ pages — and the
+  // truncation is silent: tryParse just returns null, autoCompose's
+  // setTimeout catch swallows the error, and the tenant row stays at
+  // ready:false forever. Previously this 32K budget was gated on a
+  // hardcoded list of the original 7 verticals; cafe (4-page) snuck
+  // through at 8K, but salon/contractor/fitness/hotel/events all died
+  // silently because they weren't in the list.
+  //
+  // 32K is a ceiling, not actual usage — a 4-page recipe still generates
+  // ~6-8K. Opus's 200K context handles this trivially. The reliability
+  // win is enormous: every recipe past or future just works.
+  const maxTokens = 32000
 
   // Use streaming — required by the Anthropic SDK for requests where
   // (max_tokens × estimated-per-token) might exceed 10 minutes. With 32K
