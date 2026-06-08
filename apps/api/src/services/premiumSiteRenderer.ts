@@ -114,6 +114,16 @@ export async function renderPremiumPage(
     try { return '<style>\n' + fs.readFileSync(cssPath, 'utf8') + '\n</style>' }
     catch { return _m }
   })
+
+  // Composer-generated CTA hrefs come in as bare slugs ("contact") or
+  // legacy ".html" suffixes ("menu.html") — neither resolves under the
+  // preview routes (/api/v1/factory/public/intake/<id>/preview-premium/<slug>).
+  // The nav was already path-prefixed above; this rewrites in-content
+  // <a href> attributes too so cards, CTA buttons, and hero-CTAs all
+  // route correctly. Leaves external (https://, mailto:, tel:, #anchor)
+  // and already-prefixed (/api/v1/...) hrefs untouched.
+  inlined = rewriteInternalHrefs(inlined, previewBasePath, isOnePage)
+
   // "Approve & buy" floating CTA so the prospect can convert without
   // leaving the preview. The script extracts the intake id from
   // window.location.pathname and POSTs to .../checkout-premium, then
@@ -122,6 +132,46 @@ export async function renderPremiumPage(
   inlined = injectFeedbackWidget(inlined)
 
   return { html: inlined, bytes: inlined.length }
+}
+
+// Known internal page slugs we rewrite to preview routes. Anything not
+// in this list (e.g. "/blog", an external URL, an anchor like "#menu",
+// or a tel:/mailto:) passes through untouched so we don't accidentally
+// break a real external link.
+const INTERNAL_SLUGS = new Set([
+  'home', 'about', 'services', 'contact', 'menu', 'visit',
+  'schedule', 'catering', 'deals', 'reservations', 'private-dining',
+  'strains', 'find-care', 'caregivers', 'coverage',
+  'emergency', 'pricing', 'quote', 'storm', 'projects', 'packages',
+  'stylists', 'gallery', 'classes', 'trainers',
+  'rooms', 'amenities', 'local', 'venue', 'vendors',
+])
+
+function rewriteInternalHrefs(html: string, previewBasePath: string, isOnePage: boolean): string {
+  return html.replace(/href="([^"]+)"/g, (match, raw) => {
+    // Skip anything that's already absolute, anchor, or non-http scheme.
+    if (/^(?:https?:|mailto:|tel:|javascript:|data:|#)/i.test(raw)) return match
+    if (raw.startsWith('/api/v1/')) return match  // already prefixed by nav
+
+    // Normalize: strip leading slash + .html suffix.
+    let slug = raw.replace(/^\//, '').replace(/\.html$/i, '')
+    // Strip query/hash so "contact?x=1" still matches the "contact" slug.
+    const queryIdx = slug.search(/[?#]/)
+    const tail = queryIdx >= 0 ? slug.slice(queryIdx) : ''
+    if (queryIdx >= 0) slug = slug.slice(0, queryIdx)
+
+    // Empty or just "/" → home.
+    if (slug === '' || slug === 'index') {
+      return 'href="' + previewBasePath + tail + '"'
+    }
+    if (!INTERNAL_SLUGS.has(slug)) return match  // leave it alone
+
+    // Single-page sites: every internal link becomes an anchor scroll.
+    if (isOnePage) {
+      return 'href="#' + slug + tail + '"'
+    }
+    return 'href="' + previewBasePath + '/' + slug + tail + '"'
+  })
 }
 
 function injectFeedbackWidget(html: string): string {

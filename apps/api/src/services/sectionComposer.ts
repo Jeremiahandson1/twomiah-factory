@@ -1800,13 +1800,13 @@ ${recipesSummary}
 
 # Section data shapes (same as single-page composer)
 
-hero/full-bleed: { "image": "<url>", "eyebrow": "<short>", "title": "<headline>", "subtitle": "<1-2 sentences>", "primaryCta": { "label": "...", "href": "contact.html" }, "secondaryCta": { "label": "...", "href": "services.html" } }
+hero/full-bleed: { "image": "<url>", "eyebrow": "<short>", "title": "<headline>", "subtitle": "<1-2 sentences>", "primaryCta": { "label": "...", "href": "contact" }, "secondaryCta": { "label": "...", "href": "services" } }
 hero/split: { "flip": <bool>, "image": "<url>", "eyebrow": "<short>", "title": "<headline>", "subtitle": "<1-2 sentences>", "primaryCta": { "label": "...", "href": "..." }, "stats": [{ "value": "...", "label": "..." }] }
-hero/centered-stats: { "eyebrow": "<short>", "title": "<big headline>", "subtitle": "<support>", "primaryCta": { "label": "...", "href": "contact.html" }, "stats": [{ "value": "...", "label": "..." }] }
-services/cards-grid: { "heading": "...", "intro": "...", "items": [{ "title": "...", "description": "...", "image": "<url>", "href": "contact.html" }] }
-services/alternating: { "heading": "...", "intro": "...", "items": [{ "title": "...", "description": "...", "image": "<url>", "bullets": ["..."], "href": "contact.html" }] }
-cta/banner: { "heading": "...", "subtitle": "...", "primaryCta": { "label": "...", "href": "contact.html" } }
-cta/split: { "heading": "...", "subtitle": "...", "image": "<url>", "bullets": ["..."], "primaryCta": { "label": "...", "href": "contact.html" }, "phone": "${input.phone || ''}" }
+hero/centered-stats: { "eyebrow": "<short>", "title": "<big headline>", "subtitle": "<support>", "primaryCta": { "label": "...", "href": "contact" }, "stats": [{ "value": "...", "label": "..." }] }
+services/cards-grid: { "heading": "...", "intro": "...", "items": [{ "title": "...", "description": "...", "image": "<url>", "href": "contact" }] }
+services/alternating: { "heading": "...", "intro": "...", "items": [{ "title": "...", "description": "...", "image": "<url>", "bullets": ["..."], "href": "contact" }] }
+cta/banner: { "heading": "...", "subtitle": "...", "primaryCta": { "label": "...", "href": "contact" } }
+cta/split: { "heading": "...", "subtitle": "...", "image": "<url>", "bullets": ["..."], "primaryCta": { "label": "...", "href": "contact" }, "phone": "${input.phone || ''}" }
 about/story: { "eyebrow": "...", "title": "Our story", "portrait": "<headshot url>", "paragraphs": ["...", "..."], "signature": "<name>, <role>", "stats": [{ "value": "...", "label": "..." }] }
 team/grid: { "heading": "...", "intro": "...", "members": [{ "name": "...", "role": "...", "bio": "...", "portrait": "<url>" }] }
 contact/form-info: { "heading": "...", "intro": "...", "phone": "${input.phone || ''}", "email": "${input.email || ''}", "address": "...", "hours": ["..."], "responsePromise": "..." }
@@ -1854,7 +1854,7 @@ Hero (full-bleed):
   eyebrow:  "Mineral Point · 28 seats · Tuesday–Saturday"
   title:    "Five courses. One chef. The whole room hears the kitchen."
   subtitle: "Anika cooks for 28 people a night from three farms inside a 30-mile circle. Reservations open four weeks ahead."
-  primaryCta: { label: "Reserve a table", href: "contact.html" }
+  primaryCta: { label: "Reserve a table", href: "contact" }
 
 Why this works: every word is specific to THIS restaurant. "The whole room
 hears the kitchen" is a real fact about the 28-seat layout that becomes
