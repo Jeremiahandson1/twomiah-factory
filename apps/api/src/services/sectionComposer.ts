@@ -1968,17 +1968,29 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   } else if (isHusk(parsed)) {
     // Got JSON but the home page is a husk — same retry pattern but
     // with a quality-focused nudge instead of a JSON-shape nudge.
-    const res2 = await callOnce(
-      'Your previous output had an empty hero title and generic placeholders. EVERY section must have substantive content drawn from this specific business — actual names, prices, facts, voice from the intake. The hero/full-bleed section MUST have a non-empty `title` field with a concrete, intake-anchored headline. Output ONLY the raw JSON object.'
-    )
-    const text2 = res2.content[0]?.type === 'text' ? res2.content[0].text : ''
-    const parsed2 = tryParse(text2)
-    if (parsed2 && !isHusk(parsed2)) {
-      parsed = parsed2
-      rawText = text2
+    //
+    // CRITICAL: this retry MUST be wrapped in try/catch. If callOnce
+    // throws (Anthropic 5xx, network blip, streaming disconnect), the
+    // exception propagates out of composeSite, autoComposeForNewIntake
+    // swallows it, and the tenant row stays at ready:false forever.
+    // Observed in production 2026-06-08: hotel intake silently died for
+    // 64 min after a husky first call when the retry threw uncaught.
+    // With try/catch we ship the husk; customer recovers via the
+    // "Request changes" widget.
+    try {
+      const res2 = await callOnce(
+        'Your previous output had an empty hero title and generic placeholders. EVERY section must have substantive content drawn from this specific business — actual names, prices, facts, voice from the intake. The hero/full-bleed section MUST have a non-empty `title` field with a concrete, intake-anchored headline. Output ONLY the raw JSON object.'
+      )
+      const text2 = res2.content[0]?.type === 'text' ? res2.content[0].text : ''
+      const parsed2 = tryParse(text2)
+      if (parsed2 && !isHusk(parsed2)) {
+        parsed = parsed2
+        rawText = text2
+      }
+      // If the retry is still a husk, fall through with parsed1.
+    } catch (e: any) {
+      console.warn('[Composer] husk-retry threw, shipping the husk:', e?.message || e)
     }
-    // If the retry is still a husk, fall through with parsed1 — half a
-    // preview is better than throwing. Customer can request changes.
   }
 
   if (!parsed) throw new Error('Site composer returned un-parseable output after retry')
