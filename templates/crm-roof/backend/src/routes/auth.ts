@@ -8,6 +8,7 @@ import { company, user } from '../../db/schema.ts'
 import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import logger from '../services/logger.ts'
+import emailService from '../services/email.ts'
 
 const app = new Hono()
 
@@ -299,8 +300,15 @@ app.post('/forgot-password', async (c) => {
     const resetToken = uuidv4()
     await db.update(user).set({ resetToken, resetTokenExp: new Date(Date.now() + 3600000), updatedAt: new Date() }).where(eq(user.id, foundUser.id))
 
-    // TODO: send password reset email via email service
-    logger.info('Password reset requested', { email })
+    try {
+      await emailService.sendPasswordReset(email, {
+        firstName: foundUser.firstName,
+        resetToken,
+      })
+      logger.info('Password reset email sent', { email })
+    } catch {
+      logger.error('Email error', { action: 'sendPasswordResetEmail', email })
+    }
   }
 
   return c.json({ message: 'If that email exists, a reset link has been sent.' })

@@ -39,6 +39,8 @@ import BillingPricingPage from './pages/billing/PricingPage'
 import EstimatorPage from './pages/EstimatorPage'
 import CustomerPortal from './pages/CustomerPortal'
 import LoginPage from './pages/LoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
 // Portal
 import PortalLogin from './pages/portal/PortalLogin'
 import PortalLayout from './pages/portal/PortalLayout'
@@ -65,6 +67,8 @@ export default function App() {
         <ToastProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             {/* Portal */}
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route path="/portal" element={<PortalLayout />}>

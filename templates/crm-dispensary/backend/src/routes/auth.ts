@@ -276,47 +276,20 @@ app.post('/login', async (c) => {
 
   const normalizedEmail = data.email
 
-  // --- DEBUG LOGGING (remove after confirming fix) ---
-  const ua = c.req.header('user-agent') || 'unknown'
-  const origin = c.req.header('origin') || 'none'
-  const ct = c.req.header('content-type') || 'none'
-  const isMobile = /mobile|android|iphone|ipad/i.test(ua)
-  logger.info('[LOGIN DEBUG]', {
-    rawEmail: data.email,
-    normalizedEmail,
-    passwordLength: data.password.length,
-    isMobile,
-    userAgent: ua.substring(0, 120),
-    origin,
-    contentType: ct,
-  })
-  // --- END DEBUG ---
-
   const [foundUser] = await db.select().from(user).where(eq(user.email, normalizedEmail)).limit(1)
 
   if (!foundUser) {
-    logger.warn('[LOGIN DEBUG] User not found', { normalizedEmail, rawEmail: data.email })
     return c.json({ error: 'Invalid email or password' }, 401)
   }
   if (!foundUser.isActive) {
-    logger.warn('[LOGIN DEBUG] Account disabled', { email: normalizedEmail })
     return c.json({ error: 'Account is disabled' }, 401)
   }
 
   const valid = await Bun.password.verify(data.password, foundUser.passwordHash)
 
   if (!valid) {
-    logger.warn('[LOGIN DEBUG] bcrypt.compare returned false', {
-      email: normalizedEmail,
-      hashPrefix: foundUser.passwordHash.substring(0, 7),
-      hashLength: foundUser.passwordHash.length,
-      passwordLength: data.password.length,
-      isMobile,
-    })
     return c.json({ error: 'Invalid email or password' }, 401)
   }
-
-  logger.info('[LOGIN DEBUG] Success', { email: normalizedEmail, isMobile })
 
   // Fetch company separately
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
