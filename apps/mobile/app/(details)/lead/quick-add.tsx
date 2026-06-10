@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, Stack } from 'expo-router'
+import * as Location from 'expo-location'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../../src/theme/ThemeContext'
 import { post, uploadPhotos } from '../../../src/api/client'
@@ -52,19 +53,15 @@ export default function QuickAddLeadScreen() {
     ;(async () => {
       const loc = await requestLocation()
       if (!loc) return
-      // Try reverse geocode
+      // Try reverse geocode — expo-location's built-in geocoder, no API key needed
       try {
-        const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.latitude},${loc.longitude}&key=AIzaSyB-placeholder`)
-        const data = await res.json()
-        if (data.results?.[0]) {
-          const components = data.results[0].address_components || []
-          const get = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name || ''
-          const streetNum = get('street_number')
-          const route = get('route')
-          if (streetNum || route) setAddress(`${streetNum} ${route}`.trim())
-          setCity(get('locality') || get('sublocality'))
-          setState(get('administrative_area_level_1'))
-          setZip(get('postal_code'))
+        const [place] = await Location.reverseGeocodeAsync({ latitude: loc.latitude, longitude: loc.longitude })
+        if (place) {
+          const street = [place.streetNumber, place.street].filter(Boolean).join(' ')
+          if (street) setAddress(street)
+          if (place.city) setCity(place.city)
+          if (place.region) setState(place.region)
+          if (place.postalCode) setZip(place.postalCode)
         }
       } catch { /* reverse geocode failed, user fills manually */ }
     })()
