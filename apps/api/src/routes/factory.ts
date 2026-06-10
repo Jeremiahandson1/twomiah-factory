@@ -35,6 +35,15 @@ factory.use('*', async (c, next) => {
     || c.req.path.includes('/website-themes')
     || (c.req.method === 'GET' && c.req.path.includes('/support/kb'))
     || c.req.path.includes('/integrations/qbo/callback')
+    // Tenant self-service endpoints under /customers/:id/* — the tenant's
+    // CRM authenticates with X-Factory-Key (validated in each handler or by
+    // factoryKeyOrRole), not a Supabase JWT. Gating them here returned
+    // "Missing Authorization header" to every tenant call since launch.
+    || c.req.path.endsWith('/offboard/status')
+    || c.req.path.includes('/email-domain/')
+    || c.req.path.endsWith('/email-alias-sync')
+    || c.req.path.endsWith('/offboard')
+    || c.req.path.endsWith('/reactivate')
   ) return next()
   return authenticate(c, next)
 })

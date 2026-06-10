@@ -6,7 +6,7 @@ import { notifyPreviewFollowup, notifyPostLaunchTips, notifyDomainRenewal, notif
 import fs from 'fs'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
-import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
+import { type FactoryApp, secureEquals, checkFactoryKey, checkCronSecret, factoryKeyOrRole, UUID_RE, DOMAIN_RE, logTenantAudit, parseJsonBody } from './shared'
 
 export function registerLifecycleRoutes(factory: FactoryApp) {
 
@@ -843,7 +843,7 @@ factory.post('/internal/renewal-check', async (c) => {
 
 
 // ─── Offboard + reactivate ──────────────────────────────────────────────────
-factory.post('/customers/:id/offboard', requireRole('owner', 'admin'), async (c) => {
+factory.post('/customers/:id/offboard', factoryKeyOrRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
@@ -950,7 +950,7 @@ factory.post('/customers/:id/offboard', requireRole('owner', 'admin'), async (c)
   }
 })
 
-factory.post('/customers/:id/reactivate', requireRole('owner', 'admin'), async (c) => {
+factory.post('/customers/:id/reactivate', factoryKeyOrRole('owner', 'admin'), async (c) => {
   try {
     const tenantId = c.req.param('id')
     if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)

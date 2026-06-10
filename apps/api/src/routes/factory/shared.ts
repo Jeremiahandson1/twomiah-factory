@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { supabase } from '../../middleware/auth'
+import { supabase, authenticate, requireRole } from '../../middleware/auth'
 import { timingSafeEqual } from 'crypto'
 
 export type FactoryAuthVariables = {
@@ -61,6 +61,33 @@ export function checkFactoryKey(c: { req: { header: (name: string) => string | u
 export function checkCronSecret(c: { req: { header: (name: string) => string | undefined } }): boolean {
   const got = c.req.header('x-cron-secret') || c.req.header('authorization')?.replace(/^Bearer\s+/i, '') || ''
   return secureEquals(got, process.env.CRON_SECRET || '')
+}
+
+// Dual auth for tenant self-service endpoints on /customers/:id/* — the
+// tenant's CRM calls them with its X-Factory-Key (no Supabase session exists
+// on a tenant box), while the platform calls them with an admin JWT. The
+// route's path param must be named :id.
+export function factoryKeyOrRole(...roles: string[]) {
+  return async (c: any, next: any) => {
+    if (c.req.header('X-Factory-Key')) {
+      const tenantId = c.req.param('id')
+      if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+      const { data: t } = await supabase.from('tenants').select('id, factory_sync_key').eq('id', tenantId).single()
+      if (!t || !checkFactoryKey(c, t)) return c.json({ error: 'Unauthorized' }, 401)
+      return next()
+    }
+    // Platform admin path. Run authenticate with a flag-setting next so its
+    // 401 Response propagates as our return value, then role-check inline —
+    // composing requireRole inside authenticate's next would drop the 403.
+    let authed = false
+    const authRes = await authenticate(c, async () => { authed = true })
+    if (!authed) return authRes
+    const userRole = c.get('userRole') as string | undefined
+    if (!userRole || !roles.includes(userRole)) {
+      return c.json({ error: 'Forbidden — requires role: ' + roles.join(' or ') }, 403)
+    }
+    return next()
+  }
 }
 
 // ─── QBO OAuth state tokens (in-memory, 10min expiry) ────────────────────────
