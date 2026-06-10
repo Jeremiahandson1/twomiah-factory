@@ -168,7 +168,9 @@ function loadContentPack(industry: string): any | null {
 
 export async function generateWebsiteContent(input: ContentGenerationInput): Promise<GeneratedContent> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  // 12K-token generation — cap well under the SDK's 10-min default so a degraded
+  // API call fails fast enough to retry instead of stalling the intake
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 300_000, maxRetries: 2 })
 
   const location = [input.location.city, input.location.state].filter(Boolean).join(', ') || 'your area'
   const region = input.serviceRegion || input.location.city || 'the area'

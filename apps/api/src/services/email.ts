@@ -27,34 +27,41 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     return false
   }
 
-  try {
-    const res = await fetch(RESEND_API, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + apiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Twomiah Factory <' + getFromEmail() + '>',
-        to: [to],
-        subject,
-        html,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    })
+  // Retry transient failures (network, 429, 5xx) — these emails carry tenant
+  // credentials and deploy status, so a blip shouldn't silently swallow them.
+  const MAX_ATTEMPTS = 3
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(RESEND_API, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: 'Twomiah Factory <' + getFromEmail() + '>',
+          to: [to],
+          subject,
+          html,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      })
 
-    if (res.ok) {
-      console.log('[Email] Sent:', subject, '→', to)
-      return true
+      if (res.ok) {
+        console.log('[Email] Sent:', subject, '→', to)
+        return true
+      }
+
+      const errBody = await res.text().catch(() => '')
+      const retryable = res.status === 429 || res.status >= 500
+      console.error('[Email] Resend error (attempt ' + attempt + '/' + MAX_ATTEMPTS + '):', res.status, errBody.slice(0, 200))
+      if (!retryable) return false
+    } catch (err: any) {
+      console.error('[Email] Failed to send (attempt ' + attempt + '/' + MAX_ATTEMPTS + '):', err.message)
     }
-
-    const errBody = await res.text().catch(() => '')
-    console.error('[Email] Resend error:', res.status, errBody.slice(0, 200))
-    return false
-  } catch (err: any) {
-    console.error('[Email] Failed to send:', err.message)
-    return false
+    if (attempt < MAX_ATTEMPTS) await new Promise(r => setTimeout(r, attempt * 2000))
   }
+  return false
 }
 
 // ─── HTML helpers ────────────────────────────────────────────────────────────

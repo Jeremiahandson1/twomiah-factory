@@ -81,12 +81,14 @@ async function ensureCustomer(
 ): Promise<string> {
   if (!stripe) throw new Error('Stripe not configured')
   if (factoryCustomer.stripeCustomerId) return factoryCustomer.stripeCustomerId
+  // Idempotency key keyed on the factory customer id — repeat checkouts before
+  // stripe_customer_id is persisted won't mint duplicate Stripe customers.
   const customer = await stripe.customers.create({
     email: factoryCustomer.email,
     name: factoryCustomer.name,
     phone: factoryCustomer.phone || undefined,
     metadata: { twomiah_build_factory_customer_id: factoryCustomer.id },
-  })
+  }, { idempotencyKey: 'twomiah-customer-' + factoryCustomer.id })
   return customer.id
 }
 
@@ -316,12 +318,17 @@ export async function createAutoSubscription(
 // ── Webhook handling ─────────────────────────────────────────────────────────
 
 export async function handleFactoryWebhook(event: Stripe.Event): Promise<{
-  handled: boolean; factoryCustomerId?: string; lookupField?: string; lookupValue?: string; updates?: Record<string, any>; reason?: string
+  handled: boolean; factoryCustomerId?: string; lookupField?: string; lookupValue?: string; updates?: Record<string, any>; reason?: string; crmAddonTenantId?: string
 }> {
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session
       const meta = session.metadata || {}
+      // CRM add-on purchase from a premium tenant's /admin/billing page —
+      // the route fires provisioning in the background
+      if (meta.addon === 'crm' && meta.tenant_id) {
+        return { handled: true, crmAddonTenantId: meta.tenant_id }
+      }
       if (!meta.factory_customer_id) return { handled: false, reason: 'Not a factory checkout' }
 
       const updates: Record<string, any> = { stripe_customer_id: session.customer }
