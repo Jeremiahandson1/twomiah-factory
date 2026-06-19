@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 
-import { company, user, supportKnowledgeBase, pricebookCategory, pricebookItem } from './schema.ts'
+import { company, user, supportKnowledgeBase, pricebookCategory, pricebookItem, unit } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -138,6 +138,18 @@ async function main() {
     console.log(`Set ${statuses.length} job statuses for ${industry}`)
   } else {
     console.log('Job statuses already configured — skipping')
+  }
+
+  // Seed a few sample RV / powersports units on first deploy (idempotent) so the
+  // inventory + dashboard show real data out of the box. The dealer deletes these.
+  const existingUnits = await db.select({ id: unit.id }).from(unit).where(eq(unit.companyId, comp.id)).limit(1)
+  if (existingUnits.length === 0) {
+    await db.insert(unit).values([
+      { category: 'motorhome', condition: 'new', status: 'available', stockNumber: 'RV-1001', year: 2024, make: 'Winnebago', modelName: 'View', trim: '24D', rvClass: 'C', lengthFt: '25.5', sleeps: 4, slideOuts: 1, internetPrice: '142900', msrp: '155000', fuelType: 'diesel', chassis: 'Mercedes Sprinter', companyId: comp.id },
+      { category: 'towable', condition: 'used', status: 'available', stockNumber: 'RV-1002', year: 2021, make: 'Forest River', modelName: 'Rockwood', trim: '2608BS', towableType: 'travel_trailer', lengthFt: '29.7', sleeps: 6, slideOuts: 1, dryWeight: 6200, internetPrice: '28995', companyId: comp.id },
+      { category: 'utv', condition: 'new', status: 'available', stockNumber: 'PS-2001', year: 2024, make: 'Polaris', modelName: 'RANGER XP 1000', engineCc: 999, hours: 0, drivetrain: '4wd', internetPrice: '21499', companyId: comp.id },
+    ])
+    console.log('Seeded 3 sample units')
   }
 
   console.log('')

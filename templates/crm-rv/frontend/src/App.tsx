@@ -20,7 +20,6 @@ import SelfHostedPurchasePage from './pages/public/SelfHostedPurchasePage';
 import BillingSettingsPage from './pages/settings/BillingSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
-import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
 import ProjectsPage from './pages/ProjectsPage';
 import JobsPage from './pages/JobsPage';
@@ -76,6 +75,7 @@ import RoofReportDetail from './pages/roofReports/RoofReportDetail';
 import OnboardingWizard from './pages/OnboardingWizard';
 
 // RV / Powersports dealership pages
+import RvDashboardPage from './pages/rv/DashboardPage';
 import RvInventoryPage from './pages/rv/InventoryPage';
 import SalesPipelinePage from './pages/rv/SalesPipelinePage';
 import ServicePage from './pages/rv/ServicePage';
@@ -153,7 +153,7 @@ function App() {
 
                   {/* CRM — full business management interface */}
                   <Route path="/crm" element={<ProtectedRoute><OnboardingGate><AppLayout /></OnboardingGate></ProtectedRoute>}>
-                    <Route index element={<DashboardPage />} />
+                    <Route index element={<RvDashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
                     <Route path="projects" element={<ProjectsPage />} />
