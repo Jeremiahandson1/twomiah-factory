@@ -4,6 +4,8 @@
  * Gracefully no-ops if RESEND_API_KEY is not configured.
  */
 
+import { verticalFor } from '../config/industryRouting'
+
 const RESEND_API = 'https://api.resend.com/emails'
 
 function getApiKey(): string | undefined {
@@ -112,10 +114,12 @@ function kv(label: string, value: string): string {
 function getProductName(industry?: string, products?: string[]): string {
   if (industry === 'home_care') return 'Care'
   if (industry === 'automotive') return 'Drive'
+  if (verticalFor(industry) === 'rv') return 'Roam'
   if (industry === 'field_service' || industry === 'hvac' || industry === 'plumbing' || industry === 'electrical') return 'Wrench'
   if (products?.includes('crm-fieldservice')) return 'Wrench'
   if (products?.includes('crm-homecare')) return 'Care'
   if (products?.includes('crm-automotive')) return 'Drive'
+  if (products?.includes('crm-rv')) return 'Roam'
   return 'Build'
 }
 

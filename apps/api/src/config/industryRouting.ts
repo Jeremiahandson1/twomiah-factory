@@ -27,6 +27,7 @@ export type CrmTemplate =
   | 'crm-roof'
   | 'crm-landscaping'
   | 'crm-dispensary'
+  | 'crm-rv'
 
 export type PremiumWebsiteTemplate =
   | 'website-premium-contractor'
@@ -57,6 +58,7 @@ export type Vertical =
   | 'dispensary'
   | 'showcase'
   | 'foodtruck'
+  | 'rv'
 
 // ─── Industry sets per vertical ─────────────────────────────────────
 // These are the strings the intake form / wizard / API may receive.
@@ -106,6 +108,19 @@ export const SHOWCASE_INDUSTRIES = new Set([
 export const FOODTRUCK_INDUSTRIES = new Set([
   'food_truck', 'foodtruck', 'food', 'mobile_food',
   'food_cart', 'mobile_kitchen', 'pop_up_kitchen',
+])
+
+// RV + Powersports DEALERSHIPS. One combined vertical/template (crm-rv) —
+// the unit model handles both via a category discriminator. Sales-floor
+// dealership CRM (inventory, leads, deals, trade-ins, service), NOT the
+// recurring-job model the other verticals use.
+export const RV_INDUSTRIES = new Set([
+  'rv', 'rv_dealer', 'rv_dealership', 'rv_sales', 'recreational_vehicle',
+  'motorhome', 'camper', 'travel_trailer', 'trailer_dealer', 'trailer_dealership',
+  // Powersports dealers share the same sales/service dealership model:
+  'powersports', 'powersport', 'motorsports',
+  'motorcycle_dealer', 'motorcycle_dealership', 'atv_dealer', 'utv_dealer',
+  'marine_dealer', 'boat_dealer', 'boat_dealership',
 ])
 
 export const CONTRACTOR_INDUSTRIES = new Set([
@@ -159,6 +174,7 @@ export function verticalFor(industry: string | undefined | null): Vertical {
   if (DISPENSARY_INDUSTRIES.has(i)) return 'dispensary'
   if (LANDSCAPING_INDUSTRIES.has(i)) return 'landscaping'
   if (FIELDSERVICE_INDUSTRIES.has(i)) return 'fieldservice'
+  if (RV_INDUSTRIES.has(i)) return 'rv'
   if (SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
   // Explicit contractor list + the empty/other fallback both land here.
   // Showcase doesn't get the fallback — it's the most specialized vertical
@@ -174,6 +190,7 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     case 'roofing':      return 'crm-roof'
     case 'landscaping':  return 'crm-landscaping'
     case 'dispensary':   return 'crm-dispensary'
+    case 'rv':           return 'crm-rv'
     // Showcase verticals (restaurants, salons, etc.) don't have a
     // dedicated CRM template yet — most don't need full job/quote
     // workflows. Default to the contractor base, which is the most
@@ -189,6 +206,10 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
 
 export function premiumWebsiteTemplateFor(industry: string | undefined | null): PremiumWebsiteTemplate {
   const v = verticalFor(industry)
+  // RV/powersports is a CRM-only vertical for now — no dedicated premium
+  // website template exists. Fall back to the contractor site so a premium
+  // website request never resolves to a nonexistent template directory.
+  if (v === 'rv') return 'website-premium-contractor'
   return ('website-premium-' + v) as PremiumWebsiteTemplate
 }
 
@@ -208,6 +229,8 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
     // No legacy food truck template — falls back to website-general.
     // Premium customers always get the dedicated foodtruck template.
     foodtruck:    'website-general' as LegacyWebsiteTemplate,
+    // No RV website template (CRM-only vertical) — falls back to general.
+    rv:           'website-general' as LegacyWebsiteTemplate,
   }
   return map[v] || 'website-general'
 }
@@ -230,6 +253,7 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'roofing':      return 'roof'
     case 'landscaping':  return 'landscape'
     case 'dispensary':   return 'leaf'
+    case 'rv':           return 'rv'   // {slug}-rv-api.onrender.com
     case 'showcase':     return ''     // shares the contractor base CRM
     case 'foodtruck':    return ''     // shares the contractor base CRM
     case 'contractor':   return ''
@@ -265,6 +289,7 @@ const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
   landscaping: 'multi-page',
   dispensary: 'multi-page',
   showcase: 'multi-page',
+  rv: 'multi-page',
 }
 
 export function layoutModeFor(industry: string | undefined | null): LayoutMode {

@@ -722,6 +722,7 @@ export async function deployCustomer(
   const isRoofing = vertical === 'roofing'
   const isLandscaping = vertical === 'landscaping'
   const isDispensary = vertical === 'dispensary'
+  const isRv = vertical === 'rv' // RV + powersports dealership CRM
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
   const jwtSecret = crypto.randomBytes(48).toString('base64')
@@ -935,9 +936,9 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : 'crm'
 
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)
@@ -1879,6 +1880,7 @@ export async function provisionR2ForExistingTenant(
     : ind === 'roofing' ? tenant.slug + '-roof'
     : ind === 'landscaping' ? tenant.slug + '-landscape'
     : ind === 'dispensary' ? tenant.slug + '-leaf'
+    : verticalFor(ind) === 'rv' ? tenant.slug + '-rv'
     : tenant.slug
 
   let bucketName: string

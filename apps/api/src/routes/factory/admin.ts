@@ -2,6 +2,7 @@ import { supabase, requireRole } from '../../middleware/auth'
 import { isConfigured, addCustomDomain, findRenderServicesBySlug } from '../../services/deploy'
 import pg from 'pg'
 import { FEATURE_REGISTRY, getFeaturesForTemplate } from '../../config/featureRegistry'
+import { crmTemplateFor } from '../../config/industryRouting'
 import { getAuthorizationUrl, exchangeCodeForTokens, refreshAccessToken, getCompanyInfo } from '../../services/quickbooksOnline'
 import { type FactoryApp, parseJsonBody, UUID_RE, DOMAIN_RE, logTenantAudit, diffTenantChanges, qboOAuthStates, cleanExpiredStates } from './shared'
 
@@ -472,12 +473,10 @@ factory.get('/customers/:id/features', requireRole('owner', 'admin', 'editor'), 
 
     // Determine which template this tenant uses
     const ind = tenant.industry || ''
-    const template = ind === 'home_care' ? 'crm-homecare'
-      : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? 'crm-fieldservice'
-      : ind === 'automotive' ? 'crm-automotive'
-      : ind === 'roofing' ? 'crm-roof'
-      : ind === 'dispensary' ? 'crm-dispensary'
-      : 'crm'
+    // automotive is parked and not in the central router; everything else
+    // resolves through crmTemplateFor so industry variants (rv_dealer,
+    // powersports, cleaning, etc.) map to the right template.
+    const template = ind === 'automotive' ? 'crm-automotive' : crmTemplateFor(ind)
 
     const availableFeatures = getFeaturesForTemplate(template)
 

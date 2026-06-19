@@ -39,6 +39,21 @@ const CRM_REGISTRY = [
     { id: 'team', name: 'Team', description: 'Team member management', core: true },
     { id: 'dashboard', name: 'Dashboard', description: 'Overview dashboard', core: true },
   ]},
+  { category: 'RV / Powersports', features: [
+    { id: 'unit_inventory', name: 'Unit Inventory', description: 'New/used/consignment units with VIN decode, floorplans, photos', core: true },
+    { id: 'deal_pipeline', name: 'Sales Pipeline', description: 'Kanban pipeline linking each lead to a unit of interest', core: true },
+    { id: 'service_dept', name: 'Service Department', description: 'Repair orders, bay/tech scheduling and service-to-sales alerts', core: true },
+    { id: 'deal_desk', name: 'Deal Desk', description: 'Structure deals with payment calculator, fees, tax and trade allowance', core: false },
+    { id: 'trade_in', name: 'Trade-In Management', description: 'Appraise trades, attach to a deal, recondition into used inventory', core: false },
+    { id: 'recall_lookup', name: 'Recall Lookup', description: 'One-click NHTSA/OEM open-recall check by VIN', core: false },
+    { id: 'inventory_syndication', name: 'Marketplace Syndication', description: 'Feed inventory to RV Trader, RVUSA, Cycle Trader & ATV Trader', core: false },
+    { id: 'service_status_texts', name: 'Service Status Updates', description: 'Automated "your unit is ready" texts plus tech photos', core: false },
+    { id: 'parts_counter', name: 'Parts Counter', description: 'Parts lookup, special orders and parts-to-RO attachment', core: false },
+    { id: 'warranty_claims', name: 'Warranty Claims', description: 'Track OEM warranty and extended-service-contract claims', core: false },
+    { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-touch SMS/email cadences for long research cycles', core: false },
+    { id: 'esign', name: 'eSignature', description: 'Send deal paperwork for remote signing', core: false },
+    { id: 'seasonal_trends', name: 'Seasonal Trends', description: 'Year-over-year same-period comparisons', core: false },
+  ]},
   { category: 'Construction', features: [
     { id: 'projects', name: 'Projects', description: 'Multi-phase project management', core: false },
     { id: 'rfis', name: 'RFIs', description: 'Request for information tracking', core: false },
@@ -292,6 +307,7 @@ function HomeCareIncluded() {
 // Map industry → which CRM_REGISTRY categories to show
 const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', 'electrical'])
 const AUTOMOTIVE_INDUSTRIES = new Set(['automotive'])
+const RV_INDUSTRIES = new Set(['rv'])
 const ROOFING_INDUSTRIES = new Set(['roofing'])
 
 const DISPENSARY_INDUSTRIES = new Set(['dispensary'])
@@ -301,6 +317,7 @@ const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm-fieldservice': new Set(['Core', 'Service Trade', 'Field Service', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-roof': new Set(['Core', 'Construction', 'Roofing', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-automotive': new Set(['Core', 'Automotive', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-rv': new Set(['Core', 'RV / Powersports', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-dispensary': new Set(['Core', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
@@ -309,6 +326,7 @@ function getTemplateFromIndustry(industry?: string): string {
   if (FIELD_SERVICE_INDUSTRIES.has(industry)) return 'crm-fieldservice'
   if (ROOFING_INDUSTRIES.has(industry)) return 'crm-roof'
   if (AUTOMOTIVE_INDUSTRIES.has(industry)) return 'crm-automotive'
+  if (RV_INDUSTRIES.has(industry)) return 'crm-rv'
   if (DISPENSARY_INDUSTRIES.has(industry)) return 'crm-dispensary'
   return 'crm'
 }
