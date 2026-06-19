@@ -23,7 +23,6 @@ export const initializeSocket = (server: any) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any
       ;(socket as any).user = decoded
       socket.join(`company:${decoded.companyId}`)
-      socket.join(`user:${decoded.userId}`)
       next()
     } catch {
       next(new Error('Authentication error'))
@@ -66,7 +65,7 @@ export const EVENTS = {
   INVOICE_SENT: 'invoice:sent',
   INVOICE_PAID: 'invoice:paid',
   PAYMENT_RECEIVED: 'payment:received',
-  REFRESH: 'refresh',
+  REFRESH: 'data:refresh',
   ALERT_CREATED: 'alert:created',
 } as const
 
@@ -74,12 +73,12 @@ export const emitToCompany = (companyId: string, event: string, data: any) => {
   if (io) io.to(`company:${companyId}`).emit(event, data)
 }
 
-export const emitToProject = (projectId: string, event: string, data: any) => {
-  if (io) io.to(`project:${projectId}`).emit(event, data)
-}
-
 export const emitToUser = (userId: string, event: string, data: any) => {
   if (io) io.to(`user:${userId}`).emit(event, data)
+}
+
+export const emitToProject = (projectId: string, event: string, data: any) => {
+  if (io) io.to(`project:${projectId}`).emit(event, data)
 }
 
 export { io }

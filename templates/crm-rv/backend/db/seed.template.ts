@@ -1,12 +1,20 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 
-import { company, user, supportKnowledgeBase, unit } from './schema.ts'
+import { company, user, supportKnowledgeBase, pricebookCategory, pricebookItem } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
+// Factory replaces these placeholders at generate time. Keeping them inside
+// backtick strings guarantees the file is valid JS even if substitution fails —
+// the runtime guard below falls back to [] so the seed still completes.
+const __FEATURES_RAW = `{{ENABLED_FEATURES_JSON}}`
+const __PRODUCTS_RAW = `{{PRODUCTS_JSON}}`
+const enabledFeatures: string[] = __FEATURES_RAW.trim().startsWith('{{') ? [] : JSON.parse(__FEATURES_RAW)
+const enabledProducts: string[] = __PRODUCTS_RAW.trim().startsWith('{{') ? [] : JSON.parse(__PRODUCTS_RAW)
+
 async function main() {
-  console.log('Setting up Twomiah Drive...')
+  console.log('Setting up your CRM...')
 
   // Upsert company
   let [comp] = await db.select().from(company).where(eq(company.slug, '{{COMPANY_SLUG}}')).limit(1)
@@ -23,27 +31,37 @@ async function main() {
       primaryColor: '{{PRIMARY_COLOR}}',
       secondaryColor: '{{SECONDARY_COLOR}}',
       website: '{{SITE_URL}}',
-      enabledFeatures: {{ENABLED_FEATURES_JSON}},
+      enabledFeatures,
       settings: {
-        products: {{PRODUCTS_JSON}},
+        products: enabledProducts,
         siteUrl: '{{SITE_URL}}',
         cmsUrl: '{{CMS_URL}}',
-        generatedBy: 'Twomiah Drive',
+        generatedBy: '{{COMPANY_NAME}} Factory',
         generatedAt: new Date().toISOString(),
       },
     }).returning()
-    console.log('Created dealership:', comp.name)
+    console.log('Created company:', comp.name)
+
+    // Auto-enable estimator if feature was selected
+    if (enabledFeatures.includes('instant_estimator')) {
+      await db.update(company).set({ estimatorEnabled: true }).where(eq(company.id, comp.id))
+      console.log('Estimator auto-enabled')
+    }
   } else {
-    console.log('Dealership already exists:', comp.name)
+    console.log('Company already exists:', comp.name)
+    // Always sync enabledFeatures on redeploy — the Factory may have updated them
+    if (enabledFeatures.length > 0) {
+      await db.update(company).set({ enabledFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
+      console.log(`Updated enabledFeatures: ${enabledFeatures.length} features`)
+    }
   }
 
-  // Always upsert admin user with correct password
-  const passwordHash = await Bun.password.hash('{{DEFAULT_PASSWORD}}', 'bcrypt')
+  // Create admin user only if not already present — never overwrite existing password
   const [existingUser] = await db.select().from(user).where(eq(user.email, '{{ADMIN_EMAIL}}')).limit(1)
   if (existingUser) {
-    await db.update(user).set({ passwordHash, role: 'owner', isActive: true }).where(eq(user.id, existingUser.id))
-    console.log('Updated admin user password')
+    console.log('Admin user already exists - skipping password reset')
   } else {
+    const passwordHash = await Bun.password.hash('{{DEFAULT_PASSWORD}}', 'bcrypt')
     await db.insert(user).values({
       email: '{{ADMIN_EMAIL}}',
       passwordHash,
@@ -55,103 +73,71 @@ async function main() {
     console.log('Created admin user')
   }
 
-  // Seed help articles
+  // Seed help articles if none exist
   const existingArticles = await db.select().from(supportKnowledgeBase).where(eq(supportKnowledgeBase.companyId, comp.id)).limit(1)
   if (existingArticles.length === 0) {
     const helpArticles = [
-      { title: 'Getting Started with Twomiah Drive', content: 'Welcome! Start by adding your unit inventory, then set up lead sources to capture inbound leads. Use the Inventory page to add RVs and powersports units manually or via VIN decode.', category: 'Getting Started', isFaq: true, sortOrder: 1 },
-      { title: 'Adding Units to Inventory', content: 'Navigate to Inventory and click Add Unit. Pick a category (motorhome, towable, ATV, UTV, etc.), then enter details. For motorized units you can enter a VIN to auto-decode year, make, model, and trim via the free NHTSA decoder. Add photos, pricing, and condition.', category: 'Inventory', isFaq: true, sortOrder: 2 },
-      { title: 'Managing Sales Leads', content: 'The Leads page shows your sales pipeline as a Kanban board. Leads flow: New > Contacted > Demo > Desking > Closed. Assign leads to salespeople and track follow-ups.', category: 'Sales', isFaq: false, sortOrder: 3 },
-      { title: 'Importing ADF/XML Leads', content: 'Use ADF Import to paste ADF/XML lead data from third-party sources. The system parses customer name, email, phone, and unit interest automatically.', category: 'Sales', isFaq: true, sortOrder: 4 },
-      { title: 'Service Department & Repair Orders', content: 'Create repair orders from the Service page. Assign an advisor, add service items, and track status. Customer check-in triggers service-to-sales bridge alerts.', category: 'Service', isFaq: false, sortOrder: 5 },
-      { title: 'Service-to-Sales Alerts', content: 'When a customer with an active sales lead checks into service, the assigned salesperson gets an instant alert — creating face-to-face selling opportunities.', category: 'Service', isFaq: true, sortOrder: 6 },
+      { title: 'Getting Started with Your CRM', content: 'Welcome to your CRM! Start by adding contacts, creating jobs, and sending quotes. Use the sidebar to navigate between modules. Each module has a list view and detail view for managing records.', category: 'Getting Started', isFaq: true, sortOrder: 1 },
+      { title: 'Managing Contacts', content: 'Contacts are the foundation of your CRM. Add new contacts from the Contacts page. Each contact can have multiple jobs, quotes, and invoices linked to them. Use tags and notes to organize your contacts.', category: 'Getting Started', isFaq: false, sortOrder: 2 },
+      { title: 'Creating and Sending Quotes', content: 'Navigate to Quotes to create a new quote. Select a contact, add line items with descriptions and prices, then send the quote via email. Customers can approve quotes online through the customer portal.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 3 },
+      { title: 'Invoice Management', content: 'Create invoices from the Invoices page or convert approved quotes to invoices. Set payment terms, add line items, and send to customers. Track payment status and send reminders for overdue invoices.', category: 'Quotes & Invoices', isFaq: false, sortOrder: 4 },
+      { title: 'How do I schedule jobs?', content: 'Go to the Schedule page to view your calendar. Click on a date to create a new job or drag existing jobs to reschedule. You can assign team members and set job duration. The calendar supports day, week, and month views.', category: 'Scheduling', isFaq: true, sortOrder: 5 },
+      { title: 'Team Management', content: 'Add team members from the Team page. Assign roles (admin, manager, technician) to control access. Team members can be assigned to jobs, tracked on the schedule, and have their time entries logged.', category: 'Team', isFaq: false, sortOrder: 6 },
+      { title: 'How do I track time?', content: 'Use the Time page to log hours for jobs. Team members can clock in/out or manually add time entries. Time entries can be linked to specific jobs for accurate billing and labor cost tracking.', category: 'Time & Expenses', isFaq: true, sortOrder: 7 },
+      { title: 'Document Management', content: 'Upload and organize documents in the Documents section. Attach files to contacts, jobs, or projects. Supported formats include PDF, images, and common document types.', category: 'Documents', isFaq: false, sortOrder: 8 },
     ]
     for (const article of helpArticles) {
-      await db.insert(supportKnowledgeBase).values({ ...article, tags: [], companyId: comp.id })
+      await db.insert(supportKnowledgeBase).values({
+        ...article,
+        tags: [],
+        companyId: comp.id,
+      })
     }
     console.log('Seeded', helpArticles.length, 'help articles')
   }
 
-  // Seed sample inventory units (one towable RV, one motorhome, one powersports unit)
-  const existingUnits = await db.select().from(unit).where(eq(unit.companyId, comp.id)).limit(1)
-  if (existingUnits.length === 0) {
-    await db.insert(unit).values([
-      {
-        category: 'towable',
-        condition: 'new',
-        stockNumber: 'RV-1001',
-        year: 2025,
-        make: 'Forest River',
-        modelName: 'Wildwood 27RKS',
-        towableType: 'travel_trailer',
-        status: 'available',
-        msrp: '42995.00',
-        listedPrice: '34995.00',
-        lengthFt: '32.5',
-        sleeps: 6,
-        slideOuts: 1,
-        dryWeight: 6800,
-        hitchWeight: 760,
-        gvwr: 8800,
-        freshTankGal: 48,
-        greyTankGal: 64,
-        blackTankGal: 32,
-        awnings: 1,
-        exteriorColor: 'Champagne',
-        description: 'Rear kitchen travel trailer with single slide, sleeps 6.',
-        photos: [],
-        features: [],
+  // ── INDUSTRY-SPECIFIC SEED DATA ──────────────────────
+  const industry = '{{INDUSTRY}}'
+
+  const INDUSTRY_CATEGORIES: Record<string, string[]> = {
+    'Roofing': ['Roof Replacement', 'Roof Repair', 'Gutter Installation', 'Gutter Cleaning', 'Roof Inspection', 'Storm Damage Assessment'],
+    'General Contractor': ['Foundation', 'Framing', 'Electrical Rough-in', 'Plumbing Rough-in', 'Insulation', 'Drywall', 'Painting', 'Flooring', 'Final Walkthrough'],
+    'Remodeling': ['Kitchen Remodel', 'Bathroom Remodel', 'Basement Finish', 'Addition', 'Deck/Patio', 'Interior Demo', 'Tile Work', 'Cabinet Install'],
+  }
+
+  const INDUSTRY_STATUSES: Record<string, string[]> = {
+    'Roofing': ['Lead', 'Estimate Sent', 'Approved', 'Scheduled', 'In Progress', 'Punch List', 'Complete', 'Invoiced'],
+  }
+
+  const DEFAULT_CATEGORIES = ['General Services', 'Repairs', 'Installation', 'Consultation', 'Maintenance']
+  const DEFAULT_STATUSES = ['Estimate', 'Scheduled', 'In Progress', 'Complete', 'Invoiced']
+
+  const existingCats = await db.select().from(pricebookCategory).where(eq(pricebookCategory.companyId, comp.id)).limit(1)
+  if (existingCats.length === 0) {
+    const categories = INDUSTRY_CATEGORIES[industry] || DEFAULT_CATEGORIES
+    for (let i = 0; i < categories.length; i++) {
+      await db.insert(pricebookCategory).values({
+        name: categories[i],
+        sortOrder: i,
         companyId: comp.id,
+      })
+    }
+    console.log(`Seeded ${categories.length} service categories for ${industry}`)
+  }
+
+  // Store job statuses in company settings — only on first deploy
+  const currentSettings = (comp.settings as any) || {}
+  if (!currentSettings.jobStatuses) {
+    const statuses = INDUSTRY_STATUSES[industry] || DEFAULT_STATUSES
+    await db.update(company).set({
+      settings: {
+        ...currentSettings,
+        jobStatuses: statuses,
       },
-      {
-        category: 'motorhome',
-        condition: 'new',
-        stockNumber: 'RV-1002',
-        year: 2024,
-        make: 'Winnebago',
-        modelName: 'Minnie Winnie 31K',
-        rvClass: 'C',
-        chassis: 'Ford E-450',
-        status: 'available',
-        msrp: '139900.00',
-        listedPrice: '124900.00',
-        lengthFt: '32.8',
-        sleeps: 7,
-        slideOuts: 2,
-        gvwr: 14500,
-        generatorHours: 12,
-        awnings: 1,
-        fuelType: 'gas',
-        engine: '7.3L V8',
-        mileage: 1450,
-        exteriorColor: 'Silver',
-        description: 'Class C motorhome on Ford E-450 chassis with bunk beds, sleeps 7.',
-        photos: [],
-        features: [],
-        companyId: comp.id,
-      },
-      {
-        category: 'utv',
-        condition: 'new',
-        stockNumber: 'PS-2001',
-        year: 2025,
-        make: 'Polaris',
-        modelName: 'RZR Pro XP Ultimate',
-        status: 'available',
-        msrp: '32999.00',
-        listedPrice: '30999.00',
-        engineCc: 925,
-        hours: 0,
-        drivetrain: '4wd',
-        fuelType: 'gas',
-        exteriorColor: 'Matte Orange',
-        description: 'Two-seat sport side-by-side with 181 HP turbocharged engine.',
-        photos: [],
-        features: [],
-        companyId: comp.id,
-      },
-    ])
-    console.log('Seeded 3 sample inventory units')
+    }).where(eq(company.id, comp.id))
+    console.log(`Set ${statuses.length} job statuses for ${industry}`)
+  } else {
+    console.log('Job statuses already configured — skipping')
   }
 
   console.log('')

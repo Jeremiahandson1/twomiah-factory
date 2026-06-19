@@ -20,7 +20,7 @@ export default function ResetPasswordPage() {
     }
   }, [token]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
 
@@ -37,11 +37,11 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      await api.resetPassword(token, password);
+      await api.resetPassword(token!, password);
       setSuccess(true);
       setTimeout(() => navigate('/login'), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to reset password');
+      setError((err as Error).message || 'Failed to reset password');
     } finally {
       setLoading(false);
     }
@@ -116,7 +116,7 @@ export default function ResetPasswordPage() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   placeholder="Enter new password"
                   required
@@ -134,7 +134,7 @@ export default function ResetPasswordPage() {
                 <input
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   placeholder="Confirm new password"
                   required

@@ -1,65 +1,68 @@
 import { useEffect, useRef, useState } from 'react';
 import { MapPin, Navigation, Maximize2, List, Map as MapIcon, ExternalLink } from 'lucide-react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 /**
  * Map Component using Leaflet (free, no API key required)
- * 
+ *
  * Usage:
  *   <LocationMap lat={43.123} lng={-91.456} />
  *   <LocationMap address="123 Main St, City, ST" />
  *   <JobsMap jobs={[{ id, title, lat, lng }]} />
  */
 
-// Load Leaflet CSS and JS dynamically
+// Load Leaflet (bundled, no CDN dependency)
 let leafletLoaded = false;
-const loadLeaflet = () => {
+const loadLeaflet = (): Promise<typeof L> => {
   return new Promise((resolve) => {
-    if (leafletLoaded && window.L) {
-      resolve(window.L);
+    if (leafletLoaded) {
+      resolve(L);
       return;
     }
 
-    // Load CSS
-    if (!document.querySelector('link[href*="leaflet"]')) {
-      const css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(css);
-    }
-
-    // Load JS
-    if (!document.querySelector('script[src*="leaflet"]')) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = () => {
-        leafletLoaded = true;
-        resolve(window.L);
-      };
-      document.head.appendChild(script);
-    } else if (window.L) {
-      leafletLoaded = true;
-      resolve(window.L);
-    }
+    // Leaflet is imported directly — mark as loaded
+    leafletLoaded = true;
+    resolve(L);
   });
 };
+
+// Remove the old CDN script/link loading — Leaflet is now bundled
+// Keeping the loadLeaflet wrapper for backward compatibility with existing callers
+const _noop = () => {}; // eslint-disable-line @typescript-eslint/no-unused-vars
+
+interface Coordinates {
+  lat: number;
+  lng: number;
+}
+
+interface LocationMapProps {
+  lat?: number;
+  lng?: number;
+  address?: string;
+  zoom?: number;
+  height?: number;
+  showOpenIn?: boolean;
+  className?: string;
+}
 
 /**
  * Single location map
  */
-export default function LocationMap({ 
-  lat, 
-  lng, 
+export default function LocationMap({
+  lat,
+  lng,
   address,
   zoom = 15,
   height = 300,
   showOpenIn = true,
   className = '',
-}) {
-  const mapRef = useRef(null);
-  const mapInstance = useRef(null);
+}: LocationMapProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [coords, setCoords] = useState({ lat, lng });
+  const [error, setError] = useState<string | null>(null);
+  const [coords, setCoords] = useState<Partial<Coordinates>>({ lat, lng });
 
   // Geocode address if no coordinates provided
   useEffect(() => {
@@ -71,7 +74,7 @@ export default function LocationMap({
 
     if (address) {
       geocodeAddress(address)
-        .then(result => {
+        .then((result: Coordinates | null) => {
           if (result) {
             setCoords(result);
           } else {
@@ -90,7 +93,7 @@ export default function LocationMap({
   useEffect(() => {
     if (!coords.lat || !coords.lng || !mapRef.current) return;
 
-    loadLeaflet().then((L) => {
+    loadLeaflet().then((L: any) => {
       // Clean up existing map
       if (mapInstance.current) {
         mapInstance.current.remove();
@@ -98,7 +101,7 @@ export default function LocationMap({
 
       // Create map
       const map = L.map(mapRef.current).setView([coords.lat, coords.lng], zoom);
-      
+
       // Add tile layer (OpenStreetMap)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
@@ -121,12 +124,12 @@ export default function LocationMap({
     };
   }, [coords, zoom]);
 
-  const openInMaps = () => {
+  const openInMaps = (): void => {
     const query = address || `${coords.lat},${coords.lng}`;
     window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
   };
 
-  const openDirections = () => {
+  const openDirections = (): void => {
     const dest = address || `${coords.lat},${coords.lng}`;
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dest)}`, '_blank');
   };
@@ -158,7 +161,7 @@ export default function LocationMap({
   return (
     <div className={`relative rounded-lg overflow-hidden ${className}`}>
       <div ref={mapRef} style={{ height, width: '100%' }} />
-      
+
       {showOpenIn && (
         <div className="absolute top-2 right-2 flex gap-1">
           <button
@@ -181,42 +184,58 @@ export default function LocationMap({
   );
 }
 
+interface MapLocation {
+  id?: string;
+  title?: string;
+  lat: number;
+  lng: number;
+  address?: string;
+  status?: string;
+}
+
+interface MultiLocationMapProps {
+  locations?: MapLocation[];
+  height?: number;
+  onMarkerClick?: (location: MapLocation) => void;
+  className?: string;
+}
+
 /**
  * Multiple locations map (for jobs/projects)
  */
-export function MultiLocationMap({ 
-  locations = [], // [{ id, title, lat, lng, address, status }]
+export function MultiLocationMap({
+  locations = [],
   height = 400,
   onMarkerClick,
   className = '',
-}) {
-  const mapRef = useRef(null);
-  const mapInstance = useRef(null);
-  const [view, setView] = useState('map'); // 'map' or 'list'
+}: MultiLocationMapProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const [view, setView] = useState<'map' | 'list'>('map');
 
   useEffect(() => {
     if (locations.length === 0 || !mapRef.current) return;
 
-    loadLeaflet().then((L) => {
+    loadLeaflet().then((L: any) => {
       if (mapInstance.current) {
         mapInstance.current.remove();
       }
 
       // Calculate bounds
-      const validLocations = locations.filter(l => l.lat && l.lng);
+      const validLocations = locations.filter((l: MapLocation) => l.lat && l.lng);
       if (validLocations.length === 0) return;
 
-      const bounds = L.latLngBounds(validLocations.map(l => [l.lat, l.lng]));
-      
+      const bounds = L.latLngBounds(validLocations.map((l: MapLocation) => [l.lat, l.lng]));
+
       // Create map
       const map = L.map(mapRef.current).fitBounds(bounds, { padding: [50, 50] });
-      
+
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
 
       // Add markers
-      validLocations.forEach((loc, index) => {
+      validLocations.forEach((loc: MapLocation, index: number) => {
         const marker = L.marker([loc.lat, loc.lng])
           .addTo(map)
           .bindPopup(`
@@ -244,7 +263,7 @@ export function MultiLocationMap({
     };
   }, [locations]);
 
-  const validLocations = locations.filter(l => l.lat && l.lng);
+  const validLocations = locations.filter((l: MapLocation) => l.lat && l.lng);
 
   return (
     <div className={className}>
@@ -271,7 +290,7 @@ export function MultiLocationMap({
         <div ref={mapRef} style={{ height }} className="rounded-lg" />
       ) : (
         <div className="space-y-2 max-h-96 overflow-y-auto">
-          {locations.map((loc, i) => (
+          {locations.map((loc: MapLocation, i: number) => (
             <div
               key={loc.id || i}
               className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
@@ -295,13 +314,32 @@ export function MultiLocationMap({
   );
 }
 
+interface Job {
+  id: string;
+  title?: string;
+  number?: string;
+  lat: number;
+  lng: number;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  status?: string;
+}
+
+interface JobsMapProps {
+  jobs?: Job[];
+  onJobClick?: (location: MapLocation) => void;
+  height?: number;
+}
+
 /**
  * Jobs Map - specifically for displaying scheduled jobs
  */
-export function JobsMap({ jobs = [], onJobClick, height = 400 }) {
-  const locations = jobs
-    .filter(job => job.lat && job.lng)
-    .map(job => ({
+export function JobsMap({ jobs = [], onJobClick, height = 400 }: JobsMapProps) {
+  const locations: MapLocation[] = jobs
+    .filter((job: Job) => job.lat && job.lng)
+    .map((job: Job) => ({
       id: job.id,
       title: job.title || job.number,
       lat: job.lat,
@@ -319,27 +357,41 @@ export function JobsMap({ jobs = [], onJobClick, height = 400 }) {
   );
 }
 
+interface AddressInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSelect?: (selection: { address: string; lat: number; lng: number }) => void;
+  placeholder?: string;
+  className?: string;
+}
+
+interface AddressSuggestion {
+  display: string;
+  lat: number;
+  lng: number;
+}
+
 /**
  * Address autocomplete input
  */
-export function AddressInput({ 
-  value, 
-  onChange, 
+export function AddressInput({
+  value,
+  onChange,
   onSelect,
   placeholder = 'Enter address...',
   className = '',
-}) {
-  const [suggestions, setSuggestions] = useState([]);
+}: AddressInputProps) {
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const debounceRef = useRef(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const val = e.target.value;
     onChange(val);
 
     // Debounce search
-    clearTimeout(debounceRef.current);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
     if (val.length >= 3) {
       debounceRef.current = setTimeout(() => searchAddress(val), 300);
     } else {
@@ -347,7 +399,7 @@ export function AddressInput({
     }
   };
 
-  const searchAddress = async (query) => {
+  const searchAddress = async (query: string): Promise<void> => {
     setLoading(true);
     try {
       // Using Nominatim (free, no API key)
@@ -355,21 +407,21 @@ export function AddressInput({
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=us&limit=5`,
         { headers: { 'User-Agent': '{{COMPANY_NAME}} CRM' } }
       );
-      const data = await response.json();
-      setSuggestions(data.map(item => ({
+      const data: Array<{ display_name: string; lat: string; lon: string }> = await response.json();
+      setSuggestions(data.map((item) => ({
         display: item.display_name,
         lat: parseFloat(item.lat),
         lng: parseFloat(item.lon),
       })));
       setShowSuggestions(true);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Address search failed:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelect = (suggestion) => {
+  const handleSelect = (suggestion: AddressSuggestion): void => {
     onChange(suggestion.display);
     setShowSuggestions(false);
     if (onSelect) {
@@ -392,7 +444,7 @@ export function AddressInput({
         placeholder={placeholder}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
       />
-      
+
       {loading && (
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
           <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -401,7 +453,7 @@ export function AddressInput({
 
       {showSuggestions && suggestions.length > 0 && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-          {suggestions.map((s, i) => (
+          {suggestions.map((s: AddressSuggestion, i: number) => (
             <button
               key={i}
               onClick={() => handleSelect(s)}
@@ -417,10 +469,18 @@ export function AddressInput({
   );
 }
 
+interface StaticMapUrlProps {
+  lat: number;
+  lng: number;
+  zoom?: number;
+  width?: number;
+  height?: number;
+}
+
 /**
  * Static map image (for emails, PDFs)
  */
-export function StaticMapUrl({ lat, lng, zoom = 15, width = 600, height = 300 }) {
+export function StaticMapUrl({ lat, lng, zoom = 15, width = 600, height = 300 }: StaticMapUrlProps): string {
   // Using OpenStreetMap static tiles
   return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=${width}x${height}&markers=${lat},${lng},red`;
 }
@@ -428,13 +488,13 @@ export function StaticMapUrl({ lat, lng, zoom = 15, width = 600, height = 300 })
 /**
  * Geocode address to coordinates
  */
-export async function geocodeAddress(address) {
+export async function geocodeAddress(address: string): Promise<Coordinates | null> {
   try {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
       { headers: { 'User-Agent': '{{COMPANY_NAME}} CRM' } }
     );
-    const data = await response.json();
+    const data: Array<{ lat: string; lon: string }> = await response.json();
     if (data.length > 0) {
       return {
         lat: parseFloat(data[0].lat),
@@ -442,16 +502,23 @@ export async function geocodeAddress(address) {
       };
     }
     return null;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Geocoding failed:', error);
     return null;
   }
 }
 
+interface AddressObject {
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}
+
 /**
  * Format address from object
  */
-function formatAddress(obj) {
+function formatAddress(obj: AddressObject): string {
   const parts = [obj.address, obj.city, obj.state, obj.zip].filter(Boolean);
   return parts.join(', ');
 }
@@ -459,18 +526,18 @@ function formatAddress(obj) {
 /**
  * Calculate distance between two points (in miles)
  */
-export function calculateDistance(lat1, lng1, lat2, lng2) {
+export function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 3959; // Earth's radius in miles
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-  const a = 
+  const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
     Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
 
-function toRad(deg) {
+function toRad(deg: number): number {
   return deg * (Math.PI / 180);
 }

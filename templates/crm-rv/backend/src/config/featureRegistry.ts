@@ -1,13 +1,8 @@
 /**
  * Feature Registry
- *
+ * 
  * Master list of ALL available features in {{COMPANY_NAME}}.
  * This is the single source of truth for what can be enabled/disabled.
- *
- * Scope: RV + Powersports DEALERSHIP CRM. Positioned as a CRM layer (sales,
- * service comms, lead management) that sits on top of whatever DMS/accounting
- * the dealer already runs — NOT a full DMS. We deliberately do not build
- * accounting/GL, payroll, newsletter builders, or social scheduling.
  */
 
 export const FEATURE_REGISTRY = {
@@ -21,138 +16,222 @@ export const FEATURE_REGISTRY = {
     features: {
       contacts: {
         id: 'contacts',
-        name: 'Customers & Leads',
-        description: 'Customer and lead management with full history',
+        name: 'Contacts',
+        description: 'Customer and lead management',
         icon: 'users',
         routes: ['/contacts', '/api/contacts'],
       },
-      dashboard: {
-        id: 'dashboard',
-        name: 'Dashboard',
-        description: 'Store overview, sales & service KPIs',
-        icon: 'layout-dashboard',
-        routes: ['/dashboard', '/api/dashboard'],
+      jobs: {
+        id: 'jobs',
+        name: 'Jobs',
+        description: 'Work order management',
+        icon: 'briefcase',
+        routes: ['/jobs', '/api/jobs'],
+      },
+      quotes: {
+        id: 'quotes',
+        name: 'Quotes & Estimates',
+        description: 'Create and send quotes',
+        icon: 'file-text',
+        routes: ['/quotes', '/api/quotes'],
+      },
+      invoices: {
+        id: 'invoices',
+        name: 'Invoicing',
+        description: 'Invoice and payment tracking',
+        icon: 'dollar-sign',
+        routes: ['/invoices', '/api/invoices'],
+      },
+      scheduling: {
+        id: 'scheduling',
+        name: 'Scheduling',
+        description: 'Calendar and job scheduling',
+        icon: 'calendar',
+        routes: ['/schedule', '/api/schedule'],
       },
       team: {
         id: 'team',
         name: 'Team Management',
-        description: 'User accounts, roles and permissions',
+        description: 'User accounts and permissions',
         icon: 'users',
         routes: ['/team', '/api/team'],
       },
+      dashboard: {
+        id: 'dashboard',
+        name: 'Dashboard',
+        description: 'Overview and analytics',
+        icon: 'layout-dashboard',
+        routes: ['/dashboard', '/api/dashboard'],
+      },
     },
   },
 
   // ============================================
-  // INVENTORY (RV / POWERSPORTS UNITS)
+  // SERVICE TRADE MODULES
+  // ============================================
+  service: {
+    name: 'Service Trade',
+    description: 'Features for HVAC, plumbing, electrical, etc.',
+    features: {
+      gps_tracking: {
+        id: 'gps_tracking',
+        name: 'GPS Time Tracking',
+        description: 'Auto clock in/out based on job site location',
+        icon: 'map-pin',
+        routes: ['/api/time-tracking/gps', '/api/geofencing'],
+      },
+      route_optimization: {
+        id: 'route_optimization',
+        name: 'Route Optimization',
+        description: 'Optimize daily routes for technicians',
+        icon: 'route',
+        routes: ['/api/routing'],
+      },
+      equipment_tracking: {
+        id: 'equipment_tracking',
+        name: 'Equipment Tracking',
+        description: 'Track customer equipment, warranties, service history',
+        icon: 'settings',
+        routes: ['/equipment', '/api/equipment'],
+      },
+      service_agreements: {
+        id: 'service_agreements',
+        name: 'Service Agreements',
+        description: 'Membership plans and recurring service contracts',
+        icon: 'file-check',
+        routes: ['/agreements', '/api/agreements'],
+      },
+      pricebook: {
+        id: 'pricebook',
+        name: 'Pricebook',
+        description: 'Flat-rate pricing with good/better/best options',
+        icon: 'book-open',
+        routes: ['/pricebook', '/api/pricebook'],
+      },
+      fleet: {
+        id: 'fleet',
+        name: 'Fleet Management',
+        description: 'Vehicle tracking, maintenance, fuel logs',
+        icon: 'truck',
+        routes: ['/fleet', '/api/fleet'],
+      },
+    },
+  },
+
+  // ============================================
+  // CONSTRUCTION MODULES
+  // ============================================
+  construction: {
+    name: 'Construction',
+    description: 'Features for GCs, remodelers, builders',
+    features: {
+      projects: {
+        id: 'projects',
+        name: 'Project Management',
+        description: 'Multi-phase construction projects',
+        icon: 'building',
+        routes: ['/projects', '/api/projects'],
+      },
+      change_orders: {
+        id: 'change_orders',
+        name: 'Change Orders',
+        description: 'Track and approve scope changes',
+        icon: 'file-diff',
+        routes: ['/change-orders', '/api/change-orders'],
+      },
+      rfis: {
+        id: 'rfis',
+        name: 'RFIs',
+        description: 'Request for Information tracking',
+        icon: 'help-circle',
+        routes: ['/rfis', '/api/rfis'],
+      },
+      daily_logs: {
+        id: 'daily_logs',
+        name: 'Daily Logs',
+        description: 'Jobsite activity documentation',
+        icon: 'clipboard-list',
+        routes: ['/daily-logs', '/api/daily-logs'],
+      },
+      punch_lists: {
+        id: 'punch_lists',
+        name: 'Punch Lists',
+        description: 'Track completion items',
+        icon: 'check-square',
+        routes: ['/punch-lists', '/api/punch-lists'],
+      },
+      bids: {
+        id: 'bids',
+        name: 'Bid Management',
+        description: 'Track and manage project bids',
+        icon: 'gavel',
+        routes: ['/bids', '/api/bids'],
+      },
+      gantt: {
+        id: 'gantt',
+        name: 'Gantt Charts',
+        description: 'Project scheduling with dependencies',
+        icon: 'gantt-chart',
+        routes: ['/api/scheduling'],
+      },
+      selections: {
+        id: 'selections',
+        name: 'Selections',
+        description: 'Client finish and fixture selections',
+        icon: 'palette',
+        routes: ['/selections', '/api/selections'],
+      },
+      takeoffs: {
+        id: 'takeoffs',
+        name: 'Material Takeoffs',
+        description: 'Calculate material quantities from plans',
+        icon: 'calculator',
+        routes: ['/takeoffs', '/api/takeoffs'],
+      },
+      warranties: {
+        id: 'warranties',
+        name: 'Warranty Management',
+        description: 'Track warranties and service claims',
+        icon: 'shield',
+        routes: ['/warranties', '/api/warranties'],
+      },
+      lien_waivers: {
+        id: 'lien_waivers',
+        name: 'Lien Waivers',
+        description: 'Construction payment compliance',
+        icon: 'file-signature',
+        routes: ['/lien-waivers', '/api/lien-waivers'],
+      },
+      draw_schedules: {
+        id: 'draw_schedules',
+        name: 'Draw Schedules',
+        description: 'Construction loan billing (AIA style)',
+        icon: 'landmark',
+        routes: ['/draws', '/api/draws'],
+      },
+    },
+  },
+
+  // ============================================
+  // INVENTORY & PARTS
   // ============================================
   inventory: {
     name: 'Inventory',
-    description: 'RV & powersports unit inventory',
+    description: 'Parts and materials tracking',
     features: {
-      unit_inventory: {
-        id: 'unit_inventory',
-        name: 'Unit Inventory',
-        description: 'New/used/consignment units with VIN decode, floorplans, photos and spec sheets',
-        icon: 'caravan',
-        routes: ['/inventory', '/api/units'],
-      },
-      inventory_syndication: {
-        id: 'inventory_syndication',
-        name: 'Marketplace Syndication',
-        description: 'Push inventory feeds to RV Trader, RVUSA, RVT, Cycle Trader & ATV Trader',
-        icon: 'share-2',
-        routes: ['/api/syndication'],
-      },
-      recall_lookup: {
-        id: 'recall_lookup',
-        name: 'Recall Lookup',
-        description: 'One-click NHTSA/OEM open-recall check by VIN at sale and service intake',
-        icon: 'alert-triangle',
-        routes: ['/api/recalls'],
-      },
-    },
-  },
-
-  // ============================================
-  // SALES
-  // ============================================
-  sales: {
-    name: 'Sales',
-    description: 'Sales pipeline, deals and trade-ins',
-    features: {
-      deal_pipeline: {
-        id: 'deal_pipeline',
-        name: 'Sales Pipeline',
-        description: 'Kanban pipeline linking each lead to a unit of interest, by stage and salesperson',
-        icon: 'kanban',
-        routes: ['/pipeline', '/api/sales-leads'],
-      },
-      lead_inbox: {
-        id: 'lead_inbox',
-        name: 'Lead Inbox',
-        description: 'Unified inbox for marketplace & ADF/XML leads with auto-match to inventory',
-        icon: 'inbox',
-        routes: ['/leads', '/api/leads', '/api/lead-sources'],
-      },
-      deal_desk: {
-        id: 'deal_desk',
-        name: 'Deal Desk',
-        description: 'Structure deals with payment calculator, fees, tax and trade allowance',
-        icon: 'calculator',
-        routes: ['/deals', '/api/deals'],
-      },
-      trade_in: {
-        id: 'trade_in',
-        name: 'Trade-In Management',
-        description: 'Appraise trades, attach to a deal, recondition and roll back into used inventory',
-        icon: 'repeat',
-        routes: ['/trade-ins', '/api/trade-ins'],
-      },
-      esign: {
-        id: 'esign',
-        name: 'eSignature',
-        description: 'Send deal paperwork for remote signing to close without a return visit',
-        icon: 'file-signature',
-        routes: ['/api/esign'],
-      },
-    },
-  },
-
-  // ============================================
-  // SERVICE & PARTS
-  // ============================================
-  service: {
-    name: 'Service & Parts',
-    description: 'Service department and parts counter',
-    features: {
-      service_dept: {
-        id: 'service_dept',
-        name: 'Service Department',
-        description: 'Repair orders, bay/tech scheduling and service-to-sales alerts',
-        icon: 'wrench',
-        routes: ['/service', '/api/repair-orders', '/api/alerts'],
-      },
-      service_status_texts: {
-        id: 'service_status_texts',
-        name: 'Service Status Updates',
-        description: 'Automated "your unit is ready" texts plus tech photos/video to drive upsell approvals',
-        icon: 'message-circle',
-        routes: ['/api/service-updates'],
-      },
-      parts_counter: {
-        id: 'parts_counter',
-        name: 'Parts Counter',
-        description: 'RV/powersports parts lookup, special orders and parts-to-RO attachment',
+      inventory: {
+        id: 'inventory',
+        name: 'Inventory Management',
+        description: 'Track parts across locations and trucks',
         icon: 'package',
-        routes: ['/parts', '/api/parts'],
+        routes: ['/inventory', '/api/inventory'],
       },
-      warranty_claims: {
-        id: 'warranty_claims',
-        name: 'Warranty Claims',
-        description: 'Track OEM warranty and extended-service-contract claims through approval',
-        icon: 'shield',
-        routes: ['/warranty', '/api/warranty-claims'],
+      purchase_orders: {
+        id: 'purchase_orders',
+        name: 'Purchase Orders',
+        description: 'Order parts from vendors',
+        icon: 'shopping-cart',
+        routes: ['/purchase-orders', '/api/inventory/purchase-orders'],
       },
     },
   },
@@ -164,57 +243,129 @@ export const FEATURE_REGISTRY = {
     name: 'Communication',
     description: 'Customer communication tools',
     features: {
-      two_way_texting: {
-        id: 'two_way_texting',
-        name: 'Two-Way Texting',
-        description: 'Unified text inbox — every customer conversation logged and attributed to the dealership',
+      sms: {
+        id: 'sms',
+        name: 'Two-Way SMS',
+        description: 'Text messaging with customers',
         icon: 'message-square',
         routes: ['/messages', '/api/sms'],
       },
-      follow_up_sequences: {
-        id: 'follow_up_sequences',
-        name: 'Automated Follow-Up',
-        description: 'Multi-touch SMS/email cadences that work long RV/powersports research cycles',
-        icon: 'send',
-        routes: ['/sequences', '/api/sequences'],
+      email_campaigns: {
+        id: 'email_campaigns',
+        name: 'Email Campaigns',
+        description: 'Marketing emails and drip sequences',
+        icon: 'mail',
+        routes: ['/marketing', '/api/marketing'],
       },
-      google_reviews: {
-        id: 'google_reviews',
+      reviews: {
+        id: 'reviews',
         name: 'Review Requests',
-        description: 'Automated Google review requests after a sale or service visit',
+        description: 'Automated Google review requests',
         icon: 'star',
         routes: ['/reviews', '/api/reviews'],
+      },
+      call_tracking: {
+        id: 'call_tracking',
+        name: 'Call Tracking',
+        description: 'Track calls by marketing source',
+        icon: 'phone',
+        routes: ['/calls', '/api/calltracking'],
       },
     },
   },
 
   // ============================================
-  // PAYMENTS & FINANCE  (CRM layer only — no built-in accounting/GL)
+  // PAYMENTS & FINANCE
   // ============================================
   finance: {
     name: 'Payments & Finance',
-    description: 'F&I tools, payments and accounting sync',
+    description: 'Payment processing and financing',
     features: {
-      consumer_financing: {
-        id: 'consumer_financing',
-        name: 'F&I / Financing',
-        description: 'Lender pre-qualification links and finance offers attached to the deal',
-        icon: 'banknote',
-        routes: ['/api/financing'],
-      },
-      online_payments: {
-        id: 'online_payments',
+      payments: {
+        id: 'payments',
         name: 'Payment Processing',
-        description: 'Take deposits and payments by card or ACH',
+        description: 'Accept credit cards and ACH',
         icon: 'credit-card',
         routes: ['/api/stripe', '/api/payments'],
+      },
+      consumer_financing: {
+        id: 'consumer_financing',
+        name: 'Consumer Financing',
+        description: 'Wisetack financing integration',
+        icon: 'banknote',
+        routes: ['/api/wisetack'],
       },
       quickbooks: {
         id: 'quickbooks',
         name: 'QuickBooks Sync',
-        description: 'Push deals/invoices to QuickBooks — we integrate accounting, we do not replace it',
+        description: 'Two-way QuickBooks integration',
         icon: 'refresh-cw',
         routes: ['/api/quickbooks'],
+      },
+    },
+  },
+
+  // ============================================
+  // CUSTOMER PORTAL
+  // ============================================
+  portal: {
+    name: 'Customer Portal',
+    description: 'Client-facing features',
+    features: {
+      customer_portal: {
+        id: 'customer_portal',
+        name: 'Customer Portal',
+        description: 'Clients view quotes, invoices, project status',
+        icon: 'external-link',
+        routes: ['/portal', '/api/portal'],
+      },
+      online_booking: {
+        id: 'online_booking',
+        name: 'Online Booking',
+        description: 'Website widget for appointment booking',
+        icon: 'calendar-plus',
+        routes: ['/api/booking'],
+      },
+    },
+  },
+
+  // ============================================
+  // DOCUMENTS
+  // ============================================
+  documents: {
+    name: 'Documents',
+    description: 'Document management',
+    features: {
+      documents: {
+        id: 'documents',
+        name: 'Document Management',
+        description: 'File storage and versioning',
+        icon: 'folder',
+        routes: ['/documents', '/api/documents'],
+      },
+      photos: {
+        id: 'photos',
+        name: 'Photo Management',
+        description: 'Job site photos organized by location',
+        icon: 'camera',
+        routes: ['/api/photos'],
+      },
+    },
+  },
+
+  // ============================================
+  // ADD-ONS (optional white-labeled products)
+  // ============================================
+  addons: {
+    name: 'Add-Ons',
+    description: 'Optional white-labeled products',
+    features: {
+      visualizer: {
+        id: 'visualizer',
+        name: 'Home Visualizer',
+        description: 'AI-powered home visualization tool embedded in your site',
+        icon: 'camera',
+        routes: ['/visualizer', '/api/visualizer'],
       },
     },
   },
@@ -229,16 +380,16 @@ export const FEATURE_REGISTRY = {
       reports: {
         id: 'reports',
         name: 'Reports',
-        description: 'Drill-down sales & service reporting — leads by source, close rate, gross per deal',
+        description: 'Financial and operational reports',
         icon: 'bar-chart',
         routes: ['/reports', '/api/reporting'],
       },
-      seasonal_trends: {
-        id: 'seasonal_trends',
-        name: 'Seasonal Trends',
-        description: 'Year-over-year, same-period comparisons for a seasonal RV/powersports business',
+      job_costing: {
+        id: 'job_costing',
+        name: 'Job Costing',
+        description: 'Estimate vs actual cost analysis',
         icon: 'trending-up',
-        routes: ['/api/reporting/seasonal'],
+        routes: ['/api/reporting/job-costing'],
       },
     },
   },
@@ -249,49 +400,99 @@ export const FEATURE_REGISTRY = {
 // ============================================
 
 export const FEATURE_PACKAGES = {
-  starter: {
-    id: 'starter',
-    name: 'Sales Starter',
-    description: 'Get the sales floor off spreadsheets and personal phones',
+  service_basic: {
+    id: 'service_basic',
+    name: 'Service Basic',
+    description: 'Essential features for small service companies',
     price: '$1,500',
     features: [
       // Core always included
-      'unit_inventory',
-      'deal_pipeline',
-      'lead_inbox',
-      'two_way_texting',
-      'follow_up_sequences',
-      'google_reviews',
-      'online_payments',
+      'gps_tracking',
+      'pricebook',
+      'sms',
+      'reviews',
+      'payments',
+      'customer_portal',
     ],
   },
-  sales_pro: {
-    id: 'sales_pro',
-    name: 'Sales Pro',
-    description: 'Full sales + F&I workflow with syndication',
+  service_pro: {
+    id: 'service_pro',
+    name: 'Service Pro',
+    description: 'Full service trade feature set',
     price: '$2,500',
     features: [
-      'unit_inventory',
-      'inventory_syndication',
-      'recall_lookup',
-      'deal_pipeline',
-      'lead_inbox',
-      'deal_desk',
-      'trade_in',
-      'esign',
-      'two_way_texting',
-      'follow_up_sequences',
-      'google_reviews',
+      // Core always included
+      'gps_tracking',
+      'route_optimization',
+      'equipment_tracking',
+      'service_agreements',
+      'pricebook',
+      'fleet',
+      'inventory',
+      'purchase_orders',
+      'sms',
+      'email_campaigns',
+      'reviews',
+      'call_tracking',
+      'payments',
       'consumer_financing',
-      'online_payments',
       'quickbooks',
+      'customer_portal',
+      'documents',
+      'reports',
+    ],
+  },
+  construction_basic: {
+    id: 'construction_basic',
+    name: 'Construction Basic',
+    description: 'Essential features for remodelers',
+    price: '$2,000',
+    features: [
+      // Core always included
+      'projects',
+      'change_orders',
+      'punch_lists',
+      'bids',
+      'customer_portal',
+      'documents',
+      'payments',
+    ],
+  },
+  construction_pro: {
+    id: 'construction_pro',
+    name: 'Construction Pro',
+    description: 'Full construction feature set',
+    price: '$3,500',
+    features: [
+      // Core always included
+      'projects',
+      'change_orders',
+      'rfis',
+      'daily_logs',
+      'punch_lists',
+      'bids',
+      'gantt',
+      'selections',
+      'takeoffs',
+      'warranties',
+      'lien_waivers',
+      'draw_schedules',
+      'inventory',
+      'purchase_orders',
+      'sms',
+      'payments',
+      'consumer_financing',
+      'quickbooks',
+      'customer_portal',
+      'documents',
+      'photos',
       'reports',
     ],
   },
   full: {
     id: 'full',
     name: 'Full Platform',
-    description: 'Every feature enabled — sales, service, parts and F&I',
+    description: 'Every feature enabled',
     price: '$5,000',
     features: 'all',
   },
@@ -324,7 +525,7 @@ export function getCoreFeatureIds() {
 /**
  * Get feature by ID
  */
-export function getFeatureById(featureId) {
+export function getFeatureById(featureId: string) {
   for (const category of Object.values(FEATURE_REGISTRY)) {
     if (category.features[featureId]) {
       return category.features[featureId];
@@ -336,25 +537,25 @@ export function getFeatureById(featureId) {
 /**
  * Get features for a package
  */
-export function getPackageFeatures(packageId) {
+export function getPackageFeatures(packageId: string) {
   const pkg = FEATURE_PACKAGES[packageId];
   if (!pkg) return getCoreFeatureIds();
-
+  
   if (pkg.features === 'all') {
     return getAllFeatureIds();
   }
-
+  
   return [...getCoreFeatureIds(), ...pkg.features];
 }
 
 /**
  * Check if a route is allowed for given features
  */
-export function isRouteAllowed(route, enabledFeatures) {
+export function isRouteAllowed(route: string, enabledFeatures: string[]) {
   // Core features always allowed
   const coreIds = getCoreFeatureIds();
   const allEnabled = [...coreIds, ...enabledFeatures];
-
+  
   for (const category of Object.values(FEATURE_REGISTRY)) {
     for (const feature of Object.values(category.features)) {
       if (feature.routes.some(r => route.startsWith(r))) {
@@ -363,7 +564,7 @@ export function isRouteAllowed(route, enabledFeatures) {
       }
     }
   }
-
+  
   // If route not in registry, allow it (might be a system route)
   return true;
 }

@@ -1,13 +1,21 @@
 import React from 'react';
 import clsx from 'clsx';
+import { LucideIcon } from 'lucide-react';
 
-export function Input({ 
-  label, 
-  error, 
-  className, 
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+  className?: string;
+  icon?: LucideIcon;
+}
+
+export function Input({
+  label,
+  error,
+  className,
   icon: Icon,
-  ...props 
-}) {
+  ...props
+}: InputProps) {
   return (
     <div className={className}>
       {label && <label className="label">{label}</label>}
@@ -29,13 +37,20 @@ export function Input({
   );
 }
 
-export function Textarea({ 
-  label, 
-  error, 
-  className, 
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+  error?: string;
+  className?: string;
+  rows?: number;
+}
+
+export function Textarea({
+  label,
+  error,
+  className,
   rows = 4,
-  ...props 
-}) {
+  ...props
+}: TextareaProps) {
   return (
     <div className={className}>
       {label && <label className="label">{label}</label>}
@@ -52,14 +67,27 @@ export function Textarea({
   );
 }
 
-export function Select({ 
-  label, 
-  error, 
-  className, 
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
+interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  error?: string;
+  className?: string;
+  options?: SelectOption[];
+  placeholder?: string;
+}
+
+export function Select({
+  label,
+  error,
+  className,
   options = [],
   placeholder,
-  ...props 
-}) {
+  ...props
+}: SelectProps) {
   return (
     <div className={className}>
       {label && <label className="label">{label}</label>}

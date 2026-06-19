@@ -17,7 +17,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLocalError('');
 
@@ -44,13 +44,13 @@ export default function RegisterPage() {
       });
       navigate('/');
     } catch (err) {
-      setLocalError(err.message || 'Registration failed');
+      setLocalError((err as Error).message || 'Registration failed');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChange = (e) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -58,7 +58,7 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{{COMPANY_NAME}}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</h1>
           <p className="mt-2 text-gray-600">Create your account</p>
         </div>
 
@@ -114,6 +114,8 @@ export default function RegisterPage() {
                 type="email"
                 name="email"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
                 value={formData.email}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
@@ -139,6 +141,9 @@ export default function RegisterPage() {
                 type="password"
                 name="password"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={formData.password}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
@@ -152,6 +157,9 @@ export default function RegisterPage() {
                 type="password"
                 name="confirmPassword"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"

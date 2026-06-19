@@ -42,10 +42,18 @@ class GlobalErrorBoundary extends React.Component<any, any> {
   }
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')!;
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <GlobalErrorBoundary>
       <App />
     </GlobalErrorBoundary>
   </React.StrictMode>
 );
+
+// React 18 sets root.onclick as a no-op trap for iOS Safari event delegation.
+// In some environments this overwrites/blocks real click handling. Clear it
+// after React mounts to ensure all click events propagate correctly.
+requestAnimationFrame(() => {
+  if (rootEl.onclick) rootEl.onclick = null;
+});

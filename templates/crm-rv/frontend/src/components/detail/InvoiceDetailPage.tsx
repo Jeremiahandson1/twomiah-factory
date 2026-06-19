@@ -8,17 +8,55 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { Modal, ConfirmModal } from '../ui/Modal';
 
+interface LineItem {
+  description: string;
+  quantity: string | number;
+  unitPrice: string | number;
+  total: string | number;
+}
+
+interface PaymentRecord {
+  paidAt: string;
+  method: string;
+  reference?: string;
+  amount: string | number;
+}
+
+interface InvoiceDetailData {
+  id: string;
+  number: string;
+  status: string;
+  total: string | number;
+  subtotal: string | number;
+  taxAmount: string | number;
+  amountPaid: string | number;
+  dueDate?: string | null;
+  createdAt: string;
+  lineItems?: LineItem[];
+  payments?: PaymentRecord[];
+  contact?: { id: string; name: string } | null;
+  [key: string]: unknown;
+}
+
+interface PaymentFormData {
+  amount: string;
+  method: string;
+  reference: string;
+  notes: string;
+}
+
 export default function InvoiceDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [invoice, setInvoice] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [payment, setPayment] = useState({ amount: '', method: 'card', reference: '', notes: '' });
-  const [recording, setRecording] = useState(false);
+  const [invoice, setInvoice] = useState<InvoiceDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
+  const [paymentOpen, setPaymentOpen] = useState<boolean>(false);
+  const [payment, setPayment] = useState<PaymentFormData>({ amount: '', method: 'card', reference: '', notes: '' });
+  const [recording, setRecording] = useState<boolean>(false);
 
   useEffect(() => { loadInvoice(); }, [id]);
 
@@ -27,9 +65,10 @@ export default function InvoiceDetailPage() {
     try {
       const data = await api.invoices.get(id);
       setInvoice(data);
-      setPayment(p => ({ ...p, amount: data.balance }));
-    } catch (err) {
-      setError(err.message);
+      setPayment((p: PaymentFormData) => ({ ...p, amount: (Number(data.total) - Number(data.amountPaid || 0)).toFixed(2) }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -39,9 +78,10 @@ export default function InvoiceDetailPage() {
     try {
       await api.invoices.delete(id);
       toast.success('Invoice deleted');
-      navigate('/invoices');
-    } catch (err) {
-      toast.error(err.message);
+      navigate('/crm/invoices');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -50,8 +90,9 @@ export default function InvoiceDetailPage() {
       await api.invoices.send(id);
       toast.success('Invoice sent');
       loadInvoice();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -66,8 +107,9 @@ export default function InvoiceDetailPage() {
       toast.success('Payment recorded');
       setPaymentOpen(false);
       loadInvoice();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     } finally {
       setRecording(false);
     }
@@ -77,18 +119,19 @@ export default function InvoiceDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadInvoice} actionLabel="Retry" />;
   if (!invoice) return <EmptyState title="Invoice not found" />;
 
-  const balanceColor = Number(invoice.balance) > 0 ? 'text-red-600' : 'text-green-600';
+  const balance = Number(invoice.total) - Number(invoice.amountPaid || 0);
+  const balanceColor = balance > 0 ? 'text-red-600' : 'text-green-600';
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/invoices')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/invoices')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <p className="text-sm font-mono text-gray-500">{invoice.number}</p>
-            <h1 className="text-2xl font-bold text-gray-900">Invoice</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Invoice</h1>
             <StatusBadge status={invoice.status} />
           </div>
         </div>
@@ -98,12 +141,12 @@ export default function InvoiceDetailPage() {
               <Send className="w-4 h-4" /> Send
             </button>
           )}
-          {Number(invoice.balance) > 0 && invoice.status !== 'draft' && (
+          {balance > 0 && invoice.status !== 'draft' && (
             <button onClick={() => setPaymentOpen(true)} className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 flex items-center gap-2">
               <DollarSign className="w-4 h-4" /> Record Payment
             </button>
           )}
-          <Link to={`/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/invoices?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
@@ -114,10 +157,10 @@ export default function InvoiceDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden">
             <div className="p-4 border-b"><h2 className="font-semibold">Line Items</h2></div>
             <table className="w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 dark:bg-slate-800">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Description</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500">Qty</th>
@@ -126,7 +169,7 @@ export default function InvoiceDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {invoice.lineItems?.map((item, i) => (
+                {invoice.lineItems?.map((item: LineItem, i: number) => (
                   <tr key={i}>
                     <td className="px-4 py-3">{item.description}</td>
                     <td className="px-4 py-3 text-right">{Number(item.quantity)}</td>
@@ -135,21 +178,21 @@ export default function InvoiceDetailPage() {
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-50">
-                <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(invoice.subtotal).toFixed(2)}</td></tr>
-                {Number(invoice.taxAmount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
-                <tr className="font-bold"><td colSpan="3" className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
-                <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>
-                <tr className="font-bold text-lg"><td colSpan="3" className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${Number(invoice.balance).toFixed(2)}</td></tr>
+              <tfoot className="bg-gray-50 dark:bg-slate-800">
+                <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(invoice.subtotal).toFixed(2)}</td></tr>
+                {Number(invoice.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax</td><td className="px-4 py-2 text-right">${Number(invoice.taxAmount).toFixed(2)}</td></tr>}
+                <tr className="font-bold"><td colSpan={3} className="px-4 py-2 text-right">Total</td><td className="px-4 py-2 text-right">${Number(invoice.total).toFixed(2)}</td></tr>
+                <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Paid</td><td className="px-4 py-2 text-right text-green-600">-${Number(invoice.amountPaid).toFixed(2)}</td></tr>
+                <tr className="font-bold text-lg"><td colSpan={3} className="px-4 py-3 text-right">Balance Due</td><td className={`px-4 py-3 text-right ${balanceColor}`}>${balance.toFixed(2)}</td></tr>
               </tfoot>
             </table>
           </div>
 
-          {invoice.payments?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          {(invoice.payments?.length ?? 0) > 0 && (
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden">
               <div className="p-4 border-b"><h2 className="font-semibold">Payments</h2></div>
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 dark:bg-slate-800">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs">Date</th>
                     <th className="px-4 py-2 text-left text-xs">Method</th>
@@ -158,7 +201,7 @@ export default function InvoiceDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {invoice.payments.map((p, i) => (
+                  {invoice.payments!.map((p: PaymentRecord, i: number) => (
                     <tr key={i}>
                       <td className="px-4 py-2">{new Date(p.paidAt).toLocaleDateString()}</td>
                       <td className="px-4 py-2 capitalize">{p.method}</td>
@@ -173,19 +216,19 @@ export default function InvoiceDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3 text-sm">
               {invoice.contact && (
                 <div>
                   <p className="text-gray-500">Client</p>
-                  <Link to={`/contacts/${invoice.contact.id}`} className="text-orange-500 hover:underline">{invoice.contact.name}</Link>
+                  <Link to={`/crm/contacts/${invoice.contact.id}`} className="text-orange-500 hover:underline">{invoice.contact.name}</Link>
                 </div>
               )}
               {invoice.dueDate && (
                 <div>
                   <p className="text-gray-500">Due Date</p>
-                  <p className={new Date(invoice.dueDate) < new Date() && Number(invoice.balance) > 0 ? 'text-red-600 font-medium' : ''}>{new Date(invoice.dueDate).toLocaleDateString()}</p>
+                  <p className={new Date(invoice.dueDate) < new Date() && balance > 0 ? 'text-red-600 font-medium' : ''}>{new Date(String(invoice.dueDate).split('T')[0] + 'T00:00:00').toLocaleDateString()}</p>
                 </div>
               )}
               <div>
@@ -195,9 +238,9 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
 
-          <div className={`rounded-lg p-6 text-center ${Number(invoice.balance) > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
-            <p className={`text-3xl font-bold ${balanceColor}`}>${Number(invoice.balance).toLocaleString()}</p>
-            <p className="text-gray-600">{Number(invoice.balance) > 0 ? 'Balance Due' : 'Paid in Full'}</p>
+          <div className={`rounded-lg p-6 text-center ${balance > 0 ? 'bg-red-50' : 'bg-green-50'}`}>
+            <p className={`text-3xl font-bold ${balanceColor}`}>${balance.toLocaleString()}</p>
+            <p className="text-gray-600">{balance > 0 ? 'Balance Due' : 'Paid in Full'}</p>
           </div>
         </div>
       </div>
@@ -207,11 +250,11 @@ export default function InvoiceDetailPage() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">Amount *</label>
-            <input type="number" step="0.01" value={payment.amount} onChange={(e) => setPayment({...payment, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
+            <input type="number" step="0.01" value={payment.amount} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayment({...payment, amount: e.target.value})} className="w-full px-3 py-2 border rounded-lg" />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Method</label>
-            <select value={payment.method} onChange={(e) => setPayment({...payment, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
+            <select value={payment.method} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setPayment({...payment, method: e.target.value})} className="w-full px-3 py-2 border rounded-lg">
               <option value="card">Card</option>
               <option value="cash">Cash</option>
               <option value="check">Check</option>
@@ -220,11 +263,11 @@ export default function InvoiceDetailPage() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Reference</label>
-            <input value={payment.reference} onChange={(e) => setPayment({...payment, reference: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="Check #, transaction ID..." />
+            <input value={payment.reference} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayment({...payment, reference: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="Check #, transaction ID..." />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Notes</label>
-            <textarea value={payment.notes} onChange={(e) => setPayment({...payment, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" />
+            <textarea value={payment.notes} onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setPayment({...payment, notes: e.target.value})} rows={2} className="w-full px-3 py-2 border rounded-lg" />
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

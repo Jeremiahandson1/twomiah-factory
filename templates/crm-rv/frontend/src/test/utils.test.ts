@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 describe('Utility functions', () => {
   describe('Currency formatting', () => {
-    const formatCurrency = (amount) => {
+    const formatCurrency = (amount: number | null): string => {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency: 'USD',
@@ -27,7 +27,7 @@ describe('Utility functions', () => {
   });
 
   describe('Date formatting', () => {
-    const formatDate = (date) => {
+    const formatDate = (date: string | null): string => {
       if (!date) return '';
       return new Date(date).toLocaleDateString('en-US');
     };
@@ -43,8 +43,8 @@ describe('Utility functions', () => {
   });
 
   describe('Status colors', () => {
-    const getStatusColor = (status) => {
-      const colors = {
+    const getStatusColor = (status: string): string => {
+      const colors: Record<string, string> = {
         draft: 'gray',
         sent: 'blue',
         approved: 'green',
@@ -67,9 +67,9 @@ describe('Utility functions', () => {
   });
 
   describe('Pagination', () => {
-    const getPaginationRange = (current, total) => {
+    const getPaginationRange = (current: number, total: number): (number | string)[] => {
       const delta = 2;
-      const range = [];
+      const range: (number | string)[] = [];
       const left = Math.max(2, current - delta);
       const right = Math.min(total - 1, current + delta);
 

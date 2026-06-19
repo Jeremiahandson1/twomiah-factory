@@ -1,30 +1,40 @@
 import { useRef, useState, useEffect } from 'react';
 import { Eraser, Check, X } from 'lucide-react';
 
+interface SignaturePadProps {
+  onSave: (dataUrl: string) => void;
+  onCancel?: () => void;
+  width?: number;
+  height?: number;
+  penColor?: string;
+  backgroundColor?: string;
+}
+
 /**
  * Signature Pad Component
- * 
+ *
  * Usage:
  *   <SignaturePad onSave={(dataUrl) => console.log(dataUrl)} />
  */
-export default function SignaturePad({ 
-  onSave, 
+export default function SignaturePad({
+  onSave,
   onCancel,
   width = 500,
   height = 200,
   penColor = '#000000',
   backgroundColor = '#ffffff',
-}) {
-  const canvasRef = useRef(null);
+}: SignaturePadProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
-  const [ctx, setCtx] = useState(null);
+  const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const context = canvas.getContext('2d');
+    if (!context) return;
     context.fillStyle = backgroundColor;
     context.fillRect(0, 0, width, height);
     context.strokeStyle = penColor;
@@ -34,34 +44,37 @@ export default function SignaturePad({
     setCtx(context);
   }, [width, height, penColor, backgroundColor]);
 
-  const getPosition = (e) => {
+  const getPosition = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): { x: number; y: number } => {
     const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
 
-    if (e.touches) {
+    if ('touches' in e && e.touches) {
       return {
         x: (e.touches[0].clientX - rect.left) * scaleX,
         y: (e.touches[0].clientY - rect.top) * scaleY,
       };
     }
+    const mouseEvent = e as React.MouseEvent<HTMLCanvasElement>;
     return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
+      x: (mouseEvent.clientX - rect.left) * scaleX,
+      y: (mouseEvent.clientY - rect.top) * scaleY,
     };
   };
 
-  const startDrawing = (e) => {
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): void => {
     e.preventDefault();
+    if (!ctx) return;
     const pos = getPosition(e);
     ctx.beginPath();
     ctx.moveTo(pos.x, pos.y);
     setIsDrawing(true);
   };
 
-  const draw = (e) => {
-    if (!isDrawing) return;
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): void => {
+    if (!isDrawing || !ctx) return;
     e.preventDefault();
     const pos = getPosition(e);
     ctx.lineTo(pos.x, pos.y);
@@ -69,27 +82,28 @@ export default function SignaturePad({
     setHasSignature(true);
   };
 
-  const stopDrawing = () => {
-    if (isDrawing) {
+  const stopDrawing = (): void => {
+    if (isDrawing && ctx) {
       ctx.closePath();
       setIsDrawing(false);
     }
   };
 
-  const clear = () => {
+  const clear = (): void => {
+    if (!ctx) return;
     ctx.fillStyle = backgroundColor;
     ctx.fillRect(0, 0, width, height);
     ctx.strokeStyle = penColor;
     setHasSignature(false);
   };
 
-  const save = () => {
+  const save = (): void => {
     if (!hasSignature) {
       alert('Please sign before saving.');
       return;
     }
-    const dataUrl = canvasRef.current.toDataURL('image/png');
-    onSave(dataUrl);
+    const dataUrl = canvasRef.current?.toDataURL('image/png');
+    if (dataUrl) onSave(dataUrl);
   };
 
   return (
@@ -148,10 +162,17 @@ export default function SignaturePad({
   );
 }
 
+interface SignatureDisplayProps {
+  signature: string | null;
+  signedBy?: string;
+  signedAt?: string;
+  className?: string;
+}
+
 /**
  * Display a saved signature
  */
-export function SignatureDisplay({ signature, signedBy, signedAt, className = '' }) {
+export function SignatureDisplay({ signature, signedBy, signedAt, className = '' }: SignatureDisplayProps) {
   if (!signature) return null;
 
   return (
@@ -160,17 +181,31 @@ export function SignatureDisplay({ signature, signedBy, signedAt, className = ''
         <img src={signature} alt="Signature" className="max-h-20" />
         <div className="mt-2 text-sm text-gray-600">
           <p className="font-medium">{signedBy}</p>
-          <p className="text-xs text-gray-500">{new Date(signedAt).toLocaleString()}</p>
+          <p className="text-xs text-gray-500">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>
         </div>
       </div>
     </div>
   );
 }
 
+interface SignatureData {
+  signature: string;
+  signedBy: string;
+  signedAt: string;
+}
+
+interface SignatureModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: SignatureData) => void;
+  title?: string;
+  signerName?: string;
+}
+
 /**
  * Signature modal for inline signing
  */
-export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document', signerName = '' }) {
+export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document', signerName = '' }: SignatureModalProps) {
   const [name, setName] = useState(signerName);
 
   useEffect(() => {
@@ -179,7 +214,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
 
   if (!isOpen) return null;
 
-  const handleSave = (signatureData) => {
+  const handleSave = (signatureData: string): void => {
     if (!name.trim()) {
       alert('Please enter your name.');
       return;
@@ -205,7 +240,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
             <input
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               placeholder="Enter your full name"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
             />

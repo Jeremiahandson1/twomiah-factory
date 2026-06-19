@@ -1,5 +1,5 @@
-import { forwardRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { forwardRef } from 'react';
+import { Loader2, LucideIcon } from 'lucide-react';
 
 const variants = {
   primary: 'bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-500',
@@ -16,7 +16,18 @@ const sizes = {
   icon: 'p-2',
 };
 
-const AccessibleButton = forwardRef<HTMLButtonElement, any>(({
+interface AccessibleButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  children?: React.ReactNode;
+  variant?: keyof typeof variants;
+  size?: keyof typeof sizes;
+  loading?: boolean;
+  icon?: LucideIcon;
+  iconPosition?: 'left' | 'right';
+  'aria-label'?: string;
+  'aria-describedby'?: string;
+}
+
+const AccessibleButton = forwardRef<HTMLButtonElement, AccessibleButtonProps>(({
   children,
   variant = 'primary',
   size = 'md',

@@ -9,7 +9,7 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -18,7 +18,7 @@ export default function ForgotPasswordPage() {
       await api.forgotPassword(email);
       setSent(true);
     } catch (err) {
-      setError(err.message || 'Failed to send reset email');
+      setError((err as Error).message || 'Failed to send reset email');
     } finally {
       setLoading(false);
     }
@@ -87,7 +87,7 @@ export default function ForgotPasswordPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   placeholder="Enter your email"
                   required

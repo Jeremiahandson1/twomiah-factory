@@ -1,5 +1,6 @@
 import React from 'react';
 import clsx from 'clsx';
+import { LucideIcon } from 'lucide-react';
 
 const variants = {
   primary: 'btn-primary',
@@ -14,17 +15,28 @@ const sizes = {
   lg: 'px-6 py-3 text-base',
 };
 
-export function Button({ 
-  children, 
-  variant = 'primary', 
-  size = 'md', 
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  children?: React.ReactNode;
+  variant?: keyof typeof variants;
+  size?: keyof typeof sizes;
+  className?: string;
+  icon?: LucideIcon;
+  iconRight?: boolean;
+  loading?: boolean;
+  disabled?: boolean;
+}
+
+export function Button({
+  children,
+  variant = 'primary',
+  size = 'md',
   className,
   icon: Icon,
   iconRight,
   loading,
   disabled,
-  ...props 
-}) {
+  ...props
+}: ButtonProps) {
   return (
     <button
       className={clsx(

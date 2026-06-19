@@ -102,7 +102,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const [existing] = await db.select().from(salesLead).where(and(eq(salesLead.id, id), eq(salesLead.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Lead not found' }, 404)
 
-  const updates: any = { ...body, updatedAt: new Date() }
+  // Whitelist editable columns — never let companyId/id be reassigned from the body.
+  const EDITABLE = ['source','stage','notes','tradeInInfo','followUpDate','contactId','unitId','assignedTo'] as const
+  const updates: any = { updatedAt: new Date() }
+  for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   if (body.stage === 'closed_won' || body.stage === 'closed_lost') {
     updates.closedAt = new Date()
   }

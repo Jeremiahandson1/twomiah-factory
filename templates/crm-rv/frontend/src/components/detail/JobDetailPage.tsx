@@ -8,14 +8,34 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
 
+interface JobDetailData {
+  id: string;
+  number: string;
+  title: string;
+  status: string;
+  priority: string;
+  description?: string | null;
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
+  estimatedHours?: number | null;
+  address?: string | null;
+  city?: string | null;
+  assignedTo?: { firstName: string; lastName: string } | null;
+  project?: { id: string; name: string } | null;
+  contact?: { id: string; name: string } | null;
+  createdAt: string;
+  [key: string]: unknown;
+}
+
 export default function JobDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [job, setJob] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [job, setJob] = useState<JobDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
 
   useEffect(() => { loadJob(); }, [id]);
 
@@ -24,8 +44,9 @@ export default function JobDetailPage() {
     try {
       const data = await api.jobs.get(id);
       setJob(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
       toast.error('Failed to load job');
     } finally {
       setLoading(false);
@@ -36,9 +57,10 @@ export default function JobDetailPage() {
     try {
       await api.jobs.delete(id);
       toast.success('Job deleted');
-      navigate('/jobs');
-    } catch (err) {
-      toast.error(err.message);
+      navigate('/crm/jobs');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -47,8 +69,9 @@ export default function JobDetailPage() {
       await api.jobs.start(id);
       toast.success('Job started');
       loadJob();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -57,8 +80,9 @@ export default function JobDetailPage() {
       await api.jobs.complete(id);
       toast.success('Job completed');
       loadJob();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -66,21 +90,21 @@ export default function JobDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error" description={error} onAction={loadJob} actionLabel="Retry" />;
   if (!job) return <EmptyState title="Job not found" />;
 
-  const priorityColors = { low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' };
+  const priorityColors: Record<string, string> = { low: 'bg-gray-100 text-gray-700', normal: 'bg-blue-100 text-blue-700', high: 'bg-orange-100 text-orange-700', urgent: 'bg-red-100 text-red-700' };
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/jobs')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/jobs')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
             <p className="text-sm font-mono text-gray-500">{job.number}</p>
-            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{job.title}</h1>
             <div className="flex items-center gap-2 mt-1">
               <StatusBadge status={job.status} />
-              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${priorityColors[job.priority]}`}>{job.priority}</span>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${priorityColors[job.priority] || ''}`}>{job.priority}</span>
             </div>
           </div>
         </div>
@@ -95,7 +119,7 @@ export default function JobDetailPage() {
               <CheckCircle className="w-4 h-4" /> Complete
             </button>
           )}
-          <Link to={`/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/jobs?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 flex items-center gap-2">
@@ -106,7 +130,7 @@ export default function JobDetailPage() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold mb-4">Job Details</h2>
             <div className="grid md:grid-cols-2 gap-4">
               {job.scheduledDate && (
@@ -114,7 +138,7 @@ export default function JobDetailPage() {
                   <Calendar className="w-5 h-5 text-gray-400" />
                   <div>
                     <p className="text-sm text-gray-500">Scheduled</p>
-                    <p>{new Date(job.scheduledDate).toLocaleDateString()} {job.scheduledTime}</p>
+                    <p>{new Date((job.scheduledDate as string).split('T')[0] + 'T00:00:00').toLocaleDateString()} {job.scheduledTime}</p>
                   </div>
                 </div>
               )}
@@ -156,17 +180,17 @@ export default function JobDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold mb-4">Related</h2>
             <div className="space-y-3">
               {job.project && (
-                <Link to={`/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <Link to={`/crm/projects/${job.project.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700">
                   <p className="text-sm text-gray-500">Project</p>
                   <p className="font-medium">{job.project.name}</p>
                 </Link>
               )}
               {job.contact && (
-                <Link to={`/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100">
+                <Link to={`/crm/contacts/${job.contact.id}`} className="block p-3 bg-gray-50 rounded-lg hover:bg-gray-100 dark:bg-slate-800 dark:hover:bg-slate-700">
                   <p className="text-sm text-gray-500">Contact</p>
                   <p className="font-medium">{job.contact.name}</p>
                 </Link>

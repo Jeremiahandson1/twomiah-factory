@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import {
   Inbox, Phone, MessageSquare, UserPlus, XCircle, Filter,
   Search, RefreshCw, ExternalLink, Clock, TrendingUp, ChevronDown
@@ -8,10 +7,10 @@ import {
 interface Lead {
   id: string;
   sourcePlatform: string;
-  customerName: string;
+  homeownerName: string;
   email?: string;
   phone?: string;
-  unitInterest?: string;
+  jobType?: string;
   location?: string;
   budget?: string;
   description?: string;
@@ -27,14 +26,11 @@ interface LeadStats {
 }
 
 const SOURCE_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  rv_trader: { bg: '#e3f2fd', text: '#1565c0', label: 'RV Trader' },
-  rvusa: { bg: '#e8f5e9', text: '#2e7d32', label: 'RVUSA' },
-  rvt: { bg: '#e0f2f1', text: '#00695c', label: 'RVT' },
-  cycletrader: { bg: '#ede7f6', text: '#5e35b1', label: 'Cycle Trader' },
-  atvtrader: { bg: '#fff3e0', text: '#e65100', label: 'ATV Trader' },
-  boattrader: { bg: '#e1f5fe', text: '#0277bd', label: 'Boat Trader' },
-  adf_email: { bg: '#fce4ec', text: '#c2185b', label: 'ADF Email' },
-  web: { bg: '#f3e5f5', text: '#6a1b9a', label: 'Website' },
+  angi: { bg: '#e8f5e9', text: '#2e7d32', label: 'Angi' },
+  homeadvisor: { bg: '#fff3e0', text: '#e65100', label: 'HomeAdvisor' },
+  thumbtack: { bg: '#e3f2fd', text: '#1565c0', label: 'Thumbtack' },
+  google_lsa: { bg: '#fce4ec', text: '#c62828', label: 'Google LSA' },
+  houzz: { bg: '#f3e5f5', text: '#6a1b9a', label: 'Houzz' },
   other: { bg: '#f5f5f5', text: '#616161', label: 'Other' },
 };
 
@@ -46,7 +42,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export default function LeadInboxPage() {
-  const { token } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [stats, setStats] = useState<LeadStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,27 +53,36 @@ export default function LeadInboxPage() {
   const [showStats, setShowStats] = useState(true);
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('accessToken');
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const fetchLeads = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ page: String(page), limit: '25' });
-    if (statusFilter) params.set('status', statusFilter);
-    if (sourceFilter) params.set('source', sourceFilter);
-    if (search) params.set('search', search);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '25' });
+      if (statusFilter) params.set('status', statusFilter);
+      if (sourceFilter) params.set('source', sourceFilter);
+      if (search) params.set('search', search);
 
-    const res = await fetch(`/api/leads?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) { setLoading(false); return; }
-    const json = await res.json();
-    setLeads(json.data || []);
-    setTotalPages(json.pagination?.pages || 1);
+      const res = await fetch(`/api/leads?${params}`, { headers: getAuthHeaders() });
+      if (!res.ok) { setLoading(false); return; }
+      const json = await res.json();
+      setLeads(json.data || []);
+      setTotalPages(json.pagination?.pages || 1);
+    } catch { /* network error */ }
     setLoading(false);
-  }, [token, page, statusFilter, sourceFilter, search]);
+  }, [page, statusFilter, sourceFilter, search]);
 
   const fetchStats = useCallback(async () => {
-    const res = await fetch('/api/leads/stats', { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return;
-    const json = await res.json();
-    setStats(json);
-  }, [token]);
+    try {
+      const res = await fetch('/api/leads/stats', { headers: getAuthHeaders() });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json.totals && json.stats) setStats(json);
+    } catch { /* network error */ }
+  }, []);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
@@ -86,7 +90,7 @@ export default function LeadInboxPage() {
   const updateStatus = async (id: string, status: string) => {
     await fetch(`/api/leads/${id}/status`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
     fetchLeads();
@@ -96,7 +100,7 @@ export default function LeadInboxPage() {
   const convertToContact = async (id: string) => {
     const res = await fetch(`/api/leads/${id}/convert`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: getAuthHeaders(),
     });
     if (res.ok) {
       fetchLeads();
@@ -201,15 +205,11 @@ export default function LeadInboxPage() {
           style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14, background: '#fff' }}
         >
           <option value="">All Sources</option>
-          <option value="rv_trader">RV Trader</option>
-          <option value="rvusa">RVUSA</option>
-          <option value="rvt">RVT</option>
-          <option value="cycletrader">Cycle Trader</option>
-          <option value="atvtrader">ATV Trader</option>
-          <option value="boattrader">Boat Trader</option>
-          <option value="adf_email">ADF Email</option>
-          <option value="web">Website</option>
-          <option value="other">Other</option>
+          <option value="angi">Angi</option>
+          <option value="homeadvisor">HomeAdvisor</option>
+          <option value="thumbtack">Thumbtack</option>
+          <option value="google_lsa">Google LSA</option>
+          <option value="houzz">Houzz</option>
         </select>
       </div>
 
@@ -245,8 +245,8 @@ export default function LeadInboxPage() {
                   {/* Lead Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>{lead.customerName}</span>
-                      {lead.unitInterest && <span style={{ fontSize: 12, color: '#666' }}>- {lead.unitInterest}</span>}
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>{lead.homeownerName}</span>
+                      {lead.jobType && <span style={{ fontSize: 12, color: '#666' }}>- {lead.jobType}</span>}
                     </div>
                     <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#999', marginTop: 2 }}>
                       {lead.location && <span>{lead.location}</span>}
@@ -274,14 +274,14 @@ export default function LeadInboxPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, padding: '12px 0', fontSize: 13 }}>
                       <div>
                         <div style={{ color: '#999', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Contact</div>
-                        {lead.customerName && <div><strong>Name:</strong> {lead.customerName}</div>}
+                        {lead.homeownerName && <div><strong>Name:</strong> {lead.homeownerName}</div>}
                         {lead.email && <div><strong>Email:</strong> {lead.email}</div>}
                         {lead.phone && <div><strong>Phone:</strong> {lead.phone}</div>}
                         {lead.location && <div><strong>Location:</strong> {lead.location}</div>}
                       </div>
                       <div>
                         <div style={{ color: '#999', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Details</div>
-                        {lead.unitInterest && <div><strong>Unit Interest:</strong> {lead.unitInterest}</div>}
+                        {lead.jobType && <div><strong>Job Type:</strong> {lead.jobType}</div>}
                         {lead.budget && <div><strong>Budget:</strong> {lead.budget}</div>}
                         {lead.description && <div style={{ marginTop: 4 }}>{lead.description}</div>}
                       </div>

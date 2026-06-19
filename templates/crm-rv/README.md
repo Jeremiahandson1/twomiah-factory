@@ -1,6 +1,6 @@
 # {{COMPANY_NAME}} CRM
 
-Full-stack construction management system with multi-tenant architecture, real-time updates, and production-ready infrastructure.
+Powered by Twomiah Roam — a full-stack RV & powersports dealership CRM with unit inventory, a sales pipeline with deal desk, and a service department, on a multi-tenant architecture with real-time updates and production-ready infrastructure.
 
 ## Features
 

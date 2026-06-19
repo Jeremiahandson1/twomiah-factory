@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, emitToUser, EVENTS } from '../services/socket.ts'
 import audit from '../services/audit.ts'
-import { sendAndLog } from '../services/sms.ts'
+import { sendSMS } from '../services/sms.ts'
 import { createId } from '@paralleldrive/cuid2'
 
 const app = new Hono()
@@ -91,7 +91,10 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const [existing] = await db.select().from(repairOrder).where(and(eq(repairOrder.id, id), eq(repairOrder.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Repair order not found' }, 404)
 
-  const updates: any = { ...body, updatedAt: new Date() }
+  // Whitelist editable columns — never let companyId/id be reassigned from the body.
+  const EDITABLE = ['status', 'roNumber', 'writeUpDate', 'customerUnitInfo', 'services', 'advisorName', 'estimatedTotal', 'actualTotal', 'notes', 'completedAt', 'unitId', 'technicianId', 'customerId'] as const
+  const updates: any = { updatedAt: new Date() }
+  for (const k of EDITABLE) if (k in body) updates[k] = body[k]
   if (body.status === 'closed' && !existing.completedAt) updates.completedAt = new Date()
 
   const [updated] = await db.update(repairOrder).set(updates).where(eq(repairOrder.id, id)).returning()
@@ -105,13 +108,11 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
       const to = customer?.mobile || customer?.phone
       if (to) {
         const ref = updated.roNumber ? `RO #${updated.roNumber}` : 'Your service order'
-        await sendAndLog({
-          companyId: currentUser.companyId,
-          to,
-          body: `${ref} ${RO_STATUS_TEXT[body.status]}.`,
+        await sendSMS(currentUser.companyId, {
           contactId: updated.customerId,
-          userId: currentUser.id,
-          source: 'service_status',
+          toPhone: to,
+          message: `${ref} ${RO_STATUS_TEXT[body.status]}.`,
+          userId: currentUser.userId,
         })
       }
     } catch { /* never block the RO update on an SMS failure */ }

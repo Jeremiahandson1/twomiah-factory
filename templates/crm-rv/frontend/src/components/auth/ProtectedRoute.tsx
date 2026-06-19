@@ -1,8 +1,10 @@
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from "../../contexts/AuthContext";
+import { isTrialExpired, isTrialBypassPath } from './trialStatus';
 
-export function ProtectedRoute({ children, requiredRole }) {
-  const { isAuthenticated, loading, user } = useAuth();
+export function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string | string[] }) {
+  const { isAuthenticated, loading, user, company } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -20,17 +22,23 @@ export function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Hard-lock on trial expiry — redirect to paywall for every route except
+  // the upgrade path, the paywall itself, and logout.
+  if (isTrialExpired(company) && !isTrialBypassPath(location.pathname)) {
+    return <Navigate to="/crm/paywall" replace />;
+  }
+
   if (requiredRole) {
     const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-    if (!roles.includes(user?.role)) {
+    if (!roles.includes(user?.role ?? '')) {
       return <Navigate to="/" replace />;
     }
   }
 
-  return children;
+  return <>{children}</>;
 }
 
-export function PublicRoute({ children }) {
+export function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
@@ -43,9 +51,9 @@ export function PublicRoute({ children }) {
   }
 
   if (isAuthenticated) {
-    const from = location.state?.from?.pathname || '/';
+    const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
     return <Navigate to={from} replace />;
   }
 
-  return children;
+  return <>{children}</>;
 }

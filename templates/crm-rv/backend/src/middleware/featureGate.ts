@@ -1,72 +1,34 @@
 import { Context, Next } from 'hono'
 import { db } from '../../db/index.ts'
-import { company, contact, unit, user } from '../../db/schema.ts'
-import { eq, and, count } from 'drizzle-orm'
+import { company, subscription, addonPurchase, contact, job, user } from '../../db/schema.ts'
+import { eq, and, or, gt, isNull, count, gte } from 'drizzle-orm'
+import { PLAN_FEATURES, PLAN_LIMITS } from '../shared/plans.ts'
 
-// RV + Powersports dealership feature tiers (mirrors FEATURE_PACKAGES in
-// config/featureRegistry.ts). Core features are always available and are not
-// listed in plans — see CORE_FEATURES below.
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    // Sales Starter — get the sales floor off spreadsheets
-    'unit_inventory',
-    'deal_pipeline',
-    'lead_inbox',
-    'two_way_texting',
-    'follow_up_sequences',
-    'google_reviews',
-    'online_payments',
-  ],
-  sales_pro: [
-    // Sales Pro — full sales + F&I workflow with syndication
-    'unit_inventory',
-    'inventory_syndication',
-    'recall_lookup',
-    'deal_pipeline',
-    'lead_inbox',
-    'deal_desk',
-    'trade_in',
-    'esign',
-    'two_way_texting',
-    'follow_up_sequences',
-    'google_reviews',
-    'consumer_financing',
-    'online_payments',
-    'quickbooks',
-    'reports',
-  ],
-  full: ['all'],
-}
+const PLAN_HIERARCHY = ['starter', 'pro', 'business', 'construction', 'enterprise']
+const CORE_FEATURES = ['contacts', 'jobs', 'scheduling', 'quotes', 'invoices', 'dashboard']
 
-const PLAN_LIMITS: Record<string, Record<string, number | null>> = {
-  starter: { users: 5, contacts: 2500, units: 500, storage: 25 },
-  sales_pro: { users: 15, contacts: 10000, units: 2000, storage: 100 },
-  full: { users: null, contacts: null, units: null, storage: null },
-}
-
-const PLAN_HIERARCHY = ['starter', 'sales_pro', 'full']
-const CORE_FEATURES = ['contacts', 'dashboard', 'team']
-
-// Subscription/billing state is derived from the company record. There is no
-// separate `subscription` or `addonPurchase` table in this template; the plan,
-// status, trial end, and manually-enabled features all live on `company`
-// (subscriptionTier column + the `settings` / `enabledFeatures` JSON blobs).
 async function getCompanySubscription(companyId: string) {
   const [comp] = await db.select({
     id: company.id,
-    subscriptionTier: company.subscriptionTier,
-    lifetimeAccess: company.lifetimeAccess,
     enabledFeatures: company.enabledFeatures,
     settings: company.settings,
   }).from(company).where(eq(company.id, companyId)).limit(1)
 
   if (!comp) return null
 
-  const settings = (comp.settings as any) || {}
-  const plan = comp.subscriptionTier || settings.plan || 'starter'
-  // Lifetime-access companies are always treated as active.
-  const status = comp.lifetimeAccess ? 'active' : (settings.subscriptionStatus || 'active')
-  const trialEndsAt = settings.trialEndsAt
+  const [sub] = await db.select().from(subscription)
+    .where(eq(subscription.companyId, companyId))
+    .limit(1)
+
+  const addons = await db.select().from(addonPurchase)
+    .where(and(
+      eq(addonPurchase.companyId, companyId),
+      or(isNull(addonPurchase.expiresAt), gt(addonPurchase.expiresAt, new Date()))
+    ))
+
+  const plan = sub?.packageId || (comp.settings as any)?.plan || 'starter'
+  const status = sub?.status || (comp.settings as any)?.subscriptionStatus || 'none'
+  const trialEndsAt = sub?.currentPeriodEnd || (comp.settings as any)?.trialEndsAt
 
   return {
     companyId: comp.id,
@@ -74,6 +36,7 @@ async function getCompanySubscription(companyId: string) {
     status,
     trialEndsAt,
     enabledFeatures: (comp.enabledFeatures || []) as string[],
+    addons: addons || [],
     limits: PLAN_LIMITS[plan] || PLAN_LIMITS.starter,
   }
 }
@@ -184,10 +147,13 @@ export function checkUsageLimits(limitType: string) {
           .where(eq(contact.companyId, u.companyId))
         currentUsage = contactCount.value
         break
-      case 'units':
-        const [unitCount] = await db.select({ value: count() }).from(unit)
-          .where(eq(unit.companyId, u.companyId))
-        currentUsage = unitCount.value
+      case 'jobs':
+        const startOfMonth = new Date()
+        startOfMonth.setDate(1)
+        startOfMonth.setHours(0, 0, 0, 0)
+        const [jobCount] = await db.select({ value: count() }).from(job)
+          .where(and(eq(job.companyId, u.companyId), gte(job.createdAt, startOfMonth)))
+        currentUsage = jobCount.value
         break
       case 'users':
         const [userCount] = await db.select({ value: count() }).from(user)

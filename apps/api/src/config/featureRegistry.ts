@@ -44,7 +44,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'online_booking', name: 'Online Booking', description: 'Customer self-scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
   { id: 'service_dispatch', name: 'Service Dispatch', description: 'Real-time dispatch board', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
   { id: 'service_agreements', name: 'Service Agreements', description: 'Maintenance agreement management', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
-  { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
   { id: 'recurring_routes', name: 'Recurring Route Board', description: 'Weekly mow routes grouped into per-day crew routes', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'area_pricing', name: 'Area-Based Pricing', description: 'Price services by measured property square footage', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'snow_billing', name: 'Snow & Ice Billing', description: 'Per-push, per-event, per-inch, and seasonal snow billing', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
@@ -54,7 +54,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'dispatch_board', name: 'Dispatch Board', description: 'Real-time tech dispatch and scheduling', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'maintenance_contracts', name: 'Maintenance Contracts', description: 'Recurring service agreements', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'flat_rate_pricebook', name: 'Flat-Rate Pricebook', description: 'Standard pricing for common services', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
-  { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
+  { id: 'parts_tracking', name: 'Parts & Inventory', description: 'Track parts, stock levels, and usage', category: 'Field Service', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
 
   // Automotive
   { id: 'vehicle_inventory', name: 'Vehicle Inventory', description: 'VIN decode, stock management, pricing', category: 'Automotive', core: false, templates: ['crm-automotive'] },
@@ -71,11 +71,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'recall_lookup', name: 'Recall Lookup', description: 'One-click NHTSA/OEM open-recall check by VIN at sale and service intake', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
   { id: 'inventory_syndication', name: 'Marketplace Syndication', description: 'Push inventory feeds to RV Trader, RVUSA, RVT, Cycle Trader & ATV Trader', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
   { id: 'service_status_texts', name: 'Service Status Updates', description: 'Automated "your unit is ready" texts plus tech photos/video to drive upsell approvals', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'parts_counter', name: 'Parts Counter', description: 'RV/powersports parts lookup, special orders and parts-to-RO attachment', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'warranty_claims', name: 'Warranty Claims', description: 'Track OEM warranty and extended-service-contract claims through approval', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
   { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-touch SMS/email cadences that work long RV/powersports research cycles', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'esign', name: 'eSignature', description: 'Send deal paperwork for remote signing to close without a return visit', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
-  { id: 'seasonal_trends', name: 'Seasonal Trends', description: 'Year-over-year, same-period comparisons for a seasonal RV/powersports business', category: 'RV / Powersports', core: false, templates: ['crm-rv'] },
 
   // Field Operations
   { id: 'time_tracking', name: 'Time Tracking', description: 'Clock in/out with GPS', category: 'Field Operations', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare'] },
@@ -105,7 +101,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
 
   // Advanced
   { id: 'inventory', name: 'Inventory', description: 'Warehouse and material inventory', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
-  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare'] },
+  { id: 'documents', name: 'Documents', description: 'Document management and storage', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv'] },
   { id: 'reports', name: 'Reports', description: 'Drill-down sales & service reporting — leads by source, close rate, gross per deal', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv'] },
   { id: 'custom_dashboards', name: 'Custom Dashboards', description: 'Drag-and-drop widget dashboards', category: 'Advanced', core: false, templates: ['crm'] },
   { id: 'ai_receptionist', name: 'AI Receptionist', description: 'AI-powered call handling', category: 'Advanced', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },

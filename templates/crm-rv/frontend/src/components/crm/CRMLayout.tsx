@@ -6,18 +6,53 @@ import {
   ShieldCheck, Gavel, Users, MessageSquare, CreditCard, PieChart,
   Sparkles, UserCog, Server, FileText, Home
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { useBuilderStore } from '../../stores/builderStore';
 import { FEATURE_CATEGORIES } from '../../data/features';
 
-const iconMap = {
+interface CRMInstance {
+  id: string;
+  companyName?: string;
+  companyLogo?: string;
+  primaryColor?: string;
+  enabledFeatures: string[];
+  [key: string]: unknown;
+}
+
+interface CategoryRoute {
+  path: string;
+  icon: string;
+  label: string;
+}
+
+interface EnabledCategory {
+  id: string;
+  features: Array<{ id: string; [key: string]: unknown }>;
+  route: CategoryRoute | undefined;
+  enabledCount: number;
+  [key: string]: unknown;
+}
+
+interface SidebarProps {
+  instance: CRMInstance;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+interface HeaderProps {
+  instance: CRMInstance;
+  onMenuClick: () => void;
+}
+
+const iconMap: Record<string, LucideIcon> = {
   Megaphone, Calculator, Calendar, Wrench, Building2, ShieldCheck,
   Gavel, Users, MessageSquare, CreditCard, PieChart, Sparkles,
   UserCog, Server, LayoutDashboard, FileText
 };
 
 // Map categories to their primary route
-const categoryRoutes = {
+const categoryRoutes: Record<string, CategoryRoute> = {
   marketing: { path: 'marketing', icon: 'Megaphone', label: 'Marketing' },
   quoting: { path: 'quotes', icon: 'Calculator', label: 'Quotes' },
   scheduling: { path: 'scheduling', icon: 'Calendar', label: 'Schedule' },
@@ -34,19 +69,19 @@ const categoryRoutes = {
   platform: { path: 'settings', icon: 'Server', label: 'Platform' },
 };
 
-function Sidebar({ instance, isOpen, onClose }) {
+function Sidebar({ instance, isOpen, onClose }: SidebarProps) {
   const navigate = useNavigate();
-  const [expandedSection, setExpandedSection] = useState(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   // Determine which categories have enabled features
-  const enabledCategories = useMemo(() => {
+  const enabledCategories = useMemo((): EnabledCategory[] => {
     const enabled = new Set(instance.enabledFeatures);
-    return FEATURE_CATEGORIES.filter(cat => 
-      cat.features.some(f => enabled.has(f.id))
-    ).map(cat => ({
+    return FEATURE_CATEGORIES.filter((cat: { id: string; features: Array<{ id: string }> }) =>
+      cat.features.some((f: { id: string }) => enabled.has(f.id))
+    ).map((cat: { id: string; features: Array<{ id: string }> }) => ({
       ...cat,
       route: categoryRoutes[cat.id],
-      enabledCount: cat.features.filter(f => enabled.has(f.id)).length
+      enabledCount: cat.features.filter((f: { id: string }) => enabled.has(f.id)).length
     }));
   }, [instance.enabledFeatures]);
 
@@ -56,7 +91,7 @@ function Sidebar({ instance, isOpen, onClose }) {
     <>
       {/* Mobile overlay */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={onClose}
         />
@@ -73,7 +108,7 @@ function Sidebar({ instance, isOpen, onClose }) {
             {instance.companyLogo ? (
               <img src={instance.companyLogo} alt="" className="w-8 h-8 object-contain" />
             ) : (
-              <div 
+              <div
                 className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-sm"
                 style={{ backgroundColor: primaryColor }}
               >
@@ -95,14 +130,14 @@ function Sidebar({ instance, isOpen, onClose }) {
           <NavLink
             to=""
             end
-            className={({ isActive }) => clsx(
+            className={({ isActive }: { isActive: boolean }) => clsx(
               'sidebar-link',
               isActive && 'active'
             )}
-            style={({ isActive }) => isActive ? { 
+            style={({ isActive }: { isActive: boolean }) => isActive ? {
               borderLeftColor: primaryColor,
               backgroundColor: `${primaryColor}15`,
-              color: primaryColor 
+              color: primaryColor
             } : {}}
           >
             <LayoutDashboard className="w-5 h-5" />
@@ -110,24 +145,24 @@ function Sidebar({ instance, isOpen, onClose }) {
           </NavLink>
 
           {/* Dynamic navigation based on enabled features */}
-          {enabledCategories.map((category) => {
-            const Icon = iconMap[category.route?.icon] || FileText;
+          {enabledCategories.map((category: EnabledCategory) => {
+            const Icon = iconMap[category.route?.icon || ''] || FileText;
             const route = category.route;
-            
+
             if (!route) return null;
 
             return (
               <NavLink
                 key={category.id}
                 to={route.path}
-                className={({ isActive }) => clsx(
+                className={({ isActive }: { isActive: boolean }) => clsx(
                   'sidebar-link',
                   isActive && 'active'
                 )}
-                style={({ isActive }) => isActive ? { 
+                style={({ isActive }: { isActive: boolean }) => isActive ? {
                   borderLeftColor: primaryColor,
                   backgroundColor: `${primaryColor}15`,
-                  color: primaryColor 
+                  color: primaryColor
                 } : {}}
               >
                 <Icon className="w-5 h-5" />
@@ -142,7 +177,7 @@ function Sidebar({ instance, isOpen, onClose }) {
 
         {/* Footer */}
         <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-slate-800">
-          <button 
+          <button
             onClick={() => navigate('/instances')}
             className="sidebar-link w-full justify-center text-slate-500 hover:text-white"
           >
@@ -155,15 +190,15 @@ function Sidebar({ instance, isOpen, onClose }) {
   );
 }
 
-function Header({ instance, onMenuClick }) {
-  const [searchOpen, setSearchOpen] = useState(false);
+function Header({ instance, onMenuClick }: HeaderProps) {
+  const [searchOpen, setSearchOpen] = useState<boolean>(false);
   const primaryColor = instance.primaryColor || '{{PRIMARY_COLOR}}';
 
   return (
     <header className="h-16 bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30">
       {/* Left */}
       <div className="flex items-center gap-4">
-        <button 
+        <button
           onClick={onMenuClick}
           className="lg:hidden p-2 hover:bg-slate-800 rounded-lg"
         >
@@ -177,7 +212,7 @@ function Header({ instance, onMenuClick }) {
             type="text"
             placeholder="Search..."
             className="w-64 pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-transparent"
-            style={{ '--tw-ring-color': primaryColor }}
+            style={{ '--tw-ring-color': primaryColor } as React.CSSProperties}
           />
         </div>
       </div>
@@ -187,21 +222,21 @@ function Header({ instance, onMenuClick }) {
         <button className="sm:hidden p-2 hover:bg-slate-800 rounded-lg">
           <Search className="w-5 h-5 text-slate-400" />
         </button>
-        
+
         <button className="relative p-2 hover:bg-slate-800 rounded-lg">
           <Bell className="w-5 h-5 text-slate-400" />
-          <span 
+          <span
             className="absolute top-1 right-1 w-2 h-2 rounded-full"
             style={{ backgroundColor: primaryColor }}
           />
         </button>
-        
+
         <button className="p-2 hover:bg-slate-800 rounded-lg">
           <Settings className="w-5 h-5 text-slate-400" />
         </button>
 
         <div className="ml-2 flex items-center gap-3 pl-4 border-l border-slate-700">
-          <div 
+          <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
             style={{ backgroundColor: primaryColor }}
           >
@@ -209,7 +244,7 @@ function Header({ instance, onMenuClick }) {
           </div>
           <div className="hidden md:block">
             <p className="text-sm font-medium text-white">Admin</p>
-            <p className="text-xs text-slate-500">{{ADMIN_EMAIL}}</p>
+            <p className="text-xs text-slate-500">{'{{ADMIN_EMAIL}}'}</p>
           </div>
         </div>
       </div>
@@ -218,10 +253,14 @@ function Header({ instance, onMenuClick }) {
 }
 
 export function CRMLayout() {
-  const { instanceId } = useParams();
+  const { instanceId } = useParams<{ instanceId: string }>();
   const navigate = useNavigate();
-  const { instances, loadInstance, getCurrentInstance } = useBuilderStore();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { instances, loadInstance, getCurrentInstance } = useBuilderStore() as {
+    instances: CRMInstance[];
+    loadInstance: (id: string) => void;
+    getCurrentInstance: () => CRMInstance | undefined;
+  };
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
   // Load instance on mount
   React.useEffect(() => {
@@ -230,7 +269,7 @@ export function CRMLayout() {
     }
   }, [instanceId, loadInstance]);
 
-  const instance = instances.find(i => i.id === instanceId);
+  const instance = instances.find((i: CRMInstance) => i.id === instanceId) as CRMInstance | undefined;
 
   if (!instance) {
     return (
@@ -238,7 +277,7 @@ export function CRMLayout() {
         <div className="text-center">
           <h2 className="text-xl font-semibold text-white mb-2">CRM Not Found</h2>
           <p className="text-slate-400 mb-4">This CRM instance doesn't exist.</p>
-          <button 
+          <button
             onClick={() => navigate('/instances')}
             className="btn btn-primary"
           >
@@ -251,18 +290,18 @@ export function CRMLayout() {
 
   return (
     <div className="min-h-screen bg-slate-950 flex">
-      <Sidebar 
-        instance={instance} 
-        isOpen={sidebarOpen} 
-        onClose={() => setSidebarOpen(false)} 
+      <Sidebar
+        instance={instance}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
-      
+
       <div className="flex-1 flex flex-col min-w-0">
-        <Header 
-          instance={instance} 
-          onMenuClick={() => setSidebarOpen(true)} 
+        <Header
+          instance={instance}
+          onMenuClick={() => setSidebarOpen(true)}
         />
-        
+
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           <Outlet context={{ instance }} />
         </main>

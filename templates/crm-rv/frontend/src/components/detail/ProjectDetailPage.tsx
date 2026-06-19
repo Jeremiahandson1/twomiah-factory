@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { 
+import {
   ArrowLeft, Edit, Trash2, MapPin, Calendar, DollarSign,
   Briefcase, FileText, Receipt, FileQuestion, FileDiff, ClipboardList
 } from 'lucide-react';
@@ -11,18 +11,70 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
 
+interface RelatedItem {
+  id: string;
+  title?: string;
+  name?: string;
+  subject?: string;
+  number: string;
+  status: string;
+  amount?: string | number;
+  [key: string]: unknown;
+}
+
+interface ProjectDetailData {
+  id: string;
+  name: string;
+  number: string;
+  status: string;
+  description?: string | null;
+  type?: string | null;
+  progress?: number | null;
+  budget?: string | number | null;
+  estimatedValue?: string | number | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  createdAt: string;
+  contact?: { id: string; name: string } | null;
+  jobs?: RelatedItem[];
+  rfis?: RelatedItem[];
+  changeOrders?: RelatedItem[];
+  punchListItems?: RelatedItem[];
+  [key: string]: unknown;
+}
+
+interface ActivityEntry {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  description?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export default function ProjectDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [project, setProject] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [project, setProject] = useState<ProjectDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
+  const [deleting, setDeleting] = useState<boolean>(false);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
 
   useEffect(() => {
     loadProject();
+    api.projects
+      .activity(id)
+      .then((data: ActivityEntry[]) => setActivity(Array.isArray(data) ? data : []))
+      .catch(() => setActivity([]));
   }, [id]);
 
   const loadProject = async () => {
@@ -31,8 +83,9 @@ export default function ProjectDetailPage() {
     try {
       const data = await api.projects.get(id);
       setProject(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
       toast.error('Failed to load project');
     } finally {
       setLoading(false);
@@ -44,9 +97,10 @@ export default function ProjectDetailPage() {
     try {
       await api.projects.delete(id);
       toast.success('Project deleted');
-      navigate('/projects');
-    } catch (err) {
-      toast.error(err.message);
+      navigate('/crm/projects');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     } finally {
       setDeleting(false);
     }
@@ -56,7 +110,7 @@ export default function ProjectDetailPage() {
   if (error) return <EmptyState iconType="error" title="Error loading project" description={error} onAction={loadProject} actionLabel="Retry" />;
   if (!project) return <EmptyState title="Project not found" />;
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     planning: 'bg-gray-100 text-gray-700',
     active: 'bg-blue-100 text-blue-700',
     on_hold: 'bg-yellow-100 text-yellow-700',
@@ -70,7 +124,7 @@ export default function ProjectDetailPage() {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/crm/projects')}
             className="p-2 hover:bg-gray-100 rounded-lg"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -78,13 +132,13 @@ export default function ProjectDetailPage() {
           <div>
             <div className="flex items-center gap-3">
               <span className="text-sm font-mono text-gray-500">{project.number}</span>
-              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[project.status]}`}>
+              <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${statusColors[project.status] || ''}`}>
                 {project.status?.replace('_', ' ')}
               </span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
             {project.contact && (
-              <Link to={`/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500">
+              <Link to={`/crm/contacts/${project.contact.id}`} className="text-gray-500 hover:text-orange-500">
                 {project.contact.name}
               </Link>
             )}
@@ -92,8 +146,8 @@ export default function ProjectDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link
-            to={`/projects?edit=${id}`}
-            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
+            to={`/crm/projects?edit=${id}`}
+            className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2"
           >
             <Edit className="w-4 h-4" />
             Edit
@@ -109,13 +163,13 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* Progress bar */}
-      <div className="bg-white rounded-lg shadow-sm p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-4">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-gray-700">Progress</span>
           <span className="text-sm font-medium text-orange-600">{project.progress || 0}%</span>
         </div>
         <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-          <div 
+          <div
             className="h-full bg-orange-500 rounded-full transition-all duration-300"
             style={{ width: `${project.progress || 0}%` }}
           />
@@ -127,7 +181,7 @@ export default function ProjectDetailPage() {
         {/* Main info */}
         <div className="lg:col-span-2 space-y-6">
           {/* Project details */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Project Details</h2>
             <div className="grid md:grid-cols-2 gap-6">
               {(project.address || project.city) && (
@@ -191,19 +245,19 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Jobs */}
-          {project.jobs?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+          {(project.jobs?.length ?? 0) > 0 && (
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Jobs</h2>
-                <Link to={`/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/jobs?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
               </div>
               <div className="divide-y">
-                {project.jobs.slice(0, 5).map(job => (
+                {project.jobs!.slice(0, 5).map((job: RelatedItem) => (
                   <Link
                     key={job.id}
-                    to={`/jobs/${job.id}`}
+                    to={`/crm/jobs/${job.id}`}
                     className="p-4 flex items-center justify-between hover:bg-gray-50"
                   >
                     <div className="flex items-center gap-3">
@@ -221,16 +275,16 @@ export default function ProjectDetailPage() {
           )}
 
           {/* RFIs */}
-          {project.rfis?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+          {(project.rfis?.length ?? 0) > 0 && (
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">RFIs</h2>
-                <Link to={`/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/rfis?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
               </div>
               <div className="divide-y">
-                {project.rfis.slice(0, 5).map(rfi => (
+                {project.rfis!.slice(0, 5).map((rfi: RelatedItem) => (
                   <div key={rfi.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <FileQuestion className="w-5 h-5 text-gray-400" />
@@ -247,16 +301,16 @@ export default function ProjectDetailPage() {
           )}
 
           {/* Change Orders */}
-          {project.changeOrders?.length > 0 && (
-            <div className="bg-white rounded-lg shadow-sm">
+          {(project.changeOrders?.length ?? 0) > 0 && (
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Change Orders</h2>
-                <Link to={`/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
+                <Link to={`/crm/change-orders?projectId=${id}`} className="text-sm text-orange-500 hover:text-orange-600">
                   View All
                 </Link>
               </div>
               <div className="divide-y">
-                {project.changeOrders.slice(0, 5).map(co => (
+                {project.changeOrders!.slice(0, 5).map((co: RelatedItem) => (
                   <div key={co.id} className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <FileDiff className="w-5 h-5 text-gray-400" />
@@ -279,7 +333,7 @@ export default function ProjectDetailPage() {
         {/* Sidebar */}
         <div className="space-y-6">
           {/* Summary */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Summary</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -302,7 +356,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Financial summary */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Financials</h2>
             <div className="space-y-4">
               {project.budget && (
@@ -311,11 +365,11 @@ export default function ProjectDetailPage() {
                   <span className="font-medium">${Number(project.budget).toLocaleString()}</span>
                 </div>
               )}
-              {project.changeOrders?.length > 0 && (
+              {(project.changeOrders?.length ?? 0) > 0 && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Change Orders</span>
                   <span className="font-medium text-orange-600">
-                    +${project.changeOrders.reduce((sum, co) => sum + Number(co.amount), 0).toLocaleString()}
+                    +${project.changeOrders!.reduce((sum: number, co: RelatedItem) => sum + Number(co.amount), 0).toLocaleString()}
                   </span>
                 </div>
               )}
@@ -323,39 +377,39 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Quick actions */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
             <div className="space-y-2">
               <Link
-                to={`/jobs?projectId=${id}&new=true`}
+                to={`/crm/jobs?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <Briefcase className="w-4 h-4 text-gray-500" />
                 Add Job
               </Link>
               <Link
-                to={`/rfis?projectId=${id}&new=true`}
+                to={`/crm/rfis?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <FileQuestion className="w-4 h-4 text-gray-500" />
                 Create RFI
               </Link>
               <Link
-                to={`/change-orders?projectId=${id}&new=true`}
+                to={`/crm/change-orders?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <FileDiff className="w-4 h-4 text-gray-500" />
                 Create Change Order
               </Link>
               <Link
-                to={`/punch-lists?projectId=${id}&new=true`}
+                to={`/crm/punch-lists?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <ClipboardList className="w-4 h-4 text-gray-500" />
                 Add Punch List Item
               </Link>
               <Link
-                to={`/daily-logs?projectId=${id}&new=true`}
+                to={`/crm/daily-logs?projectId=${id}&new=true`}
                 className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
               >
                 <FileText className="w-4 h-4 text-gray-500" />
@@ -365,7 +419,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Timeline */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Timeline</h2>
             <div className="space-y-4">
               <div className="flex items-center gap-3 text-sm">
@@ -388,6 +442,31 @@ export default function ProjectDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Activity feed */}
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
+            <h2 className="font-semibold text-gray-900 mb-4">Recent Activity</h2>
+            {activity.length === 0 ? (
+              <p className="text-sm text-gray-500">No activity yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {activity.slice(0, 20).map((a) => {
+                  const actor = (a.metadata?.actorName as string) || 'Someone';
+                  const role = (a.metadata?.actorRole as string) || '';
+                  return (
+                    <li key={a.id} className="text-sm border-l-2 border-orange-300 pl-3">
+                      <p className="text-gray-900">
+                        <span className="font-medium">{actor}</span>
+                        {role && <span className="text-gray-500"> ({role})</span>}{' '}
+                        {a.description || `${a.action} ${a.entityType}`}
+                      </p>
+                      <p className="text-xs text-gray-500">{new Date(a.createdAt).toLocaleString()}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </div>

@@ -8,14 +8,42 @@ import { EmptyState } from '../common/EmptyState';
 import { StatusBadge } from '../ui/DataTable';
 import { ConfirmModal } from '../ui/Modal';
 
+interface LineItem {
+  description: string;
+  quantity: string | number;
+  unitPrice: string | number;
+  total: string | number;
+}
+
+interface QuoteDetailData {
+  id: string;
+  number: string;
+  name: string;
+  status: string;
+  total: string | number;
+  subtotal: string | number;
+  taxAmount: string | number;
+  taxRate?: string | number;
+  discount?: string | number;
+  notes?: string | null;
+  terms?: string | null;
+  expiryDate?: string | null;
+  createdAt: string;
+  lineItems?: LineItem[];
+  contact?: { id: string; name: string } | null;
+  project?: { id: string; name: string } | null;
+  [key: string]: unknown;
+}
+
 export default function QuoteDetailPage() {
-  const { id } = useParams();
+  const { id: rawId } = useParams<{ id: string }>();
+  const id = rawId!;
   const navigate = useNavigate();
   const toast = useToast();
-  const [quote, setQuote] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [quote, setQuote] = useState<QuoteDetailData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState<boolean>(false);
 
   useEffect(() => { loadQuote(); }, [id]);
 
@@ -24,8 +52,9 @@ export default function QuoteDetailPage() {
     try {
       const data = await api.quotes.get(id);
       setQuote(data);
-    } catch (err) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -35,9 +64,10 @@ export default function QuoteDetailPage() {
     try {
       await api.quotes.delete(id);
       toast.success('Quote deleted');
-      navigate('/quotes');
-    } catch (err) {
-      toast.error(err.message);
+      navigate('/crm/quotes');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -46,8 +76,9 @@ export default function QuoteDetailPage() {
       await api.quotes.send(id);
       toast.success('Quote sent');
       loadQuote();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -56,8 +87,9 @@ export default function QuoteDetailPage() {
       await api.quotes.approve(id);
       toast.success('Quote approved');
       loadQuote();
-    } catch (err) {
-      toast.error(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -65,9 +97,10 @@ export default function QuoteDetailPage() {
     try {
       const invoice = await api.quotes.convertToInvoice(id);
       toast.success('Invoice created');
-      navigate(`/invoices/${invoice.id}`);
-    } catch (err) {
-      toast.error(err.message);
+      navigate(`/crm/invoices/${invoice.id}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      toast.error(message);
     }
   };
 
@@ -79,7 +112,7 @@ export default function QuoteDetailPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate('/quotes')} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button onClick={() => navigate('/crm/quotes')} className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
@@ -104,7 +137,7 @@ export default function QuoteDetailPage() {
               <Copy className="w-4 h-4" /> Create Invoice
             </button>
           )}
-          <Link to={`/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <Link to={`/crm/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center gap-2">
             <Edit className="w-4 h-4" /> Edit
           </Link>
           <button onClick={() => setDeleteOpen(true)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100">
@@ -116,7 +149,7 @@ export default function QuoteDetailPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Line Items */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm overflow-hidden">
             <div className="p-4 border-b"><h2 className="font-semibold">Line Items</h2></div>
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -128,7 +161,7 @@ export default function QuoteDetailPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {quote.lineItems?.map((item, i) => (
+                {quote.lineItems?.map((item: LineItem, i: number) => (
                   <tr key={i}>
                     <td className="px-4 py-3">{item.description}</td>
                     <td className="px-4 py-3 text-right">{Number(item.quantity)}</td>
@@ -138,23 +171,23 @@ export default function QuoteDetailPage() {
                 ))}
               </tbody>
               <tfoot className="bg-gray-50">
-                <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(quote.subtotal).toFixed(2)}</td></tr>
-                {Number(quote.taxAmount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Tax ({quote.taxRate}%)</td><td className="px-4 py-2 text-right">${Number(quote.taxAmount).toFixed(2)}</td></tr>}
-                {Number(quote.discount) > 0 && <tr><td colSpan="3" className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-red-600">-${Number(quote.discount).toFixed(2)}</td></tr>}
-                <tr className="font-bold"><td colSpan="3" className="px-4 py-3 text-right">Total</td><td className="px-4 py-3 text-right text-lg">${Number(quote.total).toFixed(2)}</td></tr>
+                <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Subtotal</td><td className="px-4 py-2 text-right">${Number(quote.subtotal).toFixed(2)}</td></tr>
+                {Number(quote.taxAmount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Tax ({quote.taxRate}%)</td><td className="px-4 py-2 text-right">${Number(quote.taxAmount).toFixed(2)}</td></tr>}
+                {Number(quote.discount) > 0 && <tr><td colSpan={3} className="px-4 py-2 text-right text-sm">Discount</td><td className="px-4 py-2 text-right text-red-600">-${Number(quote.discount).toFixed(2)}</td></tr>}
+                <tr className="font-bold"><td colSpan={3} className="px-4 py-3 text-right">Total</td><td className="px-4 py-3 text-right text-lg">${Number(quote.total).toFixed(2)}</td></tr>
               </tfoot>
             </table>
           </div>
 
           {quote.notes && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
               <h2 className="font-semibold mb-2">Notes</h2>
               <p className="text-gray-700 whitespace-pre-wrap">{quote.notes}</p>
             </div>
           )}
 
           {quote.terms && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
               <h2 className="font-semibold mb-2">Terms & Conditions</h2>
               <p className="text-gray-700 whitespace-pre-wrap text-sm">{quote.terms}</p>
             </div>
@@ -162,19 +195,19 @@ export default function QuoteDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold mb-4">Details</h2>
             <div className="space-y-3 text-sm">
               {quote.contact && (
                 <div>
                   <p className="text-gray-500">Client</p>
-                  <Link to={`/contacts/${quote.contact.id}`} className="text-orange-500 hover:underline">{quote.contact.name}</Link>
+                  <Link to={`/crm/contacts/${quote.contact.id}`} className="text-orange-500 hover:underline">{quote.contact.name}</Link>
                 </div>
               )}
               {quote.project && (
                 <div>
                   <p className="text-gray-500">Project</p>
-                  <Link to={`/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
+                  <Link to={`/crm/projects/${quote.project.id}`} className="text-orange-500 hover:underline">{quote.project.name}</Link>
                 </div>
               )}
               {quote.expiryDate && (

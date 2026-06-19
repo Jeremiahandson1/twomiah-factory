@@ -19,8 +19,10 @@ import { requirePermission } from '../middleware/permissions.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
-// Categories NHTSA's recall database does not meaningfully cover.
-const NON_NHTSA_CATEGORIES = new Set(['atv', 'utv', 'sxs', 'pwc', 'snowmobile'])
+// Off-road land powersports → CPSC (saferproducts.gov), not NHTSA.
+const CPSC_CATEGORIES = new Set(['atv', 'utv', 'sxs', 'snowmobile'])
+// Watercraft → US Coast Guard (no public recall API) — surfaced as a clear note.
+const MARINE_CATEGORIES = new Set(['boat', 'pwc'])
 
 type RecallResult = {
   campaignNumber: string | null
@@ -87,6 +89,42 @@ async function decodeVin(vin: string): Promise<{ year: number | null; make: stri
   }
 }
 
+// CPSC recalls for off-road powersports (ATV/UTV/SxS/snowmobile). CPSC's API is
+// searchable by manufacturer (not model/serial), so we pull the make's recalls
+// and best-effort filter to the model.
+async function fetchCpscRecalls(make: string, model: string): Promise<{ count: number; recalls: RecallResult[]; note?: string }> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 12000)
+  try {
+    const url = `https://www.saferproducts.gov/RestWebServices/Recall?format=json&Manufacturer=${encodeURIComponent(make)}`
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!res.ok) throw new Error('CPSC recalls API error')
+    const data = await res.json()
+    const rows: any[] = Array.isArray(data) ? data : (data.Recalls || [])
+    const mapOne = (r: any): RecallResult => ({
+      campaignNumber: r.RecallNumber || (r.RecallID ? String(r.RecallID) : null),
+      manufacturer: (r.Manufacturers && r.Manufacturers[0]?.Name) || make,
+      component: (r.Products && r.Products.map((p: any) => p.Name || p.Type).filter(Boolean).join(', ')) || null,
+      summary: r.Title || r.Description || null,
+      consequence: (r.Hazards && r.Hazards.map((h: any) => h.Name).filter(Boolean).join('; ')) || null,
+      remedy: (r.Remedies && r.Remedies.map((rm: any) => rm.Name).filter(Boolean).join('; ')) || null,
+      reportReceivedDate: r.RecallDate || null,
+      notes: r.URL || null,
+    })
+    const all = rows.map(mapOne)
+    const m = (model || '').toLowerCase().trim()
+    const matched = m ? all.filter(r => (r.summary || '').toLowerCase().includes(m) || (r.component || '').toLowerCase().includes(m)) : []
+    if (matched.length) return { count: matched.length, recalls: matched }
+    if (!all.length) return { count: 0, recalls: [] }
+    return { count: all.length, recalls: all.slice(0, 25), note: `Showing all CPSC recalls for ${make} — CPSC isn't searchable by model/serial, so confirm the specific unit against the OEM.` }
+  } catch (err: any) {
+    clearTimeout(timeout)
+    if (err.name === 'AbortError') throw new Error('CPSC recalls API timeout')
+    throw err
+  }
+}
+
 // GET /recalls/by-vehicle?make=&model=&year=
 app.get('/by-vehicle', requirePermission('contacts:read'), async (c) => {
   const make = c.req.query('make')
@@ -128,21 +166,28 @@ app.get('/unit/:id', requirePermission('contacts:read'), async (c) => {
   const [u] = await db.select().from(unit).where(and(eq(unit.id, id), eq(unit.companyId, currentUser.companyId))).limit(1)
   if (!u) return c.json({ error: 'Unit not found' }, 404)
 
-  if (NON_NHTSA_CATEGORIES.has(u.category)) {
+  // Watercraft: USCG-regulated, no public API.
+  if (MARINE_CATEGORIES.has(u.category)) {
     return c.json({
-      unitId: u.id,
-      category: u.category,
-      count: 0,
-      recalls: [],
-      note: 'Off-road powersports units are regulated by the CPSC, not NHTSA — check the OEM or cpsc.gov for recalls on this category.',
+      unitId: u.id, category: u.category, source: 'USCG', count: 0, recalls: [],
+      note: 'Watercraft recalls are issued by the US Coast Guard (no public API) — check uscgboating.org or the manufacturer for this hull (HIN ' + (u.hin || 'n/a') + ').',
     })
   }
-  if (!u.make || !u.modelName || !u.year) {
-    return c.json({ unitId: u.id, count: 0, recalls: [], note: 'Unit is missing make, model, or year — needed for a recall lookup.' })
+  if (!u.make) {
+    return c.json({ unitId: u.id, count: 0, recalls: [], note: 'Unit is missing a make — needed for a recall lookup.' })
   }
   try {
+    // Off-road land powersports → CPSC.
+    if (CPSC_CATEGORIES.has(u.category)) {
+      const result = await fetchCpscRecalls(u.make, u.modelName || '')
+      return c.json({ unitId: u.id, source: 'CPSC', make: u.make, model: u.modelName, ...result })
+    }
+    // Everything else (motorhome / towable / motorcycle) → NHTSA.
+    if (!u.modelName || !u.year) {
+      return c.json({ unitId: u.id, count: 0, recalls: [], note: 'Unit is missing model or year — needed for an NHTSA recall lookup.' })
+    }
     const result = await fetchRecalls(u.make, u.modelName, u.year)
-    return c.json({ unitId: u.id, make: u.make, model: u.modelName, year: u.year, ...result })
+    return c.json({ unitId: u.id, source: 'NHTSA', make: u.make, model: u.modelName, year: u.year, ...result })
   } catch (err: any) {
     return c.json({ error: err.message || 'Recall lookup failed' }, 502)
   }

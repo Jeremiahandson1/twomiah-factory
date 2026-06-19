@@ -19,7 +19,9 @@ app.get('/', async (c) => {
 app.put('/', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional() })
-  const data = schema.parse(await c.req.json())
+  const body = await c.req.json()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
+  const data = schema.parse(body)
   const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(result)
@@ -53,7 +55,9 @@ app.get('/users', async (c) => {
 app.post('/users', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
   const schema = z.object({ email: z.string().email(), password: z.string().min(8), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).default('user') })
-  const data = schema.parse(await c.req.json())
+  const body = await c.req.json()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
+  const data = schema.parse(body)
 
   const [existing] = await db.select().from(user).where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId))).limit(1)
   if (existing) return c.json({ error: 'Email already exists' }, 409)
@@ -95,6 +99,22 @@ app.delete('/users/:id', requireAdmin, async (c) => {
   if (id === currentUser.userId) return c.json({ error: 'Cannot delete yourself' }, 400)
   await db.delete(user).where(eq(user.id, id))
   return c.json(null, 204)
+})
+
+// Update estimator settings
+app.put('/estimator', requireAdmin, async (c) => {
+  const currentUser = c.get('user') as any
+  const schema = z.object({
+    estimatorEnabled: z.boolean(),
+    pricePerSquareLow: z.string(),
+    pricePerSquareHigh: z.string(),
+    estimatorHeadline: z.string(),
+    estimatorDisclaimer: z.string(),
+  })
+  const data = schema.parse(await c.req.json())
+  await db.update(company).set({ ...data, updatedAt: new Date() })
+    .where(eq(company.id, currentUser.companyId))
+  return c.json({ message: 'Saved' })
 })
 
 export default app

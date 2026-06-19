@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import {
   Settings, Plus, Trash2, ToggleLeft, ToggleRight, Copy, Check,
   ExternalLink, Mail, Webhook, Info
@@ -19,99 +18,84 @@ interface LeadSource {
 
 const PLATFORMS = [
   {
-    value: 'rv_trader',
-    label: 'RV Trader',
-    color: '#1565c0',
-    instructions: [
-      'Log in to your RV Trader dealer account',
-      'Go to Account Settings > Lead Delivery',
-      'Set your lead notification email to the inbound address below',
-      'RV Trader will forward every new lead email to your CRM',
-    ],
-  },
-  {
-    value: 'rvusa',
-    label: 'RVUSA',
+    value: 'angi',
+    label: 'Angi (Angie\'s List)',
     color: '#2e7d32',
     instructions: [
-      'Log in to your RVUSA dealer dashboard',
-      'Go to Settings > Lead Notifications',
-      'Add the inbound email address below as a lead recipient',
-      'Enable email delivery for new inquiries',
+      'Log in to your Angi for Pros account',
+      'Go to Settings > Lead Notifications > Email',
+      'Set your notification email to the inbound address below',
+      'Angi will forward all new lead emails to your CRM',
     ],
   },
   {
-    value: 'rvt',
-    label: 'RVT.com',
-    color: '#00695c',
-    instructions: [
-      'Log in to your RVT.com dealer account',
-      'Go to My Account > Lead Routing',
-      'Forward lead notification emails to the inbound address below',
-      'You can also use the webhook URL with Zapier or Make if preferred',
-    ],
-  },
-  {
-    value: 'cycletrader',
-    label: 'Cycle Trader',
-    color: '#5e35b1',
-    instructions: [
-      'Log in to your Cycle Trader dealer portal',
-      'Go to Account > Lead Notifications',
-      'Set the inbound email below as your lead delivery address',
-      'Cycle Trader covers motorcycles, ATVs, UTVs, and PWC inventory',
-    ],
-  },
-  {
-    value: 'atvtrader',
-    label: 'ATV Trader',
+    value: 'homeadvisor',
+    label: 'HomeAdvisor',
     color: '#e65100',
     instructions: [
-      'Log in to your ATV Trader dealer account',
-      'Go to Settings > Lead Delivery',
-      'Add the inbound email below to receive ATV/UTV/SxS leads',
+      'Log in to your HomeAdvisor Pro account',
+      'Go to My Account > Notification Preferences',
+      'Add the inbound email address below as a notification recipient',
+      'Enable "New Lead" email notifications',
+    ],
+  },
+  {
+    value: 'thumbtack',
+    label: 'Thumbtack',
+    color: '#1565c0',
+    instructions: [
+      'Log in to your Thumbtack Pro account',
+      'Go to Settings > Notifications',
+      'Add the inbound email below to receive lead notifications',
       'Alternatively, set up email forwarding from your registered email',
     ],
   },
   {
-    value: 'boattrader',
-    label: 'Boat Trader',
-    color: '#0277bd',
+    value: 'google_lsa',
+    label: 'Google Local Services',
+    color: '#c62828',
     instructions: [
-      'Log in to your Boat Trader / Boats.com dealer dashboard',
-      'Go to Leads > Notification Settings',
-      'Forward lead notification emails to the inbound address below',
-      'Use the webhook URL for a real-time integration via Zapier or Make',
+      'Google LSA leads arrive via phone calls and messages',
+      'Set up email forwarding from your Google LSA notification email',
+      'Forward all "New lead" emails to the inbound address below',
+      'You can also use the webhook URL with a third-party integration (Zapier, Make)',
     ],
   },
   {
-    value: 'adf_email',
-    label: 'ADF Email (Generic)',
-    color: '#c2185b',
+    value: 'houzz',
+    label: 'Houzz',
+    color: '#6a1b9a',
     instructions: [
-      'Use this for any marketplace that sends ADF/XML lead emails',
-      'Point the marketplace\'s lead-delivery email to the inbound address below',
-      'Incoming ADF/XML is parsed automatically into structured leads',
-      'Great fallback for OEM portals and regional listing sites',
+      'Log in to your Houzz Pro account',
+      'Go to Settings > Email Notifications',
+      'Forward lead notification emails to the inbound address below',
+      'Houzz does not support direct webhooks — email forwarding is recommended',
     ],
   },
 ];
 
 export default function LeadSourcesPage() {
-  const { token } = useAuth();
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState('');
   const [copiedField, setCopiedField] = useState('');
 
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('accessToken');
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const fetchSources = useCallback(async () => {
     setLoading(true);
-    const res = await fetch('/api/leads/sources', { headers: { Authorization: `Bearer ${token}` } });
-    const json = await res.json();
-    setSources(json.data || []);
+    try {
+      const res = await fetch('/api/leads/sources', { headers: getAuthHeaders() });
+      if (!res.ok) { setLoading(false); return; }
+      const json = await res.json();
+      setSources(json.data || []);
+    } catch { /* network error */ }
     setLoading(false);
-  }, [token]);
+  }, []);
 
   useEffect(() => { fetchSources(); }, [fetchSources]);
 
@@ -119,7 +103,7 @@ export default function LeadSourcesPage() {
     const info = PLATFORMS.find(p => p.value === platform);
     await fetch('/api/leads/sources', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ platform, label: info?.label || platform }),
     });
     setShowAdd(false);
@@ -130,7 +114,7 @@ export default function LeadSourcesPage() {
   const toggleSource = async (source: LeadSource) => {
     await fetch(`/api/leads/sources/${source.id}`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !source.enabled }),
     });
     fetchSources();
@@ -140,7 +124,7 @@ export default function LeadSourcesPage() {
     if (!confirm('Delete this lead source? Existing leads will be kept.')) return;
     await fetch(`/api/leads/sources/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: getAuthHeaders(),
     });
     fetchSources();
   };

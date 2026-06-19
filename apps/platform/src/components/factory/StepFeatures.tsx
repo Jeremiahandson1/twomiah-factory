@@ -48,11 +48,7 @@ const CRM_REGISTRY = [
     { id: 'recall_lookup', name: 'Recall Lookup', description: 'One-click NHTSA/OEM open-recall check by VIN', core: false },
     { id: 'inventory_syndication', name: 'Marketplace Syndication', description: 'Feed inventory to RV Trader, RVUSA, Cycle Trader & ATV Trader', core: false },
     { id: 'service_status_texts', name: 'Service Status Updates', description: 'Automated "your unit is ready" texts plus tech photos', core: false },
-    { id: 'parts_counter', name: 'Parts Counter', description: 'Parts lookup, special orders and parts-to-RO attachment', core: false },
-    { id: 'warranty_claims', name: 'Warranty Claims', description: 'Track OEM warranty and extended-service-contract claims', core: false },
     { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-touch SMS/email cadences for long research cycles', core: false },
-    { id: 'esign', name: 'eSignature', description: 'Send deal paperwork for remote signing', core: false },
-    { id: 'seasonal_trends', name: 'Seasonal Trends', description: 'Year-over-year same-period comparisons', core: false },
   ]},
   { category: 'Construction', features: [
     { id: 'projects', name: 'Projects', description: 'Multi-phase project management', core: false },

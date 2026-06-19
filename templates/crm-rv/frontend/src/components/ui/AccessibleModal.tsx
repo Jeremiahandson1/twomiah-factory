@@ -1,6 +1,28 @@
-import { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+
+const sizes = {
+  sm: 'max-w-md',
+  md: 'max-w-lg',
+  lg: 'max-w-2xl',
+  xl: 'max-w-4xl',
+  full: 'max-w-full mx-4',
+};
+
+interface AccessibleModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title?: string;
+  description?: string;
+  children?: React.ReactNode;
+  size?: keyof typeof sizes;
+  closeOnOverlayClick?: boolean;
+  closeOnEscape?: boolean;
+  showCloseButton?: boolean;
+  initialFocusRef?: React.RefObject<HTMLElement>;
+  finalFocusRef?: React.RefObject<HTMLElement>;
+}
 
 export function AccessibleModal({
   isOpen,
@@ -14,34 +36,26 @@ export function AccessibleModal({
   showCloseButton = true,
   initialFocusRef,
   finalFocusRef,
-}) {
-  const modalRef = useRef(null);
-  const previousActiveElement = useRef(null);
-
-  const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    full: 'max-w-full mx-4',
-  };
+}: AccessibleModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<Element | null>(null);
 
   // Handle escape key
-  const handleKeyDown = useCallback((e) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'Escape' && closeOnEscape) {
       onClose();
     }
   }, [closeOnEscape, onClose]);
 
   // Trap focus within modal
-  const handleTabKey = useCallback((e) => {
+  const handleTabKey = useCallback((e: KeyboardEvent) => {
     if (!modalRef.current) return;
 
     const focusableElements = modalRef.current.querySelectorAll(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
+    const firstElement = focusableElements[0] as HTMLElement | undefined;
+    const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement | undefined;
 
     if (e.key === 'Tab') {
       if (e.shiftKey && document.activeElement === firstElement) {
@@ -67,7 +81,7 @@ export function AccessibleModal({
         if (initialFocusRef?.current) {
           initialFocusRef.current.focus();
         } else {
-          modalRef.current?.querySelector('button, [href], input, select, textarea')?.focus();
+          (modalRef.current?.querySelector('button, [href], input, select, textarea') as HTMLElement | null)?.focus();
         }
       }, 0);
 
@@ -85,7 +99,7 @@ export function AccessibleModal({
       if (finalFocusRef?.current) {
         finalFocusRef.current.focus();
       } else {
-        previousActiveElement.current?.focus();
+        (previousActiveElement.current as HTMLElement | null)?.focus();
       }
     };
   }, [isOpen, handleKeyDown, handleTabKey, initialFocusRef, finalFocusRef]);
@@ -157,6 +171,25 @@ export function AccessibleModal({
 }
 
 // Confirm Dialog
+
+const confirmVariants = {
+  danger: 'bg-red-500 hover:bg-red-600 focus:ring-red-500',
+  warning: 'bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500',
+  info: 'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500',
+};
+
+interface ConfirmDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title?: string;
+  message?: React.ReactNode;
+  confirmText?: string;
+  cancelText?: string;
+  variant?: keyof typeof confirmVariants;
+  loading?: boolean;
+}
+
 export function ConfirmDialog({
   isOpen,
   onClose,
@@ -167,14 +200,8 @@ export function ConfirmDialog({
   cancelText = 'Cancel',
   variant = 'danger',
   loading = false,
-}) {
-  const cancelRef = useRef(null);
-
-  const variants = {
-    danger: 'bg-red-500 hover:bg-red-600 focus:ring-red-500',
-    warning: 'bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500',
-    info: 'bg-blue-500 hover:bg-blue-600 focus:ring-blue-500',
-  };
+}: ConfirmDialogProps) {
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   return (
     <AccessibleModal
@@ -203,7 +230,7 @@ export function ConfirmDialog({
             px-4 py-2 text-white rounded-lg transition-colors
             focus:outline-none focus:ring-2 focus:ring-offset-2
             disabled:opacity-50 disabled:cursor-not-allowed
-            ${variants[variant]}
+            ${confirmVariants[variant]}
           `}
         >
           {loading ? 'Loading...' : confirmText}

@@ -55,6 +55,17 @@ const unitSchema = z.object({
   hours: z.number().int().min(0).optional(),
   transmission: z.string().optional(),
   drivetrain: z.string().optional(),
+  // Marine / boat-specific
+  hin: z.string().optional(),
+  beamFt: z.coerce.string().optional(),
+  draftFt: z.coerce.string().optional(),
+  hullMaterial: z.string().optional(),
+  engineType: z.string().optional(),
+  engineCount: z.number().int().min(0).optional(),
+  engineHp: z.number().int().min(0).optional(),
+  fuelCapacityGal: z.number().int().min(0).optional(),
+  maxPersons: z.number().int().min(0).optional(),
+  trailerIncluded: z.boolean().optional(),
 })
 
 // GET /units — inventory list
@@ -125,7 +136,11 @@ app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const [existing] = await db.select().from(unit).where(and(eq(unit.id, id), eq(unit.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Unit not found' }, 404)
 
-  const [updated] = await db.update(unit).set({ ...body, updatedAt: new Date() }).where(eq(unit.id, id)).returning()
+  // Whitelist editable columns — never let companyId/id be reassigned from the body.
+  const EDITABLE = ['category','condition','stockNumber','vin','year','make','modelName','trim','status','msrp','listedPrice','internetPrice','cost','photos','floorplanImg','description','features','exteriorColor','interiorColor','rvClass','towableType','lengthFt','sleeps','slideOuts','gvwr','dryWeight','hitchWeight','chassis','freshTankGal','greyTankGal','blackTankGal','generatorHours','awnings','fuelType','engine','engineCc','mileage','hours','transmission','drivetrain','hin','beamFt','draftFt','hullMaterial','engineType','engineCount','engineHp','fuelCapacityGal','maxPersons','trailerIncluded'] as const
+  const updates: any = { updatedAt: new Date() }
+  for (const k of EDITABLE) if (k in body) updates[k] = body[k]
+  const [updated] = await db.update(unit).set(updates).where(eq(unit.id, id)).returning()
   await audit.log({ action: 'update', entity: 'unit', entityId: id, changes: audit.diff(existing, updated), req: { user: currentUser } })
   emitToCompany(currentUser.companyId, EVENTS.REFRESH, { entity: 'unit' })
   return c.json(updated)

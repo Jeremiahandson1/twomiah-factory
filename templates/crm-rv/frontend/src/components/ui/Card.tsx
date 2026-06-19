@@ -1,7 +1,13 @@
 import React from 'react';
 import clsx from 'clsx';
+import { LucideIcon } from 'lucide-react';
 
-export function Card({ children, className, ...props }) {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function Card({ children, className, ...props }: CardProps) {
   return (
     <div className={clsx('card', className)} {...props}>
       {children}
@@ -9,7 +15,15 @@ export function Card({ children, className, ...props }) {
   );
 }
 
-export function CardHeader({ children, className, title, subtitle, action }) {
+interface CardHeaderProps {
+  children?: React.ReactNode;
+  className?: string;
+  title?: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}
+
+export function CardHeader({ children, className, title, subtitle, action }: CardHeaderProps) {
   if (title || subtitle || action) {
     return (
       <div className={clsx('card-header flex items-center justify-between', className)}>
@@ -24,11 +38,25 @@ export function CardHeader({ children, className, title, subtitle, action }) {
   return <div className={clsx('card-header', className)}>{children}</div>;
 }
 
-export function CardBody({ children, className }) {
+interface CardBodyProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function CardBody({ children, className }: CardBodyProps) {
   return <div className={clsx('card-body', className)}>{children}</div>;
 }
 
-export function StatCard({ label, value, icon: Icon, trend, trendUp, className }) {
+interface StatCardProps {
+  label: string;
+  value: React.ReactNode;
+  icon?: LucideIcon;
+  trend?: string;
+  trendUp?: boolean;
+  className?: string;
+}
+
+export function StatCard({ label, value, icon: Icon, trend, trendUp, className }: StatCardProps) {
   return (
     <Card className={clsx('p-5', className)}>
       <div className="flex items-start justify-between">
@@ -40,7 +68,7 @@ export function StatCard({ label, value, icon: Icon, trend, trendUp, className }
               'text-xs mt-2',
               trendUp ? 'text-emerald-400' : 'text-red-400'
             )}>
-              {trendUp ? '↑' : '↓'} {trend}
+              {trendUp ? '\u2191' : '\u2193'} {trend}
             </p>
           )}
         </div>

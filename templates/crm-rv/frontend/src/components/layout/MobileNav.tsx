@@ -1,13 +1,26 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt, 
+import {
+  Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt,
   Calendar, Clock, DollarSign, FileQuestion, ClipboardList, CheckSquare,
   BookOpen, ClipboardCheck, Target, Settings, ChevronDown, ChevronUp
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
-const navGroups = [
+interface NavGroupItem {
+  to: string;
+  icon: LucideIcon;
+  label: string;
+  exact?: boolean;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavGroupItem[];
+}
+
+const navGroups: NavGroup[] = [
   {
     label: 'Main',
     items: [
@@ -46,8 +59,8 @@ const navGroups = [
 ];
 
 export default function MobileNav() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState(['Main']);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['Main']);
   const location = useLocation();
   const { company } = useAuth();
 
@@ -62,10 +75,10 @@ export default function MobileNav() {
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
-  const toggleGroup = (label) => {
-    setExpandedGroups(prev => 
-      prev.includes(label) 
-        ? prev.filter(g => g !== label)
+  const toggleGroup = (label: string) => {
+    setExpandedGroups((prev: string[]) =>
+      prev.includes(label)
+        ? prev.filter((g: string) => g !== label)
         : [...prev, label]
     );
   };
@@ -91,7 +104,7 @@ export default function MobileNav() {
 
       {/* Overlay */}
       {isOpen && (
-        <div 
+        <div
           className="lg:hidden fixed inset-0 z-50 bg-black/50 animate-fade-in"
           onClick={() => setIsOpen(false)}
           aria-hidden="true"
@@ -121,7 +134,7 @@ export default function MobileNav() {
 
         {/* Menu Content */}
         <div className="overflow-y-auto h-[calc(100%-3.5rem)] py-4">
-          {navGroups.map((group) => (
+          {navGroups.map((group: NavGroup) => (
             <div key={group.label} className="mb-2">
               <button
                 onClick={() => toggleGroup(group.label)}
@@ -134,19 +147,19 @@ export default function MobileNav() {
                   <ChevronDown className="w-4 h-4" />
                 )}
               </button>
-              
+
               {expandedGroups.includes(group.label) && (
                 <div className="mt-1 space-y-1 px-2">
-                  {group.items.map((item) => (
+                  {group.items.map((item: NavGroupItem) => (
                     <NavLink
                       key={item.to}
                       to={item.to}
                       end={item.exact}
-                      className={({ isActive }) => `
+                      className={({ isActive }: { isActive: boolean }) => `
                         flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                         transition-colors touch-manipulation
-                        ${isActive 
-                          ? 'bg-orange-50 text-orange-600' 
+                        ${isActive
+                          ? 'bg-orange-50 text-orange-600'
                           : 'text-gray-700 hover:bg-gray-100 active:bg-gray-200'
                         }
                       `}
@@ -164,7 +177,7 @@ export default function MobileNav() {
           <div className="mt-4 pt-4 border-t px-2">
             <NavLink
               to="/crm/settings"
-              className={({ isActive }) => `
+              className={({ isActive }: { isActive: boolean }) => `
                 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
                 ${isActive ? 'bg-orange-50 text-orange-600' : 'text-gray-700 hover:bg-gray-100'}
               `}

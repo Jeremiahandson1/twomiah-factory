@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Debounce a value
-export function useDebounce(value, delay = 300) {
+export function useDebounce<T>(value: T, delay = 300): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
@@ -18,10 +18,10 @@ export function useDebounce(value, delay = 300) {
 }
 
 // Debounce a callback
-export function useDebouncedCallback(callback, delay = 300) {
-  const timeoutRef = useRef(null);
+export function useDebouncedCallback<T extends (...args: unknown[]) => void>(callback: T, delay = 300): T {
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const debouncedCallback = useCallback((...args) => {
+  const debouncedCallback = useCallback((...args: unknown[]) => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
@@ -29,7 +29,7 @@ export function useDebouncedCallback(callback, delay = 300) {
     timeoutRef.current = setTimeout(() => {
       callback(...args);
     }, delay);
-  }, [callback, delay]);
+  }, [callback, delay]) as unknown as T;
 
   useEffect(() => {
     return () => {
@@ -43,11 +43,11 @@ export function useDebouncedCallback(callback, delay = 300) {
 }
 
 // Throttle a callback (limit how often it can be called)
-export function useThrottledCallback(callback, delay = 300) {
+export function useThrottledCallback<T extends (...args: unknown[]) => void>(callback: T, delay = 300): T {
   const lastRunRef = useRef(0);
-  const timeoutRef = useRef(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const throttledCallback = useCallback((...args) => {
+  const throttledCallback = useCallback((...args: unknown[]) => {
     const now = Date.now();
     const timeSinceLastRun = now - lastRunRef.current;
 
@@ -64,7 +64,7 @@ export function useThrottledCallback(callback, delay = 300) {
         callback(...args);
       }, delay - timeSinceLastRun);
     }
-  }, [callback, delay]);
+  }, [callback, delay]) as unknown as T;
 
   useEffect(() => {
     return () => {

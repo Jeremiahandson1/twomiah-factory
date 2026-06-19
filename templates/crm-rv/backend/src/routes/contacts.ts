@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact, salesLead, repairOrder } from '../../db/schema.ts'
+import { contact, project, quote, invoice } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -68,28 +68,21 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   const [foundContact] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!foundContact) return c.json({ error: 'Contact not found' }, 404)
 
-  // Fetch related RV-dealership records separately:
-  //   salesLead is linked to a contact via contactId,
-  //   repairOrder is linked to a contact via customerId.
-  const [salesLeads, repairOrders] = await Promise.all([
-    db.select({
-      id: salesLead.id, stage: salesLead.stage, source: salesLead.source,
-      unitId: salesLead.unitId, assignedTo: salesLead.assignedTo,
-      followUpDate: salesLead.followUpDate, closedAt: salesLead.closedAt, createdAt: salesLead.createdAt,
-    }).from(salesLead).where(eq(salesLead.contactId, id)).orderBy(desc(salesLead.createdAt)),
-    db.select({
-      id: repairOrder.id, roNumber: repairOrder.roNumber, status: repairOrder.status,
-      estimatedTotal: repairOrder.estimatedTotal, actualTotal: repairOrder.actualTotal,
-      unitId: repairOrder.unitId, completedAt: repairOrder.completedAt, createdAt: repairOrder.createdAt,
-    }).from(repairOrder).where(eq(repairOrder.customerId, id)).orderBy(desc(repairOrder.createdAt)),
+  // Fetch related data separately
+  const [projects, quotes, invoices] = await Promise.all([
+    db.select({ id: project.id, name: project.name, status: project.status }).from(project).where(eq(project.contactId, id)),
+    db.select({ id: quote.id, number: quote.number, total: quote.total, status: quote.status }).from(quote).where(eq(quote.contactId, id)),
+    db.select({ id: invoice.id, number: invoice.number, total: invoice.total, amountPaid: invoice.amountPaid, status: invoice.status }).from(invoice).where(eq(invoice.contactId, id)),
   ])
 
-  return c.json({ ...foundContact, salesLeads, repairOrders })
+  return c.json({ ...foundContact, projects, quotes, invoices })
 })
 
 app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
-  const data = contactSchema.parse(await c.req.json())
+  const cBody = await c.req.json()
+  if (cBody.email && typeof cBody.email === 'string') cBody.email = cBody.email.toLowerCase().trim()
+  const data = contactSchema.parse(cBody)
   const [newContact] = await db.insert(contact).values({ ...data, companyId: currentUser.companyId }).returning()
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_CREATED, newContact)
   audit.log({ action: audit.ACTIONS.CREATE, entity: 'contact', entityId: newContact.id, entityName: newContact.name, req: c.req })
@@ -99,7 +92,9 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
 app.put('/:id', requirePermission('contacts:update'), async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = contactSchema.partial().parse(await c.req.json())
+  const uBody = await c.req.json()
+  if (uBody.email && typeof uBody.email === 'string') uBody.email = uBody.email.toLowerCase().trim()
+  const data = contactSchema.partial().parse(uBody)
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)

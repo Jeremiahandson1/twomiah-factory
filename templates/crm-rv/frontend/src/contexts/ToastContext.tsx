@@ -1,24 +1,25 @@
 import React from 'react';
 import { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import type { Toast, ToastType, ToastActions } from '../types';
 
-const ToastContext = createContext<any>(null);
+const ToastContext = createContext<ToastActions | null>(null);
 
-const icons = {
+const icons: Record<ToastType, React.ComponentType<{ className?: string }>> = {
   success: CheckCircle,
   error: AlertCircle,
   info: Info,
   warning: AlertTriangle,
 };
 
-const colors = {
+const colors: Record<ToastType, string> = {
   success: 'bg-green-50 border-green-200 text-green-800',
   error: 'bg-red-50 border-red-200 text-red-800',
   info: 'bg-blue-50 border-blue-200 text-blue-800',
   warning: 'bg-yellow-50 border-yellow-200 text-yellow-800',
 };
 
-const iconColors = {
+const iconColors: Record<ToastType, string> = {
   success: 'text-green-500',
   error: 'text-red-500',
   info: 'text-blue-500',
@@ -26,9 +27,9 @@ const iconColors = {
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState([]);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const addToast = useCallback((message, type = 'info', duration = 4000) => {
+  const addToast = useCallback((message: string, type: ToastType = 'info', duration = 4000): number => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, message, type }]);
 
@@ -41,15 +42,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return id;
   }, []);
 
-  const removeToast = useCallback((id) => {
+  const removeToast = useCallback((id: number) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const toast = {
-    success: (msg, duration) => addToast(msg, 'success', duration),
-    error: (msg, duration) => addToast(msg, 'error', duration),
-    info: (msg, duration) => addToast(msg, 'info', duration),
-    warning: (msg, duration) => addToast(msg, 'warning', duration),
+  const toast: ToastActions = {
+    success: (msg: string, duration?: number) => addToast(msg, 'success', duration),
+    error: (msg: string, duration?: number) => addToast(msg, 'error', duration),
+    info: (msg: string, duration?: number) => addToast(msg, 'info', duration),
+    warning: (msg: string, duration?: number) => addToast(msg, 'warning', duration),
   };
 
   return (
@@ -86,7 +87,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function useToast() {
+export function useToast(): ToastActions {
   const context = useContext(ToastContext);
   if (!context) {
     throw new Error('useToast must be used within ToastProvider');

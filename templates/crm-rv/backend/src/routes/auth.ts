@@ -10,6 +10,7 @@ import { eq, and, gt } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
 import logger from '../services/logger.ts'
+import { PLAN_FEATURES, PLAN_LIMITS } from '../shared/plans.ts'
 
 const app = new Hono()
 
@@ -17,50 +18,6 @@ const generateTokens = (userId: string, companyId: string, email: string, role: 
   const accessToken = jwt.sign({ userId, companyId, email, role }, process.env.JWT_SECRET!, { expiresIn: '15m' })
   const refreshToken = jwt.sign({ userId, companyId, type: 'refresh' }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' })
   return { accessToken, refreshToken }
-}
-
-// RV + Powersports dealership feature sets per plan tier
-// (mirrors FEATURE_PACKAGES in config/featureRegistry.ts).
-// Core features (contacts, dashboard, team) are always enabled and merged in below.
-const CORE_FEATURES = ['contacts', 'dashboard', 'team']
-
-const PLAN_FEATURES: Record<string, string[]> = {
-  starter: [
-    ...CORE_FEATURES,
-    'unit_inventory',
-    'deal_pipeline',
-    'lead_inbox',
-    'two_way_texting',
-    'follow_up_sequences',
-    'google_reviews',
-    'online_payments',
-  ],
-  sales_pro: [
-    ...CORE_FEATURES,
-    'unit_inventory',
-    'inventory_syndication',
-    'recall_lookup',
-    'deal_pipeline',
-    'lead_inbox',
-    'deal_desk',
-    'trade_in',
-    'esign',
-    'two_way_texting',
-    'follow_up_sequences',
-    'google_reviews',
-    'consumer_financing',
-    'online_payments',
-    'quickbooks',
-    'reports',
-  ],
-  full: ['all'],
-}
-
-// Plan limits
-const PLAN_LIMITS: Record<string, { users: number | null; contacts: number | null; jobs: number | null; storage: number | null }> = {
-  starter: { users: 5, contacts: 2500, jobs: 500, storage: 25 },
-  sales_pro: { users: 15, contacts: 10000, jobs: 2000, storage: 100 },
-  full: { users: null, contacts: null, jobs: null, storage: null },
 }
 
 // Self-serve signup (multi-step flow)
@@ -84,11 +41,13 @@ app.post('/signup', async (c) => {
     password: z.string().min(8),
 
     // Plan
-    plan: z.enum(['starter', 'sales_pro', 'full']),
+    plan: z.enum(['starter', 'pro', 'business', 'construction', 'enterprise']),
     billingCycle: z.enum(['monthly', 'annual']),
   })
 
-  const data = schema.parse(await c.req.json())
+  const body = await c.req.json()
+  if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
+  const data = schema.parse(body)
 
   // Check if email already exists
   const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
@@ -107,9 +66,9 @@ app.post('/signup', async (c) => {
   const enabledFeatures = PLAN_FEATURES[data.plan] || PLAN_FEATURES.starter
   const limits = PLAN_LIMITS[data.plan] || PLAN_LIMITS.starter
 
-  // Calculate trial end date (14 days)
+  // Calculate trial end date (30 days)
   const trialEndsAt = new Date()
-  trialEndsAt.setDate(trialEndsAt.getDate() + 14)
+  trialEndsAt.setDate(trialEndsAt.getDate() + 30)
 
   // Create company and user in transaction
   const result = await db.transaction(async (tx) => {
@@ -163,7 +122,7 @@ app.post('/signup', async (c) => {
       trialEndsAt,
     })
   } catch (emailErr) {
-    logger.error('Email error', { action: 'sendWelcome', email: data.email })
+    logger.error('Email error', { action: 'sendWelcomeEmail', email: data.email })
   }
 
   logger.info('New signup', {
@@ -203,7 +162,9 @@ app.post('/register', async (c) => {
     companyName: z.string().min(1),
     phone: z.string().optional(),
   })
-  const data = registerSchema.parse(await c.req.json())
+  const regBody = await c.req.json()
+  if (regBody.email && typeof regBody.email === 'string') regBody.email = regBody.email.toLowerCase().trim()
+  const data = registerSchema.parse(regBody)
 
   const [existing] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
   if (existing) return c.json({ error: 'Email already registered' }, 409)
@@ -217,7 +178,7 @@ app.post('/register', async (c) => {
       slug,
       email: data.email,
       phone: data.phone,
-      enabledFeatures: ['contacts', 'dashboard', 'team', 'unit_inventory', 'deal_pipeline', 'lead_inbox'],
+      enabledFeatures: ['contacts', 'projects', 'jobs', 'quotes', 'invoices', 'scheduling', 'team'],
     }).returning()
 
     const [newUser] = await tx.insert(user).values({
@@ -238,7 +199,7 @@ app.post('/register', async (c) => {
 
   return c.json({
     user: { id: result.user.id, email: result.user.email, firstName: result.user.firstName, lastName: result.user.lastName, role: result.user.role },
-    company: { id: result.company.id, name: result.company.name, slug: result.company.slug, enabledFeatures: result.company.enabledFeatures },
+    company: { id: result.company.id, name: result.company.name, slug: result.company.slug, phone: result.company.phone, email: result.company.email, address: result.company.address, city: result.company.city, state: result.company.state, zip: result.company.zip, website: result.company.website, enabledFeatures: result.company.enabledFeatures, settings: result.company.settings },
     ...tokens,
   }, 201)
 })
@@ -246,14 +207,26 @@ app.post('/register', async (c) => {
 // Login
 app.post('/login', async (c) => {
   const loginSchema = z.object({ email: z.string().email(), password: z.string() })
-  const data = loginSchema.parse(await c.req.json())
+  const loginBody = await c.req.json()
+  if (loginBody.email && typeof loginBody.email === 'string') loginBody.email = loginBody.email.toLowerCase().trim()
+  const data = loginSchema.parse(loginBody)
 
-  const [foundUser] = await db.select().from(user).where(eq(user.email, data.email)).limit(1)
-  if (!foundUser) return c.json({ error: 'Invalid email or password' }, 401)
-  if (!foundUser.isActive) return c.json({ error: 'Account is disabled' }, 401)
+  const normalizedEmail = data.email
+
+  const [foundUser] = await db.select().from(user).where(eq(user.email, normalizedEmail)).limit(1)
+
+  if (!foundUser) {
+    return c.json({ error: 'Invalid email or password' }, 401)
+  }
+  if (!foundUser.isActive) {
+    return c.json({ error: 'Account is disabled' }, 401)
+  }
 
   const valid = await Bun.password.verify(data.password, foundUser.passwordHash)
-  if (!valid) return c.json({ error: 'Invalid email or password' }, 401)
+
+  if (!valid) {
+    return c.json({ error: 'Invalid email or password' }, 401)
+  }
 
   // Fetch company separately
   const [foundCompany] = await db.select().from(company).where(eq(company.id, foundUser.companyId)).limit(1)
@@ -264,7 +237,7 @@ app.post('/login', async (c) => {
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, role: foundUser.role, avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
     ...tokens,
   })
 })
@@ -311,7 +284,7 @@ app.get('/me', authenticate, async (c) => {
 
   return c.json({
     user: { id: foundUser.id, email: foundUser.email, firstName: foundUser.firstName, lastName: foundUser.lastName, phone: foundUser.phone, role: normalizeRole(foundUser.role), avatar: foundUser.avatar },
-    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings },
+    company: { id: foundCompany.id, name: foundCompany.name, slug: foundCompany.slug, logo: foundCompany.logo, primaryColor: foundCompany.primaryColor, phone: foundCompany.phone, email: foundCompany.email, address: foundCompany.address, city: foundCompany.city, state: foundCompany.state, zip: foundCompany.zip, website: foundCompany.website, enabledFeatures: foundCompany.enabledFeatures, settings: foundCompany.settings, visionUrl: process.env.VISION_URL || null, vertical: 'contractor' },
     permissions,
   })
 })
@@ -355,7 +328,8 @@ app.put('/password', authenticate, async (c) => {
 
 // Forgot password
 app.post('/forgot-password', async (c) => {
-  const { email } = await c.req.json()
+  const body = await c.req.json()
+  const email = body.email?.toLowerCase().trim()
   const [foundUser] = await db.select().from(user).where(eq(user.email, email)).limit(1)
 
   if (foundUser) {
