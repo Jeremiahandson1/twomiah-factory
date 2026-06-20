@@ -1,0 +1,189 @@
+<%
+// ── Inventory list page ───────────────────────────────────────────────
+// Server passes: units (filtered), total, query, makes[], categories[],
+// conditions[]. We render only the page body; base.ejs supplies header/footer.
+const q = (typeof query !== 'undefined' && query) ? query : {};
+const makeList = (typeof makes !== 'undefined' && makes) ? makes : [];
+const categoryList = (typeof categories !== 'undefined' && categories) ? categories : [];
+const conditionList = (typeof conditions !== 'undefined' && conditions) ? conditions : [];
+const unitList = (typeof units !== 'undefined' && units) ? units : [];
+const totalCount = (typeof total !== 'undefined' && total != null) ? total : unitList.length;
+
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const phoneRaw = phone.replace(/\D/g, '');
+
+// Resolve a photo entry (string OR {url,thumbnail}) to a usable URL.
+function getImageUrl(p) {
+  if (!p) return '';
+  if (typeof p === 'object') p = p.thumbnail || p.url || '';
+  if (!p) return '';
+  if (p.startsWith('http')) return p;
+  if (p.startsWith('/')) return p;
+  return '/uploads/' + p;
+}
+
+// Format a price; null/0 → "Call for Price".
+function priceLabel(u) {
+  const p = u.internetPrice || u.listedPrice;
+  if (!p || Number(p) <= 0) return 'Call for Price';
+  return '$' + Number(p).toLocaleString('en-US');
+}
+
+// Build the visible title from year/make/model/trim.
+function unitTitle(u) {
+  return [u.year, u.make, u.modelName, u.trim].filter(Boolean).join(' ');
+}
+
+// Condition badge label + modifier class.
+function condInfo(u) {
+  const c = String(u.condition || '').toLowerCase();
+  if (c === 'new') return { label: 'New', cls: 'is-new' };
+  if (c === 'pending' || String(u.status || '').toLowerCase() === 'pending') return { label: 'Pending', cls: 'is-pending' };
+  if (c === 'used' || c === 'pre-owned' || c === 'preowned') return { label: 'Used', cls: 'is-used' };
+  return u.condition ? { label: u.condition, cls: 'is-used' } : null;
+}
+
+function sel(a, b) { return String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase() ? 'selected' : ''; }
+%>
+
+<style>
+  .inv-page { padding: 0 0 60px; }
+  .inv-head { background: var(--dark-bg, #1a1a2e); color: #fff; padding: 48px 0 40px; }
+  .inv-head h1 { margin: 0 0 6px; font-size: clamp(1.9rem, 4vw, 2.6rem); }
+  .inv-head p { margin: 0; color: rgba(255,255,255,.75); font-size: 1.05rem; }
+  .inv-filters { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.06); padding: 22px; margin: -30px auto 32px; position: relative; z-index: 2; }
+  .inv-filters .inv-search-row { margin-bottom: 14px; }
+  .inv-filters input[type="text"], .inv-filters input[type="number"], .inv-filters select { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; }
+  .inv-filters label { display: block; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #64748b; margin-bottom: 6px; }
+  .inv-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .inv-filter-actions { display: flex; gap: 12px; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+  .inv-clear { color: #64748b; font-weight: 600; text-decoration: none; font-size: .95rem; }
+  .inv-clear:hover { color: #1e293b; }
+  .inv-count { margin: 0 0 18px; color: #475569; font-size: .98rem; }
+  .inv-count strong { color: #1e293b; }
+  .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+  .inv-card { display: flex; flex-direction: column; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; text-decoration: none; color: inherit; transition: box-shadow .2s, transform .2s; }
+  .inv-card:hover { box-shadow: 0 16px 36px rgba(0,0,0,.12); transform: translateY(-3px); }
+  .inv-card-media { position: relative; aspect-ratio: 4 / 3; background: #0f172a; overflow: hidden; }
+  .inv-card-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .inv-card-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: rgba(255,255,255,.8); font-weight: 700; letter-spacing: .03em; text-transform: uppercase; font-size: .85rem; }
+  .inv-badge { position: absolute; top: 12px; left: 12px; padding: 5px 12px; border-radius: 999px; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #fff; background: #475569; }
+  .inv-badge.is-new { background: #16a34a; }
+  .inv-badge.is-used { background: #2563eb; }
+  .inv-badge.is-pending { background: #d97706; }
+  .inv-card-body { padding: 16px 18px 18px; display: flex; flex-direction: column; flex: 1; }
+  .inv-card-title { margin: 0 0 8px; font-size: 1.08rem; line-height: 1.3; font-weight: 700; color: #1e293b; }
+  .inv-card-price { font-size: 1.25rem; font-weight: 800; color: var(--accent, #c8963e); margin: 0 0 12px; }
+  .inv-specs { list-style: none; padding: 0; margin: auto 0 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .inv-specs li { font-size: .85rem; color: #475569; display: flex; flex-direction: column; }
+  .inv-specs li span { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: #94a3b8; font-weight: 700; }
+  .inv-specs li strong { font-size: .95rem; color: #1e293b; font-weight: 700; }
+  .inv-empty { text-align: center; padding: 60px 20px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 14px; }
+  .inv-empty h2 { margin: 0 0 8px; color: #1e293b; }
+  .inv-empty p { margin: 0 0 20px; color: #64748b; }
+  @media (max-width: 640px) { .inv-filters { margin-top: -20px; } }
+</style>
+
+<div class="inv-page">
+  <section class="inv-head">
+    <div class="container">
+      <h1>Browse Inventory</h1>
+      <p>New &amp; used RVs, ATVs, UTVs, and boats in stock at {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <!-- Filter bar: GET form, server re-filters /inventory -->
+    <form class="inv-filters" action="/inventory" method="GET">
+      <div class="inv-search-row">
+        <label for="inv-search">Search</label>
+        <input id="inv-search" type="text" name="search" value="<%= q.search || '' %>" placeholder="Year, make, model, stock #...">
+      </div>
+      <div class="inv-filter-grid">
+        <div>
+          <label for="inv-category">Category</label>
+          <select id="inv-category" name="category">
+            <option value="">All Categories</option>
+            <% categoryList.forEach(function(cat) { %>
+              <option value="<%= cat %>" <%= sel(q.category, cat) %>><%= cat %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div>
+          <label for="inv-condition">Condition</label>
+          <select id="inv-condition" name="condition">
+            <option value="">All</option>
+            <% conditionList.forEach(function(cond) { %>
+              <option value="<%= cond %>" <%= sel(q.condition, cond) %>><%= cond %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div>
+          <label for="inv-make">Make</label>
+          <select id="inv-make" name="make">
+            <option value="">All Makes</option>
+            <% makeList.forEach(function(mk) { %>
+              <option value="<%= mk %>" <%= sel(q.make, mk) %>><%= mk %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div>
+          <label for="inv-min">Min Price</label>
+          <input id="inv-min" type="number" name="minPrice" min="0" step="500" value="<%= q.minPrice || '' %>" placeholder="$0">
+        </div>
+        <div>
+          <label for="inv-max">Max Price</label>
+          <input id="inv-max" type="number" name="maxPrice" min="0" step="500" value="<%= q.maxPrice || '' %>" placeholder="Any">
+        </div>
+      </div>
+      <div class="inv-filter-actions">
+        <button type="submit" class="btn btn-primary">Apply Filters</button>
+        <a href="/inventory" class="inv-clear">Clear</a>
+      </div>
+    </form>
+
+    <% if (unitList.length === 0) { %>
+      <div class="inv-empty">
+        <h2>No units match your search</h2>
+        <p>Try widening your filters, or browse everything we have in stock.</p>
+        <a href="/inventory" class="btn btn-primary">View All Inventory</a>
+      </div>
+    <% } else { %>
+      <p class="inv-count">Showing <strong><%= totalCount %></strong> unit<%= totalCount === 1 ? '' : 's' %>.</p>
+      <div class="inv-grid">
+        <% unitList.forEach(function(unit) { %>
+          <%
+            const href = '/inventory/' + (unit.stockNumber || unit.id);
+            const firstPhoto = (unit.photos && unit.photos.length) ? getImageUrl(unit.photos[0]) : '';
+            const badge = condInfo(unit);
+            const title = unitTitle(unit) || 'View Unit';
+          %>
+          <a class="inv-card" href="<%= href %>">
+            <div class="inv-card-media">
+              <% if (firstPhoto) { %>
+                <img src="<%= firstPhoto %>" alt="<%= title %>" loading="lazy">
+              <% } else { %>
+                <div class="inv-card-placeholder"><%= unit.category || 'Photos Coming Soon' %></div>
+              <% } %>
+              <% if (badge) { %>
+                <span class="inv-badge <%= badge.cls %>"><%= badge.label %></span>
+              <% } %>
+            </div>
+            <div class="inv-card-body">
+              <h3 class="inv-card-title"><%= title %></h3>
+              <div class="inv-card-price"><%= priceLabel(unit) %></div>
+              <ul class="inv-specs">
+                <% if (unit.lengthFt) { %><li><span>Length</span><strong><%= unit.lengthFt %> ft</strong></li><% } %>
+                <% if (unit.sleeps) { %><li><span>Sleeps</span><strong><%= unit.sleeps %></strong></li><% } %>
+                <% if (unit.slideOuts != null && unit.slideOuts !== '') { %><li><span>Slides</span><strong><%= unit.slideOuts %></strong></li><% } %>
+                <% if (unit.mileage != null && unit.mileage !== '') { %><li><span>Mileage</span><strong><%= Number(unit.mileage).toLocaleString('en-US') %></strong></li><% } %>
+                <% if (unit.hours != null && unit.hours !== '') { %><li><span>Hours</span><strong><%= Number(unit.hours).toLocaleString('en-US') %></strong></li><% } %>
+                <% if (unit.engineCc) { %><li><span>Engine</span><strong><%= unit.engineCc %>cc</strong></li><% } %>
+              </ul>
+            </div>
+          </a>
+        <% }); %>
+      </div>
+    <% } %>
+  </div>
+</div>

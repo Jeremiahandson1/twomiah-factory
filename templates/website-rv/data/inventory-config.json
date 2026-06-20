@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "provider": "generic",
+  "feedUrl": "",
+  "format": "csv"
+}

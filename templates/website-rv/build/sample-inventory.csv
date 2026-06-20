@@ -1,0 +1,9 @@
+StockNumber,VIN,Condition,Type,Year,Make,Model,Trim,Status,MSRP,Price,ExteriorColor,Length,Sleeps,Slides,Mileage,Hours,Description,Photos
+RV-1001,1F66F5DY8N0A12345,New,Class C Motorhome,2024,Winnebago,View,24D,Available,155000,142900,White,25.5,4,1,,,"Mercedes Sprinter diesel chassis. Full bath, solar prep, and a slide-out for extra living space.",https://images.unsplash.com/photo-1523987355523-c7b5b0723c6a
+RV-1002,,Used,Travel Trailer,2021,Forest River,Rockwood,2608BS,Available,,28995,Silver,29.7,6,1,,,"Bunkhouse layout, sleeps six, light enough for a half-ton tow. Clean one-owner trade.",https://images.unsplash.com/photo-1502780402662-acc01917738e
+RV-1003,1FDXE4FS9KDC54321,New,Class A Motorhome,2025,Thor,Hurricane,34J,Available,189900,174900,Graphite,35.0,8,2,,,"Bunk-over-cab family floor plan with two slides and a king bed.",
+PS-2001,3JBSKBZ27NJ001122,New,UTV,2024,Polaris,RANGER XP 1000,Premium,Available,21499,21499,Sage Green,,,,0,2,"Factory-fresh utility side-by-side. 4WD with on-demand turf mode.",https://images.unsplash.com/photo-1626668893632-6f3a4466d22f
+PS-2002,5VPSC1820L4002233,Used,ATV,2022,Honda,FourTrax Rancher,4x4,Available,,6499,Red,,,,,86,"Low-hour trail-ready ATV. Independent rear suspension.",
+PS-2003,JKAEXMM10PA003344,New,Motorcycle,2024,Kawasaki,Ninja 650,KRT,Available,8299,8299,Lime Green,,,,12,,"Sport bike with a beginner-friendly twin. Demo unit with delivery miles only.",
+BT-3001,USHV12345J122,New,Boat,2024,Bennington,22 SVSR,Tritoon,Available,68900,63900,Blue,22.0,,,,3,"Tritoon with a 150hp Yamaha outboard. Seats 12.","https://images.unsplash.com/photo-1605281317010-fe5ffe798166|https://images.unsplash.com/photo-1567899378494-47b22a2ae96a"
+RV-1004,,Used,Fifth Wheel,2020,Grand Design,Reflection,303RLS,Pending,,41995,Tan,34.5,4,3,,,"Rear-living fifth wheel with three slides and a residential fridge.",

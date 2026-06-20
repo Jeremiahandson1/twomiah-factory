@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url'
 
 import adminRoutes from './routes/admin.ts'
 import { startSchedule as startBackups } from './services/autoBackup.ts'
+import { startSchedule as startInventorySync } from './services/inventoryImport.ts'
 import { rebuildMiddleware } from './services/rebuild-middleware.ts'
 import appPaths from './config/paths.ts'
 
@@ -357,6 +358,51 @@ app.get('/services/:slug', (c) => {
   })
 })
 
+// ─── Inventory (units) — reads data/inventory.json (kept fresh by the DMS importer) ──
+app.get('/inventory', (c) => {
+  const all = (loadJSON('inventory.json') || []).filter((u: any) => u && u.status !== 'sold')
+  const q = c.req.query()
+  const lc = (v: any) => String(v ?? '').toLowerCase()
+  const priceOf = (u: any) => Number(u.internetPrice || u.listedPrice || u.msrp || 0)
+  let units = all
+  if (q.category) units = units.filter((u: any) => lc(u.category) === lc(q.category))
+  if (q.condition) units = units.filter((u: any) => lc(u.condition) === lc(q.condition))
+  if (q.make) units = units.filter((u: any) => lc(u.make) === lc(q.make))
+  if (q.year) units = units.filter((u: any) => String(u.year) === String(q.year))
+  if (q.minPrice) units = units.filter((u: any) => priceOf(u) >= Number(q.minPrice))
+  if (q.maxPrice) units = units.filter((u: any) => priceOf(u) <= Number(q.maxPrice))
+  if (q.search) { const s = lc(q.search); units = units.filter((u: any) => lc([u.year, u.make, u.modelName, u.trim, u.stockNumber, u.description].join(' ')).includes(s)) }
+  const facet = (f: string) => Array.from(new Set(all.map((u: any) => u[f]).filter(Boolean))).sort()
+  return renderPage(c, 'inventory-list', {
+    units, total: units.length, query: q,
+    makes: facet('make'), categories: facet('category'), conditions: facet('condition'),
+    title: 'Inventory | {{COMPANY_NAME}}',
+    description: 'Browse new & used RVs, ATVs, UTVs and boats in stock at {{COMPANY_NAME}} in {{CITY}}, {{STATE}}.',
+    canonicalUrl: BASE_URL + '/inventory',
+  })
+})
+
+app.get('/inventory/:stock', (c) => {
+  const stock = c.req.param('stock')
+  const all = loadJSON('inventory.json') || []
+  const unit = all.find((u: any) => String(u.id) === stock || String(u.stockNumber) === stock || String(u.vin) === stock)
+  if (!unit) return c.redirect('/inventory', 302)
+  const title = [unit.year, unit.make, unit.modelName, unit.trim].filter(Boolean).join(' ')
+  return renderPage(c, 'inventory-detail', {
+    unit,
+    relatedUnits: all.filter((u: any) => u.category === unit.category && u.id !== unit.id && u.status !== 'sold').slice(0, 3),
+    title: (title || 'Unit') + ' | {{COMPANY_NAME}}',
+    description: String(unit.description || title).slice(0, 300),
+    canonicalUrl: BASE_URL + '/inventory/' + (unit.stockNumber || unit.id),
+  })
+})
+
+// Public JSON feed for ads / external consumers
+app.get('/api/inventory', (c) => {
+  const all = (loadJSON('inventory.json') || []).filter((u: any) => u && (u.status === 'available' || u.status === 'pending'))
+  return c.json({ count: all.length, units: all })
+})
+
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
@@ -522,6 +568,7 @@ Mode: Server-rendered (EJS) + CMS Admin
   `)
 
   startBackups()
+  startInventorySync()
   // One-shot persistent-disk migrations (3.11) — flag-file-gated so they
   // only fire on first boot after a deploy that adds them. Deferred so a
   // slow migration doesn't delay the health check.

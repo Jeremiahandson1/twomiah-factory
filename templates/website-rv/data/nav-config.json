@@ -3,11 +3,12 @@
     {
       "id": "inventory",
       "label": "Inventory",
-      "href": "/contact",
+      "href": "/inventory",
       "visible": true,
       "children": [
-        { "label": "New RVs & Powersports", "href": "/services/new-sales" },
-        { "label": "Pre-Owned & Consignment", "href": "/services/pre-owned" },
+        { "label": "All Inventory", "href": "/inventory" },
+        { "label": "New RVs & Powersports", "href": "/inventory?condition=new" },
+        { "label": "Pre-Owned & Consignment", "href": "/inventory?condition=used" },
         { "label": "Request a Unit", "href": "/contact" }
       ]
     },
