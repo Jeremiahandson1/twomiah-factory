@@ -183,6 +183,50 @@ export async function pushToGitHub(repoFullName: string, extractDir: string) {
   return { success: true }
 }
 
+// Additive push for flip / CRM add-on: the repo already exists and is SHARED
+// with the live website service. Instead of force-pushing (which would wipe
+// website/), clone the existing repo and drop the generated crm-* dir in next
+// to it, then commit + push. Leaves website/ and all other top-level files
+// untouched.
+export async function pushAdditiveCrmToGitHub(repoFullName: string, extractDir: string) {
+  const token = process.env.GITHUB_TOKEN
+  const extraHeader = 'Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64')
+
+  const crmDir = fs.readdirSync(extractDir).find(
+    (d) => /^crm/.test(d) && fs.statSync(path.join(extractDir, d)).isDirectory()
+  )
+  if (!crmDir) throw new Error('Additive CRM push: no crm-* dir found in ' + extractDir)
+
+  const cloneDir = path.join(path.dirname(extractDir), 'additive-clone-' + Date.now())
+  const gitEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' } as Record<string, string>
+
+  const clone = spawnSync('git', ['-c', 'http.extraHeader=' + extraHeader, 'clone', '--depth', '1', 'https://github.com/' + repoFullName + '.git', cloneDir], { stdio: ['pipe', 'pipe', 'pipe'], env: gitEnv })
+  if (clone.status !== 0) throw new Error('Additive clone failed: ' + (clone.stderr?.toString() || ''))
+
+  // Replace the crm dir if a previous flip already added it (idempotent re-run).
+  const dst = path.join(cloneDir, crmDir)
+  fs.rmSync(dst, { recursive: true, force: true })
+  fs.cpSync(path.join(extractDir, crmDir), dst, { recursive: true })
+
+  const cmds: string[][] = [
+    ['git', 'config', 'user.email', 'factory@twomiah.app'],
+    ['git', 'config', 'user.name', 'Twomiah Factory'],
+    ['git', 'add', '-A'],
+    ['git', 'commit', '-m', 'Add ' + crmDir + ' (flip to CRM)'],
+    ['git', '-c', 'http.extraHeader=' + extraHeader, 'push', 'origin', 'HEAD:main'],
+  ]
+  for (const [cmd, ...args] of cmds) {
+    const r = spawnSync(cmd, args, { cwd: cloneDir, stdio: ['pipe', 'pipe', 'pipe'], env: gitEnv })
+    if (r.status !== 0) {
+      const stderr = r.stderr?.toString() || ''
+      if (args.includes('commit') && /nothing to commit/.test(stderr)) continue // identical re-flip
+      throw new Error('Additive git failed: ' + cmd + ' ' + args.join(' ') + '\n' + stderr)
+    }
+  }
+  try { fs.rmSync(cloneDir, { recursive: true, force: true }) } catch {}
+  return { success: true, crmDir }
+}
+
 async function rollbackResources(resources: Array<{ type: 'repo' | 'service' | 'database' | 'supabase_project' | 'r2_bucket' | 'vision_tenant'; id: string; name?: string }>) {
   for (const resource of resources.reverse()) {
     try {
@@ -705,9 +749,9 @@ export async function deployCustomer(
     products?: string[]; config?: any; planId?: string
   },
   zipPath: string,
-  options: { region?: string; plan?: string; dbPlan?: string; products?: string[] } = {}
+  options: { region?: string; plan?: string; dbPlan?: string; products?: string[]; additiveCrm?: boolean } = {}
 ): Promise<DeployResult> {
-  const { region = 'ohio', plan = 'starter', dbPlan = 'basic_256mb', products = factoryCustomer.products || ['crm'] } = options
+  const { region = 'ohio', plan = 'starter', dbPlan = 'basic_256mb', products = factoryCustomer.products || ['crm'], additiveCrm = false } = options
   const slug = factoryCustomer.slug
   let ind = factoryCustomer.industry || factoryCustomer.config?.company?.industry || ''
   // Resolve to a vertical via the central routing map. Any string that
@@ -747,15 +791,26 @@ export async function deployCustomer(
     // Step 2: GitHub repo
     const org = process.env.GITHUB_ORG || process.env.GITHUB_USER
     if (!org) throw new Error('GITHUB_ORG or GITHUB_USER must be set')
-    await deleteGitHubRepo(org + '/' + slug)
-    const repo = await createGitHubRepo(slug, 'Twomiah Factory: ' + (factoryCustomer.name || slug))
-    createdResources.push({ type: 'repo', id: org + '/' + slug, name: repo.full_name })
-    results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name })
-    results.repoUrl = 'https://github.com/' + repo.full_name
-
-    // Step 3: Push code
-    await pushToGitHub(repo.full_name, extractDir)
-    results.steps.push({ step: 'github_push', status: 'ok' })
+    let repo: { full_name: string }
+    if (additiveCrm) {
+      // Flip / CRM add-on: the repo already exists and is SHARED with the live
+      // website service. Don't delete/recreate it (would wipe website/) and
+      // don't register it for rollback (a failed deploy must never delete the
+      // shared repo). Just add the generated crm-* dir next to website/.
+      repo = { full_name: org + '/' + slug }
+      results.repoUrl = 'https://github.com/' + repo.full_name
+      results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name })
+      await pushAdditiveCrmToGitHub(repo.full_name, extractDir)
+      results.steps.push({ step: 'github_push', status: 'ok' })
+    } else {
+      await deleteGitHubRepo(org + '/' + slug)
+      repo = await createGitHubRepo(slug, 'Twomiah Factory: ' + (factoryCustomer.name || slug))
+      createdResources.push({ type: 'repo', id: org + '/' + slug, name: repo.full_name })
+      results.steps.push({ step: 'github_repo', status: 'ok', repo: repo.full_name })
+      results.repoUrl = 'https://github.com/' + repo.full_name
+      await pushToGitHub(repo.full_name, extractDir)
+      results.steps.push({ step: 'github_push', status: 'ok' })
+    }
 
     // Use the Twomiah project environment so services appear grouped in the Render dashboard.
     // We assign services after creation via PATCH (avoids random name suffixes from project-scoped creation).

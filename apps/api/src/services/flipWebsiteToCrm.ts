@@ -16,15 +16,10 @@
  *     /api/internal/seed-units (X-Factory-Key).
  *  5. Record products += 'crm' and the CRM/DB URLs on the tenant.
  *
- *  ⚠️ KNOWN LIMITATION (verified live 2026-06-20 — deploy + seed + tenant update
- *  all worked end-to-end): deployCustomer recreates the tenant's slug-named
- *  GitHub repo for the CRM, which CLOBBERS the website code in that SAME repo.
- *  The website keeps serving on its running container but would fail a future
- *  redeploy. Before this is safe for a live customer, the CRM must deploy to a
- *  separate repo (e.g. slug + '-crm'), or the repo must be regenerated with
- *  BOTH website/ + crm-rv/. Until then, treat flip-to-crm as deploy-once and do
- *  not redeploy the website afterward. (Same deployCustomer behavior underlies
- *  crmAddonProvision, so the premium addon path likely shares this caveat.)
+ *  Repo safety: deploys with deployCustomer({ additiveCrm: true }) so the CRM is
+ *  ADDED to the tenant's existing shared repo (clone → drop in crm-rv/ → push)
+ *  instead of recreating it. The website's code, service, and persistent disk
+ *  are left untouched. (crmAddonProvision uses the same additive flag.)
  */
 const inFlight = new Set<string>()
 
@@ -116,7 +111,7 @@ async function doFlip(tenantId: string): Promise<{ success: boolean; crmUrl?: st
   const result = await deployCustomer(
     { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: ['crm'], config } as any,
     zip.zipPath,
-    { products: ['crm'] } as any
+    { products: ['crm'], additiveCrm: true } as any
   )
   if (!result.apiUrl) throw new Error('CRM deploy failed: ' + result.status + ' ' + JSON.stringify(result.errors))
   console.log('[Flip] CRM deployed:', result.apiUrl)

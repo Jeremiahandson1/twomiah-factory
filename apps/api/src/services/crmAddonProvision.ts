@@ -124,7 +124,7 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
   const result = await deployCustomer(
     { id: tenant.id, slug: tenant.slug, name: tenant.name, industry: tenant.industry, products: ['crm'], config } as any,
     zip.zipPath,
-    { products: ['crm'] } as any
+    { products: ['crm'], additiveCrm: true } as any
   )
   if (!result.apiUrl) throw new Error('CRM deploy failed: ' + result.status + ' ' + JSON.stringify(result.errors))
   console.log('[CrmAddon] CRM deployed:', result.apiUrl)
