@@ -1,0 +1,74 @@
+{
+  "items": [
+    {
+      "id": "inventory",
+      "label": "Inventory",
+      "href": "/contact",
+      "visible": true,
+      "children": [
+        { "label": "New RVs & Powersports", "href": "/services/new-sales" },
+        { "label": "Pre-Owned & Consignment", "href": "/services/pre-owned" },
+        { "label": "Request a Unit", "href": "/contact" }
+      ]
+    },
+    {
+      "id": "new-sales",
+      "label": "Sales",
+      "href": "/services/new-sales",
+      "visible": true,
+      "children": [
+        { "label": "New RV & Powersports Sales", "href": "/services/new-sales" },
+        { "label": "Pre-Owned & Consignment", "href": "/services/pre-owned" },
+        { "label": "Trade-In Appraisal", "href": "/services/trade-in" }
+      ]
+    },
+    {
+      "id": "service-repair",
+      "label": "Service",
+      "href": "/services/service-repair",
+      "visible": true,
+      "children": [
+        { "label": "Service & Repair", "href": "/services/service-repair" },
+        { "label": "Parts & Accessories", "href": "/services/parts-accessories" }
+      ]
+    },
+    {
+      "id": "financing",
+      "label": "Financing",
+      "href": "/services/financing",
+      "visible": true,
+      "children": [
+        { "label": "Get Pre-Qualified", "href": "/contact" },
+        { "label": "GAP & Protection Plans", "href": "/services/financing" }
+      ]
+    },
+    {
+      "id": "gallery",
+      "label": "Gallery",
+      "href": "/gallery",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "about",
+      "label": "About",
+      "href": "/about",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "blog",
+      "label": "Blog",
+      "href": "/blog",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "href": "/contact",
+      "visible": true,
+      "children": []
+    }
+  ]
+}

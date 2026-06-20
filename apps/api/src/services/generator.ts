@@ -229,6 +229,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       else if (industry === 'landscaping') websiteTemplate = 'website-landscaping'
       else if (SHOWCASE_INDUSTRIES.has(industry)) websiteTemplate = 'website-showcase'
       else if (verticalFor(industry) === 'veterinary') websiteTemplate = 'website-vet'
+      else if (verticalFor(industry) === 'rv') websiteTemplate = 'website-rv'
       else if (industry && industry !== 'other') websiteTemplate = 'website-contractor'
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)

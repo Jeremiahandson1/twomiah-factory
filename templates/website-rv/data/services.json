@@ -1,0 +1,159 @@
+[
+  {
+    "id": "new-sales",
+    "name": "New RV & Powersports Sales",
+    "title": "New RV & Powersports Sales",
+    "slug": "new-sales",
+    "shortDescription": "Browse new motorhomes, travel trailers, ATVs, UTVs, motorcycles, and boats from the brands adventurers trust.",
+    "description": "{{COMPANY_NAME}} carries one of the largest selections of new RVs and powersports in {{SERVICE_REGION}}. From Class A and Class C motorhomes to lightweight travel trailers, fifth wheels, side-by-sides, ATVs, motorcycles, and boats, our team helps you find the right unit for the way you ride. Tell us how you camp, tow, or trail-ride and we'll match you with units that fit your budget, your tow vehicle, and your next adventure.",
+    "icon": "🚐",
+    "image": "",
+    "features": [
+      "Class A, Class C, and towable RVs from top manufacturers",
+      "ATVs, UTVs, and side-by-sides for work and trail",
+      "Motorcycles, boats, and personal watercraft",
+      "Factory-authorized new unit warranties",
+      "We'll locate and order a unit if it's not in stock"
+    ],
+    "links": [
+      { "label": "Motorhomes & Travel Trailers", "href": "/services/new-sales" },
+      { "label": "ATVs & UTVs", "href": "/services/new-sales" },
+      { "label": "Motorcycles", "href": "/services/new-sales" },
+      { "label": "Boats & Watercraft", "href": "/services/new-sales" },
+      { "label": "Request a Unit", "href": "/contact" }
+    ],
+    "seoTitle": "New RV & Powersports Dealer in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Shop new RVs, ATVs, UTVs, motorcycles, and boats in {{CITY}}, {{STATE}}. {{COMPANY_NAME}} is your factory-authorized RV and powersports dealership.",
+    "visible": true,
+    "order": 1
+  },
+  {
+    "id": "pre-owned",
+    "name": "Pre-Owned & Consignment",
+    "title": "Pre-Owned & Consignment",
+    "slug": "pre-owned",
+    "shortDescription": "Quality used RVs and powersports units, every one inspected by our techs. We also sell your unit for you on consignment.",
+    "description": "A great used unit can get you on the road for less. Every pre-owned RV, ATV, UTV, motorcycle, and boat at {{COMPANY_NAME}} goes through a multi-point inspection by our certified service team before it hits the lot, so you know exactly what you're buying. Ready to move on from your current rig? Our consignment program lets you sell your unit through our dealership and reach far more buyers than a yard sign ever will.",
+    "icon": "🏷️",
+    "image": "",
+    "features": [
+      "Multi-point inspected pre-owned RVs and powersports",
+      "Detailed unit history and condition reports",
+      "Consignment selling handled start to finish",
+      "Competitive used-unit pricing in {{SERVICE_REGION}}",
+      "Financing available on qualifying pre-owned units"
+    ],
+    "links": [
+      { "label": "Browse Pre-Owned", "href": "/contact" },
+      { "label": "Sell on Consignment", "href": "/services/pre-owned" },
+      { "label": "Inspected Used Units", "href": "/services/pre-owned" }
+    ],
+    "seoTitle": "Used RVs & Powersports for Sale in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Inspected pre-owned RVs, ATVs, UTVs, and boats in {{CITY}}, {{STATE}}. Plus consignment selling from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 2
+  },
+  {
+    "id": "service-repair",
+    "name": "Service & Repair",
+    "title": "Service & Repair",
+    "slug": "service-repair",
+    "shortDescription": "Factory-certified technicians for warranty work, repairs, winterization, and recall service on RVs and powersports.",
+    "description": "Owning an RV or powersports unit means keeping it road- and trail-ready. The certified technicians at {{COMPANY_NAME}} handle everything from routine maintenance and warranty repairs to manufacturer recalls and full system diagnostics. We service motorhomes, trailers, ATVs, UTVs, motorcycles, and boats, and we'll get you back out there as fast as we can.",
+    "icon": "🔧",
+    "image": "",
+    "features": [
+      "Factory-certified RV and powersports technicians",
+      "Warranty and manufacturer recall service",
+      "Seasonal winterization and de-winterization",
+      "Engine, electrical, plumbing, and appliance repair",
+      "Roof, slide-out, and tire service"
+    ],
+    "links": [
+      { "label": "Schedule Service", "href": "/contact" },
+      { "label": "Warranty Work", "href": "/services/service-repair" },
+      { "label": "Winterization", "href": "/services/service-repair" }
+    ],
+    "seoTitle": "RV & Powersports Service in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Certified RV and powersports service and repair in {{CITY}}, {{STATE}}. Warranty work, winterization, and recalls at {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 3
+  },
+  {
+    "id": "parts-accessories",
+    "name": "Parts & Accessories",
+    "title": "Parts & Accessories",
+    "slug": "parts-accessories",
+    "shortDescription": "OEM and aftermarket parts, gear, and accessories for your RV and powersports unit, with expert installation available.",
+    "description": "Whether you're upgrading, repairing, or just gearing up for the season, the parts department at {{COMPANY_NAME}} has you covered. We stock OEM and aftermarket parts and accessories for RVs, ATVs, UTVs, motorcycles, and boats, from hitches and awnings to tires, towing gear, and trail accessories. Our team can order whatever we don't have on the shelf and install it for you in the service shop.",
+    "icon": "⚙️",
+    "image": "",
+    "features": [
+      "OEM and aftermarket parts for RVs and powersports",
+      "Hitches, awnings, towing, and trail accessories",
+      "Tires, batteries, and seasonal supplies",
+      "Special-order parts sourced fast",
+      "Professional installation in our service shop"
+    ],
+    "links": [
+      { "label": "Shop Parts", "href": "/contact" },
+      { "label": "Accessories", "href": "/services/parts-accessories" },
+      { "label": "Installation", "href": "/services/parts-accessories" }
+    ],
+    "seoTitle": "RV & Powersports Parts in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "OEM and aftermarket RV and powersports parts and accessories in {{CITY}}, {{STATE}}. Installation available from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 4
+  },
+  {
+    "id": "financing",
+    "name": "Financing & Insurance",
+    "title": "Financing & Insurance (F&I)",
+    "slug": "financing",
+    "shortDescription": "Get pre-qualified with our lenders and protect your purchase with GAP and extended service contracts.",
+    "description": "Buying an RV or powersports unit should be exciting, not stressful. The finance team at {{COMPANY_NAME}} works with a network of lenders to find competitive rates and terms for every credit situation. Get pre-qualified before you shop, and ask about GAP coverage and extended service contracts that protect your investment long after you drive off the lot.",
+    "icon": "💳",
+    "image": "",
+    "features": [
+      "Pre-qualification through multiple lenders",
+      "Financing options for all credit situations",
+      "Competitive rates and flexible terms",
+      "GAP coverage to protect against total loss",
+      "Extended service contracts and protection plans"
+    ],
+    "links": [
+      { "label": "Get Pre-Qualified", "href": "/contact" },
+      { "label": "GAP & Protection", "href": "/services/financing" },
+      { "label": "Extended Warranties", "href": "/services/financing" }
+    ],
+    "seoTitle": "RV & Powersports Financing in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "RV and powersports financing in {{CITY}}, {{STATE}}. Pre-qualification, GAP, and extended service contracts from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 5
+  },
+  {
+    "id": "trade-in",
+    "name": "Trade-In Appraisal",
+    "title": "Trade-In Appraisal",
+    "slug": "trade-in",
+    "shortDescription": "Find out what your current RV or powersports unit is worth and put that value toward your next ride.",
+    "description": "Ready to upgrade? {{COMPANY_NAME}} makes trading in easy. Bring in your current RV, ATV, UTV, motorcycle, or boat and our team will give you a fair, no-pressure appraisal based on real market value. Apply that value directly toward your next unit and let us handle the paperwork, so you spend less time at the dealership and more time on the road.",
+    "icon": "🔁",
+    "image": "",
+    "features": [
+      "Fair, market-based trade-in appraisals",
+      "Trade-ins welcome on any make or model",
+      "Apply your value toward a new or used unit",
+      "We handle the title and paperwork",
+      "Trade and finance in one visit"
+    ],
+    "links": [
+      { "label": "Get a Trade Value", "href": "/contact" },
+      { "label": "Trade & Upgrade", "href": "/services/trade-in" }
+    ],
+    "seoTitle": "RV & Powersports Trade-In in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Get a trade-in value for your RV, ATV, UTV, or boat in {{CITY}}, {{STATE}}. Fair appraisals from {{COMPANY_NAME}}.",
+    "visible": true,
+    "order": 6
+  }
+]

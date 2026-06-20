@@ -1,0 +1,74 @@
+[
+  {
+    "id": "p1",
+    "title": "New Travel Trailer Delivery",
+    "category": "New RV Sales",
+    "description": "A new family-ready travel trailer handed off after a full walk-through and towing demo. Ready for the first trip.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["rv", "travel-trailer"],
+    "createdAt": "2026-01-15T00:00:00Z"
+  },
+  {
+    "id": "p2",
+    "title": "Side-by-Side UTV Build",
+    "category": "Powersports",
+    "description": "A trail-ready side-by-side outfitted with a winch, roof, and upgraded tires in our parts and service shop.",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["utv", "accessories"],
+    "createdAt": "2026-01-10T00:00:00Z"
+  },
+  {
+    "id": "p3",
+    "title": "Pre-Owned Motorhome, Inspected & Sold",
+    "category": "Pre-Owned",
+    "description": "A pre-owned Class C motorhome that passed our multi-point inspection and found a new owner the same week.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["rv", "pre-owned"],
+    "createdAt": "2026-01-05T00:00:00Z"
+  },
+  {
+    "id": "p4",
+    "title": "RV Winterization Service",
+    "category": "Service & Repair",
+    "description": "A full winterization on a fifth wheel — plumbing blown out, lines protected, and ready for cold-weather storage.",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["service", "winterization"],
+    "createdAt": "2025-12-20T00:00:00Z"
+  },
+  {
+    "id": "p5",
+    "title": "New ATV Lineup on the Lot",
+    "category": "Powersports",
+    "description": "Fresh inventory of new ATVs ready for work and trail, prepped and detailed by our team.",
+    "location": "{{NEARBY_CITY_3}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["atv", "new"],
+    "createdAt": "2025-12-15T00:00:00Z"
+  },
+  {
+    "id": "p6",
+    "title": "Boat Trade-In & Upgrade",
+    "category": "Trade-In",
+    "description": "A customer traded in an older boat and upgraded to a newer model — paperwork handled and on the water same day.",
+    "location": "{{CITY}}, {{STATE}}",
+    "featured": true,
+    "images": [],
+    "featured_image": "",
+    "tags": ["boat", "trade-in"],
+    "createdAt": "2025-12-10T00:00:00Z"
+  }
+]

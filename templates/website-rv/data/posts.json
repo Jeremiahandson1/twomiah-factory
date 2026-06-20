@@ -1,0 +1,50 @@
+[
+  {
+    "id": "blog1",
+    "title": "New vs. Used RV: How to Decide What's Right for You",
+    "slug": "new-vs-used-rv-how-to-decide",
+    "excerpt": "Depreciation, warranties, and that new-RV smell — here's an honest look at whether a new or pre-owned unit is the smarter buy for your budget and how you camp.",
+    "content": "Walking onto the lot for the first time, the new-versus-used question is usually the first one to settle. Here's how we help customers think it through:\n\n**1. Budget and depreciation** — Like vehicles, RVs depreciate fastest in the first few years. A clean pre-owned unit lets someone else absorb that initial drop, often getting you more floor plan for the money.\n\n**2. Warranty coverage** — New units carry full factory warranties. On pre-owned, ask about remaining coverage and extended service contracts to protect your investment.\n\n**3. Condition and history** — Every pre-owned RV we sell goes through a multi-point inspection, so you know what you're getting. Buying private-party? Always get it inspected first.\n\n**4. How often you'll use it** — Weekend warriors and first-timers often start with a quality used unit. Full-timers and frequent travelers may prefer the latest features and a fresh warranty.\n\n**5. Floor plan over badge** — The right layout matters more than model year. Come tell us how you camp and we'll show you both new and used units that fit.\n\nStop in and we'll walk you through in-stock options and get you pre-qualified so you know your real budget before you fall in love with a floor plan.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Buying Guide",
+    "tags": ["rv", "buying", "financing"],
+    "seoTitle": "New vs. Used RV: How to Decide | {{COMPANY_NAME}}",
+    "seoDescription": "Should you buy a new or used RV? An honest comparison for {{CITY}} buyers from {{COMPANY_NAME}}. Get pre-qualified today.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-02-15T00:00:00Z",
+    "updatedAt": "2026-02-15T00:00:00Z"
+  },
+  {
+    "id": "blog2",
+    "title": "ATV vs. UTV: Which Off-Road Machine Is Right for You?",
+    "slug": "atv-vs-utv-which-is-right-for-you",
+    "excerpt": "Hauling, hunting, trail riding, or working the property? We break down how ATVs and UTVs (side-by-sides) really compare so you buy the machine you'll actually use.",
+    "content": "ATV or UTV? It's one of the most common questions on our powersports lot. Both are built for off-road, but they shine in different situations.\n\n## ATVs (Quads)\n**Best for:** Solo riders, tight trails, agility\n- Nimble and lightweight on technical terrain\n- Lower entry price than most UTVs\n- Great for hunting access and quick property chores\n- Single rider (most models)\n\n## UTVs / Side-by-Sides\n**Best for:** Passengers, hauling, work\n- Seat two to six with seatbelts and a roll cage\n- Cargo beds for hauling gear, feed, or tools\n- More comfortable for long days and rough ground\n- Easy to accessorize with roofs, winches, and windshields\n\n## How to Choose\nThink about who's riding with you, what you're hauling, and where you'll ride. If it's mostly you on trails, an ATV may be all you need. If you're working a property, hunting with a partner, or want the family along, a UTV earns its keep fast.\n\nCome ride-and-decide on our lot. We'll match you to the right machine and get you set up with the accessories that make it yours.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Powersports",
+    "tags": ["atv", "utv", "comparison"],
+    "seoTitle": "ATV vs UTV: Which Is Right for You? | {{COMPANY_NAME}}",
+    "seoDescription": "Compare ATVs and UTVs for trail, work, and hunting near {{CITY}}, {{STATE}}. Powersports experts at {{COMPANY_NAME}} help you choose.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-02-01T00:00:00Z",
+    "updatedAt": "2026-02-01T00:00:00Z"
+  },
+  {
+    "id": "blog3",
+    "title": "Why RV Winterization Matters (and What Happens If You Skip It)",
+    "slug": "rv-winterization-why-it-matters",
+    "excerpt": "A frozen water line can cost thousands. Here's why winterizing your RV before the cold hits is one of the cheapest ways to protect your investment.",
+    "content": "If you store your RV through the cold months, winterization isn't optional — it's the difference between a smooth spring and an expensive repair. Here's what every owner in {{STATE}} should know.\n\n## What Winterization Actually Does\nWinterizing removes water from your plumbing system and protects it with RV antifreeze so nothing freezes, expands, and cracks while the unit sits.\n\n## What Happens If You Skip It\n- **Burst water lines** behind walls and under floors\n- **Cracked water heater tanks and pumps**\n- **Damaged fittings and valves** that leak when you de-winterize\n- Repairs that often run into the thousands — far more than the service costs\n\n## What's Involved\n1. Draining the fresh, gray, and black tanks\n2. Bypassing and draining the water heater\n3. Blowing out the lines and adding RV antifreeze\n4. Protecting pumps, faucets, and the toilet valve\n\n## Let the Pros Handle It\nOur certified techs winterize RVs, trailers, and boats every season. Book early — fall fills up fast. We'll also de-winterize you in spring so you're road-ready on day one.\n\nSchedule your winterization with {{COMPANY_NAME}} before the first freeze and ride into next season worry-free.",
+    "featuredImage": "",
+    "published": true,
+    "category": "Service & Maintenance",
+    "tags": ["service", "winterization", "rv"],
+    "seoTitle": "Why RV Winterization Matters | {{COMPANY_NAME}}",
+    "seoDescription": "Protect your RV from freeze damage. Winterization service for {{CITY}} owners from the certified techs at {{COMPANY_NAME}}.",
+    "author": "{{OWNER_NAME}}",
+    "createdAt": "2026-01-15T00:00:00Z",
+    "updatedAt": "2026-01-15T00:00:00Z"
+  }
+]

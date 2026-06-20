@@ -1,0 +1,75 @@
+<%
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const phoneRaw = phone.replace(/\D/g, '');
+%>
+
+<div class="service-area-page">
+  <section class="service-hero">
+    <div class="service-hero-content">
+      <div class="container">
+        <h1>Areas We Serve</h1>
+        <p class="hero-tagline">Professional services throughout {{SERVICE_REGION}} and surrounding communities</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="service-content">
+    <div class="container">
+      <div class="area-services-grid" style="margin-top:2rem;">
+        <% if (typeof areas !== 'undefined' && areas.length > 0) { %>
+          <% areas.forEach(function(area) { %>
+            <a href="/service-area/<%= area.slug %>" class="area-service-card">
+              <h3><%= area.name %>, <%= area.state %></h3>
+              <p><%= area.description ? area.description.substring(0, 120) + '...' : 'Professional services available in ' + area.name %></p>
+              <span class="area-service-link">View Services &rarr;</span>
+            </a>
+          <% }); %>
+        <% } else { %>
+          <p>Contact us to learn about our service area coverage.</p>
+        <% } %>
+      </div>
+
+      <div style="text-align:center;margin:3rem 0;">
+        <h2>Don't See Your City?</h2>
+        <p style="color:#6b7280;max-width:500px;margin:0.5rem auto 1.5rem;">We may still serve your area. Give us a call and we'll let you know.</p>
+        <a href="tel:<%= phoneRaw %>" class="btn btn-primary btn-lg"><%= phone %></a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+.area-services-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+.area-service-card {
+  display: block;
+  padding: 1.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.area-service-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.area-service-card h3 {
+  font-size: 1.1rem;
+  margin: 0 0 0.5rem;
+  color: #111827;
+}
+.area-service-card p {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0 0 0.75rem;
+}
+.area-service-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+</style>

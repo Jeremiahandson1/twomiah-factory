@@ -1,0 +1,34 @@
+[
+  {
+    "id": "about-us",
+    "name": "About Us",
+    "description": "Standard about page template",
+    "content": "<h2>Our Story</h2>\n<p>Founded in [YEAR], [COMPANY NAME] has been getting riders and families in the [AREA] community out on the road, the trail, and the water with quality RVs, powersports, and honest service.</p>\n\n<h2>Our Mission</h2>\n<p>We're committed to matching every customer with the right unit at the right payment, then standing behind it with a certified service department and a team that treats you like a neighbor.</p>\n\n<h2>Why Choose Us?</h2>\n<p><strong>Huge Selection</strong> - New and pre-owned RVs, ATVs, UTVs, motorcycles, and boats all in one place</p>\n<p><strong>Certified Service</strong> - Factory-trained technicians keep your unit road- and trail-ready</p>\n<p><strong>Customer Focused</strong> - No pressure, just straight answers and a fair deal</p>\n<p><strong>Financing for All Credit</strong> - Get pre-qualified and ride with confidence</p>",
+    "heroDescription": "Learn about our dealership and our commitment to getting you on the road.",
+    "tagline": "Adventure You Can Trust"
+  },
+  {
+    "id": "faq",
+    "name": "FAQ",
+    "description": "Frequently asked questions template",
+    "content": "<h2>Frequently Asked Questions</h2>\n\n<h3>Can I trade in my current RV or powersports unit?</h3>\n<p>Absolutely. We accept trade-ins on any make or model. Bring it by for a fair, no-pressure appraisal and apply that value toward your next unit.</p>\n\n<h3>Do you offer financing?</h3>\n<p>Yes! We work with a network of lenders to find competitive rates for every credit situation. Get pre-qualified before you shop so you know your real budget.</p>\n\n<h3>Are your technicians certified?</h3>\n<p>Yes. Our factory-trained, certified technicians handle warranty work, repairs, winterization, and manufacturer recalls on RVs and powersports.</p>\n\n<h3>Do you service units I didn't buy from you?</h3>\n<p>We do. Our service department welcomes RVs, ATVs, UTVs, motorcycles, and boats regardless of where you purchased them.</p>\n\n<h3>What warranties are available?</h3>\n<p>New units carry full factory warranties, and we offer extended service contracts and GAP coverage to protect your investment. We'll explain every option before you buy.</p>",
+    "heroDescription": "Get answers to common questions about buying, financing, and servicing your unit.",
+    "tagline": "Your Questions Answered"
+  },
+  {
+    "id": "testimonials-page",
+    "name": "Testimonials Page",
+    "description": "Customer reviews and testimonials",
+    "content": "<h2>What Our Customers Say</h2>\n<p>Don't just take our word for it - hear from riders and RV owners throughout the {{SERVICE_REGION}} who have trusted us with their purchase, service, and trade-in.</p>",
+    "heroDescription": "Read reviews from satisfied customers throughout the {{SERVICE_REGION}}.",
+    "tagline": "Customer Reviews"
+  },
+  {
+    "id": "financing",
+    "name": "Financing Options",
+    "description": "Financing information page",
+    "content": "<h2>Flexible Financing Options</h2>\n<p>We believe everyone deserves to get out on the road, trail, or water. That's why we work with a network of lenders to find financing that fits your budget and credit situation.</p>\n\n<h3>Why Finance With Us?</h3>\n<p>Competitive rates, quick pre-qualification, financing for all credit, and protection plans like GAP and extended service contracts to safeguard your investment.</p>\n\n<h3>Get Started Today</h3>\n<p>Contact us to get pre-qualified and find out exactly what you can ride home today.</p>",
+    "heroDescription": "Affordable payment options to get you on the road, trail, or water.",
+    "tagline": "Get Pre-Qualified"
+  }
+]

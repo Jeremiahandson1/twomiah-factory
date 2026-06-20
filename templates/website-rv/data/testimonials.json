@@ -1,0 +1,52 @@
+[
+  {
+    "id": "t1",
+    "name": "Dave & Pam W.",
+    "role": "RV Owners",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "We bought our first travel trailer from {{COMPANY_NAME}} and they walked us through everything — towing, hookups, even a full demo before we drove off. No pressure, just honest help. We've already taken it on three trips and couldn't be happier.",
+    "rating": 5,
+    "service": "New RV Sales",
+    "visible": true
+  },
+  {
+    "id": "t2",
+    "name": "Sarah K.",
+    "role": "UTV Owner",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "text": "I had my side-by-side serviced here before hunting season and the techs caught a couple things I never would have noticed. It runs better than the day I bought it. The service department is the reason I keep coming back.",
+    "rating": 5,
+    "service": "Service & Repair",
+    "visible": true
+  },
+  {
+    "id": "t3",
+    "name": "Mike R.",
+    "role": "Motorcycle Buyer",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "I was sure my credit would be a problem, but the finance team at {{COMPANY_NAME}} got me pre-qualified and into a bike the same weekend. They were straight with me about the numbers the whole way through. Easiest dealership experience I've had.",
+    "rating": 5,
+    "service": "Financing",
+    "visible": true
+  },
+  {
+    "id": "t4",
+    "name": "Tom & Linda H.",
+    "role": "RV Owners",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "text": "We traded in our old motorhome and upgraded to a newer model. The trade value they gave us was more than fair and they handled all the paperwork. We were on the road in our new rig the same day. Highly recommend.",
+    "rating": 5,
+    "service": "Trade-In",
+    "visible": true
+  },
+  {
+    "id": "t5",
+    "name": "Chris B.",
+    "role": "Boat Owner",
+    "location": "{{NEARBY_CITY_3}}, {{STATE}}",
+    "text": "Bought a pre-owned boat here and it had clearly been gone through top to bottom by their shop. They showed me the inspection report and answered every question. Two seasons in and it still runs perfect. These folks know their stuff.",
+    "rating": 5,
+    "service": "Pre-Owned",
+    "visible": true
+  }
+]

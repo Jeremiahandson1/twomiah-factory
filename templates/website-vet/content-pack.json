@@ -1,7 +1,6 @@
 {
   "vertical": "veterinary",
   "tone": "Warm, reassuring, and expert. We speak to pet parents who love their animals like family and want the very best care for them. Every word should feel like it comes from a team that genuinely loves animals — never clinical or corporate. The guiding principle: 'We treat your pet the way we'd treat our own.' Acknowledge the worry pet owners feel when their companion is sick or facing surgery, then give them confidence and calm. Be knowledgeable but never intimidating. Make complex veterinary medicine easy to understand. Celebrate the bond between people and their pets.",
-
   "trustBadges": [
     {
       "id": "aaha_accredited",
@@ -28,7 +27,6 @@
       "description": "We use gentle, low-stress handling techniques to keep visits calm for anxious dogs and cats. A relaxed pet means a more thorough exam and a happier patient — and we never rush your companion."
     }
   ],
-
   "services": [
     {
       "id": "wellness_exams",
@@ -64,7 +62,8 @@
           "question": "What should I bring to my pet's wellness visit?",
           "answer": "Bring any previous medical records if you're a new client, a list of your pet's current food and medications, and a fresh stool sample if you have one. It's also helpful to jot down any questions or changes you've noticed — appetite, energy, drinking, bathroom habits, or behavior. The more we know, the better we can care for your companion."
         }
-      ]
+      ],
+      "icon": "heart"
     },
     {
       "id": "surgery",
@@ -100,7 +99,8 @@
           "question": "How long is the recovery after a spay or neuter?",
           "answer": "Most pets bounce back quickly. After a routine spay or neuter, pets typically need 10 to 14 days of restricted activity to let the incision heal, plus an e-collar to prevent licking. We'll give you detailed at-home instructions and a recovery timeline, and we're always available if you have questions during the healing period."
         }
-      ]
+      ],
+      "icon": "activity"
     },
     {
       "id": "dental_care",
@@ -136,7 +136,8 @@
           "question": "Can I just brush my pet's teeth at home instead?",
           "answer": "At-home brushing is fantastic and we strongly encourage it — it's one of the best things you can do between visits. But brushing only addresses the surface of the teeth and can't remove tartar that's already formed or treat disease below the gumline. Think of it like your own dental care: daily brushing plus professional cleanings is the winning combination."
         }
-      ]
+      ],
+      "icon": "smile"
     },
     {
       "id": "vaccinations",
@@ -172,7 +173,8 @@
           "question": "Why is heartworm prevention so important?",
           "answer": "Heartworm disease is transmitted by mosquitoes and can be fatal if untreated — and treatment, when it's even possible, is expensive and hard on your pet. Prevention, on the other hand, is simple, safe, and affordable: a monthly chewable or a long-acting injection. We recommend year-round heartworm prevention along with an annual test to keep your pet protected."
         }
-      ]
+      ],
+      "icon": "shield"
     },
     {
       "id": "emergency_care",
@@ -208,7 +210,8 @@
           "question": "My pet ate something they shouldn't have — what do I do?",
           "answer": "Call us immediately, and don't try to induce vomiting unless a veterinarian tells you to — with some substances that can cause more harm. Have the packaging or a description of what they ate ready so we can assess the danger. Many common household items, foods, plants, and medications are toxic to pets, and fast action makes a huge difference in the outcome."
         }
-      ]
+      ],
+      "icon": "alert-triangle"
     },
     {
       "id": "internal_medicine",
@@ -244,10 +247,10 @@
           "question": "How quickly can I get diagnostic results?",
           "answer": "Because we have an in-house laboratory and imaging, many results are available the same day — and often within the same visit. That speed is a real advantage when your pet is sick or facing an emergency, because it lets us start the right treatment right away instead of waiting days for an outside lab to report back."
         }
-      ]
+      ],
+      "icon": "microscope"
     }
   ],
-
   "blogTopics": [
     {
       "title": "10 Signs Your Pet May Need to See the Vet",
@@ -449,7 +452,6 @@
       ]
     }
   ],
-
   "faq": [
     {
       "question": "How often should my pet see the veterinarian?",
@@ -484,7 +486,6 @@
       "answer": "Call us immediately. Do not try to make your pet vomit unless a veterinarian instructs you to, since some substances cause more harm coming back up. Have the packaging or a description of what your pet ate ready so we can assess the danger and act fast. Many common foods, plants, household products, and medications are toxic to pets, and quick action can make all the difference in the outcome."
     }
   ],
-
   "testimonialTemplates": [
     {
       "id": "dog_emergency_surgery",

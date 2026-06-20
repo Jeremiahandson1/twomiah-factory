@@ -1,0 +1,429 @@
+{
+  "vertical": "rv",
+  "tone": "Enthusiastic, knowledgeable, and laid-back. We're RV and powersports people who love getting families on the road and riders on the trail. No high-pressure sales tactics, no confusing fine print -- just straight answers from folks who actually camp, ride, and wrench on this stuff ourselves. We treat every customer like a neighbor we'll see at the campground next weekend.",
+  "trustBadges": [
+    {
+      "id": "factory-authorized",
+      "label": "Factory-Authorized Dealer",
+      "sublabel": "Authorized sales and warranty service for the brands we carry",
+      "icon": "shield-check"
+    },
+    {
+      "id": "certified-techs",
+      "label": "Certified Service Techs",
+      "sublabel": "Factory-trained technicians for RV and powersports repair",
+      "icon": "certificate"
+    },
+    {
+      "id": "financing-all-credit",
+      "label": "Financing for All Credit",
+      "sublabel": "Pre-qualification through multiple lenders, all credit welcome",
+      "icon": "badge"
+    },
+    {
+      "id": "locally-owned",
+      "label": "Locally Owned",
+      "sublabel": "Your trusted local RV and powersports dealer since day one",
+      "icon": "map-pin"
+    }
+  ],
+  "services": [
+    {
+      "id": "new-sales",
+      "name": "New RV & Powersports Sales",
+      "slug": "new-sales",
+      "shortDescription": "New motorhomes, travel trailers, ATVs, UTVs, motorcycles, and boats from the brands that get you out there.",
+      "description": "Whether you're chasing your first family camping trip, the perfect trail day, or open water on a Saturday morning, it starts with the right unit. We carry a full lineup of new RVs and powersports -- Class A and Class C motorhomes, travel trailers, fifth wheels, toy haulers, ATVs, side-by-sides, motorcycles, and boats. If it gets you outside and making memories, we probably sell it.\n\nBuying new means you get the latest features, full factory warranties, and a unit that nobody else has put miles on. Our team isn't here to push you into the biggest-ticket item on the lot. We ask how you actually plan to use it -- how many people you're traveling with, what you're towing it with, where you like to ride -- and then we match you to the right floor plan or model. Then we walk you through every system so you drive off knowing how everything works.\n\nWe handle the whole purchase under one roof: trade-in appraisal, financing, accessories, and a full pre-delivery inspection before you ever hit the road. And when it's time for service down the line, the same dealership that sold it to you takes care of it.",
+      "features": [
+        "Class A, Class C, travel trailers, fifth wheels, and toy haulers from leading brands",
+        "ATVs, side-by-sides (UTVs), motorcycles, and personal watercraft",
+        "New and used boats with full rigging and on-water orientation available",
+        "Full factory warranties and factory-authorized warranty service",
+        "Complete pre-delivery inspection and hands-on walkthrough of every system",
+        "Factory ordering available when the exact unit you want isn't on the lot"
+      ],
+      "faq": [
+        {
+          "question": "What size RV should I buy for my family?",
+          "answer": "It depends on how many people are sleeping in it, what you'll tow it with, and where you camp. A half-ton truck or SUV can handle many lightweight travel trailers, while larger fifth wheels and motorhomes need more capability. Come tell us how you camp and we'll match you to a floor plan that actually fits your crew and your tow vehicle -- not just whatever's biggest."
+        },
+        {
+          "question": "Can you order a specific model or color that's not on the lot?",
+          "answer": "In most cases, yes. We can place a factory order for the exact model, floor plan, and options you want. Lead times vary by manufacturer and season, so we'll give you a realistic timeframe up front. If you'd rather not wait, we'll also check whether a comparable unit is available through our dealer network."
+        },
+        {
+          "question": "Does buying new include a walkthrough on how everything works?",
+          "answer": "Absolutely. Before you take delivery, we do a full pre-delivery inspection and then a hands-on orientation covering hookups, slide-outs, the water and electrical systems, appliances, and towing. We want you confident and ready, not parked at the first campground reading the manual by flashlight."
+        }
+      ],
+      "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
+      "seoDescription": "New RVs, ATVs, UTVs, motorcycles, and boats in {{CITY}}, {{STATE}}. {{COMPANY}} is your factory-authorized dealer with full warranties and financing for all credit.",
+      "icon": "🚐"
+    },
+    {
+      "id": "pre-owned",
+      "name": "Pre-Owned & Consignment",
+      "slug": "pre-owned",
+      "shortDescription": "Inspected used RVs and powersports at a value price -- plus consignment selling that puts your unit in front of real buyers.",
+      "description": "A great used unit can get you out on the road or trail for thousands less than buying new, and we make sure every pre-owned RV and powersports unit on our lot has been gone through by our service team before it's listed. We're not in the business of selling somebody else's problems.\n\nEvery used unit gets a multi-point inspection covering the engine or chassis, electrical, plumbing, slide-outs, appliances, tires, and overall condition. We document what we find and address what needs addressing, so when you buy pre-owned from us, you know what you're getting. Many of our used units still carry remaining factory warranty or qualify for an extended service contract.\n\nLooking to sell instead? Our consignment program does the heavy lifting for you. We display your RV, ATV, UTV, motorcycle, or boat on our lot and website, field the calls and tire-kickers, handle test rides and walkthroughs, and manage the paperwork and financing for the buyer. You reach far more serious buyers than a yard sign ever will -- and you skip the hassle of strangers showing up at your house.",
+      "features": [
+        "Multi-point inspected pre-owned RVs, ATVs, UTVs, motorcycles, and boats",
+        "Documented inspection and condition reports on every used unit",
+        "Many units with remaining factory warranty or extended service contract eligibility",
+        "Consignment selling that handles marketing, showings, and paperwork for you",
+        "Financing available on qualifying pre-owned units",
+        "Trade-in accepted on the unit you're upgrading from"
+      ],
+      "faq": [
+        {
+          "question": "Are your used units inspected before you sell them?",
+          "answer": "Yes. Every pre-owned unit goes through a multi-point inspection by our service team before it hits the lot. We check the major systems -- engine or chassis, electrical, plumbing, slide-outs, appliances, and tires -- and we'll show you the report. If something needs attention, we address it or disclose it. No surprises."
+        },
+        {
+          "question": "How does selling on consignment work?",
+          "answer": "You bring us your RV or powersports unit, we agree on a target price, and we display and market it on our lot and online. We handle all the calls, showings, test rides, paperwork, and buyer financing. When it sells, you get your agreed amount and we keep a consignment fee. You reach far more buyers than selling privately and skip having strangers come to your home."
+        },
+        {
+          "question": "Can I finance a used RV or powersports unit?",
+          "answer": "Often, yes. We work with lenders who finance qualifying pre-owned units, and our finance team can get you pre-qualified before you shop. Terms depend on the unit's age, condition, and your credit, but we'll lay out your options clearly so you know what your payment looks like before you commit."
+        }
+      ],
+      "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
+      "seoDescription": "Inspected pre-owned RVs and powersports in {{CITY}}, {{STATE}}. {{COMPANY}} also sells your unit on consignment. Quality used inventory and financing available.",
+      "icon": "🏷️"
+    },
+    {
+      "id": "service-repair",
+      "name": "Service & Repair",
+      "slug": "service-repair",
+      "shortDescription": "Factory-certified technicians for warranty work, repairs, winterization, and recalls -- on units we sold and units we didn't.",
+      "description": "An RV or powersports unit is only fun when it runs right. Our service department is staffed by factory-trained, certified technicians who work on RVs, ATVs, side-by-sides, motorcycles, and boats every single day. From routine maintenance to complex repairs, we keep you road-ready and trail-ready.\n\nWe handle warranty repairs as a factory-authorized service center, which means warranty work gets done in-house without you driving hours to another dealer. We also take care of manufacturer recalls, seasonal winterization and de-winterization, appliance and electrical troubleshooting, slide-out and roof repairs, tire and brake service, and engine work. And no -- you don't have to have bought the unit here. We service units regardless of where you purchased them.\n\nWe know your rig is your ticket to the next adventure, so we communicate clearly about what's wrong, what it'll cost, and how long it'll take before we touch a wrench. No mystery charges, no surprise add-ons. Just honest diagnosis and quality work that gets you back out there.",
+      "features": [
+        "Factory-certified technicians for RV and powersports service",
+        "Warranty repairs handled in-house as a factory-authorized service center",
+        "Manufacturer recall service and safety updates",
+        "Seasonal winterization and spring de-winterization",
+        "Engine, electrical, plumbing, slide-out, roof, brake, and tire service",
+        "Service on all makes and models, whether you bought from us or not"
+      ],
+      "faq": [
+        {
+          "question": "Do you service units I didn't buy from you?",
+          "answer": "Yes, definitely. Our service department welcomes RVs, ATVs, UTVs, motorcycles, and boats no matter where you purchased them. Bring it in and our certified techs will take care of it the same way we would for one of our own sales customers."
+        },
+        {
+          "question": "How far ahead do I need to schedule service?",
+          "answer": "It depends on the season. Spring and fall are our busiest times -- everyone's getting ready to camp or winterizing for storage -- so we recommend booking a couple weeks ahead during peak periods. For urgent repairs, call us and we'll do our best to get you in quickly. The sooner you reach out, the sooner we can get you on the schedule."
+        },
+        {
+          "question": "Will you give me an estimate before doing the work?",
+          "answer": "Always. We diagnose the issue, explain what's going on, and give you a clear estimate of parts, labor, and timeline before we start. If we discover something else during the repair, we stop and call you before proceeding. You approve the work and the cost -- no surprise charges on the final invoice."
+        }
+      ],
+      "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
+      "seoDescription": "RV and powersports service and repair in {{CITY}}, {{STATE}}. {{COMPANY}} offers certified techs, warranty work, recalls, and winterization on all makes and models.",
+      "icon": "🔧"
+    },
+    {
+      "id": "parts-accessories",
+      "name": "Parts & Accessories",
+      "slug": "parts-accessories",
+      "shortDescription": "OEM and aftermarket parts, gear, and accessories to fix, upgrade, and personalize your RV or powersports unit.",
+      "description": "Half the fun of owning an RV or powersports unit is making it your own. Our parts and accessories department stocks OEM and aftermarket components and gear for RVs, ATVs, side-by-sides, motorcycles, and boats -- everything from the part that broke to the upgrade that takes your unit to the next level.\n\nWe carry hitches and towing gear, awnings, RV appliances and plumbing components, batteries, tires, winches, light bars, cargo and storage solutions, riding gear, covers, and the maintenance supplies that keep everything running. If we don't have it on the shelf, we'll order it -- usually fast -- through our supplier network.\n\nAnd because we have a full service shop right here, we don't just sell you the part and send you on your way. Our technicians can professionally install accessories, upgrades, and replacement components so they work right and don't void your warranty. Whether you're adding a backup camera to your motorhome or a winch to your side-by-side, we'll get it done right.",
+      "features": [
+        "OEM and aftermarket parts for RVs, ATVs, UTVs, motorcycles, and boats",
+        "Hitches, towing gear, awnings, and RV appliance and plumbing components",
+        "Tires, batteries, winches, light bars, and trail and off-road accessories",
+        "Riding gear, covers, and seasonal maintenance supplies",
+        "Fast special-order sourcing through our supplier network",
+        "Professional installation in our on-site service shop"
+      ],
+      "faq": [
+        {
+          "question": "Can you order a part you don't have in stock?",
+          "answer": "Yes. Our parts team can source OEM and aftermarket parts and accessories through our supplier network, and most items come in quickly. Just tell us your unit's year, make, model, and what you need, and we'll track it down and let you know the cost and timeline."
+        },
+        {
+          "question": "Do you install the accessories you sell?",
+          "answer": "We do. We have a full service shop on-site, so our technicians can professionally install hitches, winches, awnings, electronics, and upgrades. Proper installation keeps everything working correctly and protects your warranty -- a lot of accessories can cause problems if they're wired or mounted wrong."
+        },
+        {
+          "question": "Will aftermarket parts void my factory warranty?",
+          "answer": "Not automatically, but it depends on the part and how it's installed. We'll tell you up front whether an accessory or modification could affect your warranty, and our techs install everything to manufacturer-friendly standards. When in doubt, we steer you toward parts and methods that keep your coverage intact."
+        }
+      ],
+      "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
+      "seoDescription": "RV and powersports parts and accessories in {{CITY}}, {{STATE}}. {{COMPANY}} stocks OEM and aftermarket gear with professional installation available.",
+      "icon": "⚙️"
+    },
+    {
+      "id": "financing",
+      "name": "Financing & Insurance",
+      "slug": "financing",
+      "shortDescription": "Lender pre-qualification, financing for all credit, plus GAP and extended service contracts to protect your purchase.",
+      "description": "Getting financed shouldn't be the stressful part of buying your next RV or powersports unit. Our finance team works with a network of lenders to find competitive rates and terms for every credit situation -- whether your credit is excellent, you're rebuilding, or you're financing your first big purchase. We do the shopping so you don't have to.\n\nThe smart move is to get pre-qualified before you start shopping. It takes just a few minutes, it tells you exactly what you can comfortably afford, and it lets you negotiate from a position of strength when you find the unit you love. There's no obligation, and it doesn't tie you to any particular unit.\n\nWe also help you protect your investment. Ask us about GAP coverage, which protects you if your unit is totaled or stolen and you owe more than it's worth, and extended service contracts that cover repairs after the factory warranty runs out. RVs and powersports units have a lot of systems, and these protections can save you from a big surprise bill down the road. We'll explain every option in plain language so you can decide what makes sense for you.",
+      "features": [
+        "Pre-qualification through a network of lenders before you shop",
+        "Financing options for all credit situations, including first-time buyers",
+        "Competitive rates and flexible terms tailored to your budget",
+        "GAP coverage to protect against total loss or theft",
+        "Extended service contracts that cover repairs beyond the factory warranty",
+        "Clear, plain-language explanation of every option -- no pressure, no fine-print games"
+      ],
+      "faq": [
+        {
+          "question": "Can I get financed if my credit isn't great?",
+          "answer": "Often, yes. We work with multiple lenders, including some who specialize in helping buyers with limited or rebuilding credit. Your rate and terms will reflect your credit situation, but we'll work hard to find you an option that fits your budget. The best first step is to get pre-qualified so we know exactly what we're working with."
+        },
+        {
+          "question": "Does getting pre-qualified obligate me to buy?",
+          "answer": "Not at all. Pre-qualification just tells you what you can afford and what your rate might look like. It takes a few minutes, comes with no obligation, and isn't tied to any specific unit. It simply puts you in a stronger position when you do find the RV or powersports unit you want."
+        },
+        {
+          "question": "What's the difference between GAP coverage and an extended service contract?",
+          "answer": "GAP coverage protects you financially if your unit is totaled or stolen and you owe more on the loan than the unit is worth -- it covers that 'gap.' An extended service contract covers the cost of mechanical repairs after your factory warranty expires. They solve two different problems, and we'll help you decide whether one or both makes sense for your situation."
+        }
+      ],
+      "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
+      "seoDescription": "RV and powersports financing in {{CITY}}, {{STATE}}. {{COMPANY}} offers pre-qualification, financing for all credit, GAP coverage, and extended service contracts.",
+      "icon": "💳"
+    },
+    {
+      "id": "trade-in",
+      "name": "Trade-In Appraisal",
+      "slug": "trade-in",
+      "shortDescription": "Get a fair, no-pressure value for your current RV or powersports unit and put it toward your next adventure.",
+      "description": "Ready to upgrade? Your current RV, ATV, side-by-side, motorcycle, or boat is worth money, and trading it in is the easiest way to put that value to work. Bring it by and our team will give you a fair, market-based appraisal -- no lowball offers, no pressure.\n\nWe base our trade values on real market conditions, the unit's condition and equipment, and current demand. We'll walk through the unit with you, explain how we arrived at the number, and answer any questions. If you decide to trade, that value goes straight toward your next purchase, which can also lower the amount you finance and, in many states, reduce the sales tax you pay.\n\nTrading in with us also means we handle the paperwork. No selling your old unit privately, no fielding calls from strangers, no transferring titles on your own. You drive in with one unit and drive out with the next -- trade, financing, and registration all handled in one visit. It's the simplest path from the rig you have to the one you want.",
+      "features": [
+        "Fair, market-based appraisals on RVs, ATVs, UTVs, motorcycles, and boats",
+        "Trade-ins accepted on any make or model, regardless of where you bought it",
+        "Trade value applied directly toward your new or used unit",
+        "Potential sales tax savings on the difference in many states",
+        "All title, paperwork, and registration handled for you",
+        "Trade, finance, and drive away in a single visit"
+      ],
+      "faq": [
+        {
+          "question": "How do you determine my trade-in value?",
+          "answer": "We base it on real market data, current demand, and the actual condition and equipment of your unit. We'll inspect it, walk you through how we arrived at the number, and give you a fair offer -- no lowball tactics. You're free to take the offer or not; there's no obligation just to get an appraisal."
+        },
+        {
+          "question": "Can I trade in a unit I'm still making payments on?",
+          "answer": "Yes. If you still owe money on your current unit, we can pay off the loan as part of the trade. If your unit is worth more than you owe, that equity goes toward your next purchase. If you owe more than it's worth, we'll explain your options clearly so you can decide what makes sense."
+        },
+        {
+          "question": "Do I have to buy something to get a trade appraisal?",
+          "answer": "No. We're happy to appraise your RV or powersports unit even if you're just exploring your options. Most folks get an appraisal while they shop so they know exactly how much their trade will knock off the price of their next unit, but there's never any obligation."
+        }
+      ],
+      "seoTitle": "{{SERVICE}} in {{CITY}}, {{STATE}} | {{COMPANY}}",
+      "seoDescription": "Trade-in appraisals for RVs and powersports in {{CITY}}, {{STATE}}. {{COMPANY}} offers fair, no-pressure values and applies them toward your next unit.",
+      "icon": "🔁"
+    }
+  ],
+  "blogTopics": [
+    {
+      "title": "New vs. Used RV: An Honest Buyer's Guide to Getting the Most for Your Money",
+      "slug": "new-vs-used-rv-buyers-guide",
+      "category": "Buying Guides",
+      "outline": [
+        {
+          "heading": "The Real Cost Difference: Purchase Price and Depreciation",
+          "description": "How much you save buying used, why RVs depreciate fastest in the first few years, and how to figure out the true cost of ownership instead of just the sticker price."
+        },
+        {
+          "heading": "Warranties, Reliability, and Peace of Mind",
+          "description": "What a full factory warranty on a new unit gets you, how remaining warranty and extended service contracts work on used units, and how a dealer inspection lowers the risk of buying pre-owned."
+        },
+        {
+          "heading": "Features, Floor Plans, and Latest Tech",
+          "description": "When the newest layouts and conveniences are worth the premium, and when a slightly older used floor plan delivers the same experience for thousands less."
+        },
+        {
+          "heading": "How to Inspect a Used RV (and Why Buying From a Dealer Helps)",
+          "description": "What to check for water damage, soft floors, and slide-out issues, and how a dealer's multi-point inspection protects you compared to a private-party sale."
+        },
+        {
+          "heading": "Which Choice Fits Your Budget and How You Camp",
+          "description": "A simple decision framework based on how often you'll use it, how long you plan to keep it, and what monthly payment actually fits your life."
+        }
+      ],
+      "targetWords": 800,
+      "audience": "First-time and upgrading RV buyers trying to decide between a new unit and a quality pre-owned one."
+    },
+    {
+      "title": "ATV vs. UTV: Which Off-Road Machine Is Right for You?",
+      "slug": "atv-vs-utv-which-is-right-for-you",
+      "category": "Powersports",
+      "outline": [
+        {
+          "heading": "The Core Difference: Riding Position and Capacity",
+          "description": "How ATVs (sit-on, one or two riders) compare to UTVs / side-by-sides (sit-in, roll cage, seats two to six) and what that means for how you ride."
+        },
+        {
+          "heading": "Work, Hauling, and Towing Capability",
+          "description": "Why UTVs shine for property work, hunting, and hauling cargo, and where a nimble ATV still has the edge on tight trails and lighter chores."
+        },
+        {
+          "heading": "Trail Riding, Comfort, and Who's Coming Along",
+          "description": "Comparing the experience for solo riders versus families and groups, including comfort on long rides and the safety features of an enclosed cab."
+        },
+        {
+          "heading": "Cost, Accessories, and Maintenance",
+          "description": "Typical price ranges for each, the accessories that matter most (winches, roofs, windshields), and what upkeep looks like over the life of the machine."
+        },
+        {
+          "heading": "Making the Call: Match the Machine to Your Use",
+          "description": "A quick framework based on whether you ride solo or with others, what terrain you cover, and whether you need to haul, hunt, or just have fun."
+        }
+      ],
+      "targetWords": 700,
+      "audience": "Shoppers deciding between an ATV and a side-by-side for trail riding, work, or hunting."
+    },
+    {
+      "title": "Why RV Winterization Matters (and What It Costs You to Skip It)",
+      "slug": "rv-winterization-why-it-matters",
+      "category": "Service & Maintenance",
+      "outline": [
+        {
+          "heading": "What Winterization Actually Does",
+          "description": "How draining the tanks, bypassing the water heater, and adding RV antifreeze protect your plumbing from freezing, expanding, and cracking during storage."
+        },
+        {
+          "heading": "The Damage You're Risking If You Don't",
+          "description": "Burst water lines behind walls, cracked water heater tanks and pumps, and damaged fittings -- and why those repairs cost far more than the service itself."
+        },
+        {
+          "heading": "DIY vs. Letting the Pros Handle It",
+          "description": "What's involved in doing it yourself, the steps that are easy to miss, and why having a certified tech do it gives you peace of mind for storage season."
+        },
+        {
+          "heading": "Timing, Storage Tips, and Spring De-Winterization",
+          "description": "When to winterize before the first hard freeze, how to store your unit to prevent pests and moisture, and what de-winterization involves come spring."
+        }
+      ],
+      "targetWords": 600,
+      "audience": "RV owners storing their unit for the cold months who want to avoid expensive freeze damage."
+    },
+    {
+      "title": "First-Time RV Owner Checklist: What to Know Before Your First Trip",
+      "slug": "first-time-rv-owner-checklist",
+      "category": "Owner Education",
+      "outline": [
+        {
+          "heading": "Know Your Rig: Systems, Hookups, and Weight Limits",
+          "description": "A rundown of the water, electrical, and propane systems, how to handle campground hookups, and why understanding your weight ratings keeps you safe and legal."
+        },
+        {
+          "heading": "Towing and Driving Confidence",
+          "description": "Tips for towing or driving a larger vehicle, including turns, backing into a site, braking distance, and the practice runs worth doing before a real trip."
+        },
+        {
+          "heading": "Packing Smart: The Essentials You'll Actually Need",
+          "description": "A practical packing list covering leveling blocks, hoses, surge protectors, and the small items new owners always forget on the first trip."
+        },
+        {
+          "heading": "Pre-Trip Inspection and Campground Setup",
+          "description": "A simple walkaround checklist before you leave, plus a step-by-step for setting up and breaking down camp without the rookie mistakes."
+        }
+      ],
+      "targetWords": 650,
+      "audience": "New RV owners preparing for their very first camping trip who want to avoid common beginner mistakes."
+    },
+    {
+      "title": "How to Choose the Right Travel Trailer Floor Plan for Your Family",
+      "slug": "choosing-travel-trailer-floor-plan",
+      "category": "Buying Guides",
+      "outline": [
+        {
+          "heading": "Start With Sleeping Capacity and Who's Coming Along",
+          "description": "How to count real sleeping spots versus marketing claims, and how bunkhouse, Murphy bed, and convertible-dinette layouts fit different family sizes."
+        },
+        {
+          "heading": "Match the Trailer to Your Tow Vehicle",
+          "description": "Why dry weight, GVWR, and tongue weight matter, and how to make sure the floor plan you love is actually safe to tow with the vehicle you own."
+        },
+        {
+          "heading": "Living, Cooking, and Storage: How You'll Actually Use the Space",
+          "description": "Walking through kitchen layouts, slide-outs, bathroom configurations, and storage so the trailer works for the way your family camps."
+        },
+        {
+          "heading": "Length, Maneuverability, and Where You'll Camp",
+          "description": "How trailer length affects which campgrounds and sites you can use, and the trade-offs between roomy interiors and easy parking."
+        },
+        {
+          "heading": "Test the Floor Plan in Person Before You Buy",
+          "description": "Why walking through a unit beats studying photos online, and the things to physically check -- headroom, bed length, and traffic flow -- before you commit."
+        }
+      ],
+      "targetWords": 750,
+      "audience": "Families shopping for their first or next travel trailer who want a layout that fits how they really camp and what they tow with."
+    }
+  ],
+  "faq": [
+    {
+      "question": "Do you accept trade-ins?",
+      "answer": "Absolutely. We take trade-ins on RVs, ATVs, side-by-sides, motorcycles, and boats -- any make or model, and it doesn't matter where you bought it. Bring it by for a fair, no-pressure appraisal and we'll apply that value directly toward your next unit. We also handle the title and paperwork, and you can even trade in a unit you still owe money on."
+    },
+    {
+      "question": "Can I get financed, and what if my credit isn't perfect?",
+      "answer": "Yes. We work with a network of lenders to find financing for every credit situation, including first-time buyers and folks who are rebuilding their credit. The best first step is to get pre-qualified -- it only takes a few minutes, comes with no obligation, and tells you exactly what you can comfortably afford before you shop."
+    },
+    {
+      "question": "Do you service units I didn't buy from you?",
+      "answer": "We do. Our certified service department welcomes RVs, ATVs, UTVs, motorcycles, and boats no matter where you purchased them. From routine maintenance to warranty work, recalls, and repairs, our factory-trained technicians take care of all makes and models."
+    },
+    {
+      "question": "What areas do you serve?",
+      "answer": "We serve {{CITY}} and the surrounding communities. Customers regularly travel to us from the wider region for our selection, service, and pricing, so don't worry if you're a bit further out. If you're not sure whether you're close enough, just give us a call and we'll let you know what makes sense."
+    },
+    {
+      "question": "Do you winterize RVs and boats?",
+      "answer": "Yes. Seasonal winterization is one of the most important things you can do to protect your unit, and our certified techs handle it every fall -- draining the tanks, bypassing the water heater, and adding RV antifreeze to keep your plumbing from freezing and cracking. We also de-winterize in the spring so you're ready to roll. Book early, because storage season fills up fast."
+    },
+    {
+      "question": "What protection plans do you offer, like GAP or extended warranties?",
+      "answer": "We offer GAP coverage, which protects you if your unit is totaled or stolen and you owe more than it's worth, and extended service contracts that cover mechanical repairs after the factory warranty expires. RVs and powersports units have a lot of systems, so these plans can save you from a big surprise repair bill. We'll explain every option in plain language so you can decide what's right for you."
+    },
+    {
+      "question": "Can you order a unit that's not currently in stock?",
+      "answer": "In most cases, yes. We can place a factory order for the exact model, floor plan, and options you want, or locate a comparable unit through our dealer network. Lead times vary by manufacturer and season, and we'll give you a realistic timeframe up front so you know what to expect."
+    },
+    {
+      "question": "Can I take a test ride or do a walkthrough before I buy?",
+      "answer": "Of course. We want you confident in your purchase. We'll walk you through any RV's systems and floor plan, and for powersports units we can arrange a chance to see how it handles. Before you take delivery of anything you buy, we do a full pre-delivery inspection and a hands-on orientation so you drive off knowing how everything works."
+    }
+  ],
+  "testimonialTemplates": [
+    {
+      "namePattern": "Mike R.",
+      "service": "New RV & Powersports Sales",
+      "quote": "Bought our first travel trailer here and they never once made us feel rushed. They walked us through towing, hookups, and every system before we left the lot. We've taken it out three times already and couldn't be happier. No pressure, just genuinely helpful people.",
+      "rating": 5
+    },
+    {
+      "namePattern": "Sarah K.",
+      "service": "Service & Repair",
+      "quote": "I had my side-by-side serviced before hunting season and the techs caught a couple of things I never would have noticed. It runs better than the day I bought it. Honestly, the service department is the reason I keep coming back to this dealership.",
+      "rating": 5
+    },
+    {
+      "namePattern": "Tom D.",
+      "service": "Financing & Insurance",
+      "quote": "I was sure my credit was going to be a problem, but the finance team got me pre-qualified and into a bike the same weekend. They were straight with me about the numbers the whole way through. Easiest dealership experience I've ever had.",
+      "rating": 5
+    },
+    {
+      "namePattern": "Jennifer M.",
+      "service": "Trade-In Appraisal",
+      "quote": "We traded in our old motorhome and upgraded to a newer model. The trade value they gave us was more than fair and they handled every bit of the paperwork. We drove in with one rig and out with the next, all in a single afternoon. Highly recommend.",
+      "rating": 5
+    },
+    {
+      "namePattern": "Dave L.",
+      "service": "Pre-Owned & Consignment",
+      "quote": "Bought a pre-owned boat here and you could tell it had been gone through top to bottom by their shop. They showed me the inspection report and answered every question I had. Two seasons in and it still runs perfect. These folks know their stuff.",
+      "rating": 5
+    }
+  ]
+}

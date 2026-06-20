@@ -1,0 +1,108 @@
+{
+  "hero": {
+    "tagline": "YOUR ADVENTURE STARTS HERE",
+    "title": "{{CITY}}'s RV & Powersports Dealership",
+    "subtitle": "New & Used RVs, ATVs, UTVs & Boats",
+    "description": "{{COMPANY_NAME}} is {{SERVICE_REGION}}'s home for new and pre-owned RVs, ATVs, UTVs, motorcycles, and boats. Factory-authorized sales, certified on-site service, and financing for every credit situation.",
+    "image": "",
+    "animation": "ken-burns",
+    "primaryButtonText": "Browse Inventory",
+    "primaryButtonLink": "/contact",
+    "secondaryButtonText": "Get Pre-Qualified",
+    "secondaryButtonLink": "/services/financing"
+  },
+  "trustBadges": [
+    {
+      "id": "authorized",
+      "type": "custom",
+      "label": "Factory-Authorized Dealer",
+      "sublabel": "Selling and servicing the brands you trust",
+      "icon": "shield",
+      "enabled": true
+    },
+    {
+      "id": "certified-techs",
+      "type": "custom",
+      "label": "Certified Service Techs",
+      "sublabel": "Factory-trained, on-site service department",
+      "icon": "check",
+      "enabled": true
+    },
+    {
+      "id": "financing",
+      "type": "custom",
+      "label": "Financing for All Credit",
+      "sublabel": "Get pre-qualified before you shop",
+      "icon": "home",
+      "enabled": true
+    },
+    {
+      "id": "local",
+      "type": "custom",
+      "label": "Trusted in {{CITY}}",
+      "sublabel": "Serving riders across {{SERVICE_REGION}}",
+      "icon": "star",
+      "enabled": true
+    }
+  ],
+  "ctaSection": {
+    "title": "Ready to hit the road?\nYour next adventure is waiting.",
+    "description": "New or used, towable or rideable, we'll help you find the right unit and the right payment. Browse in-stock RVs and powersports or get pre-qualified today.",
+    "primaryButtonText": "Browse Inventory",
+    "primaryButtonLink": "/contact",
+    "secondaryButtonText": "Call {{COMPANY_PHONE}}",
+    "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
+    "backgroundImage": "",
+    "headline": "{{CTA_TEXT}}",
+    "subtext": "Call {{COMPANY_PHONE}} or fill out the form — we respond same day."
+  },
+  "serviceAreas": [
+    "{{CITY}}",
+    "{{NEARBY_CITY_1}}",
+    "{{NEARBY_CITY_2}}",
+    "{{NEARBY_CITY_3}}",
+    "{{NEARBY_CITY_4}}"
+  ],
+  "businessHours": {
+    "monday": {
+      "open": "9:00 AM",
+      "close": "7:00 PM",
+      "closed": false
+    },
+    "tuesday": {
+      "open": "9:00 AM",
+      "close": "7:00 PM",
+      "closed": false
+    },
+    "wednesday": {
+      "open": "9:00 AM",
+      "close": "7:00 PM",
+      "closed": false
+    },
+    "thursday": {
+      "open": "9:00 AM",
+      "close": "7:00 PM",
+      "closed": false
+    },
+    "friday": {
+      "open": "9:00 AM",
+      "close": "7:00 PM",
+      "closed": false
+    },
+    "saturday": {
+      "open": "9:00 AM",
+      "close": "5:00 PM",
+      "closed": false
+    },
+    "sunday": {
+      "open": "Closed",
+      "close": "Closed",
+      "closed": true
+    }
+  },
+  "aboutSection": {
+    "title": "Why Riders Choose {{COMPANY_NAME}}",
+    "text": "{{ABOUT_TEXT}}",
+    "image": ""
+  }
+}
