@@ -1,0 +1,250 @@
+<%
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const phoneRaw = phone.replace(/\D/g, '');
+%>
+
+<style>
+  .fin-page { padding: 0 0 60px; }
+  .fin-calc, .fin-quote { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.06); padding: 26px; max-width: 720px; }
+  .fin-section { margin-top: 40px; }
+  .fin-section h2 { font-size: 1.5rem; color: #1e293b; margin: 0 0 18px; }
+  .fin-calc .form-row, .fin-quote .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .fin-calc .form-group, .fin-quote .form-group { flex: 1; min-width: 150px; margin-bottom: 16px; }
+  .fin-calc label, .fin-quote label { display: block; font-size: .82rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+  .fin-calc input, .fin-calc select, .fin-quote input, .fin-quote select { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; }
+  .fin-calc-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 18px 0 6px; padding: 18px 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+  .fin-calc-result .fin-calc-label { font-size: .9rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .04em; }
+  .fin-calc-result .fin-calc-amount { font-size: 2rem; font-weight: 800; color: var(--accent, #c8963e); line-height: 1; }
+  .fin-calc-result .fin-calc-per { font-size: 1rem; font-weight: 700; color: #64748b; }
+  .fin-disclaimer { font-size: .8rem; color: #94a3b8; line-height: 1.5; margin: 8px 0 18px; }
+  .fin-form-msg { display: none; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 8px; margin-top: 14px; font-size: .95rem; }
+  .fin-form-msg.success { background: #f0fdf4; color: #15803d; }
+  .fin-form-msg.error { background: #fef2f2; color: #dc2626; }
+</style>
+
+<div class="fin-page">
+  <!-- Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <a href="/" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Home
+      </a>
+      <h1>Financing</h1>
+      <p>Estimate your monthly payment and get pre-qualified — financing available for all credit at {{COMPANY_NAME}}.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <!-- Payment Calculator -->
+    <section class="fin-section" id="payment-calculator">
+      <h2>Payment Calculator</h2>
+      <div class="fin-calc">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="calc-price">Vehicle Price ($)</label>
+            <input id="calc-price" type="number" min="0" step="100" value="50000">
+          </div>
+          <div class="form-group">
+            <label for="calc-down">Down Payment ($)</label>
+            <input id="calc-down" type="number" min="0" step="100" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="calc-trade">Trade-In Value ($)</label>
+            <input id="calc-trade" type="number" min="0" step="100" value="0">
+          </div>
+          <div class="form-group">
+            <label for="calc-apr">APR (%)</label>
+            <input id="calc-apr" type="number" min="0" step="0.01" value="8.99">
+          </div>
+          <div class="form-group">
+            <label for="calc-term">Term (months)</label>
+            <select id="calc-term">
+              <option value="36">36</option>
+              <option value="48">48</option>
+              <option value="60">60</option>
+              <option value="72" selected>72</option>
+              <option value="84">84</option>
+              <option value="120">120</option>
+              <option value="180">180</option>
+              <option value="240">240</option>
+            </select>
+          </div>
+        </div>
+        <div class="fin-calc-result">
+          <span class="fin-calc-label">Estimated Payment:</span>
+          <span class="fin-calc-amount" id="calc-payment">$0</span>
+          <span class="fin-calc-per">/mo</span>
+        </div>
+        <p class="fin-disclaimer">Estimate only — not a financing offer. Taxes, title, and fees not included.</p>
+        <a href="#prequal" class="btn btn-primary btn-lg" id="calc-prequal-btn">Get Pre-Qualified</a>
+      </div>
+    </section>
+
+    <!-- Get Pre-Qualified -->
+    <section class="fin-section" id="prequal">
+      <h2>Get Pre-Qualified</h2>
+      <div class="fin-quote">
+        <form id="prequalForm" action="/api/admin/leads" method="POST">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pq-first">First Name *</label>
+              <input id="pq-first" type="text" name="firstName" autocomplete="given-name" required>
+            </div>
+            <div class="form-group">
+              <label for="pq-last">Last Name *</label>
+              <input id="pq-last" type="text" name="lastName" autocomplete="family-name" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pq-email">Email *</label>
+              <input id="pq-email" type="email" name="email" autocomplete="email" required>
+            </div>
+            <div class="form-group">
+              <label for="pq-phone">Phone *</label>
+              <input id="pq-phone" type="tel" name="phone" autocomplete="tel" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pq-income">Annual Income ($)</label>
+              <input id="pq-income" type="number" min="0" step="1000" name="annualIncome">
+            </div>
+            <div class="form-group">
+              <label for="pq-credit">Credit Rating</label>
+              <select id="pq-credit" name="creditRating">
+                <option value="Excellent (720+)">Excellent (720+)</option>
+                <option value="Good (660–719)">Good (660–719)</option>
+                <option value="Fair (600–659)">Fair (600–659)</option>
+                <option value="Rebuilding (under 600)">Rebuilding (under 600)</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" name="unitOfInterest" value="General financing inquiry">
+          <input type="hidden" name="service" value="Financing Pre-Qualification">
+          <input type="hidden" name="leadType" value="financing">
+          <input type="hidden" name="source" value="financing">
+          <button type="submit" class="btn btn-primary btn-lg btn-block">Get Pre-Qualified</button>
+          <p class="fin-disclaimer">This sends a request for our finance team to contact you. It is NOT a credit application and does not affect your credit.</p>
+
+          <div id="prequalSuccess" class="fin-form-msg success">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <span><strong>Thank you!</strong> Our finance team will reach out within 24 hours.</span>
+          </div>
+          <div id="prequalError" class="fin-form-msg error">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span>Something went wrong. Please try calling us directly at <%= phone %>.</span>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// Payment calculator — live recompute
+(function() {
+  var priceEl = document.getElementById('calc-price');
+  if (!priceEl) return;
+  var downEl = document.getElementById('calc-down');
+  var tradeEl = document.getElementById('calc-trade');
+  var aprEl = document.getElementById('calc-apr');
+  var termEl = document.getElementById('calc-term');
+  var out = document.getElementById('calc-payment');
+
+  function num(el) { var v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
+
+  function recompute() {
+    var price = num(priceEl);
+    var down = num(downEl);
+    var trade = num(tradeEl);
+    var apr = num(aprEl);
+    var term = parseInt(termEl.value, 10) || 0;
+
+    var principal = Math.max(0, price - down - trade);
+    var r = (apr / 100) / 12;
+    var n = term;
+    var monthly = r > 0 ? principal * r / (1 - Math.pow(1 + r, -n)) : (n > 0 ? principal / n : 0);
+
+    var rounded = Math.round(monthly);
+    out.textContent = '$' + rounded.toLocaleString('en-US');
+  }
+
+  [priceEl, downEl, tradeEl, aprEl, termEl].forEach(function(el) {
+    el.addEventListener('input', recompute);
+    el.addEventListener('change', recompute);
+  });
+
+  var prequalBtn = document.getElementById('calc-prequal-btn');
+  if (prequalBtn) {
+    prequalBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var target = document.getElementById('prequal');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  recompute();
+})();
+
+// Pre-qualification form submit
+(function() {
+  var form = document.getElementById('prequalForm');
+  if (!form) return;
+  var successDiv = document.getElementById('prequalSuccess');
+  var errorDiv = document.getElementById('prequalError');
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    var submitBtn = form.querySelector('button[type="submit"]');
+    var originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending...';
+    successDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+
+    try {
+      var formData = new FormData(form);
+      var data = Object.fromEntries(formData);
+
+      var response = await fetch('/api/admin/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        successDiv.style.display = 'flex';
+        errorDiv.style.display = 'none';
+        form.reset();
+
+        if (typeof window._bpTrack === 'function') {
+          window._bpTrack('generate_lead', { event_category: 'conversion', service_requested: 'financing', contact_method: 'form', value: 1 });
+        }
+        if (typeof fbq !== 'undefined') {
+          fbq('track', 'Lead', { content_name: 'financing' });
+        }
+        if (typeof gtag !== 'undefined' && window._gadsId) {
+          gtag('event', 'conversion', { send_to: window._gadsId });
+        }
+        successDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        throw new Error('Failed to submit');
+      }
+    } catch (err) {
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'flex';
+      errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  });
+})();
+</script>

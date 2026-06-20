@@ -331,6 +331,33 @@ app.get('/', (c) => {
   })
 })
 
+// Dynamic sitemap — includes live inventory units, services, and blog posts so
+// search engines index unit detail pages (replaces the old static sitemap.xml).
+app.get('/sitemap.xml', (c) => {
+  const base = BASE_URL.replace(/\/$/, '')
+  const esc = (u: string) => u.replace(/&/g, '&amp;')
+  const urls: string[] = ['/', '/about', '/contact', '/gallery', '/blog', '/inventory', '/services/financing']
+  const services = (loadJSON('services.json') || []).filter((s: any) => s && s.visible !== false)
+  for (const s of services) if (s.slug) urls.push('/services/' + s.slug)
+  const units = (loadJSON('inventory.json') || []).filter((u: any) => u && u.status !== 'sold')
+  for (const u of units) urls.push('/inventory/' + (u.stockNumber || u.id))
+  const posts = (loadJSON('posts.json') || []).filter((p: any) => p && p.published)
+  for (const p of posts) if (p.slug) urls.push('/blog/' + p.slug)
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    urls.map((u) => '  <url><loc>' + esc(base + u) + '</loc></url>').join('\n') +
+    '\n</urlset>\n'
+  return c.body(xml, 200, { 'Content-Type': 'application/xml' })
+})
+
+// Dedicated financing page (calculator + pre-qual) — must precede /services/:slug
+app.get('/services/financing', (c) => {
+  return renderPage(c, 'financing', {
+    title: 'Financing | {{COMPANY_NAME}}',
+    description: 'Estimate your monthly payment and get pre-qualified for RV & powersports financing at {{COMPANY_NAME}}.',
+    canonicalUrl: BASE_URL + '/services/financing',
+  })
+})
+
 app.get('/services/:slug', (c) => {
   const slug = c.req.param('slug')
   const services = loadJSON('services.json') || []

@@ -52,6 +52,9 @@ const unitOfInterest = [u.year, u.make, u.modelName].filter(Boolean).join(' ') +
 
 // A spec row only renders when the value is present.
 function fmtNum(v) { return Number(v).toLocaleString('en-US'); }
+
+// Prefill price for the payment calculator (internet > listed > msrp).
+const calcPrice = Number(u.internetPrice || u.listedPrice || u.msrp || 0) || 0;
 %>
 
 <style>
@@ -93,6 +96,17 @@ function fmtNum(v) { return Number(v).toLocaleString('en-US'); }
   .ivd-form-msg { display: none; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 8px; margin-top: 14px; font-size: .95rem; }
   .ivd-form-msg.success { background: #f0fdf4; color: #15803d; }
   .ivd-form-msg.error { background: #fef2f2; color: #dc2626; }
+  /* Payment calculator */
+  .ivd-calc { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.06); padding: 26px; max-width: 720px; }
+  .ivd-calc .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .ivd-calc .form-group { flex: 1; min-width: 150px; margin-bottom: 16px; }
+  .ivd-calc label { display: block; font-size: .82rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+  .ivd-calc input, .ivd-calc select { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; }
+  .ivd-calc-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 18px 0 6px; padding: 18px 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; }
+  .ivd-calc-result .ivd-calc-label { font-size: .9rem; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .04em; }
+  .ivd-calc-result .ivd-calc-amount { font-size: 2rem; font-weight: 800; color: var(--accent, #c8963e); line-height: 1; }
+  .ivd-calc-result .ivd-calc-per { font-size: 1rem; font-weight: 700; color: #64748b; }
+  .ivd-calc-disclaimer { font-size: .8rem; color: #94a3b8; line-height: 1.5; margin: 8px 0 18px; }
   .ivd-related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
   .ivd-mini { display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; transition: box-shadow .2s, transform .2s; }
   .ivd-mini:hover { box-shadow: 0 14px 30px rgba(0,0,0,.12); transform: translateY(-2px); }
@@ -209,6 +223,185 @@ function fmtNum(v) { return Number(v).toLocaleString('en-US'); }
         <% } %>
       </section>
     <% } %>
+
+    <!-- Payment Calculator -->
+    <section class="ivd-section" id="payment-calculator">
+      <h2>Payment Calculator</h2>
+      <div class="ivd-calc">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="calc-price">Vehicle Price ($)</label>
+            <input id="calc-price" type="number" min="0" step="100" value="<%= calcPrice %>">
+          </div>
+          <div class="form-group">
+            <label for="calc-down">Down Payment ($)</label>
+            <input id="calc-down" type="number" min="0" step="100" value="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="calc-trade">Trade-In Value ($)</label>
+            <input id="calc-trade" type="number" min="0" step="100" value="0">
+          </div>
+          <div class="form-group">
+            <label for="calc-apr">APR (%)</label>
+            <input id="calc-apr" type="number" min="0" step="0.01" value="8.99">
+          </div>
+          <div class="form-group">
+            <label for="calc-term">Term (months)</label>
+            <select id="calc-term">
+              <option value="36">36</option>
+              <option value="48">48</option>
+              <option value="60">60</option>
+              <option value="72" selected>72</option>
+              <option value="84">84</option>
+              <option value="120">120</option>
+              <option value="180">180</option>
+              <option value="240">240</option>
+            </select>
+          </div>
+        </div>
+        <div class="ivd-calc-result">
+          <span class="ivd-calc-label">Estimated Payment:</span>
+          <span class="ivd-calc-amount" id="calc-payment">$0</span>
+          <span class="ivd-calc-per">/mo</span>
+        </div>
+        <p class="ivd-calc-disclaimer">Estimate only — not a financing offer. Taxes, title, and fees not included.</p>
+        <a href="#prequal" class="btn btn-primary btn-lg" id="calc-prequal-btn">Get Pre-Qualified</a>
+      </div>
+    </section>
+
+    <!-- Get Pre-Qualified -->
+    <section class="ivd-section" id="prequal">
+      <h2>Get Pre-Qualified</h2>
+      <div class="ivd-quote">
+        <form id="prequalForm" action="/api/admin/leads" method="POST">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pq-first">First Name *</label>
+              <input id="pq-first" type="text" name="firstName" autocomplete="given-name" required>
+            </div>
+            <div class="form-group">
+              <label for="pq-last">Last Name *</label>
+              <input id="pq-last" type="text" name="lastName" autocomplete="family-name" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pq-email">Email *</label>
+              <input id="pq-email" type="email" name="email" autocomplete="email" required>
+            </div>
+            <div class="form-group">
+              <label for="pq-phone">Phone *</label>
+              <input id="pq-phone" type="tel" name="phone" autocomplete="tel" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pq-income">Annual Income ($)</label>
+              <input id="pq-income" type="number" min="0" step="1000" name="annualIncome">
+            </div>
+            <div class="form-group">
+              <label for="pq-credit">Credit Rating</label>
+              <select id="pq-credit" name="creditRating">
+                <option value="Excellent (720+)">Excellent (720+)</option>
+                <option value="Good (660–719)">Good (660–719)</option>
+                <option value="Fair (600–659)">Fair (600–659)</option>
+                <option value="Rebuilding (under 600)">Rebuilding (under 600)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="pq-unit">Unit of Interest</label>
+            <input id="pq-unit" type="text" name="unitOfInterest" value="<%= unitOfInterest %>" readonly>
+          </div>
+          <input type="hidden" name="service" value="Financing Pre-Qualification">
+          <input type="hidden" name="leadType" value="financing">
+          <input type="hidden" name="source" value="inventory-detail">
+          <button type="submit" class="btn btn-primary btn-lg btn-block">Get Pre-Qualified</button>
+          <p class="ivd-calc-disclaimer">This sends a request for our finance team to contact you. It is NOT a credit application and does not affect your credit.</p>
+
+          <div id="prequalSuccess" class="ivd-form-msg success">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <span><strong>Thank you!</strong> Our finance team will reach out within 24 hours.</span>
+          </div>
+          <div id="prequalError" class="ivd-form-msg error">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span>Something went wrong. Please try calling us directly at <%= phone %>.</span>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Value My Trade -->
+    <section class="ivd-section" id="value-trade">
+      <h2>Value My Trade</h2>
+      <div class="ivd-quote">
+        <form id="tradeForm" action="/api/admin/leads" method="POST">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tr-year">Year *</label>
+              <input id="tr-year" type="text" name="tradeYear" required>
+            </div>
+            <div class="form-group">
+              <label for="tr-make">Make *</label>
+              <input id="tr-make" type="text" name="tradeMake" required>
+            </div>
+            <div class="form-group">
+              <label for="tr-model">Model *</label>
+              <input id="tr-model" type="text" name="tradeModel" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tr-miles">Mileage / Hours *</label>
+              <input id="tr-miles" type="text" name="tradeMileage" required>
+            </div>
+            <div class="form-group">
+              <label for="tr-cond">Condition</label>
+              <select id="tr-cond" name="tradeCondition">
+                <option value="Excellent">Excellent</option>
+                <option value="Good">Good</option>
+                <option value="Fair">Fair</option>
+                <option value="Rough">Rough</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tr-vin">VIN / HIN</label>
+              <input id="tr-vin" type="text" name="tradeVin">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="tr-name">Name *</label>
+              <input id="tr-name" type="text" name="name" autocomplete="name" required>
+            </div>
+            <div class="form-group">
+              <label for="tr-email">Email *</label>
+              <input id="tr-email" type="email" name="email" autocomplete="email" required>
+            </div>
+            <div class="form-group">
+              <label for="tr-phone">Phone *</label>
+              <input id="tr-phone" type="tel" name="phone" autocomplete="tel" required>
+            </div>
+          </div>
+          <input type="hidden" name="unitOfInterest" value="<%= unitOfInterest %>">
+          <input type="hidden" name="service" value="Trade-In Value Request">
+          <input type="hidden" name="leadType" value="trade-in">
+          <input type="hidden" name="source" value="inventory-detail">
+          <button type="submit" class="btn btn-primary btn-lg btn-block">Get My Trade Value</button>
+
+          <div id="tradeSuccess" class="ivd-form-msg success">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <span><strong>Thank you!</strong> We'll review your trade and follow up with a value within 24 hours.</span>
+          </div>
+          <div id="tradeError" class="ivd-form-msg error">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span>Something went wrong. Please try calling us directly at <%= phone %>.</span>
+          </div>
+        </form>
+      </div>
+    </section>
 
     <!-- Request a Quote -->
     <section class="ivd-section" id="request-quote">
@@ -377,5 +570,111 @@ function fmtNum(v) { return Number(v).toLocaleString('en-US'); }
       submitBtn.textContent = originalText;
     }
   });
+})();
+
+// Payment calculator — live recompute
+(function() {
+  var priceEl = document.getElementById('calc-price');
+  if (!priceEl) return;
+  var downEl = document.getElementById('calc-down');
+  var tradeEl = document.getElementById('calc-trade');
+  var aprEl = document.getElementById('calc-apr');
+  var termEl = document.getElementById('calc-term');
+  var out = document.getElementById('calc-payment');
+
+  function num(el) { var v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
+
+  function recompute() {
+    var price = num(priceEl);
+    var down = num(downEl);
+    var trade = num(tradeEl);
+    var apr = num(aprEl);
+    var term = parseInt(termEl.value, 10) || 0;
+
+    var principal = Math.max(0, price - down - trade);
+    var r = (apr / 100) / 12;
+    var n = term;
+    var monthly = r > 0 ? principal * r / (1 - Math.pow(1 + r, -n)) : (n > 0 ? principal / n : 0);
+
+    var rounded = Math.round(monthly);
+    out.textContent = '$' + rounded.toLocaleString('en-US');
+  }
+
+  [priceEl, downEl, tradeEl, aprEl, termEl].forEach(function(el) {
+    el.addEventListener('input', recompute);
+    el.addEventListener('change', recompute);
+  });
+
+  var prequalBtn = document.getElementById('calc-prequal-btn');
+  if (prequalBtn) {
+    prequalBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var target = document.getElementById('prequal');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  recompute();
+})();
+
+// Shared lead-form submit helper (pre-qualification + trade-in)
+(function() {
+  function wireLeadForm(formId, successId, errorId, contentName) {
+    var form = document.getElementById(formId);
+    if (!form) return;
+    var successDiv = document.getElementById(successId);
+    var errorDiv = document.getElementById(errorId);
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      var submitBtn = form.querySelector('button[type="submit"]');
+      var originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Sending...';
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'none';
+
+      try {
+        var formData = new FormData(form);
+        var data = Object.fromEntries(formData);
+
+        var response = await fetch('/api/admin/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+          successDiv.style.display = 'flex';
+          errorDiv.style.display = 'none';
+          form.reset();
+
+          if (typeof window._bpTrack === 'function') {
+            window._bpTrack('generate_lead', { event_category: 'conversion', service_requested: contentName, contact_method: 'form', value: 1 });
+          }
+          if (typeof fbq !== 'undefined') {
+            fbq('track', 'Lead', { content_name: contentName });
+          }
+          if (typeof gtag !== 'undefined' && window._gadsId) {
+            gtag('event', 'conversion', { send_to: window._gadsId });
+          }
+          successDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          throw new Error('Failed to submit');
+        }
+      } catch (err) {
+        successDiv.style.display = 'none';
+        errorDiv.style.display = 'flex';
+        errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    });
+  }
+
+  wireLeadForm('prequalForm', 'prequalSuccess', 'prequalError', 'financing');
+  wireLeadForm('tradeForm', 'tradeSuccess', 'tradeError', 'trade_in');
 })();
 </script>
