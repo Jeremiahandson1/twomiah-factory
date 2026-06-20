@@ -206,6 +206,7 @@ app.route('/api/photos', photosRoutes)
 app.route('/api/portal', portalRoutes)
 app.route('/api/pricebook', pricebookRoutes)
 try { app.route('/api/financing', (await import('./routes/financing.ts')).default) } catch {}
+try { app.route('/api/valuation', (await import('./routes/valuation.ts')).default) } catch {}
 try { app.route('/api/pricebook-present', (await import('./routes/pricebookPresent.ts')).default) } catch {}
 app.route('/api/push', pushRoutes)
 app.route('/api/quickbooks', quickbooksRoutes)

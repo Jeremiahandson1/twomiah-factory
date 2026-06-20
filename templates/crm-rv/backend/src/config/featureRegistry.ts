@@ -295,6 +295,13 @@ export const FEATURE_REGISTRY = {
         icon: 'banknote',
         routes: ['/api/financing', '/api/wisetack'],
       },
+      trade_valuation: {
+        id: 'trade_valuation',
+        name: 'Trade-In Valuation',
+        description: 'Book values for trade-ins — J.D. Power (NADA Guides) / Black Book',
+        icon: 'calculator',
+        routes: ['/api/valuation'],
+      },
       quickbooks: {
         id: 'quickbooks',
         name: 'QuickBooks Sync',
