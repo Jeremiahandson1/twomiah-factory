@@ -31,6 +31,7 @@ export const INDUSTRY_OPTIONS = [
   { value: 'home_care', label: 'Home Care / Senior Care' },
   { value: 'automotive', label: 'Automotive Dealership (Twomiah Drive)' },
   { value: 'rv', label: 'RV / Powersports Dealership (Twomiah Roam)' },
+  { value: 'veterinary', label: 'Veterinary Practice (Twomiah Vet)' },
   { value: 'dispensary', label: 'Cannabis Dispensary (Twomiah Leaf)' },
   { value: 'other', label: 'Other (blank slate)' },
 ]

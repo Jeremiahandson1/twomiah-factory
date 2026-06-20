@@ -50,6 +50,17 @@ const CRM_REGISTRY = [
     { id: 'service_status_texts', name: 'Service Status Updates', description: 'Automated "your unit is ready" texts plus tech photos', core: false },
     { id: 'follow_up_sequences', name: 'Automated Follow-Up', description: 'Multi-touch SMS/email cadences for long research cycles', core: false },
   ]},
+  { category: 'Veterinary', features: [
+    { id: 'patient_records', name: 'Patient Records', description: 'Pets linked to owners — multi-pet households, allergies/alerts, weight history', core: true },
+    { id: 'appointment_scheduling', name: 'Appointments', description: 'Appointment calendar by provider and type, with check-in', core: true },
+    { id: 'medical_records', name: 'Medical Records', description: 'Per-visit SOAP notes, vitals, diagnoses and treatments', core: true },
+    { id: 'vaccinations', name: 'Vaccinations', description: 'Vaccine history with due dates driving reminders', core: true },
+    { id: 'reminders_recall', name: 'Reminders & Recall', description: 'Automated vaccine/wellness reminders and lapsed-client reactivation', core: true },
+    { id: 'wellness_plans', name: 'Wellness Plans', description: 'Recurring preventive-care memberships', core: false },
+    { id: 'lab_results', name: 'Lab Results', description: 'Record and attach lab/diagnostic results', core: false },
+    { id: 'rabies_certificates', name: 'Rabies Certificates', description: 'Printable rabies certificates from the vaccine record', core: false },
+    { id: 'prescriptions', name: 'Prescriptions', description: 'Non-controlled prescription records', core: false },
+  ]},
   { category: 'Construction', features: [
     { id: 'projects', name: 'Projects', description: 'Multi-phase project management', core: false },
     { id: 'rfis', name: 'RFIs', description: 'Request for information tracking', core: false },
@@ -304,6 +315,7 @@ function HomeCareIncluded() {
 const FIELD_SERVICE_INDUSTRIES = new Set(['field_service', 'hvac', 'plumbing', 'electrical'])
 const AUTOMOTIVE_INDUSTRIES = new Set(['automotive'])
 const RV_INDUSTRIES = new Set(['rv'])
+const VET_INDUSTRIES = new Set(['veterinary'])
 const ROOFING_INDUSTRIES = new Set(['roofing'])
 
 const DISPENSARY_INDUSTRIES = new Set(['dispensary'])
@@ -314,6 +326,7 @@ const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm-roof': new Set(['Core', 'Construction', 'Roofing', 'Field Operations', 'Finance', 'Communication', 'Marketing', 'Advanced', 'Add-on Products']),
   'crm-automotive': new Set(['Core', 'Automotive', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-rv': new Set(['Core', 'RV / Powersports', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-vet': new Set(['Core', 'Veterinary', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-dispensary': new Set(['Core', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
@@ -323,6 +336,7 @@ function getTemplateFromIndustry(industry?: string): string {
   if (ROOFING_INDUSTRIES.has(industry)) return 'crm-roof'
   if (AUTOMOTIVE_INDUSTRIES.has(industry)) return 'crm-automotive'
   if (RV_INDUSTRIES.has(industry)) return 'crm-rv'
+  if (VET_INDUSTRIES.has(industry)) return 'crm-vet'
   if (DISPENSARY_INDUSTRIES.has(industry)) return 'crm-dispensary'
   return 'crm'
 }

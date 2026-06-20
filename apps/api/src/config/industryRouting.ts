@@ -28,6 +28,7 @@ export type CrmTemplate =
   | 'crm-landscaping'
   | 'crm-dispensary'
   | 'crm-rv'
+  | 'crm-vet'
 
 export type PremiumWebsiteTemplate =
   | 'website-premium-contractor'
@@ -59,6 +60,7 @@ export type Vertical =
   | 'showcase'
   | 'foodtruck'
   | 'rv'
+  | 'veterinary'
 
 // ─── Industry sets per vertical ─────────────────────────────────────
 // These are the strings the intake form / wizard / API may receive.
@@ -123,6 +125,17 @@ export const RV_INDUSTRIES = new Set([
   'marine_dealer', 'boat_dealer', 'boat_dealership',
 ])
 
+// Veterinary practices. A client-relationship + preventive-care record
+// (patients/pets, appointments, visits, vaccinations, reminders, wellness
+// plans) — the retention archetype, NOT the recurring-job model. Deep clinical
+// record; controlled-substance dispensing is deliberately out of scope.
+export const VET_INDUSTRIES = new Set([
+  'veterinary', 'veterinarian', 'vet', 'vet_clinic', 'vet_hospital',
+  'veterinary_clinic', 'veterinary_hospital', 'veterinary_practice',
+  'animal_hospital', 'animal_clinic', 'pet_clinic', 'pet_hospital',
+  'mobile_vet', 'equine_vet', 'exotic_vet', 'small_animal_vet',
+])
+
 export const CONTRACTOR_INDUSTRIES = new Set([
   'contractor', 'general_contractor', 'construction', 'remodeling',
   'siding', 'home_improvement',
@@ -175,6 +188,7 @@ export function verticalFor(industry: string | undefined | null): Vertical {
   if (LANDSCAPING_INDUSTRIES.has(i)) return 'landscaping'
   if (FIELDSERVICE_INDUSTRIES.has(i)) return 'fieldservice'
   if (RV_INDUSTRIES.has(i)) return 'rv'
+  if (VET_INDUSTRIES.has(i)) return 'veterinary'
   if (SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
   // Explicit contractor list + the empty/other fallback both land here.
   // Showcase doesn't get the fallback — it's the most specialized vertical
@@ -191,6 +205,7 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     case 'landscaping':  return 'crm-landscaping'
     case 'dispensary':   return 'crm-dispensary'
     case 'rv':           return 'crm-rv'
+    case 'veterinary':   return 'crm-vet'
     // Showcase verticals (restaurants, salons, etc.) don't have a
     // dedicated CRM template yet — most don't need full job/quote
     // workflows. Default to the contractor base, which is the most
@@ -210,6 +225,8 @@ export function premiumWebsiteTemplateFor(industry: string | undefined | null): 
   // website template exists. Fall back to the contractor site so a premium
   // website request never resolves to a nonexistent template directory.
   if (v === 'rv') return 'website-premium-contractor'
+  // Veterinary is a CRM-only vertical — no dedicated premium site template.
+  if (v === 'veterinary') return 'website-premium-contractor'
   return ('website-premium-' + v) as PremiumWebsiteTemplate
 }
 
@@ -231,6 +248,8 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
     foodtruck:    'website-general' as LegacyWebsiteTemplate,
     // No RV website template (CRM-only vertical) — falls back to general.
     rv:           'website-general' as LegacyWebsiteTemplate,
+    // No vet website template (CRM-only vertical) — falls back to general.
+    veterinary:   'website-general' as LegacyWebsiteTemplate,
   }
   return map[v] || 'website-general'
 }
@@ -254,6 +273,7 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'landscaping':  return 'landscape'
     case 'dispensary':   return 'leaf'
     case 'rv':           return 'rv'   // {slug}-rv-api.onrender.com
+    case 'veterinary':   return 'vet'  // {slug}-vet-api.onrender.com
     case 'showcase':     return ''     // shares the contractor base CRM
     case 'foodtruck':    return ''     // shares the contractor base CRM
     case 'contractor':   return ''
@@ -290,6 +310,7 @@ const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
   dispensary: 'multi-page',
   showcase: 'multi-page',
   rv: 'multi-page',
+  veterinary: 'multi-page',
 }
 
 export function layoutModeFor(industry: string | undefined | null): LayoutMode {

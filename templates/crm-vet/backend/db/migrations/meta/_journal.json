@@ -1,0 +1,125 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1772785271393,
+      "tag": "0000_daily_valkyrie",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772785271394,
+      "tag": "0001_add_support_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772785271395,
+      "tag": "0002_add_lead_inbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772785271396,
+      "tag": "0003_add_missing_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772785271397,
+      "tag": "0004_add_ai_receptionist",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772785271398,
+      "tag": "0005_add_estimator_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772785271399,
+      "tag": "0006_add_roof_reports",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772785271400,
+      "tag": "0007_add_roof_report_imagery",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772785271401,
+      "tag": "0008_add_roof_report_editing",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772785271402,
+      "tag": "0009_add_pricebook_presentation",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1772785271403,
+      "tag": "0010_add_construction_compliance",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1772785271404,
+      "tag": "0011_fix_construction_post_endpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1772785271405,
+      "tag": "0012_collaborator_portal",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1772785271406,
+      "tag": "0013_add_missing_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1772785271407,
+      "tag": "0014_add_email_alias",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1772785271408,
+      "tag": "0015_add_inbound_message",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1772785271409,
+      "tag": "0016_vet_domain",
+      "breakpoints": true
+    }
+  ]
+}
