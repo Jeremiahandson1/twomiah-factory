@@ -208,14 +208,9 @@ p {
   left: 0;
   right: 0;
   bottom: 0;
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 18px,
-      rgba(245, 166, 35, 0.06) 18px,
-      rgba(245, 166, 35, 0.06) 20px
-    );
+  /* removed the hardcoded amber diagonal hatch — it ignored the brand color
+     and read as stray gold lines over the hero */
+  background: none;
   z-index: 2;
   pointer-events: none;
 }
@@ -257,10 +252,13 @@ p {
   font-family: 'Roboto', sans-serif;
   font-size: 1.15rem;
   font-weight: 400;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.02em;
   color: rgba(255, 255, 255, 0.85);
   max-width: 600px;
+  /* center the constrained paragraph inside the hero content block (without
+     this the 600px max-width pins it left of the centered h1) */
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ── Buttons ───────────────────────────────────────────── */
@@ -438,6 +436,15 @@ section h2::after {
   width: 90px;
   height: 6px;
   background: var(--industrial-yellow);
+}
+
+/* The hero subtitle is centered and already has its own accent line
+   (.hero-line). Don't give it the left-aligned section-title bar — that's the
+   stray gold line. */
+.hero-video h2::after,
+.hero h2::after,
+.hero-section h2::after {
+  content: none;
 }
 
 .section-subtitle,
