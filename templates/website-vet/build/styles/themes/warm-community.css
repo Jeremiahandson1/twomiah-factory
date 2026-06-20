@@ -1,0 +1,538 @@
+/* ═══════════════════════════════════════════════════════
+   Theme: Warm Community
+   Template: Homecare
+   Compassionate family feel — cream backgrounds, warm rose
+   + sage green, Playfair Display + Lora, classic warmth.
+   ═══════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400;1,700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=optional');
+
+/* ── Variable Overrides ── */
+:root {
+  --font-primary: 'Playfair Display', Georgia, serif;
+  --font-secondary: 'Lora', Georgia, serif;
+  --font-heading: 'Playfair Display', Georgia, serif;
+  --font-body: 'Lora', serif;
+  --border-radius: 14px;
+
+  /* Palette */
+  --wc-cream: #fdf8f4;
+  --wc-cream-dark: #f7efe6;
+  --wc-rose: #be185d;
+  --wc-rose-light: #fce7f3;
+  --wc-rose-dark: #9d174d;
+  --wc-sage: #6b8e6b;
+  --wc-sage-light: #e8f0e8;
+  --wc-sage-dark: #4a6e4a;
+  --wc-text: #3b2415;
+  --wc-text-light: #6b5744;
+  --wc-warm-gold: #d4a574;
+
+  /* Override main vars */
+  --off-white: #fdf8f4;
+  --shadow-sm: 0 2px 8px rgba(139, 69, 19, 0.06);
+  --shadow: 0 4px 20px rgba(139, 69, 19, 0.08);
+  --shadow-lg: 0 10px 36px rgba(139, 69, 19, 0.12);
+}
+
+/* ── Body ── */
+body {
+  font-family: 'Lora', Georgia, serif;
+  background: var(--wc-cream);
+  background-image: none;
+  color: var(--wc-text);
+  line-height: 1.8;
+}
+
+/* ── Typography ── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
+  color: var(--wc-text);
+  letter-spacing: -0.01em;
+}
+
+p { font-family: 'Lora', Georgia, serif; }
+
+.gold { color: var(--wc-rose) !important; }
+
+/* ── Header / Navigation ── */
+.main-header {
+  background: #fff !important;
+  box-shadow: 0 2px 12px rgba(139, 69, 19, 0.06) !important;
+}
+
+.main-header.scrolled {
+  box-shadow: 0 4px 20px rgba(139, 69, 19, 0.1) !important;
+}
+
+.main-nav-wrapper {
+  border-bottom: 2px solid var(--wc-cream-dark);
+}
+
+.main-nav > ul > li > a {
+  font-family: 'Lora', serif !important;
+  font-weight: 600;
+  color: var(--wc-text) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-size: 15px !important;
+}
+
+.main-nav > ul > li:hover > a {
+  color: var(--wc-rose) !important;
+}
+
+.nav-phone-link {
+  font-family: 'Lora', serif !important;
+  color: var(--wc-sage-dark) !important;
+}
+
+.nav-phone-link:hover { color: var(--wc-rose) !important; }
+
+/* Nav CTA */
+.cta-item .btn {
+  background: var(--wc-rose) !important;
+  color: #fff !important;
+  border-color: var(--wc-rose) !important;
+  border-radius: 50px !important;
+  font-family: 'Lora', serif !important;
+  text-transform: none !important;
+  letter-spacing: 0.02em !important;
+}
+
+.cta-item .btn:hover {
+  background: var(--wc-rose-dark) !important;
+  border-color: var(--wc-rose-dark) !important;
+}
+
+/* Dropdown */
+.dropdown {
+  border-top: 3px solid var(--wc-rose) !important;
+  border-radius: 12px !important;
+}
+
+.dropdown a:hover {
+  background: var(--wc-cream) !important;
+  color: var(--wc-rose) !important;
+}
+
+/* Mobile nav */
+.mobile-nav {
+  background: var(--wc-text) !important;
+}
+
+.nav-toggle .bar {
+  background: var(--wc-text) !important;
+}
+
+.nav-toggle.active .bar {
+  background: var(--wc-rose) !important;
+}
+
+/* ── Buttons ── */
+.btn {
+  border-radius: 50px !important;
+  font-family: 'Lora', serif !important;
+  text-transform: none !important;
+  letter-spacing: 0.03em !important;
+  font-weight: 600 !important;
+  padding: 14px 34px !important;
+}
+
+.btn-primary {
+  background: var(--wc-rose) !important;
+  color: #fff !important;
+  border-color: var(--wc-rose) !important;
+}
+
+.btn-primary:hover {
+  background: var(--wc-rose-dark) !important;
+  border-color: var(--wc-rose-dark) !important;
+  box-shadow: 0 6px 24px rgba(190, 24, 93, 0.25) !important;
+}
+
+.btn-warm {
+  background: var(--wc-sage) !important;
+  color: #fff !important;
+  border-color: var(--wc-sage) !important;
+}
+
+.btn-warm:hover {
+  background: var(--wc-sage-dark) !important;
+  border-color: var(--wc-sage-dark) !important;
+  box-shadow: 0 6px 20px rgba(107, 142, 107, 0.3) !important;
+}
+
+.btn-outline-teal {
+  border-color: var(--wc-rose) !important;
+  color: var(--wc-rose) !important;
+  border-radius: 50px !important;
+}
+
+.btn-outline-teal:hover {
+  background: var(--wc-rose) !important;
+  color: #fff !important;
+}
+
+.btn-secondary {
+  background: var(--wc-sage) !important;
+  color: #fff !important;
+  border-color: var(--wc-sage) !important;
+}
+
+/* ── Hero Split ── */
+.hero-split {
+  background: linear-gradient(135deg, var(--wc-cream) 0%, var(--wc-cream-dark) 60%, var(--wc-rose-light) 100%) !important;
+  padding: 80px 0 70px !important;
+}
+
+.hero-badge-pill {
+  background: var(--wc-sage) !important;
+  color: #fff !important;
+  border-radius: 50px !important;
+  font-family: 'Lora', serif !important;
+  font-size: 12px !important;
+  letter-spacing: 0.06em !important;
+}
+
+.hero-split-headline {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: var(--wc-text) !important;
+  font-weight: 800 !important;
+  line-height: 1.15 !important;
+}
+
+.hero-split-headline em {
+  color: var(--wc-rose) !important;
+  font-style: italic !important;
+}
+
+.hero-split-sub {
+  font-family: 'Lora', serif !important;
+  color: var(--wc-text-light) !important;
+  font-size: 1.1rem !important;
+  line-height: 1.8 !important;
+}
+
+.hero-split-photo {
+  border-radius: 24px !important;
+  box-shadow: 0 20px 60px rgba(139, 69, 19, 0.15) !important;
+  border: 4px solid rgba(255, 255, 255, 0.8);
+}
+
+.hero-photo-placeholder {
+  background: linear-gradient(135deg, var(--wc-sage-light) 0%, var(--wc-cream-dark) 100%) !important;
+  color: var(--wc-sage-dark) !important;
+}
+
+/* ── Trust Bar ── */
+.trust-bar {
+  background: var(--wc-rose) !important;
+}
+
+.trust-bar-item {
+  font-family: 'Lora', serif !important;
+  color: #fff !important;
+}
+
+/* ── About Section ── */
+.about-section {
+  background: #fff;
+}
+
+.about-section h2,
+.intro-content h2 {
+  color: var(--wc-text) !important;
+}
+
+.intro-content p {
+  color: var(--wc-text-light) !important;
+}
+
+.intro-image .image-placeholder {
+  background: linear-gradient(135deg, var(--wc-sage) 0%, var(--wc-sage-dark) 100%) !important;
+  border-radius: 20px !important;
+}
+
+/* ── Service Cards ── */
+.hc-services-section {
+  background: var(--wc-cream) !important;
+}
+
+.hc-services-section h2 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: var(--wc-text) !important;
+}
+
+.hc-service-card {
+  background: #fff !important;
+  border: none !important;
+  border-bottom: 3px solid var(--wc-rose) !important;
+  border-radius: 16px !important;
+  padding: 32px 28px !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: all 0.35s ease !important;
+}
+
+.hc-service-card:hover {
+  box-shadow: 0 12px 32px rgba(190, 24, 93, 0.1) !important;
+  transform: translateY(-5px) !important;
+}
+
+.hc-service-icon {
+  background: var(--wc-rose-light) !important;
+  color: var(--wc-rose) !important;
+  border-radius: 50% !important;
+  width: 52px !important;
+  height: 52px !important;
+}
+
+.hc-service-card h3 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: var(--wc-text) !important;
+}
+
+.hc-service-card p {
+  font-family: 'Lora', serif !important;
+  color: var(--wc-text-light) !important;
+}
+
+/* ── Service Area ── */
+.service-area-section {
+  background: #fff !important;
+}
+
+.area-pill {
+  border-color: var(--wc-sage-light) !important;
+  background: #fff !important;
+  color: var(--wc-text) !important;
+  font-family: 'Lora', serif !important;
+  border-radius: 50px !important;
+}
+
+.area-pill-active {
+  background: var(--wc-sage) !important;
+  border-color: var(--wc-sage) !important;
+  color: #fff !important;
+}
+
+/* ── Testimonials ── */
+.testimonials-section {
+  background: var(--wc-cream-dark) !important;
+}
+
+.testimonial-card {
+  background: #fff !important;
+  border-radius: 20px !important;
+  border: none !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.testimonial-content blockquote {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-style: italic !important;
+  color: var(--wc-text) !important;
+}
+
+.testimonial-stars {
+  color: var(--wc-warm-gold) !important;
+}
+
+.testimonial-author img {
+  border-radius: 50% !important;
+  border: 3px solid var(--wc-rose-light) !important;
+}
+
+/* ── CTA Banner ── */
+.hc-cta-banner {
+  background: linear-gradient(135deg, var(--wc-text) 0%, #5c3d24 50%, var(--wc-rose-dark) 100%) !important;
+}
+
+.hc-cta-banner h2 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: #fff !important;
+}
+
+.hc-cta-banner p {
+  font-family: 'Lora', serif !important;
+}
+
+.hc-cta-btn-white {
+  border-radius: 50px !important;
+  font-family: 'Lora', serif !important;
+}
+
+.hc-cta-btn-outline {
+  border-radius: 50px !important;
+  font-family: 'Lora', serif !important;
+}
+
+/* ── Contact Section ── */
+.hc-contact-section {
+  background: var(--wc-cream) !important;
+}
+
+.hc-contact-info h2 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: var(--wc-text) !important;
+}
+
+.hc-contact-icon {
+  background: var(--wc-rose-light) !important;
+  color: var(--wc-rose) !important;
+  border-radius: 50% !important;
+}
+
+.hc-contact-form-wrap {
+  border-radius: 20px !important;
+  background: #fff !important;
+  box-shadow: var(--shadow) !important;
+}
+
+form input,
+form textarea,
+form select {
+  border-radius: 12px !important;
+  border: 1px solid #e5d5c3 !important;
+  font-family: 'Lora', serif !important;
+}
+
+form input:focus,
+form textarea:focus {
+  border-color: var(--wc-rose) !important;
+  box-shadow: 0 0 0 3px rgba(190, 24, 93, 0.1) !important;
+}
+
+/* ── Footer ── */
+.hc-footer {
+  background: var(--wc-cream-dark) !important;
+  color: var(--wc-text-light) !important;
+  border-top: 1px solid rgba(139, 69, 19, 0.08);
+}
+
+.hc-footer-brand {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: var(--wc-text) !important;
+}
+
+.hc-footer-nav a {
+  color: var(--wc-text-light) !important;
+  font-family: 'Lora', serif !important;
+}
+
+.hc-footer-nav a:hover {
+  color: var(--wc-rose) !important;
+}
+
+.hc-footer-highlight {
+  color: var(--wc-rose) !important;
+}
+
+.hc-footer-contact span {
+  color: var(--wc-text-light) !important;
+}
+
+.hc-footer-contact a {
+  color: var(--wc-rose) !important;
+  font-family: 'Lora', serif !important;
+}
+
+.hc-footer-bottom {
+  border-top: 1px solid rgba(139, 69, 19, 0.1) !important;
+  background: transparent !important;
+}
+
+.hc-footer-bottom p {
+  color: var(--wc-text-light) !important;
+}
+
+.built-by a {
+  color: var(--wc-text-light) !important;
+}
+
+.built-by a:hover {
+  color: var(--wc-rose) !important;
+}
+
+/* ── Generic Sections ── */
+section {
+  padding: 80px 0;
+}
+
+section:nth-child(even) {
+  background: var(--wc-cream-dark);
+}
+
+.section-title,
+section h2 {
+  font-family: 'Playfair Display', Georgia, serif;
+  color: var(--wc-text);
+}
+
+.section-subtitle {
+  font-family: 'Lora', serif;
+  color: var(--wc-text-light);
+}
+
+/* ── Service Cards (generic) ── */
+.service-card,
+.card,
+.feature-card {
+  border-radius: 20px !important;
+  background: #fff !important;
+  border-bottom: 3px solid var(--wc-rose) !important;
+  padding: 36px 28px !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.service-card:hover,
+.card:hover,
+.feature-card:hover {
+  box-shadow: var(--shadow-lg) !important;
+  transform: translateY(-5px);
+}
+
+.service-card h3,
+.card h3,
+.feature-card h3 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+  color: var(--wc-text) !important;
+}
+
+/* ── Trust Badges ── */
+.trust-badge,
+.certification,
+.badge {
+  background: var(--wc-rose-light) !important;
+  color: var(--wc-rose-dark) !important;
+  border-radius: 50px !important;
+  font-family: 'Lora', serif !important;
+}
+
+/* ── Images ── */
+.service-card img,
+.card img,
+.gallery-item img {
+  border-radius: 16px !important;
+}
+
+/* ── Hero Video ── */
+.hero-video .hero-overlay {
+  background: linear-gradient(135deg, rgba(59, 36, 21, 0.6) 0%, rgba(190, 24, 93, 0.3) 100%) !important;
+}
+
+.hero-video-content h1 {
+  font-family: 'Playfair Display', Georgia, serif !important;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .hero-split { padding: 50px 0 40px !important; }
+  .hc-footer-inner { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 600px) {
+  .hero-split { padding: 36px 0 28px !important; }
+  .hc-service-card { padding: 24px 20px !important; }
+}

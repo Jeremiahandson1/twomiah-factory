@@ -1,0 +1,34 @@
+[
+  {
+    "id": "about-us",
+    "name": "About Us",
+    "description": "Standard about page template",
+    "content": "<h2>Our Story</h2>\n<p>Founded in [YEAR], [COMPANY NAME] has been providing compassionate in-home care to families throughout [AREA]. We started with a simple belief: that people deserve to age with dignity in the comfort of their own homes, surrounded by the people and things they love.</p>\n\n<h2>Our Mission</h2>\n<p>We are committed to delivering personalized, compassionate care while maintaining honest, transparent communication with every family we serve.</p>\n\n<h2>Why Choose Us?</h2>\n<p><strong>Compassionate Caregivers</strong> - Every team member is selected for their genuine passion for helping others</p>\n<p><strong>Personalized Care Plans</strong> - We tailor care to each client's unique needs and preferences</p>\n<p><strong>Family Communication</strong> - We keep you informed and involved every step of the way</p>\n<p><strong>Licensed &amp; Insured</strong> - Full protection and peace of mind for your family</p>",
+    "heroDescription": "Learn about our company and commitment to quality.",
+    "tagline": "Quality You Can Trust"
+  },
+  {
+    "id": "faq",
+    "name": "FAQ",
+    "description": "Frequently asked questions template",
+    "content": "<h2>Frequently Asked Questions</h2>\n\n<h3>How quickly can care begin?</h3>\n<p>In most cases we can begin care within 24\u201348 hours of your free assessment. For urgent situations, contact us directly and we'll do everything we can to start sooner.</p>\n\n<h3>Do you accept Medicare or Medicaid?</h3>\n<p>Coverage depends on the type of care needed. We'll help you understand your options and what may be covered at no cost to you.</p>\n\n<h3>Are your caregivers background checked?</h3>\n<p>Absolutely. Every caregiver undergoes thorough background screening, reference checks, and skills assessment before joining our team.</p>\n\n<h3>What if my loved one doesn't connect with their caregiver?</h3>\n<p>We'll make it right. The right fit matters deeply to us. Let your care coordinator know and we'll find a better match quickly.</p>\n\n<h3>Do you offer 24/7 care?</h3>\n<p>Yes. We offer flexible scheduling including overnight and live-in care options. Our coordinators are also reachable around the clock for questions or concerns.</p>",
+    "heroDescription": "Get answers to common questions about our services.",
+    "tagline": "Your Questions Answered"
+  },
+  {
+    "id": "testimonials-page",
+    "name": "Testimonials Page",
+    "description": "Customer reviews and testimonials",
+    "content": "<h2>What Our Customers Say</h2>\n<p>Don't just take our word for it - hear from homeowners throughout the {{SERVICE_REGION}} who have trusted us with their projects.</p>",
+    "heroDescription": "Read reviews from satisfied customers throughout the {{SERVICE_REGION}}.",
+    "tagline": "Customer Reviews"
+  },
+  {
+    "id": "financing",
+    "name": "Financing Options",
+    "description": "Financing information page",
+    "content": "<h2>Flexible Financing Options</h2>\n<p>We believe everyone deserves a beautiful, well-protected home. That's why we offer a variety of financing options to fit your budget.</p>\n\n<h3>Why Finance Your Project?</h3>\n<p>Low monthly payments, quick approval process, competitive interest rates, and no prepayment penalties.</p>\n\n<h3>Get Started Today</h3>\n<p>Contact us to learn about current financing programs and get pre-approved for your project.</p>",
+    "heroDescription": "Flexible care options for every budget and situation.",
+    "tagline": "Make It Affordable"
+  }
+]

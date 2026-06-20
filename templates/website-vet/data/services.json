@@ -1,0 +1,122 @@
+[
+  {
+    "id": "wellness-exams",
+    "name": "Wellness Exams",
+    "slug": "wellness-exams",
+    "shortDescription": "Comprehensive annual and semi-annual checkups that catch health issues early and keep dogs, cats, and small animals thriving.",
+    "description": "Preventive care is the foundation of a long, healthy life for your pet. Our wellness exams include a nose-to-tail physical evaluation, weight and body-condition scoring, dental and skin checks, and a tailored wellness plan for every life stage — from playful puppies and kittens to cherished senior companions. Catching problems early means easier, more affordable treatment and more healthy years together.",
+    "icon": "heart",
+    "image": "",
+    "features": [
+      "Nose-to-tail physical examination",
+      "Life-stage wellness planning (puppy, adult, senior)",
+      "Weight & body-condition assessment",
+      "Parasite screening & nutrition guidance",
+      "Early detection of common health issues"
+    ],
+    "seoTitle": "Pet Wellness Exams in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Comprehensive pet wellness exams for dogs and cats in {{CITY}}, {{STATE}}. Preventive checkups that keep your pet healthy at every life stage.",
+    "visible": true,
+    "order": 1
+  },
+  {
+    "id": "surgery",
+    "name": "Surgery & Procedures",
+    "slug": "surgery",
+    "shortDescription": "Safe, modern surgical care — from routine spay/neuter to orthopedic and soft-tissue procedures — with advanced monitoring.",
+    "description": "Our surgical suite is equipped for everything from routine spay and neuter procedures to complex orthopedic and soft-tissue surgeries. Every patient receives pre-surgical bloodwork, individualized anesthesia protocols, and continuous monitoring of heart rate, oxygen, and blood pressure throughout the procedure. Our team manages pain proactively and stays in close contact with you before, during, and after surgery so your pet recovers comfortably.",
+    "icon": "activity",
+    "image": "",
+    "features": [
+      "Spay & neuter procedures",
+      "Orthopedic surgery (cruciate, fracture repair)",
+      "Soft-tissue & mass removal surgery",
+      "Pre-surgical bloodwork & anesthesia screening",
+      "Continuous anesthesia monitoring & pain management"
+    ],
+    "seoTitle": "Pet Surgery & Spay/Neuter in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Safe veterinary surgery in {{CITY}}, {{STATE}} — spay/neuter, orthopedic, and soft-tissue procedures with advanced anesthesia monitoring.",
+    "visible": true,
+    "order": 2
+  },
+  {
+    "id": "dental-care",
+    "name": "Dental Care",
+    "slug": "dental-care",
+    "shortDescription": "Professional cleanings, digital dental X-rays, and extractions that protect your pet's teeth, gums, and overall health.",
+    "description": "Dental disease affects the majority of pets by age three and can lead to pain, tooth loss, and damage to the heart, liver, and kidneys. Our dental services include professional cleanings under safe anesthesia, full-mouth digital dental X-rays, polishing, and extractions when needed. We also coach you on at-home dental care so your pet keeps a healthy, pain-free smile between visits.",
+    "icon": "smile",
+    "image": "",
+    "features": [
+      "Professional cleaning & polishing under anesthesia",
+      "Full-mouth digital dental X-rays",
+      "Tooth extractions & oral surgery",
+      "Gum disease evaluation & treatment",
+      "At-home dental care coaching"
+    ],
+    "seoTitle": "Pet Dental Care in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Veterinary dental care in {{CITY}}, {{STATE}} — professional cleanings, dental X-rays, and extractions to protect your pet's health.",
+    "visible": true,
+    "order": 3
+  },
+  {
+    "id": "vaccinations",
+    "name": "Vaccinations & Prevention",
+    "slug": "vaccinations",
+    "shortDescription": "Tailored vaccine schedules plus flea, tick, and heartworm prevention to shield your pet from preventable disease.",
+    "description": "Vaccines and year-round parasite prevention are among the most effective ways to protect your pet. We build a vaccination plan based on your pet's species, age, lifestyle, and risk — never a one-size-fits-all approach. Our prevention program also covers flea, tick, and heartworm protection, along with microchipping so your companion can find their way home if they ever wander.",
+    "icon": "shield",
+    "image": "",
+    "features": [
+      "Customized core & lifestyle vaccine schedules",
+      "Puppy & kitten vaccine series",
+      "Flea, tick & heartworm prevention",
+      "Microchipping & registration",
+      "Travel & boarding vaccine certificates"
+    ],
+    "seoTitle": "Pet Vaccinations & Prevention in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Pet vaccinations and parasite prevention in {{CITY}}, {{STATE}}. Tailored vaccine schedules plus flea, tick, and heartworm protection.",
+    "visible": true,
+    "order": 4
+  },
+  {
+    "id": "emergency-care",
+    "name": "24/7 Emergency & Urgent Care",
+    "slug": "emergency-care",
+    "shortDescription": "Round-the-clock emergency and same-day urgent care when your pet needs help fast — every minute matters.",
+    "description": "When a pet emergency strikes, you need a team that's ready. Our emergency and urgent care services are available 24/7 for accidents, sudden illness, poisoning, breathing trouble, and other critical situations. We provide rapid triage, stabilization, in-house diagnostics, and hospitalization with around-the-clock monitoring — all delivered with the calm, compassionate communication families need during a frightening time.",
+    "icon": "alert-triangle",
+    "image": "",
+    "features": [
+      "24/7 emergency triage & stabilization",
+      "Same-day sick & urgent visits",
+      "On-site diagnostics & critical care",
+      "Toxin, trauma & breathing emergencies",
+      "Overnight monitoring & hospitalization"
+    ],
+    "seoTitle": "24/7 Pet Emergency Vet in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "24/7 emergency and urgent veterinary care in {{CITY}}, {{STATE}}. Rapid triage, stabilization, and critical care when your pet needs it most.",
+    "visible": true,
+    "order": 5
+  },
+  {
+    "id": "internal-medicine",
+    "name": "Internal Medicine & Diagnostics",
+    "slug": "internal-medicine",
+    "shortDescription": "Advanced in-house diagnostics and chronic-disease management to find answers and create a clear treatment plan.",
+    "description": "When your pet isn't feeling well, fast and accurate answers matter. Our internal medicine and diagnostic services include in-house bloodwork, digital radiography, ultrasound, and microscopy — so we can diagnose and begin treatment the same day in most cases. We specialize in managing chronic conditions like diabetes, kidney disease, thyroid disorders, and allergies, partnering with you on a long-term care plan that keeps your companion comfortable.",
+    "icon": "microscope",
+    "image": "",
+    "features": [
+      "In-house bloodwork & lab analysis",
+      "Digital radiography (X-ray) & ultrasound",
+      "Chronic disease management (diabetes, kidney, thyroid)",
+      "Allergy & dermatology workups",
+      "Senior-pet screening & monitoring"
+    ],
+    "seoTitle": "Pet Internal Medicine & Diagnostics in {{CITY}}, {{STATE}} | {{COMPANY_NAME}}",
+    "seoDescription": "Advanced veterinary diagnostics and internal medicine in {{CITY}}, {{STATE}}. In-house labs, imaging, and chronic-disease management for your pet.",
+    "visible": true,
+    "order": 6
+  }
+]

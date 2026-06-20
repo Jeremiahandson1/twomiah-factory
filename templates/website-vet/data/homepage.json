@@ -1,0 +1,123 @@
+{
+  "hero": {
+    "tagline": "COMPASSIONATE VETERINARY CARE",
+    "title": "{{CITY}}'s Trusted Veterinary Hospital",
+    "subtitle": "Expert Care for Your Beloved Pets",
+    "description": "{{COMPANY_NAME}} provides compassionate, full-service veterinary care for dogs, cats, and small animals across {{SERVICE_REGION}}. From wellness exams to surgery and 24/7 emergency care, our team treats every pet like family.",
+    "image": "/images/hero.jpg",
+    "animation": "ken-burns",
+    "primaryButtonText": "Schedule a Wellness Visit",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Meet Our Vets",
+    "secondaryButtonLink": "#team"
+  },
+  "trustBadges": [
+    {
+      "id": "aaha",
+      "type": "custom",
+      "label": "AAHA Accredited",
+      "icon": "shield",
+      "enabled": true
+    },
+    {
+      "id": "licensed",
+      "type": "custom",
+      "label": "Licensed Veterinarians",
+      "icon": "check",
+      "enabled": true
+    },
+    {
+      "id": "emergency",
+      "type": "custom",
+      "label": "24/7 Emergency Care",
+      "icon": "clock",
+      "enabled": true
+    },
+    {
+      "id": "local",
+      "type": "custom",
+      "label": "Locally Trusted",
+      "icon": "home",
+      "enabled": true
+    }
+  ],
+  "ctaSection": {
+    "title": "Your pet's health is our priority.",
+    "description": "Whether it's a routine checkup or an urgent concern, our caring veterinary team is here to help. Schedule an appointment or call us today.",
+    "primaryButtonText": "Schedule Now",
+    "primaryButtonLink": "#contact",
+    "secondaryButtonText": "Call {{COMPANY_PHONE}}",
+    "secondaryButtonLink": "tel:{{COMPANY_PHONE_RAW}}",
+    "backgroundImage": ""
+  },
+  "serviceAreas": [
+    "{{CITY}}",
+    "{{NEARBY_CITY_1}}",
+    "{{NEARBY_CITY_2}}",
+    "{{NEARBY_CITY_3}}",
+    "{{NEARBY_CITY_4}}"
+  ],
+  "businessHours": {
+    "monday": {
+      "open": "8:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "tuesday": {
+      "open": "8:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "wednesday": {
+      "open": "8:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "thursday": {
+      "open": "8:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "friday": {
+      "open": "8:00 AM",
+      "close": "6:00 PM",
+      "closed": false
+    },
+    "saturday": {
+      "open": "9:00 AM",
+      "close": "4:00 PM",
+      "closed": false
+    },
+    "sunday": {
+      "open": "Closed",
+      "close": "Closed",
+      "closed": true
+    }
+  },
+  "whyChooseUs": {
+    "enabled": true,
+    "title": "Why Pet Parents Choose {{COMPANY_NAME}}",
+    "points": [
+      {
+        "icon": "heart",
+        "title": "Compassionate Care",
+        "description": "We treat every pet with the gentleness, patience, and respect we'd want for our own animals — and we keep you informed every step of the way."
+      },
+      {
+        "icon": "shield",
+        "title": "AAHA Accredited Standards",
+        "description": "Our hospital meets the highest standards in veterinary medicine, from anesthesia safety and pain management to cleanliness and recordkeeping."
+      },
+      {
+        "icon": "users",
+        "title": "Expert Specialists",
+        "description": "Our veterinarians bring deep experience in surgery, dentistry, and internal medicine — advanced care for your pet, all under one roof."
+      },
+      {
+        "icon": "clock",
+        "title": "24/7 Emergency & Same-Day Care",
+        "description": "When your pet needs help fast, we're here around the clock — with same-day sick visits and round-the-clock emergency support."
+      }
+    ]
+  }
+}

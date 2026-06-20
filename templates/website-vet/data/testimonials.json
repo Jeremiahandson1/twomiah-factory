@@ -1,0 +1,52 @@
+[
+  {
+    "id": "t1",
+    "name": "Jennifer & Max",
+    "role": "Dog Owner",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "When Max swallowed something he shouldn't have, {{COMPANY_NAME}} got us in immediately and rushed him into emergency surgery. The team called me with updates the whole night and treated him like their own. Max made a full recovery and we couldn't be more grateful.",
+    "rating": 5,
+    "service": "24/7 Emergency & Urgent Care",
+    "visible": true
+  },
+  {
+    "id": "t2",
+    "name": "Robert & Bella",
+    "role": "Cat Owner",
+    "location": "{{NEARBY_CITY_1}}, {{STATE}}",
+    "text": "Bella is nervous at the vet, but the team at {{COMPANY_NAME}} is so patient and gentle with her. Her wellness exams are thorough and they always take time to explain everything. It's clear they genuinely love animals.",
+    "rating": 5,
+    "service": "Wellness Exams",
+    "visible": true
+  },
+  {
+    "id": "t3",
+    "name": "Maria & Cooper",
+    "role": "Dog Owner",
+    "location": "{{CITY}}, {{STATE}}",
+    "text": "Cooper's teeth were in rough shape and I was worried about the anesthesia. {{COMPANY_NAME}} walked me through the whole dental procedure, did pre-surgical bloodwork, and monitored him closely. His breath is fresh and he's eating like a puppy again!",
+    "rating": 5,
+    "service": "Dental Care",
+    "visible": true
+  },
+  {
+    "id": "t4",
+    "name": "David & Luna",
+    "role": "Cat Owner",
+    "location": "{{NEARBY_CITY_2}}, {{STATE}}",
+    "text": "Luna was diagnosed with a thyroid condition and the internal medicine team has been amazing. They ran the diagnostics in-house, explained the treatment plan clearly, and check in regularly. She's back to her playful self.",
+    "rating": 5,
+    "service": "Internal Medicine & Diagnostics",
+    "visible": true
+  },
+  {
+    "id": "t5",
+    "name": "The Thompson Family",
+    "role": "Pet Owners",
+    "location": "{{NEARBY_CITY_3}}, {{STATE}}",
+    "text": "We've trusted {{COMPANY_NAME}} with all three of our pets for years. From puppy vaccines to senior care, they're always there when we need them — even late at night. We wouldn't go anywhere else.",
+    "rating": 5,
+    "service": "Vaccinations & Prevention",
+    "visible": true
+  }
+]

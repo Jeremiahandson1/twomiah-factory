@@ -10,7 +10,7 @@ import { spawnSync } from 'child_process'
 import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
 import { getFeaturesForPlan } from '../config/featureRegistry'
-import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost } from '../config/industryRouting'
+import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost, verticalFor } from '../config/industryRouting'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
 const PACKAGES_ROOT = process.env.FACTORY_PACKAGES_DIR || path.resolve(process.cwd(), '..', '..', 'packages')
@@ -228,6 +228,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       else if (industry === 'dispensary') websiteTemplate = 'website-dispensary'
       else if (industry === 'landscaping') websiteTemplate = 'website-landscaping'
       else if (SHOWCASE_INDUSTRIES.has(industry)) websiteTemplate = 'website-showcase'
+      else if (verticalFor(industry) === 'veterinary') websiteTemplate = 'website-vet'
       else if (industry && industry !== 'other') websiteTemplate = 'website-contractor'
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)

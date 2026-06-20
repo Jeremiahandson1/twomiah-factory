@@ -1,0 +1,535 @@
+{
+  "vertical": "veterinary",
+  "tone": "Warm, reassuring, and expert. We speak to pet parents who love their animals like family and want the very best care for them. Every word should feel like it comes from a team that genuinely loves animals — never clinical or corporate. The guiding principle: 'We treat your pet the way we'd treat our own.' Acknowledge the worry pet owners feel when their companion is sick or facing surgery, then give them confidence and calm. Be knowledgeable but never intimidating. Make complex veterinary medicine easy to understand. Celebrate the bond between people and their pets.",
+
+  "trustBadges": [
+    {
+      "id": "aaha_accredited",
+      "label": "AAHA Accredited Hospital",
+      "icon": "shield-check",
+      "description": "Our hospital is accredited by the American Animal Hospital Association — a voluntary standard that fewer than 15% of veterinary practices in North America achieve. It means we're regularly evaluated on more than 900 standards of veterinary excellence, from anesthesia safety to surgical protocols."
+    },
+    {
+      "id": "licensed_veterinarians",
+      "label": "Licensed Veterinarians",
+      "icon": "user-check",
+      "description": "Every doctor on our team is a fully licensed Doctor of Veterinary Medicine (DVM) with ongoing continuing education in the latest advances. Your pet is always in expert, experienced hands."
+    },
+    {
+      "id": "emergency_care",
+      "label": "24/7 Emergency Care",
+      "icon": "flag",
+      "description": "Pet emergencies don't keep business hours, and neither do we. Our team is available around the clock for accidents, sudden illness, and critical care — because every minute matters when your pet needs help."
+    },
+    {
+      "id": "fear_free",
+      "label": "Low-Stress Handling",
+      "icon": "lock",
+      "description": "We use gentle, low-stress handling techniques to keep visits calm for anxious dogs and cats. A relaxed pet means a more thorough exam and a happier patient — and we never rush your companion."
+    }
+  ],
+
+  "services": [
+    {
+      "id": "wellness_exams",
+      "name": "Wellness Exams",
+      "shortDescription": "Comprehensive checkups that catch problems early and keep your pet healthy at every stage of life.",
+      "longDescription": "Preventive care is the single best thing you can do for your pet's long-term health. Just like people, pets benefit from regular checkups — and because they age faster than we do, an annual or twice-yearly exam is essential for catching small issues before they become serious problems.\n\nDuring a wellness exam, our veterinarians perform a thorough nose-to-tail evaluation: listening to the heart and lungs, checking the eyes, ears, teeth, and skin, feeling the abdomen, assessing weight and body condition, and discussing diet, behavior, and lifestyle. We tailor everything to your pet's life stage, whether you have a bouncing puppy or kitten, a healthy adult, or a beloved senior who needs a little extra attention.\n\nWe believe wellness visits should be a conversation, not a lecture. We'll answer your questions, explain what we find in plain language, and build a personalized plan to keep your companion happy and thriving for years to come.",
+      "activities": [
+        "Complete nose-to-tail physical examination",
+        "Heart and lung evaluation",
+        "Eye, ear, skin, and coat assessment",
+        "Dental and oral health check",
+        "Weight and body-condition scoring",
+        "Nutrition and weight-management counseling",
+        "Parasite screening and prevention review",
+        "Life-stage and behavior guidance"
+      ],
+      "features": [
+        "Tailored wellness plans for puppies, adults, and seniors",
+        "Same vet whenever possible for continuity of care",
+        "Easy-to-understand explanations of every finding",
+        "Reminders so you never miss an important checkup"
+      ],
+      "faq": [
+        {
+          "question": "How often does my pet need a wellness exam?",
+          "answer": "Healthy adult dogs and cats should have a wellness exam at least once a year. Puppies and kittens need more frequent visits during their first several months for vaccines and development checks, and senior pets (typically 7+ years) benefit from twice-yearly exams because they age more quickly and can develop conditions faster. We'll recommend a schedule that fits your pet's age and health."
+        },
+        {
+          "question": "My pet seems perfectly healthy — do they still need a checkup?",
+          "answer": "Yes, and that's exactly the point. Pets are masters at hiding illness — it's an instinct that helped their ancestors survive in the wild. By the time symptoms are obvious, a condition is often advanced. Regular wellness exams let us catch issues like dental disease, heart murmurs, kidney changes, and weight problems early, when they're easier and less expensive to treat."
+        },
+        {
+          "question": "What should I bring to my pet's wellness visit?",
+          "answer": "Bring any previous medical records if you're a new client, a list of your pet's current food and medications, and a fresh stool sample if you have one. It's also helpful to jot down any questions or changes you've noticed — appetite, energy, drinking, bathroom habits, or behavior. The more we know, the better we can care for your companion."
+        }
+      ]
+    },
+    {
+      "id": "surgery",
+      "name": "Surgery & Procedures",
+      "shortDescription": "From routine spay/neuter to advanced orthopedic and soft-tissue surgery — with modern monitoring and pain management.",
+      "longDescription": "Surgery is one of the most stressful things a pet parent can face, and we take that seriously. Whether your pet needs a routine spay or neuter, a mass removed, an orthopedic repair, or a complex soft-tissue procedure, our surgical team is committed to safety, comfort, and clear communication every step of the way.\n\nBefore any surgery, we perform pre-anesthetic bloodwork to make sure your pet is healthy enough for anesthesia and to tailor the protocol to their individual needs. During the procedure, a dedicated team member continuously monitors heart rate, blood pressure, oxygen levels, and temperature — the same standard of care you'd expect in human medicine.\n\nWe manage pain proactively, not reactively, using modern multimodal pain control so your pet stays comfortable before, during, and after surgery. And we keep you informed throughout, with a call when surgery is complete and detailed at-home recovery instructions when your companion is ready to go home.",
+      "activities": [
+        "Spay and neuter procedures",
+        "Orthopedic surgery (cruciate ligament, fracture repair)",
+        "Soft-tissue surgery and mass removal",
+        "Pre-anesthetic bloodwork and screening",
+        "Individualized anesthesia protocols",
+        "Continuous vital-sign monitoring",
+        "Multimodal pain management",
+        "Detailed post-operative recovery support"
+      ],
+      "features": [
+        "Modern surgical suite with advanced monitoring",
+        "Pre-surgical bloodwork on every patient",
+        "Proactive, multimodal pain control",
+        "Personal call when your pet is out of surgery"
+      ],
+      "faq": [
+        {
+          "question": "Is anesthesia safe for my pet?",
+          "answer": "Modern veterinary anesthesia is very safe, especially when proper precautions are taken. We run pre-anesthetic bloodwork to identify any hidden risks, tailor the anesthetic protocol to your pet's age and health, and continuously monitor heart rate, blood pressure, oxygen, and temperature throughout the procedure. A trained team member is dedicated to your pet's anesthesia from start to finish."
+        },
+        {
+          "question": "Will my pet be in pain after surgery?",
+          "answer": "We work hard to keep that from happening. We use multimodal pain management — combining several methods to control discomfort before, during, and after surgery. Your pet will go home with a clear pain-management plan and any medications they need. If you ever feel your pet seems uncomfortable during recovery, just call us and we'll adjust the plan."
+        },
+        {
+          "question": "How long is the recovery after a spay or neuter?",
+          "answer": "Most pets bounce back quickly. After a routine spay or neuter, pets typically need 10 to 14 days of restricted activity to let the incision heal, plus an e-collar to prevent licking. We'll give you detailed at-home instructions and a recovery timeline, and we're always available if you have questions during the healing period."
+        }
+      ]
+    },
+    {
+      "id": "dental_care",
+      "name": "Dental Care",
+      "shortDescription": "Professional cleanings, dental X-rays, and extractions that protect your pet's teeth, gums, and whole-body health.",
+      "longDescription": "Most pets show signs of dental disease by age three — and it's about far more than bad breath. Untreated dental disease causes pain, tooth loss, and bacteria that can damage the heart, liver, and kidneys. The good news is that it's almost entirely preventable with the right care.\n\nA professional dental cleaning at our hospital is performed under safe anesthesia, which allows us to clean below the gumline where disease hides, take full-mouth digital dental X-rays to evaluate the roots and bone, and address problems gently and painlessly. We polish the teeth, treat gum disease, and perform extractions only when a tooth can't be saved.\n\nWe'll also coach you on at-home dental care — brushing, dental diets, and treats that actually work — so your pet keeps a clean, comfortable, pain-free mouth between visits. A healthy mouth means a healthier, happier pet.",
+      "activities": [
+        "Professional cleaning and polishing under anesthesia",
+        "Full-mouth digital dental X-rays",
+        "Gum disease evaluation and treatment",
+        "Tooth extractions and oral surgery",
+        "Pre-anesthetic safety screening",
+        "Oral mass and lesion evaluation",
+        "At-home dental care coaching",
+        "Dental diet and product recommendations"
+      ],
+      "features": [
+        "Cleanings performed under safe, monitored anesthesia",
+        "Digital dental X-rays to find hidden problems",
+        "Gentle extractions only when truly necessary",
+        "Personalized at-home dental care plan"
+      ],
+      "faq": [
+        {
+          "question": "Why does a dental cleaning require anesthesia?",
+          "answer": "Anesthesia is what makes a thorough, safe, and pain-free cleaning possible. It allows us to clean below the gumline — where most dental disease actually lives — take X-rays of the tooth roots, and address painful problems without stressing or hurting your pet. 'Anesthesia-free' cleanings only scrape the visible surface and miss the disease that matters most. We monitor your pet closely throughout to keep anesthesia safe."
+        },
+        {
+          "question": "How do I know if my pet has dental problems?",
+          "answer": "Common signs include bad breath, yellow or brown tartar on the teeth, red or bleeding gums, drooling, dropping food, or reluctance to chew. But pets often hide dental pain, so they may show no symptoms even with significant disease. That's why we evaluate your pet's mouth at every wellness exam and recommend a professional cleaning when needed."
+        },
+        {
+          "question": "Can I just brush my pet's teeth at home instead?",
+          "answer": "At-home brushing is fantastic and we strongly encourage it — it's one of the best things you can do between visits. But brushing only addresses the surface of the teeth and can't remove tartar that's already formed or treat disease below the gumline. Think of it like your own dental care: daily brushing plus professional cleanings is the winning combination."
+        }
+      ]
+    },
+    {
+      "id": "vaccinations",
+      "name": "Vaccinations & Prevention",
+      "shortDescription": "Tailored vaccine schedules plus flea, tick, and heartworm prevention to protect your pet from preventable disease.",
+      "longDescription": "Vaccinations and parasite prevention are among the most effective — and most affordable — ways to protect your pet from serious, sometimes fatal, diseases. But preventive care isn't one-size-fits-all, and we don't treat it that way.\n\nWe build a customized vaccination plan based on your pet's species, age, lifestyle, and risk factors. Core vaccines protect against the most dangerous and widespread diseases, while lifestyle vaccines are recommended based on whether your pet boards, hikes, swims, or socializes with other animals. For puppies and kittens, we'll guide you through the full vaccine series that builds lifelong protection.\n\nWe also keep your pet protected year-round from fleas, ticks, and heartworm — parasites that can cause painful, dangerous, and expensive health problems. And we offer microchipping, a quick and permanent form of identification that dramatically improves the odds of a lost pet finding their way home.",
+      "activities": [
+        "Customized core and lifestyle vaccine plans",
+        "Puppy and kitten vaccine series",
+        "Rabies and other legally required vaccines",
+        "Flea and tick prevention",
+        "Heartworm testing and prevention",
+        "Intestinal parasite screening and deworming",
+        "Microchipping and registration",
+        "Travel and boarding vaccine certificates"
+      ],
+      "features": [
+        "Vaccine plans tailored to your pet's lifestyle and risk",
+        "Year-round flea, tick, and heartworm protection",
+        "Permanent microchip identification",
+        "Friendly reminders so protection never lapses"
+      ],
+      "faq": [
+        {
+          "question": "Which vaccines does my pet actually need?",
+          "answer": "Every pet needs core vaccines — for dogs that includes rabies and distemper/parvo; for cats, rabies and the FVRCP combination. Beyond those, we recommend lifestyle vaccines based on your pet's risk: dogs who board, go to the groomer, or hike may need Bordetella, Lyme, or leptospirosis protection, for example. We'll review your pet's specific situation and recommend exactly what they need — nothing more, nothing less."
+        },
+        {
+          "question": "Does my indoor cat really need vaccines?",
+          "answer": "Yes. Even indoor cats need core vaccines, including rabies, which is often required by law. Indoor cats can still be exposed to disease through an open window, an escape, a new pet in the home, or even a bat that gets inside. Vaccination is inexpensive insurance against diseases that are serious and difficult to treat."
+        },
+        {
+          "question": "Why is heartworm prevention so important?",
+          "answer": "Heartworm disease is transmitted by mosquitoes and can be fatal if untreated — and treatment, when it's even possible, is expensive and hard on your pet. Prevention, on the other hand, is simple, safe, and affordable: a monthly chewable or a long-acting injection. We recommend year-round heartworm prevention along with an annual test to keep your pet protected."
+        }
+      ]
+    },
+    {
+      "id": "emergency_care",
+      "name": "24/7 Emergency & Urgent Care",
+      "shortDescription": "Round-the-clock emergency and same-day urgent care when your pet needs help fast — because every minute matters.",
+      "longDescription": "When your pet is hurt or suddenly very sick, the fear can be overwhelming — and you need a team that's ready to act. Our emergency and urgent care services are available 24 hours a day for accidents, trauma, poisoning, breathing difficulty, bloat, seizures, and other critical situations.\n\nThe moment you arrive, our team performs rapid triage to assess how urgent your pet's condition is and begins stabilization immediately. We have in-house diagnostics — bloodwork, X-ray, and ultrasound — so we can find answers quickly without waiting for an outside lab. For pets who need it, we offer hospitalization with around-the-clock monitoring and intensive care.\n\nThroughout the entire process, we stay in close communication with you. We know how frightening a pet emergency is, and we promise to explain what's happening, walk you through the options, and treat your companion with the urgency and compassion they deserve.",
+      "activities": [
+        "24/7 emergency triage and stabilization",
+        "Same-day sick and urgent care visits",
+        "Trauma, wound, and fracture care",
+        "Toxin and poisoning treatment",
+        "Breathing and cardiac emergencies",
+        "Seizure and neurological emergencies",
+        "In-house emergency diagnostics",
+        "Overnight monitoring and hospitalization"
+      ],
+      "features": [
+        "Emergency team available around the clock",
+        "Rapid triage and immediate stabilization",
+        "On-site bloodwork, X-ray, and ultrasound",
+        "Clear, compassionate communication during a crisis"
+      ],
+      "faq": [
+        {
+          "question": "What counts as a pet emergency?",
+          "answer": "Call us right away if your pet has trouble breathing, has been hit by a car or seriously injured, is having seizures, has a swollen or hard belly (a sign of bloat), has ingested something toxic, is bleeding heavily, can't urinate, collapses, or has repeated vomiting or diarrhea. When in doubt, call — we'd much rather reassure you over the phone than have you wait on something serious."
+        },
+        {
+          "question": "Should I call before I come in for an emergency?",
+          "answer": "If you can, yes — a quick call lets us prepare for your arrival and start guiding you immediately, which can save critical time. But never delay care to make the call. If your pet is in a life-threatening situation, head straight in and have someone call on the way if possible. Our team will be ready to help the moment you walk through the door."
+        },
+        {
+          "question": "My pet ate something they shouldn't have — what do I do?",
+          "answer": "Call us immediately, and don't try to induce vomiting unless a veterinarian tells you to — with some substances that can cause more harm. Have the packaging or a description of what they ate ready so we can assess the danger. Many common household items, foods, plants, and medications are toxic to pets, and fast action makes a huge difference in the outcome."
+        }
+      ]
+    },
+    {
+      "id": "internal_medicine",
+      "name": "Internal Medicine & Diagnostics",
+      "shortDescription": "Advanced in-house diagnostics and chronic-disease management to find answers and create a clear treatment plan.",
+      "longDescription": "When your pet isn't feeling well and the cause isn't obvious, you need answers — fast and accurate. Our internal medicine and diagnostic services combine experienced veterinary judgment with advanced technology to get to the bottom of complex health problems.\n\nOur in-house laboratory means we can run bloodwork, urinalysis, and other tests and have results the same day — often within the same visit. We use digital radiography (X-ray) and ultrasound to look inside the body without surgery, and microscopy to examine cells and samples in detail. That speed matters, because the sooner we have a diagnosis, the sooner your pet can start feeling better.\n\nWe also specialize in managing chronic conditions that pets live with long-term — diabetes, kidney disease, thyroid disorders, allergies, and more. We'll create a clear, manageable treatment plan, teach you how to care for your pet at home, and monitor their progress over time so they stay as comfortable and healthy as possible.",
+      "activities": [
+        "In-house bloodwork and lab analysis",
+        "Digital radiography (X-ray)",
+        "Ultrasound imaging",
+        "Urinalysis and microscopy",
+        "Diabetes diagnosis and management",
+        "Kidney, liver, and thyroid disease management",
+        "Allergy and dermatology workups",
+        "Senior-pet screening and monitoring"
+      ],
+      "features": [
+        "Same-day in-house lab and imaging results",
+        "Advanced diagnostics without referral delays",
+        "Clear, manageable chronic-disease care plans",
+        "Ongoing monitoring to keep your pet comfortable"
+      ],
+      "faq": [
+        {
+          "question": "Why does my pet need bloodwork if they look fine?",
+          "answer": "Bloodwork reveals what we can't see on the outside — early kidney or liver changes, diabetes, thyroid imbalances, anemia, and infections — often well before your pet shows symptoms. It's especially valuable as a baseline for healthy pets and a screening tool for seniors. Catching these conditions early means simpler, more effective treatment and a better quality of life for your companion."
+        },
+        {
+          "question": "Can you manage my pet's diabetes or kidney disease at home?",
+          "answer": "Absolutely — most chronic conditions are managed at home with our guidance. For diabetes, for example, we'll teach you how to give insulin (it's easier than most people expect), monitor blood sugar, and recognize warning signs. For kidney disease, we'll help with diet, hydration, and medication. We schedule regular rechecks to fine-tune the plan and make sure your pet stays stable and comfortable."
+        },
+        {
+          "question": "How quickly can I get diagnostic results?",
+          "answer": "Because we have an in-house laboratory and imaging, many results are available the same day — and often within the same visit. That speed is a real advantage when your pet is sick or facing an emergency, because it lets us start the right treatment right away instead of waiting days for an outside lab to report back."
+        }
+      ]
+    }
+  ],
+
+  "blogTopics": [
+    {
+      "title": "10 Signs Your Pet May Need to See the Vet",
+      "slug": "signs-your-pet-needs-to-see-the-vet",
+      "metaDescription": "Not sure if your pet's symptoms are serious? Here are 10 warning signs that it's time to call the veterinarian — and when it's an emergency.",
+      "outline": [
+        {
+          "section": "Introduction",
+          "content": "Open with the reality that pets can't tell us when something's wrong, and they instinctively hide pain and illness. Adult owners have to learn to read the subtle signs. Reassure readers that knowing what to watch for helps them act early, when treatment is easiest."
+        },
+        {
+          "section": "Sign 1: Changes in appetite or thirst",
+          "content": "Eating much less — or suddenly much more — and big changes in water intake can signal dental pain, kidney disease, diabetes, or other conditions. Explain what's normal and what warrants a call."
+        },
+        {
+          "section": "Sign 2: Vomiting or diarrhea",
+          "content": "Occasional upset can be normal, but repeated vomiting or diarrhea, blood, or signs of pain mean it's time to call. Note when it becomes an emergency, especially with lethargy or a bloated belly."
+        },
+        {
+          "section": "Sign 3: Lethargy or low energy",
+          "content": "A pet who's unusually tired, hiding, or uninterested in favorite activities may be sick or in pain. Distinguish a lazy afternoon from genuine, persistent lethargy."
+        },
+        {
+          "section": "Sign 4: Difficulty breathing",
+          "content": "Labored breathing, persistent coughing, or open-mouth breathing in cats is always urgent. Explain why this is a 'call now' situation."
+        },
+        {
+          "section": "Sign 5: Limping or trouble moving",
+          "content": "Sudden limping, stiffness, reluctance to jump or climb stairs, or crying out can indicate injury, arthritis, or neurological issues."
+        },
+        {
+          "section": "Sign 6: Changes in bathroom habits",
+          "content": "Straining to urinate (an emergency, especially in male cats), accidents, blood in urine or stool, or changes in frequency all warrant attention."
+        },
+        {
+          "section": "Sign 7: Bad breath or dental trouble",
+          "content": "Foul breath, drooling, dropping food, or pawing at the mouth point to dental disease, which is painful and affects whole-body health."
+        },
+        {
+          "section": "Sign 8: Skin, coat, or ear problems",
+          "content": "Excessive scratching, hair loss, redness, odor, or head shaking can mean allergies, infections, or parasites."
+        },
+        {
+          "section": "Sign 9: Lumps, bumps, or swelling",
+          "content": "Any new lump deserves a check. Most are benign, but some aren't, and early evaluation is key. Encourage owners not to 'wait and see' indefinitely."
+        },
+        {
+          "section": "Sign 10: Just not acting like themselves",
+          "content": "Trust your instincts. You know your pet better than anyone. Behavior changes — hiding, aggression, restlessness, clinginess — are often the first sign something is wrong."
+        },
+        {
+          "section": "When it's an emergency",
+          "content": "List clear red-flag emergencies: trouble breathing, seizures, suspected poisoning, bloated hard belly, inability to urinate, severe bleeding, collapse, or being hit by a car. Encourage readers to call the clinic right away."
+        }
+      ]
+    },
+    {
+      "title": "Preventive Care: Why Wellness Exams Matter More Than You Think",
+      "slug": "why-wellness-exams-matter",
+      "metaDescription": "Wellness exams do far more than vaccines. Learn why regular checkups are the best investment you can make in your pet's health and longevity.",
+      "outline": [
+        {
+          "section": "Introduction",
+          "content": "Frame preventive care as the single most valuable thing pet parents can do. Note that pets age faster than people, so a year is a long time between checkups."
+        },
+        {
+          "section": "Pets hide illness by instinct",
+          "content": "Explain the evolutionary reason pets mask pain and sickness, and how that makes regular exams essential for catching hidden problems."
+        },
+        {
+          "section": "What actually happens during a wellness exam",
+          "content": "Walk through the nose-to-tail evaluation: heart, lungs, eyes, ears, teeth, skin, abdomen, weight, and the conversation about diet and behavior."
+        },
+        {
+          "section": "Early detection saves money and heartache",
+          "content": "Compare the cost and outcome of catching kidney disease, dental disease, or a heart murmur early versus late. Early care is cheaper and kinder."
+        },
+        {
+          "section": "Life-stage care: puppies, adults, and seniors",
+          "content": "Explain how wellness needs change with age, and why seniors benefit from twice-yearly exams."
+        },
+        {
+          "section": "Vaccines and parasite prevention",
+          "content": "How wellness visits keep vaccines and flea/tick/heartworm prevention up to date."
+        },
+        {
+          "section": "Building a relationship with your vet",
+          "content": "The value of continuity — a vet who knows your pet's history can spot subtle changes faster. Encourage scheduling the next visit."
+        }
+      ]
+    },
+    {
+      "title": "Dental Disease in Pets: The Silent Health Threat",
+      "slug": "dental-disease-in-pets",
+      "metaDescription": "Most pets have dental disease by age three. Learn the signs, the whole-body risks, and how professional cleanings and home care protect your pet.",
+      "outline": [
+        {
+          "section": "Introduction",
+          "content": "Open with the statistic that most pets show dental disease by age three, and that it's about far more than bad breath."
+        },
+        {
+          "section": "How dental disease develops",
+          "content": "Explain plaque, tartar, and gum disease progression in simple terms."
+        },
+        {
+          "section": "It's not just the mouth — whole-body effects",
+          "content": "How oral bacteria can affect the heart, liver, and kidneys. Make the stakes clear."
+        },
+        {
+          "section": "Signs your pet has dental trouble",
+          "content": "Bad breath, tartar, red gums, drooling, dropping food, reluctance to chew — and why pets often hide the pain."
+        },
+        {
+          "section": "Why professional cleanings need anesthesia",
+          "content": "Explain that anesthesia allows cleaning below the gumline, dental X-rays, and pain-free care; contrast with ineffective anesthesia-free options."
+        },
+        {
+          "section": "At-home dental care that works",
+          "content": "Brushing, dental diets, and vet-approved chews. Realistic tips for getting started."
+        },
+        {
+          "section": "Making dental care a routine",
+          "content": "Combine daily home care with regular professional cleanings. Encourage scheduling a dental evaluation."
+        }
+      ]
+    },
+    {
+      "title": "Puppy & Kitten 101: Your First-Year Care Checklist",
+      "slug": "puppy-kitten-first-year-checklist",
+      "metaDescription": "New puppy or kitten? Here's everything you need for a healthy first year — vaccines, spay/neuter, nutrition, socialization, and more.",
+      "outline": [
+        {
+          "section": "Introduction",
+          "content": "Congratulate the reader on their new pet and acknowledge the excitement and overwhelm. Promise a clear roadmap for the first year."
+        },
+        {
+          "section": "The first vet visit",
+          "content": "What to expect, what to bring, and why an early exam matters even for a healthy new pet."
+        },
+        {
+          "section": "The vaccine series",
+          "content": "Why puppies and kittens need a series of boosters, and the typical schedule."
+        },
+        {
+          "section": "Parasite prevention from day one",
+          "content": "Deworming, flea/tick, and starting heartworm prevention."
+        },
+        {
+          "section": "Spay and neuter: timing and benefits",
+          "content": "The health and behavior benefits, and how to decide on timing with your vet."
+        },
+        {
+          "section": "Nutrition for a growing pet",
+          "content": "Choosing the right food, portion control, and avoiding overfeeding."
+        },
+        {
+          "section": "Socialization and training",
+          "content": "Why the early weeks are a critical window for confident, well-adjusted pets."
+        },
+        {
+          "section": "Microchipping and ID",
+          "content": "Permanent identification and why it dramatically improves the odds of a reunion."
+        }
+      ]
+    },
+    {
+      "title": "How to Tell If Your Pet Is in Pain",
+      "slug": "how-to-tell-if-your-pet-is-in-pain",
+      "metaDescription": "Pets are experts at hiding pain. Learn the subtle behavioral and physical signs of discomfort in dogs and cats — and what to do about it.",
+      "outline": [
+        {
+          "section": "Introduction",
+          "content": "Explain that pets instinctively mask pain, so owners must learn to read subtle cues. Pain is often quieter than we expect."
+        },
+        {
+          "section": "Behavioral signs of pain",
+          "content": "Hiding, reduced activity, irritability or aggression, restlessness, clinginess, changes in sleep, and reluctance to be touched."
+        },
+        {
+          "section": "Physical signs of pain",
+          "content": "Limping, stiffness, hunched posture, panting, trembling, licking a specific area, and changes in facial expression."
+        },
+        {
+          "section": "How cats hide pain differently than dogs",
+          "content": "Cats are especially subtle — hiding, reduced grooming, and litter-box changes can be the only clues."
+        },
+        {
+          "section": "Common sources of pet pain",
+          "content": "Arthritis, dental disease, injuries, ear infections, and post-surgical discomfort."
+        },
+        {
+          "section": "Why you should never give human pain meds",
+          "content": "Warn clearly that ibuprofen, acetaminophen, and other human medications are toxic to pets. Always call the vet first."
+        },
+        {
+          "section": "What we can do to help",
+          "content": "Modern veterinary pain management options. Encourage owners to call if they suspect their pet is hurting."
+        }
+      ]
+    }
+  ],
+
+  "faq": [
+    {
+      "question": "How often should my pet see the veterinarian?",
+      "answer": "Healthy adult dogs and cats should have a wellness exam at least once a year. Puppies and kittens need more frequent visits in their first several months for vaccines and growth checks, and senior pets (typically 7 years and older) benefit from twice-yearly exams because they age faster and can develop conditions more quickly. Of course, any time your pet seems unwell, it's always worth a call — we'd rather see them sooner than later."
+    },
+    {
+      "question": "Do you see emergencies and walk-ins?",
+      "answer": "Yes. We offer 24/7 emergency care for accidents, sudden illness, and critical situations, as well as same-day urgent appointments for pets who need to be seen quickly. If your pet is having a true emergency — trouble breathing, seizures, suspected poisoning, a hard or swollen belly, severe bleeding, or inability to urinate — call us right away and head in. We'll be ready to help the moment you arrive."
+    },
+    {
+      "question": "What animals do you treat?",
+      "answer": "We provide full-service care for dogs and cats, and we also see many small animals and pocket pets. If you're not sure whether we treat your specific companion, just give us a call and we'll let you know how we can help or point you in the right direction. Whatever pet you love, we're here to care for them."
+    },
+    {
+      "question": "Is anesthesia safe for procedures like dental cleanings and surgery?",
+      "answer": "Modern veterinary anesthesia is very safe when proper precautions are taken — and we take them seriously. Before any anesthetic procedure, we run pre-anesthetic bloodwork to identify hidden risks and tailor the protocol to your pet's individual needs. During the procedure, a dedicated team member continuously monitors heart rate, blood pressure, oxygen, and temperature, just like in human medicine. Your pet's safety is always our top priority."
+    },
+    {
+      "question": "How much does veterinary care cost?",
+      "answer": "Costs vary depending on your pet's needs, from routine wellness visits to surgery or emergency care. We believe in transparent, up-front estimates so there are no surprises — we'll always explain your options and the costs involved before moving forward. We're happy to discuss pricing for any service, and we can talk through payment options and pet insurance to help make care more manageable."
+    },
+    {
+      "question": "Do you accept pet insurance?",
+      "answer": "Yes. Pet insurance can be a great way to manage the cost of unexpected illness, injury, or emergencies. Most plans reimburse you directly after your visit, and we're happy to provide the detailed records and itemized invoices you'll need to file a claim. If you're considering insurance, our team can talk through how it generally works so you can choose the right coverage for your pet."
+    },
+    {
+      "question": "I have a new puppy or kitten — where do I start?",
+      "answer": "Congratulations! The best first step is to schedule a new-patient wellness exam. We'll give your new companion a thorough checkup, start their vaccine series, set up parasite prevention, talk through nutrition and training, and answer all your questions. We'll also map out a first-year care plan — including the right timing for spay or neuter — so you and your pet get off to a healthy start together."
+    },
+    {
+      "question": "What should I do if my pet ate something toxic?",
+      "answer": "Call us immediately. Do not try to make your pet vomit unless a veterinarian instructs you to, since some substances cause more harm coming back up. Have the packaging or a description of what your pet ate ready so we can assess the danger and act fast. Many common foods, plants, household products, and medications are toxic to pets, and quick action can make all the difference in the outcome."
+    }
+  ],
+
+  "testimonialTemplates": [
+    {
+      "id": "dog_emergency_surgery",
+      "scenario": "Dog owner whose pet needed emergency surgery after an accident",
+      "relationship": "Dog Owner",
+      "careType": "24/7 Emergency & Urgent Care",
+      "template": "I will never forget the night {{pet_name}} got into something he shouldn't have and started getting really sick. I called {{company_name}} in a panic and they told me to come straight in. The team was waiting for us, took {{pet_name}} back immediately, and rushed him into emergency surgery. Dr. {{vet_name}} called me with updates through the whole night so I was never left wondering. {{pet_name}} pulled through and made a full recovery. I truly believe they saved his life — and they treated him like he was their own.",
+      "emotionalCore": "Life-saving emergency care, constant communication during crisis, deep gratitude",
+      "callToAction": "I'm so thankful they were there when we needed them most."
+    },
+    {
+      "id": "cat_wellness",
+      "scenario": "Cat owner with an anxious cat who dreads the vet",
+      "relationship": "Cat Owner",
+      "careType": "Wellness Exams",
+      "template": "My cat {{pet_name}} is terrified of the vet — she usually turns into a little tornado. But the team at {{company_name}} is so gentle and patient with her. They take their time, let her settle, and never rush. Dr. {{vet_name}} found an early issue at her wellness exam that we caught before it became a real problem. I always leave feeling like {{pet_name}} got a thorough, caring checkup, and that's worth everything to me.",
+      "emotionalCore": "Gentle handling of an anxious pet, early detection, peace of mind",
+      "callToAction": "They turned a dreaded vet visit into something I actually trust."
+    },
+    {
+      "id": "dog_dental",
+      "scenario": "Dog owner nervous about a dental procedure under anesthesia",
+      "relationship": "Dog Owner",
+      "careType": "Dental Care",
+      "template": "{{pet_name}}'s teeth were in bad shape and I was honestly scared about putting him under anesthesia. The team at {{company_name}} walked me through every step — the pre-surgical bloodwork, the monitoring, the pain management. They called me as soon as he was awake and recovering. His breath is fresh, he's chewing comfortably, and he's acting like a puppy again. I had no idea how much pain he was hiding until it was gone.",
+      "emotionalCore": "Overcoming anesthesia fears, transparent communication, dramatic improvement",
+      "callToAction": "I wish I'd taken his dental health seriously sooner."
+    },
+    {
+      "id": "cat_internal_medicine",
+      "scenario": "Cat owner managing a newly diagnosed chronic condition",
+      "relationship": "Cat Owner",
+      "careType": "Internal Medicine & Diagnostics",
+      "template": "When {{pet_name}} started losing weight and acting off, I was worried sick. {{company_name}} ran the diagnostics right there in-house and had answers the same day — a thyroid condition. Dr. {{vet_name}} explained everything in a way I could actually understand and built a treatment plan I could manage at home. They check in regularly to make sure she's doing well. {{pet_name}} is back to her playful, happy self, and I owe it to this incredible team.",
+      "emotionalCore": "Fast accurate diagnosis, clear guidance, restored health",
+      "callToAction": "They gave me my happy, healthy cat back."
+    },
+    {
+      "id": "family_vaccinations",
+      "scenario": "Family who trusts the clinic with all their pets over many years",
+      "relationship": "Pet Parents",
+      "careType": "Vaccinations & Prevention",
+      "template": "We've been bringing our pets to {{company_name}} for years now — from puppy and kitten vaccines all the way through senior care. The whole team knows our animals by name and genuinely cares about them. Whether it's a routine checkup, a parasite prevention question, or a late-night worry, they're always there for us. We've recommended them to every pet owner we know. You can feel how much they love what they do.",
+      "emotionalCore": "Long-term trust, personal relationship, whole-family care",
+      "callToAction": "We wouldn't trust our pets' health to anyone else."
+    }
+  ]
+}
