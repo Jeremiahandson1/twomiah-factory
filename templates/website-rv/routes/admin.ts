@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import appPaths from '../config/paths.ts';
 import { createBackup, listBackups, backupsDir } from '../services/autoBackup.ts';
 import { uploadFile, deleteFile, listFiles, getImageUrl, USE_R2 } from '../services/storage.ts';
+import { runImport } from '../services/inventoryImport.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,8 @@ const previewTokensFile = path.join(dataDir, 'preview-tokens.json');
 const templatesFile = path.join(dataDir, 'templates.json');
 const galleryFile = path.join(dataDir, 'gallery.json');
 const navConfigFile = path.join(dataDir, 'nav-config.json');
+const inventoryConfigFile = path.join(dataDir, 'inventory-config.json');
+const inventoryFile = path.join(dataDir, 'inventory.json');
 
 // Initialize files
 const initFile = (file: string, defaultData: any) => {
@@ -3089,6 +3092,57 @@ app.post('/help/ai-chat', authMiddleware, async (c) => {
     const data = await res.json() as any;
     return c.json({ reply: data.content?.[0]?.text || 'Sorry, I could not process that request.' });
   } catch { return c.json({ reply: 'AI service is temporarily unavailable. Please try again later.' }); }
+});
+
+// ── Inventory (DMS feed) — RV/powersports dealer sites ──────────────────────
+// These routes only exist on inventory-enabled templates; non-inventory sites
+// 404 here, which the CMS uses to decide whether to show the Inventory nav item.
+app.get('/inventory-config', authMiddleware, (c) => {
+  try {
+    const cfg = fs.existsSync(inventoryConfigFile)
+      ? JSON.parse(fs.readFileSync(inventoryConfigFile, 'utf8'))
+      : { enabled: false, provider: 'generic', feedUrl: '', format: 'csv' };
+    return c.json(cfg);
+  } catch { return c.json({ error: 'Server error' }, 500); }
+});
+
+app.put('/inventory-config', authMiddleware, async (c) => {
+  try {
+    const body = await c.req.json();
+    const cfg = {
+      enabled: !!body.enabled,
+      provider: String(body.provider || 'generic'),
+      feedUrl: String(body.feedUrl || '').trim(),
+      format: ['csv', 'xml'].includes(body.format) ? body.format : 'csv',
+    };
+    fs.writeFileSync(inventoryConfigFile, JSON.stringify(cfg, null, 2));
+    logActivity('inventory_config_updated');
+    return c.json({ message: 'Inventory feed settings saved', config: cfg });
+  } catch { return c.json({ error: 'Server error' }, 500); }
+});
+
+app.post('/inventory/sync', authMiddleware, async (c) => {
+  const result = await runImport(true);
+  if (!result.ok) return c.json({ ok: false, error: result.error || 'Import failed' }, 400);
+  logActivity('inventory_synced');
+  let count = 0; let lastSync: string | null = null;
+  try {
+    const inv = JSON.parse(fs.readFileSync(inventoryFile, 'utf8'));
+    count = Array.isArray(inv) ? inv.length : 0;
+    lastSync = inv.reduce((m: string, u: any) => (u.importedAt && u.importedAt > m ? u.importedAt : m), '') || null;
+  } catch {}
+  return c.json({ ok: true, imported: result.imported || 0, count, lastSync });
+});
+
+app.get('/inventory', authMiddleware, (c) => {
+  try {
+    const inv = fs.existsSync(inventoryFile) ? JSON.parse(fs.readFileSync(inventoryFile, 'utf8')) : [];
+    const units = Array.isArray(inv) ? inv : [];
+    const lastSync = units.reduce((m: string, u: any) => (u.importedAt && u.importedAt > m ? u.importedAt : m), '');
+    const bySource: Record<string, number> = {};
+    for (const u of units) { const s = u.source || 'manual'; bySource[s] = (bySource[s] || 0) + 1; }
+    return c.json({ count: units.length, lastSync: lastSync || null, bySource, units });
+  } catch { return c.json({ error: 'Server error' }, 500); }
 });
 
 export default app;

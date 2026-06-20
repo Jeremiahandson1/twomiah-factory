@@ -9,6 +9,19 @@ function AdminLayout({ children, title, subtitle, actions }: { children: React.R
   const location = useLocation();
   const [commandOpen, setCommandOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [inventoryEnabled, setInventoryEnabled] = useState(false);
+
+  // Feature-detect inventory: endpoint exists only on inventory-enabled sites (404 otherwise)
+  useEffect(() => {
+    const API_BASE = import.meta.env.VITE_API_URL || '/api';
+    const token = localStorage.getItem('adminToken');
+    if (!token) return;
+    fetch(`${API_BASE}/admin/inventory-config`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => { if (res.ok) setInventoryEnabled(true); })
+      .catch(() => {});
+  }, []);
 
   // Close sidebar on navigation
   useEffect(() => {
@@ -195,7 +208,18 @@ function AdminLayout({ children, title, subtitle, actions }: { children: React.R
             </svg>
             Leads
           </Link>
-          
+          {inventoryEnabled && (
+            <Link to="/inventory" className={`admin-nav-item ${isActive('/inventory') ? 'active' : ''}`}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="1" y="3" width="15" height="13"></rect>
+                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                <circle cx="18.5" cy="18.5" r="2.5"></circle>
+              </svg>
+              Inventory
+            </Link>
+          )}
+
           <div className="nav-section-label">Settings</div>
           <Link to="/site-settings" className={`admin-nav-item ${isActive('/site-settings') ? 'active' : ''}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

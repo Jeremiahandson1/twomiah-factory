@@ -35,6 +35,7 @@ import AdminMenus from './admin/AdminMenus';
 import AdminBlog from './admin/AdminBlog';
 import AdminHelp from './admin/AdminHelp';
 import AdminVisualizer from './admin/AdminVisualizer';
+import AdminInventory from './admin/AdminInventory';
 import ProtectedRoute from './admin/ProtectedRoute';
 import './admin/admin.css';
 
@@ -196,6 +197,11 @@ function AppContent() {
           <Route path="/visualizer" element={
             <ProtectedRoute>
               <AdminVisualizer />
+            </ProtectedRoute>
+          } />
+          <Route path="/inventory" element={
+            <ProtectedRoute>
+              <AdminInventory />
             </ProtectedRoute>
           } />
           <Route path="/*" element={
