@@ -5,7 +5,7 @@ import {
   ArrowLeft, Download, Rocket, RefreshCw, ExternalLink,
   Globe, Clock, CheckCircle, XCircle, AlertCircle,
   Copy, ChevronRight, DollarSign, CreditCard, Package,
-  Save, Trash2, Edit3, Database, Palette, Upload
+  Save, Trash2, Edit3, Database, Palette, Upload, ArrowRightLeft
 } from 'lucide-react'
 import FeatureManagement from '../components/factory/FeatureManagement'
 
@@ -276,6 +276,7 @@ export default function CustomerDetailPage() {
   const [toast, setToast] = useState<Toast | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
   const [deployConfigured, setDeployConfigured] = useState(false)
+  const [flipping, setFlipping] = useState(false)
   const [form, setForm] = useState<Partial<Tenant>>({})
 
   useEffect(() => { load(); fetchConfigs() }, [id])
@@ -448,6 +449,23 @@ export default function CustomerDetailPage() {
     finally { setDeploying(false) }
   }
 
+  async function flipToCrm() {
+    if (!tenant) return
+    if (!confirm('Flip this dealer to CRM? This deploys their full CRM and copies their website inventory into it. Takes ~10 minutes.')) return
+    setFlipping(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) { showToast('Not authenticated', 'error'); setFlipping(false); return }
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenant.id + '/flip-to-crm', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
+      })
+      const data = await res.json()
+      if (res.ok && data.started) { showToast(data.message || 'CRM flip started — live in ~10 minutes'); setTimeout(load, 15000) }
+      else { showToast(data.error || 'Flip failed', 'error'); setFlipping(false) }
+    } catch { showToast('Flip failed', 'error'); setFlipping(false) }
+  }
+
   async function handleCheckout(type: string) {
     setCheckoutLoading(type)
     try {
@@ -538,6 +556,11 @@ export default function CustomerDetailPage() {
 
   const latestJob = jobs[0]
   const latestDeployed = jobs.find(j => j.status === 'complete')
+
+  const products = tenant.products || []
+  const hasWebsite = products.some(p => p.startsWith('website'))
+  const hasCrm = products.some(p => p === 'crm' || p.startsWith('crm-'))
+  const canFlipToCrm = hasWebsite && !hasCrm
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
@@ -759,6 +782,22 @@ export default function CustomerDetailPage() {
               websiteUrl={tenant.website_url || tenant.render_frontend_url}
               showToast={showToast}
             />
+          )}
+
+          {/* Convert to CRM */}
+          {canFlipToCrm && (
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <h2 className="text-white font-semibold mb-3 flex items-center gap-2">
+                <ArrowRightLeft size={16} className="text-blue-400" /> Convert to CRM
+              </h2>
+              <p className="text-xs text-gray-500 mb-4">
+                Deploy this dealer's full CRM and copy their website inventory into it. Takes ~10 minutes.
+              </p>
+              <button onClick={flipToCrm} disabled={flipping}
+                className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg transition-colors">
+                <ArrowRightLeft size={14} /> {flipping ? 'Flipping…' : 'Flip to CRM'}
+              </button>
+            </div>
           )}
 
           {/* Billing */}

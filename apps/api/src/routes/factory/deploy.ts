@@ -132,6 +132,28 @@ factory.get('/customers/:id/deploy/stream', async (c) => {
 })
 
 
+// ─── Flip website → CRM ───────────────────────────────────────────────────────
+// Deploy a website-only tenant's crm-rv and copy the site's inventory into it.
+// Long-running (deploys a CRM + DB ~10min), so it runs in the background; the
+// caller polls the tenant (products gains 'crm' when done).
+factory.post('/customers/:id/flip-to-crm', requireRole('owner', 'admin'), async (c) => {
+  const tenantId = c.req.param('id')
+  if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+  const { data: tenant } = await supabase.from('tenants').select('id, slug, products, industry').eq('id', tenantId).maybeSingle()
+  if (!tenant) return c.json({ error: 'Tenant not found' }, 404)
+  const products: string[] = tenant.products || []
+  if (!products.some((p: string) => p === 'website' || p.startsWith('website'))) return c.json({ error: 'Tenant has no website to flip' }, 400)
+  if (products.some((p: string) => p === 'crm' || p.startsWith('crm-'))) return c.json({ error: 'Tenant already has a CRM' }, 409)
+  if (!tenant.industry) return c.json({ error: 'Tenant has no industry set' }, 400)
+
+  const { flipWebsiteToCrm } = await import('../../services/flipWebsiteToCrm')
+  flipWebsiteToCrm(tenantId)
+    .then((r) => console.log('[Flip] Result for', tenantId, ':', JSON.stringify(r)))
+    .catch((e: any) => console.error('[Flip] Background flip threw:', e?.message))
+
+  return c.json({ started: true, message: 'Flipping to CRM — deploying the CRM and copying inventory. This takes ~10 minutes; the tenant will show the CRM product when done.' })
+})
+
 // ─── Redeploy ─────────────────────────────────────────────────────────────────
 factory.post('/customers/:id/redeploy', requireRole('owner', 'admin'), async (c) => {
   if (!isConfigured()) return c.json({ error: 'Deploy not configured' }, 400)

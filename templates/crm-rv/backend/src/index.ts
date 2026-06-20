@@ -9,7 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
-import { company, user } from '../db/schema.ts'
+import { company, user, unit } from '../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import logger from './services/logger.ts'
 import { initializeSocket, io } from './services/socket.ts'
@@ -262,6 +262,32 @@ app.post('/api/internal/sync-features', async (c) => {
   if (!comp) return c.json({ error: 'No company found' }, 404)
   const [updated] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, comp.id)).returning()
   return c.json({ success: true, features: updated.enabledFeatures })
+})
+
+// Bulk-seed inventory units — used by the website→CRM "flip" to copy a dealer's
+// existing website inventory into their fresh CRM. Secured by FACTORY_SYNC_KEY.
+// `id` auto-generates; we drop website-only fields (id/source/timestamps) and
+// accept only real unit columns. Per-row insert so one bad/dup row can't abort.
+app.post('/api/internal/seed-units', async (c) => {
+  const syncKey = process.env.FACTORY_SYNC_KEY
+  if (!syncKey) return c.json({ error: 'Sync not configured' }, 503)
+  const authHeader = c.req.header('X-Factory-Key')
+  if (!authHeader || authHeader.length !== syncKey.length || !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(syncKey))) return c.json({ error: 'Unauthorized' }, 401)
+  const { units } = await c.req.json()
+  if (!Array.isArray(units)) return c.json({ error: 'units must be an array' }, 400)
+  const [comp] = await db.select().from(company).limit(1)
+  if (!comp) return c.json({ error: 'No company found' }, 404)
+
+  const ALLOWED = ['category', 'condition', 'stockNumber', 'vin', 'hin', 'year', 'make', 'modelName', 'trim', 'status', 'msrp', 'listedPrice', 'internetPrice', 'cost', 'photos', 'floorplanImg', 'description', 'features', 'exteriorColor', 'interiorColor', 'rvClass', 'towableType', 'lengthFt', 'sleeps', 'slideOuts', 'gvwr', 'dryWeight', 'hitchWeight', 'chassis', 'freshTankGal', 'greyTankGal', 'blackTankGal', 'generatorHours', 'awnings', 'fuelType', 'engine', 'engineCc', 'mileage', 'hours', 'transmission', 'drivetrain', 'beamFt', 'draftFt', 'hullMaterial', 'engineType', 'engineCount', 'engineHp', 'fuelCapacityGal', 'maxPersons', 'trailerIncluded']
+  let inserted = 0, skipped = 0
+  for (const u of units) {
+    if (!u || (!u.stockNumber && !u.vin)) { skipped++; continue }
+    const row: any = { companyId: comp.id, category: u.category || 'motorhome' }
+    for (const k of ALLOWED) if (u[k] != null && u[k] !== '') row[k] = u[k]
+    try { await db.insert(unit).values(row); inserted++ }
+    catch { skipped++ } // duplicate VIN or unparseable row — skip, keep going
+  }
+  return c.json({ success: true, inserted, skipped, received: units.length })
 })
 
 // Path A++ — SSO handoff. See crm-fieldservice for canonical
