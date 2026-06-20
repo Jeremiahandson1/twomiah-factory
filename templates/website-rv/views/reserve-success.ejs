@@ -1,0 +1,57 @@
+<div class="reserve-success-page">
+  <section class="page-hero">
+    <div class="container">
+      <a href="/inventory" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Inventory
+      </a>
+      <h1>Reservation Confirmed</h1>
+      <p>Thank you for reserving with {{COMPANY_NAME}}.</p>
+    </div>
+  </section>
+
+  <section class="reserve-success-body">
+    <div class="container">
+      <div class="reserve-success-card">
+        <div class="reserve-success-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <h2>Reservation Confirmed</h2>
+        <p>Your deposit was received and this unit is on hold — our team will reach out shortly to finalize details.</p>
+        <a href="/inventory" class="btn btn-primary btn-lg">Back to Inventory</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<style>
+.reserve-success-page .page-hero {
+  background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 70%, #000) 100%);
+  color: #fff;
+  padding: 3rem 0;
+}
+.reserve-success-page .page-hero h1 { font-size: 2.5rem; margin: 0.5rem 0; }
+.reserve-success-page .page-hero p { font-size: 1.15rem; opacity: 0.9; }
+.reserve-success-page .back-link { color: rgba(255,255,255,0.8); text-decoration: none; display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.9rem; margin-bottom: 0.5rem; }
+.reserve-success-page .back-link:hover { color: #fff; }
+
+.reserve-success-body { padding: 4rem 0; }
+.reserve-success-card { max-width: 560px; margin: 0 auto; text-align: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.06); padding: 3rem 2rem; }
+.reserve-success-icon { margin-bottom: 1.25rem; }
+.reserve-success-card h2 { font-size: 1.75rem; margin: 0 0 0.75rem; color: #1a1a1a; }
+.reserve-success-card p { font-size: 1.05rem; line-height: 1.7; color: #555; margin: 0 0 2rem; }
+
+.btn { display: inline-block; padding: 0.85rem 2rem; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 1rem; transition: all 0.2s; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { filter: brightness(1.1); }
+
+@media (max-width: 768px) {
+  .reserve-success-page .page-hero h1 { font-size: 1.8rem; }
+  .reserve-success-card { padding: 2rem 1.25rem; }
+}
+</style>

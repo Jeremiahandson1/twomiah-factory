@@ -1,0 +1,147 @@
+<%
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const phoneRaw = phone.replace(/\D/g, '');
+%>
+
+<style>
+  .parts-page { padding: 0 0 60px; }
+  .parts-quote { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; box-shadow: 0 12px 30px rgba(0,0,0,.06); padding: 26px; max-width: 720px; }
+  .parts-section { margin-top: 40px; }
+  .parts-section h2 { font-size: 1.5rem; color: #1e293b; margin: 0 0 12px; }
+  .parts-intro { color: #334155; line-height: 1.6; max-width: 720px; margin: 0 0 18px; }
+  .parts-quote .form-row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .parts-quote .form-group { flex: 1; min-width: 150px; margin-bottom: 16px; }
+  .parts-quote label { display: block; font-size: .82rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
+  .parts-quote input, .parts-quote select, .parts-quote textarea { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; }
+  .parts-quote textarea { resize: vertical; }
+  .parts-disclaimer { font-size: .8rem; color: #94a3b8; line-height: 1.5; margin: 8px 0 18px; }
+  .parts-form-msg { display: none; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 8px; margin-top: 14px; font-size: .95rem; }
+  .parts-form-msg.success { background: #f0fdf4; color: #15803d; }
+  .parts-form-msg.error { background: #fef2f2; color: #dc2626; }
+</style>
+
+<div class="parts-page">
+  <!-- Hero -->
+  <section class="page-hero">
+    <div class="container">
+      <a href="/" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Home
+      </a>
+      <h1>Parts &amp; Accessories</h1>
+      <p>Need a part or accessory for your RV, powersports, or marine unit? Tell us what you're after and our parts team will source it and follow up with availability and pricing.</p>
+    </div>
+  </section>
+
+  <div class="container">
+    <!-- Parts Request -->
+    <section class="parts-section" id="parts-request">
+      <h2>Request a Part</h2>
+      <p class="parts-intro">Give us a few details about your unit and the part(s) you need. The more you can tell us, the faster we can find the right fit.</p>
+      <div class="parts-quote">
+        <form id="partsForm" action="/api/admin/leads" method="POST">
+          <div class="form-group">
+            <label for="pt-unit">Unit Year / Make / Model</label>
+            <input id="pt-unit" type="text" name="unitOfInterest" placeholder="What's it for? (e.g. 2021 Jayco Jay Flight)">
+          </div>
+          <div class="form-group">
+            <label for="pt-parts">Part(s) Needed *</label>
+            <textarea id="pt-parts" name="message" rows="4" required placeholder="Describe the part(s) or accessory you're looking for..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="pt-vin">VIN / HIN</label>
+            <input id="pt-vin" type="text" name="vin" placeholder="Optional — helps us match the exact part">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="pt-name">Name *</label>
+              <input id="pt-name" type="text" name="name" autocomplete="name" required>
+            </div>
+            <div class="form-group">
+              <label for="pt-phone">Phone *</label>
+              <input id="pt-phone" type="tel" name="phone" autocomplete="tel" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="pt-email">Email *</label>
+            <input id="pt-email" type="email" name="email" autocomplete="email" required>
+          </div>
+          <input type="hidden" name="service" value="Parts Request">
+          <input type="hidden" name="leadType" value="parts">
+          <input type="hidden" name="source" value="parts">
+          <button type="submit" class="btn btn-primary btn-lg btn-block">Send Parts Request</button>
+          <p class="parts-disclaimer">We'll reach out with availability and pricing — usually within one business day.</p>
+
+          <div id="partsSuccess" class="parts-form-msg success">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <span><strong>Thank you!</strong> Our parts team will follow up with availability and pricing shortly.</span>
+          </div>
+          <div id="partsError" class="parts-form-msg error">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+            <span>Something went wrong. Please try calling us directly at <%= phone %>.</span>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+// Parts request form submit — mirrors standard lead POST + tracking
+(function() {
+  var form = document.getElementById('partsForm');
+  if (!form) return;
+  var successDiv = document.getElementById('partsSuccess');
+  var errorDiv = document.getElementById('partsError');
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    var submitBtn = form.querySelector('button[type="submit"]');
+    var originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending...';
+    successDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+
+    try {
+      var formData = new FormData(form);
+      var data = Object.fromEntries(formData);
+
+      var response = await fetch('/api/admin/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        successDiv.style.display = 'flex';
+        errorDiv.style.display = 'none';
+        form.reset();
+
+        if (typeof window._bpTrack === 'function') {
+          window._bpTrack('generate_lead', { event_category: 'conversion', service_requested: 'parts', contact_method: 'form', value: 1 });
+        }
+        if (typeof fbq !== 'undefined') {
+          fbq('track', 'Lead', { content_name: 'parts' });
+        }
+        if (typeof gtag !== 'undefined' && window._gadsId) {
+          gtag('event', 'conversion', { send_to: window._gadsId });
+        }
+        successDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        throw new Error('Failed to submit');
+      }
+    } catch (err) {
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'flex';
+      errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+    }
+  });
+})();
+</script>

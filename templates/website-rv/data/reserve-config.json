@@ -1,0 +1,6 @@
+{
+  "enabled": false,
+  "stripeSecretKey": "",
+  "depositAmount": 500,
+  "currency": "usd"
+}

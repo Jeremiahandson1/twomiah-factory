@@ -430,6 +430,86 @@ app.get('/api/inventory', (c) => {
   return c.json({ count: all.length, units: all })
 })
 
+// ─── Reserve a unit ──────────────────────────────────────────────────────────
+// Always captures the reservation as a lead. If the dealer has configured Stripe
+// (data/reserve-config.json: { enabled, stripeSecretKey, depositAmount, currency }),
+// it also creates a Stripe Checkout Session for the deposit and returns its URL.
+function appendLead(lead: any) {
+  try {
+    const f = path.join(appPaths.data, 'leads.json')
+    let leads: any[] = []
+    try { leads = JSON.parse(fs.readFileSync(f, 'utf8')) } catch {}
+    if (!Array.isArray(leads)) leads = []
+    leads.unshift({ id: 'lead-' + Date.now() + '-' + Math.round(Math.random() * 1e6), submittedAt: new Date().toISOString(), status: 'new', ...lead })
+    fs.writeFileSync(f, JSON.stringify(leads, null, 2))
+  } catch (e) { console.error('[Reserve] lead write failed:', e) }
+}
+
+app.post('/reserve/:stock', async (c) => {
+  const stock = c.req.param('stock')
+  const units = loadJSON('inventory.json') || []
+  const unit = units.find((u: any) => String(u.stockNumber) === stock || String(u.id) === stock)
+  if (!unit) return c.json({ error: 'Unit not found' }, 404)
+  let body: any = {}
+  try { body = await c.req.json() } catch {}
+  const title = [unit.year, unit.make, unit.modelName].filter(Boolean).join(' ')
+
+  appendLead({
+    name: body.name || '', email: body.email || '', phone: body.phone || '',
+    service: 'Unit Reservation', leadType: 'reservation', source: 'inventory-detail',
+    unitOfInterest: title + ' (Stock #' + (unit.stockNumber || stock) + ')',
+    message: body.message || 'Reservation request',
+  })
+
+  const cfg = loadJSON('reserve-config.json') || {}
+  if (cfg.enabled && cfg.stripeSecretKey) {
+    const deposit = Math.round(Number(cfg.depositAmount || 500) * 100)
+    const base = BASE_URL.replace(/\/$/, '')
+    const p = new URLSearchParams()
+    p.append('mode', 'payment')
+    p.append('success_url', base + '/reserve/success?stock=' + encodeURIComponent(stock))
+    p.append('cancel_url', base + '/inventory/' + stock)
+    p.append('line_items[0][price_data][currency]', cfg.currency || 'usd')
+    p.append('line_items[0][price_data][product_data][name]', 'Reservation Deposit — ' + title)
+    p.append('line_items[0][price_data][unit_amount]', String(deposit))
+    p.append('line_items[0][quantity]', '1')
+    if (body.email) p.append('customer_email', body.email)
+    p.append('metadata[stockNumber]', String(unit.stockNumber || stock))
+    p.append('metadata[reservedBy]', body.name || '')
+    try {
+      const r = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + cfg.stripeSecretKey, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: p,
+      })
+      const session = await r.json() as any
+      if (session.url) return c.json({ checkoutUrl: session.url })
+      return c.json({ error: session.error?.message || 'Stripe error', leadCaptured: true }, 400)
+    } catch (e: any) {
+      return c.json({ error: e.message, leadCaptured: true }, 400)
+    }
+  }
+  // No deposit configured — reservation lead captured; dealer follows up to collect a deposit.
+  return c.json({ ok: true, fallback: true })
+})
+
+app.get('/reserve/success', (c) => {
+  return renderPage(c, 'reserve-success', {
+    title: 'Reservation Confirmed | {{COMPANY_NAME}}',
+    description: 'Your reservation deposit was received.',
+    canonicalUrl: BASE_URL + '/reserve/success',
+  })
+})
+
+// ─── Parts & accessories request page ──────────────────────────────────────────
+app.get('/parts', (c) => {
+  return renderPage(c, 'parts', {
+    title: 'Parts & Accessories | {{COMPANY_NAME}}',
+    description: 'Request OEM and aftermarket parts and accessories from {{COMPANY_NAME}}.',
+    canonicalUrl: BASE_URL + '/parts',
+  })
+})
+
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
