@@ -2,7 +2,7 @@
  * Multi-Provider Financing Routes
  *
  * Manages financing provider configuration and loan applications
- * across all supported providers (Wisetack, GreenSky, Mosaic, etc.)
+ * across all supported providers (Octane, Sheffield, Synchrony, RouteOne, Aqua)
  */
 
 import { Hono } from 'hono'
@@ -26,7 +26,7 @@ app.get('/providers', async (c) => {
     description: p.description,
     supportedTerms: p.supportedTerms,
     enabled: enabledNames.has(p.name),
-    fullyImplemented: p.name === 'wisetack', // only wisetack has full API integration
+    fullyImplemented: p.name === 'octane', // Octane is the primary prequal adapter
   })))
 })
 

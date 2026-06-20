@@ -290,10 +290,10 @@ export const FEATURE_REGISTRY = {
       },
       consumer_financing: {
         id: 'consumer_financing',
-        name: 'Consumer Financing',
-        description: 'Wisetack financing integration',
+        name: 'Dealer Financing',
+        description: 'RV/powersports/marine financing — Octane, Sheffield, Synchrony, RouteOne',
         icon: 'banknote',
-        routes: ['/api/wisetack'],
+        routes: ['/api/financing', '/api/wisetack'],
       },
       quickbooks: {
         id: 'quickbooks',

@@ -1,30 +1,30 @@
 /**
- * Multi-Provider Financing Service
+ * Multi-Provider Financing Service — RV / Powersports / Marine
  *
- * Generic financing layer that supports multiple lending partners.
- * Each provider implements the same interface. The company's
- * integrations config determines which provider(s) are active.
+ * Generic financing layer behind a stable provider interface. The company's
+ * integrations config (Settings → Integrations → Financing) determines which
+ * provider(s) are active. These are the lenders/platforms RV, powersports, and
+ * marine DEALERS actually use — NOT home-improvement/contractor POS lenders.
  *
  * Supported providers:
- * - Wisetack — fully implemented (consumer lending for contractors)
- * - GreenSky — home improvement financing (Goldman Sachs)
- * - Mosaic — solar and roofing financing
- * - Service Finance — HVAC/plumbing specialty
- * - Synchrony — major consumer lender
- * - Hearth — contractor-focused multi-lender
- * - Enhancify — multi-lender marketplace
+ * - Octane (Roadrunner Financial) — instant soft-pull PREQUALIFICATION for
+ *   powersports/RV/marine/OPE; primary digital-retail prequal. (adapter ready;
+ *   endpoints to be confirmed against Octane's dealer API once credentialed)
+ * - Sheffield Financial (Truist) — powersports/marine/OPE/trailer financing
+ * - Synchrony (Powersports) — POS prequal + promotional offers (e.g. Polaris)
+ * - RouteOne — F&I credit-app aggregation + eContracting (indirect lending)
+ * - Aqua Finance — marine / RV specialty lender
  */
 
 import { db } from '../../db/index.ts'
 import { financingApplication, company } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
-import wisetack from './wisetack.ts'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type ProviderName = 'wisetack' | 'greensky' | 'mosaic' | 'service_finance' | 'synchrony' | 'hearth' | 'enhancify'
+export type ProviderName = 'octane' | 'sheffield' | 'synchrony' | 'routeone' | 'aqua'
 
 export interface FinancingOption {
   termMonths: number
@@ -56,6 +56,7 @@ export interface LoanApplicationResult {
 export interface ProviderConfig {
   enabled: boolean
   apiKey?: string
+  dealerId?: string
   merchantId?: string
   partnerId?: string
   sandbox?: boolean
@@ -77,104 +78,67 @@ export interface FinancingProvider {
 // Provider implementations
 // ---------------------------------------------------------------------------
 
-const wisetackProvider: FinancingProvider = {
-  name: 'wisetack',
-  displayName: 'Wisetack',
-  logo: '💳',
-  description: 'Consumer lending for contractors — fast approval, no hard credit pull to check rates',
-  supportedTerms: [12, 24, 36, 60],
-  getOptions(amount) {
-    return wisetack.getFinancingOptions(amount)
-  },
-  async createApplication(req, config) {
-    try {
-      const result = await wisetack.createLoanApplication({
-        companyId: req.companyId,
-        contactId: req.contactId,
-        amount: req.amount,
-        customerName: req.contactName,
-        customerEmail: req.contactEmail,
-        customerPhone: req.contactPhone,
-        purpose: req.purpose || 'home_improvement',
-      })
-      return {
-        success: true,
-        applicationId: result.id,
-        applicationUrl: result.applicationUrl,
-        externalId: result.externalId,
-      }
-    } catch (err: any) {
-      return { success: false, error: err.message }
-    }
-  },
-  async getStatus(externalId) {
-    const result = await wisetack.getApplicationStatus(externalId)
-    return result.status || 'unknown'
-  },
-}
-
-const greenskyProvider: FinancingProvider = {
-  name: 'greensky',
-  displayName: 'GreenSky',
-  logo: '🌿',
-  description: 'Home improvement financing by Goldman Sachs — promotional rates, large project support',
-  supportedTerms: [12, 24, 36, 60, 84, 120, 144],
+// Octane / Roadrunner Financial — the powersports/RV/marine instant-prequal
+// platform. Buyer soft-pulls, Octane returns real offers and routes them to the
+// dealer. ⚠️ The request path/shape below follows Octane's dealer/partner API
+// PATTERN and must be verified against their API docs once a dealer account +
+// API credentials are issued. Until configured it returns a clear message.
+const octaneProvider: FinancingProvider = {
+  name: 'octane',
+  displayName: 'Octane (Roadrunner Financial)',
+  logo: '🏍️',
+  description: 'Instant prequalification for RV, powersports, and marine — soft credit pull, real offers, routed to the dealer',
+  supportedTerms: [24, 36, 48, 60, 72, 84, 120, 180, 240],
   getOptions(amount, config) {
-    // GreenSky promotional plans — rates configured per merchant
-    const promoApr = config.promoApr ?? 0
-    const standardApr = config.standardApr ?? 9.99
-    return [
-      { termMonths: 12, apr: promoApr, monthlyPayment: calcPayment(amount, promoApr, 12), totalCost: amount, label: `12 months @ ${promoApr}% APR` },
-      { termMonths: 36, apr: promoApr, monthlyPayment: calcPayment(amount, promoApr, 36), totalCost: calcPayment(amount, promoApr, 36) * 36, label: `36 months @ ${promoApr}% APR` },
-      { termMonths: 60, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 60), totalCost: calcPayment(amount, standardApr, 60) * 60, label: `60 months @ ${standardApr}% APR` },
-      { termMonths: 120, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 120), totalCost: calcPayment(amount, standardApr, 120) * 120, label: `120 months @ ${standardApr}% APR` },
-    ]
+    const apr = config.standardApr ?? 9.99
+    const terms = [60, 84, 120, 180]
+    return terms.map((t) => ({
+      termMonths: t,
+      apr,
+      monthlyPayment: calcPayment(amount, apr, t),
+      totalCost: calcPayment(amount, apr, t) * t,
+      label: `${t} mo @ ${apr}% APR (estimate — prequalify for your real rate)`,
+    }))
   },
   async createApplication(req, config) {
-    // GreenSky API integration point
-    // Requires: config.merchantId, config.apiKey
-    if (!config.apiKey || !config.merchantId) {
-      return { success: false, error: 'GreenSky not configured — add API key and Merchant ID in Settings → Integrations' }
+    if (!config.apiKey || !config.dealerId) {
+      return { success: false, error: 'Octane not configured — add API Key and Dealer ID in Settings → Integrations → Financing → Octane' }
     }
-    const baseUrl = config.sandbox
-      ? 'https://sandbox-api.greensky.com/v1'
-      : 'https://api.greensky.com/v1'
-
+    const baseUrl = config.sandbox ? 'https://api.sandbox.octane.co/v1' : 'https://api.octane.co/v1'
     try {
-      const response = await fetch(`${baseUrl}/applications`, {
+      // NOTE: confirm exact path/payload against Octane's dealer API docs.
+      const response = await fetch(`${baseUrl}/prequalifications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${config.apiKey}`,
-          'X-Merchant-Id': config.merchantId!,
+          'X-Dealer-Id': config.dealerId!,
         },
         body: JSON.stringify({
-          merchantId: config.merchantId,
-          loanAmount: req.amount,
-          borrower: {
+          dealerId: config.dealerId,
+          requestedAmount: req.amount,
+          applicant: {
             firstName: req.contactName.split(' ')[0] || req.contactName,
             lastName: req.contactName.split(' ').slice(1).join(' ') || '',
             email: req.contactEmail,
             phone: req.contactPhone,
           },
-          purpose: req.purpose || 'Home improvement',
+          assetType: req.purpose || 'powersports',
         }),
       })
-
       if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: 'GreenSky API error' }))
-        return { success: false, error: err.message || `GreenSky returned ${response.status}` }
+        const err = await response.json().catch(() => ({ message: 'Octane API error' }))
+        return { success: false, error: err.message || `Octane returned ${response.status}` }
       }
-
       const data = await response.json()
       return {
         success: true,
-        applicationId: data.applicationId || data.id,
-        applicationUrl: data.applicationUrl || data.url,
-        externalId: data.applicationId || data.id,
+        applicationId: data.prequalificationId || data.id,
+        applicationUrl: data.offerUrl || data.applicationUrl || data.url,
+        externalId: data.prequalificationId || data.id,
       }
     } catch (err) {
-      return { success: false, error: `GreenSky API error: ${(err as Error).message}` }
+      return { success: false, error: `Octane API error: ${(err as Error).message}` }
     }
   },
   async getStatus(_externalId, _config) {
@@ -182,111 +146,89 @@ const greenskyProvider: FinancingProvider = {
   },
 }
 
-const mosaicProvider: FinancingProvider = {
-  name: 'mosaic',
-  displayName: 'Mosaic',
-  logo: '🔆',
-  description: 'Solar and roofing financing — long terms, competitive rates for energy improvements',
-  supportedTerms: [60, 120, 180, 240, 300],
+const sheffieldProvider: FinancingProvider = {
+  name: 'sheffield',
+  displayName: 'Sheffield Financial',
+  logo: '⚓',
+  description: 'Powersports, marine, OPE, and trailer financing (Truist) — online prequal + digital buying',
+  supportedTerms: [24, 36, 48, 60, 72, 84],
   getOptions(amount, config) {
-    const apr = config.apr ?? 4.99
-    return [
-      { termMonths: 120, apr, monthlyPayment: calcPayment(amount, apr, 120), totalCost: calcPayment(amount, apr, 120) * 120, label: `10 years @ ${apr}% APR` },
-      { termMonths: 180, apr, monthlyPayment: calcPayment(amount, apr, 180), totalCost: calcPayment(amount, apr, 180) * 180, label: `15 years @ ${apr}% APR` },
-      { termMonths: 240, apr, monthlyPayment: calcPayment(amount, apr, 240), totalCost: calcPayment(amount, apr, 240) * 240, label: `20 years @ ${apr}% APR` },
-      { termMonths: 300, apr, monthlyPayment: calcPayment(amount, apr, 300), totalCost: calcPayment(amount, apr, 300) * 300, label: `25 years @ ${apr}% APR` },
-    ]
+    const apr = config.standardApr ?? 8.99
+    return [36, 60, 84].map((t) => ({
+      termMonths: t,
+      apr,
+      monthlyPayment: calcPayment(amount, apr, t),
+      totalCost: calcPayment(amount, apr, t) * t,
+      label: `${t} mo @ ${apr}% APR`,
+    }))
   },
   async createApplication(req, config) {
-    if (!config.apiKey) return { success: false, error: 'Mosaic not configured — add API key in Settings → Integrations' }
-    return { success: false, error: 'Mosaic integration coming soon' }
-  },
-  async getStatus() { return 'pending' },
-}
-
-const serviceFinanceProvider: FinancingProvider = {
-  name: 'service_finance',
-  displayName: 'Service Finance',
-  logo: '🔧',
-  description: 'HVAC, plumbing, and electrical specialty financing — same-as-cash options',
-  supportedTerms: [12, 18, 24, 36, 48, 60],
-  getOptions(amount, config) {
-    const promoApr = config.promoApr ?? 0
-    const standardApr = config.standardApr ?? 8.99
-    return [
-      { termMonths: 18, apr: promoApr, monthlyPayment: calcPayment(amount, promoApr, 18), totalCost: amount, label: `18 months same-as-cash` },
-      { termMonths: 36, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 36), totalCost: calcPayment(amount, standardApr, 36) * 36, label: `36 months @ ${standardApr}% APR` },
-      { termMonths: 60, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 60), totalCost: calcPayment(amount, standardApr, 60) * 60, label: `60 months @ ${standardApr}% APR` },
-    ]
-  },
-  async createApplication(req, config) {
-    if (!config.apiKey || !config.dealerId) return { success: false, error: 'Service Finance not configured — add API key and Dealer ID in Settings → Integrations' }
-    return { success: false, error: 'Service Finance integration coming soon' }
+    if (!config.apiKey || !config.dealerId) return { success: false, error: 'Sheffield not configured — add API Key and Dealer ID in Settings → Integrations' }
+    return { success: false, error: 'Sheffield integration coming soon' }
   },
   async getStatus() { return 'pending' },
 }
 
 const synchronyProvider: FinancingProvider = {
   name: 'synchrony',
-  displayName: 'Synchrony',
+  displayName: 'Synchrony (Powersports)',
   logo: '🏦',
-  description: 'Major consumer lender — high approval rates, promotional 0% offers',
-  supportedTerms: [6, 12, 18, 24, 36, 48, 60],
+  description: 'Powersports POS financing — fast prequal, promotional offers, PRISM underwriting (e.g. Polaris)',
+  supportedTerms: [12, 24, 36, 48, 60],
   getOptions(amount, config) {
     const promoApr = config.promoApr ?? 0
-    const standardApr = config.standardApr ?? 9.99
+    const standardApr = config.standardApr ?? 12.99
     return [
-      { termMonths: 6, apr: promoApr, monthlyPayment: calcPayment(amount, promoApr, 6), totalCost: amount, label: `6 months @ ${promoApr}% APR` },
-      { termMonths: 12, apr: promoApr, monthlyPayment: calcPayment(amount, promoApr, 12), totalCost: amount, label: `12 months @ ${promoApr}% APR` },
-      { termMonths: 24, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 24), totalCost: calcPayment(amount, standardApr, 24) * 24, label: `24 months @ ${standardApr}% APR` },
-      { termMonths: 60, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 60), totalCost: calcPayment(amount, standardApr, 60) * 60, label: `60 months @ ${standardApr}% APR` },
+      { termMonths: 12, apr: promoApr, monthlyPayment: calcPayment(amount, promoApr, 12), totalCost: amount, label: `12 mo promo @ ${promoApr}% APR` },
+      { termMonths: 36, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 36), totalCost: calcPayment(amount, standardApr, 36) * 36, label: `36 mo @ ${standardApr}% APR` },
+      { termMonths: 60, apr: standardApr, monthlyPayment: calcPayment(amount, standardApr, 60), totalCost: calcPayment(amount, standardApr, 60) * 60, label: `60 mo @ ${standardApr}% APR` },
     ]
   },
   async createApplication(req, config) {
-    if (!config.apiKey || !config.merchantId) return { success: false, error: 'Synchrony not configured — add API key and Merchant ID in Settings → Integrations' }
+    if (!config.apiKey || !config.merchantId) return { success: false, error: 'Synchrony not configured — add API Key and Merchant ID in Settings → Integrations' }
     return { success: false, error: 'Synchrony integration coming soon' }
   },
   async getStatus() { return 'pending' },
 }
 
-const hearthProvider: FinancingProvider = {
-  name: 'hearth',
-  displayName: 'Hearth',
-  logo: '🏠',
-  description: 'Built for contractors — multi-lender marketplace, customers see rates from multiple lenders',
-  supportedTerms: [12, 24, 36, 48, 60, 84, 120],
-  getOptions(amount) {
-    return [
-      { termMonths: 12, apr: 0, monthlyPayment: calcPayment(amount, 0, 12), totalCost: amount, label: '12 months @ 0% APR' },
-      { termMonths: 36, apr: 5.99, monthlyPayment: calcPayment(amount, 5.99, 36), totalCost: calcPayment(amount, 5.99, 36) * 36, label: '36 months @ 5.99% APR' },
-      { termMonths: 60, apr: 7.99, monthlyPayment: calcPayment(amount, 7.99, 60), totalCost: calcPayment(amount, 7.99, 60) * 60, label: '60 months @ 7.99% APR' },
-      { termMonths: 120, apr: 9.99, monthlyPayment: calcPayment(amount, 9.99, 120), totalCost: calcPayment(amount, 9.99, 120) * 120, label: '120 months @ 9.99% APR' },
-    ]
+// RouteOne — not a single lender; it aggregates credit apps to many indirect
+// lenders + eContracting. Used desk-side in the deal flow.
+const routeoneProvider: FinancingProvider = {
+  name: 'routeone',
+  displayName: 'RouteOne',
+  logo: '🔗',
+  description: 'F&I credit-app aggregation + eContracting — submit one application to many indirect lenders',
+  supportedTerms: [36, 48, 60, 72, 84, 120, 180, 240],
+  getOptions() {
+    // Offers come back from the lenders RouteOne routes to; nothing to estimate here.
+    return []
   },
   async createApplication(req, config) {
-    if (!config.apiKey || !config.partnerId) return { success: false, error: 'Hearth not configured — add API key and Partner ID in Settings → Integrations' }
-    return { success: false, error: 'Hearth integration coming soon' }
+    if (!config.apiKey || !config.dealerId) return { success: false, error: 'RouteOne not configured — add API Key and Dealer ID in Settings → Integrations' }
+    return { success: false, error: 'RouteOne integration coming soon' }
   },
   async getStatus() { return 'pending' },
 }
 
-const enhancifyProvider: FinancingProvider = {
-  name: 'enhancify',
-  displayName: 'Enhancify',
-  logo: '✨',
-  description: 'Multi-lender marketplace — one application, multiple offers, highest approval rates',
-  supportedTerms: [12, 24, 36, 48, 60, 84, 120, 144, 180],
-  getOptions(amount) {
-    return [
-      { termMonths: 12, apr: 0, monthlyPayment: calcPayment(amount, 0, 12), totalCost: amount, label: '12 months @ 0% APR' },
-      { termMonths: 36, apr: 4.99, monthlyPayment: calcPayment(amount, 4.99, 36), totalCost: calcPayment(amount, 4.99, 36) * 36, label: '36 months @ 4.99% APR' },
-      { termMonths: 60, apr: 6.99, monthlyPayment: calcPayment(amount, 6.99, 60), totalCost: calcPayment(amount, 6.99, 60) * 60, label: '60 months @ 6.99% APR' },
-      { termMonths: 120, apr: 9.99, monthlyPayment: calcPayment(amount, 9.99, 120), totalCost: calcPayment(amount, 9.99, 120) * 120, label: '120 months @ 9.99% APR' },
-    ]
+const aquaProvider: FinancingProvider = {
+  name: 'aqua',
+  displayName: 'Aqua Finance',
+  logo: '🚤',
+  description: 'Marine and RV specialty lender — longer terms for larger units',
+  supportedTerms: [60, 120, 180, 240],
+  getOptions(amount, config) {
+    const apr = config.standardApr ?? 9.49
+    return [120, 180, 240].map((t) => ({
+      termMonths: t,
+      apr,
+      monthlyPayment: calcPayment(amount, apr, t),
+      totalCost: calcPayment(amount, apr, t) * t,
+      label: `${t / 12} yr @ ${apr}% APR`,
+    }))
   },
   async createApplication(req, config) {
-    if (!config.apiKey) return { success: false, error: 'Enhancify not configured — add API key in Settings → Integrations' }
-    return { success: false, error: 'Enhancify integration coming soon' }
+    if (!config.apiKey) return { success: false, error: 'Aqua Finance not configured — add API Key in Settings → Integrations' }
+    return { success: false, error: 'Aqua Finance integration coming soon' }
   },
   async getStatus() { return 'pending' },
 }
@@ -296,13 +238,11 @@ const enhancifyProvider: FinancingProvider = {
 // ---------------------------------------------------------------------------
 
 const PROVIDERS: Record<ProviderName, FinancingProvider> = {
-  wisetack: wisetackProvider,
-  greensky: greenskyProvider,
-  mosaic: mosaicProvider,
-  service_finance: serviceFinanceProvider,
+  octane: octaneProvider,
+  sheffield: sheffieldProvider,
   synchrony: synchronyProvider,
-  hearth: hearthProvider,
-  enhancify: enhancifyProvider,
+  routeone: routeoneProvider,
+  aqua: aquaProvider,
 }
 
 export function getProvider(name: ProviderName): FinancingProvider | null {

@@ -795,7 +795,7 @@ export const FEATURE_BUNDLES = {
     features: ['quickbooks_sync', 'consumer_financing'],
     subFeatures: {
       quickbooks_sync: { name: 'QuickBooks Sync', price: 2900 },
-      consumer_financing: { name: 'Wisetack Financing', price: 2500 },
+      consumer_financing: { name: 'Dealer Financing (Octane)', price: 2500 },
     },
     stripePriceId: process.env.STRIPE_PRICE_BUNDLE_INTEGRATIONS,
   },
