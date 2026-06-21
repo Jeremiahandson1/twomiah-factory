@@ -67,147 +67,18 @@ export const FEATURE_REGISTRY = {
   },
 
   // ============================================
-  // SERVICE TRADE MODULES
+  // WARRANTIES
   // ============================================
-  service: {
-    name: 'Service Trade',
-    description: 'Features for HVAC, plumbing, electrical, etc.',
+  warranty: {
+    name: 'Warranties',
+    description: 'Warranty and service claim tracking',
     features: {
-      gps_tracking: {
-        id: 'gps_tracking',
-        name: 'GPS Time Tracking',
-        description: 'Auto clock in/out based on job site location',
-        icon: 'map-pin',
-        routes: ['/api/time-tracking/gps', '/api/geofencing'],
-      },
-      route_optimization: {
-        id: 'route_optimization',
-        name: 'Route Optimization',
-        description: 'Optimize daily routes for technicians',
-        icon: 'route',
-        routes: ['/api/routing'],
-      },
-      equipment_tracking: {
-        id: 'equipment_tracking',
-        name: 'Equipment Tracking',
-        description: 'Track customer equipment, warranties, service history',
-        icon: 'settings',
-        routes: ['/equipment', '/api/equipment'],
-      },
-      service_agreements: {
-        id: 'service_agreements',
-        name: 'Service Agreements',
-        description: 'Membership plans and recurring service contracts',
-        icon: 'file-check',
-        routes: ['/agreements', '/api/agreements'],
-      },
-      pricebook: {
-        id: 'pricebook',
-        name: 'Pricebook',
-        description: 'Flat-rate pricing with good/better/best options',
-        icon: 'book-open',
-        routes: ['/pricebook', '/api/pricebook'],
-      },
-      fleet: {
-        id: 'fleet',
-        name: 'Fleet Management',
-        description: 'Vehicle tracking, maintenance, fuel logs',
-        icon: 'truck',
-        routes: ['/fleet', '/api/fleet'],
-      },
-    },
-  },
-
-  // ============================================
-  // CONSTRUCTION MODULES
-  // ============================================
-  construction: {
-    name: 'Construction',
-    description: 'Features for GCs, remodelers, builders',
-    features: {
-      projects: {
-        id: 'projects',
-        name: 'Project Management',
-        description: 'Multi-phase construction projects',
-        icon: 'building',
-        routes: ['/projects', '/api/projects'],
-      },
-      change_orders: {
-        id: 'change_orders',
-        name: 'Change Orders',
-        description: 'Track and approve scope changes',
-        icon: 'file-diff',
-        routes: ['/change-orders', '/api/change-orders'],
-      },
-      rfis: {
-        id: 'rfis',
-        name: 'RFIs',
-        description: 'Request for Information tracking',
-        icon: 'help-circle',
-        routes: ['/rfis', '/api/rfis'],
-      },
-      daily_logs: {
-        id: 'daily_logs',
-        name: 'Daily Logs',
-        description: 'Jobsite activity documentation',
-        icon: 'clipboard-list',
-        routes: ['/daily-logs', '/api/daily-logs'],
-      },
-      punch_lists: {
-        id: 'punch_lists',
-        name: 'Punch Lists',
-        description: 'Track completion items',
-        icon: 'check-square',
-        routes: ['/punch-lists', '/api/punch-lists'],
-      },
-      bids: {
-        id: 'bids',
-        name: 'Bid Management',
-        description: 'Track and manage project bids',
-        icon: 'gavel',
-        routes: ['/bids', '/api/bids'],
-      },
-      gantt: {
-        id: 'gantt',
-        name: 'Gantt Charts',
-        description: 'Project scheduling with dependencies',
-        icon: 'gantt-chart',
-        routes: ['/api/scheduling'],
-      },
-      selections: {
-        id: 'selections',
-        name: 'Selections',
-        description: 'Client finish and fixture selections',
-        icon: 'palette',
-        routes: ['/selections', '/api/selections'],
-      },
-      takeoffs: {
-        id: 'takeoffs',
-        name: 'Material Takeoffs',
-        description: 'Calculate material quantities from plans',
-        icon: 'calculator',
-        routes: ['/takeoffs', '/api/takeoffs'],
-      },
       warranties: {
         id: 'warranties',
         name: 'Warranty Management',
         description: 'Track warranties and service claims',
         icon: 'shield',
         routes: ['/warranties', '/api/warranties'],
-      },
-      lien_waivers: {
-        id: 'lien_waivers',
-        name: 'Lien Waivers',
-        description: 'Construction payment compliance',
-        icon: 'file-signature',
-        routes: ['/lien-waivers', '/api/lien-waivers'],
-      },
-      draw_schedules: {
-        id: 'draw_schedules',
-        name: 'Draw Schedules',
-        description: 'Construction loan billing (AIA style)',
-        icon: 'landmark',
-        routes: ['/draws', '/api/draws'],
       },
     },
   },
@@ -361,23 +232,6 @@ export const FEATURE_REGISTRY = {
   },
 
   // ============================================
-  // ADD-ONS (optional white-labeled products)
-  // ============================================
-  addons: {
-    name: 'Add-Ons',
-    description: 'Optional white-labeled products',
-    features: {
-      visualizer: {
-        id: 'visualizer',
-        name: 'Home Visualizer',
-        description: 'AI-powered home visualization tool embedded in your site',
-        icon: 'camera',
-        routes: ['/visualizer', '/api/visualizer'],
-      },
-    },
-  },
-
-  // ============================================
   // REPORTING
   // ============================================
   reporting: {
@@ -407,34 +261,29 @@ export const FEATURE_REGISTRY = {
 // ============================================
 
 export const FEATURE_PACKAGES = {
-  service_basic: {
-    id: 'service_basic',
-    name: 'Service Basic',
-    description: 'Essential features for small service companies',
+  dealer_basic: {
+    id: 'dealer_basic',
+    name: 'Dealer Basic',
+    description: 'Essential features for small RV & powersports dealers',
     price: '$1,500',
     features: [
       // Core always included
-      'gps_tracking',
-      'pricebook',
+      'warranties',
+      'inventory',
       'sms',
       'reviews',
       'payments',
       'customer_portal',
     ],
   },
-  service_pro: {
-    id: 'service_pro',
-    name: 'Service Pro',
-    description: 'Full service trade feature set',
+  dealer_pro: {
+    id: 'dealer_pro',
+    name: 'Dealer Pro',
+    description: 'Full RV, powersports & marine dealership feature set',
     price: '$2,500',
     features: [
       // Core always included
-      'gps_tracking',
-      'route_optimization',
-      'equipment_tracking',
-      'service_agreements',
-      'pricebook',
-      'fleet',
+      'warranties',
       'inventory',
       'purchase_orders',
       'sms',
@@ -443,56 +292,10 @@ export const FEATURE_PACKAGES = {
       'call_tracking',
       'payments',
       'consumer_financing',
+      'trade_valuation',
       'quickbooks',
       'customer_portal',
       'documents',
-      'reports',
-    ],
-  },
-  construction_basic: {
-    id: 'construction_basic',
-    name: 'Construction Basic',
-    description: 'Essential features for remodelers',
-    price: '$2,000',
-    features: [
-      // Core always included
-      'projects',
-      'change_orders',
-      'punch_lists',
-      'bids',
-      'customer_portal',
-      'documents',
-      'payments',
-    ],
-  },
-  construction_pro: {
-    id: 'construction_pro',
-    name: 'Construction Pro',
-    description: 'Full construction feature set',
-    price: '$3,500',
-    features: [
-      // Core always included
-      'projects',
-      'change_orders',
-      'rfis',
-      'daily_logs',
-      'punch_lists',
-      'bids',
-      'gantt',
-      'selections',
-      'takeoffs',
-      'warranties',
-      'lien_waivers',
-      'draw_schedules',
-      'inventory',
-      'purchase_orders',
-      'sms',
-      'payments',
-      'consumer_financing',
-      'quickbooks',
-      'customer_portal',
-      'documents',
-      'photos',
       'reports',
     ],
   },
