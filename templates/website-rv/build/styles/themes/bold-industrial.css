@@ -20,9 +20,12 @@
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
   --off-white: #e8e8e8;
-  --industrial-yellow: #f5a623;
-  --industrial-orange: #e8740c;
-  --industrial-red: #c0392b;
+  /* Accent now follows the tenant's brand primary (injected as --gold) so the
+     theme's 42 accent uses pick up the dealership's color instead of a fixed
+     amber. Falls back to the original amber when no brand color is set. */
+  --industrial-yellow: var(--gold, #f5a623);
+  --industrial-orange: var(--gold, #e8740c);
+  --industrial-red: var(--accent, #c0392b);
   --dark-bg: #1a1a1a;
   --darker-bg: #111111;
   --steel-gray: #2a2a2a;
