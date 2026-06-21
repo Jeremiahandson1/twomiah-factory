@@ -153,6 +153,9 @@ function loadContentPack(industry: string): any | null {
     fitness: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
     beauty: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
     events: path.join(TEMPLATES_ROOT, 'website-showcase', 'content-pack.json'),
+    rv: path.join(TEMPLATES_ROOT, 'website-rv', 'content-pack.json'),
+    powersports: path.join(TEMPLATES_ROOT, 'website-rv', 'content-pack.json'),
+    marine: path.join(TEMPLATES_ROOT, 'website-rv', 'content-pack.json'),
   }
 
   const packPath = packPaths[industry] || packPaths['general_contractor']
@@ -247,7 +250,7 @@ Return ONLY valid JSON with this structure:
 }`
 
   const message = await anthropic.messages.create({
-    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
     max_tokens: 12000,
     messages: [{ role: 'user', content: prompt }],
   })
@@ -265,7 +268,7 @@ Return ONLY valid JSON with this structure:
     // Retry once on parse failure
     console.warn('[ContentGenerator] First parse failed, retrying...')
     const retry = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
       max_tokens: 12000,
       messages: [
         { role: 'user', content: prompt },

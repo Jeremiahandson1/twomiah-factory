@@ -524,7 +524,7 @@ export async function composeHomepageSections(input: ComposerInput): Promise<Com
 
   const callOnce = async (extraSystem?: string) => {
     return anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
       max_tokens: 4000,
       system: 'You compose homepage section schemas. Output strict JSON only. No prose, no markdown fences.' + (extraSystem ? ' ' + extraSystem : ''),
       messages: [{ role: 'user', content: prompt }],
@@ -1926,7 +1926,7 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   // returns the same shape as create() would.
   const callOnce = async (extraSystem?: string) => {
     const stream = anthropic.messages.stream({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
       max_tokens: maxTokens,
       system: 'You compose multi-page website schemas. Output strict JSON only. No prose, no markdown fences.' + (extraSystem ? ' ' + extraSystem : ''),
       messages: [{ role: 'user', content: prompt }],
