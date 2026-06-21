@@ -20,7 +20,6 @@ interface FeatureComparisonItem {
   starter: boolean | string;
   pro: boolean | string;
   business: boolean | string;
-  construction: boolean | string;
   [key: string]: boolean | string;
 }
 
@@ -105,74 +104,43 @@ const PLANS: Record<string, Plan> = {
       'Advanced reporting',
     ],
   },
-  construction: {
-    id: 'construction',
-    name: 'Construction',
-    price: 599,
-    priceAnnual: 479,
-    description: 'Complete construction management',
-    users: 20,
-    highlights: [
-      'Everything in Business',
-      'Projects & phases',
-      'Change orders & RFIs',
-      'Daily logs & inspections',
-      'Punch lists',
-      'Bid management',
-      'Gantt charts',
-      'Selections portal',
-      'Draw schedules (AIA)',
-      'Lien waivers',
-    ],
-  },
 };
 
 const FEATURE_COMPARISON: FeatureGroup[] = [
   { category: 'Core', features: [
-    { name: 'Contacts / CRM', starter: true, pro: true, business: true, construction: true },
-    { name: 'Jobs & Work Orders', starter: true, pro: true, business: true, construction: true },
-    { name: 'Quotes & Estimates', starter: true, pro: true, business: true, construction: true },
-    { name: 'Invoicing & Payments', starter: true, pro: true, business: true, construction: true },
-    { name: 'Time & Expense Tracking', starter: true, pro: true, business: true, construction: true },
-    { name: 'Customer Portal', starter: true, pro: true, business: true, construction: true },
-    { name: 'Mobile App', starter: true, pro: true, business: true, construction: true },
+    { name: 'Contacts / CRM', starter: true, pro: true, business: true },
+    { name: 'Jobs & Work Orders', starter: true, pro: true, business: true },
+    { name: 'Quotes & Estimates', starter: true, pro: true, business: true },
+    { name: 'Invoicing & Payments', starter: true, pro: true, business: true },
+    { name: 'Time & Expense Tracking', starter: true, pro: true, business: true },
+    { name: 'Customer Portal', starter: true, pro: true, business: true },
+    { name: 'Mobile App', starter: true, pro: true, business: true },
   ]},
   { category: 'Field Operations', features: [
-    { name: 'Team Management', starter: false, pro: true, business: true, construction: true },
-    { name: 'Two-Way SMS', starter: false, pro: true, business: true, construction: true },
-    { name: 'GPS Tracking & Geofencing', starter: false, pro: true, business: true, construction: true },
-    { name: 'Route Optimization', starter: false, pro: true, business: true, construction: true },
-    { name: 'Online Booking', starter: false, pro: true, business: true, construction: true },
-    { name: 'Service Agreements', starter: false, pro: true, business: true, construction: true },
-    { name: 'Pricebook / Flat Rate', starter: false, pro: true, business: true, construction: true },
-    { name: 'QuickBooks Sync', starter: false, pro: true, business: true, construction: true },
-    { name: 'Recurring Jobs', starter: false, pro: true, business: true, construction: true },
+    { name: 'Team Management', starter: false, pro: true, business: true },
+    { name: 'Two-Way SMS', starter: false, pro: true, business: true },
+    { name: 'GPS Tracking & Geofencing', starter: false, pro: true, business: true },
+    { name: 'Route Optimization', starter: false, pro: true, business: true },
+    { name: 'Online Booking', starter: false, pro: true, business: true },
+    { name: 'Service Agreements', starter: false, pro: true, business: true },
+    { name: 'QuickBooks Sync', starter: false, pro: true, business: true },
+    { name: 'Recurring Jobs', starter: false, pro: true, business: true },
   ]},
   { category: 'Operations & Marketing', features: [
-    { name: 'Inventory Management', starter: false, pro: false, business: true, construction: true },
-    { name: 'Equipment Tracking', starter: false, pro: false, business: true, construction: true },
-    { name: 'Fleet Management', starter: false, pro: false, business: true, construction: true },
-    { name: 'Email Campaigns', starter: false, pro: false, business: true, construction: true },
-    { name: 'Workflow Automations', starter: false, pro: false, business: true, construction: true },
-    { name: 'Custom Forms', starter: false, pro: false, business: true, construction: true },
-    { name: 'Consumer Financing', starter: false, pro: false, business: true, construction: true },
-    { name: 'Advanced Reporting', starter: false, pro: false, business: true, construction: true },
-  ]},
-  { category: 'Construction Management', features: [
-    { name: 'Projects & Phases', starter: false, pro: false, business: false, construction: true },
-    { name: 'Change Orders & RFIs', starter: false, pro: false, business: false, construction: true },
-    { name: 'Daily Logs & Inspections', starter: false, pro: false, business: false, construction: true },
-    { name: 'Punch Lists', starter: false, pro: false, business: false, construction: true },
-    { name: 'Gantt Charts', starter: false, pro: false, business: false, construction: true },
-    { name: 'Selections Portal', starter: false, pro: false, business: false, construction: true },
-    { name: 'Draw Schedules (AIA)', starter: false, pro: false, business: false, construction: true },
-    { name: 'Lien Waivers', starter: false, pro: false, business: false, construction: true },
+    { name: 'Inventory Management', starter: false, pro: false, business: true },
+    { name: 'Equipment Tracking', starter: false, pro: false, business: true },
+    { name: 'Fleet Management', starter: false, pro: false, business: true },
+    { name: 'Email Campaigns', starter: false, pro: false, business: true },
+    { name: 'Workflow Automations', starter: false, pro: false, business: true },
+    { name: 'Custom Forms', starter: false, pro: false, business: true },
+    { name: 'Consumer Financing', starter: false, pro: false, business: true },
+    { name: 'Advanced Reporting', starter: false, pro: false, business: true },
   ]},
   { category: 'Limits', features: [
-    { name: 'Contacts', starter: '500', pro: '2,500', business: '10,000', construction: '25,000' },
-    { name: 'Jobs / month', starter: '100', pro: '500', business: '2,000', construction: '5,000' },
-    { name: 'Storage', starter: '5 GB', pro: '25 GB', business: '100 GB', construction: '250 GB' },
-    { name: 'SMS Credits', starter: '—', pro: '500', business: '2,000', construction: '5,000' },
+    { name: 'Contacts', starter: '500', pro: '2,500', business: '10,000' },
+    { name: 'Jobs / month', starter: '100', pro: '500', business: '2,000' },
+    { name: 'Storage', starter: '5 GB', pro: '25 GB', business: '100 GB' },
+    { name: 'SMS Credits', starter: '—', pro: '500', business: '2,000' },
   ]},
 ];
 
@@ -531,7 +499,7 @@ interface PlanSelectionProps {
 
 function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBillingCycle }: PlanSelectionProps) {
   const [showComparison, setShowComparison] = useState<boolean>(false);
-  const tierKeys: string[] = ['starter', 'pro', 'business', 'construction'];
+  const tierKeys: string[] = ['starter', 'pro', 'business'];
 
   return (
     <div>
@@ -552,7 +520,7 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
         )}
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         {Object.values(PLANS).map((plan: Plan) => {
           const price = billingCycle === 'annual' ? plan.priceAnnual : plan.price;
           const isSelected = selectedPlan === plan.id;
@@ -622,7 +590,7 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
               {FEATURE_COMPARISON.map((group: FeatureGroup) => (
                 <React.Fragment key={group.category}>
                   <tr>
-                    <td colSpan={5} className="pt-4 pb-2 font-semibold text-gray-900 text-xs uppercase tracking-wider">
+                    <td colSpan={4} className="pt-4 pb-2 font-semibold text-gray-900 text-xs uppercase tracking-wider">
                       {group.category}
                     </td>
                   </tr>
