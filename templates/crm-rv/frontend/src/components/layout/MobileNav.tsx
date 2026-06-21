@@ -22,12 +22,22 @@ interface NavGroup {
 
 const navGroups: NavGroup[] = [
   {
-    label: 'Main',
+    label: 'Sales',
     items: [
       { to: '/', icon: Home, label: 'Dashboard', exact: true },
+      { to: '/units', icon: Briefcase, label: 'Inventory' },
+      { to: '/sales-pipeline', icon: ClipboardList, label: 'Sales Pipeline' },
+      { to: '/leads', icon: FileQuestion, label: 'Leads' },
       { to: '/contacts', icon: Users, label: 'Contacts' },
-      { to: '/projects', icon: FolderKanban, label: 'Projects' },
-      { to: '/jobs', icon: Briefcase, label: 'Jobs' },
+    ],
+  },
+  {
+    label: 'Service',
+    items: [
+      { to: '/service', icon: ClipboardCheck, label: 'Service' },
+      { to: '/schedule', icon: Calendar, label: 'Schedule' },
+      { to: '/inventory', icon: FolderKanban, label: 'Parts' },
+      { to: '/time', icon: Clock, label: 'Time' },
     ],
   },
   {
@@ -36,24 +46,6 @@ const navGroups: NavGroup[] = [
       { to: '/quotes', icon: FileText, label: 'Quotes' },
       { to: '/invoices', icon: Receipt, label: 'Invoices' },
       { to: '/expenses', icon: DollarSign, label: 'Expenses' },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { to: '/schedule', icon: Calendar, label: 'Schedule' },
-      { to: '/time', icon: Clock, label: 'Time Tracking' },
-      { to: '/rfis', icon: FileQuestion, label: 'RFIs' },
-      { to: '/change-orders', icon: ClipboardList, label: 'Change Orders' },
-    ],
-  },
-  {
-    label: 'Quality',
-    items: [
-      { to: '/punch-lists', icon: CheckSquare, label: 'Punch Lists' },
-      { to: '/daily-logs', icon: BookOpen, label: 'Daily Logs' },
-      { to: '/inspections', icon: ClipboardCheck, label: 'Inspections' },
-      { to: '/bids', icon: Target, label: 'Bids' },
     ],
   },
 ];

@@ -19,15 +19,12 @@ interface SharedDoc {
 
 const TYPE_LABELS: Record<string, string> = {
   general: 'General',
-  plans: 'Plans & Drawings',
-  permit: 'Permit',
-  contract: 'Contract',
-  insurance: 'Insurance Cert',
-  lien_waiver: 'Lien Waiver',
+  contract: 'Sales Contract',
+  title: 'Title & Registration',
+  finance: 'Financing',
+  warranty: 'Warranty',
+  insurance: 'Insurance',
   photo: 'Photo',
-  submittal: 'Submittal',
-  change_order: 'Change Order',
-  inspection: 'Inspection',
 };
 
 export default function PortalSharedDocuments() {
