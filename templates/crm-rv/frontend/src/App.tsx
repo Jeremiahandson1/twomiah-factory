@@ -74,22 +74,13 @@ import { PortalProvider } from './contexts/PortalContext';
 import {
   PortalLayout,
   PortalDashboard,
-  PortalProjects,
-  PortalProjectDetail,
   PortalQuotes,
   PortalQuoteDetail,
   PortalInvoices,
   PortalInvoiceDetail,
-  PortalChangeOrders,
-  PortalChangeOrderDetail,
-  PortalSelections,
   PortalMessages,
   PortalMyJobs,
-  PortalLienWaivers,
-  PortalSubmittalReview,
   PortalSharedDocuments,
-  PortalAssignedRfis,
-  PortalProjectFiles,
 } from './components/portal';
 
 
@@ -180,22 +171,13 @@ function App() {
                   {/* Client Portal (public, token-based auth) */}
                   <Route path="/portal/:token" element={<PortalProvider><PortalLayout /></PortalProvider>}>
                     <Route index element={<PortalDashboard />} />
-                    <Route path="projects" element={<PortalProjects />} />
-                    <Route path="projects/:projectId" element={<PortalProjectDetail />} />
-                    <Route path="projects/:projectId/files" element={<PortalProjectFiles />} />
                     <Route path="quotes" element={<PortalQuotes />} />
                     <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
                     <Route path="invoices" element={<PortalInvoices />} />
                     <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
-                    <Route path="change-orders" element={<PortalChangeOrders />} />
-                    <Route path="change-orders/:changeOrderId" element={<PortalChangeOrderDetail />} />
-                    <Route path="selections" element={<PortalSelections />} />
                     <Route path="messages" element={<PortalMessages />} />
-                    {/* Collaborator routes (subs, architects, consultants) */}
+                    {/* Service / collaborator routes */}
                     <Route path="my-jobs" element={<PortalMyJobs />} />
-                    <Route path="lien-waivers" element={<PortalLienWaivers />} />
-                    <Route path="submittal-review" element={<PortalSubmittalReview />} />
-                    <Route path="rfis-assigned" element={<PortalAssignedRfis />} />
                     <Route path="shared-documents" element={<PortalSharedDocuments />} />
                   </Route>
 

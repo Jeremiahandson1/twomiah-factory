@@ -1,4 +1,4 @@
-import { FolderKanban, FileText, Receipt, DollarSign, Hammer, FileSignature, FileCheck2, HelpCircle, FolderOpen, ClipboardList } from 'lucide-react';
+import { FileText, Receipt, DollarSign, Hammer, FolderOpen } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { usePortal } from '../../contexts/PortalContext';
 
@@ -15,10 +15,8 @@ export default function PortalDashboard() {
   const { summary, company, contactType, contact } = usePortal();
 
   const isSub = contactType === 'subcontractor' || contactType === 'vendor' || contactType === 'supplier';
-  const isArchitect = contactType === 'architect' || contactType === 'consultant' || contactType === 'inspector';
 
   const clientStats: StatCard[] = [
-    { label: 'Active Projects', value: (summary?.activeProjects as number) || 0, icon: FolderKanban, color: 'bg-purple-100 text-purple-600', link: `/portal/${token}/projects` },
     { label: 'Pending Quotes', value: (summary?.pendingQuotes as number) || 0, icon: FileText, color: 'bg-blue-100 text-blue-600', link: `/portal/${token}/quotes` },
     { label: 'Total Invoices', value: (summary?.totalInvoices as number) || 0, icon: Receipt, color: 'bg-green-100 text-green-600', link: `/portal/${token}/invoices` },
     {
@@ -28,28 +26,19 @@ export default function PortalDashboard() {
       color: (summary?.outstandingBalance as number) > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-600',
       link: `/portal/${token}/invoices`,
     },
+    { label: 'Service', value: 'View', icon: Hammer, color: 'bg-orange-100 text-orange-600', link: `/portal/${token}/my-jobs` },
   ];
 
   const subCards: StatCard[] = [
     { label: 'My Jobs', value: 'View', icon: Hammer, color: 'bg-orange-100 text-orange-600', link: `/portal/${token}/my-jobs` },
-    { label: 'Lien Waivers', value: 'Review & Sign', icon: FileSignature, color: 'bg-blue-100 text-blue-600', link: `/portal/${token}/lien-waivers` },
     { label: 'Shared Documents', value: 'Browse', icon: FolderOpen, color: 'bg-gray-100 text-gray-600', link: `/portal/${token}/shared-documents` },
   ];
 
-  const architectCards: StatCard[] = [
-    { label: 'Submittals', value: 'Review', icon: FileCheck2, color: 'bg-purple-100 text-purple-600', link: `/portal/${token}/submittal-review` },
-    { label: 'RFIs', value: 'Respond', icon: HelpCircle, color: 'bg-indigo-100 text-indigo-600', link: `/portal/${token}/rfis-assigned` },
-    { label: 'Change Orders', value: 'Review', icon: ClipboardList, color: 'bg-yellow-100 text-yellow-600', link: `/portal/${token}/change-orders` },
-    { label: 'Shared Documents', value: 'Browse', icon: FolderOpen, color: 'bg-gray-100 text-gray-600', link: `/portal/${token}/shared-documents` },
-  ];
-
-  const stats = isSub ? subCards : isArchitect ? architectCards : clientStats;
+  const stats = isSub ? subCards : clientStats;
 
   const welcome = isSub
     ? 'Here are your jobs and paperwork.'
-    : isArchitect
-      ? 'Here are the items awaiting your review.'
-      : `Here's an overview of your account with ${(company?.name as string) || ''}.`;
+    : `Here's an overview of your account with ${(company?.name as string) || ''}.`;
 
   return (
     <div>
@@ -80,7 +69,7 @@ export default function PortalDashboard() {
         ))}
       </div>
 
-      {!isSub && !isArchitect && (
+      {!isSub && (
         <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="flex flex-wrap gap-3">

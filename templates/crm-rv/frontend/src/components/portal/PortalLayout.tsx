@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useParams } from 'react-router-dom';
-import { Home, FolderKanban, FileText, Receipt, ClipboardList, Palette, MessageSquare, Loader2, Hammer, FileSignature, FileCheck2, FolderOpen, HelpCircle } from 'lucide-react';
+import { Home, FileText, Receipt, MessageSquare, Loader2, Hammer, FolderOpen } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -51,34 +51,22 @@ export default function PortalLayout() {
   const documents: NavItem = { to: `/portal/${token}/shared-documents`, icon: FolderOpen, label: 'Documents' };
 
   const isSub = contactType === 'subcontractor' || contactType === 'vendor' || contactType === 'supplier';
-  const isArchitect = contactType === 'architect' || contactType === 'consultant' || contactType === 'inspector';
 
   const navItems = isSub
     ? [
         dashboard,
         { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'My Jobs' },
-        { to: `/portal/${token}/lien-waivers`, icon: FileSignature, label: 'Lien Waivers' },
         documents,
         messages,
       ]
-    : isArchitect
-      ? [
-          dashboard,
-          { to: `/portal/${token}/rfis-assigned`, icon: HelpCircle, label: 'RFIs' },
-          { to: `/portal/${token}/submittal-review`, icon: FileCheck2, label: 'Submittals' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          documents,
-          messages,
-        ]
-      : [
-          dashboard,
-          { to: `/portal/${token}/projects`, icon: FolderKanban, label: 'Projects' },
-          { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
-          { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
-          { to: `/portal/${token}/change-orders`, icon: ClipboardList, label: 'Change Orders' },
-          { to: `/portal/${token}/selections`, icon: Palette, label: 'Selections' },
-          messages,
-        ];
+    : [
+        dashboard,
+        { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
+        { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
+        { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'Service' },
+        documents,
+        messages,
+      ];
 
   const portalLabel = ROLE_LABELS[contactType] || 'Portal';
 
