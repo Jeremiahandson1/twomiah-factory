@@ -67,19 +67,17 @@ function getImageUrl(p) {
         <% if (typeof services !== 'undefined' && services && services.length > 0) { %>
           <% services.forEach(function(service) { %>
             <div class="service-card animate-on-scroll">
+              <% if (service.image) { %>
               <div class="service-image">
-                <% if (service.image) { %>
-                  <img 
-                    src="<%= getImageUrl(service.image) %>" 
-                    alt="<%= service.title || service.name %> services in {{CITY}}, {{STATE}} - {{COMPANY_NAME}}"
-                    loading="lazy"
-                    width="800"
-                    height="600"
-                  >
-                <% } else { %>
-                  <span class="service-icon"><%= service.icon || '🔧' %></span>
-                <% } %>
+                <img
+                  src="<%= getImageUrl(service.image) %>"
+                  alt="<%= service.title || service.name %> services in {{CITY}}, {{STATE}} - {{COMPANY_NAME}}"
+                  loading="lazy"
+                  width="800"
+                  height="600"
+                >
               </div>
+              <% } %>
               <div class="service-content">
                 <h3><%= service.title || service.name %></h3>
                 <p><%= service.shortDescription || service.tagline || service.description %></p>
