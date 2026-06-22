@@ -78,10 +78,14 @@ const AUDIT_DIR = args['audit-dir'] || path.join(__dirname, 'test-audit', new Da
 // on its second DB creation. Bumping default to 180s for --with-deploy.
 // Generate-only mode hits no external APIs, so pacing defaults to 0.
 const PACE_MS = parseInt(args['pace-ms'] || (WITH_DEPLOY ? '180000' : '0'), 10)
+// --no-cleanup keeps every provisioned tenant ALIVE after its smoke check so a
+// human (or Claude-in-Chrome) can visually inspect each build before teardown.
+// Pair with scripts/cleanup-matrix.ts (or the orphan cron) to nuke them after.
+const NO_CLEANUP = args['no-cleanup'] === 'true'
 
 // ── Matrix definitions ──────────────────────────────────────────────────
 
-type Vertical = 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'dispensary'
+type Vertical = 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'dispensary' | 'showcase' | 'foodtruck' | 'rv' | 'veterinary'
 type WebsiteMode = 'none' | 'standard' | 'premium'
 type DomainMode = 'skip' | 'byod' | 'buy'
 
@@ -100,16 +104,24 @@ const INDUSTRY_BY_VERTICAL: Record<Vertical, string> = {
   roofing: 'roofing',
   landscaping: 'landscaping',
   dispensary: 'dispensary',
+  showcase: 'fitness',
+  foodtruck: 'food truck',
+  rv: 'rv',
+  veterinary: 'veterinary',
 }
 
 const SMOKE_CASES: TestCase[] = [
-  // One per vertical, rotating choices so every code path is hit at least once
-  { vertical: 'contractor',   industry: 'general_contractor', plan: 'entry', websiteMode: 'standard', domainMode: 'buy' },
-  { vertical: 'fieldservice', industry: 'hvac',               plan: 'top',   websiteMode: 'premium',  domainMode: 'byod' },
-  { vertical: 'homecare',     industry: 'home_care',          plan: 'entry', websiteMode: 'none',     domainMode: 'skip' },
-  { vertical: 'roofing',      industry: 'roofing',            plan: 'top',   websiteMode: 'standard', domainMode: 'byod' },
-  { vertical: 'landscaping',  industry: 'landscaping',        plan: 'entry', websiteMode: 'premium',  domainMode: 'buy' },
-  { vertical: 'dispensary',   industry: 'dispensary',         plan: 'top',   websiteMode: 'standard', domainMode: 'skip' },
+  // One per vertical — each builds website + CRM (no domain) for visual inspection.
+  { vertical: 'contractor',   industry: 'general_contractor', plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
+  { vertical: 'fieldservice', industry: 'hvac',               plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
+  { vertical: 'homecare',     industry: 'home_care',          plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
+  { vertical: 'roofing',      industry: 'roofing',            plan: 'entry', websiteMode: 'premium',  domainMode: 'skip' },
+  { vertical: 'landscaping',  industry: 'landscaping',        plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
+  { vertical: 'dispensary',   industry: 'dispensary',         plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
+  { vertical: 'showcase',     industry: 'fitness',            plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
+  { vertical: 'foodtruck',    industry: 'food truck',         plan: 'entry', websiteMode: 'premium',  domainMode: 'skip' },
+  { vertical: 'rv',           industry: 'rv',                 plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
+  { vertical: 'veterinary',   industry: 'veterinary',         plan: 'entry', websiteMode: 'standard', domainMode: 'skip' },
 ]
 
 function buildFullMatrix(): TestCase[] {
@@ -144,6 +156,7 @@ interface AuditEntry {
   finishedAt?: string
   totalMs?: number
   tenantId?: string
+  urls?: { siteUrl?: string; deployedUrl?: string; apiUrl?: string }
   outcome: 'pass' | 'fail' | 'skip' | 'running'
 }
 
@@ -181,6 +194,7 @@ function buildConfig(caseSpec: TestCase, tenantId: string, slug: string): any {
       industry: caseSpec.industry,
       serviceRegion: 'Madison',
       nearbyCities: ['', '', '', ''],
+      defaultPassword: 'Matrix-test-pw-7a2sd9!',
     },
     branding: {
       primaryColor: '#f97316',
@@ -296,6 +310,7 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
         return entry
       }
       deployedUrls = { siteUrl: deployResult.siteUrl, deployedUrl: deployResult.deployedUrl, apiUrl: deployResult.apiUrl }
+      entry.urls = deployedUrls
       // Build the role→serviceId map for checkDeployStatus polling. Only
       // include WEB SERVICES — Render Postgres uses a different API path
       // (/postgres/{id}) and polling it via /services/{id}/deploys returns
@@ -355,14 +370,16 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
     entry.outcome = entry.steps.some(s => s.status === 'error') ? 'fail' : 'pass'
     return entry
   } finally {
-    // 4) Cleanup — runs even on failure
-    if (tenantId) {
+    // Cleanup — runs even on failure, UNLESS --no-cleanup (keep alive for inspection)
+    if (tenantId && !NO_CLEANUP) {
       const t = Date.now()
       const cleanup = await hardDeleteTestTenant(tenantId)
       for (const s of cleanup.steps) {
         time('cleanup_' + s.step, s.status, s.detail)
       }
       time('cleanup_total_ms', cleanup.success ? 'ok' : 'warning', undefined, Date.now() - t)
+    } else if (tenantId && NO_CLEANUP) {
+      time('cleanup', 'skipped', 'kept alive for inspection (--no-cleanup)')
     }
     entry.finishedAt = new Date().toISOString()
     entry.totalMs = Date.now() - new Date(entry.startedAt).getTime()
@@ -616,6 +633,19 @@ async function main() {
   console.log(`Pass:  ${passes}/${results.length}`)
   console.log(`Fail:  ${fails}/${results.length}`)
   console.log(`Audit: ${AUDIT_DIR}\n`)
+
+  if (NO_CLEANUP) {
+    const manifest = results.filter(r => r.urls || r.tenantId).map(r => ({
+      vertical: r.case.vertical, websiteMode: r.case.websiteMode, tenantId: r.tenantId, outcome: r.outcome,
+      site: r.urls?.siteUrl || '', crm: r.urls?.deployedUrl || r.urls?.apiUrl || '',
+    }))
+    fs.writeFileSync(path.join(AUDIT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2))
+    console.log('═══════ LIVE TENANTS (kept for inspection — NOT deleted) ═══════')
+    console.log('Login (all CRMs): twomiah14@gmail.com / Matrix-test-pw-7a2sd9!')
+    for (const m of manifest) console.log(`  [${m.outcome}] ${m.vertical.padEnd(13)} ${m.websiteMode.padEnd(8)} site: ${m.site || '—'}  crm: ${m.crm || '—'}`)
+    console.log('  tenantIds: ' + manifest.map(m => m.tenantId).filter(Boolean).join(' '))
+    console.log('  MANIFEST_PATH ' + path.join(AUDIT_DIR, 'manifest.json'))
+  }
 
   process.exit(fails === 0 ? 0 : 1)
 }
