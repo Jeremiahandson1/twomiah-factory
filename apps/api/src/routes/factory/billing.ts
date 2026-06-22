@@ -24,7 +24,35 @@ factory.post('/customers/:id/checkout/subscription', requireRole('owner', 'admin
 
     const parsedBody = await parseJsonBody(c)
     if (parsedBody.error) return parsedBody.error
-    const { planId, billingCycle, trialDays } = parsedBody.data
+    const { planId, billingCycle, trialDays, promoCode } = parsedBody.data
+
+    // ─── Secret comp/E2E promo bypass ──────────────────────────────────────────
+    // Env-gated: impossible to trigger unless COMP_PROMO_CODE is explicitly set in
+    // the environment. When the code matches, skip Stripe entirely, mark the tenant
+    // comp + is_test_tenant (disposable), and fire the SAME auto-deploy a real
+    // payment would — so the buy→build→site→CRM path is exercised end-to-end with
+    // no charge. Tenant stays flagged for one-click cleanup via /test/cleanup-tenant.
+    const COMP_CODE = (process.env.COMP_PROMO_CODE || '').trim()
+    if (COMP_CODE && typeof promoCode === 'string' && promoCode.trim() === COMP_CODE) {
+      const { error: compErr } = await supabase.from('tenants').update({
+        billing_type: 'comp',
+        billing_status: 'active',
+        is_test_tenant: true,
+        plan: planId || tenant.plan || 'starter',
+      }).eq('id', tenantId)
+      if (compErr) return c.json({ error: 'Comp activation failed: ' + compErr.message }, 500)
+      console.log('[Comp] E2E promo bypass — provisioning test tenant', tenantId, 'plan', planId || tenant.plan)
+      triggerAutoDeploy(tenantId).catch((e: any) => console.error('[Comp] auto-deploy trigger:', e?.message || e))
+      return c.json({
+        success: true,
+        comp: true,
+        promoApplied: true,
+        tenantId,
+        message: 'Comp tenant provisioned — building now (no charge).',
+        deployStatusUrl: `/api/v1/factory/customers/${tenantId}/deploy/status`,
+      })
+    }
+
     if (billingCycle && !['monthly', 'annual'].includes(billingCycle)) return c.json({ error: 'billingCycle must be "monthly" or "annual"' }, 400)
     if (trialDays !== undefined && (typeof trialDays !== 'number' || trialDays < 0 || !Number.isInteger(trialDays))) return c.json({ error: 'trialDays must be a non-negative integer' }, 400)
     const result = await factoryStripe.createSubscriptionCheckout(

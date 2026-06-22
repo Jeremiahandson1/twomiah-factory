@@ -273,6 +273,7 @@ export default function CustomerDetailPage() {
   const [deploying, setDeploying] = useState(false)
   const [deletingJob, setDeletingJob] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
+  const [checkoutPromo, setCheckoutPromo] = useState('')
   const [toast, setToast] = useState<Toast | null>(null)
   const [stripeConfigured, setStripeConfigured] = useState(false)
   const [deployConfigured, setDeployConfigured] = useState(false)
@@ -474,9 +475,10 @@ export default function CustomerDetailPage() {
       const endpoint = type === 'subscription'
         ? API + '/api/v1/factory/customers/' + id + '/checkout/subscription'
         : API + '/api/v1/factory/customers/' + id + '/checkout/license'
-      const body = type === 'subscription'
+      const body: any = type === 'subscription'
         ? { planId: form.plan || 'custom', monthlyAmount: Number(form.monthly_amount) || 149 }
         : { planId: form.plan || 'custom', amount: Number(form.one_time_amount) || 2497 }
+      if (checkoutPromo.trim()) body.promoCode = checkoutPromo.trim()
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + session.access_token, 'Content-Type': 'application/json' },
@@ -484,7 +486,8 @@ export default function CustomerDetailPage() {
       })
       if (res.ok) {
         const data = await res.json()
-        if (data.url) { navigator.clipboard.writeText(data.url).catch(() => {}); showToast('Checkout link copied!'); window.open(data.url, '_blank') }
+        if (data.comp) { showToast(data.message || 'Comp tenant — building now, no charge'); setTimeout(load, 15000) }
+        else if (data.url) { navigator.clipboard.writeText(data.url).catch(() => {}); showToast('Checkout link copied!'); window.open(data.url, '_blank') }
       } else { const d = await res.json(); showToast(d.error || 'Failed to create checkout', 'error') }
     } catch { showToast('Failed to create checkout', 'error') }
     finally { setCheckoutLoading(null) }
@@ -898,6 +901,18 @@ export default function CustomerDetailPage() {
             {stripeConfigured && !editMode && (
               <div className="mt-5 pt-5 border-t border-gray-800">
                 <label className="text-xs text-gray-500 block mb-2">Payment Actions</label>
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    value={checkoutPromo}
+                    onChange={(e) => setCheckoutPromo(e.target.value)}
+                    placeholder="Promo / comp code (optional)"
+                    className="w-full max-w-xs px-3 py-2 text-sm bg-gray-900 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+                  />
+                  {checkoutPromo.trim() && (
+                    <p className="text-xs text-amber-400 mt-1">Comp code entered — checkout will skip payment and build a disposable test tenant (no charge).</p>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {(!tenant.billing_status || tenant.billing_status === 'pending') && (<>
                     <button onClick={() => handleCheckout('subscription')} disabled={!!checkoutLoading}
