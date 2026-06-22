@@ -874,3 +874,35 @@ section:nth-child(even) {
     font-size: 1.7rem;
   }
 }
+
+/* ════════ Contrast fix (readability rule): on this dark theme, keep EVERY section
+   dark so the theme's white body text never lands on a light/white background.
+   Form inputs stay white with dark text; their labels go white on the dark panel. ════════ */
+.contact-section,
+.blog-preview-section,
+.home-faq,
+.faq-section,
+.map-section {
+  background: var(--dark-bg, #1a1a1a) !important;
+}
+.blog-preview-card,
+.faq-item {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.blog-preview-section h2, .home-faq h2, .contact-section h2,
+.blog-preview-content h3, .blog-preview-card h3,
+.faq-question, .contact-info h2, .contact-info h3, .contact-item strong {
+  color: #ffffff !important;
+}
+.blog-preview-content, .blog-preview-content p, .blog-preview-card p,
+.faq-answer, .faq-answer p,
+.contact-info p, .contact-item span, .contact-item a, .contact-list li, .contact-list a {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+.contact-form input, .contact-form textarea, .contact-form select,
+form input, form textarea, form select {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+}
+.contact-form label, form label { color: rgba(255, 255, 255, 0.85) !important; }
