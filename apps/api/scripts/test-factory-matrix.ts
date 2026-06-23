@@ -50,6 +50,8 @@ import { supabase } from '../src/middleware/auth'
 import { generate } from '../src/services/generator'
 import { deployCustomer, isConfigured as isDeployConfigured, checkDeployStatus } from '../src/services/deploy'
 import { hardDeleteTestTenant } from '../src/services/testCleanup'
+import { generateWebsiteContent } from '../src/services/contentGenerator'
+import { composeSite } from '../src/services/sectionComposer'
 
 const args = Object.fromEntries(
   process.argv.slice(2).map(a => {
@@ -82,6 +84,10 @@ const PACE_MS = parseInt(args['pace-ms'] || (WITH_DEPLOY ? '180000' : '0'), 10)
 // human (or Claude-in-Chrome) can visually inspect each build before teardown.
 // Pair with scripts/cleanup-matrix.ts (or the orphan cron) to nuke them after.
 const NO_CLEANUP = args['no-cleanup'] === 'true'
+// --compose runs the real AI composers (production parity) instead of skeleton
+// content: premium → composeSite (stored in preview_premium_pages), standard →
+// generateWebsiteContent (→ content.aiGenerated). Needs a valid ANTHROPIC_MODEL.
+const COMPOSE = args.compose === 'true'
 
 // ── Matrix definitions ──────────────────────────────────────────────────
 
@@ -270,9 +276,24 @@ async function runCase(caseSpec: TestCase, idx: number): Promise<AuditEntry> {
     entry.tenantId = tenantId
     time('tenant_insert', 'ok', tenantId, Date.now() - t0)
 
-    // 2) Generate
+    // 2) Generate (compose real content first when --compose is set)
     const t1 = Date.now()
     const config = buildConfig(caseSpec, tenantId!, slug)
+    if (COMPOSE && caseSpec.websiteMode !== 'none') {
+      const c = config.company
+      try {
+        if (caseSpec.websiteMode === 'premium') {
+          const composed: any = await composeSite({ businessName: c.name, businessType: caseSpec.industry, city: c.city, state: c.state, description: c.name + ' — ' + caseSpec.vertical + ' in ' + c.city + ', ' + c.state, services: [], goals: ['leads'], ownerName: c.ownerName, phone: c.phone, email: c.email, nearbyCities: c.nearbyCities, primaryColor: config.branding.primaryColor } as any)
+          const nowTs = new Date().toISOString()
+          await supabase.from('tenants').update({ preview_premium_pages: composed, preview_premium_approved_at: nowTs, preview_premium_generated_at: nowTs }).eq('id', tenantId)
+          time('compose_premium', composed?.pages ? 'ok' : 'warning', Object.keys(composed?.pages || {}).join(','))
+        } else {
+          const ai: any = await generateWebsiteContent({ businessName: c.name, businessType: caseSpec.industry, location: { city: c.city, state: c.state, stateFull: c.stateFull }, services: [], description: c.name + ' — a ' + caseSpec.vertical + ' business in ' + c.city, serviceRegion: c.serviceRegion, nearbyCities: c.nearbyCities, phone: c.phone, email: c.email, colorPalette: { primary: config.branding.primaryColor, secondary: config.branding.secondaryColor } } as any)
+          ;(config.content as any).aiGenerated = ai
+          time('compose_standard', ai?.services?.length ? 'ok' : 'warning', (ai?.services?.length || 0) + ' services')
+        }
+      } catch (e: any) { time('compose', 'error', e.message) }
+    }
     let zipPath: string | undefined
     try {
       const result = await generate(config)

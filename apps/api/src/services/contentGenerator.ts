@@ -156,6 +156,9 @@ function loadContentPack(industry: string): any | null {
     rv: path.join(TEMPLATES_ROOT, 'website-rv', 'content-pack.json'),
     powersports: path.join(TEMPLATES_ROOT, 'website-rv', 'content-pack.json'),
     marine: path.join(TEMPLATES_ROOT, 'website-rv', 'content-pack.json'),
+    landscaping: path.join(TEMPLATES_ROOT, 'website-landscaping', 'content-pack.json'),
+    veterinary: path.join(TEMPLATES_ROOT, 'website-vet', 'content-pack.json'),
+    vet: path.join(TEMPLATES_ROOT, 'website-vet', 'content-pack.json'),
   }
 
   const packPath = packPaths[industry] || packPaths['general_contractor']
