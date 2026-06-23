@@ -284,6 +284,24 @@ Return ONLY valid JSON with this structure:
 
   // Fill in defaults and normalize the response
   const result = normalizeContent(parsed, input, serviceAreas, now)
+
+  // Fill empty service-card images so cards are never blank. Prefer the live
+  // Unsplash+ pool (relevant, only when an Unsplash key is configured), else our
+  // curated fallback library. The composer itself leaves service.image = ''.
+  try {
+    let pool: string[] = []
+    try {
+      const { searchStockPhotosForBusiness } = await import('./unsplashPlus')
+      const photos = await searchStockPhotosForBusiness(input.businessType, input.services?.[0], input.location?.city)
+      pool = (photos || []).map((p: any) => p.url).filter(Boolean)
+    } catch { /* unsplash not configured / failed — fall back to the library */ }
+    const { getServiceImage } = await import('../config/serviceImageLibrary')
+    result.services.forEach((s: any, i: number) => {
+      if (s.image) return
+      s.image = (pool.length ? pool[i % pool.length] : '') || getServiceImage(input.businessType, i)
+    })
+  } catch { /* never block content generation on image fill */ }
+
   return result
 }
 
