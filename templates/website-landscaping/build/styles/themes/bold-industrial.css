@@ -675,3 +675,50 @@ form textarea:focus {
     font-size: 0.9rem;
   }
 }
+
+/* random-line fix: suppress the section-title bar leaking onto the hero (ported from rv) */
+.hero-video h2::after, .hero h2::after, .hero-section h2::after { content: none; }
+
+/* ════════ Contrast fix (readability rule): on this dark theme, keep EVERY section
+   dark so the theme's white body text never lands on a light/white background.
+   Form inputs stay white with dark text; their labels go white on the dark panel. ════════ */
+.contact-section,
+.blog-preview-section,
+.home-faq,
+.faq-section,
+.map-section {
+  background: var(--dark-bg, #1a1a1a) !important;
+}
+.blog-preview-card,
+.faq-item {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.blog-preview-section h2, .home-faq h2, .contact-section h2,
+.blog-preview-content h3, .blog-preview-card h3,
+.faq-question, .contact-info h2, .contact-info h3, .contact-item strong {
+  color: #ffffff !important;
+}
+.blog-preview-content, .blog-preview-content p, .blog-preview-card p,
+.faq-answer, .faq-answer p,
+.contact-info p, .contact-item span, .contact-item a, .contact-list li, .contact-list a {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+.contact-form input, .contact-form textarea, .contact-form select,
+form input, form textarea, form select {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+}
+.contact-form label, form label { color: rgba(255, 255, 255, 0.85) !important; }
+
+/* Contact section: whiten EVERY text element on the dark panel — the GET IN TOUCH
+   info block (phone/email/address) was dark-navy text → dark-on-dark/unreadable.
+   Inputs keep dark text on their white field. */
+.contact-section h1, .contact-section h2, .contact-section h3, .contact-section h4,
+.contact-section p, .contact-section span, .contact-section a,
+.contact-section strong, .contact-section li, .contact-section .contact-info * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+.contact-section input, .contact-section textarea, .contact-section select {
+  color: #1a1a1a !important;
+}

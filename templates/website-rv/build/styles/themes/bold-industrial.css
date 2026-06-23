@@ -906,3 +906,15 @@ form input, form textarea, form select {
   color: #1a1a1a !important;
 }
 .contact-form label, form label { color: rgba(255, 255, 255, 0.85) !important; }
+
+/* Contact section: whiten EVERY text element on the dark panel — the GET IN TOUCH
+   info block (phone/email/address) was dark-navy text → dark-on-dark/unreadable.
+   Inputs keep dark text on their white field. */
+.contact-section h1, .contact-section h2, .contact-section h3, .contact-section h4,
+.contact-section p, .contact-section span, .contact-section a,
+.contact-section strong, .contact-section li, .contact-section .contact-info * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+.contact-section input, .contact-section textarea, .contact-section select {
+  color: #1a1a1a !important;
+}

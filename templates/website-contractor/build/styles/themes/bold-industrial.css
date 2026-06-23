@@ -20,9 +20,9 @@
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45);
   --off-white: #e8e8e8;
-  --industrial-yellow: #f5a623;
-  --industrial-orange: #e8740c;
-  --industrial-red: #c0392b;
+  --industrial-yellow: var(--gold, #f5a623);
+  --industrial-orange: var(--gold, #e8740c);
+  --industrial-red: var(--accent, #c0392b);
   --dark-bg: #1a1a1a;
   --darker-bg: #111111;
   --steel-gray: #2a2a2a;
@@ -208,14 +208,7 @@ p {
   left: 0;
   right: 0;
   bottom: 0;
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 18px,
-      rgba(245, 166, 35, 0.06) 18px,
-      rgba(245, 166, 35, 0.06) 20px
-    );
+  background: none;
   z-index: 2;
   pointer-events: none;
 }
@@ -225,9 +218,9 @@ p {
 .hero-overlay {
   background: linear-gradient(
     180deg,
-    rgba(0, 0, 0, 0.75) 0%,
-    rgba(0, 0, 0, 0.65) 50%,
-    rgba(17, 17, 17, 0.9) 100%
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.4) 45%,
+    rgba(17, 17, 17, 0.66) 100%
   ) !important;
 }
 
@@ -438,6 +431,15 @@ section h2::after {
   width: 90px;
   height: 6px;
   background: var(--industrial-yellow);
+}
+
+/* The hero subtitle is centered and already has its own accent line
+   (.hero-line). Don't give it the left-aligned section-title bar — that's the
+   stray gold line. */
+.hero-video h2::after,
+.hero h2::after,
+.hero-section h2::after {
+  content: none;
 }
 
 .section-subtitle,
@@ -863,4 +865,48 @@ section:nth-child(even) {
   section h2 {
     font-size: 1.7rem;
   }
+}
+
+/* ════════ Contrast fix (readability rule): on this dark theme, keep EVERY section
+   dark so the theme's white body text never lands on a light/white background.
+   Form inputs stay white with dark text; their labels go white on the dark panel. ════════ */
+.contact-section,
+.blog-preview-section,
+.home-faq,
+.faq-section,
+.map-section {
+  background: var(--dark-bg, #1a1a1a) !important;
+}
+.blog-preview-card,
+.faq-item {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.blog-preview-section h2, .home-faq h2, .contact-section h2,
+.blog-preview-content h3, .blog-preview-card h3,
+.faq-question, .contact-info h2, .contact-info h3, .contact-item strong {
+  color: #ffffff !important;
+}
+.blog-preview-content, .blog-preview-content p, .blog-preview-card p,
+.faq-answer, .faq-answer p,
+.contact-info p, .contact-item span, .contact-item a, .contact-list li, .contact-list a {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+.contact-form input, .contact-form textarea, .contact-form select,
+form input, form textarea, form select {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+}
+.contact-form label, form label { color: rgba(255, 255, 255, 0.85) !important; }
+
+/* Contact section: whiten EVERY text element on the dark panel — the GET IN TOUCH
+   info block (phone/email/address) was dark-navy text → dark-on-dark/unreadable.
+   Inputs keep dark text on their white field. */
+.contact-section h1, .contact-section h2, .contact-section h3, .contact-section h4,
+.contact-section p, .contact-section span, .contact-section a,
+.contact-section strong, .contact-section li, .contact-section .contact-info * {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+.contact-section input, .contact-section textarea, .contact-section select {
+  color: #1a1a1a !important;
 }
