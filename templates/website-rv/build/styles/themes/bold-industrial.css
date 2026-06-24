@@ -948,3 +948,22 @@ form input, form textarea, form select {
 .contact-form-container select {
   color: #1a1a1a !important;
 }
+
+/* CONTRAST FIX (a11y, 2026-06-24): --industrial-yellow resolves to the dealer's
+   brand color (--gold), which is often a dark red (e.g. #E60000). As TEXT on the
+   dark sections that fails WCAG AA — the section titles, card headings, and the
+   small card links were all flagged. Make that text white/readable. The accent
+   stays on underlines, borders, and button backgrounds (non-text), where it's fine.
+   (The .contact-form-container h2/label dark-text rule above has higher specificity,
+   so the white form card keeps its dark text.) */
+.section-title, section h2,
+.service-card h3, .card h3, .feature-card h3,
+.why-item h3, .why-item h4 {
+  color: #ffffff !important;
+}
+.service-card a, .card a {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+.service-card a:hover, .card a:hover {
+  color: #ffffff !important;
+}
