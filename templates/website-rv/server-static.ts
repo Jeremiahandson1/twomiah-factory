@@ -130,7 +130,10 @@ function serveStaticDir(dir: string) {
         const ext = path.extname(filePath).toLowerCase()
         const mime = MIME_TYPES[ext] || 'application/octet-stream'
         const body = fs.readFileSync(filePath)
-        return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': 'public, max-age=86400' })
+        const longCache = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.woff', '.woff2', '.ttf'].includes(ext)
+        const medCache = ['.css', '.js'].includes(ext)
+        const cacheControl = longCache ? 'public, max-age=31536000, immutable' : medCache ? 'public, max-age=2592000' : 'public, max-age=86400'
+        return c.body(body, 200, { 'Content-Type': mime, 'Cache-Control': cacheControl })
       }
     } catch {}
     return next()

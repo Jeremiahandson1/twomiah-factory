@@ -1380,6 +1380,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   fill: var(--navy-dark);
 }
 
+.footer-col h3,
 .footer-col h4 {
   font-family: var(--font-primary);
   font-size: 14px;

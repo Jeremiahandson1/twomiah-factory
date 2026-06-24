@@ -46,12 +46,30 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional"></noscript>
   
-  <!-- Styles -->
-  <link rel="stylesheet" href="/styles/main.css">
-  <link rel="stylesheet" href="/styles/public-pages.css">
+  <!-- LCP hero image preload (discovered late via CSS otherwise) -->
+  <link rel="preload" as="image" href="/images/hero.jpg" fetchpriority="high">
+
+  <!-- Critical inline CSS: paint the dark theme immediately so first paint isn't
+       a white flash while the full stylesheets load async below. -->
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;background:<%= (typeof settings !== 'undefined' && settings && settings.secondaryColor) ? settings.secondaryColor : '#1a1a1a' %>;color:#ececec;font-family:'Montserrat',system-ui,-apple-system,sans-serif}
+    img{max-width:100%;height:auto}
+  </style>
+
+  <!-- Styles (async / non-render-blocking via media swap; noscript = sync fallback) -->
+  <link rel="stylesheet" href="/styles/main.css" media="print" onload="this.media='all';this.onload=null">
+  <link rel="stylesheet" href="/styles/public-pages.css" media="print" onload="this.media='all';this.onload=null">
   <% if (typeof settings !== 'undefined' && settings && settings.theme) { %>
-  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css">
+  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css" media="print" onload="this.media='all';this.onload=null">
   <% } %>
+  <noscript>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="/styles/public-pages.css">
+    <% if (typeof settings !== 'undefined' && settings && settings.theme) { %>
+    <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css">
+    <% } %>
+  </noscript>
   
   <!-- Structured Data -->
   <%
@@ -688,7 +706,7 @@
           </div>
 
           <div class="footer-col">
-            <h4>Services</h4>
+            <h3>Services</h3>
             <ul>
               <% if (typeof menuItems !== 'undefined') { %>
                 <% menuItems.filter(item => !['blog', 'gallery', 'contact', 'about'].includes(item.id)).slice(0, 6).forEach(item => { %>
@@ -701,7 +719,7 @@
           </div>
 
           <div class="footer-col">
-            <h4>Company</h4>
+            <h3>Company</h3>
             <ul>
               <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
               <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><li><a href="/estimate">Instant Roof Estimate</a></li><% } %>
@@ -714,7 +732,7 @@
           </div>
 
           <div class="footer-col">
-            <h4>Areas We Serve</h4>
+            <h3>Areas We Serve</h3>
             <ul>
               <li><a href="/service-area/{{CITY}}">{{CITY}}</a></li>
               <li><a href="/service-area/{{NEARBY_CITY_1}}">{{NEARBY_CITY_1}}</a></li>
@@ -728,7 +746,7 @@
           </div>
 
           <div class="footer-col">
-            <h4>Contact</h4>
+            <h3>Contact</h3>
             <ul class="contact-list">
               <li>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
