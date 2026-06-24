@@ -980,6 +980,8 @@ export async function deployCustomer(
         }
         // Always include ADS_URL so the ads page works from first deploy
         backendEnvVars.push({ key: 'ADS_URL', value: process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com' })
+        // AI features in the CRM (AI Reports, AI support) call Claude directly.
+        if (process.env.ANTHROPIC_API_KEY) backendEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
         // If this tenant has a premium website, the CRM SchedulePage
         // pulls bookings from it. URL is predictable from the slug.
         if (products.includes('website-premium')) {

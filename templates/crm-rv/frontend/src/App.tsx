@@ -57,6 +57,7 @@ import OnboardingWizard from './pages/OnboardingWizard';
 import RvDashboardPage from './pages/rv/DashboardPage';
 import RvInventoryPage from './pages/rv/InventoryPage';
 import SalesPipelinePage from './pages/rv/SalesPipelinePage';
+import AIReportsPage from './pages/rv/AIReportsPage';
 import ServicePage from './pages/rv/ServicePage';
 import AlertsPage from './pages/rv/AlertsPage';
 
@@ -146,6 +147,7 @@ function App() {
                     {/* RV / Powersports dealership */}
                     <Route path="units" element={<RvInventoryPage />} />
                     <Route path="sales-pipeline" element={<SalesPipelinePage />} />
+                    <Route path="ai-reports" element={<AIReportsPage />} />
                     <Route path="service" element={<ServicePage />} />
                     <Route path="alerts" element={<AlertsPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
