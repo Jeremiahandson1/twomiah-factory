@@ -46,8 +46,11 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional"></noscript>
   
-  <!-- LCP hero image preload (discovered late via CSS otherwise) -->
-  <link rel="preload" as="image" href="/images/hero.jpg" fetchpriority="high">
+  <!-- LCP hero image preload — matches the actual hero background (WebP-aware),
+       home page only (other pages have a different LCP element). -->
+  <% if (typeof heroPreloadUrl !== 'undefined' && heroPreloadUrl) { %>
+  <link rel="preload" as="image" href="<%= heroPreloadUrl %>" fetchpriority="high">
+  <% } %>
 
   <!-- Critical inline CSS: paint the dark theme immediately so first paint isn't
        a white flash while the full stylesheets load async below. -->

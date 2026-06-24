@@ -221,6 +221,18 @@ function bgWithWebp(imgUrl: string): string {
   return `image-set(url('${webpUrl}') type('image/webp'), url('${imgUrl}') type('${sourceType}'))`
 }
 
+// Resolve the hero image to the URL the browser will actually paint (prefer the
+// WebP companion for local uploads) so the LCP <link rel=preload> matches the hero
+// background-image instead of a hardcoded guess. Mirrors getImageUrl() in the views.
+function resolveHeroPreload(imgRaw: string): string {
+  if (!imgRaw || typeof imgRaw !== 'string') return ''
+  const url = imgRaw.startsWith('http') || imgRaw.startsWith('/') ? imgRaw : '/uploads/' + imgRaw
+  const m = url.match(/^\/uploads\/([^?#]+\.(?:jpe?g|png))$/i)
+  if (!m) return url
+  const meta = loadImageMeta()[m[1]]
+  return meta?.hasWebp ? url.replace(/\.(jpe?g|png)$/i, '.webp') : url
+}
+
 // Post-render pass (Claflin 3.4 + 3.5): for every <img src="/uploads/*.jpg|png">,
 // inject width/height attrs (CLS fix) and wrap in <picture> with a WebP
 // <source> if a companion was generated at upload time. Reads dimensions +
@@ -328,6 +340,7 @@ app.get('/', (c) => {
   const menuItems = (navConfig.items || []).filter((i: any) => i.visible !== false)
   return renderPage(c, 'home', {
     homepage, services, testimonials, featuredProjects, recentPosts, menuItems,
+    heroPreloadUrl: resolveHeroPreload(homepage?.hero?.image || ''),
     title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
     description: settings.seoDescription || 'Professional contractor services',
     canonicalUrl: BASE_URL + '/',
