@@ -6,7 +6,7 @@
 import React, { useState } from 'react'
 import { View, Text, ScrollView, StyleSheet, TextInput, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useLocalSearchParams, Stack } from 'expo-router'
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useTheme } from '../../../src/theme/ThemeContext'
 
 const money = (n: number) => '$' + (Math.round(n) || 0).toLocaleString()
@@ -29,6 +29,7 @@ function Row({ label, v, t, bold, big }: any) {
 export default function DealWorksheetScreen() {
   const params = useLocalSearchParams<{ price: string; unit: string }>()
   const t = useTheme()
+  const router = useRouter()
   const [d, setD] = useState<any>({ price: Number(params.price) || 0, trade: 0, down: 0, taxRate: 5.5, doc: 399, freight: 695 })
   const set = (k: string, v: number) => setD((s: any) => ({ ...s, [k]: v }))
   const [term, setTerm] = useState(60)
@@ -86,6 +87,10 @@ export default function DealWorksheetScreen() {
           <Text style={[styles.pay, { color: t.primary }]}>{money(payment(financed, 9.99, term))}/mo</Text>
           <Text style={[styles.payNote, { color: t.textMuted }]}>estimated @ 9.99% / {term} months</Text>
         </View>
+
+        <TouchableOpacity style={[styles.fiBtn, { backgroundColor: t.primary }]} onPress={() => router.push({ pathname: '/(details)/deal/fi', params: { financed: String(financed), unit: params.unit || '' } })}>
+          <Text style={styles.fiBtnText}>Submit to F&I →</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   )
@@ -101,4 +106,6 @@ const styles = StyleSheet.create({
   termChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, borderWidth: 1 },
   pay: { fontSize: 28, fontWeight: '800', textAlign: 'center' },
   payNote: { fontSize: 12, textAlign: 'center', marginTop: 2 },
+  fiBtn: { marginTop: 14, borderRadius: 10, paddingVertical: 13, alignItems: 'center' },
+  fiBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 })

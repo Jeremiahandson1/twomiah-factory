@@ -31,20 +31,24 @@ export default function DashboardScreen() {
   const { vertical } = useVertical()
   const [stats, setStats] = useState<Stats | null>(null)
   const [todayJobs, setTodayJobs] = useState<any[]>([])
+  const [unitCount, setUnitCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
   usePushNotifications()
 
   const load = useCallback(async () => {
-    const [s, j] = await Promise.all([
+    const reqs: Promise<any>[] = [
       get('/api/dashboard/stats'),
       get('/api/jobs/today').catch(() => ({ ok: false, data: [] } as any)),
-    ])
+    ]
+    if (vertical === 'rv') reqs.push(get('/api/units?limit=200').catch(() => ({ ok: false, data: [] } as any)))
+    const [s, j, u] = await Promise.all(reqs)
     if (s.ok) setStats(s.data)
     if (j.ok) setTodayJobs(j.data || [])
+    if (u && u.ok) { const d = u.data?.data || u.data || []; setUnitCount(Array.isArray(d) ? d.length : 0) }
     setLoading(false)
-  }, [])
+  }, [vertical])
 
   useEffect(() => { load() }, [load])
 
@@ -65,7 +69,7 @@ export default function DashboardScreen() {
   }
 
   const config = getVerticalConfig(vertical)
-  const statCards = getStatCards(vertical, stats)
+  const statCards = getStatCards(vertical, stats, unitCount)
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.background }]} edges={['top']}>
@@ -119,13 +123,21 @@ function getVerticalConfig(vertical: string) {
     case 'homecare': return { todayLabel: "Today's Shifts", emptyMessage: 'No shifts scheduled for today' }
     case 'dispensary': return { todayLabel: 'Recent Orders', emptyMessage: 'No orders yet today' }
     case 'fieldservice': return { todayLabel: "Today's Service Calls", emptyMessage: 'No service calls scheduled' }
+    case 'rv': return { todayLabel: 'Recent Activity', emptyMessage: 'Nothing scheduled today' }
     default: return { todayLabel: "Today's Jobs", emptyMessage: 'No jobs scheduled for today' }
   }
 }
 
-function getStatCards(vertical: string, stats: Stats | null) {
+function getStatCards(vertical: string, stats: Stats | null, unitCount = 0) {
   if (!stats) return []
   switch (vertical) {
+    case 'rv':
+      return [
+        { label: 'Inventory', value: unitCount, icon: 'car-sport', color: '#3b82f6' },
+        { label: 'Customers', value: stats.contacts ?? 0, icon: 'people', color: '#8b5cf6' },
+        { label: 'In Service', value: (stats.jobs?.byStatus?.in_progress ?? 0) + (stats.jobs?.byStatus?.scheduled ?? 0), icon: 'construct', color: '#22c55e' },
+        { label: 'Revenue', value: `$${((stats.invoices?.outstandingValue ?? 0) / 100).toFixed(0)}`, icon: 'cash', color: '#f59e0b' },
+      ]
     case 'dispensary':
       return [
         { label: 'Orders Today', value: stats.jobs?.today ?? 0, icon: 'receipt', color: '#3b82f6' },
