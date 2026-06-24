@@ -4,8 +4,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { View, Text, FlatList, StyleSheet, RefreshControl } from 'react-native'
+import { View, Text, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter } from 'expo-router'
 import { useTheme } from '../../src/theme/ThemeContext'
 import { get } from '../../src/api/client'
 import { SearchBar } from '../../src/components/SearchBar'
@@ -19,6 +20,7 @@ const money = (n: any) => (n ? '$' + Number(n).toLocaleString() : '—')
 
 export default function UnitsScreen() {
   const t = useTheme()
+  const router = useRouter()
   const [units, setUnits] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -41,7 +43,8 @@ export default function UnitsScreen() {
     const price = u.internetPrice || u.price || u.salePrice
     return (
       <AnimatedCard index={index}>
-        <View style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]}>
+        <TouchableOpacity style={[styles.card, { backgroundColor: t.surface, borderColor: t.border }]} activeOpacity={0.7}
+          onPress={() => router.push({ pathname: '/(details)/unit/[id]', params: { id: u.id || '', name: name || 'Unit', price: String(price || ''), stock: u.stockNumber || '', condition: u.condition || '', category: u.category || '' } })}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.name, { color: t.text }]} numberOfLines={1}>{name || 'Unit'}</Text>
@@ -52,7 +55,7 @@ export default function UnitsScreen() {
               {u.condition ? <StatusBadge status={u.condition} /> : null}
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </AnimatedCard>
     )
   }
