@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import crypto from 'crypto'
 import { db } from '../../db/index.ts'
-import { contact, company } from '../../db/schema.ts'
+import { contact, company, salesLead } from '../../db/schema.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { eq } from 'drizzle-orm'
 import logger from '../services/logger.ts'
@@ -58,6 +58,12 @@ app.post('/leads', async (c) => {
 
   emitToCompany(comp.id, EVENTS.CONTACT_CREATED, newContact)
   logger.info('Webhook: Lead created', { id: newContact.id, name, source: source || 'website' })
+
+  // Also open a sales lead so the website/chat lead lands in the pipeline and the
+  // AI Lead Responder can draft a follow-up to it.
+  try {
+    await db.insert(salesLead).values({ contactId: newContact.id, stage: 'new', source: source || 'website', notes: notes || undefined, companyId: comp.id })
+  } catch (e) { logger.warn('Webhook: salesLead create failed', { e: String(e) }) }
 
   return c.json({ success: true, id: newContact.id }, 201)
 })
