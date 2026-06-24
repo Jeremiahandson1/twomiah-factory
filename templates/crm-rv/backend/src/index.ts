@@ -251,6 +251,8 @@ const oemPartsRoutes = (await import('./routes/oemParts.ts')).default
 app.route('/api/oem-parts', oemPartsRoutes)
 const fiRoutes = (await import('./routes/fi.ts')).default
 app.route('/api/fi', fiRoutes)
+const partsOrdersRoutes = (await import('./routes/partsOrders.ts')).default
+app.route('/api/parts-orders', partsOrdersRoutes)
 const rvAlertsRoutes = (await import('./routes/alerts.ts')).default
 app.route('/api/alerts', rvAlertsRoutes)
 const recallsRoutes = (await import('./routes/recalls.ts')).default

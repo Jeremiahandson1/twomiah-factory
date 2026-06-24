@@ -24,6 +24,14 @@ export default function OEMPartsPage() {
   // run on mount + whenever a filter changes; text search runs via button/Enter
   useEffect(() => { run(); }, [oem, category]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [ordered, setOrdered] = useState<Record<string, string>>({});
+  async function order(p: any) {
+    try {
+      const r = await api.post('/api/parts-orders/create', { item: { partNumber: p.partNumber, name: p.name, price: p.price, qty: 1 } });
+      if (r?.order?.poNumber) setOrdered((o) => ({ ...o, [p.partNumber]: r.order.poNumber }));
+    } catch { /* ignore */ }
+  }
+
   return (
     <div className="max-w-5xl mx-auto p-6">
       <div className="flex items-center gap-3 mb-1">
@@ -68,9 +76,10 @@ export default function OEMPartsPage() {
               <th className="px-4 py-2 text-left font-semibold">Fits</th>
               <th className="px-4 py-2 text-right font-semibold">Price</th>
               <th className="px-4 py-2 text-left font-semibold">Availability</th>
+              <th className="px-4 py-2 text-left font-semibold">Order</th>
             </tr></thead>
             <tbody>
-              {parts.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">{loading ? 'Searching…' : 'No parts found.'}</td></tr>}
+              {parts.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">{loading ? 'Searching…' : 'No parts found.'}</td></tr>}
               {parts.map((p, i) => (
                 <tr key={i} className="border-t hover:bg-gray-50">
                   <td className="px-4 py-2 font-mono text-xs align-top">{p.partNumber}{p.supersededBy && <span className="block text-[10px] text-amber-600">→ {p.supersededBy}</span>}</td>
@@ -79,6 +88,7 @@ export default function OEMPartsPage() {
                   <td className="px-4 py-2 text-gray-500 text-xs align-top">{p.fitment || '—'}</td>
                   <td className="px-4 py-2 text-right font-semibold align-top">{money(p.price)}{p.msrp && p.msrp > p.price ? <span className="block text-[10px] text-gray-400 line-through font-normal">{money(p.msrp)}</span> : null}</td>
                   <td className="px-4 py-2 align-top"><span className={`text-xs px-2 py-0.5 rounded-full ${/in stock/i.test(p.availability) ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>{p.availability}</span></td>
+                  <td className="px-4 py-2 align-top">{ordered[p.partNumber] ? <span className="text-xs text-green-700 font-medium whitespace-nowrap">✓ {ordered[p.partNumber]}</span> : <button onClick={() => order(p)} className="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50">Order</button>}</td>
                 </tr>
               ))}
             </tbody>
