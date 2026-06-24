@@ -7,7 +7,7 @@ const CONDITIONS = ['excellent', 'good', 'fair', 'rough'];
 const money = (n?: number) => (typeof n === 'number' ? '$' + n.toLocaleString() : '—');
 
 export default function AITradeAppraisalPage() {
-  const [f, setF] = useState<any>({ year: '', make: '', model: '', category: 'boat', mileageHours: '', condition: 'good' });
+  const [f, setF] = useState<any>({ year: '2022', make: 'Bennington', model: '22 SSBX', category: 'boat', mileageHours: '50 hrs', condition: 'good' });
   const [res, setRes] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

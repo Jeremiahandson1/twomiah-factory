@@ -918,3 +918,29 @@ form input, form textarea, form select {
 .contact-section input, .contact-section textarea, .contact-section select {
   color: #1a1a1a !important;
 }
+/* FIX (QA 2026-06-23): .contact-form-container is a WHITE card inside the dark
+   .contact-section. The section's whitening rules above turned its heading +
+   labels + checkbox text WHITE → invisible white-on-white. Force ALL text in the
+   white card DARK (inputs were already dark). Specificity (0,2,1) + later = wins. */
+.contact-form-container,
+.contact-form-container h1, .contact-form-container h2,
+.contact-form-container h3, .contact-form-container h4,
+.contact-form-container p, .contact-form-container label,
+.contact-form-container span, .contact-form-container a,
+.contact-form-container li, .contact-form-container strong,
+.contact-form-container small, .contact-form-container .form-group label,
+.contact-form-container .checkbox-item, .contact-form-container .checkbox-item *,
+.contact-section .contact-form-container h2,
+.contact-section .contact-form-container label,
+.contact-section .contact-form-container span,
+.contact-section .contact-form-container p,
+.contact-section .contact-form-container .form-group label,
+.contact-section .contact-form-container .checkbox-item,
+.contact-section .contact-form-container .checkbox-item * {
+  color: #1a1a1a !important;
+}
+.contact-form-container input,
+.contact-form-container textarea,
+.contact-form-container select {
+  color: #1a1a1a !important;
+}
