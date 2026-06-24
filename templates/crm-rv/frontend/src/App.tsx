@@ -60,6 +60,7 @@ import SalesPipelinePage from './pages/rv/SalesPipelinePage';
 import AIReportsPage from './pages/rv/AIReportsPage';
 import AILeadResponderPage from './pages/rv/AILeadResponderPage';
 import AITradeAppraisalPage from './pages/rv/AITradeAppraisalPage';
+import OEMPartsPage from './pages/rv/OEMPartsPage';
 import ServicePage from './pages/rv/ServicePage';
 import AlertsPage from './pages/rv/AlertsPage';
 
@@ -152,6 +153,7 @@ function App() {
                     <Route path="ai-reports" element={<AIReportsPage />} />
                     <Route path="ai-leads" element={<AILeadResponderPage />} />
                     <Route path="ai-trade" element={<AITradeAppraisalPage />} />
+                    <Route path="parts-catalog" element={<OEMPartsPage />} />
                     <Route path="service" element={<ServicePage />} />
                     <Route path="alerts" element={<AlertsPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
