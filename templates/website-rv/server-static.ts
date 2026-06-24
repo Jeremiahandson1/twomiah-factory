@@ -210,6 +210,12 @@ function loadImageMeta(): Record<string, { hasWebp?: boolean; width?: number; he
 //   style="background-image: <%- bgWithWebp(getImageUrl(hero.image)) %>"
 function bgWithWebp(imgUrl: string): string {
   if (!imgUrl || typeof imgUrl !== 'string') return ''
+  // Static /images/*.jpg|png with a generated .webp companion → image-set (prefer WebP).
+  const staticWebp = localWebpUrl(imgUrl)
+  if (staticWebp) {
+    const st = /\.png$/i.test(imgUrl) ? 'image/png' : 'image/jpeg'
+    return `image-set(url('${staticWebp}') type('image/webp'), url('${imgUrl}') type('${st}'))`
+  }
   // Only rewrite locally-served raster uploads — leave external URLs and SVGs alone.
   const m = imgUrl.match(/^\/uploads\/([^?#]+\.(?:jpe?g|png))$/i)
   if (!m) return `url('${imgUrl}')`
@@ -227,10 +233,45 @@ function bgWithWebp(imgUrl: string): string {
 function resolveHeroPreload(imgRaw: string): string {
   if (!imgRaw || typeof imgRaw !== 'string') return ''
   const url = imgRaw.startsWith('http') || imgRaw.startsWith('/') ? imgRaw : '/uploads/' + imgRaw
+  const staticWebp = localWebpUrl(url)
+  if (staticWebp) return staticWebp
   const m = url.match(/^\/uploads\/([^?#]+\.(?:jpe?g|png))$/i)
   if (!m) return url
   const meta = loadImageMeta()[m[1]]
   return meta?.hasWebp ? url.replace(/\.(jpe?g|png)$/i, '.webp') : url
+}
+
+// For a static /images/*.jpg|png URL, return the .webp URL if a companion file
+// exists on disk (build/ or public/), else ''. Used by bgWithWebp + the hero preload.
+function localWebpUrl(url: string): string {
+  if (typeof url !== 'string') return ''
+  const m = url.match(/^\/images\/([^?#]+\.(?:jpe?g|png))$/i)
+  if (!m) return ''
+  const webpRel = m[1].replace(/\.(jpe?g|png)$/i, '.webp')
+  for (const base of ['build', 'public']) {
+    try { if (fs.existsSync(path.join(__dirname, base, 'images', webpRel))) return '/images/' + webpRel } catch {}
+  }
+  return ''
+}
+
+// Startup pass: generate WebP companions for static /images raster assets that lack
+// one (e.g. the per-tenant hero.jpg, which isn't run through the /uploads pipeline).
+// Idempotent — skips files that already have a .webp. sharp is a dependency.
+async function ensureStaticWebp() {
+  try {
+    const sharp = (await import('sharp')).default
+    for (const base of ['build', 'public']) {
+      const dir = path.join(__dirname, base, 'images')
+      if (!fs.existsSync(dir)) continue
+      for (const file of fs.readdirSync(dir)) {
+        if (!/\.(jpe?g|png)$/i.test(file)) continue
+        const out = path.join(dir, file.replace(/\.(jpe?g|png)$/i, '.webp'))
+        if (fs.existsSync(out)) continue
+        try { await sharp(path.join(dir, file)).webp({ quality: 80 }).toFile(out); console.log('[WebP] generated', file) }
+        catch (e: any) { console.error('[WebP]', file, e?.message) }
+      }
+    }
+  } catch (e: any) { console.error('[WebP] sharp unavailable:', e?.message) }
 }
 
 // Post-render pass (Claflin 3.4 + 3.5): for every <img src="/uploads/*.jpg|png">,
@@ -762,6 +803,7 @@ Mode: Server-rendered (EJS) + CMS Admin
 
   startBackups()
   startInventorySync()
+  ensureStaticWebp() // generate WebP companions for static /images (hero, etc.)
   // One-shot persistent-disk migrations (3.11) — flag-file-gated so they
   // only fire on first boot after a deploy that adds them. Deferred so a
   // slow migration doesn't delay the health check.
