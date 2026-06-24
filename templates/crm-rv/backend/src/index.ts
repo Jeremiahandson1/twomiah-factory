@@ -245,6 +245,8 @@ const aiReportsRoutes = (await import('./routes/aiReports.ts')).default
 app.route('/api/ai-reports', aiReportsRoutes)
 const aiLeadsRoutes = (await import('./routes/aiLeads.ts')).default
 app.route('/api/ai-leads', aiLeadsRoutes)
+const aiTradeRoutes = (await import('./routes/aiTrade.ts')).default
+app.route('/api/ai-trade', aiTradeRoutes)
 const rvAlertsRoutes = (await import('./routes/alerts.ts')).default
 app.route('/api/alerts', rvAlertsRoutes)
 const recallsRoutes = (await import('./routes/recalls.ts')).default

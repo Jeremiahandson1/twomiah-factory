@@ -35,6 +35,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/units', icon: Caravan, label: 'Inventory', features: ['unit_inventory'] },
   { to: '/crm/ai-reports', icon: Bot, label: 'AI Reports' },
   { to: '/crm/ai-leads', icon: MessageSquare, label: 'AI Lead Responder' },
+  { to: '/crm/ai-trade', icon: Calculator, label: 'AI Trade Appraisal' },
   { to: '/crm/sales-pipeline', icon: GitBranch, label: 'Sales Pipeline', features: ['deal_pipeline'] },
   { to: '/crm/service', icon: Wrench, label: 'Service', features: ['service_dept'] },
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', features: ['deal_pipeline', 'service_dept'] },
