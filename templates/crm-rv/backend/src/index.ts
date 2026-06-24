@@ -243,6 +243,8 @@ const repairOrdersRoutes = (await import('./routes/repairOrders.ts')).default
 app.route('/api/repair-orders', repairOrdersRoutes)
 const aiReportsRoutes = (await import('./routes/aiReports.ts')).default
 app.route('/api/ai-reports', aiReportsRoutes)
+const aiLeadsRoutes = (await import('./routes/aiLeads.ts')).default
+app.route('/api/ai-leads', aiLeadsRoutes)
 const rvAlertsRoutes = (await import('./routes/alerts.ts')).default
 app.route('/api/alerts', rvAlertsRoutes)
 const recallsRoutes = (await import('./routes/recalls.ts')).default
