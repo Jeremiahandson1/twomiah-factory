@@ -63,7 +63,13 @@ app.post('/draft', async (c) => {
   }
 
   const system = `You are an elite powersports / RV / marine dealership salesperson writing the FIRST response to a fresh internet lead. Warm, concise, human — NOT corporate spam. Use the customer's first name. Reference the SPECIFIC unit they asked about (year/make/model + price if given). Offer a clear next step (schedule a test ride / visit, answer questions, financing pre-qual). If an "alsoAvailable" unit fits, you may mention ONE briefly as an alternative. NEVER invent specs or prices not provided. Write like a top closer who replies within 5 minutes.
-Return ONLY raw JSON (no markdown, no code fences): {"email":{"subject":"...","body":"..."},"sms":"..."}. Email body 60–110 words with a friendly sign-off using the salesperson + dealership name. SMS under 300 chars, casual, names the dealership and ends with a question to invite a reply.`
+Return your answer in EXACTLY this format — these three literal markers each on their own line, with the content between them, and nothing else:
+===SUBJECT===
+(the email subject line)
+===EMAIL===
+(the email body, 60–110 words, friendly sign-off with the salesperson + dealership name; normal line breaks are fine)
+===SMS===
+(the text message, under 300 chars, casual, names the dealership, ends with a question)`
 
   let res: Response
   try {
@@ -75,10 +81,21 @@ Return ONLY raw JSON (no markdown, no code fences): {"email":{"subject":"...","b
   if (!res.ok) { const t = await res.text().catch(() => ''); return c.json({ error: 'AI error (' + res.status + '): ' + t.slice(0, 200) }, 502) }
 
   const data: any = await res.json().catch(() => ({}))
-  const txt = data?.content?.[0]?.text || ''
-  let parsed: any = null
-  try { parsed = JSON.parse(txt) } catch { const m = txt.match(/\{[\s\S]*\}/); if (m) { try { parsed = JSON.parse(m[0]) } catch {} } }
-  if (!parsed?.email) return c.json({ error: 'AI returned an unreadable draft. Try again.', raw: txt.slice(0, 300) }, 502)
+  const txt: string = data?.content?.[0]?.text || ''
+  // Robust delimited parsing (the old JSON format broke on multi-line email bodies).
+  const between = (start: string, end: string | null) => {
+    const i = txt.indexOf('===' + start + '===')
+    if (i < 0) return ''
+    const from = i + start.length + 6
+    const j = end ? txt.indexOf('===' + end + '===', from) : -1
+    return txt.slice(from, j < 0 ? txt.length : j).trim()
+  }
+  const parsed: any = { email: { subject: between('SUBJECT', 'EMAIL'), body: between('EMAIL', 'SMS') }, sms: between('SMS', null) }
+  // Fallback: if the model ignored the markers but emitted JSON, salvage it.
+  if (!parsed.email.body && !parsed.sms) {
+    try { const j = JSON.parse((txt.match(/\{[\s\S]*\}/) || [txt])[0]); if (j?.email) { parsed.email = { subject: j.email.subject || '', body: j.email.body || '' }; parsed.sms = j.sms || '' } } catch {}
+  }
+  if (!parsed.email.body && !parsed.sms) return c.json({ error: 'AI returned an unreadable draft. Try again.', raw: txt.slice(0, 300) }, 502)
 
   return c.json({
     draft: parsed,
