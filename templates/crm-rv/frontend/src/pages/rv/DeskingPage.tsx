@@ -74,7 +74,7 @@ export default function DeskingPage() {
               {netTrade !== 0 && <div className="flex justify-between py-1.5"><span className="text-gray-600">Net trade equity</span><span className={netTrade > 0 ? 'text-green-700' : ''}>{netTrade > 0 ? '-' : '+'}{money(Math.abs(netTrade))}</span></div>}
               <div className="flex justify-between py-2 font-bold text-lg text-blue-800"><span>Amount to finance</span><span>{money(financed)}</span></div>
             </div>
-            {lead && <a href="/crm/fi" className="mt-3 inline-block text-xs text-blue-700 hover:underline">Send to F&I →</a>}
+            {lead && <a href={`/crm/fi?lead=${leadId}`} className="mt-3 inline-block text-xs text-blue-700 hover:underline">Send to F&I →</a>}
           </div>
 
           <div className="bg-white rounded-xl border shadow-sm overflow-hidden">

@@ -13,7 +13,13 @@ export default function TitleRegPage() {
   const [submitting, setSubmitting] = useState(false);
   const [live, setLive] = useState(false);
 
-  useEffect(() => { api.get('/api/ai-leads/inbox').then((r: any) => setLeads(r.leads || [])).catch(() => {}); }, []);
+  useEffect(() => {
+    api.get('/api/ai-leads/inbox').then((r: any) => {
+      const ls = r.leads || []; setLeads(ls);
+      const pre = new URLSearchParams(window.location.search).get('lead');
+      if (pre && ls.find((l: any) => l.id === pre)) setLeadId(pre);
+    }).catch(() => {});
+  }, []);
   const lead = leads.find((l) => l.id === leadId);
 
   async function submit() {

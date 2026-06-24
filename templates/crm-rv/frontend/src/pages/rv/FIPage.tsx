@@ -24,7 +24,12 @@ export default function FIPage() {
   const [live, setLive] = useState(false);
 
   useEffect(() => {
-    api.get('/api/ai-leads/inbox').then((r: any) => setLeads(r.leads || [])).catch(() => {});
+    api.get('/api/ai-leads/inbox').then((r: any) => {
+      const ls = r.leads || []; setLeads(ls);
+      const pre = new URLSearchParams(window.location.search).get('lead');
+      const l = pre && ls.find((x: any) => x.id === pre);
+      if (l) { setLeadId(l.id); setPrice(Number(l.unitPrice) || 0); }
+    }).catch(() => {});
     api.get('/api/fi/products').then((r: any) => setProducts(r.products || [])).catch(() => {});
   }, []);
 
@@ -113,6 +118,9 @@ export default function FIPage() {
             </div> : <div className="text-sm text-gray-600">{decision.result?.reason}</div>}
             {decision.result?.stipulations?.length > 0 && <div className="mt-3 text-xs text-gray-500"><span className="font-semibold">Stipulations:</span> {decision.result.stipulations.join(', ')}</div>}
           </div>)}
+        {decision?.result?.decision && decision.result.decision !== 'declined' && (
+          <a href={`/crm/title-reg?lead=${leadId}`} className="mt-3 inline-block text-xs text-violet-700 hover:underline">Approved — send to Title &amp; Registration →</a>
+        )}
       </>}
     </div>
   );

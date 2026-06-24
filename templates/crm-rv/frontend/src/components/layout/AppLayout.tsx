@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt,
@@ -24,6 +24,7 @@ interface NavItem {
   label: string;
   exact?: boolean;
   features?: string[];
+  section?: string;
 }
 
 // Nav items with optional feature gating.
@@ -31,43 +32,60 @@ interface NavItem {
 // Items with `features` show if ANY listed feature is enabled.
 const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm', icon: Home, label: 'Dashboard', exact: true },
-  // RV / Powersports dealership
-  { to: '/crm/units', icon: Caravan, label: 'Inventory', features: ['unit_inventory'] },
-  { to: '/crm/ai-reports', icon: Bot, label: 'AI Reports' },
-  { to: '/crm/ai-leads', icon: MessageSquare, label: 'AI Lead Responder' },
-  { to: '/crm/ai-trade', icon: Calculator, label: 'AI Trade Appraisal' },
-  { to: '/crm/parts-catalog', icon: Package, label: 'Parts Catalog' },
-  { to: '/crm/desking', icon: ClipboardList, label: 'Desking' },
-  { to: '/crm/fi', icon: CreditCard, label: 'F&I / Deal Jacket' },
-  { to: '/crm/title-reg', icon: ClipboardCheck, label: 'Title & Registration' },
-  { to: '/crm/floorplan', icon: DollarSign, label: 'Floorplan' },
-  { to: '/crm/rentals', icon: Repeat, label: 'Rentals' },
-  { to: '/crm/accounting', icon: Receipt, label: 'Accounting' },
-  { to: '/crm/sales-pipeline', icon: GitBranch, label: 'Sales Pipeline', features: ['deal_pipeline'] },
-  { to: '/crm/service', icon: Wrench, label: 'Service', features: ['service_dept'] },
-  { to: '/crm/alerts', icon: BellRing, label: 'Alerts', features: ['deal_pipeline', 'service_dept'] },
-  { to: '/crm/contacts', icon: Users, label: 'Contacts' },
-  { to: '/crm/jobs', icon: Briefcase, label: 'Jobs' },
-  { to: '/crm/quotes', icon: FileText, label: 'Quotes' },
-  { to: '/crm/invoices', icon: Receipt, label: 'Invoices' },
-  { to: '/crm/schedule', icon: Calendar, label: 'Schedule' },
-  { to: '/crm/time', icon: Clock, label: 'Time' },
-  { to: '/crm/expenses', icon: DollarSign, label: 'Expenses' },
-  { to: '/crm/documents', icon: FolderOpen, label: 'Documents' },
-  { to: '/crm/team', icon: Users, label: 'Team' },
-  { to: '/crm/inventory', icon: Package, label: 'Parts & Inventory', features: ['inventory', 'parts_tracking'] },
-  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'] },
-  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
-  { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'] },
-  { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'] },
-  { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },
-  { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'] },
-  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'] },
-  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'] },
-  { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
-  { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
-  { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
-  { to: '/crm/help', icon: BookOpen, label: 'Help' },
+
+  // AI Tools
+  { to: '/crm/ai-reports', icon: Bot, label: 'AI Reports', section: 'AI Tools' },
+  { to: '/crm/ai-leads', icon: MessageSquare, label: 'AI Lead Responder', section: 'AI Tools' },
+  { to: '/crm/ai-trade', icon: Calculator, label: 'AI Trade Appraisal', section: 'AI Tools' },
+
+  // Sales
+  { to: '/crm/units', icon: Caravan, label: 'Inventory', features: ['unit_inventory'], section: 'Sales' },
+  { to: '/crm/sales-pipeline', icon: GitBranch, label: 'Sales Pipeline', features: ['deal_pipeline'], section: 'Sales' },
+  { to: '/crm/desking', icon: ClipboardList, label: 'Desking', section: 'Sales' },
+  { to: '/crm/fi', icon: CreditCard, label: 'F&I / Deal Jacket', section: 'Sales' },
+  { to: '/crm/title-reg', icon: ClipboardCheck, label: 'Title & Registration', section: 'Sales' },
+
+  // Parts & Service
+  { to: '/crm/parts-catalog', icon: Package, label: 'Parts Catalog', section: 'Parts & Service' },
+  { to: '/crm/service', icon: Wrench, label: 'Service', features: ['service_dept'], section: 'Parts & Service' },
+  { to: '/crm/inventory', icon: Package, label: 'Parts & Inventory', features: ['inventory', 'parts_tracking'], section: 'Parts & Service' },
+  { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'], section: 'Parts & Service' },
+
+  // Operations
+  { to: '/crm/floorplan', icon: DollarSign, label: 'Floorplan', section: 'Operations' },
+  { to: '/crm/rentals', icon: Repeat, label: 'Rentals', section: 'Operations' },
+  { to: '/crm/schedule', icon: Calendar, label: 'Schedule', section: 'Operations' },
+  { to: '/crm/time', icon: Clock, label: 'Time', section: 'Operations' },
+  { to: '/crm/alerts', icon: BellRing, label: 'Alerts', features: ['deal_pipeline', 'service_dept'], section: 'Operations' },
+
+  // Back Office
+  { to: '/crm/accounting', icon: Receipt, label: 'Accounting', section: 'Back Office' },
+  { to: '/crm/invoices', icon: Receipt, label: 'Invoices', section: 'Back Office' },
+  { to: '/crm/quotes', icon: FileText, label: 'Quotes', section: 'Back Office' },
+  { to: '/crm/expenses', icon: DollarSign, label: 'Expenses', section: 'Back Office' },
+  { to: '/crm/documents', icon: FolderOpen, label: 'Documents', section: 'Back Office' },
+  { to: '/crm/jobs', icon: Briefcase, label: 'Jobs', section: 'Back Office' },
+
+  // Customers & Marketing
+  { to: '/crm/contacts', icon: Users, label: 'Contacts', section: 'Customers & Marketing' },
+  { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'], section: 'Customers & Marketing' },
+  { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'], section: 'Customers & Marketing' },
+  { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing' },
+  { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'], section: 'Customers & Marketing' },
+  { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], section: 'Customers & Marketing' },
+  { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], section: 'Customers & Marketing' },
+
+  // Leads
+  { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'], section: 'Leads' },
+  { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'], section: 'Leads' },
+
+  // Insights & Team
+  { to: '/crm/reports', icon: BarChart3, label: 'Reports', features: ['reports'], section: 'Insights & Team' },
+  { to: '/crm/team', icon: Users, label: 'Team', section: 'Insights & Team' },
+
+  // Help
+  { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'], section: 'Help' },
+  { to: '/crm/help', icon: BookOpen, label: 'Help', section: 'Help' },
 ];
 
 export default function AppLayout() {
@@ -180,25 +198,31 @@ export default function AppLayout() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Sidebar">
           <ul className="space-y-1" role="list">
-            {navItems.map((item: NavItem) => (
-              <li key={item.label}>
-                <NavLink
-                  to={item.to}
-                  end={item.exact}
-                  className={({ isActive }: { isActive: boolean }) => `
-                    flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
-                    transition-colors
-                    ${isActive
-                      ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
-                      : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'
-                    }
-                  `}
-                >
-                  <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
-                  <span>{item.label}</span>
-                </NavLink>
-              </li>
-            ))}
+            {navItems.map((item: NavItem, idx: number) => {
+              const showHeader = item.section && item.section !== navItems[idx - 1]?.section;
+              return (
+              <Fragment key={item.label}>
+                {showHeader && <li className="px-3 pt-4 pb-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-slate-500" aria-hidden="true">{item.section}</li>}
+                <li>
+                  <NavLink
+                    to={item.to}
+                    end={item.exact}
+                    className={({ isActive }: { isActive: boolean }) => `
+                      flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium
+                      transition-colors
+                      ${isActive
+                        ? 'bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                      }
+                    `}
+                  >
+                    <item.icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+                    <span>{item.label}</span>
+                  </NavLink>
+                </li>
+              </Fragment>
+              );
+            })}
           </ul>
         </nav>
 
