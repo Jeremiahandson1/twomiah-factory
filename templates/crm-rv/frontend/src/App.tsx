@@ -61,6 +61,7 @@ import AIReportsPage from './pages/rv/AIReportsPage';
 import AILeadResponderPage from './pages/rv/AILeadResponderPage';
 import AITradeAppraisalPage from './pages/rv/AITradeAppraisalPage';
 import OEMPartsPage from './pages/rv/OEMPartsPage';
+import LaborGuidePage from './pages/rv/LaborGuidePage';
 import FIPage from './pages/rv/FIPage';
 import DeskingPage from './pages/rv/DeskingPage';
 import TitleRegPage from './pages/rv/TitleRegPage';
@@ -160,6 +161,7 @@ function App() {
                     <Route path="ai-leads" element={<AILeadResponderPage />} />
                     <Route path="ai-trade" element={<AITradeAppraisalPage />} />
                     <Route path="parts-catalog" element={<OEMPartsPage />} />
+                    <Route path="labor-guide" element={<LaborGuidePage />} />
                     <Route path="fi" element={<FIPage />} />
                     <Route path="desking" element={<DeskingPage />} />
                     <Route path="title-reg" element={<TitleRegPage />} />

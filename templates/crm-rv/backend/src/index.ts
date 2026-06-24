@@ -261,6 +261,8 @@ const rentalsRoutes = (await import('./routes/rentals.ts')).default
 app.route('/api/rentals', rentalsRoutes)
 const accountingRoutes = (await import('./routes/accounting.ts')).default
 app.route('/api/accounting', accountingRoutes)
+const laborGuideRoutes = (await import('./routes/laborGuide.ts')).default
+app.route('/api/labor-guide', laborGuideRoutes)
 const rvAlertsRoutes = (await import('./routes/alerts.ts')).default
 app.route('/api/alerts', rvAlertsRoutes)
 const recallsRoutes = (await import('./routes/recalls.ts')).default

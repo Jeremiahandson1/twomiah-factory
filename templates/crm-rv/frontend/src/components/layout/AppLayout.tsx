@@ -48,6 +48,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   // Parts & Service
   { to: '/crm/parts-catalog', icon: Package, label: 'Parts Catalog', section: 'Parts & Service' },
   { to: '/crm/service', icon: Wrench, label: 'Service', features: ['service_dept'], section: 'Parts & Service' },
+  { to: '/crm/labor-guide', icon: Clock, label: 'Labor Guide', section: 'Parts & Service' },
   { to: '/crm/inventory', icon: Package, label: 'Parts & Inventory', features: ['inventory', 'parts_tracking'], section: 'Parts & Service' },
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'], section: 'Parts & Service' },
 
