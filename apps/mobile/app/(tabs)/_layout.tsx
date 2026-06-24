@@ -19,6 +19,7 @@ const ALL_TABS = [
   'pipeline', 'canvass',
   'orders', 'products', 'customers', 'loyalty', 'more-dispensary',
   'checkin-queue', 'driver', 'ai-chat', 'pos-mobile',
+  'units', 'parts', 'ai-trade',
 ]
 
 export default function TabLayout() {

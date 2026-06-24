@@ -2,7 +2,7 @@
  * Tab definitions per vertical — controls which tabs appear in the bottom bar.
  */
 
-export type Vertical = 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'dispensary'
+export type Vertical = 'contractor' | 'fieldservice' | 'homecare' | 'roofing' | 'landscaping' | 'dispensary' | 'rv'
 
 export interface TabDef {
   name: string
@@ -54,6 +54,13 @@ export const VERTICAL_TABS: Record<Vertical, TabDef[]> = {
     { name: 'checkin-queue', title: 'Check-In', icon: 'people-outline', activeIcon: 'people' },
     { name: 'more-dispensary', title: 'More', icon: 'ellipsis-horizontal-outline', activeIcon: 'ellipsis-horizontal' },
   ],
+  rv: [
+    { name: 'dashboard', title: 'Dashboard', icon: 'grid-outline', activeIcon: 'grid' },
+    { name: 'units', title: 'Inventory', icon: 'car-sport-outline', activeIcon: 'car-sport' },
+    { name: 'parts', title: 'Parts', icon: 'construct-outline', activeIcon: 'construct' },
+    { name: 'ai-trade', title: 'Trade', icon: 'cash-outline', activeIcon: 'cash' },
+    { name: 'contacts', title: 'Customers', icon: 'people-outline', activeIcon: 'people' },
+  ],
 }
 
 /** The first tab name per vertical (initial route) */
@@ -64,4 +71,5 @@ export const VERTICAL_INITIAL_TAB: Record<Vertical, string> = {
   roofing: 'pipeline',
   landscaping: 'dashboard',
   dispensary: 'orders',
+  rv: 'dashboard',
 }
