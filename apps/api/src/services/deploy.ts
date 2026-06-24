@@ -1180,6 +1180,8 @@ export async function deployCustomer(
             { key: 'TENANT_SLUG', value: slug },
             ...r2EnvVars,
         ]
+        // AI sales chatbot on the public site calls Claude directly.
+        if (process.env.ANTHROPIC_API_KEY) siteEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
         if (siteDbConnectionString) {
           siteEnvVars.push({ key: 'DATABASE_URL', value: siteDbConnectionString })
         }

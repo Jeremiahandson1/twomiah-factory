@@ -864,5 +864,63 @@
       });
     });
   </script>
+
+  <!-- ─── AI Sales Chatbot ─────────────────────────────────────────── -->
+  <style>
+    :root{ --twc-accent: var(--primary-color, var(--primary, var(--gold, #C8102E))); }
+    #twc-launch{ position:fixed; bottom:22px; right:22px; z-index:9998; display:flex; align-items:center; gap:10px; background:#15171c; color:#fff; border:none; border-radius:999px; padding:13px 20px 13px 16px; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer; box-shadow:0 8px 30px rgba(0,0,0,.28); transition:transform .15s ease; }
+    #twc-launch:hover{ transform:translateY(-2px); }
+    #twc-launch .twc-dot{ width:9px; height:9px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 0 rgba(34,197,94,.6); animation:twc-pulse 2s infinite; }
+    @keyframes twc-pulse{ 0%{box-shadow:0 0 0 0 rgba(34,197,94,.5)} 70%{box-shadow:0 0 0 8px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+    #twc-panel{ position:fixed; bottom:22px; right:22px; z-index:9999; width:374px; max-width:calc(100vw - 32px); height:560px; max-height:calc(100vh - 44px); background:#fff; border-radius:16px; box-shadow:0 18px 60px rgba(0,0,0,.35); display:none; flex-direction:column; overflow:hidden; font-family:inherit; }
+    #twc-panel.twc-open{ display:flex; }
+    .twc-head{ background:#15171c; color:#fff; padding:15px 16px; display:flex; align-items:center; gap:11px; }
+    .twc-head .twc-av{ width:38px; height:38px; border-radius:50%; background:var(--twc-accent); display:flex; align-items:center; justify-content:center; font-size:19px; }
+    .twc-head h4{ margin:0; font-size:15px; font-weight:700; color:#fff; }
+    .twc-head p{ margin:1px 0 0; font-size:12px; color:rgba(255,255,255,.6); }
+    .twc-x{ margin-left:auto; background:none; border:none; color:rgba(255,255,255,.7); font-size:22px; cursor:pointer; line-height:1; }
+    .twc-body{ flex:1; overflow-y:auto; padding:16px; background:#f6f7f9; display:flex; flex-direction:column; gap:10px; }
+    .twc-msg{ max-width:84%; padding:10px 13px; border-radius:14px; font-size:14px; line-height:1.45; white-space:pre-wrap; }
+    .twc-bot{ align-self:flex-start; background:#fff; color:#1a1a1a; border:1px solid #e7e9ee; border-bottom-left-radius:4px; }
+    .twc-user{ align-self:flex-end; background:var(--twc-accent); color:#fff; border-bottom-right-radius:4px; }
+    .twc-note{ align-self:center; background:#dcfce7; color:#166534; font-size:12.5px; padding:7px 12px; border-radius:10px; }
+    .twc-typing{ align-self:flex-start; color:#9aa0a6; font-size:13px; padding:4px 6px; }
+    .twc-foot{ display:flex; gap:8px; padding:11px; border-top:1px solid #eceef1; background:#fff; }
+    .twc-foot input{ flex:1; border:1px solid #d6d9de; border-radius:10px; padding:11px 13px; font-size:14px; font-family:inherit; outline:none; color:#1a1a1a; }
+    .twc-foot input:focus{ border-color:var(--twc-accent); }
+    .twc-foot button{ background:var(--twc-accent); color:#fff; border:none; border-radius:10px; padding:0 17px; font-size:15px; font-weight:600; cursor:pointer; }
+    .twc-foot button:disabled{ opacity:.5; cursor:default; }
+  </style>
+  <button id="twc-launch" aria-label="Chat with us"><span class="twc-dot"></span>💬 Chat with us</button>
+  <div id="twc-panel" role="dialog" aria-label="Sales chat">
+    <div class="twc-head">
+      <div class="twc-av">💬</div>
+      <div><h4><%= (typeof settings !== 'undefined' && settings && settings.companyName) ? settings.companyName : 'Our Dealership' %></h4><p>AI Sales Assistant · replies in seconds</p></div>
+      <button class="twc-x" id="twc-x" aria-label="Close">×</button>
+    </div>
+    <div class="twc-body" id="twc-body"></div>
+    <div class="twc-foot"><input id="twc-input" type="text" placeholder="Ask about a boat, bike, ATV…" autocomplete="off"><button id="twc-send">Send</button></div>
+  </div>
+  <script>
+  (function(){
+    var DEALER = <%- JSON.stringify((typeof settings !== 'undefined' && settings && settings.companyName) ? settings.companyName : 'our dealership') %>;
+    var msgs=[], busy=false, greeted=false;
+    var launch=document.getElementById('twc-launch'), panel=document.getElementById('twc-panel'),
+        body=document.getElementById('twc-body'), input=document.getElementById('twc-input'), send=document.getElementById('twc-send');
+    function add(role,text){ var d=document.createElement('div'); d.className='twc-msg '+(role==='user'?'twc-user':'twc-bot'); d.textContent=text; body.appendChild(d); body.scrollTop=body.scrollHeight; }
+    function note(text){ var d=document.createElement('div'); d.className='twc-note'; d.textContent=text; body.appendChild(d); body.scrollTop=body.scrollHeight; }
+    function open(){ panel.classList.add('twc-open'); launch.style.display='none'; if(!greeted){ greeted=true; var g="Hi! 👋 I'm the "+DEALER+" assistant. Looking for a boat, bike, ATV, or something specific? Tell me what you're after and I'll help you find it."; add('bot',g); msgs.push({role:'assistant',content:g}); } input.focus(); }
+    function close(){ panel.classList.remove('twc-open'); launch.style.display='flex'; }
+    launch.onclick=open; document.getElementById('twc-x').onclick=close;
+    function ask(){ var t=input.value.trim(); if(!t||busy) return; input.value=''; add('user',t); msgs.push({role:'user',content:t}); busy=true; send.disabled=true;
+      var ty=document.createElement('div'); ty.className='twc-typing'; ty.textContent='typing…'; body.appendChild(ty); body.scrollTop=body.scrollHeight;
+      fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:msgs})})
+        .then(function(r){return r.json()}).then(function(d){ ty.remove(); var rep=d.reply||"Sorry, please try again."; add('bot',rep); msgs.push({role:'assistant',content:rep}); if(d.captured) note('✓ Got it — a '+DEALER+' team member will reach out shortly!'); })
+        .catch(function(){ ty.remove(); add('bot',"I'm having trouble connecting — please call us and we'll help right away!"); })
+        .finally(function(){ busy=false; send.disabled=false; input.focus(); });
+    }
+    send.onclick=ask; input.addEventListener('keydown',function(e){ if(e.key==='Enter') ask(); });
+  })();
+  </script>
 </body>
 </html>

@@ -430,6 +430,56 @@ app.get('/api/inventory', (c) => {
   return c.json({ count: all.length, units: all })
 })
 
+// ─── AI sales chatbot ─────────────────────────────────────────────────────────
+// Claude-powered assistant that knows the live inventory + dealership, answers
+// visitor questions, and captures a lead (the proactive "convert the visitor" piece).
+app.post('/api/chat', async (c) => {
+  let body: any = {}; try { body = await c.req.json() } catch {}
+  const messages = Array.isArray(body.messages) ? body.messages.slice(-12) : []
+  if (!messages.length) return c.json({ error: 'No message' }, 400)
+
+  const settings = loadJSON('settings.json') || {}
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return c.json({ reply: `Our chat assistant is offline right now — call us at ${settings.phone || 'the store'} or use the contact form and we'll get right back to you!` })
+
+  const inv = (loadJSON('inventory.json') || []).filter((u: any) => u && u.status !== 'sold')
+  const byCat = inv.reduce((a: any, u: any) => { a[u.category] = (a[u.category] || 0) + 1; return a }, {})
+  const invList = inv.slice(0, 60).map((u: any) => `${u.year || ''} ${u.make} ${u.modelName} — ${u.category}, ${u.condition}, ${u.internetPrice ? '$' + Number(u.internetPrice).toLocaleString() : 'call for price'} (stk# ${u.stockNumber || u.id})`).join('\n')
+
+  const system = `You are the friendly AI sales assistant for ${settings.companyName || 'our dealership'}, a powersports / marine / RV dealership in ${settings.city || ''}, ${settings.state || ''} (phone ${settings.phone || ''}). Help visitors find the right unit and BOOK THE NEXT STEP — be warm, concise, and enthusiastic, like a great salesperson, never robotic.
+RULES: Use ONLY the live inventory below — recommend specific units by year/make/model + price + stock#. Never invent units or prices. When a visitor shows real interest, naturally ask for their FIRST NAME and a PHONE or EMAIL so a salesperson can follow up, hold the unit, or start financing.
+Once you actually have a name AND a phone or email, end your reply with this hidden tag on its own final line (the website strips it before display): [LEAD]{"name":"...","phone":"...","email":"...","interest":"..."}[/LEAD]
+INVENTORY (${inv.length} units; by category ${JSON.stringify(byCat)}):
+${invList}`
+
+  let reply = ''
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: process.env.ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001', max_tokens: 600, system, messages: messages.map((m: any) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: String(m.content || '').slice(0, 1500) })) }),
+    })
+    if (!res.ok) throw new Error('ai ' + res.status)
+    const data: any = await res.json()
+    reply = data?.content?.[0]?.text || "Sorry, I didn't catch that — could you say it another way?"
+  } catch (e) {
+    return c.json({ reply: `I'm having a quick hiccup — please call us at ${settings.phone || 'the store'} and we'll help you right away!` })
+  }
+
+  let captured = false
+  const mk = reply.match(/\[LEAD\]([\s\S]*?)\[\/LEAD\]/)
+  if (mk) {
+    reply = reply.replace(/\[LEAD\][\s\S]*?\[\/LEAD\]/, '').trim()
+    try {
+      const lead = JSON.parse(mk[1])
+      if (lead && lead.name && (lead.phone || lead.email)) {
+        appendLead({ name: lead.name, phone: lead.phone || '', email: lead.email || '', service: 'Website Chat', leadType: 'chat', source: 'website_chat', unitOfInterest: lead.interest || '', message: 'Captured by the AI chat assistant' })
+        captured = true
+      }
+    } catch {}
+  }
+  return c.json({ reply, captured })
+})
+
 // ─── Reserve a unit ──────────────────────────────────────────────────────────
 // Always captures the reservation as a lead. If the dealer has configured Stripe
 // (data/reserve-config.json: { enabled, stripeSecretKey, depositAmount, currency }),
