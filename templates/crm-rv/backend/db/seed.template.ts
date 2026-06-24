@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 
-import { company, user, supportKnowledgeBase, pricebookCategory, pricebookItem, unit } from './schema.ts'
+import { company, user, supportKnowledgeBase, pricebookCategory, pricebookItem, unit, contact, salesLead, repairOrder, invoice } from './schema.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -144,12 +144,94 @@ async function main() {
   // inventory + dashboard show real data out of the box. The dealer deletes these.
   const existingUnits = await db.select({ id: unit.id }).from(unit).where(eq(unit.companyId, comp.id)).limit(1)
   if (existingUnits.length === 0) {
-    await db.insert(unit).values([
-      { category: 'motorhome', condition: 'new', status: 'available', stockNumber: 'RV-1001', year: 2024, make: 'Winnebago', modelName: 'View', trim: '24D', rvClass: 'C', lengthFt: '25.5', sleeps: 4, slideOuts: 1, internetPrice: '142900', msrp: '155000', fuelType: 'diesel', chassis: 'Mercedes Sprinter', companyId: comp.id },
-      { category: 'towable', condition: 'used', status: 'available', stockNumber: 'RV-1002', year: 2021, make: 'Forest River', modelName: 'Rockwood', trim: '2608BS', towableType: 'travel_trailer', lengthFt: '29.7', sleeps: 6, slideOuts: 1, dryWeight: 6200, internetPrice: '28995', companyId: comp.id },
-      { category: 'utv', condition: 'new', status: 'available', stockNumber: 'PS-2001', year: 2024, make: 'Polaris', modelName: 'RANGER XP 1000', engineCc: 999, hours: 0, drivetrain: '4wd', internetPrice: '21499', companyId: comp.id },
-    ])
-    console.log('Seeded 3 sample units')
+    const cid = comp.id
+    const now = Date.now(); const DAY = 86400000
+    const ago = (d: number) => new Date(now - d * DAY)
+
+    // ── Salespeople (so "which rep sold the most" works) ──
+    const repHash = await Bun.password.hash('Demo-rep-pw-1!', 'bcrypt')
+    const repNames = [['Mike', 'Sorenson'], ['Sarah', 'Becker'], ['Dave', 'Holt']]
+    const reps: any[] = []
+    for (let i = 0; i < repNames.length; i++) {
+      try { const [r] = await db.insert(user).values({ email: `${repNames[i][0].toLowerCase()}.demo@dealer.test`, passwordHash: repHash, firstName: repNames[i][0], lastName: repNames[i][1], role: 'user', companyId: cid }).returning(); reps.push(r) } catch (e) { /* skip */ }
+    }
+    const repId = (i: number) => (reps.length ? reps[i % reps.length].id : null)
+
+    // ── Inventory (boats / powersports / RV / pwc), cost set so gross/margin computes ──
+    const unitDefs: any[] = [
+      { category: 'boat', condition: 'new', stockNumber: 'BBE-101', year: 2026, make: 'Bennington', modelName: '22 SSBX', cost: '58000', internetPrice: '74995', msrp: '79900' },
+      { category: 'boat', condition: 'new', stockNumber: 'BCR-104', year: 2026, make: 'Crestliner', modelName: '1850 Fish Hawk', cost: '31000', internetPrice: '41995', msrp: '44900' },
+      { category: 'motorcycle', condition: 'new', stockNumber: 'IND-210', year: 2025, make: 'Indian', modelName: 'Scout Bobber', engineCc: 1133, cost: '9800', internetPrice: '12999', msrp: '13499' },
+      { category: 'motorcycle', condition: 'used', stockNumber: 'HON-214', year: 2022, make: 'Honda', modelName: 'Gold Wing Tour', engineCc: 1833, mileage: 8400, cost: '18500', internetPrice: '24995', msrp: '0' },
+      { category: 'atv', condition: 'new', stockNumber: 'HON-320', year: 2025, make: 'Honda', modelName: 'FourTrax Rancher', engineCc: 420, cost: '6200', internetPrice: '7999', msrp: '8499' },
+      { category: 'utv', condition: 'new', stockNumber: 'POL-330', year: 2025, make: 'Polaris', modelName: 'RANGER XP 1000', engineCc: 999, drivetrain: '4wd', cost: '16800', internetPrice: '21499', msrp: '22999' },
+      { category: 'utv', condition: 'new', stockNumber: 'CF-334', year: 2025, make: 'CFMoto', modelName: 'ZForce 950 Sport', engineCc: 963, cost: '12100', internetPrice: '15499', msrp: '16299' },
+      { category: 'motorcycle', condition: 'new', stockNumber: 'YAM-218', year: 2025, make: 'Yamaha', modelName: 'MT-09', engineCc: 890, cost: '8400', internetPrice: '10599', msrp: '10999' },
+      { category: 'boat', condition: 'used', stockNumber: 'BBE-108', year: 2022, make: 'Bennington', modelName: '20 SVSR', cost: '34000', internetPrice: '46995', msrp: '0' },
+      { category: 'snowmobile', condition: 'new', stockNumber: 'SKI-410', year: 2025, make: 'Ski-Doo', modelName: 'MXZ Sport 600', cost: '9900', internetPrice: '12499', msrp: '12999' },
+      { category: 'towable', condition: 'used', stockNumber: 'RV-1002', year: 2021, make: 'Forest River', modelName: 'Rockwood 2608BS', cost: '21000', internetPrice: '28995', msrp: '0' },
+      { category: 'pwc', condition: 'new', stockNumber: 'SEA-520', year: 2025, make: 'Sea-Doo', modelName: 'GTI 130', cost: '9300', internetPrice: '11999', msrp: '12499' },
+    ]
+    const units: any[] = []
+    for (let i = 0; i < unitDefs.length; i++) {
+      try { const [un] = await db.insert(unit).values({ ...unitDefs[i], status: i < 4 ? 'sold' : 'available', companyId: cid, createdAt: ago(75 - i * 4) }).returning(); units.push(un) } catch (e) { /* skip */ }
+    }
+    const unitId = (i: number) => (units.length ? units[i % units.length].id : null)
+
+    // ── Customers / contacts ──
+    const names = [['Tom', 'Reilly'], ['Angela', 'Vance'], ['Mark', 'Doyle'], ['Priya', 'Nair'], ['Greg', 'Olsen'], ['Sam', 'Whitfield'], ['Karen', 'Lutz'], ['Brett', 'Conway'], ['Nina', 'Park'], ['Curt', 'Bauman'], ['Joel', 'Ferris'], ['Dana', 'Eklund']]
+    const contacts: any[] = []
+    for (let i = 0; i < names.length; i++) {
+      try { const [ct] = await db.insert(contact).values({ type: i < 8 ? 'customer' : 'lead', name: names[i][0] + ' ' + names[i][1], email: `${names[i][0].toLowerCase()}.${names[i][1].toLowerCase()}@example.com`, phone: `715-555-${1000 + i}`, city: '{{CITY}}', state: '{{STATE}}', source: ['walk_in', 'web', 'referral', 'rv_trader'][i % 4], companyId: cid, createdAt: ago(80 - i * 5) }).returning(); contacts.push(ct) } catch (e) { /* skip */ }
+    }
+    const ctId = (i: number) => (contacts.length ? contacts[i % contacts.length].id : null)
+
+    // ── Sales pipeline (sold deals w/ closedAt + dates, plus open + lost) ──
+    const stages = ['closed_won', 'closed_won', 'closed_won', 'closed_won', 'desking', 'demo', 'contacted', 'new', 'closed_lost', 'desking', 'contacted', 'new', 'demo', 'closed_won', 'new', 'contacted']
+    for (let i = 0; i < stages.length; i++) {
+      const stage = stages[i]; const closed = stage.startsWith('closed')
+      try {
+        await db.insert(salesLead).values({
+          source: ['walk_in', 'web', 'referral', 'rv_trader', 'cycle_trader'][i % 5], stage,
+          contactId: ctId(i), unitId: unitId(i), assignedTo: repId(i),
+          closedAt: closed ? ago(i * 2 + 1) : null,
+          followUpDate: closed ? null : ago(-(i % 8) - 1),
+          notes: stage === 'closed_won' ? 'Delivered — financed via Octane.' : stage === 'closed_lost' ? 'Bought elsewhere on price.' : 'Working the deal.',
+          companyId: cid, createdAt: ago(50 - i * 2),
+        })
+      } catch (e) { /* skip */ }
+    }
+
+    // ── Service / repair orders ──
+    const roStatuses = ['open', 'in_progress', 'waiting_parts', 'ready', 'closed', 'closed', 'in_progress', 'open']
+    const roSvc = ['Annual service + winterization', 'Tire/track replacement', 'Warranty engine repair', 'Detail + safety inspection', 'Lower-unit service']
+    for (let i = 0; i < roStatuses.length; i++) {
+      const st = roStatuses[i]
+      try {
+        await db.insert(repairOrder).values({
+          roNumber: 'RO-' + String(1001 + i), writeUpDate: ago(i * 2), status: st,
+          customerId: ctId(i + 1), unitId: unitId(i + 4), advisorName: repNames[i % 3][0] + ' ' + repNames[i % 3][1],
+          services: [{ description: roSvc[i % roSvc.length], laborHours: 2 + (i % 4), partsCost: 120 + i * 45 }],
+          estimatedTotal: String(350 + i * 95), actualTotal: st === 'closed' ? String(365 + i * 95) : null,
+          completedAt: st === 'closed' ? ago(i) : null, companyId: cid, createdAt: ago(i * 2),
+        })
+      } catch (e) { /* skip */ }
+    }
+
+    // ── Invoices (paid + open + overdue) ──
+    for (let i = 0; i < 7; i++) {
+      const sub = 800 + i * 640; const tax = Math.round(sub * 0.055); const paid = i < 4
+      try {
+        await db.insert(invoice).values({
+          number: 'INV-' + String(2001 + i), status: paid ? 'paid' : i === 4 ? 'overdue' : 'sent',
+          issueDate: ago(32 - i * 4), dueDate: ago(i * 4 - 8), subtotal: String(sub), taxAmount: String(tax), total: String(sub + tax),
+          amountPaid: paid ? String(sub + tax) : '0', paidAt: paid ? ago(22 - i * 3) : null,
+          contactId: ctId(i), companyId: cid, createdAt: ago(32 - i * 4),
+        })
+      } catch (e) { /* skip */ }
+    }
+
+    console.log(`Seeded demo data: ${units.length} units, ${contacts.length} contacts, ${reps.length} reps, pipeline + service + invoices`)
   }
 
   console.log('')
