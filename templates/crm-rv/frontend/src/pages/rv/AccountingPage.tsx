@@ -19,6 +19,12 @@ export default function AccountingPage() {
     setSyncing(false);
   }
 
+  async function connect() {
+    const r = await api.get('/api/quickbooks/auth-url').catch(() => null);
+    if (r?.url) window.open(r.url, '_blank', 'width=600,height=720');
+    else alert('QuickBooks isn’t configured yet. Add QBO_CLIENT_ID / QBO_CLIENT_SECRET / QBO_REDIRECT_URI to enable Connect.');
+  }
+
   const pending = data.pending || [];
   const pendingTotal = pending.reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
@@ -35,7 +41,7 @@ export default function AccountingPage() {
           <span className="font-semibold">{data.provider}</span> — {data.connected ? 'Connected' : 'Not connected'}
           {!data.connected && <span className="block text-xs text-amber-700">Connect your books to post automatically. Demo — OAuth on integration; native GL is the upgrade path.</span>}
         </div>
-        {!data.connected && <button className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50">Connect</button>}
+        {!data.connected && <button onClick={connect} className="px-3 py-1.5 rounded-lg bg-white border text-sm font-medium hover:bg-gray-50">Connect</button>}
       </div>
 
       <div className="mt-4 bg-white rounded-xl border shadow-sm overflow-hidden">

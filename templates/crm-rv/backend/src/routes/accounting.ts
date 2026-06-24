@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import quickbooks from '../services/quickbooks.ts'
 
 // ── Accounting sync ─────────────────────────────────────────────────────────
 // Post deals / invoices to the GL. Provider-agnostic: QuickBooks Online stub today
@@ -24,17 +25,24 @@ const PENDING: any[] = [
   { id: 'e4', type: 'Parts invoice', ref: 'INV-7783', customer: 'Tom Reilly', amount: 189, date: '2026-06-23', posted: false },
 ]
 
-app.get('/status', (c) => c.json({
-  provider: provider.name, connected: provider.connected,
-  pending: PENDING.filter((e) => !e.posted), postedCount: PENDING.filter((e) => e.posted).length,
-}))
+app.get('/status', async (c) => {
+  const u = c.get('user') as any
+  // Real connection state comes from the existing QuickBooks integration service.
+  let connected = false
+  try { const qb: any = await quickbooks.getConnectionStatus(u.companyId); connected = !!qb?.connected } catch { /* not connected */ }
+  const configured = !!(process.env.QBO_CLIENT_ID && process.env.QBO_REDIRECT_URI)
+  return c.json({
+    provider: 'QuickBooks Online', connected, configured,
+    pending: PENDING.filter((e) => !e.posted), postedCount: PENDING.filter((e) => e.posted).length,
+  })
+})
 
 app.post('/sync', async (c) => {
   const pend = PENDING.filter((e) => !e.posted)
   if (!pend.length) return c.json({ error: 'Nothing to sync.' }, 400)
   const result = await provider.post(pend)
   pend.forEach((e) => { e.posted = true })
-  return c.json({ result, provider: provider.name, connected: provider.connected })
+  return c.json({ result, provider: 'QuickBooks Online' })
 })
 
 export default app
