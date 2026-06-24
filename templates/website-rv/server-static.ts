@@ -472,8 +472,18 @@ ${invList}`
     try {
       const lead = JSON.parse(mk[1])
       if (lead && lead.name && (lead.phone || lead.email)) {
-        appendLead({ name: lead.name, phone: lead.phone || '', email: lead.email || '', service: 'Website Chat', leadType: 'chat', source: 'website_chat', unitOfInterest: lead.interest || '', message: 'Captured by the AI chat assistant' })
+        const leadObj = { name: lead.name, phone: lead.phone || '', email: lead.email || '', service: 'Website Chat', leadType: 'chat', source: 'website_chat', unitOfInterest: lead.interest || '', message: 'Captured by the AI chat assistant' }
+        appendLead(leadObj)
         captured = true
+        // Forward to the CRM so it lands in the sales pipeline (and the AI Lead
+        // Responder can act on it) — same path the contact form uses.
+        const crmUrl = process.env.CRM_API_URL, secret = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET
+        if (crmUrl && secret) {
+          fetch(crmUrl.replace(/\/$/, '') + '/api/webhooks/leads', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-webhook-secret': secret },
+            body: JSON.stringify(leadObj),
+          }).catch(() => {})
+        }
       }
     } catch {}
   }
