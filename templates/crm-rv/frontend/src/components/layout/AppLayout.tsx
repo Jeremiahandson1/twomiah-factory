@@ -39,6 +39,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/parts-catalog', icon: Package, label: 'Parts Catalog' },
   { to: '/crm/desking', icon: ClipboardList, label: 'Desking' },
   { to: '/crm/fi', icon: CreditCard, label: 'F&I / Deal Jacket' },
+  { to: '/crm/title-reg', icon: ClipboardCheck, label: 'Title & Registration' },
   { to: '/crm/sales-pipeline', icon: GitBranch, label: 'Sales Pipeline', features: ['deal_pipeline'] },
   { to: '/crm/service', icon: Wrench, label: 'Service', features: ['service_dept'] },
   { to: '/crm/alerts', icon: BellRing, label: 'Alerts', features: ['deal_pipeline', 'service_dept'] },

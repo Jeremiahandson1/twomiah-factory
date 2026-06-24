@@ -253,6 +253,8 @@ const fiRoutes = (await import('./routes/fi.ts')).default
 app.route('/api/fi', fiRoutes)
 const partsOrdersRoutes = (await import('./routes/partsOrders.ts')).default
 app.route('/api/parts-orders', partsOrdersRoutes)
+const titleRegRoutes = (await import('./routes/titleReg.ts')).default
+app.route('/api/title-reg', titleRegRoutes)
 const rvAlertsRoutes = (await import('./routes/alerts.ts')).default
 app.route('/api/alerts', rvAlertsRoutes)
 const recallsRoutes = (await import('./routes/recalls.ts')).default
