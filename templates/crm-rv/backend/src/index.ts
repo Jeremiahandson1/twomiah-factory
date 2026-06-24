@@ -255,6 +255,12 @@ const partsOrdersRoutes = (await import('./routes/partsOrders.ts')).default
 app.route('/api/parts-orders', partsOrdersRoutes)
 const titleRegRoutes = (await import('./routes/titleReg.ts')).default
 app.route('/api/title-reg', titleRegRoutes)
+const floorplanRoutes = (await import('./routes/floorplan.ts')).default
+app.route('/api/floorplan', floorplanRoutes)
+const rentalsRoutes = (await import('./routes/rentals.ts')).default
+app.route('/api/rentals', rentalsRoutes)
+const accountingRoutes = (await import('./routes/accounting.ts')).default
+app.route('/api/accounting', accountingRoutes)
 const rvAlertsRoutes = (await import('./routes/alerts.ts')).default
 app.route('/api/alerts', rvAlertsRoutes)
 const recallsRoutes = (await import('./routes/recalls.ts')).default

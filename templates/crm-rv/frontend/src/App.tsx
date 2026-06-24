@@ -64,6 +64,9 @@ import OEMPartsPage from './pages/rv/OEMPartsPage';
 import FIPage from './pages/rv/FIPage';
 import DeskingPage from './pages/rv/DeskingPage';
 import TitleRegPage from './pages/rv/TitleRegPage';
+import FloorplanPage from './pages/rv/FloorplanPage';
+import RentalsPage from './pages/rv/RentalsPage';
+import AccountingPage from './pages/rv/AccountingPage';
 import ServicePage from './pages/rv/ServicePage';
 import AlertsPage from './pages/rv/AlertsPage';
 
@@ -160,6 +163,9 @@ function App() {
                     <Route path="fi" element={<FIPage />} />
                     <Route path="desking" element={<DeskingPage />} />
                     <Route path="title-reg" element={<TitleRegPage />} />
+                    <Route path="floorplan" element={<FloorplanPage />} />
+                    <Route path="rentals" element={<RentalsPage />} />
+                    <Route path="accounting" element={<AccountingPage />} />
                     <Route path="service" element={<ServicePage />} />
                     <Route path="alerts" element={<AlertsPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
