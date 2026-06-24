@@ -998,6 +998,15 @@ export async function deployCustomer(
         const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : slug + '-crm'
         const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : 'crm'
 
+        // QuickBooks: factory-level credentials flow to each tenant CRM; the redirect
+        // URI is the tenant's own backend host (must also be registered in the Intuit app).
+        if (process.env.QBO_CLIENT_ID && process.env.QBO_CLIENT_SECRET) {
+          backendEnvVars.push({ key: 'QBO_CLIENT_ID', value: process.env.QBO_CLIENT_ID })
+          backendEnvVars.push({ key: 'QBO_CLIENT_SECRET', value: process.env.QBO_CLIENT_SECRET })
+          backendEnvVars.push({ key: 'QBO_REDIRECT_URI', value: `https://${crmApiName}.onrender.com/api/quickbooks/callback` })
+          backendEnvVars.push({ key: 'QBO_SANDBOX', value: process.env.QBO_SANDBOX || 'true' })
+        }
+
         // Delete existing services so names are available (avoids random suffixes)
         await findAndDeleteRenderService(crmApiName)
         await findAndDeleteRenderService(crmFrontName) // clean up legacy static sites
