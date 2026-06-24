@@ -39,7 +39,7 @@ app.post('/generate', async (c) => {
     grab(() => db.select().from(repairOrder).where(eq(repairOrder.companyId, cid)).limit(500)),
     grab(() => db.select().from(invoice).where(eq(invoice.companyId, cid)).limit(500)),
     grab(() => db.select().from(contact).where(eq(contact.companyId, cid)).limit(500)),
-    grab(() => db.select({ id: user.id, name: user.name, role: user.role }).from(user).where(eq(user.companyId, cid)).limit(100)),
+    grab(() => db.select({ id: user.id, firstName: user.firstName, lastName: user.lastName, role: user.role }).from(user).where(eq(user.companyId, cid)).limit(100)),
   ])
 
   const today = new Date().toISOString().slice(0, 10)
