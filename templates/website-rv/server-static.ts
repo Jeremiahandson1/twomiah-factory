@@ -465,27 +465,37 @@ ${invList}`
     return c.json({ reply: `I'm having a quick hiccup — please call us at ${settings.phone || 'the store'} and we'll help you right away!` })
   }
 
+  // Capture a lead: write locally + forward to the CRM (where the AI Lead Responder
+  // can act on it) — the same path the contact form uses.
+  const doCapture = async (lead: any) => {
+    if (!lead || !lead.name || !(lead.phone || lead.email)) return false
+    const leadObj = { name: String(lead.name).slice(0, 80), phone: String(lead.phone || '').slice(0, 40), email: String(lead.email || '').slice(0, 120), service: 'Website Chat', leadType: 'chat', source: 'website_chat', unitOfInterest: String(lead.interest || '').slice(0, 120), message: 'Captured by the AI chat assistant' }
+    appendLead(leadObj)
+    const crmUrl = process.env.CRM_API_URL, secret = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET
+    if (crmUrl && secret) { try { await fetch(crmUrl.replace(/\/$/, '') + '/api/webhooks/leads', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-webhook-secret': secret }, body: JSON.stringify(leadObj) }) } catch {} }
+    return true
+  }
+
   let captured = false
   const mk = reply.match(/\[LEAD\]([\s\S]*?)\[\/LEAD\]/)
   if (mk) {
     reply = reply.replace(/\[LEAD\][\s\S]*?\[\/LEAD\]/, '').trim()
-    try {
-      const lead = JSON.parse(mk[1])
-      if (lead && lead.name && (lead.phone || lead.email)) {
-        const leadObj = { name: lead.name, phone: lead.phone || '', email: lead.email || '', service: 'Website Chat', leadType: 'chat', source: 'website_chat', unitOfInterest: lead.interest || '', message: 'Captured by the AI chat assistant' }
-        appendLead(leadObj)
-        captured = true
-        // Forward to the CRM so it lands in the sales pipeline (and the AI Lead
-        // Responder can act on it) — same path the contact form uses.
-        const crmUrl = process.env.CRM_API_URL, secret = process.env.WEBHOOK_SECRET || process.env.JWT_SECRET
-        if (crmUrl && secret) {
-          fetch(crmUrl.replace(/\/$/, '') + '/api/webhooks/leads', {
-            method: 'POST', headers: { 'Content-Type': 'application/json', 'x-webhook-secret': secret },
-            body: JSON.stringify(leadObj),
-          }).catch(() => {})
-        }
-      }
-    } catch {}
+    try { captured = await doCapture(JSON.parse(mk[1])) } catch {}
+  }
+  // Fallback — the model is flaky about emitting the tag, so if the visitor clearly
+  // gave a phone or email, extract it ourselves and capture. Never drop a real lead.
+  if (!captured) {
+    const conv = messages.filter((m: any) => m.role === 'user').map((m: any) => String(m.content || '')).join('\n')
+    if (/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(conv) || /[\w.+-]+@[\w-]+\.[a-z]{2,}/i.test(conv)) {
+      try {
+        const ex = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, system: 'Extract the visitor’s contact details from this dealership chat. Output ONLY raw JSON: {"name":"","phone":"","email":"","interest":""}. Use an empty string for anything not provided. No other text.', messages: [{ role: 'user', content: conv.slice(0, 2000) }] }),
+        })
+        const exd: any = await ex.json(); const jm = (exd?.content?.[0]?.text || '').match(/\{[\s\S]*\}/)
+        if (jm) captured = await doCapture(JSON.parse(jm[0]))
+      } catch {}
+    }
   }
   return c.json({ reply, captured })
 })

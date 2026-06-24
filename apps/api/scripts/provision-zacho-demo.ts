@@ -107,12 +107,14 @@ async function main() {
     render_backend_url: crmUrl || null, database_url: deploy.dbConnectionString || null,
   }).eq('id', tenantId)
 
-  // Seed the CRM from the website's (baked) inventory so both are populated.
+  // Seed the CRM straight from the baked inventory (no dependency on the website
+  // booting first — that race caused seeded:0). Just wait for the CRM to be up.
   let seeded = 0
   if (crmUrl && deploy.factorySyncKey) {
     let units: any[] = []
-    for (let i = 0; i < 24; i++) { try { const r = await fetch(siteUrl + '/api/inventory'); const j: any = await r.json(); if (j.units?.length) { units = j.units; break } } catch {} await sleep(15000) }
-    for (let i = 0; i < 48; i++) { try { const h = await fetch(crmUrl + '/health', { signal: AbortSignal.timeout(5000) }); if (h.ok) break } catch {} await sleep(5000) }
+    try { units = JSON.parse(fs.readFileSync('C:/ALL TWOMIAH PRODUCTS/TwomiahFactory/templates/website-rv/data/inventory.json', 'utf8')) } catch {}
+    units = (units || []).filter((u: any) => u && u.status !== 'sold')
+    for (let i = 0; i < 60; i++) { try { const h = await fetch(crmUrl + '/health', { signal: AbortSignal.timeout(5000) }); if (h.ok) break } catch {} await sleep(5000) }
     if (units.length) { try { const r = await fetch(crmUrl + '/api/internal/seed-units', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Factory-Key': deploy.factorySyncKey }, body: JSON.stringify({ units }), signal: AbortSignal.timeout(60000) }); const j: any = await r.json().catch(() => ({})); seeded = j.inserted || 0 } catch {} }
   }
 
