@@ -9,12 +9,32 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Roboto:wght@300;400;500;700&display=optional');
 
+/* Metric-matched fallbacks to eliminate font-swap CLS. Roboto uses the standard
+   published Arial-fallback metrics (exact). Oswald (condensed) matches the line-box
+   via ascent/descent and approximates width with Arial Narrow — avoids a guessed
+   size-adjust that could mis-size headings. Verify/tune via Lighthouse. */
+@font-face {
+  font-family: 'Roboto Fallback';
+  src: local('Arial');
+  size-adjust: 100.06%;
+  ascent-override: 92.77%;
+  descent-override: 24.41%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Oswald Fallback';
+  src: local('Arial Narrow'), local('Arial');
+  ascent-override: 119.3%;
+  descent-override: 28.9%;
+  line-gap-override: 0%;
+}
+
 /* ── Variable Overrides ────────────────────────────────── */
 :root {
   --font-primary: 'Oswald', 'Impact', 'Arial Narrow', sans-serif;
   --font-secondary: 'Roboto', Arial, sans-serif;
-  --font-heading: 'Oswald', 'Impact', sans-serif;
-  --font-body: 'Roboto', sans-serif;
+  --font-heading: 'Oswald', 'Oswald Fallback', 'Impact', sans-serif;
+  --font-body: 'Roboto', 'Roboto Fallback', sans-serif;
   --border-radius: 0px;
   --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
   --shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
@@ -34,7 +54,7 @@
 
 /* ── Body ──────────────────────────────────────────────── */
 body {
-  font-family: 'Roboto', Arial, sans-serif;
+  font-family: 'Roboto', 'Roboto Fallback', Arial, sans-serif;
   background: var(--off-white);
   background-image: none;
   color: #222;
@@ -45,7 +65,7 @@ body {
 
 /* ── Typography ────────────────────────────────────────── */
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Oswald', 'Impact', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', 'Impact', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -53,7 +73,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 p {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto', 'Roboto Fallback', sans-serif;
   line-height: 1.65;
   font-weight: 400;
 }
@@ -82,7 +102,7 @@ p {
 
 .main-header .utility-nav a {
   color: rgba(255, 255, 255, 0.85) !important;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   font-weight: 500;
   text-transform: uppercase;
   font-size: 0.85rem;
@@ -103,7 +123,7 @@ p {
 
 .main-header .header-phone {
   color: #fff !important;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   font-weight: 600;
   font-size: 1rem;
   letter-spacing: 0.03em;
@@ -122,7 +142,7 @@ p {
   color: var(--dark-bg) !important;
   border: none;
   border-radius: 0;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -140,7 +160,7 @@ p {
 }
 
 .services-nav ul > li > a {
-  font-family: 'Oswald', sans-serif !important;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif !important;
   font-weight: 500 !important;
   font-size: 0.82rem !important;
   letter-spacing: 0.07em !important;
@@ -168,7 +188,7 @@ p {
 
 .services-nav .dropdown a {
   color: rgba(255, 255, 255, 0.8) !important;
-  font-family: 'Roboto', sans-serif !important;
+  font-family: 'Roboto', 'Roboto Fallback', sans-serif !important;
   font-weight: 500 !important;
   font-size: 0.88rem !important;
   padding: 11px 20px !important;
@@ -194,7 +214,7 @@ p {
 
 .mobile-nav .mobile-section-label {
   color: var(--industrial-yellow) !important;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
 }
 
 /* ── Hero Section ──────────────────────────────────────── */
@@ -236,7 +256,7 @@ p {
 .hero h1,
 .hero-section h1,
 .hero-video h1 {
-  font-family: 'Oswald', 'Impact', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', 'Impact', sans-serif;
   font-size: clamp(2.8rem, 6vw, 5rem);
   font-weight: 700;
   text-transform: uppercase;
@@ -256,7 +276,7 @@ p {
 .hero p,
 .hero-section p,
 .hero-video p {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto', 'Roboto Fallback', sans-serif;
   font-size: 1.15rem;
   font-weight: 400;
   letter-spacing: 0.02em;
@@ -276,7 +296,7 @@ p {
 button[type="submit"] {
   border-radius: 0 !important;
   padding: 15px 40px;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   font-weight: 700;
   font-size: 1rem;
   text-transform: uppercase;
@@ -386,7 +406,7 @@ button[type="submit"]:hover {
 .service-card h3,
 .card h3,
 .feature-card h3 {
-  font-family: 'Oswald', sans-serif !important;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif !important;
   text-transform: uppercase !important;
   font-weight: 700 !important;
   letter-spacing: 0.04em;
@@ -406,7 +426,7 @@ button[type="submit"]:hover {
 .service-card a,
 .card a {
   color: var(--industrial-yellow) !important;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -425,7 +445,7 @@ section {
 
 .section-title,
 section h2 {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   font-size: 2.6rem;
   text-transform: uppercase;
   position: relative;
@@ -456,7 +476,7 @@ section h2::after {
 
 .section-subtitle,
 section h2 + p {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto', 'Roboto Fallback', sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.95rem;
@@ -500,7 +520,7 @@ section h2 + p {
 .why-item h3,
 .why-item h4 {
   color: var(--industrial-yellow) !important;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
   font-weight: 600;
   letter-spacing: 0.03em;
@@ -538,7 +558,7 @@ section h2 + p {
   position: absolute;
   top: 10px;
   right: 20px;
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   font-size: 5rem;
   color: rgba(245, 166, 35, 0.15);
   line-height: 1;
@@ -554,7 +574,7 @@ section h2 + p {
 .testimonial-card .author,
 .testimonial-card strong,
 .review-card .author {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   font-weight: 600;
@@ -645,7 +665,7 @@ form select {
   border: 2px solid #333 !important;
   background: #fff;
   padding: 14px 16px;
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto', 'Roboto Fallback', sans-serif;
   font-size: 0.95rem;
   transition: border-color 0.15s ease;
 }
@@ -661,7 +681,7 @@ form textarea:focus {
 
 .contact-form label,
 form label {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -691,7 +711,7 @@ footer {
 .footer h4,
 footer h3,
 footer h4 {
-  font-family: 'Oswald', sans-serif !important;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif !important;
   text-transform: uppercase !important;
   color: var(--industrial-yellow) !important;
   font-weight: 600;
@@ -703,7 +723,7 @@ footer h4 {
 }
 
 .main-footer .footer-logo span {
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: #fff;
@@ -727,7 +747,7 @@ footer h4 {
 footer a {
   color: #999 !important;
   text-decoration: none;
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Roboto', 'Roboto Fallback', sans-serif;
   font-size: 0.9rem;
   transition: color 0.15s ease;
 }
@@ -771,7 +791,7 @@ footer a:hover {
 
 .main-footer .hours strong {
   color: var(--industrial-yellow);
-  font-family: 'Oswald', sans-serif;
+  font-family: 'Oswald', 'Oswald Fallback', sans-serif;
   text-transform: uppercase;
 }
 

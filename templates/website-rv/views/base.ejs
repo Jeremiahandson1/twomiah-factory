@@ -43,8 +43,10 @@
   <!-- Fonts: display=optional commits to the fallback if web font isn't ready
        by ~100ms (zero CLS), preload+onload swap defers blocking. Sync local
        CSS above stays sync (3.2). -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=optional"></noscript>
+  <!-- No global web font for first paint. Each theme loads its own fonts
+       (display=optional); first paint uses system fonts, so there's no font-swap
+       reflow from a critical web font that every theme would otherwise override. -->
+
   
   <!-- LCP hero image preload — matches the actual hero background (WebP-aware),
        home page only (other pages have a different LCP element). -->
@@ -56,7 +58,7 @@
        a white flash while the full stylesheets load async below. -->
   <style>
     *{box-sizing:border-box}
-    html,body{margin:0;background:<%= (typeof settings !== 'undefined' && settings && settings.secondaryColor) ? settings.secondaryColor : '#1a1a1a' %>;color:#ececec;font-family:'Montserrat',system-ui,-apple-system,sans-serif}
+    html,body{margin:0;background:<%= (typeof settings !== 'undefined' && settings && settings.secondaryColor) ? settings.secondaryColor : '#1a1a1a' %>;color:#ececec;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif}
     img{max-width:100%;height:auto}
   </style>
 
