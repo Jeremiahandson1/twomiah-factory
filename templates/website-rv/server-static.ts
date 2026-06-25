@@ -383,7 +383,7 @@ app.get('/', (c) => {
     homepage, services, testimonials, featuredProjects, recentPosts, menuItems,
     heroPreloadUrl: resolveHeroPreload(homepage?.hero?.image || ''),
     title: settings.seoTitle || settings.companyName || '{{COMPANY_NAME}}',
-    description: settings.seoDescription || 'Professional contractor services',
+    description: settings.seoDescription || (homepage && homepage.hero && homepage.hero.description) || (homepage && homepage.seoDescription) || settings.companyName || '{{COMPANY_NAME}}',
     canonicalUrl: BASE_URL + '/',
   })
 })

@@ -36,7 +36,8 @@ async function main() {
     company: {
       name: NAME, email: ADMIN_EMAIL, phone: '+1-715-723-0264',
       address: '2891 Mall Dr', city: 'Eau Claire', state: 'WI', stateFull: 'Wisconsin', zip: '54701',
-      domain: '', domainMode: 'skip', purchaseYears: 1, ownerName: 'Owner', industry: 'rv',
+      domain: '', domainMode: 'skip', siteUrl: 'https://' + slug + '-site.onrender.com',
+      purchaseYears: 1, ownerName: 'Owner', industry: 'rv',
       serviceRegion: 'Eau Claire & Chippewa Falls', nearbyCities: ['Chippewa Falls', 'Altoona', 'Menomonie', 'Hallie'],
       defaultPassword: KNOWN_PASSWORD,
     },
