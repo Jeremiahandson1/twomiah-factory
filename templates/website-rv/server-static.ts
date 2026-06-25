@@ -793,19 +793,26 @@ app.onError((err, c) => {
 // START SERVER
 // ===========================================
 
-serve({ fetch: app.fetch, port: PORT }, () => {
-  console.log(`
+async function boot() {
+  // Generate static-image WebP companions BEFORE we start serving, so the hero
+  // preload + image-set background never 404 on a cold start. Render's ephemeral
+  // filesystem drops runtime-generated files on each spin-up, so we regenerate on
+  // every boot — awaited here so the file exists before the first request lands.
+  await ensureStaticWebp().catch(() => {})
+  serve({ fetch: app.fetch, port: PORT }, () => {
+    console.log(`
 Server running on port ${PORT}
 Environment: ${process.env.NODE_ENV || 'development'}
 Uploads: ${uploadsDir}
 Mode: Server-rendered (EJS) + CMS Admin
   `)
 
-  startBackups()
-  startInventorySync()
-  ensureStaticWebp() // generate WebP companions for static /images (hero, etc.)
-  // One-shot persistent-disk migrations (3.11) — flag-file-gated so they
-  // only fire on first boot after a deploy that adds them. Deferred so a
-  // slow migration doesn't delay the health check.
-  setTimeout(() => { runMigrations() }, 5000)
-})
+    startBackups()
+    startInventorySync()
+    // One-shot persistent-disk migrations (3.11) — flag-file-gated so they
+    // only fire on first boot after a deploy that adds them. Deferred so a
+    // slow migration doesn't delay the health check.
+    setTimeout(() => { runMigrations() }, 5000)
+  })
+}
+boot()

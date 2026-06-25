@@ -709,6 +709,14 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   overflow: hidden;
 }
 
+/* Fill the fixed-height box so the image's intrinsic 800x600 never reflows layout (CLS-safe). */
+.service-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .service-icon {
   display: none;
 }

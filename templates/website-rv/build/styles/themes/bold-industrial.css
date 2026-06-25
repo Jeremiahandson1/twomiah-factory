@@ -285,7 +285,7 @@ button[type="submit"] {
   transition: all 0.15s ease;
   position: relative;
   background: var(--industrial-yellow);
-  color: var(--dark-bg);
+  color: #fff;
 }
 
 .btn:hover,
