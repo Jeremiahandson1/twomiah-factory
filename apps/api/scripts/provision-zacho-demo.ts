@@ -14,7 +14,7 @@ import { deployCustomer } from '../src/services/deploy.ts'
 import { generateWebsiteContent } from '../src/services/contentGenerator.ts'
 import { createClient } from '@supabase/supabase-js'
 
-const KNOWN_PASSWORD = 'Zacho-demo-' + crypto.randomBytes(3).toString('hex') + '!'
+const KNOWN_PASSWORD = 'Zacho-demo-2026!' // stable so redeploys keep the same login
 const ADMIN_EMAIL = 'twomiah14@gmail.com'
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const readB64 = (p: string) => { try { const s = fs.readFileSync(p, 'utf8').trim(); return s.startsWith('data:') ? s : null } catch { return null } }
@@ -23,7 +23,10 @@ const ZHERO = readB64('C:/tmp/zacho-hero.b64')
 
 async function main() {
   const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-  const slug = 'zacho-' + Date.now().toString(36) + '-' + crypto.randomBytes(2).toString('hex')
+  // Stable slug → permanent URL (zacho-demo-site.onrender.com). Redeploys update in
+  // place (deploy reuses the repo + recreates the same-named services) instead of
+  // minting a new random URL each run — so old links never rot into 404 cycles.
+  const slug = 'zacho-demo'
   const tenantId = crypto.randomUUID()
   const products = ['website', 'crm']
   const NAME = 'Zacho Sports Center'
@@ -43,6 +46,9 @@ async function main() {
     content: { services: [], customServices: [], heroTagline: '', aboutText: '', ctaText: '', description: '' },
   }
 
+  // Clear any prior record for this stable slug so the fresh insert (new id, same
+  // slug) succeeds and the redeploy reuses the same URL in place.
+  await supabase.from('tenants').delete().eq('slug', slug)
   await supabase.from('tenants').insert({
     id: tenantId, name: NAME, slug, email: ADMIN_EMAIL, admin_email: ADMIN_EMAIL,
     industry: 'rv', city: 'Eau Claire', state: 'WI', status: 'pending', products,
