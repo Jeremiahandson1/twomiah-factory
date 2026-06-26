@@ -868,6 +868,33 @@ export const inventoryItem = pgTable('inventory_item', {
   index('inventory_item_company_id_category_idx').on(t.companyId, t.category),
 ])
 
+// Parts catalog the dealer brings themselves — OEM price files they download from
+// their dealer portal, or their existing parts export migrated off the old DMS.
+// This powers the Parts Catalog with ZERO OEM/vendor pre-approval (the dealer owns
+// this data). A licensed feed (Snap-on EPC / ARI) can layer on later without changing
+// the table or the UI. Distinct from inventory_item (what's physically stocked).
+export const catalogPart = pgTable('catalog_part', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  partNumber: text('part_number').notNull(),
+  name: text('name').notNull(),
+  oem: text('oem').default('').notNull(),
+  category: text('category').default('Parts').notNull(),
+  price: decimal('price', { precision: 10, scale: 2 }).default('0').notNull(),
+  cost: decimal('cost', { precision: 10, scale: 2 }),
+  msrp: decimal('msrp', { precision: 10, scale: 2 }),
+  availability: text('availability').default('Order from OEM').notNull(),
+  supersededBy: text('superseded_by'),
+  fitment: text('fitment'),
+  diagram: text('diagram'),
+  source: text('source').default('import').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('catalog_part_company_pn_oem_key').on(t.companyId, t.partNumber, t.oem),
+  index('catalog_part_company_oem_idx').on(t.companyId, t.oem),
+])
+
 export const inventoryLocation = pgTable('inventory_location', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),

@@ -1,5 +1,8 @@
 import { Hono } from 'hono'
 import { authenticate } from '../middleware/auth.ts'
+import { db } from '../../db/index.ts'
+import { catalogPart } from '../../db/schema.ts'
+import { and, eq, or, ilike, sql } from 'drizzle-orm'
 
 // ── OEM Parts Catalog ───────────────────────────────────────────────────────
 // Provider-agnostic. Today returns realistic MOCK data so the UI is fully working
@@ -62,34 +65,180 @@ const MOCK: OemPart[] = [
   { partNumber: '0SI3-061000', name: 'Air Filter', oem: 'Ski-Doo / BRP', category: 'Filters', price: 26.99, availability: 'In stock', fitment: 'MXZ 600R', diagram: 'Air Intake' },
 ]
 
-const mockProvider: PartsProvider = {
-  name: 'mock', live: false,
-  async search(q, f) {
-    const t = (q || '').trim().toLowerCase()
-    return MOCK.filter(p =>
-      (!f.oem || p.oem.toLowerCase() === f.oem.toLowerCase()) &&
-      (!f.category || p.category.toLowerCase() === f.category.toLowerCase()) &&
-      (!t || [p.partNumber, p.name, p.oem, p.fitment].filter(Boolean).some(s => String(s).toLowerCase().includes(t)))
-    ).slice(0, 50)
-  },
+// Demo fallback search — used only until the dealer imports a real catalog.
+function mockSearch(q: string, f: { oem?: string; category?: string }): OemPart[] {
+  const t = (q || '').trim().toLowerCase()
+  return MOCK.filter(p =>
+    (!f.oem || p.oem.toLowerCase() === f.oem.toLowerCase()) &&
+    (!f.category || p.category.toLowerCase() === f.category.toLowerCase()) &&
+    (!t || [p.partNumber, p.name, p.oem, p.fitment].filter(Boolean).some(s => String(s).toLowerCase().includes(t)))
+  ).slice(0, 50)
 }
 
-// ↓↓ Swap to a real provider when the catalog data feed is licensed:
-//    const provider = snapOnProvider  // Snap-on EPC data feed
-//    const provider = ariProvider     // ARI DataSmart API
-const provider: PartsProvider = mockProvider
+// ── DB-backed catalog (the bootstrap) ───────────────────────────────────────
+// The dealer imports their OWN data — OEM price files they download from their
+// dealer portal, or their parts export migrated off the old DMS — and the catalog
+// runs on it instantly with ZERO OEM/vendor pre-approval. A licensed feed
+// (Snap-on EPC / ARI) can layer on later; the imported data and UI don't change.
+function rowToPart(r: any): OemPart {
+  return {
+    partNumber: r.partNumber, name: r.name, oem: r.oem || '', category: r.category || '',
+    price: Number(r.price) || 0, msrp: r.msrp != null ? Number(r.msrp) : undefined,
+    availability: r.availability || 'Order from OEM',
+    supersededBy: r.supersededBy || undefined, fitment: r.fitment || undefined, diagram: r.diagram || undefined,
+  }
+}
+
+async function importedCount(companyId: string): Promise<number> {
+  try {
+    const r = await db.select({ n: sql<number>`count(*)` }).from(catalogPart).where(eq(catalogPart.companyId, companyId))
+    return Number(r[0]?.n || 0)
+  } catch { return 0 }
+}
 
 app.get('/search', async (c) => {
+  const companyId = (c.get('user') as any).companyId
   const q = c.req.query('q') || ''
   const oem = c.req.query('oem') || undefined
   const category = c.req.query('category') || undefined
-  let parts: OemPart[] = []
-  try { parts = await provider.search(q, { oem, category }) } catch { parts = [] }
+
+  const count = await importedCount(companyId)
+
+  if (count > 0) {
+    const conds: any[] = [eq(catalogPart.companyId, companyId)]
+    if (oem) conds.push(eq(catalogPart.oem, oem))
+    if (category) conds.push(eq(catalogPart.category, category))
+    const t = q.trim()
+    if (t) {
+      const like = '%' + t + '%'
+      conds.push(or(ilike(catalogPart.partNumber, like), ilike(catalogPart.name, like), ilike(catalogPart.oem, like), ilike(catalogPart.fitment, like)))
+    }
+    let parts: OemPart[] = []
+    try {
+      const rows = await db.select().from(catalogPart).where(and(...conds)).limit(100)
+      parts = rows.map(rowToPart)
+    } catch { parts = [] }
+    let oems: string[] = [], categories: string[] = []
+    try {
+      const od = await db.selectDistinct({ v: catalogPart.oem }).from(catalogPart).where(eq(catalogPart.companyId, companyId))
+      const cd = await db.selectDistinct({ v: catalogPart.category }).from(catalogPart).where(eq(catalogPart.companyId, companyId))
+      oems = od.map((x: any) => x.v).filter(Boolean).sort()
+      categories = cd.map((x: any) => x.v).filter(Boolean).sort()
+    } catch { /* ignore */ }
+    return c.json({ parts, provider: 'imported', live: true, imported: count, oems, categories })
+  }
+
+  // demo fallback — no catalog imported yet
   return c.json({
-    parts, provider: provider.name, live: provider.live,
+    parts: mockSearch(q, { oem, category }), provider: 'mock', live: false, imported: 0,
     oems: [...new Set(MOCK.map(p => p.oem))].sort(),
     categories: [...new Set(MOCK.map(p => p.category))].sort(),
   })
+})
+
+// ── CSV import: dealer uploads OEM price files / their old-DMS parts export ──
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = [], field = '', inQ = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { field += '"'; i++ } else inQ = false }
+      else field += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === ',') { row.push(field); field = '' }
+    else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = '' }
+    else if (ch === '\r') { /* skip */ }
+    else field += ch
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row) }
+  return rows.filter(r => r.some(cell => cell.trim() !== ''))
+}
+
+// Flexible header detection so a Polaris/Yamaha price file OR a Lightspeed export
+// both import without the dealer reformatting anything.
+const HEADER_MAP: Record<string, string> = {
+  'part number': 'partNumber', 'part #': 'partNumber', 'part no': 'partNumber', 'partno': 'partNumber', 'part': 'partNumber', 'partnumber': 'partNumber', 'sku': 'partNumber', 'item number': 'partNumber', 'item #': 'partNumber', 'item': 'partNumber', 'number': 'partNumber',
+  'description': 'name', 'name': 'name', 'desc': 'name', 'item description': 'name', 'product': 'name', 'part description': 'name',
+  'oem': 'oem', 'brand': 'oem', 'make': 'oem', 'manufacturer': 'oem', 'mfg': 'oem', 'line': 'oem',
+  'category': 'category', 'type': 'category', 'group': 'category', 'class': 'category', 'dept': 'category', 'department': 'category',
+  'price': 'price', 'list price': 'price', 'list': 'price', 'retail': 'price', 'sell': 'price', 'sell price': 'price', 'unit price': 'price', 'price each': 'price',
+  'cost': 'cost', 'dealer cost': 'cost', 'dealer price': 'cost', 'dealer': 'cost', 'net': 'cost', 'your cost': 'cost', 'unit cost': 'cost',
+  'msrp': 'msrp', 'map': 'msrp',
+  'qty': 'qty', 'quantity': 'qty', 'on hand': 'qty', 'onhand': 'qty', 'on-hand': 'qty', 'stock': 'qty', 'available': 'qty', 'qoh': 'qty',
+  'fitment': 'fitment', 'fits': 'fitment', 'model': 'fitment', 'application': 'fitment', 'models': 'fitment', 'fit': 'fitment', 'vehicle': 'fitment',
+}
+
+app.post('/import', async (c) => {
+  const companyId = (c.get('user') as any).companyId
+  const body = await c.req.json().catch(() => ({} as any))
+  const csv: string = body.csv || ''
+  const defaultOem = (body.oem || '').trim()
+  const defaultCategory = (body.category || '').trim()
+  if (!csv.trim()) return c.json({ error: 'No CSV provided.' }, 400)
+
+  const rows = parseCsv(csv)
+  if (rows.length < 2) return c.json({ error: 'CSV needs a header row and at least one data row.' }, 400)
+
+  const headers = rows[0].map(h => h.trim().toLowerCase())
+  const colIdx: Record<string, number> = {}
+  headers.forEach((h, i) => { const f = HEADER_MAP[h]; if (f && colIdx[f] === undefined) colIdx[f] = i })
+  if (colIdx.partNumber === undefined)
+    return c.json({ error: 'No part-number column found. Add a header like "Part Number", "Part #", or "SKU".', headers }, 400)
+
+  const num = (s: string) => (s || '').replace(/[^0-9.\-]/g, '')
+  const records: any[] = []
+  let skipped = 0
+  const seen = new Set<string>()
+  for (let r = 1; r < rows.length; r++) {
+    const cells = rows[r]
+    const get = (f: string) => (colIdx[f] !== undefined ? (cells[colIdx[f]] || '').trim() : '')
+    const partNumber = get('partNumber')
+    if (!partNumber) { skipped++; continue }
+    const oem = get('oem') || defaultOem || 'Unspecified'
+    const key = (partNumber + '|' + oem).toLowerCase()
+    if (seen.has(key)) { skipped++; continue }  // dedupe within the file (pg upsert can't touch a row twice)
+    seen.add(key)
+    const priceN = num(get('price')), msrpN = num(get('msrp')), costN = num(get('cost'))
+    const qtyStr = num(get('qty'))
+    const qty = qtyStr === '' ? null : Number(qtyStr)
+    records.push({
+      companyId, partNumber, name: get('name') || partNumber, oem,
+      category: get('category') || defaultCategory || 'Parts',
+      price: priceN || msrpN || '0', cost: costN || null, msrp: msrpN || null,
+      availability: qty === null ? 'Order from OEM' : qty > 0 ? 'In stock' : 'Backordered',
+      fitment: get('fitment') || null, source: String(body.source || 'import').slice(0, 40),
+    })
+  }
+  if (!records.length) return c.json({ error: 'No valid rows — every row was missing a part number.', skipped }, 400)
+
+  let imported = 0
+  try {
+    const CHUNK = 500
+    for (let i = 0; i < records.length; i += CHUNK) {
+      const batch = records.slice(i, i + CHUNK)
+      await db.insert(catalogPart).values(batch).onConflictDoUpdate({
+        target: [catalogPart.companyId, catalogPart.partNumber, catalogPart.oem],
+        set: {
+          name: sql`excluded.name`, category: sql`excluded.category`,
+          price: sql`excluded.price`, cost: sql`excluded.cost`, msrp: sql`excluded.msrp`,
+          availability: sql`excluded.availability`, fitment: sql`excluded.fitment`,
+          source: sql`excluded.source`, updatedAt: new Date(),
+        },
+      })
+      imported += batch.length
+    }
+  } catch (e: any) {
+    return c.json({ error: 'Import failed: ' + (e?.message || e) }, 500)
+  }
+  const total = await importedCount(companyId)
+  return c.json({ ok: true, imported, skipped, total, mappedColumns: Object.keys(colIdx) })
+})
+
+app.post('/clear', async (c) => {
+  const companyId = (c.get('user') as any).companyId
+  try { await db.delete(catalogPart).where(eq(catalogPart.companyId, companyId)) } catch (e: any) { return c.json({ error: String(e?.message || e) }, 500) }
+  return c.json({ ok: true })
 })
 
 export default app

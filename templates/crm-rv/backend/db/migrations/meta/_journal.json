@@ -127,6 +127,13 @@
       "when": 1781892082308,
       "tag": "0017_marine_and_feed",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1781899000000,
+      "tag": "0018_catalog_part",
+      "breakpoints": true
     }
   ]
 }
