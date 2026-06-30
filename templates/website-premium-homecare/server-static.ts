@@ -1008,14 +1008,24 @@ app.post('/booking/:token/cancel', async (c) => {
   return c.redirect('/booking/' + token)
 })
 
-// Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
+// Reserved top-level path segments that must never be treated as a CMS page
+// slug — they have their own routes/handlers above. Shared by the single-slug
+// and nested-slug page routes.
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking', 'customize', '.well-known']
+
+// Match a single top-level slug (about, services, contact, custom…).
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
+  if (NESTED_RESERVED.includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
 })
+
+// NOTE: nested page routes (/:a/:b, /:a/:b/:cc) are registered at the END of
+// this file — AFTER every /api/* and /admin/* route — because Hono dispatches
+// the first-registered matching route, so placing them here would shadow (and
+// 404) the API routes below. See "Nested CMS page paths" near Boot.
 
 // ── Blog ──────────────────────────────────────────────────────────────
 // /blog        → list of published posts (newest first)
@@ -2021,6 +2031,31 @@ if (hasAdminBuild) {
     '</body>'
   ))
 }
+
+// ── Nested CMS page paths (registered LAST, on purpose) ────────────────────
+// e.g. /services/personal-care, /pay/veterans, /service-areas/eau-claire-county.
+// The page row stores the FULL path in its slug, so loadPage() matches directly
+// and the dynamic sitemap already emits the nested URL. These MUST come after
+// every /api/* and /admin/* route: Hono dispatches the first-registered matching
+// route, so a param route placed earlier would shadow (and 404) those API routes.
+// Registered here, specific routes win and these catch only genuine page paths.
+// The reserved-first-segment guard is belt-and-braces.
+app.get('/:a/:b', async (c) => {
+  const { a, b } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return c.notFound()
+  const slug = a + '/' + b
+  const html = await renderPage(slug, '/' + slug)
+  if (!html) return c.notFound()
+  return c.html(html)
+})
+app.get('/:a/:b/:cc', async (c) => {
+  const { a, b, cc } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return c.notFound()
+  const slug = a + '/' + b + '/' + cc
+  const html = await renderPage(slug, '/' + slug)
+  if (!html) return c.notFound()
+  return c.html(html)
+})
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 const port = Number(process.env.PORT || '3000')
