@@ -270,14 +270,14 @@ function NewPageModal({ existingSlugs, onClose, onCreated }: {
                 type="text"
                 value={slug}
                 onChange={(e) => { setSlug(e.target.value); setSlugTouched(true) }}
-                pattern="[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?"
-                placeholder="service-areas"
+                pattern="[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?(/[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?){0,2}"
+                placeholder="services/personal-care"
                 required
                 className="input"
               />
             </div>
             <p className="text-xs text-muted mt-1">
-              Lowercase letters, numbers, and hyphens. Becomes <span className="font-mono">/{slug || 'your-slug'}</span> on the public site.
+              Lowercase letters, numbers, hyphens, and <span className="font-mono">/</span> for nested pages (e.g. <span className="font-mono">services/personal-care</span>). Becomes <span className="font-mono">/{slug || 'your-slug'}</span> on the public site.
             </p>
           </div>
 

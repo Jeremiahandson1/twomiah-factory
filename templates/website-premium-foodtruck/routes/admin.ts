@@ -704,10 +704,12 @@ const RESERVED_SLUGS = new Set([
   'api', 'admin', 'login', 'logout', 'auth', 'static', 'uploads',
   'assets', 'build', 'public', 'sitemap.xml', 'robots.txt',
 ])
-// Single-segment slug only — the public renderer's /:slug route matches
-// one path segment. Nested paths (service-areas/madison) would need both
-// route changes in server-static.ts AND admin UI support; not in this pass.
-const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+// Page slug: one or more lowercase, URL-safe path segments, slash-separated
+// (up to 3 levels) — e.g. "about", "services/personal-care", "pay/veterans".
+// The public renderer's /:slug + /:a/:b + /:a/:b/:cc routes resolve these and
+// the dynamic sitemap emits the nested URL.
+const SLUG_SEGMENT = '[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?'
+const SLUG_RE = new RegExp(`^${SLUG_SEGMENT}(?:/${SLUG_SEGMENT}){0,2}$`)
 
 // Create a new page. Slug must be URL-safe and not reserved. Sections
 // default to empty — the admin builds it up from there.
@@ -719,10 +721,10 @@ app.post('/pages', authMiddleware, async (c) => {
   if (!slug) return c.json({ error: 'slug is required' }, 400)
   if (!title) return c.json({ error: 'title is required' }, 400)
   if (!SLUG_RE.test(slug)) {
-    return c.json({ error: 'slug must be lowercase letters, numbers, and hyphens (e.g. "service-areas")' }, 400)
+    return c.json({ error: 'slug must be lowercase letters, numbers, hyphens, and "/" for nested pages (e.g. "services/personal-care")' }, 400)
   }
-  if (RESERVED_SLUGS.has(slug)) {
-    return c.json({ error: `Slug "${slug}" is reserved` }, 400)
+  if (RESERVED_SLUGS.has(slug.split('/')[0])) {
+    return c.json({ error: `Slug "${slug}" uses a reserved top-level segment` }, 400)
   }
 
   const existing = await db.select({ id: pagesTbl.id }).from(pagesTbl).where(eq(pagesTbl.slug, slug)).limit(1)

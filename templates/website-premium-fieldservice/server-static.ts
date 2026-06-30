@@ -1009,9 +1009,13 @@ app.post('/booking/:token/cancel', async (c) => {
 })
 
 // Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
+// Reserved top-level path segments — handled by their own routes above; never
+// treated as CMS page slugs. Shared by the single-slug + nested-slug routes below.
+const NESTED_RESERVED = ['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking', 'customize', '.well-known']
+
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
+  if (NESTED_RESERVED.includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
@@ -2021,6 +2025,30 @@ if (hasAdminBuild) {
     '</body>'
   ))
 }
+
+// ── Nested CMS page paths (registered LAST, on purpose) ────────────────────
+// e.g. /services/personal-care, /pay/veterans, /service-areas/eau-claire-county.
+// The page row stores the FULL path in its slug, so loadPage() matches directly
+// and the dynamic sitemap already emits the nested URL. These MUST come after
+// every /api/* and /admin/* route: Hono dispatches the first-registered matching
+// route, so a param route placed earlier would shadow (and 404) those API routes.
+// The reserved-first-segment guard is belt-and-braces.
+app.get('/:a/:b', async (c) => {
+  const { a, b } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return c.notFound()
+  const slug = a + '/' + b
+  const html = await renderPage(slug, '/' + slug)
+  if (!html) return c.notFound()
+  return c.html(html)
+})
+app.get('/:a/:b/:cc', async (c) => {
+  const { a, b, cc } = c.req.param()
+  if (NESTED_RESERVED.includes(a)) return c.notFound()
+  const slug = a + '/' + b + '/' + cc
+  const html = await renderPage(slug, '/' + slug)
+  if (!html) return c.notFound()
+  return c.html(html)
+})
 
 // ── Boot ──────────────────────────────────────────────────────────────────
 const port = Number(process.env.PORT || '3000')
