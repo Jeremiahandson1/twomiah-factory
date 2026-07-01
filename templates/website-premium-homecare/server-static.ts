@@ -1150,8 +1150,11 @@ app.get('/sitemap.xml', async (c) => {
 
 app.get('/robots.txt', async (c) => {
   const origin = getSiteOrigin(c)
-  const body =
-    `User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`
+  // SITE_NOINDEX=1 (preview/staging): block ALL crawling so the site can't be
+  // found via search while it's being built. Flip the env off to go public.
+  const body = process.env.SITE_NOINDEX === '1'
+    ? `User-agent: *\nDisallow: /\n`
+    : `User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`
   c.header('Content-Type', 'text/plain')
   c.header('Cache-Control', 'public, max-age=86400')
   return c.body(body)

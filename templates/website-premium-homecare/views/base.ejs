@@ -11,7 +11,7 @@
   <title><%= seoTitle %></title>
   <meta name="description" content="<%= seoDescription %>">
   <% if (canonical) { %><link rel="canonical" href="<%= canonical %>"><% } %>
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="<%= (typeof process !== 'undefined' && process.env && process.env.SITE_NOINDEX === '1') ? 'noindex, nofollow' : 'index, follow' %>">
   <% if (typeof crmApiUrl !== 'undefined' && crmApiUrl) { %><meta name="twomiah-crm-url" content="<%= crmApiUrl %>"><% } %>
   <meta property="og:type" content="website">
   <meta property="og:title" content="<%= seoTitle %>">
