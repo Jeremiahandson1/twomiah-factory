@@ -420,12 +420,29 @@ async function deleteR2Bucket(bucketName: string): Promise<void> {
 /** Returns the R2 env vars to inject into a deployed Render service */
 function getR2EnvVars(bucketName: string): Array<{ key: string; value: string }> {
   const accountId = process.env.R2_ACCOUNT_ID!
+  // R2_PUBLIC_URL is used verbatim in tenant <img src="..."> tags, so it MUST be
+  // a PUBLICLY servable base. The S3 API endpoint (accountId.r2.cloudflarestorage.com)
+  // requires SigV4 auth and returns 403 for browser image loads — it is NOT a
+  // public URL. Configure the real public base via R2_PUBLIC_BASE_URL:
+  //   - a bucket's Cloudflare public URL:  https://pub-<hash>.r2.dev
+  //   - or a custom domain bound to R2:    https://cdn.twomiah.com
+  // Use a {bucket} placeholder if one domain fronts many per-tenant buckets
+  // (e.g. https://cdn.twomiah.com/{bucket}). Without it, we fall back to the
+  // non-public S3 endpoint AND warn, so the misconfig is loud instead of silent.
+  const base = process.env.R2_PUBLIC_BASE_URL
+  let publicUrl: string
+  if (base) {
+    publicUrl = base.replace(/\{bucket\}/g, bucketName).replace(/\/+$/, '')
+  } else {
+    console.warn('[Deploy] R2_PUBLIC_BASE_URL not set — R2_PUBLIC_URL will point at the auth-only S3 endpoint and uploaded images will NOT display. Set R2_PUBLIC_BASE_URL to a public bucket URL or custom domain.')
+    publicUrl = 'https://' + accountId + '.r2.cloudflarestorage.com/' + bucketName
+  }
   return [
     { key: 'R2_ACCOUNT_ID', value: accountId },
     { key: 'R2_ACCESS_KEY_ID', value: process.env.R2_ACCESS_KEY_ID! },
     { key: 'R2_SECRET_ACCESS_KEY', value: process.env.R2_SECRET_ACCESS_KEY! },
     { key: 'R2_BUCKET_NAME', value: bucketName },
-    { key: 'R2_PUBLIC_URL', value: 'https://' + accountId + '.r2.cloudflarestorage.com/' + bucketName },
+    { key: 'R2_PUBLIC_URL', value: publicUrl },
   ]
 }
 
