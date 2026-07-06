@@ -689,7 +689,7 @@ app.get('/pages', authMiddleware, async (_c) => {
   })
 })
 
-app.get('/pages/:slug', authMiddleware, async (c) => {
+app.get('/pages/:slug{.+}', authMiddleware, async (c) => {
   const slug = c.req.param('slug')
   const rows = await db.select().from(pagesTbl).where(eq(pagesTbl.slug, slug)).limit(1)
   const page = rows[0]
@@ -744,7 +744,7 @@ app.post('/pages', authMiddleware, async (c) => {
 
 // Delete a page. 'home' is essential to the site (template's root route
 // reads from it), so we refuse rather than 404 the public homepage.
-app.delete('/pages/:slug', authMiddleware, async (c) => {
+app.delete('/pages/:slug{.+}', authMiddleware, async (c) => {
   const slug = c.req.param('slug')
   if (slug === 'home') {
     return c.json({ error: 'The home page can\'t be deleted. Hide it via isPublished instead.' }, 400)
@@ -754,7 +754,7 @@ app.delete('/pages/:slug', authMiddleware, async (c) => {
   return c.json({ ok: true })
 })
 
-app.patch('/pages/:slug', authMiddleware, async (c) => {
+app.patch('/pages/:slug{.+}', authMiddleware, async (c) => {
   const slug = c.req.param('slug')
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
 

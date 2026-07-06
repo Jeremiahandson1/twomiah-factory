@@ -41,7 +41,7 @@ export default function App() {
         <Route element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/pages" replace />} />
           <Route path="/pages" element={<PagesListPage />} />
-          <Route path="/pages/:slug" element={<PageEditPage />} />
+          <Route path="/pages/*" element={<PageEditPage />} />
           <Route path="/photos" element={<PhotosPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/leads" element={<LeadsPage />} />

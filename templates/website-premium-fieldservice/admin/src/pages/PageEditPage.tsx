@@ -48,7 +48,7 @@ interface Page {
 }
 
 export function PageEditPage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { '*': slug } = useParams()
   const [page, setPage] = useState<Page | null>(null)
   const [originalJson, setOriginalJson] = useState<string>('')
   const [loading, setLoading] = useState(true)
