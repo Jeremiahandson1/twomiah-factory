@@ -69,7 +69,6 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/area-pricing', icon: Ruler, label: 'Area Pricing', section: 'Operations', features: ['area_pricing'] },
   { to: '/crm/snow-billing', icon: Snowflake, label: 'Snow Billing', section: 'Operations', features: ['snow_billing'] },
   { to: '/website-cms', external: true, id: 'website-cms', icon: ExternalLink, label: 'Website CMS', section: 'Operations' },
-  { to: '/crm/estimator', icon: Calculator, label: 'Roof Estimator', features: ['instant_estimator'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 ];
 

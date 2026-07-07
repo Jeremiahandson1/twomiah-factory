@@ -71,8 +71,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/selections', icon: CheckSquare, label: 'Selections', features: ['selections'] },
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
-  { to: '/crm/estimator', icon: Calculator, label: 'Roof Estimator', features: ['instant_estimator'] },
-  { to: '/crm/roof-reports', icon: FileBarChart, label: 'Roof Reports', features: ['instant_estimator'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
 ];

@@ -260,28 +260,7 @@ export default function CustomerPortal() {
 
           {/* Exterior Visualizer add-on is contractor/roofer-only — no promo on vet portals */}
 
-          {/* Instant Roof Estimator Promo */}
-          {!hasFeature('instant_estimator') && (
-            <div
-              onClick={() => navigate('/crm/estimator-trial')}
-              className="bg-white rounded-xl border border-sky-200 border-dashed p-6 cursor-pointer hover:border-sky-300 hover:shadow-md transition-all group relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-sky-500 to-blue-500" />
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-sky-50 flex items-center justify-center">
-                  <Ruler className="w-6 h-6 text-sky-600" />
-                </div>
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-sky-100 text-sky-700 px-2 py-1 rounded-full">
-                  <Sparkles className="w-3 h-3" />
-                  FREE TRIAL
-                </span>
-              </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Instant Roof Estimator</h3>
-              <p className="text-sm text-slate-500">
-                Satellite-powered roof estimates with embeddable widget and lead capture
-              </p>
-            </div>
-          )}
+          {/* Instant Roof Estimator add-on is contractor/roofer-only — no promo on vet portals */}
 
           {/* Settings */}
           <div

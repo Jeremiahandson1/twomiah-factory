@@ -28,7 +28,6 @@ const navItems = [
   { to: '/crm/leads', icon: Inbox, label: 'Lead Inbox', features: ['lead_inbox'] },
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/ads', icon: Megaphone, label: 'Ads', features: ['paid_ads'] },
-  { to: '/crm/estimator', icon: Calculator, label: 'Roof Estimator', features: ['instant_estimator'] },
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
