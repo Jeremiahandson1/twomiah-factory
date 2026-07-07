@@ -48,7 +48,8 @@ export const DEFAULT_DEPLOY_SERVICES = [
 
 export const DEFAULT_FEATURE_BUNDLES = [
   { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
-  { id: 'exterior_visualizer', name: 'Exterior Visualizer', price: 59, description: 'AI-powered exterior design visualization for customers' },
+  // exterior_visualizer intentionally NOT in the fallback bundle — it is offered only via
+  // CRM_BUNDLES (contractor) and ROOF_BUNDLES (roofer), so no other product can surface it.
   { id: 'instant_estimator', name: 'Instant Roof Estimator', price: 79, description: 'Google Solar-powered instant roof estimates with lead capture' },
   { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
   { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },

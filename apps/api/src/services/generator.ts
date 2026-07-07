@@ -260,8 +260,10 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
         updateSettingsField(path.join(workDir, 'website'), 'theme', theme)
       }
 
-      // Default to all website features enabled when none explicitly specified
-      const ALL_WEBSITE_FEATURES = ['blog', 'gallery', 'testimonials', 'services_pages', 'contact_form', 'visualizer']
+      // Default to all website features enabled when none explicitly specified.
+      // NOTE: 'visualizer' is a paid add-on (contractor/roofer only) — it is NEVER
+      // a default. It ships only when explicitly present in config.features.website.
+      const ALL_WEBSITE_FEATURES = ['blog', 'gallery', 'testimonials', 'services_pages', 'contact_form']
       const websiteFeatures = config.features?.website?.length ? config.features.website : ALL_WEBSITE_FEATURES
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
       await writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
@@ -920,7 +922,7 @@ function stripWebsiteFeatures(websiteDir: string, enabledFeatures: string[]) {
     testimonials: { data: ['testimonials.json'] },
     services_pages: { views: ['service.ejs', 'subservice.ejs'], data: ['services.json'], routes: ['services.ts'] },
     contact_form: { views: ['contact.ejs'], routes: ['leads.ts'] },
-    visualizer: { views: ['visualize.html'] },
+    visualizer: { views: ['visualize.html', 'visualize.ejs'] },
   }
 
   for (const [featureId, files] of Object.entries(featureFiles)) {

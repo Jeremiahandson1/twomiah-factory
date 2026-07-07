@@ -22,6 +22,8 @@ import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
 import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
+import VisualizerPage from './pages/VisualizerPage';
+import VisualizerTrialPage from './pages/VisualizerTrialPage';
 import ProjectsPage from './pages/ProjectsPage';
 import JobsPage from './pages/JobsPage';
 import QuotesPage from './pages/QuotesPage';
@@ -150,6 +152,8 @@ function App() {
                   <Route path="/crm" element={<ProtectedRoute><OnboardingGate><AppLayout /></OnboardingGate></ProtectedRoute>}>
                     <Route index element={<DashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
+                    <Route path="visualizer" element={<VisualizerPage />} />
+                    <Route path="visualizer-trial" element={<VisualizerTrialPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
                     <Route path="projects" element={<ProjectsPage />} />
                     <Route path="projects/:id" element={<ProjectDetailPage />} />

@@ -194,7 +194,8 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'ach_payments', name: 'ACH/Bank Transfers', description: 'Accept ACH bank transfer payments', category: 'Enterprise', core: false, templates: ['crm-dispensary'] },
 
   // Add-on Products
-  { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-automotive', 'crm-roof'] },
+  // Paid add-on — offered ONLY to contractor (crm) and roofer (crm-roof). Never a plan-tier freebie.
+  { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },
   { id: 'instant_estimator', name: 'Instant Roof Estimator', description: 'Google Solar-powered instant roof estimates with embeddable widget and lead capture', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'], hidden: true },
 ]
 
@@ -260,7 +261,7 @@ const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
       'submittals', 'lien_waivers', 'draw_schedules', 'aia_forms', 'gantt_charts',
       'custom_dashboards', 'map_view',
     ],
-    enterprise: ['visualizer', 'instant_estimator'],
+    enterprise: ['instant_estimator'], // visualizer removed — paid add-on, not tier-bundled
   },
   'crm-fieldservice': {
     starter: [
@@ -284,7 +285,7 @@ const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
     fleet: [
       'multi_location', 'commission_tracking', 'map_view',
     ],
-    enterprise: ['visualizer'],
+    enterprise: [], // visualizer not offered to fieldservice
   },
   'crm-landscaping': {
     starter: [
@@ -323,7 +324,7 @@ const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
     storm: [
       'storm_lead_gen', 'canvassing_tool', 'ai_receptionist', 'paid_ads',
     ],
-    enterprise: ['visualizer'],
+    enterprise: [], // visualizer removed — paid add-on, not tier-bundled
   },
   'crm-homecare': {
     starter: [

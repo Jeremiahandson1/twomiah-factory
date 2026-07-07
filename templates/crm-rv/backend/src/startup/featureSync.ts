@@ -30,9 +30,8 @@ export async function syncFeatures() {
       return
     }
 
-    // Merge plan features with any add-ons from VISION_URL etc.
+    // crm-rv is not eligible for the Exterior Visualizer add-on.
     const desired = [...new Set(planFeatures)]
-    if (process.env.VISION_URL) desired.push('visualizer')
 
     await db.update(company).set({ enabledFeatures: desired, subscriptionTier: plan }).where(eq(company.id, comp.id))
     console.log(`[featureSync] Enabled ${desired.length} features for ${plan} plan`)

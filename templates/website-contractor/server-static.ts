@@ -172,7 +172,7 @@ function loadJSON(filename: string) {
   } catch (e) { return null }
 }
 
-const hasVisualizer = fs.existsSync(path.join(__dirname, 'views', 'visualize.ejs')) || fs.existsSync(path.join(__dirname, 'views', 'visualize.html')) || !!(process.env.VISION_URL)
+const hasVisualizer = !!process.env.VISION_URL
 const hasEstimator = process.env.HAS_ESTIMATOR === 'true'
 
 // Defensive escapers for JSON-LD blocks. Admin-edited fields (titles,
