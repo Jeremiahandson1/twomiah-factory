@@ -67,7 +67,6 @@ import SupportPage from './pages/support/SupportPage';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
 import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
-import EstimatorPage from './pages/EstimatorPage';
 import OnboardingWizard from './pages/OnboardingWizard';
 import PricebookTrialPage from './pages/PricebookTrialPage';
 import ReviewsPage from './pages/reviews/ReviewsPage';
@@ -218,7 +217,6 @@ function App() {
                     <Route path="pricebook-rates" element={<FlatRatePricebook />} />
                     <Route path="tech" element={<TechView />} />
                     <Route path="ads" element={<AdsPage />} />
-                    <Route path="estimator" element={<EstimatorPage />} />
                     <Route path="help" element={<HelpPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
                   </Route>

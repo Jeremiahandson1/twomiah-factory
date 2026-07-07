@@ -75,9 +75,6 @@ import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import AdsPage from './pages/ads/AdsPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
-import EstimatorTrialPage from './pages/EstimatorTrialPage';
-import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage';
-import EstimatorPage from './pages/EstimatorPage';
 import RoofReportsPage from './pages/roofReports/RoofReportsPage';
 import RoofReportDetail from './pages/roofReports/RoofReportDetail';
 import OnboardingWizard from './pages/OnboardingWizard';
@@ -187,7 +184,6 @@ function App() {
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
-                    <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                     <Route path="fleet" element={<FleetPage />} />
                     <Route path="inventory" element={<InventoryPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
@@ -211,10 +207,8 @@ function App() {
                     <Route path="support" element={<SupportPage />} />
                     <Route path="ads" element={<AdsPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
-                    <Route path="estimator" element={<EstimatorPage />} />
                     <Route path="roof-reports" element={<RoofReportsPage />} />
                     <Route path="roof-reports/:id" element={<RoofReportDetail />} />
-                    <Route path="estimator-trial" element={<EstimatorTrialPage />} />
                     <Route path="patients" element={<PatientsPage />} />
                     <Route path="patients/:id" element={<PatientDetailPage />} />
                     <Route path="appointments" element={<AppointmentsPage />} />
