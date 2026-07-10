@@ -303,7 +303,30 @@ Return ONLY valid JSON with this structure:
       if (s.image) return
       s.image = (pool.length ? pool[i % pool.length] : '') || getServiceImage(input.businessType, i)
     })
+    // Fill the HERO + CTA background too — previously these were left '' (see
+    // normalizeContent), so a deployed site showed the raw "replace your photo"
+    // placeholder. Use the same source the service cards do.
+    if (!result.homepage.hero.image) {
+      result.homepage.hero.image = pool[0] || getServiceImage(input.businessType, 0)
+    }
+    if (!result.homepage.ctaSection.backgroundImage) {
+      result.homepage.ctaSection.backgroundImage = pool[1] || pool[0] || getServiceImage(input.businessType, 1)
+    }
   } catch { /* never block content generation on image fill */ }
+
+  // Quality gate — a broken auto-build must never reach a customer. Hard-fails
+  // (throws) only on unshippable output: unresolved {{tokens}}, lorem-ipsum
+  // filler, or a missing services section. Thinner issues (empty hero/about,
+  // short posts, missing local-SEO signals, no phone in the CTA) are logged
+  // for review but do not block the deploy.
+  const quality = validateGeneratedContent(result, input)
+  if (quality.warnings.length) {
+    console.warn('[ContentGenerator] Quality warnings for "' + input.businessName + '":\n  - ' + quality.warnings.join('\n  - '))
+  }
+  if (quality.errors.length) {
+    console.error('[ContentGenerator] Quality gate FAILED for "' + input.businessName + '":\n  - ' + quality.errors.join('\n  - '))
+    throw new ContentQualityError(quality.errors, quality.warnings)
+  }
 
   return result
 }
@@ -433,4 +456,114 @@ function normalizePages(
     }
   }
   return result
+}
+
+// ─── Content quality gate ────────────────────────────────────────────────────
+// Phase 4 of docs/content-quality-plan.md. Runs on the finished content right
+// before it's seeded into a tenant, so a bad AI build never ships silently.
+// HARD failures throw (unresolved {{tokens}}, lorem-ipsum, no services);
+// everything else is a warning that's logged but not blocked.
+
+export class ContentQualityError extends Error {
+  errors: string[]
+  warnings: string[]
+  constructor(errors: string[], warnings: string[]) {
+    super('Content quality gate failed:\n  - ' + errors.join('\n  - '))
+    this.name = 'ContentQualityError'
+    this.errors = errors
+    this.warnings = warnings
+  }
+}
+
+function qgWordCount(s: any): number {
+  return String(s || '')
+    .replace(/<[^>]+>/g, ' ')      // strip HTML tags
+    .replace(/[#>*_`|-]+/g, ' ')   // strip markdown punctuation
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean).length
+}
+
+// Collect every customer-visible text field as { label, text } pairs.
+function qgCollectStrings(c: any): Array<{ label: string; text: string }> {
+  const out: Array<{ label: string; text: string }> = []
+  const add = (label: string, text: any) => {
+    if (typeof text === 'string' && text.trim()) out.push({ label, text })
+  }
+  const h = c.homepage || {}
+  add('hero.tagline', h.hero?.tagline); add('hero.title', h.hero?.title)
+  add('hero.subtitle', h.hero?.subtitle); add('hero.description', h.hero?.description)
+  add('about.title', h.aboutSection?.title); add('about.text', h.aboutSection?.text)
+  add('cta.title', h.ctaSection?.title); add('cta.description', h.ctaSection?.description)
+  add('cta.headline', h.ctaSection?.headline); add('cta.subtext', h.ctaSection?.subtext)
+  ;(h.trustBadges || []).forEach((b: any, i: number) => {
+    add('trustBadge[' + i + '].label', b.label); add('trustBadge[' + i + '].sublabel', b.sublabel)
+  })
+  ;(c.services || []).forEach((s: any, i: number) => {
+    add('service[' + i + '].name', s.name)
+    add('service[' + i + '].shortDescription', s.shortDescription)
+    add('service[' + i + '].description', s.description)
+    add('service[' + i + '].seoTitle', s.seoTitle)
+    add('service[' + i + '].seoDescription', s.seoDescription)
+  })
+  ;(c.posts || []).forEach((p: any, i: number) => {
+    add('post[' + i + '].title', p.title); add('post[' + i + '].excerpt', p.excerpt); add('post[' + i + '].content', p.content)
+  })
+  Object.keys(c.pages || {}).forEach((slug) => {
+    add('page[' + slug + '].title', c.pages[slug]?.title)
+    add('page[' + slug + '].content', c.pages[slug]?.content)
+  })
+  add('meta.title', c.settings?.defaultMetaTitle)
+  add('meta.description', c.settings?.defaultMetaDescription)
+  return out
+}
+
+export function validateGeneratedContent(
+  content: GeneratedContent,
+  input: ContentGenerationInput
+): { errors: string[]; warnings: string[] } {
+  const errors: string[] = []
+  const warnings: string[] = []
+  const c: any = content
+  const strings = qgCollectStrings(c)
+  const city = (input.location?.city || '').trim()
+
+  // ── HARD failures — unshippable, throw ──
+  for (const { label, text } of strings) {
+    const tok = text.match(/\{\{[^}]+\}\}/)
+    if (tok) errors.push('Unresolved placeholder "' + tok[0] + '" in ' + label)
+    if (/lorem\s+ipsum/i.test(text)) errors.push('Lorem-ipsum filler in ' + label)
+  }
+  if (!(c.services || []).length) errors.push('No services were generated')
+
+  // ── SOFT — logged for review, not blocked ──
+  if (!String(c.homepage?.hero?.description || '').trim()) warnings.push('Hero description is empty')
+  if (!String(c.homepage?.aboutSection?.text || '').trim()) warnings.push('About section is empty')
+  if (!String(c.settings?.defaultMetaDescription || '').trim()) warnings.push('Meta description is empty (SEO)')
+
+  ;(c.services || []).forEach((s: any, i: number) => {
+    const w = qgWordCount(s.description)
+    if (w === 0) warnings.push('service[' + i + '] "' + (s.name || '?') + '" has no description')
+    else if (w < 15) warnings.push('service[' + i + '] "' + (s.name || '?') + '" description is thin (' + w + ' words)')
+  })
+  ;(c.posts || []).forEach((p: any) => {
+    const w = qgWordCount(p.content)
+    if (w < 300) warnings.push('post "' + (p.title || 'untitled') + '" is short (' + w + ' words; target 400-800)')
+  })
+
+  if (city) {
+    const mt = String(c.settings?.defaultMetaTitle || '').toLowerCase()
+    const md = String(c.settings?.defaultMetaDescription || '').toLowerCase()
+    if (mt && !mt.includes(city.toLowerCase())) warnings.push('Meta title missing city "' + city + '" (local SEO)')
+    if (md && !md.includes(city.toLowerCase())) warnings.push('Meta description missing city "' + city + '" (local SEO)')
+  }
+
+  if (input.phone) {
+    const digits = input.phone.replace(/\D/g, '')
+    const cta = c.homepage?.ctaSection || {}
+    const blob = [cta.subtext, cta.secondaryButtonText, cta.secondaryButtonLink].join(' ').replace(/\D/g, '')
+    if (digits && !blob.includes(digits)) warnings.push('Phone number not surfaced in the CTA section')
+  }
+
+  return { errors, warnings }
 }
