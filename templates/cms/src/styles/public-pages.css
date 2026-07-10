@@ -393,6 +393,7 @@
 
 .view-btn {
   color: white;
+  background: rgba(15, 23, 42, 0.55);
   font-weight: 600;
   padding: 12px 24px;
   border: 2px solid white;

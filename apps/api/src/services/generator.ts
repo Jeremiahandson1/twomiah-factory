@@ -465,10 +465,12 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     // Placeholders when no real service areas were provided — paired with a
     // disclaimer in the preview so a mockup reads as intentional, not broken.
     // Real cities come from the manual intake field (company.nearbyCities).
-    '{{NEARBY_CITY_1}}': (c.nearbyCities || [])[0] || 'Nearby City 1',
-    '{{NEARBY_CITY_2}}': (c.nearbyCities || [])[1] || 'Nearby City 2',
-    '{{NEARBY_CITY_3}}': (c.nearbyCities || [])[2] || 'Nearby City 3',
-    '{{NEARBY_CITY_4}}': (c.nearbyCities || [])[3] || 'Nearby City 4',
+    // Fall back to the real city (a live site must never show "Nearby City 1").
+    // The CMS template also dedupes/filters these before rendering the area list.
+    '{{NEARBY_CITY_1}}': (c.nearbyCities || [])[0] || c.city || 'our area',
+    '{{NEARBY_CITY_2}}': (c.nearbyCities || [])[1] || c.city || 'our area',
+    '{{NEARBY_CITY_3}}': (c.nearbyCities || [])[2] || c.city || 'our area',
+    '{{NEARBY_CITY_4}}': (c.nearbyCities || [])[3] || c.city || 'our area',
     '{{DOMAIN}}': c.domain || slug + '.com',
     '{{COMPANY_DOMAIN}}': c.domain || slug + '.com',
     '{{SITE_URL}}': c.siteUrl || ('https://' + (c.domain || slug + '.com')),

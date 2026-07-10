@@ -45,7 +45,7 @@ function GalleryPage() {
         <div className="gallery-hero-content">
           <div className="container">
             <h1>Our Work</h1>
-            <p>Browse our portfolio of completed projects throughout the {"{{SERVICE_REGION}}"}</p>
+            <p>Browse our portfolio of completed projects throughout {"{{SERVICE_REGION}}"}</p>
           </div>
         </div>
       </section>
