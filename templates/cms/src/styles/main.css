@@ -1087,7 +1087,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 }
 
 .badge-info .stars {
-  color: var(--gold);
+  color: #1e293b; /* fixed dark — the trust labels sit on white, so never tie this to the brand gold */
   font-weight: 600;
   font-size: 1rem;
 }
@@ -1341,7 +1341,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .about-col p {
   font-size: 14px;
-  opacity: 0.8;
+  opacity: 0.92;
   line-height: 1.8;
   margin-bottom: 20px;
 }
@@ -1391,7 +1391,7 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
 
 .footer-col ul a {
   font-size: 14px;
-  opacity: 0.8;
+  opacity: 0.92;
   transition: var(--transition);
 }
 
