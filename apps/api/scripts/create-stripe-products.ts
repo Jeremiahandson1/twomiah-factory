@@ -42,9 +42,13 @@ async function createProduct(name: string, description: string, metadata: Record
   const existing = await stripe.products.search({
     query: `name:"${name}" AND active:"true"`,
   })
-  if (existing.data.length > 0) {
-    console.log(`  Product exists: ${name} (${existing.data[0].id})`)
-    return existing.data[0].id
+  // EXACT name match only — Stripe's name search is token-based, so
+  // "Twomiah Website" would otherwise match "Twomiah Website — Book Jobs"
+  // and attach a new price to the wrong (mislabeled) product.
+  const exact = existing.data.find(p => p.name === name)
+  if (exact) {
+    console.log(`  Product exists: ${name} (${exact.id})`)
+    return exact.id
   }
   const product = await stripe.products.create({ name, description, metadata })
   console.log(`  Created product: ${name} (${product.id})`)
@@ -57,6 +61,18 @@ async function createPrice(
   unitAmount: number,
   opts: { recurring?: { interval: 'month' | 'year' }; nickname?: string } = {}
 ): Promise<string> {
+  // Idempotent: reuse an existing active price with the same twomiah_key +
+  // product + amount, so re-runs (and the test→live flip) never mint duplicates.
+  try {
+    const found = await stripe.prices.search({ query: `metadata["twomiah_key"]:"${key}" AND active:"true"` })
+    const match = found.data.find(p => p.product === productId && p.unit_amount === unitAmount)
+    if (match) {
+      results[key] = match.id
+      console.log(`    ${key}: ${match.id} (exists, reused)`)
+      return match.id
+    }
+  } catch { /* prices.search unavailable on a brand-new account — fall through to create */ }
+
   const params: Stripe.PriceCreateParams = {
     product: productId,
     unit_amount: unitAmount,
@@ -303,6 +319,46 @@ async function main() {
     console.log(`  Created coupon: ${couponName} (${couponId}) — $499 off, valid 90 days`)
   }
   results.STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH = couponId
+
+  // ═══════════════════════════════════════════════════
+  // 7. NEW PRICING MODEL v2 (2026-07) — flat website + seat-tiered CRM
+  // ═══════════════════════════════════════════════════
+  // Replaces the tiered SaaS + à-la-carte-bundle model. Features are FREE to
+  // toggle; team size sets the tier (and the infra). See PRICING_MODEL_V2_PLAN.md.
+  // Added alongside the old keys so existing code keeps working until the
+  // checkout wiring is repointed at these V2 keys.
+  console.log('\n═══ New Pricing Model v2 ═══')
+
+  // Standalone website — $49/mo. No forced build fee (the $499 below is optional).
+  const v2Website = await createProduct('Twomiah Website', 'Done-for-you website + hosting + self-serve CMS. See it built first, keep it for $49/mo.', { twomiah_v2: 'website' })
+  await createPrice(v2Website, 'STRIPE_PRICE_V2_WEBSITE', 4900, { recurring: { interval: 'month' }, nickname: 'Website ($49/mo)' })
+
+  // Seat-tiered CRM (website included). Team size sets price + infra tier.
+  const v2CrmTiers = [
+    { id: 'starter10', name: 'CRM — Starter', price: 9900, desc: 'Website + industry CRM + hosting. Up to 10 users. Every feature free to toggle.' },
+    { id: 'team25', name: 'CRM — Team', price: 13900, desc: 'Up to 25 users. Bigger box, same everything.' },
+    { id: 'business50', name: 'CRM — Business', price: 19900, desc: 'Up to 50 users. Bigger box, same everything.' },
+  ]
+  for (const t of v2CrmTiers) {
+    const p = await createProduct(`Twomiah ${t.name}`, t.desc, { twomiah_v2: t.id })
+    await createPrice(p, `STRIPE_PRICE_V2_${t.id.toUpperCase()}`, t.price, { recurring: { interval: 'month' }, nickname: `${t.name} ($${t.price / 100}/mo)` })
+  }
+
+  // Optional one-time "true customization" — the only hand-labor charge for sites.
+  const v2Custom = await createProduct('Twomiah — True Customization', 'One-time hand-customization of your site beyond the auto-build + CMS.', { twomiah_v2: 'true_customization' })
+  await createPrice(v2Custom, 'STRIPE_PRICE_V2_TRUE_CUSTOMIZATION', 49900, { nickname: 'True Customization ($499 one-time)' })
+
+  // Own-it / self-host (one-time = 36× monthly)
+  const v2Licenses = [
+    { id: 'website', name: 'Website — Own It', price: 176400 },      // $49 × 36
+    { id: 'starter10', name: 'CRM Starter — Own It', price: 356400 }, // $99 × 36
+    { id: 'team25', name: 'CRM Team — Own It', price: 500400 },       // $139 × 36
+    { id: 'business50', name: 'CRM Business — Own It', price: 716400 },// $199 × 36
+  ]
+  for (const l of v2Licenses) {
+    const p = await createProduct(`Twomiah ${l.name}`, 'Buy it outright — full source, self-host (= 36× monthly).', { twomiah_v2_license: l.id })
+    await createPrice(p, `STRIPE_PRICE_V2_LICENSE_${l.id.toUpperCase()}`, l.price, { nickname: `${l.name} ($${l.price / 100} one-time)` })
+  }
 
   // ═══════════════════════════════════════════════════
   // DONE — Write config

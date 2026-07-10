@@ -210,6 +210,17 @@ export function getFeaturesForTemplate(template: string): FeatureDef[] {
 }
 
 /**
+ * The sensible LEAN starting set a new tenant is provisioned with — core features only.
+ * Every non-core feature's code still ships with the tenant (the generator never strips
+ * CRM frontend pages, and index.ts statically imports every backend route), so owners
+ * turn extras on anytime from Settings → Features. This keeps the initial sidebar clean
+ * instead of dumping all ~40 modules on a brand-new tenant.
+ */
+export function getDefaultFeaturesForTemplate(template: string): string[] {
+  return FEATURE_REGISTRY.filter(f => f.core && f.templates.includes(template)).map(f => f.id)
+}
+
+/**
  * Features safe to advertise on public surfaces (signup wizard, pricing pages, plan upsell).
  * Excludes anything flagged `hidden: true` — features still being built but not ready to sell.
  */

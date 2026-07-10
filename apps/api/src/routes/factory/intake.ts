@@ -12,6 +12,8 @@ import { renderPremiumPage, pickPremiumTemplateDir } from '../../services/premiu
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
+import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
+import { crmTemplateFor } from '../../config/industryRouting'
 
 export function registerIntakeRoutes(factory: FactoryApp) {
 // ─── Inbound Email Router (SendGrid Inbound Parse → tenant CRM) ──────────────
@@ -357,13 +359,18 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       domain_registrar: resolvedRegistrar,
       domain_expires_at: resolvedExpiresAt ? resolvedExpiresAt.toISOString() : null,
       primary_color: body.primary_color || '#FF3D00',
-      plan: body.plan || 'starter',
+      plan: body.plan || 'starter10',
       deployment_model: body.deployment_model || 'saas',
       billing_type: body.billing_type || 'trial',
       monthly_amount: body.monthly_amount || null,
       status: 'pending',
       products: body.products || ['crm', 'website'],
-      features: body.features || [],
+      // Seed a lean, sensible default (core features for the trade) rather than an empty
+      // list — an empty list is what used to get back-filled to ALL ~40 modules. All other
+      // feature code still ships, so the owner toggles extras on in Settings → Features.
+      features: (Array.isArray(body.features) && body.features.length)
+        ? body.features
+        : getDefaultFeaturesForTemplate(crmTemplateFor(body.industry)),
       notes: body.notes || null,
       admin_password: body.admin_password || null,
       website_theme: body.website_theme || null,
@@ -406,7 +413,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         zip: body.zip || undefined,
         domain: body.domain || undefined,
         industry: body.industry || undefined,
-        plan: body.plan || 'starter',
+        plan: body.plan || 'starter10',
         defaultPassword: body.admin_password || undefined,
       },
       branding: {
