@@ -211,7 +211,7 @@
 .gallery-hero {
   position: relative;
   padding: 80px 0;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   overflow: hidden;
 }
 
@@ -468,7 +468,7 @@
 
 /* Gallery CTA */
 .gallery-cta {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   padding: 72px 0;
   text-align: center;
   color: white;
@@ -544,7 +544,7 @@
   min-height: 500px;
   display: flex;
   align-items: center;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   overflow: hidden;
 }
 
@@ -835,7 +835,7 @@
 }
 
 .cta-card {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   padding: 32px;
   border-radius: 16px;
   color: white;
@@ -1106,7 +1106,7 @@
 
 /* Service CTA */
 .service-cta {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   padding: 72px 0;
   text-align: center;
   color: white;
@@ -1225,7 +1225,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   overflow: hidden;
 }
 
@@ -1318,7 +1318,7 @@
 
 /* Custom CTA */
 .custom-cta {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   padding: 64px 0;
   text-align: center;
   color: white;
@@ -1417,7 +1417,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   color: rgba(255, 255, 255, 0.3);
   font-size: 2rem;
   font-weight: 600;
@@ -1800,7 +1800,7 @@
 
 /* Project Bottom CTA */
 .project-bottom-cta {
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+  background: linear-gradient(135deg, var(--navy-dark, #1e3a5f) 0%, var(--navy, #24476b) 100%);
   padding: 72px 0;
   text-align: center;
   color: white;

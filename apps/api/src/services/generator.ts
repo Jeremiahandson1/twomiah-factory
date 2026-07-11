@@ -1045,10 +1045,11 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
       if (Array.isArray(services)) {
         let changed = false
         services.forEach((s: any, i: number) => {
-          if (!s.image) {
-            const url = getServiceImage(industry, i)
-            if (url) { s.image = url; changed = true }
-          }
+          const url = getServiceImage(industry, i)
+          if (url && !s.image) { s.image = url; changed = true }
+          // Service-page hero background — empty heroImage falls back to a flat
+          // color block; give it a real photo (with the template's dark overlay).
+          if (url && !s.heroImage) { s.heroImage = url; changed = true }
         })
         if (changed) fs.writeFileSync(servicesFile, JSON.stringify(services, null, 2))
       }

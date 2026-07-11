@@ -44,6 +44,10 @@ Last updated: 2026-07-11
 - Restore-first: locate/reuse geo (`geocoding.ts`) for real nearby cities if we want them; otherwise dedupe + drop empty slots.
 - Fix scope (only): `generator.ts` token map; `website-contractor/views/base.ejs:720-723,766`, `contact.ejs:162,173-176,288`, `home.ejs:117`. Mirror to sibling `website-*` templates that share the pattern.
 
+**W6 — "Everything is orange" (service/gallery/CTA heroes = flat orange primary)**  ·  Status: DONE (all 9 templates; pending deploy)  ·  THE REAL "garbage" issue
+- Root: `public-pages.css` set 9 hero/CTA/header backgrounds to `linear-gradient(var(--color-primary)…)` = the orange PRIMARY, overriding main.css's navy. Service pages rendered as giant orange walls (screenshots). Also `service.heroImage` was empty → no image, flat color only.
+- Fix: all 9 gradients → navy (`var(--navy-dark)`→`var(--navy)`) in contractor + 8 siblings; `fillWebsiteImages` now also fills `service.heroImage` so service pages show a real photo + dark overlay. Orange stays an accent (buttons/icons).
+
 **W2 — Gallery has no images (placeholder tiles) + empty service-card images**  ·  Status: DONE (generator-level, all templates; pending deploy)
 - Root: `gallery.json` projects ship `images:[]`/`featured_image:""` and `services.json` ship `image:""`; generator never filled them + never imported serviceImageLibrary.
 - Fix: new `fillWebsiteImages()` in generator.ts (called after injectWizardContent) fills empty gallery + service images from `getServiceImage(industry, i)`. Verified render-safe (gallery `<img src>` direct; services via getImageUrl which passes http through). Runs for ALL website-* templates → fixes every vertical. Type-clean.
