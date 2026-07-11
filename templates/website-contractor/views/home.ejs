@@ -146,9 +146,34 @@ function getImageUrl(p) {
     </section>
   <% } %>
 
-  <!-- Featured Projects section removed: contractor-clone leftover (gallery/"projects"
-       with placeholder images), not relevant for an RV/powersports dealer. -->
-  <% if (false) { %><% } %>
+  <!-- Featured Projects -->
+  <% if (typeof featuredProjects !== 'undefined' && featuredProjects && featuredProjects.length > 0) { %>
+    <section class="featured-projects-section">
+      <div class="container">
+        <h2>Recent Projects in the {{SERVICE_REGION}}</h2>
+        <div class="fp-grid">
+          <% featuredProjects.slice(0, 6).forEach(function(project) { %>
+            <a href="/gallery/<%= project.id %>" class="fp-card animate-on-scroll">
+              <img
+                src="<%= project.featured_image || (project.images && project.images[0] ? (project.images[0].thumbnail || project.images[0].url) : '/images/project-placeholder.jpg') %>"
+                alt="<%= project.title %> - <%= project.category || 'Construction' %> project in <%= project.location || '{{CITY}}' %>, {{STATE}}"
+                loading="lazy"
+                width="400"
+                height="300"
+              >
+              <div class="fp-overlay">
+                <h3><%= project.title %></h3>
+                <span><%= project.category %></span>
+              </div>
+            </a>
+          <% }); %>
+        </div>
+        <div style="text-align: center; margin-top: 2rem;">
+          <a href="/gallery" class="btn btn-outline">View All Projects</a>
+        </div>
+      </div>
+    </section>
+  <% } %>
 
   <!-- Visualizer CTA -->
   <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %>
