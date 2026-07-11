@@ -36,7 +36,10 @@ Last updated: 2026-07-11
 
 ### WEBSITE  (public = `website-contractor`; some fixes at generator/token level hit all templates)
 
-**W1 — City repeated ×4 + "the Springfield" grammar**  ·  Status: TODO
+**W1 — City repeated ×4 + "the Springfield" grammar**  ·  Status: DONE for website-contractor + generator (pending deploy); siblings + JSON-LD pending
+- Generator: `SERVICE_REGION` → "{City} area" (fixes "the Springfield"); new deduped tokens `{{SERVICE_AREAS}}` (grammatical join), `{{SERVICE_AREA_LINKS}}`, `{{SERVICE_AREA_ITEMS}}`. Type-clean.
+- website-contractor: base.ejs (footer nav + prose), contact.ejs (list + note), home.ejs (2 prose + deduped serviceAreas array) now use the deduped tokens.
+- STILL PENDING: sibling `website-*` templates (homecare/dispensary/landscaping/fieldservice/general/vet/rv/showcase) share the pattern — need the same token swap. Invisible JSON-LD areaServed (contact.ejs:383+, home.ejs:605, service.ejs:393+) still lists repeated city — SEO-only, low priority.
 - Root: `generator.ts:472-475` NEARBY_CITY_n fall back to `c.city`; `nearbyCities` is a manual wizard field (`apps/api/src/components/factory/types.ts:48`, default `['','','','']`); EJS never dedupes/drops empties; `SERVICE_REGION` = bare city; templates literally say "the {{SERVICE_REGION}}".
 - Restore-first: locate/reuse geo (`geocoding.ts`) for real nearby cities if we want them; otherwise dedupe + drop empty slots.
 - Fix scope (only): `generator.ts` token map; `website-contractor/views/base.ejs:720-723,766`, `contact.ejs:162,173-176,288`, `home.ejs:117`. Mirror to sibling `website-*` templates that share the pattern.
@@ -46,7 +49,8 @@ Last updated: 2026-07-11
 - Restore-first: trace how gallery projects got images before; reuse `serviceImageLibrary`. Do NOT invent a new image system.
 - Fix scope: TBD after trace.
 
-**W3 — Gallery "View Project" badge invisible on mobile / no background**  ·  Status: TODO
+**W3 — Gallery "View Project" badge invisible on mobile / no background**  ·  Status: DONE for website-contractor (pending deploy); siblings pending
+- `build/styles/public-pages.css`: `.view-btn` got `background: rgba(15,23,42,.55)`; added `@media (hover:none)` rule so the overlay/badge shows on touch. Sibling templates need the same.
 - Root: `website-contractor/.../public-pages.css:393-414` `.view-btn` has no background + overlay `opacity:0` until `:hover` (invisible on touch). The `cms` fix (`.view-btn { background: rgba(15,23,42,.55) }`) was never backported.
 - Fix scope (only): website-contractor `public-pages.css` `.view-btn` (backport bg + stop hover-gating the label). Check source vs `build/` copy.
 

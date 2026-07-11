@@ -717,10 +717,7 @@
             <h4>Areas We Serve</h4>
             <ul>
               <li><a href="/service-area/{{CITY}}">{{CITY}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_1}}">{{NEARBY_CITY_1}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_2}}">{{NEARBY_CITY_2}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_3}}">{{NEARBY_CITY_3}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_4}}">{{NEARBY_CITY_4}}</a></li>
+              {{SERVICE_AREA_LINKS}}
               <li><a href="/service-areas" style="font-weight:600;">View All Areas &rarr;</a></li>
               
               
@@ -763,7 +760,7 @@
     <div class="footer-bottom">
       <div class="container">
         <p>&copy; <%= new Date().getFullYear() %> {{COMPANY_NAME}}. All rights reserved.</p>
-        <p>Serving {{CITY}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_1}}, and the {{SERVICE_REGION}}</p>
+        <p>Serving {{SERVICE_AREAS}}.</p>
       </div>
     </div>
   </footer>

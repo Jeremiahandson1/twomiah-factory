@@ -3,7 +3,7 @@
 const hero = (typeof homepage !== 'undefined' && homepage && homepage.hero) ? homepage.hero : {};
 const trustBadges = (typeof homepage !== 'undefined' && homepage && homepage.trustBadges) ? homepage.trustBadges.filter(b => b.enabled) : [];
 const ctaSection = (typeof homepage !== 'undefined' && homepage && homepage.ctaSection) ? homepage.ctaSection : {};
-const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : ['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'];
+const serviceAreas = (typeof homepage !== 'undefined' && homepage && homepage.serviceAreas) ? homepage.serviceAreas : [...new Set(['{{CITY}}', '{{NEARBY_CITY_4}}', '{{NEARBY_CITY_1}}', '{{NEARBY_CITY_2}}', '{{NEARBY_CITY_3}}'].map(s => s.trim()).filter(Boolean))];
 const businessHours = (typeof homepage !== 'undefined' && homepage && homepage.businessHours) ? homepage.businessHours : {};
 
 // Settings with fallbacks
@@ -114,7 +114,7 @@ function getImageUrl(p) {
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           </div>
           <h3>Local to the {{SERVICE_REGION}}</h3>
-          <p>Based in {{CITY}}, we serve homeowners across {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and the surrounding communities. As a local company, we're already here — not driving in from out of town.</p>
+          <p>Based in {{CITY}}, we serve homeowners across {{SERVICE_AREAS}}. As a local company, we're already here — not driving in from out of town.</p>
         </div>
         <div class="why-item animate-on-scroll">
           <div class="why-icon">
@@ -344,7 +344,7 @@ function getImageUrl(p) {
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What areas do you serve besides {{CITY}}?</strong></summary>
-          <p>We serve homeowners in {{CITY}}, {{NEARBY_CITY_1}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_3}}, {{NEARBY_CITY_2}}, and throughout the greater {{SERVICE_REGION}}. Our crew is local, so we're never far away.</p>
+          <p>We serve homeowners in {{SERVICE_AREAS}}. Our crew is local, so we're never far away.</p>
         </details>
         <details class="home-faq-item animate-on-scroll">
           <summary><strong>What makes {{COMPANY_NAME}} different?</strong></summary>

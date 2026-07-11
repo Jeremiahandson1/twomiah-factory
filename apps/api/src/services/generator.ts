@@ -444,6 +444,22 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   const lastName = ownerParts.slice(1).join(' ') || 'User'
   const defaultPassword = c.defaultPassword || generatePassword()
 
+  // Deduped, real service areas (city + any operator-entered nearby cities).
+  // Prevents "City, City, City, City" when the manual nearbyCities field is blank.
+  const _seenArea = new Set<string>()
+  const uniqueAreas = [c.city, ...(c.nearbyCities || [])]
+    .map((s) => (s || '').trim())
+    .filter((a) => {
+      if (!a) return false
+      const k = a.toLowerCase()
+      if (_seenArea.has(k)) return false
+      _seenArea.add(k)
+      return true
+    })
+  const serviceAreasText = uniqueAreas.length <= 1
+    ? (uniqueAreas[0] || c.city || 'your area') + ' and the surrounding area'
+    : uniqueAreas.slice(0, -1).join(', ') + ', and ' + uniqueAreas[uniqueAreas.length - 1]
+
   return {
     '{{COMPANY_NAME}}': c.name || 'My Company',
     '{{COMPANY_LEGAL_NAME}}': c.legalName || (c.name || 'My Company') + ' LLC',
@@ -461,7 +477,10 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{STATE}}': c.state || 'ST',
     '{{STATE_FULL}}': c.stateFull || c.state || 'ST',
     '{{ZIP}}': c.zip || '00000',
-    '{{SERVICE_REGION}}': c.serviceRegion || c.city || 'the area',
+    '{{SERVICE_REGION}}': c.serviceRegion || (c.city ? c.city + ' area' : 'surrounding area'),
+    '{{SERVICE_AREAS}}': serviceAreasText,
+    '{{SERVICE_AREA_LINKS}}': uniqueAreas.map((a) => `<li><a href="/service-area/${a}">${a}</a></li>`).join('\n'),
+    '{{SERVICE_AREA_ITEMS}}': uniqueAreas.map((a) => `<li>${a}</li>`).join('\n'),
     // Placeholders when no real service areas were provided — paired with a
     // disclaimer in the preview so a mockup reads as intentional, not broken.
     // Real cities come from the manual intake field (company.nearbyCities).
