@@ -111,6 +111,12 @@ Last updated: 2026-07-11
 - `adjusterContact.jobsWorkedTogether` seed literals (`schema.ts:445`); `stormEvent.leadCount=24` (`schema.ts:480`) vs 6 rows. Printed as if computed.
 - Fix: compute real counts or seed 0.
 
+**C10 — "Failed to load material orders" toast**  ·  Status: DONE (code — pending build+deploy)  ·  P2
+- Root: `MaterialsPage.tsx:46` fetched `/api/material-orders`; backend mounts it at `/api/materials` (index.ts:108). URL mismatch → 404 → toast. Fixed the URL.
+
+**C11 — "Failed to load roof reports" toast**  ·  Status: UNRESOLVED — code verified correct
+- `roof_report` table is complete (migration 0000 has all columns the GET selects), handler returns valid `{data,pagination}`, route mounted at `/api/roof-reports` (index.ts:125), no feature gate. No static defect found. Given the audit tool's proven unreliability (5 iterations of website "bugs" that weren't on the live site), this may be a stale/transient artifact; if real, needs a tenant server-error log to pinpoint. Not guess-fixing correct code.
+
 **C8 — Roof Reports empty vs Measurements shows 1**  ·  Status: WON'T-SEED (deliberate)  ·  P2
 - Decided NOT to seed a demo `roof_report`: table has notNull `segments`/`edges`/`measurements` JSON feeding 3D/edge viewers (Roof3DViewer/MapEdgeEditor); fabricated geometry would break the viewer — worse than empty. "No roof reports yet" is correct for a fresh tenant. Distinct feature from Measurements. Real demo needs captured fixture data.
 
