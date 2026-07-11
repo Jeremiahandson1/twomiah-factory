@@ -1004,6 +1004,20 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
   const dataDir = path.join(websiteDir, 'data')
   const industry = config.company?.industry || ''
 
+  // Ensure the hero always has an image. AI content injection can overwrite
+  // homepage.json's hero with an empty image, which drops the site into the
+  // empty-hero placeholder state. Restore the shipped local hero (LCP-optimized).
+  const homepageFile = path.join(dataDir, 'homepage.json')
+  if (fs.existsSync(homepageFile)) {
+    try {
+      const hp = JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
+      if (hp.hero && !hp.hero.image) {
+        hp.hero.image = '/images/hero.jpg'
+        fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
+      }
+    } catch { /* leave homepage as-is on parse error */ }
+  }
+
   // Gallery projects — template reads project.images[0].{url,thumbnail} + featured_image
   const galleryFile = path.join(dataDir, 'gallery.json')
   if (fs.existsSync(galleryFile)) {

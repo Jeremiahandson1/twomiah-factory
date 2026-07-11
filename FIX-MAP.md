@@ -56,7 +56,9 @@ Last updated: 2026-07-11
 - Root: `website-contractor/.../public-pages.css:393-414` `.view-btn` has no background + overlay `opacity:0` until `:hover` (invisible on touch). The `cms` fix (`.view-btn { background: rgba(15,23,42,.55) }`) was never backported.
 - Fix scope (only): website-contractor `public-pages.css` `.view-btn` (backport bg + stop hover-gating the label). Check source vs `build/` copy.
 
-**W4 — Hero is one generic default image for every tenant**  ·  Status: DEFERRED (deliberate)
+**W4 — Hero empty/placeholder + generic image**  ·  Status: PLACEHOLDER FIXED (pending deploy); per-vertical variety deferred
+- Guarantee added to `fillWebsiteImages`: if `homepage.json` hero.image is empty (AI content can blank it → empty-hero placeholder), restore `/images/hero.jpg`. So the empty-hero placeholder state can never render.
+- Still deferred (deliberate): per-vertical hero *variety* — needs shipped assets; keeping local hero for LCP.
 - Hero uses local `/images/hero.jpg` — generic across tenants, but self-hosted + LCP-optimized. Swapping to an external library URL would hurt the engineered ~100 Lighthouse LCP. Proper fix = ship per-vertical hero assets + have the generator pick one (asset work), not a code tweak. Left local on purpose.
 - Root: template ships `data/homepage.json:7` `image:'/images/hero.jpg'`; only overridden on customer upload. AI path (`contentGenerator.ts:306-311`, added 4d39839) backfills, but standard path keeps the shipped default.
 - Restore-first: confirm whether hero-fill already worked (4d39839) and just isn't on this path; reuse `serviceImageLibrary`.
