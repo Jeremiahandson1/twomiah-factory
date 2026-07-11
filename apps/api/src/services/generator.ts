@@ -1004,6 +1004,19 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
   const dataDir = path.join(websiteDir, 'data')
   const industry = config.company?.industry || ''
 
+  // Copy the self-hosted service-image library into this site so images are served
+  // from the tenant's OWN domain (no external Unsplash/CDN dependency — the customer
+  // owns their site). Files land at build/images/services/ → served at /images/services/…,
+  // the exact paths serviceImageLibrary returns.
+  try {
+    const srcImages = path.join(TEMPLATES_ROOT, '_shared', 'service-images')
+    if (fs.existsSync(srcImages)) {
+      const destImages = path.join(websiteDir, 'build', 'images', 'services')
+      fs.mkdirSync(destImages, { recursive: true })
+      for (const f of fs.readdirSync(srcImages)) fs.copyFileSync(path.join(srcImages, f), path.join(destImages, f))
+    }
+  } catch { /* non-fatal */ }
+
   // Ensure the hero always has an image. AI content injection can overwrite
   // homepage.json's hero with an empty image, which drops the site into the
   // empty-hero placeholder state. Restore the shipped local hero (LCP-optimized).

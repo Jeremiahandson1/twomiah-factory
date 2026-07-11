@@ -50,7 +50,8 @@ Last updated: 2026-07-11
 
 **W2 — Gallery has no images (placeholder tiles) + empty service-card images**  ·  Status: DONE (generator-level, all templates; pending deploy)
 - Root: `gallery.json` projects ship `images:[]`/`featured_image:""` and `services.json` ship `image:""`; generator never filled them + never imported serviceImageLibrary.
-- Fix: new `fillWebsiteImages()` in generator.ts (called after injectWizardContent) fills empty gallery + service images from `getServiceImage(industry, i)`. Verified render-safe (gallery `<img src>` direct; services via getImageUrl which passes http through). Runs for ALL website-* templates → fixes every vertical. Type-clean.
+- Fix: new `fillWebsiteImages()` in generator.ts (called after injectWizardContent) fills empty gallery + service images from `getServiceImage(industry, i)`. Verified render-safe. Runs for ALL website-* templates.
+- SELF-HOSTED (per user): images now live in `templates/_shared/service-images/*.jpg` (30 files, downloaded from the old Unsplash set); serviceImageLibrary returns local `/images/services/…` paths; `fillWebsiteImages` copies the folder into each site's `build/images/services/`. No external Unsplash/CDN dependency — customer owns their images. (Premium `sectionComposer` still emits Unsplash URLs via AI — separate, premium-only, tracked.)
 - Root: gallery renders `gallery-card-placeholder`; project images never populated at generation.
 - Restore-first: trace how gallery projects got images before; reuse `serviceImageLibrary`. Do NOT invent a new image system.
 - Fix scope: TBD after trace.
