@@ -32,6 +32,10 @@ async function main() {
         siteUrl: '{{SITE_URL}}',
         generatedBy: '{{COMPANY_NAME}} Factory',
         generatedAt: new Date().toISOString(),
+        // Storm Lead Generation: seed the tenant's zip so Settings isn't "No zip
+        // codes configured" while localized demo storm data (zip {{ZIP}}) exists.
+        serviceAreaZips: ['{{ZIP}}'],
+        stormAlertEnabled: true,
       },
       reportCredits: 10,
       reportPricePerReport: '9.00',

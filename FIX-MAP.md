@@ -106,7 +106,11 @@ Last updated: 2026-07-11
 - `adjusterContact.jobsWorkedTogether` seed literals (`schema.ts:445`); `stormEvent.leadCount=24` (`schema.ts:480`) vs 6 rows. Printed as if computed.
 - Fix: compute real counts or seed 0.
 
-**C8 — Roof Reports empty vs Measurements shows 1**  ·  Status: DEFERRED (needs roof_report schema seed or product decision)  ·  P2
+**C8 — Roof Reports empty vs Measurements shows 1**  ·  Status: WON'T-SEED (deliberate)  ·  P2
+- Decided NOT to seed a demo `roof_report`: table has notNull `segments`/`edges`/`measurements` JSON feeding 3D/edge viewers (Roof3DViewer/MapEdgeEditor); fabricated geometry would break the viewer — worse than empty. "No roof reports yet" is correct for a fresh tenant. Distinct feature from Measurements. Real demo needs captured fixture data.
+
+**C9 — Storm Lead settings "No zip codes configured" vs live storm data**  ·  Status: DONE (code — pending build+deploy)  ·  P2
+- Root: storm settings read `company.settings.serviceAreaZips` (storms.ts:305); seed never set it. Fix: seed `serviceAreaZips: ['{{ZIP}}']` + `stormAlertEnabled: true` in the company settings block, consistent with the localized demo storm data.
 - Two tables; only `measurement_report` seeded, `roof_report` never. Naming collision, not a query bug.
 - Fix: seed both or unify/rename (needs intent).
 
