@@ -405,12 +405,20 @@
   opacity: 1;
 }
 
+@media (hover: none) {
+  .gallery-card-overlay {
+    opacity: 1;
+    background: rgba(15, 23, 42, 0.30);
+  }
+}
+
 .view-btn {
   color: white;
   font-weight: 600;
   padding: 12px 24px;
   border: 2px solid white;
   border-radius: 8px;
+  background: rgba(15, 23, 42, 0.55); /* legible on its own */
 }
 
 .photo-count {
