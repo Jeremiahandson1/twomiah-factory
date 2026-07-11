@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 import { company, user, contact, job, crew, measurementReport, material, invoice, insuranceClaim, supplement, adjusterContact, claimActivity, canvassingSession, canvassingStop, canvassingScript, stormEvent, stormLead, smsMessage } from './schema.ts'
+import { geocodeAddress } from '../src/services/googleSolar.ts'
 
 const db = drizzle(process.env.DATABASE_URL!)
 
@@ -73,6 +74,17 @@ async function main() {
   if (existingJobs.length > 0) {
     console.log('Demo data already exists, skipping seed')
   } else {
+    // Localize the demo map data to this tenant's real city — reuses the roof CRM's own
+    // geocoder (googleSolar). Falls back to a neutral center if the geocoder/API key isn't
+    // available so the seed never fails; in production the key is set and pins land locally.
+    let demoCenter = { lat: 39.5, lng: -98.35 }
+    try {
+      const geo = await geocodeAddress('{{COMPANY_ADDRESS}}', '{{CITY}}', '{{STATE}}', '{{ZIP}}')
+      if (geo && Number.isFinite(geo.lat) && Number.isFinite(geo.lng)) demoCenter = { lat: geo.lat, lng: geo.lng }
+    } catch { /* keep fallback center */ }
+    const dLat = (i: number) => (demoCenter.lat + i * 0.0003).toFixed(4)
+    const dLng = (i: number) => (demoCenter.lng + i * 0.0003).toFixed(4)
+
     // Create 2 demo crews
     const [crewA] = await db.insert(crew).values({
       companyId: comp.id,
@@ -104,9 +116,9 @@ async function main() {
       phone: '(555) 200-0001',
       mobilePhone: '(555) 200-0011',
       address: '1234 Oak Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       leadSource: 'storm_chase',
       propertyType: 'residential',
     }).returning()
@@ -119,9 +131,9 @@ async function main() {
       phone: '(555) 200-0002',
       mobilePhone: '(555) 200-0012',
       address: '5678 Elm St',
-      city: 'Fort Worth',
-      state: 'TX',
-      zip: '76102',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       leadSource: 'referral',
       propertyType: 'residential',
     }).returning()
@@ -134,9 +146,9 @@ async function main() {
       phone: '(555) 200-0003',
       mobilePhone: '(555) 200-0013',
       address: '9012 Pine Ave',
-      city: 'Plano',
-      state: 'TX',
-      zip: '75024',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       leadSource: 'google',
       propertyType: 'residential',
     }).returning()
@@ -153,9 +165,9 @@ async function main() {
       jobType: 'insurance',
       status: 'inspection_scheduled',
       propertyAddress: '1234 Oak Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       roofType: 'asphalt_shingle',
       stories: 2,
       roofAge: 15,
@@ -175,9 +187,9 @@ async function main() {
       jobType: 'insurance',
       status: 'proposal_sent',
       propertyAddress: '5678 Elm St',
-      city: 'Fort Worth',
-      state: 'TX',
-      zip: '76102',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       roofType: 'asphalt_shingle',
       stories: 1,
       roofAge: 20,
@@ -204,9 +216,9 @@ async function main() {
       jobType: 'retail',
       status: 'signed',
       propertyAddress: '9012 Pine Ave',
-      city: 'Plano',
-      state: 'TX',
-      zip: '75024',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       roofType: 'asphalt_shingle',
       stories: 2,
       roofAge: 22,
@@ -228,9 +240,9 @@ async function main() {
       jobType: 'insurance',
       status: 'in_production',
       propertyAddress: '3456 Maple Ln',
-      city: 'Richardson',
-      state: 'TX',
-      zip: '75080',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       roofType: 'asphalt_shingle',
       stories: 1,
       roofAge: 18,
@@ -256,9 +268,9 @@ async function main() {
       jobType: 'retail',
       status: 'invoiced',
       propertyAddress: '7890 Cedar Ct',
-      city: 'Arlington',
-      state: 'TX',
-      zip: '76010',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       roofType: 'asphalt_shingle',
       stories: 1,
       roofAge: 25,
@@ -278,9 +290,9 @@ async function main() {
       companyId: comp.id,
       jobId: job3.id,
       address: '9012 Pine Ave',
-      city: 'Plano',
-      state: 'TX',
-      zip: '75024',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       provider: 'google_solar',
       status: 'complete',
       totalSquares: '24.00',
@@ -294,7 +306,7 @@ async function main() {
       imageryQuality: 'HIGH',
       imageryDate: '2024-06-15',
       pitchDegrees: [26.6, 26.6, 18.4, 33.7],
-      center: { lat: 33.0198, lng: -96.6989 },
+      center: { lat: demoCenter.lat, lng: demoCenter.lng },
     })
     console.log('Created measurement report for Thompson job')
 
@@ -315,7 +327,7 @@ async function main() {
       ],
       totalCost: '3735.00',
       supplierOrderNumber: 'ABC-TX-2024-5521',
-      deliveryAddress: '3456 Maple Ln, Richardson, TX 75080',
+      deliveryAddress: '3456 Maple Ln, {{CITY}}, {{STATE}} {{ZIP}}',
     })
     console.log('Created material order for Williams job')
 
@@ -478,7 +490,7 @@ async function main() {
         adjusterCompany: 'State Farm',
         insuranceCarrier: 'State Farm',
         territory: 'Des Moines, IA',
-        jobsWorkedTogether: 3,
+        jobsWorkedTogether: 0,
       },
       {
         companyId: comp.id,
@@ -489,7 +501,7 @@ async function main() {
         insuranceCarrier: 'Multiple',
         territory: 'Midwest',
         notes: 'Independent adjuster — fair, thorough inspections. Good to work with.',
-        jobsWorkedTogether: 7,
+        jobsWorkedTogether: 0,
       },
       {
         companyId: comp.id,
@@ -499,7 +511,7 @@ async function main() {
         adjusterCompany: 'Allstate',
         insuranceCarrier: 'Allstate',
         territory: 'Wisconsin',
-        jobsWorkedTogether: 2,
+        jobsWorkedTogether: 0,
       },
     ])
     console.log('Created 3 demo adjuster contacts')
@@ -513,9 +525,9 @@ async function main() {
       lastName: 'Williams',
       phone: '(555) 300-0001',
       address: '204 Riverside Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       leadSource: 'canvassing',
       propertyType: 'residential',
     }).returning()
@@ -527,9 +539,9 @@ async function main() {
       phone: '(555) 300-0002',
       email: 'mchen@example.com',
       address: '210 Riverside Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       leadSource: 'canvassing',
       propertyType: 'residential',
     }).returning()
@@ -540,9 +552,9 @@ async function main() {
       lastName: 'Park',
       phone: '(555) 300-0003',
       address: '218 Riverside Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       leadSource: 'canvassing',
       propertyType: 'residential',
     }).returning()
@@ -554,9 +566,9 @@ async function main() {
       jobType: 'insurance',
       status: 'lead',
       propertyAddress: '204 Riverside Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       source: 'canvassing',
       priority: 'medium',
       notes: 'Canvassing lead — Hail storm March 10, 2026 — Riverside Heights — March 10 Hail Storm',
@@ -569,9 +581,9 @@ async function main() {
       jobType: 'insurance',
       status: 'lead',
       propertyAddress: '210 Riverside Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       source: 'canvassing',
       priority: 'medium',
       notes: 'Canvassing lead — Hail storm March 10, 2026 — Riverside Heights — March 10 Hail Storm',
@@ -584,9 +596,9 @@ async function main() {
       jobType: 'insurance',
       status: 'lead',
       propertyAddress: '218 Riverside Dr',
-      city: 'Dallas',
-      state: 'TX',
-      zip: '75201',
+      city: '{{CITY}}',
+      state: '{{STATE}}',
+      zip: '{{ZIP}}',
       source: 'canvassing',
       priority: 'high',
       inspectionDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
@@ -599,8 +611,8 @@ async function main() {
       userId: adminId,
       name: 'Riverside Heights — March 10 Hail Storm',
       status: 'completed',
-      centerLat: '32.7900',
-      centerLng: '-96.8000',
+      centerLat: demoCenter.lat.toFixed(4),
+      centerLng: demoCenter.lng.toFixed(4),
       radiusMiles: '0.50',
       weatherEvent: 'Hail storm March 10, 2026',
       totalDoors: 8,
@@ -615,24 +627,24 @@ async function main() {
       // Stop 1: No answer
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '200 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7901', lng: '-96.8001', outcome: 'no_answer',
+        address: '200 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(1), lng: dLng(1), outcome: 'no_answer',
         doorHangerLeft: true, photos: [],
         visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
       },
       // Stop 2: No answer
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '202 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7902', lng: '-96.8002', outcome: 'no_answer',
+        address: '202 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(2), lng: dLng(2), outcome: 'no_answer',
         doorHangerLeft: true, photos: [],
         visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 5 * 60 * 1000),
       },
       // Stop 3: Interested → lead (Sarah Williams)
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '204 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7903', lng: '-96.8003', outcome: 'interested',
+        address: '204 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(3), lng: dLng(3), outcome: 'interested',
         jobId: canvJob1.id, contactId: canvContact1.id,
         notes: '[Hail Damage] [Missing Shingles] Visible damage on south-facing slope',
         photos: [],
@@ -641,8 +653,8 @@ async function main() {
       // Stop 4: Not interested
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '206 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7904', lng: '-96.8004', outcome: 'not_interested',
+        address: '206 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(4), lng: dLng(4), outcome: 'not_interested',
         notes: 'Homeowner said roof is only 3 years old, not concerned.',
         photos: [],
         visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 18 * 60 * 1000),
@@ -650,8 +662,8 @@ async function main() {
       // Stop 5: No answer
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '208 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7905', lng: '-96.8005', outcome: 'no_answer',
+        address: '208 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(5), lng: dLng(5), outcome: 'no_answer',
         doorHangerLeft: true, followUpDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
         photos: [],
         visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 22 * 60 * 1000),
@@ -659,8 +671,8 @@ async function main() {
       // Stop 6: Interested → lead (Mike Chen)
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '210 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7906', lng: '-96.8006', outcome: 'interested',
+        address: '210 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(6), lng: dLng(6), outcome: 'interested',
         jobId: canvJob2.id, contactId: canvContact2.id,
         notes: '[Hail Damage] [Dented Gutters] Multiple dents on gutters, granule loss on shingles',
         photos: [],
@@ -669,8 +681,8 @@ async function main() {
       // Stop 7: Has contractor
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '214 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7907', lng: '-96.8007', outcome: 'already_has_contractor',
+        address: '214 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(7), lng: dLng(7), outcome: 'already_has_contractor',
         notes: 'Already signed with ABC Roofing.',
         photos: [],
         visitedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000 + 38 * 60 * 1000),
@@ -678,8 +690,8 @@ async function main() {
       // Stop 8: Appointment set → lead (Lisa Park)
       {
         companyId: comp.id, sessionId: canvSession.id, userId: adminId,
-        address: '218 Riverside Dr', city: 'Dallas', state: 'TX', zip: '75201',
-        lat: '32.7908', lng: '-96.8008', outcome: 'appointment_set',
+        address: '218 Riverside Dr', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}',
+        lat: dLat(8), lng: dLng(8), outcome: 'appointment_set',
         jobId: canvJob3.id, contactId: canvContact3.id,
         notes: '[Hail Damage] [Missing Shingles] [Granule Loss] Significant damage, homeowner very interested. Scheduled inspection.',
         photos: [],
@@ -724,23 +736,23 @@ async function main() {
       companyId: comp.id,
       eventDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
       eventType: 'hail',
-      affectedZipCodes: ['75201', '75202', '75204'],
+      affectedZipCodes: ['{{ZIP}}'],
       hailSizeInches: '1.75',
       windSpeedMph: 55,
-      description: 'Severe hailstorm across north Dallas — 1.75" hail reported, 55mph wind gusts',
-      leadCount: 24,
+      description: 'Severe hailstorm across {{CITY}} — 1.75" hail reported, 55mph wind gusts',
+      leadCount: 6,
       status: 'leads_generated',
       source: 'noaa',
     }).returning()
 
     // 6 storm leads
     const stormLeadData = [
-      { address: '1100 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'converted', estimatedDamage: 'severe', jobId: canvJob1.id, contactId: canvContact1.id },
-      { address: '1104 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'converted', estimatedDamage: 'moderate', jobId: canvJob2.id, contactId: canvContact2.id },
-      { address: '1108 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'new', estimatedDamage: 'moderate' },
-      { address: '1112 Main St', city: 'Dallas', state: 'TX', zip: '75201', status: 'new', estimatedDamage: 'minor' },
-      { address: '2200 Commerce St', city: 'Dallas', state: 'TX', zip: '75202', status: 'contacted', estimatedDamage: 'severe', notes: 'Homeowner called back, scheduling inspection' },
-      { address: '2204 Commerce St', city: 'Dallas', state: 'TX', zip: '75202', status: 'dismissed', estimatedDamage: 'minor', notes: 'Wrong address — commercial building' },
+      { address: '1100 Main St', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}', status: 'converted', estimatedDamage: 'severe', jobId: canvJob1.id, contactId: canvContact1.id },
+      { address: '1104 Main St', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}', status: 'converted', estimatedDamage: 'moderate', jobId: canvJob2.id, contactId: canvContact2.id },
+      { address: '1108 Main St', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}', status: 'new', estimatedDamage: 'moderate' },
+      { address: '1112 Main St', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}', status: 'new', estimatedDamage: 'minor' },
+      { address: '2200 Commerce St', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}', status: 'contacted', estimatedDamage: 'severe', notes: 'Homeowner called back, scheduling inspection' },
+      { address: '2204 Commerce St', city: '{{CITY}}', state: '{{STATE}}', zip: '{{ZIP}}', status: 'dismissed', estimatedDamage: 'minor', notes: 'Wrong address — commercial building' },
     ]
 
     for (const sl of stormLeadData) {

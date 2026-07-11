@@ -218,7 +218,7 @@ export default function JobsPage() {
                     <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
                       {job.jobNumber || `ROOF-${String(job.id).padStart(4, '0')}`}
                     </td>
-                    <td className="px-4 py-3 text-gray-900">{job.contactName || '—'}</td>
+                    <td className="px-4 py-3 text-gray-900">{job.contact ? `${job.contact.firstName || ''} ${job.contact.lastName || ''}`.trim() : '—'}</td>
                     <td className="px-4 py-3 text-gray-600 max-w-[200px] truncate">{job.address || job.propertyAddress || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded ${TYPE_COLORS[job.jobType] || 'bg-gray-100 text-gray-600'}`}>
@@ -230,11 +230,11 @@ export default function JobsPage() {
                         {formatStatus(job.status)}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{crewMap[job.crewId] || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600">{crewMap[job.assignedCrewId] || '—'}</td>
                     <td className="px-4 py-3 text-right text-gray-600">{job.totalSquares || '—'}</td>
                     <td className="px-4 py-3 text-right text-gray-900 font-medium">
-                      {job.revenue != null || job.total != null
-                        ? `$${Number(job.revenue || job.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                      {job.finalRevenue != null || job.estimatedRevenue != null || job.rcv != null
+                        ? `$${Number(job.finalRevenue ?? job.estimatedRevenue ?? job.rcv ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">

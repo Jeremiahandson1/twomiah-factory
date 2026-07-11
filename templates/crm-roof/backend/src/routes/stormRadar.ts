@@ -22,7 +22,7 @@ app.get('/status', (c) => {
     configured: stormRadar.isConfigured(),
     message: stormRadar.isConfigured()
       ? `Storm Radar is active using ${stormRadar.currentProvider()}`
-      : `Storm Radar provider "${stormRadar.currentProvider()}" is not configured. See services/stormRadar.ts for setup instructions.`,
+      : `Storm Radar isn't enabled on this account yet. Contact support to turn on live storm tracking.`,
   })
 })
 
