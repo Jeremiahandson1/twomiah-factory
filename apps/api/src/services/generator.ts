@@ -11,6 +11,7 @@ import AdmZip from 'adm-zip'
 import bcrypt from 'bcryptjs'
 import { getFeaturesForPlan } from '../config/featureRegistry'
 import { crmTemplateFor, premiumWebsiteTemplateFor, buildCrmApiHost, verticalFor } from '../config/industryRouting'
+import { getServiceImage } from '../config/serviceImageLibrary'
 
 const TEMPLATES_ROOT = process.env.FACTORY_TEMPLATES_DIR || path.resolve(process.cwd(), '..', '..', 'templates')
 const PACKAGES_ROOT = process.env.FACTORY_PACKAGES_DIR || path.resolve(process.cwd(), '..', '..', 'packages')
@@ -256,6 +257,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       stripWebsiteFeatures(path.join(workDir, 'website'), websiteFeatures)
       await writeBrandingAssets(path.join(workDir, 'website'), config.branding, config.company?.name)
       injectWizardContent(path.join(workDir, 'website'), config)
+      fillWebsiteImages(path.join(workDir, 'website'), config)
       seedHelpArticles(path.join(workDir, 'website'))
       processEnvTemplate(path.join(workDir, 'website'), tokens)
 
@@ -992,6 +994,51 @@ function seedServicesIfEmpty(websiteDir: string, wizardContent: any) {
     // Rewrite wizardContent.services to the seeded IDs so the downstream
     // filter-by-id pass keeps them instead of stripping name strings.
     wizardContent.services = toSeed.map(s => s.id)
+  }
+}
+
+// Fill empty gallery/service images from the in-house per-vertical library so a
+// generated site never ships blank placeholder tiles. Rendered directly / via
+// getImageUrl (which passes http through), so external CDN URLs are safe here.
+function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
+  const dataDir = path.join(websiteDir, 'data')
+  const industry = config.company?.industry || ''
+
+  // Gallery projects — template reads project.images[0].{url,thumbnail} + featured_image
+  const galleryFile = path.join(dataDir, 'gallery.json')
+  if (fs.existsSync(galleryFile)) {
+    try {
+      const gallery = JSON.parse(fs.readFileSync(galleryFile, 'utf8'))
+      if (Array.isArray(gallery)) {
+        let changed = false
+        gallery.forEach((p: any, i: number) => {
+          const hasImg = p.featured_image || (Array.isArray(p.images) && p.images.length > 0)
+          if (!hasImg) {
+            const url = getServiceImage(industry, i)
+            if (url) { p.featured_image = url; p.images = [{ url, thumbnail: url }]; changed = true }
+          }
+        })
+        if (changed) fs.writeFileSync(galleryFile, JSON.stringify(gallery, null, 2))
+      }
+    } catch { /* leave gallery as-is on parse error */ }
+  }
+
+  // Service cards — template reads service.image via getImageUrl
+  const servicesFile = path.join(dataDir, 'services.json')
+  if (fs.existsSync(servicesFile)) {
+    try {
+      const services = JSON.parse(fs.readFileSync(servicesFile, 'utf8'))
+      if (Array.isArray(services)) {
+        let changed = false
+        services.forEach((s: any, i: number) => {
+          if (!s.image) {
+            const url = getServiceImage(industry, i)
+            if (url) { s.image = url; changed = true }
+          }
+        })
+        if (changed) fs.writeFileSync(servicesFile, JSON.stringify(services, null, 2))
+      }
+    } catch { /* leave services as-is on parse error */ }
   }
 }
 

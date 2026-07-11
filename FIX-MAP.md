@@ -44,7 +44,9 @@ Last updated: 2026-07-11
 - Restore-first: locate/reuse geo (`geocoding.ts`) for real nearby cities if we want them; otherwise dedupe + drop empty slots.
 - Fix scope (only): `generator.ts` token map; `website-contractor/views/base.ejs:720-723,766`, `contact.ejs:162,173-176,288`, `home.ejs:117`. Mirror to sibling `website-*` templates that share the pattern.
 
-**W2 — Gallery has no images (placeholder tiles)**  ·  Status: TODO (needs trace)
+**W2 — Gallery has no images (placeholder tiles) + empty service-card images**  ·  Status: DONE (generator-level, all templates; pending deploy)
+- Root: `gallery.json` projects ship `images:[]`/`featured_image:""` and `services.json` ship `image:""`; generator never filled them + never imported serviceImageLibrary.
+- Fix: new `fillWebsiteImages()` in generator.ts (called after injectWizardContent) fills empty gallery + service images from `getServiceImage(industry, i)`. Verified render-safe (gallery `<img src>` direct; services via getImageUrl which passes http through). Runs for ALL website-* templates → fixes every vertical. Type-clean.
 - Root: gallery renders `gallery-card-placeholder`; project images never populated at generation.
 - Restore-first: trace how gallery projects got images before; reuse `serviceImageLibrary`. Do NOT invent a new image system.
 - Fix scope: TBD after trace.
@@ -54,7 +56,8 @@ Last updated: 2026-07-11
 - Root: `website-contractor/.../public-pages.css:393-414` `.view-btn` has no background + overlay `opacity:0` until `:hover` (invisible on touch). The `cms` fix (`.view-btn { background: rgba(15,23,42,.55) }`) was never backported.
 - Fix scope (only): website-contractor `public-pages.css` `.view-btn` (backport bg + stop hover-gating the label). Check source vs `build/` copy.
 
-**W4 — Hero is one generic default image for every tenant**  ·  Status: TODO (needs trace)
+**W4 — Hero is one generic default image for every tenant**  ·  Status: DEFERRED (deliberate)
+- Hero uses local `/images/hero.jpg` — generic across tenants, but self-hosted + LCP-optimized. Swapping to an external library URL would hurt the engineered ~100 Lighthouse LCP. Proper fix = ship per-vertical hero assets + have the generator pick one (asset work), not a code tweak. Left local on purpose.
 - Root: template ships `data/homepage.json:7` `image:'/images/hero.jpg'`; only overridden on customer upload. AI path (`contentGenerator.ts:306-311`, added 4d39839) backfills, but standard path keeps the shipped default.
 - Restore-first: confirm whether hero-fill already worked (4d39839) and just isn't on this path; reuse `serviceImageLibrary`.
 - Fix scope: TBD after trace.
