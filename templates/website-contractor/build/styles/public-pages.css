@@ -2,8 +2,8 @@
    These values are injected by the factory generator.
    Do not edit manually — use the admin panel or regenerate. */
 :root {
-  --color-primary: {{PRIMARY_COLOR}};
-  --color-primary-light: {{PRIMARY_COLOR}};
+  --color-primary: {{SECONDARY_COLOR}};
+  --color-primary-light: {{SECONDARY_COLOR}};
   --color-secondary: {{SECONDARY_COLOR}};
   --color-accent: {{PRIMARY_COLOR}};
   --color-accent-light: {{PRIMARY_COLOR}};
@@ -590,7 +590,12 @@
 .service-hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(30, 58, 95, 0.85) 0%, rgba(30, 58, 95, 0.7) 100%);
+  background: linear-gradient(135deg, rgba(30, 58, 95, 0.85) 0%, rgba(30, 58, 95, 0.7) 100%); /* fallback */
+  /* Brand-tinted photo scrim — the business's colors over the service-page photo. */
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--color-accent) 46%, transparent) 0%,
+    color-mix(in srgb, var(--color-primary) 72%, transparent) 50%,
+    color-mix(in srgb, var(--color-primary) 90%, transparent) 100%);
 }
 
 .service-hero-content {

@@ -2,8 +2,8 @@
    These values are injected by the factory generator.
    Do not edit manually — use the admin panel or regenerate. */
 :root {
-  --color-primary: {{PRIMARY_COLOR}};
-  --color-primary-light: {{PRIMARY_COLOR}};
+  --color-primary: {{SECONDARY_COLOR}};
+  --color-primary-light: {{SECONDARY_COLOR}};
   --color-secondary: {{SECONDARY_COLOR}};
   --color-accent: {{PRIMARY_COLOR}};
   --color-accent-light: {{PRIMARY_COLOR}};
@@ -464,7 +464,14 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); }
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(13, 22, 38, 0.6);
+  background: rgba(13, 22, 38, 0.62); /* fallback for browsers without color-mix */
+  /* Brand-tinted photo scrim (ported from landscaping): the business's own colors
+     wash over the hero photo — bright brand glow at top, dark brand tone at the
+     bottom for text legibility. Branded, not a flat wall. */
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--gold) 46%, transparent) 0%,
+    color-mix(in srgb, var(--navy) 70%, transparent) 50%,
+    color-mix(in srgb, var(--navy) 90%, transparent) 100%);
 }
 
 .hero-video-content {
