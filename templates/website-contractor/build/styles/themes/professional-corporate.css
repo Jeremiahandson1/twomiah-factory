@@ -205,7 +205,8 @@ p {
 
 .hero h1,
 .hero-section h1,
-.hero-video h1 {
+.hero-video h1,
+.service-hero h1 {
   font-family: 'Playfair Display', Georgia, serif;
   font-size: clamp(2.4rem, 5vw, 3.6rem);
   font-weight: 700;
@@ -215,6 +216,29 @@ p {
   text-shadow: none;
   text-transform: none;
 }
+
+/* Service-page hero sits on a dark photo/navy scrim — its heading is handled
+   above; keep the tagline gold and the description/copy legible (light), and
+   left-aligned (the service hero is not centered like the homepage hero). */
+.service-hero .hero-description,
+.service-hero .hero-copy p {
+  color: rgba(255, 255, 255, 0.92);
+  opacity: 1;
+}
+.service-hero .hero-tagline { color: var(--gold); }
+
+/* Service sidebar CTA card sits on a navy panel — its heading must stay light. */
+.service-sidebar .cta-card,
+.service-sidebar .cta-card h3,
+.service-sidebar .cta-card p { color: #fff; }
+
+/* Bottom "Ready to start your project" CTA — restore it as a navy banner so the
+   white text and light-outline Call button read correctly (the theme had
+   lightened the section, hiding both). */
+.service-cta { background: var(--navy) !important; color: #fff !important; }
+.service-cta h2 { color: #fff !important; }
+.service-cta h2::after { background: var(--gold); }
+.service-cta p { color: rgba(255, 255, 255, 0.9) !important; }
 
 .hero p,
 .hero-section p,
