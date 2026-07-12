@@ -349,8 +349,9 @@ app.get('/services/:slug', (c) => {
       visible: true, order: 99
     }
   }
+  const testimonials = loadJSON('testimonials.json') || []
   return renderPage(c, 'service', {
-    service, services,
+    service, services, testimonials,
     title: service.seoTitle || service.name + ' | {{COMPANY_NAME}}',
     description: service.seoDescription || service.shortDescription || '',
     canonicalUrl: BASE_URL + '/services/' + service.slug,
