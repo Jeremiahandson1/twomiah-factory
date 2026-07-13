@@ -329,9 +329,14 @@ button[type="submit"]:hover {
   border-top-color: var(--corp-navy-light) !important;
 }
 
-.service-card img {
-  display: none;
-}
+/* Service cards are PHOTO cards (match the Claflin reference): the service image
+   sits flush at the top of the card and the text content is padded below. The
+   base card padding is zeroed so the photo spans full width. */
+.service-card { padding: 0 !important; overflow: hidden; }
+.service-card .service-image { display: block; height: 220px; }
+.service-card .service-image img,
+.service-card img { display: block !important; width: 100%; height: 100%; object-fit: cover; }
+.service-card .service-content { padding: 22px 24px 26px !important; }
 
 .service-card h3,
 .card h3,
