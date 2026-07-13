@@ -629,3 +629,18 @@ form textarea:focus {
     font-size: 0.9rem;
   }
 }
+
+/* ── Service-page dark sections: keep text legible under this theme ──────────
+   fieldservice/landscaping share the contractor .service-hero markup; the theme
+   colored headings dark, which vanish on the navy service hero + sidebar CTA. */
+.service-hero h1 { color: #fff !important; }
+.service-hero .hero-tagline { color: var(--gold, #d4a84b) !important; }
+.service-hero .hero-description,
+.service-hero .hero-copy p,
+.service-hero p { color: rgba(255, 255, 255, 0.92) !important; }
+.service-sidebar .cta-card,
+.service-sidebar .cta-card h3,
+.service-sidebar .cta-card p { color: #fff !important; }
+.service-cta { background: var(--navy, #1e3a5f) !important; color: #fff !important; }
+.service-cta h2 { color: #fff !important; }
+.service-cta p { color: rgba(255, 255, 255, 0.9) !important; }
