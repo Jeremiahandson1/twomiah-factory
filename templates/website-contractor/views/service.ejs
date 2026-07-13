@@ -7,7 +7,6 @@ const heroAnimationSpeed = service.heroAnimationSpeed || 10;
 const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
 const phoneRaw = phone.replace(/\D/g, '');
 
-// Function to get image URL
 function getImageUrl(p) {
   if (!p) return '';
   if (p.startsWith('http')) return p;
@@ -15,168 +14,90 @@ function getImageUrl(p) {
   return '/uploads/' + p;
 }
 
-// Get other services (excluding current one)
-const otherServices = (typeof allServices !== 'undefined' && allServices) 
-  ? allServices.filter(s => s.id !== service.id) 
+// Other services (excluding current one)
+const otherServices = (typeof services !== 'undefined' && services)
+  ? services.filter(s => (s.id || s.slug) !== (service.id || service.slug))
   : [];
 %>
 
+<%- include('partials/landing-rail') %>
 <style>
-  /* Scoped styles for the in-hero lead-capture card (service landing pages) */
-  .service-hero .hero-grid { display: flex; gap: 44px; align-items: center; flex-wrap: wrap; }
-  .service-hero .hero-copy { flex: 1 1 420px; min-width: 0; }
-  .service-hero .hero-trustline { list-style: none; display: flex; flex-wrap: wrap; gap: 10px 22px; padding: 0; margin: 0 0 26px; }
-  .service-hero .hero-trustline li { position: relative; padding-left: 24px; font-weight: 600; font-size: .95rem; color: #fff; }
-  .service-hero .hero-trustline li::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; background: #d4a84b; border-radius: 50%; }
-  .service-hero .hero-rating { margin: 0 0 14px; font-weight: 700; color: #fff; font-size: 1rem; }
-  .service-hero .hero-rating .stars { color: #d4a84b; letter-spacing: 2px; margin-right: 8px; }
-  .hero-estimate-card { flex: 0 1 400px; background: #fff; color: #1e293b; border-radius: 14px; padding: 28px; box-shadow: 0 24px 50px rgba(0,0,0,.28); }
-  .hero-estimate-card h2 { font-size: 1.45rem; line-height: 1.2; margin: 0 0 6px; color: #1e3a5f; max-width: none; }
-  .hero-estimate-card .hero-form-sub { font-size: .92rem; color: #64748b; margin: 0 0 18px; }
-  .hero-estimate-card .hef-row { display: flex; gap: 14px; }
-  .hero-estimate-card .hef-field { margin-bottom: 14px; flex: 1; min-width: 0; }
+  /* Lead-capture card internals (service-page hero form) */
+  .hero-estimate-card { background: #fff; color: #1e293b; border-radius: 14px; padding: 26px; }
+  .hero-estimate-card h2 { font-size: 1.4rem; line-height: 1.2; margin: 0 0 6px; color: var(--navy); max-width: none; }
+  .hero-estimate-card .hero-form-sub { font-size: .9rem; color: #64748b; margin: 0 0 16px; }
+  .hero-estimate-card .hef-row { display: flex; gap: 12px; }
+  .hero-estimate-card .hef-field { margin-bottom: 12px; flex: 1; min-width: 0; }
   .hero-estimate-card label { display: block; font-size: .8rem; font-weight: 600; color: #334155; margin-bottom: 6px; }
   .hero-estimate-card input, .hero-estimate-card textarea { width: 100%; padding: 11px 13px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; font-family: inherit; color: #1e293b; background: #fff; box-sizing: border-box; }
   .hero-estimate-card textarea { resize: vertical; }
-  .hero-estimate-card input:focus, .hero-estimate-card textarea:focus { outline: none; border-color: #1e3a5f; box-shadow: 0 0 0 3px rgba(30,58,95,.12); }
+  .hero-estimate-card input:focus, .hero-estimate-card textarea:focus { outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px color-mix(in srgb, var(--navy) 12%, transparent); }
   .hero-estimate-card .hef-submit { width: 100%; margin-top: 4px; }
-  .hero-estimate-card .hef-finehint { font-size: .82rem; color: #64748b; text-align: center; margin: 14px 0 0; }
-  .hero-estimate-card .hef-finehint a { color: #1e3a5f; font-weight: 700; text-decoration: none; }
+  .hero-estimate-card .hef-finehint { font-size: .82rem; color: #64748b; text-align: center; margin: 12px 0 0; }
+  .hero-estimate-card .hef-finehint a { color: var(--navy); font-weight: 700; text-decoration: none; }
   .hero-estimate-card .hef-error { display: none; color: #dc2626; background: #fef2f2; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; font-size: .9rem; }
   .hero-estimate-card .hef-success { display: none; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; font-size: .98rem; }
-  .service-social-proof { background: #f8fafc; border-bottom: 1px solid #e2e8f0; padding: 36px 0; }
-  .service-social-proof .ssp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
-  .service-social-proof .ssp-card { margin: 0; }
-  .service-social-proof .ssp-stars { color: #d4a84b; font-size: 1.05rem; letter-spacing: 2px; margin-bottom: 8px; }
-  .service-social-proof blockquote { margin: 0 0 8px; font-size: .95rem; line-height: 1.55; color: #334155; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-  .service-social-proof figcaption { font-size: .88rem; font-weight: 600; color: #64748b; }
   @media (max-width: 768px) {
-    .service-hero .hero-grid { gap: 28px; }
-    .hero-estimate-card { flex-basis: 100%; width: 100%; padding: 22px; }
+    .hero-estimate-card { padding: 22px; }
     .hero-estimate-card .hef-row { flex-direction: column; gap: 0; }
   }
 </style>
 
 <div class="service-page">
-  <!-- Hero Section -->
-  <section 
-    class="service-hero <%= heroImage ? 'has-image' : '' %>"
-    style="--hero-speed: <%= heroAnimationSpeed %>s"
-  >
-    <% if (heroImage) { %>
-      <div 
-        class="service-hero-bg animation-<%= heroAnimation %>"
-        style="background-image: <%- bgWithWebp(getImageUrl(heroImage)) %>"
-      ></div>
-      <div class="service-hero-overlay"></div>
-    <% } %>
-    <div class="service-hero-content">
-      <div class="container">
-        <div class="hero-grid">
-          <div class="hero-copy">
-            <a href="/#services" class="back-link">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="15 18 9 12 15 6"></polyline>
-              </svg>
-              All Services
-            </a>
-            <h1>{{CITY}}'s Trusted <%= service.title %> Contractor</h1>
-            <% if (service.tagline) { %>
-              <p class="hero-tagline"><%= service.tagline %></p>
-            <% } %>
-            <% if (service.heroDescription) { %>
-              <p class="hero-description"><%= service.heroDescription %></p>
-            <% } %>
-            <div class="hero-rating"><span class="stars">★★★★★</span>Rated 5.0 on Google</div>
-            <ul class="hero-trustline">
-              <li>Free Estimates</li>
-              <li>Licensed &amp; Insured</li>
-              <li>Locally Owned</li>
-            </ul>
-            <div class="hero-buttons">
-              <a href="#hero-estimate" class="btn btn-primary btn-lg">Get Free Estimate</a>
-              <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                </svg>
-                <%= phone %>
-              </a>
-            </div>
-          </div>
-
-          <div class="hero-estimate-card" id="hero-estimate">
-            <h2>Get Your Free <%= service.title %> Estimate</h2>
-            <p class="hero-form-sub">No obligation — fast response from a local crew.</p>
-            <form id="hero-estimate-form" method="POST" action="/api/admin/leads">
-              <!-- anti-spam honeypot: hidden from people; bots that fill it are rejected server-side -->
-              <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;">
-                <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off" value=""></label>
-              </div>
-              <% if (typeof turnstileSiteKey !== 'undefined' && turnstileSiteKey) { %><div class="cf-turnstile" data-sitekey="<%= turnstileSiteKey %>" style="margin:8px 0 14px;"></div><% } %>
-              <div class="hef-row">
-                <div class="hef-field">
-                  <label for="hef-name">Name *</label>
-                  <input id="hef-name" name="name" type="text" autocomplete="name" required>
-                </div>
-                <div class="hef-field">
-                  <label for="hef-phone">Phone *</label>
-                  <input id="hef-phone" name="phone" type="tel" autocomplete="tel" required>
-                </div>
-              </div>
-              <div class="hef-field">
-                <label for="hef-address">Property Address</label>
-                <input id="hef-address" name="address" type="text" autocomplete="street-address">
-              </div>
-              <div class="hef-field">
-                <label for="hef-message">Briefly describe your project</label>
-                <textarea id="hef-message" name="message" rows="2"></textarea>
-              </div>
-              <input type="hidden" name="service" value="<%= service.title %>">
-              <input type="hidden" name="source" value="<%= service.urlSlug || service.id %>">
-              <div id="hef-error" class="hef-error"></div>
-              <button type="submit" class="btn btn-primary btn-lg hef-submit">Get My Free Estimate</button>
-              <p class="hef-finehint">Prefer to talk? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a></p>
-            </form>
-            <div id="hef-success" class="hef-success">
-              <strong>Thank you!</strong> Your request is in &mdash; we'll call you shortly to schedule your free estimate. Prefer not to wait? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a>.
-            </div>
-          </div>
-        </div>
-      </div>
+  <%
+    const heroAria = `${service.title} services in {{CITY}}, {{STATE}} by {{COMPANY_NAME}}`;
+  %>
+  <!-- Landing: hero copy + main content share ONE sticky lead-form rail. -->
+  <section class="service-lead" aria-label="<%= heroAria %>" style="--hero-speed: <%= heroAnimationSpeed %>s">
+    <div class="sl-band">
+      <% if (heroImage) { %>
+        <div
+          class="sl-band-bg animation-<%= heroAnimation %>"
+          style="background-image: <%- bgWithWebp(getImageUrl(heroImage)) %>"
+          role="img"
+          aria-label="<%= heroAria %>"
+        ></div>
+      <% } %>
+      <div class="sl-band-overlay"></div>
     </div>
-  </section>
 
-  <!-- Social proof strip — featured testimonials (matches Claflin reference) -->
-  <% if (typeof testimonials !== 'undefined' && testimonials && testimonials.length > 0) { %>
-    <section class="service-social-proof">
-      <div class="container">
-        <div class="ssp-grid">
-          <% testimonials.slice(0, 3).forEach(function(t) { %>
-            <figure class="ssp-card">
-              <div class="ssp-stars"><%= '★'.repeat(t.rating || 5) %></div>
-              <blockquote>"<%= t.text %>"</blockquote>
-              <figcaption>&mdash; <%= t.author || t.name %><% if (t.location) { %>, <%= t.location %><% } %></figcaption>
-            </figure>
-          <% }); %>
-        </div>
-      </div>
-    </section>
-  <% } %>
-
-  <!-- Main Content -->
-  <section class="service-main">
     <div class="container">
-      <div class="service-layout">
-        <!-- Main Column -->
-        <div class="service-content">
+      <div class="sl-grid">
+
+        <!-- Hero copy -->
+        <div class="sl-hero-copy">
+          <a href="/#services" class="back-link">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+            All Services
+          </a>
+          <h1>{{CITY}}'s Trusted <%= service.title %> Contractor</h1>
+          <% if (service.tagline) { %>
+            <p class="hero-tagline"><%= service.tagline %></p>
+          <% } %>
+          <% if (service.heroDescription) { %>
+            <p class="hero-description"><%= service.heroDescription %></p>
+          <% } %>
+          <div class="hero-buttons">
+            <a href="#hero-estimate" class="btn btn-primary btn-lg">Get Free Estimate</a>
+            <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              <%= phone %>
+            </a>
+          </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="sl-body">
           <div class="content-section">
             <h2>Expert <%= service.title %> Services</h2>
             <% if (description) { %>
               <% if (description.includes('<')) { %>
-                <!-- HTML content -->
                 <div class="prose"><%- description %></div>
               <% } else { %>
-                <!-- Plain text content -->
                 <div class="prose">
                   <% description.split('\n\n').forEach(function(para) { %>
                     <p><%= para %></p>
@@ -209,7 +130,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
                 <% if (service.materials && service.materials.length > 0) { %>
                   <div class="details-card">
                     <h3>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
                       </svg>
                       Materials We Use
@@ -217,7 +138,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
                     <ul>
                       <% service.materials.forEach(function(material) { %>
                         <li>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="20 6 9 17 4 12"></polyline>
                           </svg>
                           <%= material %>
@@ -229,7 +150,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
                 <% if (service.features && service.features.length > 0) { %>
                   <div class="details-card">
                     <h3>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="8" r="7"></circle>
                         <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
                       </svg>
@@ -238,7 +159,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
                     <ul>
                       <% service.features.forEach(function(feature) { %>
                         <li>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                             <polyline points="22 4 12 14.01 9 11.01"></polyline>
                           </svg>
@@ -253,36 +174,54 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
           <% } %>
         </div>
 
-        <!-- Sidebar -->
-        <aside class="service-sidebar">
-          <div class="cta-card">
-            <h3>Ready to Get Started?</h3>
-            <p>Contact us today for a free, no-obligation estimate.</p>
-            <a href="tel:<%= phoneRaw %>" class="phone-link">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-              </svg>
-              <%= phone %>
-            </a>
-            <a href="#hero-estimate" class="btn btn-primary btn-block">Request Estimate</a>
+        <!-- Sticky lead-form rail -->
+        <aside class="sl-rail">
+          <div class="hero-estimate-card" id="hero-estimate">
+            <h2>Get Your Free <%= service.title %> Estimate</h2>
+            <p class="hero-form-sub">No obligation &mdash; fast response from a local crew.</p>
+            <form id="hero-estimate-form" method="POST" action="/api/admin/leads">
+              <!-- anti-spam honeypot: hidden from people; bots that fill it are rejected server-side -->
+              <div aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;">
+                <label>Website<input type="text" name="website" tabindex="-1" autocomplete="off" value=""></label>
+              </div>
+              <% if (typeof turnstileSiteKey !== 'undefined' && turnstileSiteKey) { %><div class="cf-turnstile" data-sitekey="<%= turnstileSiteKey %>" style="margin:8px 0 14px;"></div><% } %>
+              <div class="hef-row">
+                <div class="hef-field">
+                  <label for="hef-name">Name *</label>
+                  <input id="hef-name" name="name" type="text" autocomplete="name" required>
+                </div>
+                <div class="hef-field">
+                  <label for="hef-phone">Phone *</label>
+                  <input id="hef-phone" name="phone" type="tel" autocomplete="tel" required>
+                </div>
+              </div>
+              <input type="hidden" name="service" value="<%= service.title %>">
+              <input type="hidden" name="source" value="<%= service.urlSlug || service.slug || service.id %>">
+              <div id="hef-error" class="hef-error"></div>
+              <button type="submit" class="btn btn-primary btn-lg hef-submit">Get My Free Estimate</button>
+              <p class="hef-finehint">Prefer to talk? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a></p>
+            </form>
+            <div id="hef-success" class="hef-success">
+              <strong>Thank you!</strong> Your request is in &mdash; we'll call you shortly to schedule your free estimate. Prefer not to wait? Call <a href="tel:<%= phoneRaw %>"><%= phone %></a>.
+            </div>
           </div>
 
           <div class="trust-card">
             <div class="trust-item">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
               </svg>
-              <span>Licensed & Insured</span>
+              <span>Licensed &amp; Insured</span>
             </div>
             <div class="trust-item">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="12" cy="8" r="7"></circle>
                 <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
               </svg>
               <span>Quality Guaranteed</span>
             </div>
             <div class="trust-item">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
                 <path d="M2 17l10 5 10-5"></path>
                 <path d="M2 12l10 5 10-5"></path>
@@ -291,6 +230,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
             </div>
           </div>
         </aside>
+
       </div>
     </div>
   </section>
@@ -301,31 +241,21 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
       <div class="container">
         <div class="section-header">
           <h2>Recent <%= service.title %> Projects</h2>
-          <a href="/gallery" class="view-all-link">View All Projects →</a>
+          <a href="/gallery" class="view-all-link">View All Projects &rarr;</a>
         </div>
         <div class="projects-grid">
-          <% galleryProjects.forEach(function(project) { %>
+          <% galleryProjects.forEach(function(project) {
+            const pImg = (project.images && project.images[0]) || null;
+            const pSrc = project.featured_image || (pImg ? (pImg.thumbnail || pImg.url) : '/images/project-placeholder.jpg');
+          %>
             <a href="/gallery/<%= project.id %>" class="project-card">
               <div class="project-image">
-                <% if (project.images && project.images[0]) { %>
-                  <img 
-                    src="<%= getImageUrl(project.images[0].thumbnail || project.images[0].url) %>"
-                    alt="<%= project.title %>"
-                  >
-                <% } else { %>
-                  <div class="project-placeholder">
-                    <span><%= project.category %></span>
-                  </div>
-                <% } %>
-                <div class="project-overlay">
-                  <span>View Project</span>
-                </div>
+                <img src="<%= getImageUrl(pSrc) %>" alt="<%= project.title %>" loading="lazy">
+                <div class="project-overlay"><span>View Project</span></div>
               </div>
               <div class="project-info">
                 <h3><%= project.title %></h3>
-                <% if (project.location) { %>
-                  <p><%= project.location %></p>
-                <% } %>
+                <% if (project.location) { %><p><%= project.location %></p><% } %>
               </div>
             </a>
           <% }); %>
@@ -344,7 +274,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
             <div class="faq-item" data-index="<%= index %>">
               <button class="faq-question">
                 <span><%= faq.question %></span>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
               </button>
@@ -366,10 +296,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
           {
             "@type": "Question",
             "name": <%- JSON.stringify(faq.question || '') %>,
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": <%- JSON.stringify(faq.answer || '') %>
-            }
+            "acceptedAnswer": { "@type": "Answer", "text": <%- JSON.stringify(faq.answer || '') %> }
           }<%= index < service.faqs.length - 1 ? ',' : '' %>
           <% }); %>
         ]
@@ -382,7 +309,7 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
   <section class="service-cta">
     <div class="container">
       <h2>Ready to Start Your <%= service.title %> Project?</h2>
-      <p>Contact {{COMPANY_NAME}} today for a free estimate. We serve {{CITY}} and the surrounding {{SERVICE_REGION}} area.</p>
+      <p>Contact {{COMPANY_NAME}} today for a free estimate. We serve {{CITY}} and the surrounding {{SERVICE_REGION}}.</p>
       <div class="cta-buttons">
         <a href="#hero-estimate" class="btn btn-primary btn-lg">Get Free Estimate</a>
         <a href="tel:<%= phoneRaw %>" class="btn btn-outline-light btn-lg">Call <%= phone %></a>
@@ -397,9 +324,9 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
         <h3>Explore Our Other Services</h3>
         <div class="services-links">
           <% otherServices.forEach(function(s) { %>
-            <a href="/<%= s.urlSlug || s.id %>" class="service-link">
+            <a href="/services/<%= s.urlSlug || s.slug || s.id %>" class="service-link">
               <%= s.title %>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </a>
@@ -419,12 +346,15 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
     "provider": {
       "@type": "HomeAndConstructionBusiness",
       "name": "{{COMPANY_NAME}}",
-      "url": "{{SITE_URL}}",
-      "telephone": "+1<%= phoneRaw %>",
+      "telephone": <%- JSON.stringify('+1' + phoneRaw) %>,
       "areaServed": { "@type": "City", "name": "{{CITY}}, {{STATE}}" }
     },
     "areaServed": [
-      { "@type": "City", "name": "{{CITY}}, {{STATE}}" }
+      { "@type": "City", "name": "{{CITY}}, {{STATE}}" },
+      { "@type": "City", "name": "{{NEARBY_CITY_1}}, {{STATE}}" },
+      { "@type": "City", "name": "{{NEARBY_CITY_2}}, {{STATE}}" },
+      { "@type": "City", "name": "{{NEARBY_CITY_3}}, {{STATE}}" },
+      { "@type": "City", "name": "{{NEARBY_CITY_4}}, {{STATE}}" }
     ],
     "serviceType": <%- JSON.stringify(service.title) %>
   }
@@ -432,35 +362,24 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
 </div>
 
 <script>
-// FAQ accordion functionality
+// FAQ accordion
 (function() {
   const faqItems = document.querySelectorAll('.faq-item');
-  
   faqItems.forEach(function(item) {
     const button = item.querySelector('.faq-question');
-    
+    if (!button) return;
     button.addEventListener('click', function() {
       const isOpen = item.classList.contains('open');
-      
-      // Close all FAQs
-      faqItems.forEach(function(i) {
-        i.classList.remove('open');
-      });
-      
-      // Open this one if it wasn't already open
-      if (!isOpen) {
-        item.classList.add('open');
-      }
+      faqItems.forEach(function(i) { i.classList.remove('open'); });
+      if (!isOpen) item.classList.add('open');
     });
   });
 })();
 </script>
 
 <script>
-// In-hero estimate form — posts the lead and fires the per-client Google Ads
-// conversion on success, matching the convention in contact.ejs (window._gadsId
-// + _bpTrack). Lets service landing pages capture paid traffic in-place instead
-// of sending visitors to /#contact.
+// In-hero estimate form — posts the lead + fires the per-client Google Ads conversion
+// (window._gadsId + _bpTrack), matching contact.ejs. Inline success instead of alert().
 (function() {
   var form = document.getElementById('hero-estimate-form');
   if (!form) return;
@@ -468,7 +387,6 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
 
   form.addEventListener('submit', async function(e) {
     e.preventDefault();
-
     var submitBtn = form.querySelector('button[type="submit"]');
     var originalText = submitBtn.textContent;
     submitBtn.textContent = 'Sending...';
@@ -480,11 +398,10 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
       var data = {
         name: fd.get('name'),
         phone: fd.get('phone'),
-        address: fd.get('address') || '',
         service: fd.get('service') || '',
-        message: fd.get('message') || '',
+        source: fd.get('source') || 'service-page',
         website: fd.get('website') || '',
-        source: fd.get('source') || 'service-page'
+        'cf-turnstile-response': fd.get('cf-turnstile-response') || ''
       };
 
       var response = await fetch('/api/admin/leads', {
@@ -500,15 +417,13 @@ const otherServices = (typeof allServices !== 'undefined' && allServices)
         if (typeof gtag !== 'undefined' && window._gadsId) {
           gtag('event', 'conversion', { send_to: window._gadsId });
         }
-        form.reset();
-        // Inline success panel — a blocking alert() reads as spammy and leaves
-        // no visible proof the request went through.
         form.style.display = 'none';
         var successDiv = document.getElementById('hef-success');
         if (successDiv) {
           successDiv.style.display = 'block';
           successDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+        return;
       } else {
         throw new Error('Submission failed');
       }

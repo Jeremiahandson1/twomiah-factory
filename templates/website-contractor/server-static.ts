@@ -349,9 +349,16 @@ app.get('/services/:slug', (c) => {
       visible: true, order: 99
     }
   }
-  const testimonials = loadJSON('testimonials.json') || []
+  // Related projects for this service — prefer gallery items whose category matches
+  // the service, else fall back to recent featured projects.
+  const gallery = loadJSON('gallery.json') || []
+  const featured = gallery.filter((p: any) => p.featured !== false)
+  const matched = featured.filter((p: any) => p.category && service.title &&
+    (String(p.category).toLowerCase().includes(String(service.title).toLowerCase()) ||
+     String(service.title).toLowerCase().includes(String(p.category).toLowerCase())))
+  const galleryProjects = (matched.length ? matched : featured).slice(0, 3)
   return renderPage(c, 'service', {
-    service, services, testimonials,
+    service, services, galleryProjects,
     title: service.seoTitle || service.name + ' | {{COMPANY_NAME}}',
     description: service.seoDescription || service.shortDescription || '',
     canonicalUrl: BASE_URL + '/services/' + service.slug,
