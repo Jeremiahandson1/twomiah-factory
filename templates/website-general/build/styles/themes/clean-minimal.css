@@ -21,9 +21,9 @@
   --off-white: #ffffff;
 
   /* Theme palette */
-  --cm-emerald: #059669;
-  --cm-emerald-light: #d1fae5;
-  --cm-emerald-dark: #047857;
+  --cm-emerald: {{PRIMARY_COLOR}};
+  --cm-emerald-light: color-mix(in srgb, {{PRIMARY_COLOR}} 15%, #ffffff);
+  --cm-emerald-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 80%, #000000);
   --cm-text: #1a1a1a;
   --cm-text-secondary: #6b7280;
   --cm-text-muted: #9ca3af;
