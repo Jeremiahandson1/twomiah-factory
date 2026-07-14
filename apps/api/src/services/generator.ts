@@ -1060,7 +1060,11 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
     try {
       const hp = JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
       if (hp.hero && !hp.hero.image) {
-        hp.hero.image = '/images/hero.jpg'
+        // Prefer the template's dedicated hero.jpg, but several templates
+        // (dispensary, general, rv, showcase) don't ship one — for those, fall
+        // back to a real industry photo (copied in above) instead of a 404.
+        const heroJpg = path.join(websiteDir, 'build', 'images', 'hero.jpg')
+        hp.hero.image = fs.existsSync(heroJpg) ? '/images/hero.jpg' : (getServiceImage(industry, 0) || '/images/hero.jpg')
         fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
       }
     } catch { /* leave homepage as-is on parse error */ }
