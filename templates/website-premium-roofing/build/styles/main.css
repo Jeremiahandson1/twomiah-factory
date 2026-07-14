@@ -9,9 +9,9 @@
  */
 
 :root {
-  --brand: #1a2e22;
-  --brand-deep: #0f1f17;
-  --accent: #c89a4e;
+  --brand: {{PRIMARY_COLOR}};
+  --brand-deep: color-mix(in srgb, {{PRIMARY_COLOR}} 65%, #000000);
+  --accent: {{ACCENT_COLOR}};
   --ink: #0f172a;
   --ink-soft: #334155;
   --muted: #64748b;
