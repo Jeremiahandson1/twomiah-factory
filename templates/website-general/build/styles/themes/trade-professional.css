@@ -15,22 +15,22 @@
   --font-heading: 'Merriweather', Georgia, serif;
   --font-body: 'Source Serif 4', Georgia, serif;
   --border-radius: 4px;
-  --shadow-sm: 0 1px 4px rgba(68, 64, 60, 0.06);
-  --shadow: 0 3px 12px rgba(68, 64, 60, 0.08);
-  --shadow-lg: 0 6px 24px rgba(68, 64, 60, 0.1);
+  --shadow-sm: 0 1px 4px color-mix(in srgb, {{PRIMARY_COLOR}} 6%, transparent);
+  --shadow: 0 3px 12px color-mix(in srgb, {{PRIMARY_COLOR}} 8%, transparent);
+  --shadow-lg: 0 6px 24px color-mix(in srgb, {{PRIMARY_COLOR}} 10%, transparent);
   --off-white: #faf6f1;
 
   /* Theme palette */
   --tp-cream: #faf6f1;
   --tp-cream-dark: #f0e9df;
   --tp-parchment: #f5efe6;
-  --tp-brown: #44403c;
-  --tp-brown-light: #57534e;
-  --tp-brown-dark: #292524;
-  --tp-gold: #b45309;
-  --tp-gold-light: #d97706;
-  --tp-gold-pale: #fef3c7;
-  --tp-gold-muted: #92400e;
+  --tp-brown: {{PRIMARY_COLOR}};
+  --tp-brown-light: color-mix(in srgb, {{PRIMARY_COLOR}} 88%, #ffffff);
+  --tp-brown-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 68%, #000000);
+  --tp-gold: {{ACCENT_COLOR}};
+  --tp-gold-light: color-mix(in srgb, {{ACCENT_COLOR}} 82%, #ffffff);
+  --tp-gold-pale: color-mix(in srgb, {{ACCENT_COLOR}} 16%, #ffffff);
+  --tp-gold-muted: color-mix(in srgb, {{ACCENT_COLOR}} 82%, #000000);
   --tp-text: #3c3632;
   --tp-text-secondary: #78716c;
   --tp-divider: #e7e0d6;
@@ -110,14 +110,14 @@ header {
 }
 
 .services-nav ul > li > a:hover {
-  background: rgba(180, 83, 9, 0.2) !important;
+  background: color-mix(in srgb, var(--tp-gold) 20%, transparent) !important;
   color: var(--tp-gold-light) !important;
 }
 
 .services-nav .dropdown {
   background: var(--tp-cream) !important;
   border: 1px solid var(--tp-divider) !important;
-  box-shadow: 0 8px 24px rgba(68, 64, 60, 0.12) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--tp-brown) 12%, transparent) !important;
   border-radius: 0 0 4px 4px !important;
   border-top: 3px solid var(--tp-gold) !important;
 }
@@ -193,7 +193,7 @@ button[type="submit"] {
   background: var(--tp-gold) !important;
   color: #ffffff !important;
   transition: all 0.25s ease;
-  box-shadow: 0 2px 8px rgba(180, 83, 9, 0.2) !important;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--tp-gold) 20%, transparent) !important;
 }
 
 .btn:hover,
@@ -203,7 +203,7 @@ button[type="submit"] {
 button[type="submit"]:hover {
   background: var(--tp-gold-muted) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 4px 16px rgba(180, 83, 9, 0.25) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--tp-gold) 25%, transparent) !important;
 }
 
 /* Arrow indicator — traditional feel */
@@ -572,7 +572,7 @@ form select {
 form input:focus,
 form textarea:focus {
   border-color: var(--tp-gold);
-  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--tp-gold) 8%, transparent);
   outline: none;
 }
 
