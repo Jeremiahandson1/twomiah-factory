@@ -153,6 +153,7 @@ export function buildConfig(intake: Intake, d: Decision): GenerateConfig {
     branding: {
       primaryColor: intake.branding?.primaryColor,
       secondaryColor: intake.branding?.secondaryColor,
+      accentColor: intake.branding?.accentColor,
       logo: intake.branding?.logo,
       websiteTheme: d.websiteTheme,
     },

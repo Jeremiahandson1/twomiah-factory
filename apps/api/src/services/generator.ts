@@ -100,6 +100,7 @@ export interface GenerateConfig {
   branding: {
     primaryColor?: string
     secondaryColor?: string
+    accentColor?: string
     logo?: string
     logoFilename?: string
     favicon?: string
@@ -551,7 +552,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{HASHED_DEFAULT_PASSWORD}}': bcrypt.hashSync(defaultPassword, 10),
     '{{PRIMARY_COLOR}}': b.primaryColor || (industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
     '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
-    '{{ACCENT_COLOR}}': '#f59e0b',
+    '{{ACCENT_COLOR}}': b.accentColor || '#f59e0b',
     '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : industry === 'dispensary' ? '#f0fdf4' : '#f8f9fa',
     '{{PRODUCTS_JSON}}': JSON.stringify((() => {
       const prods = [...(config.products || ['crm'])]
@@ -1182,8 +1183,20 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
     try {
       let services = JSON.parse(fs.readFileSync(servicesFile, 'utf8'))
       if (wizardContent.services && wizardContent.services.length > 0) {
-        services = services.filter((s: any) => wizardContent.services!.includes(s.id))
-        services.sort((a: any, b: any) => wizardContent.services!.indexOf(a.id) - wizardContent.services!.indexOf(b.id))
+        // The customer's picks may be template service IDs OR display names (the
+        // intake sends whatever the form collected). Build one card PER pick, in
+        // the customer's order: reuse the template's richer service (copy/icon)
+        // when the pick matches one by id or name, otherwise create a card from
+        // the pick's name. This never drops a customer's service and never blanks
+        // the section (the old id-only filter did both).
+        const norm = (v: any) => slugify(String(v || ''))
+        const pool = services
+        services = wizardContent.services!.map((pick: string, i: number) => {
+          const match = pool.find((s: any) => norm(s.id) === norm(pick) || norm(s.name) === norm(pick))
+          return match
+            ? { ...match, order: i + 1 }
+            : { id: norm(pick), name: String(pick), slug: norm(pick), shortDescription: '', description: '', icon: 'star', visible: true, order: i + 1 }
+        })
       }
       if (wizardContent.customServices && wizardContent.customServices.length > 0) {
         for (const custom of wizardContent.customServices) {
