@@ -17,25 +17,25 @@
   --border-radius: 16px;
 
   /* Palette */
-  --fm-lavender: #f5f3ff;
-  --fm-lavender-dark: #ede9fe;
-  --fm-lavender-deeper: #ddd6fe;
-  --fm-purple: #7c3aed;
-  --fm-purple-light: #ede9fe;
-  --fm-purple-dark: #6d28d9;
-  --fm-purple-deeper: #5b21b6;
-  --fm-orange: #fb923c;
-  --fm-orange-light: #fff7ed;
-  --fm-orange-dark: #f97316;
+  --fm-lavender: color-mix(in srgb, {{PRIMARY_COLOR}} 6%, #ffffff);
+  --fm-lavender-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 12%, #ffffff);
+  --fm-lavender-deeper: color-mix(in srgb, {{PRIMARY_COLOR}} 22%, #ffffff);
+  --fm-purple: {{PRIMARY_COLOR}};
+  --fm-purple-light: color-mix(in srgb, {{PRIMARY_COLOR}} 12%, #ffffff);
+  --fm-purple-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 82%, #000000);
+  --fm-purple-deeper: color-mix(in srgb, {{PRIMARY_COLOR}} 68%, #000000);
+  --fm-orange: {{ACCENT_COLOR}};
+  --fm-orange-light: color-mix(in srgb, {{ACCENT_COLOR}} 8%, #ffffff);
+  --fm-orange-dark: color-mix(in srgb, {{ACCENT_COLOR}} 85%, #000000);
   --fm-text: #1e1b4b;
   --fm-text-light: #6b6494;
-  --fm-pink: #f472b6;
+  --fm-pink: {{SECONDARY_COLOR}};
 
   /* Override main vars */
-  --off-white: #f5f3ff;
-  --shadow-sm: 0 2px 8px rgba(124, 58, 237, 0.06);
-  --shadow: 0 6px 24px rgba(124, 58, 237, 0.08);
-  --shadow-lg: 0 12px 40px rgba(124, 58, 237, 0.12);
+  --off-white: color-mix(in srgb, {{PRIMARY_COLOR}} 6%, #ffffff);
+  --shadow-sm: 0 2px 8px color-mix(in srgb, {{PRIMARY_COLOR}} 6%, transparent);
+  --shadow: 0 6px 24px color-mix(in srgb, {{PRIMARY_COLOR}} 8%, transparent);
+  --shadow-lg: 0 12px 40px color-mix(in srgb, {{PRIMARY_COLOR}} 12%, transparent);
 }
 
 /* ── Body ── */
@@ -62,11 +62,11 @@ p { font-family: 'Nunito', sans-serif; }
 /* ── Header / Navigation ── */
 .main-header {
   background: #fff !important;
-  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.05) !important;
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--fm-purple) 5%, transparent) !important;
 }
 
 .main-header.scrolled {
-  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.08) !important;
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--fm-purple) 8%, transparent) !important;
 }
 
 .main-nav-wrapper {
@@ -113,14 +113,14 @@ p { font-family: 'Nunito', sans-serif; }
   background: var(--fm-purple-dark) !important;
   border-color: var(--fm-purple-dark) !important;
   transform: translateY(-2px) scale(1.02) !important;
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.3) !important;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--fm-purple) 30%, transparent) !important;
 }
 
 /* Dropdown */
 .dropdown {
   border-top: 3px solid var(--fm-orange) !important;
   border-radius: 16px !important;
-  box-shadow: 0 12px 36px rgba(124, 58, 237, 0.1) !important;
+  box-shadow: 0 12px 36px color-mix(in srgb, var(--fm-purple) 10%, transparent) !important;
 }
 
 .dropdown a {
@@ -166,7 +166,7 @@ p { font-family: 'Nunito', sans-serif; }
 .btn-primary:hover {
   background: var(--fm-purple-dark) !important;
   border-color: var(--fm-purple-dark) !important;
-  box-shadow: 0 8px 28px rgba(124, 58, 237, 0.3) !important;
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--fm-purple) 30%, transparent) !important;
   transform: translateY(-3px) scale(1.02) !important;
 }
 
@@ -180,7 +180,7 @@ p { font-family: 'Nunito', sans-serif; }
 .btn-warm:hover {
   background: var(--fm-orange-dark) !important;
   border-color: var(--fm-orange-dark) !important;
-  box-shadow: 0 8px 24px rgba(251, 146, 60, 0.35) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--fm-orange) 35%, transparent) !important;
   transform: translateY(-3px) scale(1.02) !important;
 }
 
@@ -218,7 +218,7 @@ p { font-family: 'Nunito', sans-serif; }
   right: -20%;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(124, 58, 237, 0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--fm-purple) 6%, transparent) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -243,7 +243,7 @@ p { font-family: 'Nunito', sans-serif; }
   font-weight: 700 !important;
   letter-spacing: 0.04em !important;
   padding: 8px 18px !important;
-  box-shadow: 0 4px 12px rgba(251, 146, 60, 0.2);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--fm-orange) 20%, transparent);
 }
 
 .hero-split-headline {
@@ -267,7 +267,7 @@ p { font-family: 'Nunito', sans-serif; }
   left: 0;
   right: 0;
   height: 8px;
-  background: rgba(251, 146, 60, 0.25);
+  background: color-mix(in srgb, var(--fm-orange) 25%, transparent);
   border-radius: 4px;
   z-index: -1;
 }
@@ -281,7 +281,7 @@ p { font-family: 'Nunito', sans-serif; }
 
 .hero-split-photo {
   border-radius: 24px !important;
-  box-shadow: 0 24px 60px rgba(124, 58, 237, 0.15) !important;
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--fm-purple) 15%, transparent) !important;
   border: 5px solid #fff;
   transform: rotate(1deg);
   transition: transform 0.4s ease !important;
@@ -341,7 +341,7 @@ p { font-family: 'Nunito', sans-serif; }
   border: none !important;
   border-radius: 16px !important;
   padding: 32px 26px !important;
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.06) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--fm-purple) 6%, transparent) !important;
   transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
   position: relative;
   overflow: hidden;
@@ -361,7 +361,7 @@ p { font-family: 'Nunito', sans-serif; }
 }
 
 .hc-service-card:hover {
-  box-shadow: 0 16px 40px rgba(124, 58, 237, 0.12) !important;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--fm-purple) 12%, transparent) !important;
   transform: translateY(-6px) !important;
 }
 
@@ -430,7 +430,7 @@ p { font-family: 'Nunito', sans-serif; }
   background: #fff !important;
   border-radius: 16px !important;
   border: none !important;
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.06) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--fm-purple) 6%, transparent) !important;
 }
 
 .testimonial-content blockquote {
@@ -498,7 +498,7 @@ p { font-family: 'Nunito', sans-serif; }
 .hc-contact-form-wrap {
   border-radius: 20px !important;
   background: #fff !important;
-  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.08) !important;
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--fm-purple) 8%, transparent) !important;
 }
 
 form input,
@@ -514,7 +514,7 @@ form select {
 form input:focus,
 form textarea:focus {
   border-color: var(--fm-purple) !important;
-  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.08) !important;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fm-purple) 8%, transparent) !important;
 }
 
 /* ── Footer ── */
@@ -600,14 +600,14 @@ section h2 {
   background: #fff !important;
   border: none !important;
   padding: 32px 26px !important;
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.06) !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--fm-purple) 6%, transparent) !important;
   transition: all 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
 }
 
 .service-card:hover,
 .card:hover,
 .feature-card:hover {
-  box-shadow: 0 16px 40px rgba(124, 58, 237, 0.12) !important;
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--fm-purple) 12%, transparent) !important;
   transform: translateY(-6px);
 }
 
@@ -638,7 +638,7 @@ section h2 {
 
 /* ── Hero Video ── */
 .hero-video .hero-overlay {
-  background: linear-gradient(135deg, rgba(30, 27, 75, 0.6) 0%, rgba(124, 58, 237, 0.4) 100%) !important;
+  background: linear-gradient(135deg, rgba(30, 27, 75, 0.6) 0%, color-mix(in srgb, var(--fm-purple) 40%, transparent) 100%) !important;
 }
 
 .hero-video-content h1 {
