@@ -19,14 +19,14 @@
   --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
   --shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.12);
-  --off-white: #f7f8fb;
-  --corp-navy: #1e3a5f;
-  --corp-navy-dark: #152d4a;
-  --corp-navy-light: #2a5280;
-  --corp-slate: #4a6a8a;
-  --corp-blue-mist: #e8eef5;
-  --corp-gold: #c9a96e;
-  --corp-border: #d8dfe8;
+  --off-white: color-mix(in srgb, {{PRIMARY_COLOR}} 5%, #ffffff);
+  --corp-navy: {{PRIMARY_COLOR}};
+  --corp-navy-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 78%, #000000);
+  --corp-navy-light: color-mix(in srgb, {{PRIMARY_COLOR}} 80%, #ffffff);
+  --corp-slate: color-mix(in srgb, {{PRIMARY_COLOR}} 62%, #ffffff);
+  --corp-blue-mist: color-mix(in srgb, {{PRIMARY_COLOR}} 9%, #ffffff);
+  --corp-gold: {{ACCENT_COLOR}};
+  --corp-border: color-mix(in srgb, {{PRIMARY_COLOR}} 18%, #ffffff);
 }
 
 /* ── Body ──────────────────────────────────────────────── */
@@ -124,7 +124,7 @@ p {
 
 .main-header .header-top-right .btn:hover {
   background: var(--corp-navy-light) !important;
-  box-shadow: 0 4px 12px rgba(30, 58, 95, 0.25);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--corp-navy) 25%, transparent);
 }
 
 /* Row 2: Services bar — navy */
@@ -197,9 +197,9 @@ p {
 .hero-overlay {
   background: linear-gradient(
     160deg,
-    rgba(21, 45, 74, 0.88) 0%,
-    rgba(30, 58, 95, 0.78) 40%,
-    rgba(42, 82, 128, 0.65) 100%
+    color-mix(in srgb, var(--corp-navy-dark) 88%, transparent) 0%,
+    color-mix(in srgb, var(--corp-navy) 78%, transparent) 40%,
+    color-mix(in srgb, var(--corp-navy-light) 65%, transparent) 100%
   ) !important;
 }
 
@@ -254,7 +254,7 @@ button[type="submit"] {
 .hero-cta:hover,
 button[type="submit"]:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 6px 20px rgba(30, 58, 95, 0.25) !important;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--corp-navy) 25%, transparent) !important;
 }
 
 .btn-secondary,
@@ -571,7 +571,7 @@ form select {
 form input:focus,
 form textarea:focus {
   border-color: var(--corp-navy) !important;
-  box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.08) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--corp-navy) 8%, transparent) !important;
   outline: none;
 }
 
