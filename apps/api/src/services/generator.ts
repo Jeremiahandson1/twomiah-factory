@@ -69,7 +69,10 @@ const TEXT_EXTS = new Set([
   '.prisma', '.template', '.mjs', '.toml',
 ])
 
-const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', 'bun.lock', '.DS_Store', 'dist']
+// composition-a/b.html are premium-template DESIGN-REFERENCE mockups of a
+// fictional sample business — never served (404 on tenants) and not per-tenant
+// rendered. Don't ship them: a fake company's page has no place in a customer's site.
+const SKIP_PATTERNS = ['node_modules', '.git', 'package-lock.json', 'bun.lock', '.DS_Store', 'dist', 'composition-a.html', 'composition-b.html']
 
 export interface GenerateConfig {
   tenant_id?: string
