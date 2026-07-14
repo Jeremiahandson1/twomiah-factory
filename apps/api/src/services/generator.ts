@@ -239,7 +239,11 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // Inject website theme if specified
       const theme = config.websiteTheme || config.branding?.websiteTheme
       if (theme) {
-        const themeCssPath = path.join(TEMPLATES_ROOT, websiteTemplate, 'build', 'styles', 'themes', `${theme}.css`)
+        // Read the ALREADY-COPIED theme file (workDir), not the raw source: themes
+        // now use {{PRIMARY_COLOR}}/{{ACCENT_COLOR}} brand tokens, and only the copy
+        // has been token-replaced by copyTemplate. Appending the raw source would put
+        // literal {{...}} into main.css.
+        const themeCssPath = path.join(workDir, 'website', 'build', 'styles', 'themes', `${theme}.css`)
         if (fs.existsSync(themeCssPath)) {
           const themeCss = fs.readFileSync(themeCssPath, 'utf8')
           const mainCssPath = path.join(workDir, 'website', 'build', 'styles', 'main.css')
@@ -790,6 +794,37 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
     for (const file of fs.readdirSync(routesDir)) {
       if (neededRoutes.has(file)) continue
       fs.unlinkSync(path.join(routesDir, file))
+    }
+  }
+
+  // Follow service→service imports transitively, so a service that's only needed by
+  // another KEPT service isn't pruned (e.g. catalogFeed.ts imports ./wpsFeed.ts).
+  // Iterate to a fixed point. Adding names is harmless (deletion only removes real files).
+  const servicesDirScan = path.join(crmDir, 'backend', 'src', 'services')
+  if (fs.existsSync(servicesDirScan)) {
+    const depPatterns = [
+      /from '\.\/([^'/]+\.ts)'/g,                       // same-dir: from './wpsFeed.ts'
+      /import\('\.\/([^'/]+\.ts)'\)/g,                  // same-dir dynamic
+      /from '(?:\.\.\/|\.\/)services\/([^']+)'/g,       // subpath: from '../services/foo.ts'
+      /import\('(?:\.\.\/|\.\/)services\/([^']+)'\)/g,  // subpath dynamic
+    ]
+    let added = true
+    while (added) {
+      added = false
+      for (const svc of Array.from(neededServices)) {
+        const svcPath = path.join(servicesDirScan, svc)
+        if (!fs.existsSync(svcPath)) continue
+        let content: string
+        try { content = fs.readFileSync(svcPath, 'utf8') } catch { continue }
+        for (const re of depPatterns) {
+          let mm: RegExpExecArray | null
+          re.lastIndex = 0
+          while ((mm = re.exec(content))) {
+            const dep = mm[1]
+            if (dep && !neededServices.has(dep)) { neededServices.add(dep); added = true }
+          }
+        }
+      }
     }
   }
 
