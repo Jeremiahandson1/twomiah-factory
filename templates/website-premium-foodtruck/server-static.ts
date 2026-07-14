@@ -126,6 +126,12 @@ app.get('/.well-known/security.txt', (c) => {
 app.use('/styles/*', serveStatic({ root: './build' }))
 app.use('/scripts/*', serveStatic({ root: './build' }))
 app.use('/uploads/*', serveStatic({ root: '.' }))
+// Favicon + synthesized logo (build/favicon.svg, build/images/logo.svg) — makes the
+// browser-tab icon + og:image resolve. serveStatic 404s through when absent.
+app.use('/favicon.svg', serveStatic({ root: './build' }))
+app.use('/favicon.png', serveStatic({ root: './build' }))
+app.use('/favicon.ico', serveStatic({ root: './build' }))
+app.use('/images/*', serveStatic({ root: './build' }))
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const viewsDir = path.join(__dirname, 'views')
@@ -1011,7 +1017,7 @@ app.post('/booking/:token/cancel', async (c) => {
 // Match a single slug (no slashes, not an api/admin/uploads/styles/scripts prefix).
 app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
-  if (['api', 'admin', 'uploads', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
+  if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
   if (!html) return c.notFound()
   return c.html(html)

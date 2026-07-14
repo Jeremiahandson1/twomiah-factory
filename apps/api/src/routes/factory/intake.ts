@@ -1534,6 +1534,17 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     seoTitle: tenant.name,
     seoDescription: tenant.name + ' — Premium website',
     contactCtaLabel: 'Get in touch',
+    // Favicon + logo for the premium head's <link rel="icon"> and og:image.
+    // The settings row is seeded ONCE at first boot, so we point at the local
+    // assets the generator ALWAYS writes into the site's build/ dir:
+    // build/favicon.svg and build/images/logo.svg. We deliberately do NOT sign
+    // a remote R2 URL here — the intake flow never captures a favicon, uploaded
+    // logos are copied into the tenant's own R2 as section photos (not a stable
+    // settings URL), and any signed URL would expire while this row lives
+    // forever. Local paths never 404 and never expire, so they're the robust
+    // default. (Templates serve /favicon.svg from build/ via server-static.)
+    faviconUrl: '/favicon.svg',
+    logoUrl: '/images/logo.svg',
     // Nav derived from the page set the composer actually produced —
     // food trucks get Menu/Find us/Catering, generic verticals get
     // Services/About. Same buildPremiumNav helper used by the preview

@@ -37,6 +37,8 @@ interface BootstrapPayload {
     seoTitle?: string
     seoDescription?: string
     contactCtaLabel?: string
+    faviconUrl?: string | null
+    logoUrl?: string | null
     nav?: Array<{ label: string; href: string }>
   }
   pages: Array<{
@@ -135,6 +137,8 @@ async function main() {
       seoTitle: payload.settings.seoTitle || null,
       seoDescription: payload.settings.seoDescription || null,
       contactCtaLabel: payload.settings.contactCtaLabel || 'Get in touch',
+      faviconUrl: payload.settings.faviconUrl || null,
+      logoUrl: payload.settings.logoUrl || null,
       nav: payload.settings.nav || [],
     })
     console.log('[initDb] Created initial settings row.')
