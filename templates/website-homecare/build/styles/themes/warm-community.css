@@ -15,18 +15,20 @@
   --font-body: 'Lora', serif;
   --border-radius: 14px;
 
-  /* Palette */
+  /* Palette — driven by the TENANT's brand colors (was hardcoded rose/sage).
+     PRIMARY fills the lead accent role, SECONDARY the supporting role, ACCENT
+     the highlights; creams + text stay neutral so any brand reads warm + legible. */
   --wc-cream: #fdf8f4;
   --wc-cream-dark: #f7efe6;
-  --wc-rose: #be185d;
-  --wc-rose-light: #fce7f3;
-  --wc-rose-dark: #9d174d;
-  --wc-sage: #6b8e6b;
-  --wc-sage-light: #e8f0e8;
-  --wc-sage-dark: #4a6e4a;
+  --wc-rose: {{PRIMARY_COLOR}};
+  --wc-rose-light: color-mix(in srgb, {{PRIMARY_COLOR}} 14%, #ffffff);
+  --wc-rose-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 74%, #000000);
+  --wc-sage: {{SECONDARY_COLOR}};
+  --wc-sage-light: color-mix(in srgb, {{SECONDARY_COLOR}} 14%, #ffffff);
+  --wc-sage-dark: color-mix(in srgb, {{SECONDARY_COLOR}} 72%, #000000);
   --wc-text: #3b2415;
   --wc-text-light: #6b5744;
-  --wc-warm-gold: #d4a574;
+  --wc-warm-gold: {{ACCENT_COLOR}};
 
   /* Override main vars */
   --off-white: #fdf8f4;
