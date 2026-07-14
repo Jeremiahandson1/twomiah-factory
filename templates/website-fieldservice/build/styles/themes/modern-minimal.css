@@ -30,7 +30,7 @@
   --cool-gray-600: #475569;
   --cool-gray-700: #334155;
   --cool-gray-800: #1e293b;
-  --accent-bar: #3b82f6;
+  --accent-bar: var(--color-primary, #3b82f6);
 }
 
 /* ── Body ── */

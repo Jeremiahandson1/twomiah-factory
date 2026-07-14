@@ -22,7 +22,7 @@
   --off-white: #e8e8e8;
   --industrial-yellow: var(--gold, #f5a623);
   --industrial-orange: var(--gold, #e8740c);
-  --industrial-red: var(--accent, #c0392b);
+  --industrial-red: var(--accent, {{ACCENT_COLOR}});
   --dark-bg: #1a1a1a;
   --darker-bg: #111111;
   --steel-gray: #2a2a2a;
