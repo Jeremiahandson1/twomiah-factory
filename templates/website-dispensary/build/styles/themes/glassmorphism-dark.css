@@ -15,9 +15,9 @@
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Space Grotesk', sans-serif;
   --border-radius: 16px;
-  --shadow-sm: 0 2px 8px rgba(124, 58, 237, 0.08);
-  --shadow: 0 8px 32px rgba(124, 58, 237, 0.12);
-  --shadow-lg: 0 16px 48px rgba(124, 58, 237, 0.18);
+  --shadow-sm: 0 2px 8px color-mix(in srgb, var(--gd-purple) 8%, transparent);
+  --shadow: 0 8px 32px color-mix(in srgb, var(--gd-purple) 12%, transparent);
+  --shadow-lg: 0 16px 48px color-mix(in srgb, var(--gd-purple) 18%, transparent);
 
   /* Dark palette */
   --gd-bg: #0a0a0a;
@@ -26,15 +26,15 @@
   --gd-border: rgba(255, 255, 255, 0.06);
   --gd-text: #e8e8e8;
   --gd-text-muted: #888888;
-  --gd-purple: #7c3aed;
-  --gd-purple-light: #a855f7;
-  --gd-gold: #fbbf24;
-  --gd-gold-light: #fcd34d;
+  --gd-purple: {{PRIMARY_COLOR}};
+  --gd-purple-light: color-mix(in srgb, {{PRIMARY_COLOR}} 55%, #ffffff);
+  --gd-gold: {{ACCENT_COLOR}};
+  --gd-gold-light: color-mix(in srgb, {{ACCENT_COLOR}} 70%, #ffffff);
   --gd-glass-bg: rgba(255, 255, 255, 0.04);
   --gd-glass-border: rgba(255, 255, 255, 0.08);
   --gd-glass-hover: rgba(255, 255, 255, 0.07);
-  --gd-gradient: linear-gradient(135deg, #7c3aed, #a855f7);
-  --gd-gradient-gold: linear-gradient(135deg, #fbbf24, #f59e0b);
+  --gd-gradient: linear-gradient(135deg, {{PRIMARY_COLOR}}, color-mix(in srgb, {{PRIMARY_COLOR}} 55%, #ffffff));
+  --gd-gradient-gold: linear-gradient(135deg, {{ACCENT_COLOR}}, color-mix(in srgb, {{ACCENT_COLOR}} 80%, #000000));
 }
 
 /* ── Body ── */
@@ -50,8 +50,8 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(124, 58, 237, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 70%, rgba(168, 85, 247, 0.04) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 50% at 20% 40%, color-mix(in srgb, var(--gd-purple) 6%, transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 70%, color-mix(in srgb, var(--gd-purple-light) 4%, transparent) 0%, transparent 50%);
   pointer-events: none;
   z-index: 0;
 }
@@ -123,7 +123,7 @@ p, li, span, a {
 
 .services-nav ul > li > a:hover {
   color: #ffffff !important;
-  background: rgba(124, 58, 237, 0.15) !important;
+  background: color-mix(in srgb, var(--gd-purple) 15%, transparent) !important;
 }
 
 .services-nav .dropdown {
@@ -140,7 +140,7 @@ p, li, span, a {
 
 .services-nav .dropdown a:hover {
   color: var(--gd-purple-light) !important;
-  background: rgba(124, 58, 237, 0.1) !important;
+  background: color-mix(in srgb, var(--gd-purple) 10%, transparent) !important;
 }
 
 .nav-toggle .bar {
@@ -235,7 +235,7 @@ button[type="submit"] {
   font-weight: 600;
   font-size: 0.95rem;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.3);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--gd-purple) 30%, transparent);
   position: relative;
   overflow: hidden;
 }
@@ -253,7 +253,7 @@ button[type="submit"]::before {
 .btn-primary:hover,
 button[type="submit"]:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.5) !important;
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--gd-purple) 50%, transparent) !important;
 }
 
 .btn-primary:hover::before,
@@ -276,8 +276,8 @@ button[type="submit"]:hover::before {
 .btn-outline:hover,
 .btn-outline-light:hover {
   border-color: var(--gd-purple-light) !important;
-  background: rgba(124, 58, 237, 0.1) !important;
-  box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
+  background: color-mix(in srgb, var(--gd-purple) 10%, transparent) !important;
+  box-shadow: 0 0 20px color-mix(in srgb, var(--gd-purple) 20%, transparent);
 }
 
 /* ── Glass Cards ── */
@@ -304,10 +304,10 @@ button[type="submit"]:hover::before {
 .feature-badge:hover,
 .why-item:hover {
   background: var(--gd-glass-hover) !important;
-  border-color: rgba(124, 58, 237, 0.2) !important;
+  border-color: color-mix(in srgb, var(--gd-purple) 20%, transparent) !important;
   box-shadow:
     0 8px 40px rgba(0, 0, 0, 0.3),
-    0 0 30px rgba(124, 58, 237, 0.08);
+    0 0 30px color-mix(in srgb, var(--gd-purple) 8%, transparent);
   transform: translateY(-4px);
 }
 
@@ -360,7 +360,7 @@ button[type="submit"]:hover::before {
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--gd-glass-border);
   border-radius: 20px !important;
-  box-shadow: 0 20px 60px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 20px 60px color-mix(in srgb, var(--gd-purple) 15%, transparent);
 }
 
 .age-overlay-card h2 {
@@ -524,9 +524,9 @@ button[type="submit"]:hover::before {
 
 /* ── CTA Section ── */
 .cta-section {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(168, 85, 247, 0.08)) !important;
-  border-top: 1px solid rgba(124, 58, 237, 0.2);
-  border-bottom: 1px solid rgba(124, 58, 237, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--gd-purple) 15%, transparent), color-mix(in srgb, var(--gd-purple-light) 8%, transparent)) !important;
+  border-top: 1px solid color-mix(in srgb, var(--gd-purple) 20%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--gd-purple) 20%, transparent);
 }
 
 .cta-section h2 {
@@ -576,7 +576,7 @@ button[type="submit"]:hover::before {
 }
 
 .home-faq-item[open] {
-  border-color: rgba(124, 58, 237, 0.2) !important;
+  border-color: color-mix(in srgb, var(--gd-purple) 20%, transparent) !important;
 }
 
 /* ── Contact Section ── */
@@ -643,7 +643,7 @@ form textarea::placeholder {
 form input:focus,
 form textarea:focus {
   border-color: var(--gd-purple) !important;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gd-purple) 15%, transparent) !important;
   outline: none;
   background: rgba(255, 255, 255, 0.06) !important;
 }
@@ -771,7 +771,7 @@ form label {
 }
 
 .strain-badge {
-  background: rgba(124, 58, 237, 0.15) !important;
+  background: color-mix(in srgb, var(--gd-purple) 15%, transparent) !important;
   color: var(--gd-purple-light) !important;
   border-radius: 8px;
   padding: 4px 10px;
@@ -779,8 +779,8 @@ form label {
 
 /* ── Animations ── */
 @keyframes gd-glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(124, 58, 237, 0.1); }
-  50% { box-shadow: 0 0 40px rgba(124, 58, 237, 0.2); }
+  0%, 100% { box-shadow: 0 0 20px color-mix(in srgb, var(--gd-purple) 10%, transparent); }
+  50% { box-shadow: 0 0 40px color-mix(in srgb, var(--gd-purple) 20%, transparent); }
 }
 
 @keyframes gd-gradient-shift {
@@ -817,7 +817,7 @@ a, button, .btn, .card, .service-card, .glass-card {
 
 /* ── Selection color ── */
 ::selection {
-  background: rgba(124, 58, 237, 0.3);
+  background: color-mix(in srgb, var(--gd-purple) 30%, transparent);
   color: #ffffff;
 }
 
@@ -831,12 +831,12 @@ a, button, .btn, .card, .service-card, .glass-card {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(124, 58, 237, 0.3);
+  background: color-mix(in srgb, var(--gd-purple) 30%, transparent);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(124, 58, 237, 0.5);
+  background: color-mix(in srgb, var(--gd-purple) 50%, transparent);
 }
 
 /* ── Live Status Badge ── */
