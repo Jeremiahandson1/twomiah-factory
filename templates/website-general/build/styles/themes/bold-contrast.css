@@ -26,10 +26,10 @@
   --bc-near-black: #0a0a0a;
   --bc-dark: #111111;
   --bc-white: #ffffff;
-  --bc-neon: #f43f5e;
-  --bc-neon-light: #fb7185;
-  --bc-neon-dark: #e11d48;
-  --bc-neon-glow: rgba(244, 63, 94, 0.15);
+  --bc-neon: {{PRIMARY_COLOR}};
+  --bc-neon-light: color-mix(in srgb, {{PRIMARY_COLOR}} 70%, #ffffff);
+  --bc-neon-dark: color-mix(in srgb, {{PRIMARY_COLOR}} 80%, #000000);
+  --bc-neon-glow: color-mix(in srgb, {{PRIMARY_COLOR}} 15%, transparent);
   --bc-gray: #a1a1aa;
   --bc-gray-dark: #52525b;
   --bc-gray-light: #e4e4e7;
