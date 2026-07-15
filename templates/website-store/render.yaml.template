@@ -1,0 +1,21 @@
+# Render Blueprint — {{COMPANY_NAME}} storefront (Next.js web service).
+# DB-free: reads the catalog + checkout from the crm-store backend PUBLIC API.
+
+services:
+  - type: web
+    runtime: node
+    name: {{COMPANY_SLUG}}-site
+    rootDir: website-store
+    plan: starter
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: CRM_STORE_API_URL
+        value: {{BACKEND_URL}}
+      - key: BASE_URL
+        value: {{SITE_URL}}
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000

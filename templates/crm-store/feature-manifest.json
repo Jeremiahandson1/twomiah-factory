@@ -1,0 +1,46 @@
+{
+  "_comment": "Twomiah Store — E-commerce back-office (crm-store) feature manifest. Everything is core; nothing is prunable in Phase 1.",
+
+  "core": {
+    "_comment": "Always included — cannot be disabled",
+    "features": ["catalog", "orders", "customers", "payments", "settings", "storefront_api"],
+    "backend": {
+      "routes": ["auth.ts", "public.ts", "products.ts", "orders.ts", "settings.ts", "payments.ts"],
+      "services": ["logger.ts"],
+      "middleware": ["auth.ts"],
+      "lib": ["crypto.ts", "money.ts"],
+      "payments": ["index.ts", "types.ts", "stripe.ts"]
+    },
+    "frontend": {
+      "pages": ["LoginPage.tsx", "DashboardPage.tsx", "ProductsPage.tsx", "ProductEditPage.tsx", "OrdersPage.tsx", "OrderDetailPage.tsx", "CustomersPage.tsx", "PaymentsPage.tsx", "SettingsPage.tsx"],
+      "components": ["layout/", "ui/"]
+    },
+    "sidebar": [
+      { "id": "dashboard", "label": "Dashboard", "icon": "Home", "path": "/" },
+      { "id": "products", "label": "Products", "icon": "Package", "path": "/products" },
+      { "id": "orders", "label": "Orders", "icon": "ShoppingBag", "path": "/orders" },
+      { "id": "customers", "label": "Customers", "icon": "Users", "path": "/customers" },
+      { "id": "payments", "label": "Payments", "icon": "CreditCard", "path": "/payments" },
+      { "id": "settings", "label": "Settings", "icon": "Settings", "path": "/settings" }
+    ]
+  },
+
+  "features": {},
+
+  "deployment": {
+    "buildCommand": "bun install && cd ../frontend && bun install && VITE_API_URL=\"\" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend",
+    "startCommand": "bun db/migrate.ts && bun db/seed.ts && bun src/index.ts",
+    "seed": {
+      "storeSettings": {
+        "companyName": "{{COMPANY_NAME}}",
+        "supportEmail": "{{COMPANY_EMAIL}}",
+        "storefrontOrigin": "{{SITE_URL}}"
+      },
+      "adminUser": {
+        "email": "{{ADMIN_EMAIL}}",
+        "password": "{{HASHED_DEFAULT_PASSWORD}}",
+        "role": "owner"
+      }
+    }
+  }
+}

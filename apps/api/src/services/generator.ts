@@ -177,12 +177,31 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
   try {
     const products = config.products || []
 
-    // Auto-include CMS when website is selected so the admin dashboard is always bundled
-    if (products.includes('website') && !products.includes('cms')) {
+    // Auto-include CMS when website is selected so the admin dashboard is always bundled.
+    // EXCEPT for store tenants: the storefront (website-store) is a headless
+    // Next.js app whose admin is crm-store, so it never gets the CMS overlay.
+    if (products.includes('website') && !products.includes('cms')
+        && verticalFor(config.company?.industry || '') !== 'store') {
       products.push('cms')
     }
 
-    if (products.includes('website')) {
+    // ── Store storefront (Next.js) ──────────────────────────────────────────
+    // Handled BEFORE the EJS website block: it's a different build shape, so
+    // none of the EJS post-processors (CSS inject, theme append, feature strip,
+    // wizard content, image fill, help articles, CMS overlay) apply. It reads
+    // its catalog at runtime from the crm-store PUBLIC API.
+    if (products.includes('website') && verticalFor(config.company?.industry || '') === 'store') {
+      copyTemplate('website-store', path.join(workDir, 'website-store'), tokens)
+      await writeBrandingAssets(path.join(workDir, 'website-store', 'public'), config.branding, config.company?.name)
+      processEnvTemplate(path.join(workDir, 'website-store'), tokens)
+      const storeRenderTemplate = path.join(workDir, 'website-store', 'render.yaml.template')
+      if (fs.existsSync(storeRenderTemplate)) {
+        const renderContent = injectTokens(fs.readFileSync(storeRenderTemplate, 'utf8'), tokens)
+        fs.writeFileSync(path.join(workDir, 'render.yaml'), renderContent, 'utf8')
+        fs.writeFileSync(path.join(workDir, 'website-store', 'render.yaml'), renderContent, 'utf8')
+        fs.unlinkSync(storeRenderTemplate)
+      }
+    } else if (products.includes('website')) {
       const industry = config.company?.industry || ''
 
       // Premium tier — section-composition templates with AI-driven layout.
@@ -448,6 +467,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
   const b = config.branding || {}
   const industry = c.industry || ''
   const industryLabel = INDUSTRY_LABELS[industry] || industry.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Contractor'
+  const isStore = verticalFor(industry) === 'store'
 
   const ownerParts = (c.ownerName || 'Admin User').split(' ')
   const firstName = ownerParts[0] || 'Admin'
@@ -515,7 +535,9 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       ? 'https://' + slug + '-drive-api.onrender.com'
       : 'https://' + buildCrmApiHost(slug, industry),
     '{{INDUSTRY}}': industryLabel,
-    '{{META_DESCRIPTION}}': industry === 'home_care'
+    '{{META_DESCRIPTION}}': isStore
+      ? 'Shop ' + (c.name || 'our store') + ' online — quality products with fast, secure checkout.'
+      : industry === 'home_care'
       ? 'Professional in-home care services in ' + (c.city || 'your area') + '. Licensed, insured, compassionate caregivers.'
       : industry === 'field_service'
       ? 'Professional HVAC and plumbing services in ' + (c.city || 'your area') + '. 24/7 emergency service, installations, repairs, and maintenance contracts.'
@@ -526,8 +548,10 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       : 'Professional services in ' + (c.city || 'your area') + '.',
     '{{HERO_TAGLINE}}': config.content?.heroTagline || c.heroTagline || (industry === 'home_care' ? 'VA APPROVED PROVIDER' : industry === 'field_service' ? 'Your Trusted HVAC & Plumbing Professionals' : industry === 'automotive' ? 'Your Trusted Dealership' : industry === 'dispensary' ? 'Premium Cannabis Products' : 'Trusted ' + industryLabel),
     '{{HERO_BADGE}}': config.content?.heroTagline || (industry === 'home_care' ? 'Compassionate In-Home Care' : industry === 'dispensary' ? 'Licensed Dispensary' : 'Licensed & Insured'),
-    '{{HERO_TITLE}}': industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : industry === 'dispensary' ? (c.name || 'Your Dispensary') + ' — Premium Cannabis' : (c.name || 'Your Company') + ' — Quality You Can Trust',
-    '{{HERO_DESCRIPTION}}': industry === 'home_care'
+    '{{HERO_TITLE}}': isStore ? (c.name || 'Our Store') : industry === 'home_care' ? 'Compassionate Home Care for Your Loved Ones' : industry === 'dispensary' ? (c.name || 'Your Dispensary') + ' — Premium Cannabis' : (c.name || 'Your Company') + ' — Quality You Can Trust',
+    '{{HERO_DESCRIPTION}}': isStore
+      ? 'Quality products, fast shipping, and secure checkout.'
+      : industry === 'home_care'
       ? 'Helping families in ' + (c.city || 'your area') + ' with personalized, professional in-home care.'
       : industry === 'dispensary'
       ? 'Premium flower, edibles, concentrates, and more in ' + (c.city || 'your area') + '. Order online for pickup or delivery.'
@@ -553,7 +577,7 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     '{{ADMIN_EMAIL}}': c.adminEmail || c.email || 'admin@' + slug + '.com',
     '{{DEFAULT_PASSWORD}}': defaultPassword,
     '{{HASHED_DEFAULT_PASSWORD}}': bcrypt.hashSync(defaultPassword, 10),
-    '{{PRIMARY_COLOR}}': b.primaryColor || (industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
+    '{{PRIMARY_COLOR}}': b.primaryColor || (isStore ? '#4f46e5' : industry === 'home_care' ? '#009688' : industry === 'automotive' ? '#1e40af' : industry === 'dispensary' ? '#16a34a' : '#f97316'),
     '{{SECONDARY_COLOR}}': ensureDark(b.secondaryColor || (industry === 'home_care' ? '#004d40' : industry === 'automotive' ? '#111827' : industry === 'dispensary' ? '#14532d' : '#1e3a5f')),
     '{{ACCENT_COLOR}}': b.accentColor || '#f59e0b',
     '{{OFF_WHITE_COLOR}}': industry === 'home_care' ? '#f0fdf9' : industry === 'dispensary' ? '#f0fdf4' : '#f8f9fa',
@@ -564,6 +588,9 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
       return prods
     })()),
     '{{CMS_URL}}': ((config.products || []).includes('website') || (config.products || []).includes('cms')) ? 'https://' + slug + '-site.onrender.com/admin' : '',
+    // Storefront cart localStorage key — unique per tenant so multiple stores
+    // opened in one browser don't share a cart.
+    '{{CART_STORAGE_KEY}}': slug + '-cart',
     '{{JWT_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{JWT_REFRESH_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{ENCRYPTION_KEY}}': crypto.randomBytes(32).toString('hex'),

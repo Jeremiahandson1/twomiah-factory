@@ -1,0 +1,214 @@
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft, Trash2, Plus, Star, StarOff } from 'lucide-react'
+import api, { Product, ProductVariant } from '../services/api'
+import { useToast } from '../contexts/ToastContext'
+import { dollarsToCents, centsToDollars, money } from '../lib/format'
+
+const BLANK = {
+  name: '', tagline: '', description: '', status: 'draft' as const,
+  featured: false, leadTimeDays: null as number | null, seoTitle: '', seoDescription: '',
+}
+
+export default function ProductEditPage() {
+  const { id } = useParams()
+  const isNew = !id
+  const navigate = useNavigate()
+  const { toast } = useToast()
+
+  const [form, setForm] = useState<any>(BLANK)
+  const [product, setProduct] = useState<Product | null>(null)
+  const [loading, setLoading] = useState(!isNew)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (isNew) return
+    api.getProduct(id!).then((p) => { setProduct(p); setForm(p) }).catch(() => toast('Could not load product', 'error')).finally(() => setLoading(false))
+  }, [id])
+
+  const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }))
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const body = {
+        name: form.name, tagline: form.tagline, description: form.description,
+        status: form.status, featured: form.featured,
+        leadTimeDays: form.leadTimeDays === '' ? null : form.leadTimeDays,
+        seoTitle: form.seoTitle, seoDescription: form.seoDescription,
+      }
+      if (isNew) {
+        const created = await api.createProduct(body)
+        toast('Product created — now add variants and photos')
+        navigate(`/products/${created.id}`, { replace: true })
+      } else {
+        const updated = await api.updateProduct(id!, body)
+        setProduct((p) => p ? { ...p, ...updated } : p)
+        toast('Saved')
+      }
+    } catch (e: any) { toast(e?.message || 'Save failed', 'error') } finally { setSaving(false) }
+  }
+
+  const remove = async () => {
+    if (!confirm('Delete this product? This cannot be undone.')) return
+    await api.deleteProduct(id!)
+    toast('Product deleted')
+    navigate('/products')
+  }
+
+  const reloadProduct = async () => { if (id) setProduct(await api.getProduct(id)) }
+
+  if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary-500" /></div>
+
+  return (
+    <div className="max-w-3xl space-y-6">
+      <div className="flex items-center justify-between">
+        <Link to="/products" className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"><ArrowLeft className="h-4 w-4" /> Products</Link>
+        {!isNew && <button onClick={remove} className="text-sm text-red-600 flex items-center gap-1"><Trash2 className="h-4 w-4" /> Delete</button>}
+      </div>
+
+      <h1 className="text-2xl font-bold text-gray-900">{isNew ? 'New product' : form.name}</h1>
+
+      {/* Details */}
+      <div className="card p-5 space-y-4">
+        <div>
+          <label className="label">Name</label>
+          <input className="input" value={form.name || ''} onChange={(e) => set('name', e.target.value)} placeholder="Product name" />
+        </div>
+        <div>
+          <label className="label">Tagline</label>
+          <input className="input" value={form.tagline || ''} onChange={(e) => set('tagline', e.target.value)} placeholder="Short one-liner" />
+        </div>
+        <div>
+          <label className="label">Description</label>
+          <textarea className="input min-h-[120px]" value={form.description || ''} onChange={(e) => set('description', e.target.value)} />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="label">Status</label>
+            <select className="input" value={form.status} onChange={(e) => set('status', e.target.value)}>
+              <option value="draft">Draft (hidden)</option>
+              <option value="active">Active (live)</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Lead time (days)</label>
+            <input className="input" type="number" value={form.leadTimeDays ?? ''} onChange={(e) => set('leadTimeDays', e.target.value === '' ? null : Number(e.target.value))} placeholder="Optional" />
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={!!form.featured} onChange={(e) => set('featured', e.target.checked)} /> Feature on storefront home
+        </label>
+        <button onClick={save} className="btn-primary" disabled={saving || !form.name}>{saving ? 'Saving…' : isNew ? 'Create product' : 'Save changes'}</button>
+      </div>
+
+      {isNew ? (
+        <p className="text-sm text-gray-500">Save the product first, then add variants (prices) and photos.</p>
+      ) : (
+        <>
+          <VariantsSection product={product!} onChange={reloadProduct} />
+          <ImagesSection product={product!} onChange={reloadProduct} />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Variants ─────────────────────────────────────────────────────────────────
+function VariantsSection({ product, onChange }: { product: Product; onChange: () => void }) {
+  const { toast } = useToast()
+  const [adding, setAdding] = useState(false)
+  const blank = { sku: '', name: 'Default', price: '', inventory: '' }
+  const [draft, setDraft] = useState(blank)
+
+  const add = async () => {
+    try {
+      await api.addVariant(product.id, {
+        sku: draft.sku, name: draft.name || 'Default',
+        priceCents: dollarsToCents(draft.price),
+        inventoryQty: draft.inventory === '' ? null : Number(draft.inventory),
+      })
+      setDraft(blank); setAdding(false); onChange(); toast('Variant added')
+    } catch (e: any) { toast(e?.message || 'Could not add variant', 'error') }
+  }
+  const del = async (v: ProductVariant) => { if (!confirm(`Delete variant ${v.sku}?`)) return; await api.deleteVariant(v.id); onChange() }
+  const updatePrice = async (v: ProductVariant, dollars: string) => { await api.updateVariant(v.id, { priceCents: dollarsToCents(dollars) }); onChange() }
+  const updateInv = async (v: ProductVariant, qty: string) => { await api.updateVariant(v.id, { inventoryQty: qty === '' ? null : Number(qty) }); onChange() }
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-gray-900">Variants & pricing</h2>
+        {!adding && <button onClick={() => setAdding(true)} className="btn-secondary text-xs"><Plus className="h-3 w-3" /> Add variant</button>}
+      </div>
+      {product.variants.length === 0 && !adding && <p className="text-sm text-gray-500">Add at least one variant so the product can be sold.</p>}
+      <div className="space-y-2">
+        {product.variants.map((v) => (
+          <div key={v.id} className="flex items-center gap-2 text-sm">
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-gray-900 truncate">{v.name}</div>
+              <div className="text-xs text-gray-400">{v.sku}</div>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-400">$</span>
+              <input className="input w-24 py-1" defaultValue={centsToDollars(v.priceCents)} onBlur={(e) => updatePrice(v, e.target.value)} />
+            </div>
+            <input className="input w-20 py-1" placeholder="∞" defaultValue={v.inventoryQty ?? ''} onBlur={(e) => updateInv(v, e.target.value)} title="Inventory (blank = untracked)" />
+            <button onClick={() => del(v)} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+          </div>
+        ))}
+      </div>
+      {adding && (
+        <div className="mt-3 grid grid-cols-2 gap-2 border-t pt-3">
+          <input className="input" placeholder="SKU (e.g. TSHIRT-M)" value={draft.sku} onChange={(e) => setDraft({ ...draft, sku: e.target.value })} />
+          <input className="input" placeholder="Name (e.g. Medium)" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <input className="input" placeholder="Price (e.g. 24.99)" value={draft.price} onChange={(e) => setDraft({ ...draft, price: e.target.value })} />
+          <input className="input" placeholder="Inventory (blank = ∞)" value={draft.inventory} onChange={(e) => setDraft({ ...draft, inventory: e.target.value })} />
+          <div className="col-span-2 flex gap-2">
+            <button onClick={add} className="btn-primary text-xs" disabled={!draft.sku || !draft.price}>Add</button>
+            <button onClick={() => { setAdding(false); setDraft(blank) }} className="btn-secondary text-xs">Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Images ───────────────────────────────────────────────────────────────────
+function ImagesSection({ product, onChange }: { product: Product; onChange: () => void }) {
+  const { toast } = useToast()
+  const [url, setUrl] = useState('')
+
+  const add = async () => {
+    try {
+      await api.addImage(product.id, { url, isPrimary: product.images.length === 0 })
+      setUrl(''); onChange(); toast('Image added')
+    } catch (e: any) { toast(e?.message || 'Could not add image', 'error') }
+  }
+  const makePrimary = async (imageId: string) => { await api.updateImage(imageId, { isPrimary: true }); onChange() }
+  const del = async (imageId: string) => { await api.deleteImage(imageId); onChange() }
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-gray-900 mb-3">Photos</h2>
+      <div className="flex flex-wrap gap-3 mb-3">
+        {product.images.map((img) => (
+          <div key={img.id} className="relative group h-24 w-24 rounded-lg overflow-hidden border">
+            <img src={img.url} alt={img.alt || ''} className="h-full w-full object-cover" />
+            {img.isPrimary && <span className="absolute top-1 left-1 rounded bg-primary-500 px-1 text-[10px] text-white">Primary</span>}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition">
+              {!img.isPrimary && <button onClick={() => makePrimary(img.id)} title="Make primary"><Star className="h-4 w-4 text-white" /></button>}
+              <button onClick={() => del(img.id)} title="Delete"><Trash2 className="h-4 w-4 text-white" /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input className="input flex-1" placeholder="Image URL (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button onClick={add} className="btn-secondary" disabled={!url}><Plus className="h-4 w-4" /> Add</button>
+      </div>
+      <p className="mt-2 text-xs text-gray-400">Paste a public image URL. Direct upload is coming soon.</p>
+    </div>
+  )
+}
