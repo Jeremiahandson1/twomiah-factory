@@ -1132,53 +1132,9 @@ export async function deployCustomer(
       }
     }
 
-    // Step 7a: Store storefront (Next.js) — a SEPARATE service from crm-store.
-    // It's DB-free and reads the catalog + checkout from the crm-store backend
-    // PUBLIC API (results.apiUrl), so it deploys like the Vision Next.js app
-    // (npm build/start), not like the EJS server-static sites below.
-    if (products.includes('website') && isStore) {
-      try {
-        const storeSiteName = slug + '-site'
-        await findAndDeleteRenderService(storeSiteName)
-        const storeApiUrl = results.apiUrl || ('https://' + slug + '-shop-api.onrender.com')
-        const storeSiteEnv: Array<{ key: string; value: string }> = [
-          { key: 'NODE_ENV', value: 'production' },
-          { key: 'PORT', value: '10000' },
-          { key: 'CRM_STORE_API_URL', value: storeApiUrl },
-          { key: 'BASE_URL', value: 'https://' + storeSiteName + '.onrender.com' },
-        ]
-        const storeSite = await createRenderWebService({
-          name: storeSiteName, repoFullName: repo.full_name, rootDir: 'website-store',
-          buildCommand: 'npm install --include=dev && npm run build',
-          startCommand: 'npm start',
-          envVars: storeSiteEnv,
-          plan, region,
-        })
-        console.log('[Deploy] Store storefront creation response:', JSON.stringify(storeSite, null, 2))
-        const storeSvc = storeSite.service || storeSite
-        results.steps.push({ step: 'render_site', status: 'ok', serviceId: storeSvc.id })
-        results.services.site = storeSvc
-        if (storeSvc.id) {
-          createdResources.push({ type: 'service', id: storeSvc.id, name: storeSiteName })
-          deployedResourceIds.push(storeSvc.id)
-          await updateRenderServiceSettings(storeSvc.id, { rootDir: 'website-store' })
-        }
-        const storeSiteUrl = getServiceUrl(storeSite) || ('https://' + storeSiteName + '.onrender.com')
-        results.siteUrl = storeSiteUrl
-        // Point the storefront's canonical URL AND the crm-store backend's
-        // checkout redirect / CORS origin at the real storefront URL.
-        if (storeSvc.id) await updateRenderEnvVars(storeSvc.id, [{ key: 'BASE_URL', value: storeSiteUrl }])
-        if (results.services.backend?.id) {
-          await updateRenderEnvVars(results.services.backend.id, [
-            { key: 'STOREFRONT_ORIGIN', value: storeSiteUrl },
-            { key: 'STOREFRONT_URL', value: storeSiteUrl },
-          ])
-        }
-      } catch (err: any) {
-        results.steps.push({ step: 'render_site', status: 'error', error: err.message })
-        results.errors.push('Store site: ' + err.message)
-      }
-    } else if (products.includes('website')) {
+    // Step 7: Website service (EJS server-static — same path for the store, whose
+    // storefront is a normal EJS site that reads its catalog from crm-store).
+    if (products.includes('website')) {
       try {
         await findAndDeleteRenderService(slug + '-site')
         const siteBunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
@@ -1242,6 +1198,8 @@ export async function deployCustomer(
             { key: 'TENANT_SLUG', value: slug },
             ...r2EnvVars,
         ]
+        // Store storefront reads its catalog + checkout from the crm-store backend PUBLIC API.
+        if (isStore && results.apiUrl) siteEnvVars.push({ key: 'CRM_STORE_API_URL', value: results.apiUrl })
         // AI sales chatbot on the public site calls Claude directly.
         if (process.env.ANTHROPIC_API_KEY) siteEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
         if (siteDbConnectionString) {
@@ -1379,6 +1337,14 @@ export async function deployCustomer(
             siteEnvUpdates.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
           }
           if (siteEnvUpdates.length > 0) await updateRenderEnvVars(siteSvc.id, siteEnvUpdates)
+        }
+        // Store: point the crm-store backend's checkout redirect + CORS origin at
+        // the real storefront URL now that it exists.
+        if (isStore && siteUrl && results.services.backend?.id) {
+          await updateRenderEnvVars(results.services.backend.id, [
+            { key: 'STOREFRONT_ORIGIN', value: siteUrl },
+            { key: 'STOREFRONT_URL', value: siteUrl },
+          ])
         }
       } catch (err: any) {
         results.steps.push({ step: 'render_site', status: 'error', error: err.message })

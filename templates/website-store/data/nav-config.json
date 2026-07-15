@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "id": "shop",
+      "label": "Shop",
+      "href": "/shop",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "about",
+      "label": "About",
+      "href": "/about",
+      "visible": true,
+      "children": []
+    },
+    {
+      "id": "contact",
+      "label": "Contact",
+      "href": "/contact",
+      "visible": true,
+      "children": []
+    }
+  ]
+}

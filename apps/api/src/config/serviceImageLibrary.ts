@@ -23,6 +23,8 @@ export const SERVICE_IMAGE_LIBRARY: Record<string, string[]> = {
   veterinary: [p('veterinary-0.jpg'), p('veterinary-1.jpg')],
   foodtruck: [p('foodtruck-0.jpg'), p('foodtruck-1.jpg'), p('foodtruck-2.jpg')],
   rv: [p('rv-0.jpg'), p('rv-1.jpg'), p('rv-2.jpg')],
+  // E-commerce / retail storefronts (clean apparel-boutique interiors).
+  store: [p('store-0.jpg'), p('store-1.jpg'), p('store-2.jpg')],
   // GENERIC professional-service fallback (used for any unmapped industry).
   GENERIC: [p('GENERIC-0.jpg'), p('GENERIC-1.jpg'), p('GENERIC-2.jpg')],
 }
@@ -40,6 +42,13 @@ const INDUSTRY_ALIAS: Record<string, string> = {
   vet: 'veterinary', veterinarian: 'veterinary', vet_clinic: 'veterinary', animal_hospital: 'veterinary',
   food: 'foodtruck', food_truck: 'foodtruck', restaurant: 'foodtruck', cafe: 'foodtruck',
   rv_dealer: 'rv', powersports: 'rv', marine: 'rv',
+  // E-commerce / retail → store set (mirrors STORE_INDUSTRIES in industryRouting).
+  ecommerce: 'store', e_commerce: 'store', retail: 'store', online_store: 'store',
+  online_shop: 'store', boutique: 'store', shop: 'store', storefront: 'store',
+  clothing: 'store', apparel: 'store', fashion: 'store', merch: 'store',
+  merchandise: 'store', goods: 'store', products: 'store', print_on_demand: 'store',
+  dropshipping: 'store', dropship: 'store', handmade: 'store', crafts: 'store',
+  jewelry: 'store', accessories: 'store', cosmetics_retail: 'store',
 }
 
 /** Returns a fallback image URL for a service/hero by industry + index, or '' if none. */

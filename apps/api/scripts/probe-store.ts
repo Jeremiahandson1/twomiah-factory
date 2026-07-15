@@ -69,7 +69,10 @@ async function main() {
   const read = (p: string) => { try { return fs.readFileSync(path.join(OUT_DIR, p), 'utf8') } catch { return '' } }
 
   checks.push(['crm-store copied', exists('crm-store/backend/src/index.ts')])
-  checks.push(['website-store copied', exists('website-store/src/app/page.tsx')])
+  checks.push(['website (EJS) copied', exists('website/views/home.ejs')])
+  checks.push(['commerce views present (shop/product/cart)', exists('website/views/shop.ejs') && exists('website/views/product.ejs') && exists('website/views/cart.ejs')])
+  checks.push(['cart.js present', exists('website/build/scripts/cart.js')])
+  checks.push(['CMS admin overlaid', exists('website/admin')])
   checks.push(['seed.template.ts consumed → seed.ts', exists('crm-store/backend/db/seed.ts') && !exists('crm-store/backend/db/seed.template.ts')])
   checks.push(['migration present', exists('crm-store/backend/db/migrations/0000_initial_store.sql')])
   checks.push(['render.yaml at root', exists('render.yaml')])
@@ -86,20 +89,23 @@ async function main() {
   checks.push(['backend .env has JWT_REFRESH_SECRET filled', /JWT_REFRESH_SECRET="[0-9a-f]{8,}/.test(backendEnv)])
   checks.push(['backend .env STOREFRONT_ORIGIN set', /STOREFRONT_ORIGIN="https:\/\/nordsupply\.com"/.test(backendEnv)])
 
-  const siteEnv = read('website-store/.env')
-  checks.push(['storefront .env CRM_STORE_API_URL → shop-api', /CRM_STORE_API_URL="https:\/\/[a-z0-9-]+-shop-api\.onrender\.com"/.test(siteEnv)])
+  const siteEnv = read('website/.env')
+  checks.push(['site .env CRM_STORE_API_URL → shop-api', /CRM_STORE_API_URL="https:\/\/[a-z0-9-]+-shop-api\.onrender\.com"/.test(siteEnv)])
 
   const tailwind = read('crm-store/frontend/tailwind.config.js')
   checks.push(['admin tailwind primary color filled', tailwind.includes('#0f766e') && !tailwind.includes('{{PRIMARY_COLOR}}')])
 
-  const globalsCss = read('website-store/src/app/globals.css')
-  checks.push(['storefront globals.css color filled', !globalsCss.includes('{{PRIMARY_COLOR}}')])
+  const homepageJson = read('website/data/homepage.json')
+  checks.push(['store home hero (Shop Now → /shop)', /"primaryButtonLink":\s*"\/shop"/.test(homepageJson) && homepageJson.includes('Nord Supply Co')])
+  checks.push(['home data has NO literal tokens', !/\{\{[A-Z_]+\}\}/.test(homepageJson)])
 
-  const layout = read('website-store/src/app/layout.tsx')
-  checks.push(['storefront layout has company name', layout.includes('Nord Supply Co')])
+  const mainCss = read('website/build/styles/main.css')
+  checks.push(['site brand color injected into CSS', mainCss.includes('0f766e')])
 
-  const rootRender = read('render.yaml')
-  checks.push(['render.yaml is the storefront (Next.js) service', /website-store/.test(rootRender)])
+  const settingsJson = read('website/data/settings.json')
+  checks.push(['theme applied', /"theme":\s*"[a-z-]+"/.test(settingsJson)])
+
+  checks.push(['fallback images copied', exists('website/build/images/services')])
 
   // crm-store render.yaml (per-service) should reference shop DB + rootDir
   const crmRender = read('crm-store/render.yaml')

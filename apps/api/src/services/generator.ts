@@ -177,31 +177,12 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
   try {
     const products = config.products || []
 
-    // Auto-include CMS when website is selected so the admin dashboard is always bundled.
-    // EXCEPT for store tenants: the storefront (website-store) is a headless
-    // Next.js app whose admin is crm-store, so it never gets the CMS overlay.
-    if (products.includes('website') && !products.includes('cms')
-        && verticalFor(config.company?.industry || '') !== 'store') {
+    // Auto-include CMS when website is selected so the admin dashboard is always bundled
+    if (products.includes('website') && !products.includes('cms')) {
       products.push('cms')
     }
 
-    // ── Store storefront (Next.js) ──────────────────────────────────────────
-    // Handled BEFORE the EJS website block: it's a different build shape, so
-    // none of the EJS post-processors (CSS inject, theme append, feature strip,
-    // wizard content, image fill, help articles, CMS overlay) apply. It reads
-    // its catalog at runtime from the crm-store PUBLIC API.
-    if (products.includes('website') && verticalFor(config.company?.industry || '') === 'store') {
-      copyTemplate('website-store', path.join(workDir, 'website-store'), tokens)
-      await writeBrandingAssets(path.join(workDir, 'website-store', 'public'), config.branding, config.company?.name)
-      processEnvTemplate(path.join(workDir, 'website-store'), tokens)
-      const storeRenderTemplate = path.join(workDir, 'website-store', 'render.yaml.template')
-      if (fs.existsSync(storeRenderTemplate)) {
-        const renderContent = injectTokens(fs.readFileSync(storeRenderTemplate, 'utf8'), tokens)
-        fs.writeFileSync(path.join(workDir, 'render.yaml'), renderContent, 'utf8')
-        fs.writeFileSync(path.join(workDir, 'website-store', 'render.yaml'), renderContent, 'utf8')
-        fs.unlinkSync(storeRenderTemplate)
-      }
-    } else if (products.includes('website')) {
+    if (products.includes('website')) {
       const industry = config.company?.industry || ''
 
       // Premium tier — section-composition templates with AI-driven layout.
@@ -254,6 +235,7 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       else if (SHOWCASE_INDUSTRIES.has(industry)) websiteTemplate = 'website-showcase'
       else if (verticalFor(industry) === 'veterinary') websiteTemplate = 'website-vet'
       else if (verticalFor(industry) === 'rv') websiteTemplate = 'website-rv'
+      else if (verticalFor(industry) === 'store') websiteTemplate = 'website-store'
       else if (industry && industry !== 'other') websiteTemplate = 'website-contractor'
 
       copyTemplate(websiteTemplate, path.join(workDir, 'website'), tokens)
