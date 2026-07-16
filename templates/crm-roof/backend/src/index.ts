@@ -50,6 +50,7 @@ import accountRoutes from './routes/account.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import onboardingRoutes from './routes/onboarding.ts'
+import mediaRoutes from './routes/media.ts'
 
 const app = new Hono()
 
@@ -127,6 +128,9 @@ app.route('/api/billing', billingRoutes)
 app.route('/api/reviews', reviewsRoutes)
 app.route('/api/financing', financingRoutes)
 app.route('/api/storm-radar', stormRadarRoutes)
+// Public media proxy for uploaded photos (streamed from private R2). Must be
+// registered before the static/SPA catch-all below so /media/* is not swallowed.
+app.route('/media', mediaRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY

@@ -4,7 +4,7 @@ import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
 import { eq, and, desc, asc, like, or, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
-import { uploadFile, deleteFile } from '../services/storage.ts'
+import { uploadFile, deleteFile, keyFromMediaUrl } from '../services/storage.ts'
 import { createId } from '@paralleldrive/cuid2'
 
 const app = new Hono()
@@ -346,10 +346,9 @@ app.delete('/:id/photos/:photoId', async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Photo not found' }, 404)
 
-  // Extract key from URL
-  const publicUrl = process.env.R2_PUBLIC_URL || ''
-  const key = existing.url.replace(`${publicUrl}/`, '')
-  try { await deleteFile(key) } catch {}
+  // Extract the R2 key from the stored `/media/<key>` url
+  const key = keyFromMediaUrl(existing.url) || ''
+  if (key) { try { await deleteFile(key) } catch {} }
 
   await db.delete(jobPhoto).where(eq(jobPhoto.id, photoId))
   return c.body(null, 204)

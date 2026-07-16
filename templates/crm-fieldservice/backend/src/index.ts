@@ -92,6 +92,7 @@ import accountRoutes from './routes/account.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import onboardingRoutes from './routes/onboarding.ts'
+import mediaRoutes from './routes/media.ts'
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
 
@@ -212,6 +213,9 @@ app.route('/api/ads', adsRoutes)
 const adsPublicRoutes = (await import('./routes/adsPublic.ts')).default
 app.route('/api/public/ads-experiments', adsPublicRoutes)
 app.route('/api/ai-receptionist', aiReceptionistRoutes)
+// Public media proxy for uploaded photos (streamed from private R2). Must be
+// registered before the static/SPA catch-all so /media/* is not swallowed.
+app.route('/media', mediaRoutes)
 
 app.post('/api/internal/sync-features', async (c) => {
   const syncKey = process.env.FACTORY_SYNC_KEY
