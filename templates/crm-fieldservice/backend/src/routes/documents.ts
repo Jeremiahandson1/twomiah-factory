@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import fs from 'fs'
 import path from 'path'
 import { db } from '../../db/index.ts'
 import { document, project, contact, user } from '../../db/schema.ts'
@@ -59,6 +58,26 @@ app.get('/', async (c) => {
       pages: Math.ceil(total / limitNum),
     },
   })
+})
+
+// Stream a file from the private bucket. Authenticated + company-scoped: the key
+// is prefixed with the owning companyId, so a user can only read their company's
+// files. Powers doc.url / thumbnailUrl. Never serves user HTML/SVG inline.
+app.get('/file/*', async (c) => {
+  const currentUser = c.get('user') as any
+  const key = decodeURIComponent(c.req.path.replace(/^\/api\/documents\/file\//, ''))
+  if (!key || key.includes('..')) return c.json({ error: 'Invalid key' }, 400)
+  if (!key.startsWith(`${currentUser.companyId}/`)) return c.json({ error: 'Forbidden' }, 403)
+
+  const obj = await fileService.getObject(key)
+  if (!obj) return c.json({ error: 'Not found' }, 404)
+
+  const inlineOk = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(obj.contentType)
+  c.header('Content-Type', inlineOk ? obj.contentType : 'application/octet-stream')
+  c.header('X-Content-Type-Options', 'nosniff')
+  if (!inlineOk) c.header('Content-Disposition', 'attachment')
+  c.header('Cache-Control', 'private, max-age=86400')
+  return c.body(obj.body)
 })
 
 // Get single document
@@ -288,14 +307,16 @@ app.get('/:id/download', async (c) => {
   const [doc] = await db.select().from(document).where(and(eq(document.id, id), eq(document.companyId, currentUser.companyId))).limit(1)
 
   if (!doc) return c.json({ error: 'Document not found' }, 404)
-  if (!doc.path || !fs.existsSync(doc.path)) return c.json({ error: 'File not found' }, 404)
+  if (!doc.path) return c.json({ error: 'File not found' }, 404)
 
-  const fileBuffer = fs.readFileSync(doc.path)
-  return new Response(fileBuffer, {
+  const obj = await fileService.getObject(doc.path)
+  if (!obj) return c.json({ error: 'File not found' }, 404)
+  return new Response(obj.body, {
     headers: {
-      'Content-Type': doc.mimeType || 'application/octet-stream',
+      'Content-Type': doc.mimeType || obj.contentType || 'application/octet-stream',
       'Content-Disposition': `attachment; filename="${doc.originalName || path.basename(doc.path)}"`,
-      'Content-Length': String(fileBuffer.length),
+      'Content-Length': String(obj.body.byteLength),
+      'X-Content-Type-Options': 'nosniff',
     },
   })
 })

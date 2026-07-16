@@ -18,4 +18,10 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 })
 
+// Compatibility helper: several routes call `logger.logError(err, req, meta)`.
+// winston has no such method, so provide one that logs via `.error` with context
+// (previously this threw, turning recoverable catch-and-continue paths into 500s).
+;(logger as any).logError = (error: any, _req: any, meta: Record<string, any> = {}) =>
+  logger.error(error?.message || String(error), { ...meta, stack: error?.stack })
+
 export default logger
