@@ -1,7 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { eq } from 'drizzle-orm'
 
-import { storeSettings, users, products, productVariants } from './schema.ts'
+import { storeSettings, users, products, productVariants, productImages } from './schema.ts'
 
 // Idempotent seed — runs on every deploy. Creates the store's settings row, the
 // owner login, and (only if the catalog is empty) one draft demo product the
@@ -41,27 +41,36 @@ async function main() {
     console.log('Created owner login')
   }
 
-  // ── Demo product (only when the catalog is empty) ──
+  // ── Demo catalog (only when empty) — ACTIVE sample products so the store is
+  // not empty on day one. The merchant edits or deletes these in their admin.
   const [anyProduct] = await db.select().from(products).limit(1)
   if (!anyProduct) {
-    const [demo] = await db.insert(products).values({
-      slug: 'sample-product',
-      name: 'Sample Product',
-      tagline: 'Edit or delete this example to build your catalog',
-      description: 'This is a demo product created automatically. Open it in your admin to change the name, price, photos, and details — or delete it and add your own.',
-      status: 'draft',
-      featured: false,
-      position: 0,
-    }).returning()
-    await db.insert(productVariants).values({
-      productId: demo.id,
-      sku: 'SAMPLE-001',
-      name: 'Default',
-      priceCents: 2500,
-      inventoryQty: 10,
-      position: 0,
-    })
-    console.log('Created demo product')
+    const sampleNote = 'This is a sample product added automatically so your store is not empty. Edit its name, price, photos, and details in your admin — or delete it and add your own.'
+    const demos = [
+      { slug: 'signature-eau-de-parfum', name: 'Signature Eau de Parfum', priceCents: 4800, sku: 'SAMPLE-PARFUM', img: 'https://images.pexels.com/photos/27274783/pexels-photo-27274783.jpeg?auto=compress&cs=tinysrgb&w=900&h=900&fit=crop' },
+      { slug: 'daily-hydrating-serum', name: 'Daily Hydrating Serum', priceCents: 3200, sku: 'SAMPLE-SERUM', img: 'https://images.pexels.com/photos/8015790/pexels-photo-8015790.jpeg?auto=compress&cs=tinysrgb&w=900&h=900&fit=crop' },
+      { slug: 'skincare-essentials-set', name: 'Skincare Essentials Set', priceCents: 6500, sku: 'SAMPLE-SET', img: 'https://images.pexels.com/photos/34159010/pexels-photo-34159010.jpeg?auto=compress&cs=tinysrgb&w=900&h=900&fit=crop' },
+    ]
+    let pos = 0
+    for (const d of demos) {
+      const [p] = await db.insert(products).values({
+        slug: d.slug,
+        name: d.name,
+        tagline: 'Sample product — edit or delete in your admin',
+        description: sampleNote,
+        status: 'active',
+        featured: true,
+        position: pos,
+      }).returning()
+      await db.insert(productVariants).values({
+        productId: p.id, sku: d.sku, name: 'Default', priceCents: d.priceCents, inventoryQty: 25, position: 0,
+      })
+      await db.insert(productImages).values({
+        productId: p.id, url: d.img, alt: d.name, isPrimary: true, position: 0,
+      })
+      pos++
+    }
+    console.log('Created ' + demos.length + ' sample products')
   }
 
   console.log('')

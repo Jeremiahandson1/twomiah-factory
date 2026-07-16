@@ -956,7 +956,8 @@ export async function deployCustomer(
     if (replicateToken) integrationEnvVars.push({ key: 'REPLICATE_API_TOKEN', value: replicateToken })
 
     // Pre-compute visualizer flag so we can include VISION_URL in initial env vars for both CRM and website
-    const hasVisualizerFeature = products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer')
+    // Visualizer/estimator are contractor/roofing-only add-ons — never for a store.
+    const hasVisualizerFeature = !isStore && (products.includes('vision') || (factoryCustomer.config?.features?.website || []).includes('visualizer') || (factoryCustomer.config?.features?.crm || []).includes('visualizer'))
     const sharedVisionUrl = process.env.TWOMIAH_VISION_URL || 'https://home-visualizer.onrender.com'
 
     // Step 5 & 6: CRM backend + frontend
@@ -1257,7 +1258,7 @@ export async function deployCustomer(
         if (hasVisualizerFeature) {
           siteEnvVars.push({ key: 'VISION_URL', value: sharedVisionUrl })
         }
-        const hasEstimatorFeature = (factoryCustomer.config?.features?.crm || []).includes('instant_estimator') || (factoryCustomer.config?.features?.website || []).includes('instant_estimator')
+        const hasEstimatorFeature = !isStore && ((factoryCustomer.config?.features?.crm || []).includes('instant_estimator') || (factoryCustomer.config?.features?.website || []).includes('instant_estimator'))
         if (hasEstimatorFeature) {
           siteEnvVars.push({ key: 'HAS_ESTIMATOR', value: 'true' })
         }

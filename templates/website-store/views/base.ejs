@@ -74,33 +74,15 @@
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
-    "@type": "HomeAndConstructionBusiness",
+    "@type": "Store",
     "name": "{{COMPANY_NAME}}",
-    "description": "{{META_DESCRIPTION}} in {{CITY}} and the {{SERVICE_REGION}}",
+    "description": "{{META_DESCRIPTION}}",
     "url": "{{SITE_URL}}",
     "logo": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
     "image": <%- _jsonStr('{{SITE_URL}}' + logoUrl) %>,
     "telephone": <%- _jsonStr('+1' + phoneRaw) %>,
 <% if (_emailOk) { %>    "email": <%- _jsonStr(email) %>,
-<% } %>    "address": {
-      "@type": "PostalAddress",
-      "streetAddress": <%- _jsonStr(address) %>,
-      "addressLocality": <%- _jsonStr(city) %>,
-      "addressRegion": <%- _jsonStr(state) %>,
-      "postalCode": <%- _jsonStr(zip) %>,
-      "addressCountry": "US"
-    },
-    "areaServed": [
-      {
-        "@type": "City",
-        "name": "{{CITY}}",
-        "containedInPlace": {
-          "@type": "State",
-          "name": "{{STATE_FULL}}"
-        }
-      }
-    ],
-    "priceRange": "$$"
+<% } %>    "priceRange": "$$"
     <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
     ,"sameAs": [
       <% const socialLinks = []; %>
@@ -340,10 +322,6 @@
     .utility-nav a:hover {
       color: var(--accent, #c8963e);
     }
-    .utility-nav a[href="/visualize"] {
-      color: var(--accent, #c8963e);
-      font-weight: 700;
-    }
     .header-top-right {
       display: flex;
       align-items: center;
@@ -548,10 +526,7 @@
           </a>
           
           <nav class="utility-nav">
-            <a href="/gallery">Projects</a>
-            <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><a href="/visualize">Visualize</a><% } %>
-            <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><a href="/estimate">Free Estimate</a><% } %>
-            <a href="/blog">Blog</a>
+            <a href="/shop">Shop</a>
             <a href="/about">About</a>
             <a href="/#contact">Contact</a>
           </nav>
@@ -571,7 +546,7 @@
               </svg>
               <span class="header-cart__count" data-cart-count data-cart-count-hide-empty>0</span>
             </a>
-            <a href="#contact" class="btn btn-primary btn-sm">Request Estimate</a>
+            <a href="/shop" class="btn btn-primary btn-sm">Shop Now</a>
           </div>
 
           <button class="nav-toggle" aria-label="Toggle menu">
@@ -629,14 +604,12 @@
           </li>
         <% }); %>
         <li class="mobile-section-label">More</li>
-        <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
-        <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><li><a href="/estimate">Instant Roof Estimate</a></li><% } %>
-        <li><a href="/gallery">Projects</a></li>
-        <li><a href="/blog">Blog</a></li>
+        <li><a href="/shop">Shop</a></li>
+        <li><a href="/cart">Cart</a></li>
         <li><a href="/about">About</a></li>
         <li><a href="/#contact">Contact</a></li>
         <li class="cta-item">
-          <a href="#contact" class="btn btn-primary">Request Estimate</a>
+          <a href="/shop" class="btn btn-primary">Shop Now</a>
         </li>
       </ul>
     </nav>
@@ -664,7 +637,7 @@
               </div>
               <span>{{COMPANY_NAME_UPPER}}</span>
             </div>
-            <p>Quality services for customers throughout the {{CITY}} area. Licensed, insured, and committed to excellence.</p>
+            <p>Quality products with fast shipping and secure checkout. Thanks for shopping with {{COMPANY_NAME}}.</p>
             <div class="social-links">
               <% if (typeof settings !== 'undefined' && settings && settings.socialLinks) { %>
                 <% if (settings.socialLinks.facebook) { %>
@@ -721,40 +694,28 @@
           </div>
 
           <div class="footer-col">
-            <h4>Services</h4>
+            <h4>Shop</h4>
             <ul>
-              <% if (typeof menuItems !== 'undefined') { %>
-                <% menuItems.filter(item => !['blog', 'gallery', 'contact', 'about'].includes(item.id)).slice(0, 6).forEach(item => { %>
-                  <li><a href="<%= item.href %>"><%= item.label %></a></li>
-                <% }); %>
-              <% } else { %>
-                <li><a href="/contact">Contact Us</a></li>
-              <% } %>
+              <li><a href="/shop">All Products</a></li>
+              <li><a href="/cart">Your Cart</a></li>
             </ul>
           </div>
 
           <div class="footer-col">
             <h4>Company</h4>
             <ul>
-              <% if (typeof hasVisualizer !== 'undefined' && hasVisualizer) { %><li><a href="/visualize">Visualize Your Home</a></li><% } %>
-              <% if (typeof hasEstimator !== 'undefined' && hasEstimator) { %><li><a href="/estimate">Instant Roof Estimate</a></li><% } %>
-              <li><a href="/gallery">Projects</a></li>
-              <li><a href="/blog">Blog</a></li>
               <li><a href="/about">About Us</a></li>
+              <li><a href="/blog">Journal</a></li>
               <li><a href="/#contact">Contact</a></li>
-              <li><a href="/#contact">Request Estimate</a></li>
             </ul>
           </div>
 
           <div class="footer-col">
-            <h4>Areas We Serve</h4>
+            <h4>Customer Care</h4>
             <ul>
-              <li><a href="/services">{{CITY}}</a></li>
-              <li><a href="/services">{{NEARBY_CITY_1}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_4}}">{{NEARBY_CITY_4}}</a></li>
-              <li><a href="/service-area/{{NEARBY_CITY_3}}">{{NEARBY_CITY_3}}</a></li>
-              
-              
+              <li><a href="/#contact">Shipping &amp; Returns</a></li>
+              <li><a href="/#contact">Order Support</a></li>
+              <li><a href="/cart">Your Cart</a></li>
             </ul>
           </div>
 
