@@ -89,26 +89,37 @@ export class StripeProvider implements PaymentProvider {
     )
 
     if (event.type !== 'checkout.session.completed') return { type: 'ignored' }
+    return parseSession(event.data.object as Stripe.Checkout.Session)
+  }
 
-    const session = event.data.object as Stripe.Checkout.Session
-    if (session.payment_status !== 'paid') return { type: 'ignored' }
+  // Success-page fallback: pull the session's final state straight from Stripe
+  // (authenticated with the merchant's own key) so orders finalize even when the
+  // webhook is delayed, misconfigured, or intercepted by another endpoint.
+  async retrieveSession(sessionId: string): Promise<WebhookResult> {
+    const session = await this.stripe.checkout.sessions.retrieve(sessionId)
+    return parseSession(session)
+  }
+}
 
-    const cd = session.customer_details
-    const shipping = (session as any).shipping_details ?? (session as any).shipping
-    return {
-      type: 'paid',
-      providerSessionId: session.id,
-      providerPaymentId: typeof session.payment_intent === 'string'
-        ? session.payment_intent
-        : session.payment_intent?.id,
-      amountTotalCents: session.amount_total ?? undefined,
-      currency: session.currency ?? undefined,
-      customerEmail: cd?.email ?? undefined,
-      customerName: shipping?.name ?? cd?.name ?? undefined,
-      customerPhone: cd?.phone ?? undefined,
-      shippingAddress: toAddress(shipping?.address),
-      billingAddress: toAddress(cd?.address),
-    }
+// Normalizes a Stripe Checkout Session into our provider-agnostic result.
+// Shared by the webhook (verified event) and the success-page retrieval.
+function parseSession(session: Stripe.Checkout.Session): WebhookResult {
+  if (session.payment_status !== 'paid') return { type: 'ignored' }
+  const cd = session.customer_details
+  const shipping = (session as any).shipping_details ?? (session as any).shipping
+  return {
+    type: 'paid',
+    providerSessionId: session.id,
+    providerPaymentId: typeof session.payment_intent === 'string'
+      ? session.payment_intent
+      : session.payment_intent?.id,
+    amountTotalCents: session.amount_total ?? undefined,
+    currency: session.currency ?? undefined,
+    customerEmail: cd?.email ?? undefined,
+    customerName: shipping?.name ?? cd?.name ?? undefined,
+    customerPhone: cd?.phone ?? undefined,
+    shippingAddress: toAddress(shipping?.address),
+    billingAddress: toAddress(cd?.address),
   }
 }
 

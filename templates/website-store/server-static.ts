@@ -480,6 +480,14 @@ app.post('/api/checkout', async (c) => {
   if (!CRM_STORE_API_URL) return c.json({ error: 'Checkout is not available yet.' }, 503)
   let body: any = null
   try { body = await c.req.json() } catch { return c.json({ error: 'Invalid request' }, 400) }
+  // Tell crm-store the exact origin the customer is on so the post-checkout
+  // redirect returns to the live storefront (not a not-yet-live custom domain).
+  try {
+    const host = c.req.header('x-forwarded-host') || c.req.header('host')
+    const proto = (c.req.header('x-forwarded-proto') || 'https').split(',')[0]
+    const origin = host ? `${proto}://${host}` : (BASE_URL || '')
+    if (body && typeof body === 'object' && origin) body.origin = origin
+  } catch {}
   try {
     const res = await fetch(CRM_STORE_API_URL + '/api/public/checkout', {
       method: 'POST',

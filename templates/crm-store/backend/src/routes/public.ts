@@ -7,9 +7,45 @@ import {
 } from '../../db/schema.ts'
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { getActiveProvider } from '../payments/index.ts'
+import type { WebhookResult } from '../payments/types.ts'
 import logger from '../services/logger.ts'
 
 const pub = new Hono()
+
+// Flip a pending order to paid, populate customer/shipping from the provider
+// result, and decrement tracked inventory. Idempotent + race-safe: only the
+// UPDATE that actually transitions pending→paid decrements inventory, so the
+// webhook and the success-page retrieval can both call this without double
+// counting or double-flipping.
+async function finalizeOrder(order: typeof orders.$inferSelect, result: WebhookResult): Promise<void> {
+  if (order.status !== 'pending') return
+  const orderNumber = `ORD-${order.id.split('-')[0].toUpperCase()}`
+  const flipped = await db.update(orders).set({
+    status: 'paid',
+    orderNumber,
+    providerPaymentId: result.providerPaymentId ?? null,
+    customerEmail: result.customerEmail ?? order.customerEmail,
+    customerName: result.customerName ?? null,
+    customerPhone: result.customerPhone ?? null,
+    shippingAddress: result.shippingAddress ?? null,
+    billingAddress: result.billingAddress ?? null,
+    updatedAt: new Date(),
+  }).where(and(eq(orders.id, order.id), eq(orders.status, 'pending'))).returning({ id: orders.id })
+
+  if (flipped.length === 0) return // another path finalized it first
+
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+  for (const it of items) {
+    if (!it.variantId) continue
+    const [v] = await db.select().from(productVariants).where(eq(productVariants.id, it.variantId)).limit(1)
+    if (v && v.inventoryQty !== null) {
+      await db.update(productVariants)
+        .set({ inventoryQty: Math.max(0, v.inventoryQty - it.quantity), updatedAt: new Date() })
+        .where(eq(productVariants.id, v.id))
+    }
+  }
+  logger.info('order finalized', { order: orderNumber })
+}
 
 // ── Catalog reads (public, active products only) ─────────────────────────────
 async function hydrate(rows: (typeof products.$inferSelect)[]) {
@@ -66,6 +102,9 @@ const checkoutSchema = z.object({
     quantity: z.number().int().positive().max(999),
   })).min(1).max(100),
   customerEmail: z.string().email().optional(),
+  // The storefront passes the origin the customer is actually on so the
+  // success/cancel redirects land on the live site (not a not-yet-live domain).
+  origin: z.string().url().optional(),
 })
 
 pub.post('/checkout', async (c) => {
@@ -133,7 +172,9 @@ pub.post('/checkout', async (c) => {
   const taxCents = Math.round(subtotalCents * ((settings?.taxRateBps ?? 0) / 10000))
   const totalCents = subtotalCents + shippingCents + taxCents
 
-  const storefront = process.env.STOREFRONT_URL || process.env.STOREFRONT_ORIGIN || ''
+  // Prefer the origin the request carries (the domain the customer is actually
+  // browsing) over env — env may hold a derived custom domain that isn't live.
+  const storefront = (parsed.data.origin || process.env.STOREFRONT_URL || process.env.STOREFRONT_ORIGIN || '').replace(/\/+$/, '')
 
   // Create a pending order FIRST so a webhook (or the success page) can reconcile
   // by provider session id. Idempotency is guaranteed by the unique
@@ -216,35 +257,7 @@ pub.post('/webhooks/payment', async (c) => {
     logger.warn('webhook for unknown session', { session: result.providerSessionId })
     return c.json({ received: true })
   }
-  // Idempotent: a retried webhook for an already-paid order is a no-op.
-  if (order.status !== 'pending') return c.json({ received: true })
-
-  const orderNumber = `ORD-${order.id.split('-')[0].toUpperCase()}`
-  await db.update(orders).set({
-    status: 'paid',
-    orderNumber,
-    providerPaymentId: result.providerPaymentId ?? null,
-    customerEmail: result.customerEmail ?? order.customerEmail,
-    customerName: result.customerName ?? null,
-    customerPhone: result.customerPhone ?? null,
-    shippingAddress: result.shippingAddress ?? null,
-    billingAddress: result.billingAddress ?? null,
-    updatedAt: new Date(),
-  }).where(eq(orders.id, order.id))
-
-  // Decrement tracked inventory for the purchased variants.
-  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
-  for (const it of items) {
-    if (!it.variantId) continue
-    const [v] = await db.select().from(productVariants).where(eq(productVariants.id, it.variantId)).limit(1)
-    if (v && v.inventoryQty !== null) {
-      await db.update(productVariants)
-        .set({ inventoryQty: Math.max(0, v.inventoryQty - it.quantity), updatedAt: new Date() })
-        .where(eq(productVariants.id, v.id))
-    }
-  }
-
-  logger.info('order paid', { order: orderNumber })
+  await finalizeOrder(order, result)
   return c.json({ received: true })
 })
 
@@ -252,9 +265,28 @@ pub.post('/webhooks/payment', async (c) => {
 pub.get('/order-summary', async (c) => {
   const sessionId = c.req.query('session_id')
   if (!sessionId) return c.json({ error: 'Missing session_id' }, 400)
-  const [order] = await db.select().from(orders)
+  let [order] = await db.select().from(orders)
     .where(eq(orders.providerSessionId, sessionId)).limit(1)
   if (!order) return c.json({ order: null })
+
+  // If the webhook hasn't finalized this yet, confirm payment directly with the
+  // provider and finalize now — so the confirmation page and the admin order are
+  // correct even when the webhook is delayed, misconfigured, or intercepted.
+  if (order.status === 'pending') {
+    try {
+      const provider = await getActiveProvider()
+      if (provider) {
+        const result = await provider.retrieveSession(sessionId)
+        if (result.type === 'paid') {
+          await finalizeOrder(order, result)
+          ;[order] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1)
+        }
+      }
+    } catch (err: any) {
+      logger.warn('order-summary finalize failed', { error: err?.message })
+    }
+  }
+
   const items = await db.select({
     productName: orderItems.productName, variantName: orderItems.variantName,
     quantity: orderItems.quantity, lineTotalCents: orderItems.lineTotalCents, imageUrl: orderItems.imageUrl,

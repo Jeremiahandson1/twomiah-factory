@@ -68,4 +68,7 @@ export interface PaymentProvider {
   readonly name: 'stripe' | 'square' | 'paypal'
   createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult>
   verifyAndParseWebhook(input: WebhookVerifyInput): Promise<WebhookResult>
+  // Fetch a session's final state directly from the provider — used by the
+  // success page to finalize an order even if the webhook never arrived.
+  retrieveSession(sessionId: string): Promise<WebhookResult>
 }
