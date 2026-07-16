@@ -106,7 +106,12 @@ export class StripeProvider implements PaymentProvider {
 function parseSession(session: Stripe.Checkout.Session): WebhookResult {
   if (session.payment_status !== 'paid') return { type: 'ignored' }
   const cd = session.customer_details
-  const shipping = (session as any).shipping_details ?? (session as any).shipping
+  // Stripe moved the collected shipping address across API versions: newest is
+  // session.collected_information.shipping_details, older is session.shipping_details,
+  // oldest is session.shipping. Check all three so shipping is always captured.
+  const shipping = (session as any).collected_information?.shipping_details
+    ?? (session as any).shipping_details
+    ?? (session as any).shipping
   return {
     type: 'paid',
     providerSessionId: session.id,
