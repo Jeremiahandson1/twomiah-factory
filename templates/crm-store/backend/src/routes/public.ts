@@ -8,6 +8,7 @@ import {
 import { eq, and, inArray, asc } from 'drizzle-orm'
 import { getActiveProvider } from '../payments/index.ts'
 import type { WebhookResult } from '../payments/types.ts'
+import { sendOrderConfirmation, sendMerchantNewOrder } from '../services/email.ts'
 import logger from '../services/logger.ts'
 
 const pub = new Hono()
@@ -44,6 +45,30 @@ async function finalizeOrder(order: typeof orders.$inferSelect, result: WebhookR
         .where(eq(productVariants.id, v.id))
     }
   }
+
+  // Notify the buyer (confirmation) + the merchant (new order). Non-blocking —
+  // never fail the order because email is down or unconfigured.
+  try {
+    const [settings] = await db.select().from(storeSettings).limit(1)
+    const storeName = settings?.companyName || 'Our Store'
+    const emailOrder = {
+      orderNumber,
+      customerEmail: result.customerEmail ?? order.customerEmail,
+      customerName: result.customerName ?? null,
+      subtotalCents: order.subtotalCents, shippingCents: order.shippingCents,
+      taxCents: order.taxCents, totalCents: order.totalCents, currency: order.currency,
+      shippingAddress: result.shippingAddress ?? null,
+    }
+    const emailItems = items.map((it) => ({
+      productName: it.productName, variantName: it.variantName,
+      quantity: it.quantity, lineTotalCents: it.lineTotalCents,
+    }))
+    void sendOrderConfirmation({ order: emailOrder, items: emailItems, storeName, supportEmail: settings?.supportEmail })
+    if (settings?.supportEmail) void sendMerchantNewOrder({ order: emailOrder, items: emailItems, storeName, toEmail: settings.supportEmail })
+  } catch (e: any) {
+    logger.warn('order emails failed', { error: e?.message })
+  }
+
   logger.info('order finalized', { order: orderNumber })
 }
 

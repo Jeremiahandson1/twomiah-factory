@@ -1,12 +1,32 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { orders, orderItems } from '../../db/schema.ts'
+import { orders, orderItems, storeSettings } from '../../db/schema.ts'
 import { eq, desc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { sendOrderShipped } from '../services/email.ts'
 
 const admin = new Hono()
 admin.use('*', authenticate)
+
+// Email the customer that their order shipped (with tracking). Non-blocking.
+async function notifyShipped(order: typeof orders.$inferSelect): Promise<void> {
+  try {
+    const [settings] = await db.select().from(storeSettings).limit(1)
+    const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
+    await sendOrderShipped({
+      order: {
+        orderNumber: order.orderNumber, customerEmail: order.customerEmail, customerName: order.customerName,
+        subtotalCents: order.subtotalCents, shippingCents: order.shippingCents, taxCents: order.taxCents,
+        totalCents: order.totalCents, currency: order.currency, shippingAddress: order.shippingAddress,
+        trackingCarrier: order.trackingCarrier, trackingNumber: order.trackingNumber,
+      },
+      items: items.map((it) => ({ productName: it.productName, variantName: it.variantName, quantity: it.quantity, lineTotalCents: it.lineTotalCents })),
+      storeName: settings?.companyName || 'Our Store',
+      supportEmail: settings?.supportEmail,
+    })
+  } catch { /* non-blocking */ }
+}
 
 // ── Orders ───────────────────────────────────────────────────────────────────
 admin.get('/', async (c) => {
@@ -60,10 +80,12 @@ const statusSchema = z.object({
 admin.patch('/:id/status', async (c) => {
   const parsed = statusSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid status' }, 400)
+  const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
+  if (!prev) return c.json({ error: 'Not found' }, 404)
   const patch: Record<string, unknown> = { status: parsed.data.status, updatedAt: new Date() }
   if (parsed.data.status === 'fulfilled' || parsed.data.status === 'shipped') patch.fulfilledAt = new Date()
-  const [updated] = await db.update(orders).set(patch).where(eq(orders.id, c.req.param('id'))).returning()
-  if (!updated) return c.json({ error: 'Not found' }, 404)
+  const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
+  if (parsed.data.status === 'shipped' && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: updated })
 })
 
@@ -77,11 +99,13 @@ const fulfillSchema = z.object({
 admin.patch('/:id/fulfillment', async (c) => {
   const parsed = fulfillSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid fulfillment' }, 400)
+  const [prev] = await db.select().from(orders).where(eq(orders.id, c.req.param('id'))).limit(1)
+  if (!prev) return c.json({ error: 'Not found' }, 404)
   const patch: Record<string, unknown> = { ...parsed.data, updatedAt: new Date() }
   delete (patch as any).markShipped
   if (parsed.data.markShipped) { patch.status = 'shipped'; patch.fulfilledAt = new Date() }
-  const [updated] = await db.update(orders).set(patch).where(eq(orders.id, c.req.param('id'))).returning()
-  if (!updated) return c.json({ error: 'Not found' }, 404)
+  const [updated] = await db.update(orders).set(patch).where(eq(orders.id, prev.id)).returning()
+  if (parsed.data.markShipped && prev.status !== 'shipped') void notifyShipped(updated)
   return c.json({ order: updated })
 })
 

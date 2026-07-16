@@ -1005,6 +1005,9 @@ export async function deployCustomer(
         // storefront service exists.
         if (isStore) {
           backendEnvVars.push({ key: 'BACKEND_URL', value: 'https://' + crmApiName + '.onrender.com' })
+          // From address for the store's transactional order emails (verified domain).
+          const storeFromEmail = process.env.FACTORY_FROM_EMAIL || ''
+          if (storeFromEmail) backendEnvVars.push({ key: 'FACTORY_FROM_EMAIL', value: storeFromEmail })
         }
 
         // QuickBooks: factory-level credentials flow to each tenant CRM; the redirect
