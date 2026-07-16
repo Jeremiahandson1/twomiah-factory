@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import { products, productImages, productVariants } from '../../db/schema.ts'
 import { eq, inArray, asc, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { storageConfigured, putObject, deleteObject, keyFromMediaUrl } from '../services/storage.ts'
 
 const admin = new Hono()
 admin.use('*', authenticate)
@@ -135,6 +136,39 @@ admin.post('/:id/images', async (c) => {
   return c.json({ image: created }, 201)
 })
 
+// Direct file upload → private R2 → served back via GET /media/<key>. The stored
+// url is absolute (BACKEND_URL) so the separate storefront origin can load it.
+const UPLOAD_MAX_BYTES = 8 * 1024 * 1024 // 8 MB
+const UPLOAD_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif',
+}
+
+admin.post('/:id/images/upload', async (c) => {
+  if (!storageConfigured()) return c.json({ error: 'Image storage is not configured for this store' }, 503)
+  const productId = c.req.param('id')
+  const [product] = await db.select().from(products).where(eq(products.id, productId)).limit(1)
+  if (!product) return c.json({ error: 'Product not found' }, 404)
+
+  const form = await c.req.parseBody().catch(() => null)
+  const file = form?.['file']
+  if (!(file instanceof File)) return c.json({ error: 'No file uploaded' }, 400)
+  const ext = UPLOAD_EXT[file.type]
+  if (!ext) return c.json({ error: 'Unsupported image type (use JPEG, PNG, WebP, GIF, or AVIF)' }, 415)
+  if (file.size > UPLOAD_MAX_BYTES) return c.json({ error: 'Image too large (max 8 MB)' }, 413)
+
+  const buf = Buffer.from(await file.arrayBuffer())
+  const key = `products/${productId}/${crypto.randomUUID()}.${ext}`
+  await putObject(key, buf, file.type)
+
+  const base = (process.env.BACKEND_URL || new URL(c.req.url).origin).replace(/\/+$/, '')
+  const url = `${base}/media/${key}`
+
+  const existing = await db.select({ id: productImages.id }).from(productImages).where(eq(productImages.productId, productId))
+  const isPrimary = existing.length === 0
+  const [created] = await db.insert(productImages).values({ productId, url, alt: product.name, isPrimary }).returning()
+  return c.json({ image: created }, 201)
+})
+
 admin.patch('/images/:imageId', async (c) => {
   const parsed = imageSchema.partial().safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return c.json({ error: 'Invalid image' }, 400)
@@ -149,7 +183,11 @@ admin.patch('/images/:imageId', async (c) => {
 })
 
 admin.delete('/images/:imageId', async (c) => {
+  const [img] = await db.select().from(productImages).where(eq(productImages.id, c.req.param('imageId'))).limit(1)
   await db.delete(productImages).where(eq(productImages.id, c.req.param('imageId')))
+  // If it was an uploaded (proxied) image, drop the R2 object too. Best-effort.
+  const key = img ? keyFromMediaUrl(img.url) : null
+  if (key) void deleteObject(key)
   return c.json({ ok: true })
 })
 

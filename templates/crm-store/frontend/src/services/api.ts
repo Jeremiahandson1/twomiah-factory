@@ -68,8 +68,10 @@ class ApiClient {
   get hasToken() { return !!this.accessToken }
 
   private async request<T>(endpoint: string, options: RequestInit = {}, retry = true): Promise<T> {
+    const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
     const headers: Record<string, string> = {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      // Let the browser set the multipart boundary for FormData uploads.
+      ...(options.body && !isForm ? { 'Content-Type': 'application/json' } : {}),
       ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
       ...(options.headers as Record<string, string>),
     }
@@ -123,6 +125,11 @@ class ApiClient {
   async updateVariant(variantId: string, body: Partial<ProductVariant>) { return (await this.request<{ variant: ProductVariant }>(`/api/admin/products/variants/${variantId}`, { method: 'PATCH', body: JSON.stringify(body) })).variant }
   async deleteVariant(variantId: string) { return this.request(`/api/admin/products/variants/${variantId}`, { method: 'DELETE' }) }
   async addImage(productId: string, body: { url: string; alt?: string; isPrimary?: boolean }) { return (await this.request<{ image: ProductImage }>(`/api/admin/products/${productId}/images`, { method: 'POST', body: JSON.stringify(body) })).image }
+  async uploadImage(productId: string, file: File) {
+    const fd = new FormData()
+    fd.append('file', file)
+    return (await this.request<{ image: ProductImage }>(`/api/admin/products/${productId}/images/upload`, { method: 'POST', body: fd })).image
+  }
   async updateImage(imageId: string, body: Partial<ProductImage>) { return (await this.request<{ image: ProductImage }>(`/api/admin/products/images/${imageId}`, { method: 'PATCH', body: JSON.stringify(body) })).image }
   async deleteImage(imageId: string) { return this.request(`/api/admin/products/images/${imageId}`, { method: 'DELETE' }) }
 

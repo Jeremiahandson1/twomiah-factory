@@ -5,8 +5,8 @@
     "_comment": "Always included — cannot be disabled",
     "features": ["catalog", "orders", "customers", "payments", "settings", "storefront_api"],
     "backend": {
-      "routes": ["auth.ts", "public.ts", "products.ts", "orders.ts", "settings.ts", "payments.ts"],
-      "services": ["logger.ts", "email.ts"],
+      "routes": ["auth.ts", "public.ts", "products.ts", "orders.ts", "settings.ts", "payments.ts", "media.ts"],
+      "services": ["logger.ts", "email.ts", "storage.ts"],
       "middleware": ["auth.ts"],
       "lib": ["crypto.ts", "money.ts"],
       "payments": ["index.ts", "types.ts", "stripe.ts"]

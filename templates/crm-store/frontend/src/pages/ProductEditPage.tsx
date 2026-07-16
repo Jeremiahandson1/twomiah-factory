@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Trash2, Plus, Star, StarOff } from 'lucide-react'
+import { ArrowLeft, Trash2, Plus, Star, StarOff, Upload, Loader2 } from 'lucide-react'
 import api, { Product, ProductVariant } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { dollarsToCents, centsToDollars, money } from '../lib/format'
@@ -179,6 +179,9 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
 function ImagesSection({ product, onChange }: { product: Product; onChange: () => void }) {
   const { toast } = useToast()
   const [url, setUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const add = async () => {
     try {
@@ -186,6 +189,24 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
       setUrl(''); onChange(); toast('Image added')
     } catch (e: any) { toast(e?.message || 'Could not add image', 'error') }
   }
+
+  const uploadFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files).filter((f) => f.type.startsWith('image/'))
+    if (!list.length) return
+    setUploading(true)
+    try {
+      for (const f of list) await api.uploadImage(product.id, f)
+      onChange(); toast(list.length > 1 ? `${list.length} images uploaded` : 'Image uploaded')
+    } catch (e: any) {
+      toast(e?.message || 'Could not upload image', 'error')
+    } finally { setUploading(false) }
+  }
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDragOver(false)
+    if (e.dataTransfer.files?.length) void uploadFiles(e.dataTransfer.files)
+  }
+
   const makePrimary = async (imageId: string) => { await api.updateImage(imageId, { isPrimary: true }); onChange() }
   const del = async (imageId: string) => { await api.deleteImage(imageId); onChange() }
 
@@ -204,11 +225,29 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
           </div>
         ))}
       </div>
-      <div className="flex gap-2">
-        <input className="input flex-1" placeholder="Image URL (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} />
+
+      {/* Drag-and-drop / click-to-upload */}
+      <div
+        onClick={() => !uploading && fileInput.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed py-6 text-center transition ${dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-300 hover:border-gray-400'} ${uploading ? 'pointer-events-none opacity-60' : ''}`}
+      >
+        {uploading
+          ? <><Loader2 className="h-5 w-5 animate-spin text-primary-500" /><span className="text-sm text-gray-500">Uploading…</span></>
+          : <><Upload className="h-5 w-5 text-gray-400" /><span className="text-sm text-gray-600">Drop images here or <span className="font-medium text-primary-600">browse</span></span><span className="text-xs text-gray-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</span></>}
+      </div>
+      <input
+        ref={fileInput} type="file" accept="image/*" multiple className="hidden"
+        onChange={(e) => { if (e.target.files?.length) void uploadFiles(e.target.files); e.target.value = '' }}
+      />
+
+      {/* Paste-a-URL fallback */}
+      <div className="mt-3 flex gap-2">
+        <input className="input flex-1" placeholder="…or paste an image URL (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} />
         <button onClick={add} className="btn-secondary" disabled={!url}><Plus className="h-4 w-4" /> Add</button>
       </div>
-      <p className="mt-2 text-xs text-gray-400">Paste a public image URL. Direct upload is coming soon.</p>
     </div>
   )
 }

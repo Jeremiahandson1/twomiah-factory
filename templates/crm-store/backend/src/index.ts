@@ -16,6 +16,7 @@ import productAdminRoutes from './routes/products.ts'
 import orderAdminRoutes from './routes/orders.ts'
 import settingsAdminRoutes from './routes/settings.ts'
 import paymentAdminRoutes from './routes/payments.ts'
+import mediaRoutes from './routes/media.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -68,6 +69,9 @@ app.route('/api/admin/products', productAdminRoutes)
 app.route('/api/admin/orders', orderAdminRoutes)
 app.route('/api/admin/settings', settingsAdminRoutes)
 app.route('/api/admin/payments', paymentAdminRoutes)
+// Public media proxy for product images (streamed from private R2). Must be
+// registered before the SPA catch-all below so `/media/*` is not swallowed.
+app.route('/media', mediaRoutes)
 
 app.onError((err, c) => {
   logger.error('unhandled error', { error: err?.message, path: c.req.path })
