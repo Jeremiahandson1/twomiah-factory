@@ -345,31 +345,9 @@ app.get('/', async (c) => {
   })
 })
 
-app.get('/services/:slug', (c) => {
-  const slug = c.req.param('slug')
-  const services = loadJSON('services.json') || []
-  let service = services.find((s: any) => s.slug === slug)
-  if (!service) {
-    const name = slug.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
-    service = {
-      id: slug, slug, name, title: name,
-      shortDescription: `Professional ${name.toLowerCase()} services for your home.`,
-      description: `{{COMPANY_NAME}} provides expert ${name.toLowerCase()} services throughout {{SERVICE_REGION}}. Contact us today for a free estimate.`,
-      icon: 'wrench', image: '',
-      features: ['Free estimates', 'Licensed and insured', 'Quality workmanship guarantee', 'Experienced professionals'],
-      links: [], offerings: [], faqs: [],
-      seoTitle: `${name} | {{COMPANY_NAME}}`,
-      seoDescription: `Professional ${name.toLowerCase()} services in {{CITY}}, {{STATE}} by {{COMPANY_NAME}}.`,
-      visible: true, order: 99
-    }
-  }
-  return renderPage(c, 'service', {
-    service, services,
-    title: service.seoTitle || service.name + ' | {{COMPANY_NAME}}',
-    description: service.seoDescription || service.shortDescription || '',
-    canonicalUrl: BASE_URL + '/services/' + service.slug,
-  })
-})
+// A store has no "services" pages — redirect any legacy /services link to the shop.
+app.get('/services', (c) => c.redirect('/shop', 301))
+app.get('/services/:slug', (c) => c.redirect('/shop', 301))
 
 app.get('/about', (c) => {
   return renderPage(c, 'about', {

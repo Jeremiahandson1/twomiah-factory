@@ -573,6 +573,9 @@ function buildTokenMap(config: GenerateConfig, slug: string): Record<string, str
     // Storefront cart localStorage key — unique per tenant so multiple stores
     // opened in one browser don't share a cart.
     '{{CART_STORAGE_KEY}}': slug + '-cart',
+    // Store flag for the bundled CMS admin — hides contractor-only nav
+    // (Services / Gallery / Leads / Visualizer) for store tenants.
+    '{{IS_STORE}}': isStore ? 'true' : 'false',
     '{{JWT_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{JWT_REFRESH_SECRET}}': crypto.randomBytes(32).toString('hex'),
     '{{ENCRYPTION_KEY}}': crypto.randomBytes(32).toString('hex'),

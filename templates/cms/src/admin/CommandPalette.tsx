@@ -7,6 +7,8 @@ function CommandPalette({ isOpen, onClose, onToggleDarkMode }: { isOpen: boolean
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  // Store tenants hide contractor-only commands (Leads, service pages).
+  const isStore = ('{{IS_STORE}}' as string) === 'true';
 
   // Build searchable items
   const allItems = useMemo(() => {
@@ -15,7 +17,7 @@ function CommandPalette({ isOpen, onClose, onToggleDarkMode }: { isOpen: boolean
       { type: 'nav', label: 'Dashboard', icon: '📊', action: () => navigate('/admin') },
       { type: 'nav', label: 'All Pages', icon: '📄', action: () => navigate('/pages') },
       { type: 'nav', label: 'Media Library', icon: '🖼️', action: () => navigate('/media') },
-      { type: 'nav', label: 'Form Submissions / Leads', icon: '💬', action: () => navigate('/leads') },
+      ...(!isStore ? [{ type: 'nav', label: 'Form Submissions / Leads', icon: '💬', action: () => navigate('/leads') }] : []),
       { type: 'nav', label: 'Site Settings', icon: '⚙️', action: () => navigate('/site-settings') },
       { type: 'nav', label: 'Redirects', icon: '↪️', action: () => navigate('/redirects') },
       { type: 'nav', label: 'Account Settings', icon: '🔐', action: () => navigate('/settings') },
@@ -27,8 +29,8 @@ function CommandPalette({ isOpen, onClose, onToggleDarkMode }: { isOpen: boolean
       { type: 'page', label: 'Edit Home Page', icon: '🏠', action: () => navigate('/edit/home') },
     ];
 
-    // Add all service pages
-    services.forEach(service => {
+    // Add all service pages (contractor verticals only — a store has no services).
+    if (!isStore) services.forEach(service => {
       items.push({
         type: 'page',
         label: `Edit ${service.title}`,
