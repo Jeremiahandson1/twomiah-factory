@@ -100,6 +100,7 @@ import accountRoutes from './routes/account.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import onboardingRoutes from './routes/onboarding.ts'
+import mediaRoutes from './routes/media.ts'
 
 let webhooksRoutes: any = null
 try { webhooksRoutes = (await import('./routes/webhooks.ts')).default } catch {}
@@ -282,6 +283,10 @@ const MIME_TYPES: Record<string, string> = {
   '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
   '.html': 'text/html',
 }
+
+// Public product-image proxy (streamed from private R2). Must be registered
+// before the static/SPA catch-all below so /media/* is not swallowed.
+app.route('/media', mediaRoutes)
 
 // ─── Serve frontend SPA from backend (no separate static site needed) ────────
 const hasFrontendBuild = fs.existsSync(path.join(FRONTEND_DIST, 'index.html'))

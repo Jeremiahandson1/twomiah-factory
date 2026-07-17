@@ -6,9 +6,32 @@ import { eq, and, or, ilike, count, desc, asc, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
 import audit from '../services/audit.ts'
+import { putObject } from '../services/fileUpload.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// Upload a product image → private R2 (public key under products/), served back
+// publicly via the /media proxy. Returns the URL to store in product.imageUrl.
+const IMAGE_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif',
+}
+app.post('/upload-image', requireRole('manager'), async (c) => {
+  const currentUser = c.get('user') as any
+  const form = await c.req.parseBody().catch(() => null)
+  const file = form?.['file']
+  if (!(file instanceof File)) return c.json({ error: 'No file uploaded' }, 400)
+  const ext = IMAGE_EXT[file.type]
+  if (!ext) return c.json({ error: 'Unsupported image type (use JPEG, PNG, WebP, GIF, or AVIF)' }, 415)
+  if (file.size > 8 * 1024 * 1024) return c.json({ error: 'Image too large (max 8 MB)' }, 413)
+
+  const buf = Buffer.from(await file.arrayBuffer())
+  const key = `products/${currentUser.companyId}/${crypto.randomUUID()}.${ext}`
+  await putObject(key, buf, file.type)
+
+  const base = (process.env.BACKEND_URL || new URL(c.req.url).origin).replace(/\/+$/, '')
+  return c.json({ url: `${base}/media/${key}` })
+})
 
 const productSchema = z.object({
   name: z.string().min(1),

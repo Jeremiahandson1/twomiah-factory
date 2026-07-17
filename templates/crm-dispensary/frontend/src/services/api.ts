@@ -146,6 +146,14 @@ class ApiClient {
     return this.request(url, { method: 'DELETE' });
   }
 
+  // Multipart upload (the browser sets the multipart boundary; request() skips
+  // the JSON content-type for FormData bodies). Returns the parsed JSON response.
+  async uploadImage(endpoint, file) {
+    const fd = new FormData();
+    fd.append('file', file);
+    return this.request(endpoint, { method: 'POST', body: fd });
+  }
+
   async action(endpoint, id, action, data = {}) {
     return this.request(`${endpoint}/${id}/${action}`, { method: 'POST', body: JSON.stringify(data) });
   }

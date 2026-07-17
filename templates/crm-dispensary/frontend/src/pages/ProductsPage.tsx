@@ -39,6 +39,7 @@ const initialFormData = {
   sku: '',
   barcode: '',
   description: '',
+  imageUrl: '',
   isMerch: false,
 };
 
@@ -55,6 +56,20 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const res: any = await api.uploadImage('/api/products/upload-image', file);
+      setFormData((prev) => ({ ...prev, imageUrl: res.url }));
+      toast.success('Image uploaded');
+    } catch (err: any) {
+      toast.error(err.message || 'Could not upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const loadProducts = useCallback(async () => {
     setLoading(true);
@@ -365,6 +380,27 @@ export default function ProductsPage() {
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-900"
             />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+            <div className="flex items-center gap-3">
+              {formData.imageUrl ? (
+                <img src={formData.imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+              ) : (
+                <div className="w-16 h-16 rounded-lg border border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs">No image</div>
+              )}
+              <label className={`px-3 py-2 rounded-lg font-medium cursor-pointer text-sm ${uploadingImage ? 'bg-gray-100 text-gray-400 pointer-events-none' : 'bg-gray-100 hover:bg-gray-200 text-gray-700'}`}>
+                {uploadingImage ? 'Uploading…' : (formData.imageUrl ? 'Replace' : 'Upload image')}
+                <input
+                  type="file" accept="image/*" className="hidden" disabled={uploadingImage}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImageUpload(f); e.target.value = ''; }}
+                />
+              </label>
+              {formData.imageUrl && !uploadingImage && (
+                <button type="button" onClick={() => setFormData({ ...formData, imageUrl: '' })} className="text-sm text-red-600 hover:underline">Remove</button>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-400">JPEG, PNG, WebP, GIF or AVIF · up to 8 MB</p>
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-6">

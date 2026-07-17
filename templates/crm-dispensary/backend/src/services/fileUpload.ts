@@ -54,6 +54,14 @@ async function put(key: string, body: Buffer, contentType: string): Promise<void
   }))
 }
 
+/** Upload a public-cacheable object (e.g. a product image served via the /media proxy). */
+export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: key, Body: body, ContentType: contentType,
+    CacheControl: 'public, max-age=31536000, immutable',
+  }))
+}
+
 /** Read an object back for the authenticated serving routes. Returns null on 404. */
 export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
   try {
