@@ -38,6 +38,9 @@ export type CreateCheckoutResult = {
 export type WebhookVerifyInput = {
   rawBody: string
   signature: string | undefined
+  // All request headers, lowercased. Providers that verify with a single header
+  // (Stripe, Square) use `signature`; PayPal needs several transmission headers.
+  headers?: Record<string, string>
 }
 
 // Normalized result of a verified webhook. `type: 'paid'` is the only event we

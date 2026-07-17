@@ -4,6 +4,8 @@ import { eq } from 'drizzle-orm'
 import { decrypt as decryptString, decryptJSON } from '../lib/crypto.ts'
 import type { PaymentProvider, ProviderCredentials } from './types.ts'
 import { StripeProvider } from './stripe.ts'
+import { SquareProvider } from './square.ts'
+import { PayPalProvider } from './paypal.ts'
 
 // Loads the merchant's connected provider from payment_config, decrypts their
 // OWN credentials just-in-time, and returns the matching adapter. There is at
@@ -24,8 +26,10 @@ export async function getActiveProvider(): Promise<PaymentProvider | null> {
   switch (cfg.provider) {
     case 'stripe':
       return new StripeProvider(full)
-    // case 'square':  return new SquareProvider(full)   // Phase 2
-    // case 'paypal':  return new PayPalProvider(full)    // Phase 2
+    case 'square':
+      return new SquareProvider(full)
+    case 'paypal':
+      return new PayPalProvider(full)
     default:
       return null
   }

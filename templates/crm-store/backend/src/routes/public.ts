@@ -212,6 +212,13 @@ pub.post('/checkout', async (c) => {
     subtotalCents, shippingCents, taxCents, discountCents: 0, totalCents, currency,
   }).returning()
 
+  // Stripe fills its own {CHECKOUT_SESSION_ID} placeholder on redirect; Square and
+  // PayPal don't, so for them we correlate the success page by our own order id
+  // (`ref`). Keeps the proven Stripe path byte-for-byte unchanged.
+  const successUrl = provider.name === 'stripe'
+    ? `${storefront}/checkout/success?session_id={CHECKOUT_SESSION_ID}`
+    : `${storefront}/checkout/success?ref=${order.id}`
+
   try {
     const checkout = await provider.createCheckout({
       lineItems: lineItems.map((li) => ({
@@ -223,7 +230,7 @@ pub.post('/checkout', async (c) => {
       taxCents,
       customerEmail: parsed.data.customerEmail,
       collectShippingAddress: true,
-      successUrl: `${storefront}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      successUrl,
       cancelUrl: `${storefront}/cart`,
       clientReferenceId: order.id,
       metadata: { orderId: order.id },
@@ -258,16 +265,18 @@ pub.post('/checkout', async (c) => {
 // ── Webhook: signature-verified, idempotent order confirmation ───────────────
 pub.post('/webhooks/payment', async (c) => {
   const rawBody = await c.req.text()
-  const signature = c.req.header('stripe-signature')
-    || c.req.header('x-signature')
-    || c.req.header('paypal-transmission-sig')
+  const headers: Record<string, string> = {}
+  c.req.raw.headers.forEach((v, k) => { headers[k.toLowerCase()] = v })
+  const signature = headers['stripe-signature']
+    || headers['x-square-hmacsha256-signature']
+    || headers['paypal-transmission-sig']
 
   const provider = await getActiveProvider()
   if (!provider) return c.json({ error: 'No provider configured' }, 400)
 
   let result
   try {
-    result = await provider.verifyAndParseWebhook({ rawBody, signature })
+    result = await provider.verifyAndParseWebhook({ rawBody, signature, headers })
   } catch (err: any) {
     logger.warn('webhook signature rejected', { error: err?.message })
     return c.json({ error: 'Invalid signature' }, 400)
@@ -288,10 +297,14 @@ pub.post('/webhooks/payment', async (c) => {
 
 // Order confirmation for the storefront success page (limited, non-sensitive).
 pub.get('/order-summary', async (c) => {
+  // Stripe returns with ?session_id=<providerSessionId>; Square/PayPal return with
+  // ?ref=<our order id>. Either resolves to the same order.
   const sessionId = c.req.query('session_id')
-  if (!sessionId) return c.json({ error: 'Missing session_id' }, 400)
-  let [order] = await db.select().from(orders)
-    .where(eq(orders.providerSessionId, sessionId)).limit(1)
+  const ref = c.req.query('ref')
+  if (!sessionId && !ref) return c.json({ error: 'Missing session_id' }, 400)
+  let [order] = ref
+    ? await db.select().from(orders).where(eq(orders.id, ref)).limit(1)
+    : await db.select().from(orders).where(eq(orders.providerSessionId, sessionId!)).limit(1)
   if (!order) return c.json({ order: null })
 
   // If the webhook hasn't finalized this yet, confirm payment directly with the
@@ -301,7 +314,7 @@ pub.get('/order-summary', async (c) => {
     try {
       const provider = await getActiveProvider()
       if (provider) {
-        const result = await provider.retrieveSession(sessionId)
+        const result = await provider.retrieveSession(order.providerSessionId)
         if (result.type === 'paid') {
           await finalizeOrder(order, result)
           ;[order] = await db.select().from(orders).where(eq(orders.id, order.id)).limit(1)

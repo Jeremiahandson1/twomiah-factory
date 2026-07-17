@@ -3,12 +3,23 @@ import { CreditCard, CheckCircle2, Copy } from 'lucide-react'
 import api, { PaymentStatus } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 
+// What the merchant pastes for each provider (all stored encrypted per-tenant).
+// `pub` is the second credential — optional for Stripe, required for Square/PayPal.
+const PROVIDER_FIELDS: Record<string, {
+  secret: string; secretPh: string; pub: string; pubPh: string; pubRequired: boolean; webhook: string; webhookPh: string
+}> = {
+  stripe: { secret: 'Secret key', secretPh: 'sk_test_… or sk_live_…', pub: 'Publishable key (optional)', pubPh: 'pk_test_…', pubRequired: false, webhook: 'Webhook signing secret', webhookPh: 'whsec_…' },
+  square: { secret: 'Access token', secretPh: 'EAAA… (Square access token)', pub: 'Location ID', pubPh: 'L… (your Square location)', pubRequired: true, webhook: 'Webhook signature key', webhookPh: 'From your Square webhook subscription' },
+  paypal: { secret: 'Client secret', secretPh: 'PayPal app client secret', pub: 'Client ID', pubPh: 'PayPal app client ID', pubRequired: true, webhook: 'Webhook ID', webhookPh: 'WH-… (PayPal webhook id)' },
+}
+
 export default function PaymentsPage() {
   const { toast } = useToast()
   const [status, setStatus] = useState<PaymentStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ provider: 'stripe', mode: 'test', secretKey: '', publishableKey: '', webhookSecret: '' })
   const [saving, setSaving] = useState(false)
+  const f = PROVIDER_FIELDS[form.provider] || PROVIDER_FIELDS.stripe
 
   const load = () => api.getPaymentStatus().then(setStatus).catch(() => {}).finally(() => setLoading(false))
   useEffect(() => { load() }, [])
@@ -69,8 +80,8 @@ export default function PaymentsPage() {
             <label className="label">Provider</label>
             <select className="input" value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value })}>
               <option value="stripe">Stripe</option>
-              <option value="square" disabled>Square (soon)</option>
-              <option value="paypal" disabled>PayPal (soon)</option>
+              <option value="square">Square</option>
+              <option value="paypal">PayPal</option>
             </select>
           </div>
           <div>
@@ -82,20 +93,20 @@ export default function PaymentsPage() {
           </div>
         </div>
         <div>
-          <label className="label">Secret key</label>
-          <input className="input" type="password" value={form.secretKey} onChange={(e) => setForm({ ...form, secretKey: e.target.value })} placeholder="sk_test_… or sk_live_…" />
+          <label className="label">{f.secret}</label>
+          <input className="input" type="password" value={form.secretKey} onChange={(e) => setForm({ ...form, secretKey: e.target.value })} placeholder={f.secretPh} />
           <p className="text-xs text-gray-400 mt-1">Stored encrypted. Never shown again or sent to your storefront.</p>
         </div>
         <div>
-          <label className="label">Publishable key <span className="text-gray-400">(optional)</span></label>
-          <input className="input" value={form.publishableKey} onChange={(e) => setForm({ ...form, publishableKey: e.target.value })} placeholder="pk_test_…" />
+          <label className="label">{f.pub}</label>
+          <input className="input" value={form.publishableKey} onChange={(e) => setForm({ ...form, publishableKey: e.target.value })} placeholder={f.pubPh} />
         </div>
         <div>
-          <label className="label">Webhook signing secret</label>
-          <input className="input" type="password" value={form.webhookSecret} onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })} placeholder="whsec_…" />
+          <label className="label">{f.webhook}</label>
+          <input className="input" type="password" value={form.webhookSecret} onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })} placeholder={f.webhookPh} />
           <p className="text-xs text-gray-400 mt-1">From the webhook you created in step 1. Required for orders to auto-confirm.</p>
         </div>
-        <button onClick={connect} className="btn-primary" disabled={saving || !form.secretKey}>{saving ? 'Verifying…' : connected ? 'Update keys' : 'Connect'}</button>
+        <button onClick={connect} className="btn-primary" disabled={saving || !form.secretKey || (f.pubRequired && !form.publishableKey)}>{saving ? 'Verifying…' : connected ? 'Update keys' : 'Connect'}</button>
       </div>
     </div>
   )

@@ -485,10 +485,13 @@ app.post('/api/checkout', async (c) => {
 })
 
 app.get('/checkout/success', async (c) => {
+  // Stripe returns ?session_id=<id>; Square/PayPal return ?ref=<order id>.
   const sessionId = c.req.query('session_id') || ''
+  const ref = c.req.query('ref') || ''
   let order = null
-  if (sessionId) {
-    const data = await fetchStore('/api/public/order-summary?session_id=' + encodeURIComponent(sessionId))
+  if (sessionId || ref) {
+    const qs = ref ? 'ref=' + encodeURIComponent(ref) : 'session_id=' + encodeURIComponent(sessionId)
+    const data = await fetchStore('/api/public/order-summary?' + qs)
     order = data && data.order ? data.order : null
   }
   return renderPage(c, 'checkout-success', {

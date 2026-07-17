@@ -51,17 +51,34 @@ admin.post('/connect', async (c) => {
   if (!parsed.success) return c.json({ error: 'Invalid payment credentials' }, 400)
   const { provider, mode, secretKey, publishableKey, webhookSecret } = parsed.data
 
-  if (provider !== 'stripe') {
-    return c.json({ error: `${provider} support is coming soon` }, 400)
-  }
-
-  // Verify the key actually works before we save it (Stripe: cheap balance read).
+  // Verify the merchant's credentials actually work before saving them — a cheap
+  // authenticated read against their own account. Field mapping per provider:
+  //   stripe: secretKey = Secret Key
+  //   square: secretKey = Access Token, publishableKey = Location ID
+  //   paypal: secretKey = Client Secret, publishableKey = Client ID
   try {
-    const stripe = new Stripe(secretKey)
-    await stripe.balance.retrieve()
+    if (provider === 'stripe') {
+      const stripe = new Stripe(secretKey)
+      await stripe.balance.retrieve()
+    } else if (provider === 'square') {
+      const base = mode === 'live' ? 'https://connect.squareup.com' : 'https://connect.squareupsandbox.com'
+      const res = await fetch(base + '/v2/locations', {
+        headers: { 'Authorization': `Bearer ${secretKey}`, 'Square-Version': '2024-10-17' },
+      })
+      if (!res.ok) throw new Error('Square rejected the access token')
+    } else if (provider === 'paypal') {
+      const base = mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com'
+      const auth = Buffer.from(`${publishableKey || ''}:${secretKey}`).toString('base64')
+      const res = await fetch(base + '/v1/oauth2/token', {
+        method: 'POST',
+        headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'grant_type=client_credentials',
+      })
+      if (!res.ok) throw new Error('PayPal rejected the client credentials')
+    }
   } catch (err: any) {
     logger.warn('payment connect verification failed', { provider, error: err?.message })
-    return c.json({ error: 'These credentials were rejected by the provider. Double-check the secret key.' }, 400)
+    return c.json({ error: 'These credentials were rejected by the provider. Double-check them.' }, 400)
   }
 
   const credentialsEnc = encryptJSON({ secretKey, publishableKey })
