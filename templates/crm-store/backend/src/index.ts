@@ -8,6 +8,8 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { db } from '../db/index.ts'
+import { orders } from '../db/schema.ts'
+import { and, eq, lt } from 'drizzle-orm'
 import logger from './services/logger.ts'
 
 import authRoutes from './routes/auth.ts'
@@ -16,6 +18,7 @@ import productAdminRoutes from './routes/products.ts'
 import orderAdminRoutes from './routes/orders.ts'
 import settingsAdminRoutes from './routes/settings.ts'
 import paymentAdminRoutes from './routes/payments.ts'
+import discountAdminRoutes from './routes/discounts.ts'
 import mediaRoutes from './routes/media.ts'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -69,6 +72,7 @@ app.route('/api/admin/products', productAdminRoutes)
 app.route('/api/admin/orders', orderAdminRoutes)
 app.route('/api/admin/settings', settingsAdminRoutes)
 app.route('/api/admin/payments', paymentAdminRoutes)
+app.route('/api/admin/discounts', discountAdminRoutes)
 // Public media proxy for product images (streamed from private R2). Must be
 // registered before the SPA catch-all below so `/media/*` is not swallowed.
 app.route('/media', mediaRoutes)
@@ -91,6 +95,23 @@ if (hasFrontendBuild) {
 } else {
   app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
 }
+
+// Stale-cart sweep: checkouts that were started but never paid linger as
+// 'pending'. Cancel any older than 24h so the orders list + revenue stats stay
+// clean. Runs hourly (and once at boot). Non-blocking.
+const STALE_PENDING_MS = 24 * 60 * 60 * 1000
+async function sweepStalePending(): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - STALE_PENDING_MS)
+    await db.update(orders)
+      .set({ status: 'cancelled', updatedAt: new Date() })
+      .where(and(eq(orders.status, 'pending'), lt(orders.createdAt, cutoff)))
+  } catch (e: any) {
+    logger.warn('stale-cart sweep failed', { error: e?.message })
+  }
+}
+setInterval(() => { void sweepStalePending() }, 60 * 60 * 1000)
+void sweepStalePending()
 
 const PORT = Number(process.env.PORT) || 3001
 serve({ fetch: app.fetch, port: PORT }, (info) => {

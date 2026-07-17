@@ -83,6 +83,9 @@ export class SquareProvider implements PaymentProvider {
         location_id: this.locationId,
         reference_id: input.clientReferenceId,
         line_items,
+        ...(input.discountCents > 0
+          ? { discounts: [{ uid: 'discount', name: 'Discount', amount_money: { amount: input.discountCents, currency }, scope: 'ORDER' }] }
+          : {}),
       },
       checkout_options: {
         redirect_url: input.successUrl,

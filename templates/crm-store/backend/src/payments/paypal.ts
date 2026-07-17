@@ -60,7 +60,7 @@ export class PayPalProvider implements PaymentProvider {
   async createCheckout(input: CreateCheckoutInput): Promise<CreateCheckoutResult> {
     const cc = input.currency.toUpperCase()
     const itemsTotal = input.lineItems.reduce((s, li) => s + li.unitPriceCents * li.quantity, 0)
-    const total = itemsTotal + input.shippingCents + input.taxCents
+    const total = itemsTotal + input.shippingCents + input.taxCents - input.discountCents
 
     const order = await this.api('/v2/checkout/orders', 'POST', {
       intent: 'CAPTURE',
@@ -73,6 +73,7 @@ export class PayPalProvider implements PaymentProvider {
             item_total: { currency_code: cc, value: money(itemsTotal) },
             ...(input.shippingCents > 0 ? { shipping: { currency_code: cc, value: money(input.shippingCents) } } : {}),
             ...(input.taxCents > 0 ? { tax_total: { currency_code: cc, value: money(input.taxCents) } } : {}),
+            ...(input.discountCents > 0 ? { discount: { currency_code: cc, value: money(input.discountCents) } } : {}),
           },
         },
         items: input.lineItems.map((li) => ({

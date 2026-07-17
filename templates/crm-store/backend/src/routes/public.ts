@@ -3,9 +3,10 @@ import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import {
   products, productImages, productVariants, orders, orderItems,
-  storeSettings, paymentConfig,
+  storeSettings, paymentConfig, discountCodes,
 } from '../../db/schema.ts'
-import { eq, and, inArray, asc } from 'drizzle-orm'
+import type { ShippingZone, TaxRate } from '../../db/schema.ts'
+import { eq, and, inArray, asc, sql } from 'drizzle-orm'
 import { getActiveProvider } from '../payments/index.ts'
 import type { WebhookResult } from '../payments/types.ts'
 import { sendOrderConfirmation, sendMerchantNewOrder } from '../services/email.ts'
@@ -34,6 +35,15 @@ async function finalizeOrder(order: typeof orders.$inferSelect, result: WebhookR
   }).where(and(eq(orders.id, order.id), eq(orders.status, 'pending'))).returning({ id: orders.id })
 
   if (flipped.length === 0) return // another path finalized it first
+
+  // Count discount-code usage exactly once (only the winning finalize reaches here).
+  if (order.discountCode) {
+    try {
+      await db.update(discountCodes)
+        .set({ usedCount: sql`${discountCodes.usedCount} + 1` })
+        .where(eq(discountCodes.code, order.discountCode))
+    } catch { /* non-blocking */ }
+  }
 
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
   for (const it of items) {
@@ -121,6 +131,39 @@ pub.get('/settings', async (c) => {
 })
 
 // ── Checkout: prices are ALWAYS computed server-side from the DB ──────────────
+// Shipping: first matching zone (by the buyer's ship-to region) wins, else the
+// flat rate. Free-shipping thresholds apply per-zone or via the flat threshold.
+function computeShipping(settings: any, subtotalCents: number, shipTo?: { country?: string; state?: string }): number {
+  const zones: ShippingZone[] = settings?.shippingZones || []
+  if (shipTo && zones.length) {
+    const c = (shipTo.country || '').toUpperCase()
+    const s = (shipTo.state || '').toUpperCase()
+    const zone = zones.find((z) =>
+      (!z.countries?.length || z.countries.map((x) => x.toUpperCase()).includes(c)) &&
+      (!z.states?.length || z.states.map((x) => x.toUpperCase()).includes(s)))
+    if (zone) {
+      if (zone.freeThresholdCents != null && subtotalCents >= zone.freeThresholdCents) return 0
+      return Math.max(0, zone.rateCents || 0)
+    }
+  }
+  const threshold = settings?.freeShippingThresholdCents ?? null
+  return threshold !== null && subtotalCents >= threshold ? 0 : (settings?.flatShippingCents ?? 0)
+}
+
+// Tax: first matching region rate wins, else the flat taxRateBps.
+function computeTaxBps(settings: any, shipTo?: { country?: string; state?: string }): number {
+  const rates: TaxRate[] = settings?.taxRates || []
+  if (shipTo && rates.length) {
+    const c = (shipTo.country || '').toUpperCase()
+    const s = (shipTo.state || '').toUpperCase()
+    const r = rates.find((r) =>
+      (!r.country || r.country.toUpperCase() === c) &&
+      (!r.state || r.state.toUpperCase() === s))
+    if (r) return Math.max(0, r.rateBps || 0)
+  }
+  return settings?.taxRateBps ?? 0
+}
+
 const checkoutSchema = z.object({
   items: z.array(z.object({
     sku: z.string().min(1),
@@ -130,6 +173,10 @@ const checkoutSchema = z.object({
   // The storefront passes the origin the customer is actually on so the
   // success/cancel redirects land on the live site (not a not-yet-live domain).
   origin: z.string().url().optional(),
+  // Optional ship-to region (from the cart) → region shipping/tax. Falls back to
+  // flat rates when absent.
+  shipTo: z.object({ country: z.string().max(2), state: z.string().max(16) }).partial().optional(),
+  discountCode: z.string().max(64).optional(),
 })
 
 pub.post('/checkout', async (c) => {
@@ -192,10 +239,27 @@ pub.post('/checkout', async (c) => {
 
   // ── Server-computed totals (never trust the client) ──
   const subtotalCents = lineItems.reduce((a, li) => a + li.unitPriceCents * li.quantity, 0)
-  const threshold = settings?.freeShippingThresholdCents ?? null
-  const shippingCents = threshold !== null && subtotalCents >= threshold ? 0 : (settings?.flatShippingCents ?? 0)
-  const taxCents = Math.round(subtotalCents * ((settings?.taxRateBps ?? 0) / 10000))
-  const totalCents = subtotalCents + shippingCents + taxCents
+
+  // Validate + apply a discount code server-side (never trust the client).
+  let discountCents = 0
+  let appliedCode: string | null = null
+  if (parsed.data.discountCode) {
+    const code = parsed.data.discountCode.trim().toUpperCase()
+    const [dc] = await db.select().from(discountCodes).where(eq(discountCodes.code, code)).limit(1)
+    if (dc && dc.active
+        && (!dc.expiresAt || dc.expiresAt > new Date())
+        && (dc.maxUses == null || dc.usedCount < dc.maxUses)
+        && subtotalCents >= dc.minSubtotalCents) {
+      discountCents = dc.type === 'percent'
+        ? Math.min(subtotalCents, Math.round(subtotalCents * dc.value / 100))
+        : Math.min(subtotalCents, dc.value)
+      appliedCode = dc.code
+    }
+  }
+
+  const shippingCents = computeShipping(settings, subtotalCents, parsed.data.shipTo)
+  const taxCents = Math.round(Math.max(0, subtotalCents - discountCents) * (computeTaxBps(settings, parsed.data.shipTo) / 10000))
+  const totalCents = Math.max(0, subtotalCents - discountCents) + shippingCents + taxCents
 
   // Prefer the origin the request carries (the domain the customer is actually
   // browsing) over env — env may hold a derived custom domain that isn't live.
@@ -209,7 +273,7 @@ pub.post('/checkout', async (c) => {
     providerSessionId: `pending_${crypto.randomUUID()}`, // replaced with real id below
     status: 'pending',
     customerEmail: parsed.data.customerEmail ?? 'pending@checkout',
-    subtotalCents, shippingCents, taxCents, discountCents: 0, totalCents, currency,
+    subtotalCents, shippingCents, taxCents, discountCents, discountCode: appliedCode, totalCents, currency,
   }).returning()
 
   // Stripe fills its own {CHECKOUT_SESSION_ID} placeholder on redirect; Square and
@@ -228,6 +292,7 @@ pub.post('/checkout', async (c) => {
       currency,
       shippingCents,
       taxCents,
+      discountCents,
       customerEmail: parsed.data.customerEmail,
       collectShippingAddress: true,
       successUrl,

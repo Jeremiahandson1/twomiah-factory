@@ -21,6 +21,9 @@ export type CreateCheckoutInput = {
   currency: string
   shippingCents: number
   taxCents: number
+  // Order-level discount already validated + computed server-side (0 if none).
+  // Each provider applies it as a native order discount so the hosted total matches.
+  discountCents: number
   customerEmail?: string
   successUrl: string
   cancelUrl: string

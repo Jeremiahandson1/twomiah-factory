@@ -20,6 +20,20 @@ const settingsSchema = z.object({
   flatShippingCents: z.number().int().nonnegative().optional(),
   freeShippingThresholdCents: z.number().int().nonnegative().optional().nullable(),
   taxRateBps: z.number().int().nonnegative().max(10000).optional(),
+  // Region-based overrides (win over the flat rates above when the buyer's
+  // ship-to region matches).
+  shippingZones: z.array(z.object({
+    name: z.string(),
+    countries: z.array(z.string()),
+    states: z.array(z.string()),
+    rateCents: z.number().int().nonnegative(),
+    freeThresholdCents: z.number().int().nonnegative().nullable().optional(),
+  })).optional().nullable(),
+  taxRates: z.array(z.object({
+    country: z.string(),
+    state: z.string(),
+    rateBps: z.number().int().nonnegative().max(10000),
+  })).optional().nullable(),
   storefrontOrigin: z.string().optional().nullable(),
 })
 

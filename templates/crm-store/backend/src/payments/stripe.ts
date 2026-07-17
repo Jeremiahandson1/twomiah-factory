@@ -74,6 +74,15 @@ export class StripeProvider implements PaymentProvider {
         : {}),
     }
 
+    // Apply the server-computed discount as a one-time coupon so the hosted total
+    // exactly matches our order total.
+    if (input.discountCents > 0) {
+      const coupon = await this.stripe.coupons.create({
+        amount_off: input.discountCents, currency, duration: 'once', name: 'Discount',
+      })
+      params.discounts = [{ coupon: coupon.id }]
+    }
+
     const session = await this.stripe.checkout.sessions.create(params)
     if (!session.url) throw new Error('Stripe did not return a checkout URL')
     return { redirectUrl: session.url, providerSessionId: session.id }

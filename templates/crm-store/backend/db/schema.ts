@@ -148,6 +148,10 @@ export const storeSettings = pgTable('store_settings', {
   flatShippingCents: integer('flat_shipping_cents').notNull().default(0),
   freeShippingThresholdCents: integer('free_shipping_threshold_cents'),
   taxRateBps: integer('tax_rate_bps').notNull().default(0), // basis points, e.g. 725 = 7.25%
+  // Optional region-based overrides. When a buyer's ship-to region matches a zone
+  // / tax rate, it wins over the flat rates above; otherwise the flat rates apply.
+  shippingZones: jsonb('shipping_zones').$type<ShippingZone[]>(),
+  taxRates: jsonb('tax_rates').$type<TaxRate[]>(),
   storefrontOrigin: text('storefront_origin'), // allowlisted origin for public API/CORS
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
@@ -172,3 +176,34 @@ export type Address = {
   postalCode: string
   country: string
 }
+
+// ── Region-based rates (stored as JSON on store_settings) ────────────────────
+// A zone/rate matches when the buyer's ship-to country (and state, if listed) is
+// covered. Empty arrays/strings mean "any". First match wins; flat rates are the
+// fallback when nothing matches.
+export type ShippingZone = {
+  name: string
+  countries: string[]           // ISO country codes; [] = any
+  states: string[]              // state/province codes; [] = any within the countries
+  rateCents: number
+  freeThresholdCents?: number | null
+}
+export type TaxRate = {
+  country: string               // ISO country code; '' = any
+  state: string                 // state code; '' = any within country
+  rateBps: number               // basis points
+}
+
+// ── Discount / promo codes ───────────────────────────────────────────────────
+export const discountCodes = pgTable('discount_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull(),                 // stored uppercase
+  type: text('type').notNull(),                 // 'percent' | 'fixed'
+  value: integer('value').notNull(),            // percent (1-100) or fixed cents
+  active: boolean('active').notNull().default(true),
+  minSubtotalCents: integer('min_subtotal_cents').notNull().default(0),
+  maxUses: integer('max_uses'),                 // null = unlimited
+  usedCount: integer('used_count').notNull().default(0),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('discount_codes_code_unique').on(t.code)])
