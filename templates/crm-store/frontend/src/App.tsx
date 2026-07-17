@@ -10,6 +10,7 @@ import OrdersPage from './pages/OrdersPage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import CustomersPage from './pages/CustomersPage'
 import PaymentsPage from './pages/PaymentsPage'
+import DiscountsPage from './pages/DiscountsPage'
 import SettingsPage from './pages/SettingsPage'
 
 function Protected({ children }: { children: JSX.Element }) {
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="orders/:id" element={<OrderDetailPage />} />
               <Route path="customers" element={<CustomersPage />} />
               <Route path="payments" element={<PaymentsPage />} />
+              <Route path="discounts" element={<DiscountsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />

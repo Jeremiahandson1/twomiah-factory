@@ -319,7 +319,14 @@
           '<div class="cart-summary__row">' +
             '<span>Subtotal</span><span data-cart-subtotal>' + formatMoney(cartSubtotalCents(cart)) + '</span>' +
           '</div>' +
-          '<p class="cart-summary__note">Shipping &amp; tax calculated at checkout.</p>' +
+          '<div class="cart-summary__field">' +
+            '<input type="text" data-discount-code placeholder="Discount code (optional)" class="cart-summary__input" autocomplete="off" />' +
+          '</div>' +
+          '<div class="cart-summary__field cart-summary__ship">' +
+            '<input type="text" data-ship-country placeholder="Country (US)" maxlength="2" class="cart-summary__input" autocomplete="country" />' +
+            '<input type="text" data-ship-state placeholder="State (CA)" maxlength="16" class="cart-summary__input" autocomplete="address-level1" />' +
+          '</div>' +
+          '<p class="cart-summary__note">Enter your region for accurate shipping &amp; tax; final total shown at checkout.</p>' +
           '<button type="button" class="btn btn-primary btn-lg btn-block" data-checkout>Checkout</button>' +
           '<div class="cart-summary__error" data-checkout-error style="display:none"></div>' +
           '<a href="/shop" class="cart-summary__continue">Continue shopping</a>' +
@@ -369,10 +376,20 @@
     btn.disabled = true;
     btn.textContent = 'Redirecting…';
 
+    var discountEl = document.querySelector('[data-discount-code]');
+    var countryEl = document.querySelector('[data-ship-country]');
+    var stateEl = document.querySelector('[data-ship-state]');
+    var body = { items: cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }) };
+    var dc = discountEl && discountEl.value ? discountEl.value.trim() : '';
+    if (dc) body.discountCode = dc;
+    var country = countryEl && countryEl.value ? countryEl.value.trim() : '';
+    var state = stateEl && stateEl.value ? stateEl.value.trim() : '';
+    if (country || state) body.shipTo = { country: country, state: state };
+
     fetch('/api/checkout', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ items: cart.map(function (i) { return { sku: i.sku, quantity: i.qty }; }) })
+      body: JSON.stringify(body)
     })
       .then(function (res) {
         return res.json().then(function (data) { return { ok: res.ok, data: data }; });

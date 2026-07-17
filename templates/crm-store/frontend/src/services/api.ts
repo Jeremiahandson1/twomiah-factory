@@ -38,9 +38,16 @@ export type OrderItem = {
   unitPriceCents: number; quantity: number; lineTotalCents: number
 }
 export type Address = { line1: string; line2?: string; city: string; state: string; postalCode: string; country: string }
+export type ShippingZone = { name: string; countries: string[]; states: string[]; rateCents: number; freeThresholdCents?: number | null }
+export type TaxRate = { country: string; state: string; rateBps: number }
 export type StoreSettings = {
   id: string; companyName: string; supportEmail: string | null; currency: string
   flatShippingCents: number; freeShippingThresholdCents: number | null; taxRateBps: number; storefrontOrigin: string | null
+  shippingZones?: ShippingZone[] | null; taxRates?: TaxRate[] | null
+}
+export type DiscountCode = {
+  id: string; code: string; type: 'percent' | 'fixed'; value: number; active: boolean
+  minSubtotalCents: number; maxUses: number | null; usedCount: number; expiresAt: string | null; createdAt: string
 }
 export type PaymentStatus = {
   config: { provider: string; mode: string; publishableKey: string | null; connected: boolean; hasWebhookSecret: boolean; updatedAt: string } | null
@@ -149,6 +156,12 @@ class ApiClient {
   async getPaymentStatus() { return this.request<PaymentStatus>('/api/admin/payments') }
   async connectPayment(body: { provider: string; mode: string; secretKey: string; publishableKey?: string; webhookSecret?: string }) { return this.request('/api/admin/payments/connect', { method: 'POST', body: JSON.stringify(body) }) }
   async disconnectPayment() { return this.request('/api/admin/payments/disconnect', { method: 'POST' }) }
+
+  // ── Discount codes ──
+  async listDiscounts() { return (await this.request<{ codes: DiscountCode[] }>('/api/admin/discounts')).codes }
+  async createDiscount(body: Partial<DiscountCode>) { return (await this.request<{ code: DiscountCode }>('/api/admin/discounts', { method: 'POST', body: JSON.stringify(body) })).code }
+  async updateDiscount(id: string, body: Partial<DiscountCode>) { return (await this.request<{ code: DiscountCode }>(`/api/admin/discounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) })).code }
+  async deleteDiscount(id: string) { return this.request(`/api/admin/discounts/${id}`, { method: 'DELETE' }) }
 }
 
 export const api = new ApiClient()

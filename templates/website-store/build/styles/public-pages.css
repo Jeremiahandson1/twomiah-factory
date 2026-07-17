@@ -2471,6 +2471,18 @@
   color: #94a3b8;
   margin: 4px 0 18px;
 }
+.cart-summary__field { margin: 10px 0; }
+.cart-summary__ship { display: flex; gap: 8px; }
+.cart-summary__input {
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #0f172a;
+  background: #fff;
+}
+.cart-summary__input:focus { outline: none; border-color: #94a3b8; }
 .cart-summary .btn-block { text-transform: none; letter-spacing: 0; }
 .cart-summary__error {
   margin-top: 12px;
