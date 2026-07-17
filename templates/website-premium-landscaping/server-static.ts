@@ -15,6 +15,7 @@
  *   /health           → liveness for Render
  */
 import { Hono } from 'hono'
+import { registerMedia } from './services/mediaProxy.ts'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/bun'
@@ -126,6 +127,7 @@ app.get('/.well-known/security.txt', (c) => {
 app.use('/styles/*', serveStatic({ root: './build' }))
 app.use('/scripts/*', serveStatic({ root: './build' }))
 app.use('/uploads/*', serveStatic({ root: '.' }))
+registerMedia(app)
 // Favicon + synthesized logo (build/favicon.svg, build/images/logo.svg) — makes the
 // browser-tab icon + og:image resolve. serveStatic 404s through when absent.
 app.use('/favicon.svg', serveStatic({ root: './build' }))

@@ -61,10 +61,29 @@ if (USE_R2) {
 // ─── Public URL for an image ─────────────────────────────────────
 
 export function getImageUrl(filename: string): string {
-  if (USE_R2 && s3Client && R2_PUBLIC_URL) {
-    return `${R2_PUBLIC_URL}/${R2_PREFIX}${filename}`
+  if (USE_R2) {
+    // Served same-origin through the /media proxy (services/mediaProxy.ts) which
+    // streams from the private bucket — no public bucket / R2_PUBLIC_URL needed.
+    return `/media/${R2_PREFIX}${filename}`
   }
   return `/uploads/${filename}`
+}
+
+// Read an object back for the /media proxy. Returns null when R2 is off or 404.
+export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  if (!USE_R2) return null
+  await initR2()
+  if (!s3Client || !S3_BUCKET) return null
+  const { GetObjectCommand } = await import('@aws-sdk/client-s3')
+  try {
+    const res = await s3Client.send(new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }))
+    const bytes = await res.Body.transformToByteArray()
+    const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    return { body, contentType: res.ContentType || 'application/octet-stream' }
+  } catch (e: any) {
+    if (e?.name === 'NoSuchKey' || e?.$metadata?.httpStatusCode === 404) return null
+    throw e
+  }
 }
 
 // ─── Upload a buffer to storage ──────────────────────────────────

@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { registerMedia } from './services/mediaProxy.ts'
 import { secureHeaders } from 'hono/secure-headers'
 import { cors } from 'hono/cors'
 import { serve } from '@hono/node-server'
@@ -131,6 +132,7 @@ function serveStaticDir(dir: string) {
 
 // Serve uploaded files
 app.use('/uploads/*', serveStatic({ root: path.relative(process.cwd(), path.dirname(uploadsDir)), rewriteRequestPath: (p) => p.replace('/uploads', '/' + path.basename(uploadsDir)) }))
+registerMedia(app)
 
 // Website static assets
 app.use('/*', serveStaticDir(path.join(__dirname, 'build')))

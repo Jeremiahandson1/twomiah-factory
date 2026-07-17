@@ -13,7 +13,7 @@
  */
 import fs from 'fs'
 import path from 'path'
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 
 const BACKEND = process.env.STORAGE_BACKEND === 's3' ? 's3' : 'local'
 
@@ -51,8 +51,6 @@ export async function uploadImage(buffer: Buffer, opts: {
   if (BACKEND === 's3') {
     const bucket = process.env.R2_BUCKET_NAME
     if (!bucket) throw new Error('R2_BUCKET_NAME not set')
-    const publicBase = process.env.R2_PUBLIC_URL
-    if (!publicBase) throw new Error('R2_PUBLIC_URL not set (tenant CDN URL prefix)')
 
     await getS3().send(new PutObjectCommand({
       Bucket: bucket,
@@ -63,7 +61,9 @@ export async function uploadImage(buffer: Buffer, opts: {
     }))
 
     return {
-      url: publicBase.replace(/\/$/, '') + '/' + key,
+      // Served same-origin via the /media proxy (services/mediaProxy.ts), which
+      // streams from the private bucket — no public bucket / R2_PUBLIC_URL needed.
+      url: `/media/${key}`,
       storageKey: key,
       bytes: buffer.length,
       contentType: opts.contentType,
@@ -99,4 +99,20 @@ export async function deleteImage(storageKey: string): Promise<void> {
   const filename = path.basename(storageKey)
   const filepath = path.join(process.cwd(), 'uploads', 'photos', filename)
   try { fs.unlinkSync(filepath) } catch { /* ignore — already gone */ }
+}
+
+// Read an object back for the /media proxy. Returns null when not in R2 mode or 404.
+export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  if (BACKEND !== 's3') return null
+  const bucket = process.env.R2_BUCKET_NAME
+  if (!bucket) return null
+  try {
+    const res = await getS3().send(new GetObjectCommand({ Bucket: bucket, Key: key }))
+    const bytes = await res.Body!.transformToByteArray()
+    const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    return { body, contentType: res.ContentType || 'application/octet-stream' }
+  } catch (e: any) {
+    if (e?.name === 'NoSuchKey' || e?.$metadata?.httpStatusCode === 404) return null
+    throw e
+  }
 }
