@@ -8,6 +8,12 @@
 import { Hono } from 'hono'
 import { getObject, storageConfigured } from '../services/storage.ts'
 
+// Only known-safe raster image types are served with their content-type; anything
+// else (e.g. an SVG that could carry inline script) is forced to download.
+const SAFE_INLINE_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
+])
+
 const media = new Hono()
 
 media.get('/*', async (c) => {
@@ -19,7 +25,10 @@ media.get('/*', async (c) => {
   const obj = await getObject(key)
   if (!obj) return c.json({ error: 'Not found' }, 404)
 
-  c.header('Content-Type', obj.contentType)
+  const safe = SAFE_INLINE_TYPES.has(obj.contentType)
+  c.header('Content-Type', safe ? obj.contentType : 'application/octet-stream')
+  c.header('X-Content-Type-Options', 'nosniff')
+  if (!safe) c.header('Content-Disposition', 'attachment')
   c.header('Cache-Control', 'public, max-age=31536000, immutable')
   return c.body(obj.body)
 })
