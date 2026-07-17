@@ -1,36 +1,70 @@
 /**
- * Photo Service
+ * Photo Service — durable object storage (Cloudflare R2, private bucket).
  *
- * Handles photo uploads with:
- * - Image compression/resizing
- * - Thumbnail generation
- * - EXIF data extraction (GPS, timestamp)
- * - Organization by project/job
+ * Job/project photos are stored PRIVATE in R2 and served back only through the
+ * authenticated, company-scoped routes in routes/photos.ts (GET /:id/file and
+ * /:id/thumbnail) — so they are never publicly reachable. Previously these wrote
+ * to an ephemeral disk (UPLOAD_DIR/photos) that the factory does not persist, so
+ * photos vanished on every redeploy.
+ *
+ * Image processing runs in-memory via sharp (no disk). The factory injects
+ * R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET_NAME but
+ * NOT R2_ENDPOINT, so the endpoint is derived from the account id.
  */
 
-import path from 'path'
-import fs from 'fs/promises'
 import sharp from 'sharp'
 import crypto from 'crypto'
-const uuid = () => crypto.randomUUID()
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { db } from '../../db/index.ts'
 import { document, user, project, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'
 
+const uuid = () => crypto.randomUUID()
+
 // NOTE: The Drizzle schema does not have a dedicated `photo` table.
 // Using the `document` table with type='photo' as the closest match.
-// If a photo table is added to the schema, update references accordingly.
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads'
-const PHOTOS_DIR = path.join(UPLOAD_DIR, 'photos')
-const THUMBNAILS_DIR = path.join(UPLOAD_DIR, 'thumbnails')
+const ACCOUNT_ID = process.env.R2_ACCOUNT_ID || ''
+const ENDPOINT = process.env.R2_ENDPOINT || (ACCOUNT_ID ? `https://${ACCOUNT_ID}.r2.cloudflarestorage.com` : '')
+const BUCKET = process.env.R2_BUCKET_NAME || ''
 
-// Ensure directories exist
-async function ensureDirs() {
-  await fs.mkdir(PHOTOS_DIR, { recursive: true })
-  await fs.mkdir(THUMBNAILS_DIR, { recursive: true })
+const s3 = new S3Client({
+  region: 'auto',
+  endpoint: ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+  },
+})
+
+export function storageConfigured(): boolean {
+  return !!(ENDPOINT && BUCKET && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY)
 }
-ensureDirs()
+
+async function put(key: string, body: Buffer, contentType: string): Promise<void> {
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: key, Body: body, ContentType: contentType,
+    CacheControl: 'private, max-age=31536000',
+  }))
+}
+
+/** Read an object back for the authenticated serving routes. Returns null on 404. */
+export async function getObject(key: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+    const bytes = await res.Body!.transformToByteArray()
+    const body = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    return { body, contentType: res.ContentType || 'application/octet-stream' }
+  } catch (e: any) {
+    if (e?.name === 'NoSuchKey' || e?.$metadata?.httpStatusCode === 404) return null
+    throw e
+  }
+}
+
+/** Derive the thumbnail key from a stored main-photo key. */
+export function thumbKeyFromPath(mainKey: string): string {
+  return mainKey.replace(/\.jpg$/i, '_thumb.jpg')
+}
 
 // Image settings
 const MAX_WIDTH = 2048
@@ -48,74 +82,49 @@ interface ProcessPhotoOptions {
   category?: string
 }
 
-/**
- * Process and save uploaded photo
- */
+/** Process and store an uploaded photo (main + thumbnail) in the private bucket. */
 export async function processPhoto(file: any, { companyId, projectId, jobId, userId, caption, category }: ProcessPhotoOptions) {
   const id = uuid()
-  const ext = '.jpg' // Always convert to jpg
-  const filename = `${id}${ext}`
-  const thumbFilename = `${id}_thumb${ext}`
+  const mainKey = `${companyId}/photos/${id}.jpg`
+  const thumbKey = `${companyId}/photos/${id}_thumb.jpg`
+  const input = file.buffer || file.path
 
-  const photoPath = path.join(PHOTOS_DIR, filename)
-  const thumbPath = path.join(THUMBNAILS_DIR, thumbFilename)
+  // Resize main image + generate thumbnail, both in-memory.
+  const mainBuffer = await sharp(input)
+    .rotate() // auto-orient from EXIF
+    .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: QUALITY })
+    .toBuffer()
+  const thumbBuffer = await sharp(input)
+    .rotate()
+    .resize(THUMB_WIDTH, THUMB_HEIGHT, { fit: 'cover' })
+    .jpeg({ quality: 80 })
+    .toBuffer()
 
-  try {
-    // Load image with sharp
-    const image = sharp(file.buffer || file.path)
-    const metadata = await image.metadata()
+  await Promise.all([put(mainKey, mainBuffer, 'image/jpeg'), put(thumbKey, thumbBuffer, 'image/jpeg')])
 
-    // Resize and save main image
-    await image
-      .rotate() // Auto-rotate based on EXIF
-      .resize(MAX_WIDTH, MAX_HEIGHT, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: QUALITY })
-      .toFile(photoPath)
+  const [photo] = await db.insert(document).values({
+    id,
+    name: caption || file.originalname || 'photo.jpg',
+    type: category || 'photo',
+    filename: `${id}.jpg`,
+    originalName: file.originalname || 'photo.jpg',
+    mimeType: 'image/jpeg',
+    size: mainBuffer.length,
+    path: mainKey,
+    url: `/api/photos/${id}/file`,
+    thumbnailUrl: `/api/photos/${id}/thumbnail`,
+    description: caption,
+    companyId,
+    projectId: projectId || null,
+    jobId: jobId || null,
+    uploadedById: userId,
+  }).returning()
 
-    // Generate thumbnail
-    await sharp(file.buffer || file.path)
-      .rotate()
-      .resize(THUMB_WIDTH, THUMB_HEIGHT, { fit: 'cover' })
-      .jpeg({ quality: 80 })
-      .toFile(thumbPath)
-
-    // Get final file sizes
-    const [photoStats, thumbStats] = await Promise.all([
-      fs.stat(photoPath),
-      fs.stat(thumbPath),
-    ])
-
-    // Save to database using document table
-    const [photo] = await db.insert(document).values({
-      id,
-      name: caption || file.originalname || 'photo.jpg',
-      type: category || 'photo',
-      filename,
-      originalName: file.originalname || 'photo.jpg',
-      mimeType: 'image/jpeg',
-      size: photoStats.size,
-      path: photoPath,
-      url: `/uploads/photos/${filename}`,
-      thumbnailUrl: `/uploads/thumbnails/${thumbFilename}`,
-      description: caption,
-      companyId,
-      projectId: projectId || null,
-      jobId: jobId || null,
-      uploadedById: userId,
-    }).returning()
-
-    return photo
-  } catch (error) {
-    // Clean up files on error
-    await fs.unlink(photoPath).catch(() => {})
-    await fs.unlink(thumbPath).catch(() => {})
-    throw error
-  }
+  return photo
 }
 
-/**
- * Process multiple photos
- */
+/** Process multiple photos. */
 export async function processPhotos(files: any[], options: ProcessPhotoOptions) {
   const results: Array<{ success: boolean; photo?: any; error?: string; filename?: string }> = []
   for (const file of files) {
@@ -129,9 +138,7 @@ export async function processPhotos(files: any[], options: ProcessPhotoOptions) 
   return results
 }
 
-/**
- * Get photos with filters
- */
+/** Get photos with filters. */
 export async function getPhotos({ companyId, projectId, jobId, category, page = 1, limit = 50 }: {
   companyId: string
   projectId?: string
@@ -144,8 +151,6 @@ export async function getPhotos({ companyId, projectId, jobId, category, page = 
   if (projectId) conditions.push(eq(document.projectId, projectId))
   if (jobId) conditions.push(eq(document.jobId, jobId))
   if (category) conditions.push(eq(document.type, category))
-
-  // Only get photo-type documents
   conditions.push(eq(document.mimeType, 'image/jpeg'))
 
   const whereClause = and(...conditions)
@@ -178,9 +183,7 @@ export async function getPhotos({ companyId, projectId, jobId, category, page = 
   }
 }
 
-/**
- * Get single photo
- */
+/** Get single photo. */
 export async function getPhoto(id: string, companyId: string) {
   const [result] = await db.select()
     .from(document)
@@ -199,9 +202,7 @@ export async function getPhoto(id: string, companyId: string) {
   }
 }
 
-/**
- * Update photo
- */
+/** Update photo metadata. */
 export async function updatePhoto(id: string, companyId: string, data: any) {
   const [photo] = await db.select()
     .from(document)
@@ -222,9 +223,7 @@ export async function updatePhoto(id: string, companyId: string, data: any) {
   return updated
 }
 
-/**
- * Delete photo
- */
+/** Delete a photo (DB row + both R2 objects). */
 export async function deletePhoto(id: string, companyId: string): Promise<boolean> {
   const [photo] = await db.select()
     .from(document)
@@ -232,49 +231,22 @@ export async function deletePhoto(id: string, companyId: string): Promise<boolea
 
   if (!photo) return false
 
-  // Delete files
-  const photoPath = path.join(PHOTOS_DIR, photo.filename)
-  const thumbPath = photo.thumbnailUrl ? path.join(THUMBNAILS_DIR, path.basename(photo.thumbnailUrl)) : null
-
-  await Promise.all([
-    fs.unlink(photoPath).catch(() => {}),
-    thumbPath ? fs.unlink(thumbPath).catch(() => {}) : Promise.resolve(),
-  ])
+  const mainKey = photo.path
+  if (mainKey) {
+    await Promise.all([
+      s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: mainKey })).catch(() => {}),
+      s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: thumbKeyFromPath(mainKey) })).catch(() => {}),
+    ])
+  }
 
   await db.delete(document).where(eq(document.id, id))
   return true
 }
 
-/**
- * Get photo file path
- */
-export function getPhotoPath(filename: string): string {
-  return path.join(PHOTOS_DIR, filename)
-}
-
-/**
- * Get thumbnail file path
- */
-export function getThumbnailPath(filename: string): string {
-  return path.join(THUMBNAILS_DIR, filename)
-}
-
-/**
- * Photo categories
- */
+/** Photo categories */
 export const PHOTO_CATEGORIES = [
-  'before',
-  'during',
-  'after',
-  'progress',
-  'issue',
-  'material',
-  'equipment',
-  'safety',
-  'inspection',
-  'damage',
-  'permit',
-  'other',
+  'before', 'during', 'after', 'progress', 'issue', 'material',
+  'equipment', 'safety', 'inspection', 'damage', 'permit', 'other',
 ]
 
 export default {
@@ -284,7 +256,8 @@ export default {
   getPhoto,
   updatePhoto,
   deletePhoto,
-  getPhotoPath,
-  getThumbnailPath,
+  getObject,
+  thumbKeyFromPath,
+  storageConfigured,
   PHOTO_CATEGORIES,
 }

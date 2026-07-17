@@ -48,11 +48,10 @@ app.get('/:id/file', requirePermission('documents:read'), async (c) => {
     return c.json({ error: 'Photo not found' }, 404)
   }
 
-  const filePath = photoService.getPhotoPath(photo.filename)
-  const fs = await import('fs')
-  const fileBuffer = fs.readFileSync(filePath)
-  return new Response(fileBuffer, {
-    headers: { 'Content-Type': 'image/jpeg' },
+  const obj = await photoService.getObject(photo.path)
+  if (!obj) return c.json({ error: 'Photo file not found' }, 404)
+  return new Response(obj.body, {
+    headers: { 'Content-Type': obj.contentType || 'image/jpeg', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' },
   })
 })
 
@@ -65,11 +64,10 @@ app.get('/:id/thumbnail', requirePermission('documents:read'), async (c) => {
     return c.json({ error: 'Photo not found' }, 404)
   }
 
-  const filePath = photoService.getThumbnailPath(photo.thumbnailPath)
-  const fs = await import('fs')
-  const fileBuffer = fs.readFileSync(filePath)
-  return new Response(fileBuffer, {
-    headers: { 'Content-Type': 'image/jpeg' },
+  const obj = await photoService.getObject(photoService.thumbKeyFromPath(photo.path))
+  if (!obj) return c.json({ error: 'Thumbnail not found' }, 404)
+  return new Response(obj.body, {
+    headers: { 'Content-Type': obj.contentType || 'image/jpeg', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' },
   })
 })
 
