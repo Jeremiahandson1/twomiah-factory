@@ -1,8 +1,8 @@
 import { supabase, requireRole } from '../../middleware/auth'
-import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, FRONTEND_URL } from './shared'
+import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
-import { getLedger, chargeMonthlyCampaignFees } from '../../services/messagingWallet'
-import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
+import { getLedger, debit, chargeMonthlyCampaignFees } from '../../services/messagingWallet'
+import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS } from '../../config/messagingCosts'
 
 // Messaging (SMS) usage billing: the $10/mo enable line + the prepaid at-cost
 // wallet. See services/messagingWallet.ts, config/messagingCosts.ts, and the
@@ -99,6 +99,31 @@ export function registerMessagingRoutes(factory: FactoryApp) {
         metadata: { addon: 'messaging_wallet_topup', tenant_id: id, topup_cents: String(cents) },
       })
       return c.json({ url })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500)
+    }
+  })
+
+  // ─── Per-message usage report (CRM → factory) ────────────────────────────────
+  // The tenant's CRM POSTs each outbound send's segment count here (authed with
+  // its FACTORY_SYNC_KEY) and we debit the wallet AT COST. Post-send + allowNegative
+  // (the message already went out); a negative balance blocks new A2P actions and
+  // surfaces in the UI as "top up". /internal/* → JWT-exempt, key-checked here.
+  factory.post('/internal/messaging/usage/:tenantId', async (c) => {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key').eq('id', tenantId).single()
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const segments = Math.round(Number(parsed.data?.segments))
+    if (!Number.isFinite(segments) || segments <= 0 || segments > 1000) return c.json({ error: 'segments must be 1–1000' }, 400)
+    try {
+      await debit(tenantId, segments * TWILIO_COSTS.perSegmentCents, 'sms_segment', {
+        twilioRef: typeof parsed.data?.twilioSid === 'string' ? parsed.data.twilioSid : undefined,
+        allowNegative: true,
+      })
+      return c.json({ success: true })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }

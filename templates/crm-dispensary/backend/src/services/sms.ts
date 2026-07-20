@@ -9,6 +9,7 @@
  */
 
 import { db } from '../../db/index.ts'
+import { reportSmsUsage } from './messagingUsage'
 import { contact, company } from '../../db/schema.ts'
 import { eq, and, or, ilike, sql } from 'drizzle-orm'
 import twilio from 'twilio'
@@ -63,6 +64,8 @@ export async function sendSMS(
     errorMessage = error.message
     console.error('Twilio send error:', error)
   }
+
+  if (twilioResponse) reportSmsUsage(Number(twilioResponse.numSegments) || 1, twilioResponse.sid)
 
   return {
     status,
@@ -268,11 +271,12 @@ export async function handleIncomingSMS(body: any) {
 
       if (shouldFire) {
         try {
-          await twilioClient.messages.create({
+          const autoReplyMsg = await twilioClient.messages.create({
             body: responder.response_message,
             to: formattedPhone,
             ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: TWILIO_PHONE }),
           })
+          reportSmsUsage(Number(autoReplyMsg.numSegments) || 1, autoReplyMsg.sid)
           // Store auto-reply as outbound
           await db.execute(sql`
             INSERT INTO sms_messages (id, conversation_id, company_id, direction, phone, body, status, created_at)

@@ -10,6 +10,7 @@
  */
 
 import { db } from '../../db/index.ts'
+import { reportSmsUsage } from './messagingUsage'
 import { reviewRequest, company, job, contact } from '../../db/schema.ts'
 import { eq, and, lte, count, sql } from 'drizzle-orm'
 import email from './email.ts'
@@ -197,6 +198,7 @@ async function sendReviewSms(
     to: phoneNumber,
   })
 
+  reportSmsUsage(Number(result.numSegments) || 1, result.sid)
   return { messageId: result.sid, status: result.status }
 }
 

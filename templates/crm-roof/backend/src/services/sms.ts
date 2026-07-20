@@ -1,4 +1,5 @@
 import { db } from '../../db/index.ts'
+import { reportSmsUsage } from './messagingUsage'
 import { smsMessage, contact, company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 
@@ -30,6 +31,7 @@ export async function sendSms(companyId: string, contactId: string, body: string
     twilioSid: msg.sid,
   })
 
+  reportSmsUsage(Number(msg.numSegments) || 1, msg.sid)
   return msg
 }
 

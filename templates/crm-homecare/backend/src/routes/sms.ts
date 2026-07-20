@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { reportSmsUsage } from '../services/messagingUsage'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -15,6 +16,7 @@ app.post('/send', async (c) => {
   const twilio = await import('twilio')
   const client = (twilio.default as any)(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   const message = await client.messages.create({ ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: process.env.TWILIO_PHONE_NUMBER }), to, body })
+  reportSmsUsage(Number(message.numSegments) || 1, message.sid)
   return c.json({ sid: message.sid, status: message.status })
 })
 

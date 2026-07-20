@@ -10,6 +10,7 @@
  */
 
 import { db } from '../../db/index.ts'
+import { reportSmsUsage } from './messagingUsage'
 import { smsConversation, smsMessage, smsTemplate, contact, company, job, user } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, count, sum, sql, gt } from 'drizzle-orm'
 import twilio from 'twilio'
@@ -90,6 +91,7 @@ export async function sendSMS(
     console.error('Twilio send error:', error)
   }
 
+  if (twilioResponse) reportSmsUsage(Number(twilioResponse.numSegments) || 1, twilioResponse.sid)
   // Save message
   const [smsMsg] = await db
     .insert(smsMessage)
