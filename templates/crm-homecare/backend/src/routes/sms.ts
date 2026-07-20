@@ -14,7 +14,7 @@ app.post('/send', async (c) => {
   // Dynamic import to avoid crash if twilio not configured
   const twilio = await import('twilio')
   const client = (twilio.default as any)(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-  const message = await client.messages.create({ from: process.env.TWILIO_PHONE_NUMBER, to, body })
+  const message = await client.messages.create({ ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: process.env.TWILIO_PHONE_NUMBER }), to, body })
   return c.json({ sid: message.sid, status: message.status })
 })
 

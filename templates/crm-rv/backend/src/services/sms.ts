@@ -81,7 +81,7 @@ export async function sendSMS(
     twilioResponse = await twilioClient.messages.create({
       body: message,
       to: formattedPhone,
-      from: TWILIO_PHONE,
+      ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: TWILIO_PHONE }),
       statusCallback: `${process.env.API_BASE_URL}/api/sms/webhook/status`,
     })
   } catch (error: any) {

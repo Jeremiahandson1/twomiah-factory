@@ -15,7 +15,7 @@ export async function sendSms(companyId: string, contactId: string, body: string
   const client = twilio(comp.twilioAccountSid, comp.twilioAuthToken)
   const msg = await client.messages.create({
     body,
-    from: comp.twilioPhoneNumber,
+    ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: comp.twilioPhoneNumber }),
     to: c.mobilePhone,
   })
 

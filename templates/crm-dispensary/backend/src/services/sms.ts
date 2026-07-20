@@ -56,7 +56,7 @@ export async function sendSMS(
     twilioResponse = await twilioClient.messages.create({
       body: message,
       to: formattedPhone,
-      from: TWILIO_PHONE,
+      ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: TWILIO_PHONE }),
     })
   } catch (error: any) {
     status = 'failed'
@@ -271,7 +271,7 @@ export async function handleIncomingSMS(body: any) {
           await twilioClient.messages.create({
             body: responder.response_message,
             to: formattedPhone,
-            from: TWILIO_PHONE,
+            ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: TWILIO_PHONE }),
           })
           // Store auto-reply as outbound
           await db.execute(sql`

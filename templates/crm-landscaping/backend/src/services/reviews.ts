@@ -193,7 +193,7 @@ async function sendReviewSms(
 
   const result = await twilioClient.messages.create({
     body: message,
-    from: TWILIO_PHONE_NUMBER,
+    ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: TWILIO_PHONE_NUMBER }),
     to: phoneNumber,
   })
 
