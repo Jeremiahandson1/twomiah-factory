@@ -1200,7 +1200,7 @@ app.get('/leads', authMiddleware, (c) => {
 });
 
 app.post('/leads', async (c) => {
-  const { name, email, phone, service, services, message, source, address } = await c.req.json();
+  const { name, email, phone, service, services, message, source, address, sms_consent } = await c.req.json();
 
   if (!name || !email) {
     return c.json({ error: 'Name and email required' }, 400);
@@ -1217,6 +1217,8 @@ app.post('/leads', async (c) => {
       service: service || (services ? services.join(', ') : ''),
       message: message || '',
       source: source || 'website',
+      smsConsent: sms_consent === 'yes',
+      smsConsentAt: sms_consent === 'yes' ? new Date().toISOString() : null,
       status: 'new',
       createdAt: new Date().toISOString(),
       notes: ''
@@ -1236,7 +1238,7 @@ app.post('/leads', async (c) => {
         const webhookRes = await fetch(`${CRM_API_URL}/api/webhooks/leads`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-webhook-secret': WEBHOOK_SECRET },
-          body: JSON.stringify({ name, email, phone, service, message, source: source || 'website', address }),
+          body: JSON.stringify({ name, email, phone, service, message, source: source || 'website', address, smsConsent: sms_consent === 'yes' }),
           signal: AbortSignal.timeout(10_000),
         });
         if (!webhookRes.ok) console.error('[Webhook] CRM forward failed:', webhookRes.status);

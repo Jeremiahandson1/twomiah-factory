@@ -463,6 +463,12 @@ function getImageUrl(p) {
               <textarea id="message" name="message" rows="4" placeholder="Which unit are you interested in, or how can we help?"></textarea>
             </div>
             <div id="form-error" style="display: none; color: #dc2626; background: #fef2f2; padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 0.95rem;"></div>
+            <div class="form-group checkbox-group sms-consent">
+              <label>
+                <input type="checkbox" name="sms_consent" value="yes">
+                I agree to receive text messages from {{COMPANY_NAME}} about my inquiry, appointments, and offers. Message frequency varies. Msg &amp; data rates may apply. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.
+              </label>
+            </div>
             <button type="submit" class="btn btn-primary btn-lg full-width">
               Submit Request
             </button>
