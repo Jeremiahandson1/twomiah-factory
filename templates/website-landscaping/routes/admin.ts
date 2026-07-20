@@ -1120,7 +1120,7 @@ app.get('/sitemap.xml', (c) => {
 
     xml += `  <url>\n    <loc>${baseUrl}/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
 
-    ['gallery', 'contact'].forEach(page => {
+    ['gallery', 'contact', 'privacy', 'terms'].forEach(page => {
       xml += `  <url>\n    <loc>${baseUrl}/${page}</loc>\n    <changefreq>monthly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
     });
 

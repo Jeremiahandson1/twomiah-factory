@@ -1,0 +1,76 @@
+<%
+const email = (typeof settings !== 'undefined' && settings && settings.email) ? settings.email : '{{COMPANY_EMAIL}}';
+const phone = (typeof settings !== 'undefined' && settings && settings.phone) ? settings.phone : '{{COMPANY_PHONE}}';
+const address = (typeof settings !== 'undefined' && settings && settings.address) ? settings.address : '{{COMPANY_ADDRESS}}';
+%>
+<style>
+  .legal-page .legal-content { max-width: 820px; }
+  .legal-page .legal-content h2 { margin-top: 2.25rem; }
+  .legal-page .legal-content h3 { margin-top: 1.5rem; }
+  .legal-page .legal-content p,
+  .legal-page .legal-content li { line-height: 1.7; }
+  .legal-page .legal-content ul { padding-left: 1.25rem; margin: 0.75rem 0; }
+  .legal-page .legal-updated { opacity: 0.7; font-size: 0.95rem; }
+</style>
+
+<div class="legal-page">
+  <section class="page-hero">
+    <div class="container">
+      <a href="/" class="back-link">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+        Home
+      </a>
+      <h1>Terms of Service</h1>
+      <p class="legal-updated">These terms are effective as of the date first posted and may be updated from time to time; the current version always governs.</p>
+    </div>
+  </section>
+
+  <section class="legal-content">
+    <div class="container">
+      <p>These Terms of Service ("Terms") govern your use of <a href="{{COMPANY_WEBSITE}}">{{COMPANY_WEBSITE}}</a> and the services provided by {{COMPANY_LEGAL_NAME}} ("{{COMPANY_NAME}}," "we," "us," or "our"). By using our website or services, you agree to these Terms.</p>
+
+      <h2>1. Our Services</h2>
+      <p>We provide the products and services described on our website. We may update, change, or discontinue any part of our services at any time.</p>
+
+      <h2>2. Requests, Quotes &amp; Appointments</h2>
+      <p>Submitting a form or request does not create a binding contract until we confirm it. Quotes and estimates are provided in good faith and may be subject to change based on the actual scope of work.</p>
+
+      <h2>3. SMS / Text Messaging Program</h2>
+      <p>By providing your mobile number and opting in — by checking the consent box on one of our forms, texting us, or replying to a message — you agree to receive text messages from {{COMPANY_NAME}}. This program is operated through our messaging provider.</p>
+      <ul>
+        <li><strong>Message types:</strong> inquiry responses, appointment and service updates, account or order notifications, and — where you have opted in — promotions and offers.</li>
+        <li><strong>Message frequency varies.</strong> Message and data rates may apply.</li>
+        <li>Reply <strong>STOP</strong> to unsubscribe at any time. Reply <strong>HELP</strong> for help, or contact us using the details below.</li>
+        <li>Consent to receive text messages is not a condition of any purchase.</li>
+        <li>Carriers are not liable for delayed or undelivered messages.</li>
+      </ul>
+      <p>See our <a href="/privacy">Privacy Policy</a> for how we handle text-messaging opt-in data. We never sell or share that data with third parties for their own marketing.</p>
+
+      <h2>4. Your Responsibilities</h2>
+      <p>You agree to provide accurate information and to use our website and services lawfully and only for their intended purposes.</p>
+
+      <h2>5. Intellectual Property</h2>
+      <p>All content on this website, including text, images, logos, and design, is owned by or licensed to {{COMPANY_LEGAL_NAME}} and may not be reproduced without permission.</p>
+
+      <h2>6. Disclaimers</h2>
+      <p>Our website and services are provided "as is" without warranties of any kind, whether express or implied, to the fullest extent permitted by law.</p>
+
+      <h2>7. Limitation of Liability</h2>
+      <p>To the fullest extent permitted by law, {{COMPANY_LEGAL_NAME}} will not be liable for any indirect, incidental, or consequential damages arising from your use of our website or services.</p>
+
+      <h2>8. Changes to These Terms</h2>
+      <p>We may update these Terms from time to time. Changes take effect when posted on this page. Your continued use of our website or services constitutes acceptance of the updated Terms.</p>
+
+      <h2>9. Contact Us</h2>
+      <p>If you have questions about these Terms, contact us at:</p>
+      <p>
+        {{COMPANY_LEGAL_NAME}}<br/>
+        <%= address %><br/>
+        <a href="mailto:<%= email %>"><%= email %></a><br/>
+        <a href="tel:<%= phone.replace(/[^0-9+]/g, '') %>"><%= phone %></a>
+      </p>
+    </div>
+  </section>
+</div>

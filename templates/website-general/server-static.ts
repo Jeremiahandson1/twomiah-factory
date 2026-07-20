@@ -345,6 +345,18 @@ app.get('/services/:slug', (c) => {
   })
 })
 
+app.get('/privacy', (c) => renderPage(c, 'privacy', {
+  title: 'Privacy Policy | {{COMPANY_NAME}}',
+  description: 'How {{COMPANY_NAME}} collects, uses, and protects your information, including SMS/text messaging.',
+  canonicalUrl: BASE_URL + '/privacy',
+}))
+
+app.get('/terms', (c) => renderPage(c, 'terms', {
+  title: 'Terms of Service | {{COMPANY_NAME}}',
+  description: 'The terms governing the {{COMPANY_NAME}} website and services, including our SMS messaging program.',
+  canonicalUrl: BASE_URL + '/terms',
+}))
+
 app.get('/about', (c) => {
   return renderPage(c, 'about', {
     title: 'About Us | {{COMPANY_NAME}}',
