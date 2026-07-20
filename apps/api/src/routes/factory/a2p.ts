@@ -2,6 +2,8 @@ import { supabase, requireRole } from '../../middleware/auth'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret } from './shared'
 import { encryptJSON, decryptJSON, maskTail } from '../../lib/crypto'
 import { provisionA2p, pollA2pStatus, pollAllPendingA2p, type A2pData } from '../../services/a2p'
+import { debit } from '../../services/messagingWallet'
+import { a2pRegistrationCostCents } from '../../config/messagingCosts'
 
 // Per-tenant A2P 10DLC registration endpoints. Twomiah (ISV) registers each
 // tenant's own brand + campaign; see services/a2p.ts for the Twilio flow and
@@ -83,14 +85,30 @@ export function registerA2pRoutes(factory: FactoryApp) {
   factory.post('/customers/:id/a2p/submit', requireRole('owner', 'admin'), async (c) => {
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
-    const { data: t, error } = await supabase.from('tenants').select('id, a2p_status, a2p_data').eq('id', id).single()
+    const { data: t, error } = await supabase.from('tenants')
+      .select('id, a2p_status, a2p_data, messaging_enabled, messaging_wallet_cents').eq('id', id).single()
     if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
     if (!t.a2p_data) return c.json({ error: 'No A2P data collected — run intake first' }, 400)
     if (t.a2p_status === 'approved') return c.json({ error: 'Already approved' }, 409)
 
+    // Billing gate: messaging must be enabled ($10/mo) and the prepaid wallet
+    // must cover Twilio's at-cost A2P registration fee before we provision.
+    const regCost = a2pRegistrationCostCents()
+    if (!t.messaging_enabled) return c.json({ error: 'Enable messaging ($10/mo) before registering', code: 'messaging_disabled' }, 402)
+    if ((t.messaging_wallet_cents ?? 0) < regCost) {
+      return c.json({ error: `Wallet balance too low for the $${(regCost / 100).toFixed(2)} at-cost A2P registration — top up first`, code: 'insufficient_wallet', requiredCents: regCost }, 402)
+    }
+
     try {
       const results = await provisionA2p(id)
       const failed = results.find(r => r.status === 'error')
+      // Debit the at-cost registration fee ONLY when the brand was newly created
+      // this run (status 'ok', not 'skipped') — so a resubmit never double-charges.
+      const brand = results.find(r => r.step === 'brand')
+      if (!failed && brand?.status === 'ok') {
+        await debit(id, regCost, 'a2p_registration', { twilioRef: brand.sid }).catch((e: any) =>
+          console.error('[A2P] registration debit failed for', id, e?.message || e))
+      }
       await logTenantAudit(id, 'a2p_submit', { a2p_status: { old: t.a2p_status, new: failed ? 'error' : 'pending' } }, c.get('user')?.email, failed ? `A2P provisioning error at ${failed.step}` : 'A2P submitted for vetting')
       return c.json({ success: !failed, steps: results }, failed ? 502 : 200)
     } catch (e: any) {

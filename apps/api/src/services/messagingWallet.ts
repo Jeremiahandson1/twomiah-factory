@@ -1,4 +1,5 @@
 import { supabase } from '../middleware/auth'
+import { TWILIO_COSTS } from '../config/messagingCosts'
 
 // Prepaid messaging wallet — tenants pre-fund it, and Twilio costs (A2P
 // registration, monthly campaign, per-message segments) draw it down AT COST.
@@ -71,4 +72,32 @@ export function debit(tenantId: string, cents: number, reason: string, refs?: { 
 
 export async function canCover(tenantId: string, cents: number): Promise<boolean> {
   return (await getBalance(tenantId)) >= Math.round(cents)
+}
+
+// Recurring at-cost Twilio campaign fee. Charged once per ~month per approved,
+// messaging-enabled tenant. "Due" is derived from the ledger (last
+// 'monthly_campaign' debit ≥ 27 days ago) — no extra column needed. Uses
+// allowNegative: Twilio already billed us, so we let the wallet go negative and
+// the tenant tops up to clear it (a negative balance blocks new A2P actions).
+export async function chargeMonthlyCampaignFees(): Promise<{ checked: number; charged: number }> {
+  const { data: tenants, error } = await supabase.from('tenants').select('id')
+    .eq('messaging_enabled', true).eq('a2p_status', 'approved')
+  if (error) throw new Error(error.message)
+  let charged = 0
+  for (const t of tenants || []) {
+    const { data: last } = await supabase.from('messaging_ledger')
+      .select('created_at').eq('tenant_id', t.id).eq('reason', 'monthly_campaign')
+      .order('created_at', { ascending: false }).limit(1)
+    const lastAt = last?.[0]?.created_at ? new Date(last[0].created_at).getTime() : 0
+    const daysSince = (Date.now() - lastAt) / 86_400_000
+    if (daysSince >= 27) {
+      try {
+        await debit(t.id, TWILIO_COSTS.monthlyCampaignCents, 'monthly_campaign', { allowNegative: true })
+        charged++
+      } catch (e: any) {
+        console.error('[Messaging] monthly campaign debit failed for', t.id, e?.message || e)
+      }
+    }
+  }
+  return { checked: (tenants || []).length, charged }
 }

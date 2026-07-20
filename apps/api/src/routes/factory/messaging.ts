@@ -1,7 +1,7 @@
 import { supabase, requireRole } from '../../middleware/auth'
-import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, FRONTEND_URL } from './shared'
+import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
-import { getBalance, getLedger } from '../../services/messagingWallet'
+import { getLedger, chargeMonthlyCampaignFees } from '../../services/messagingWallet'
 import { MESSAGING_ENABLE_MONTHLY_CENTS } from '../../config/messagingCosts'
 
 // Messaging (SMS) usage billing: the $10/mo enable line + the prepaid at-cost
@@ -99,6 +99,18 @@ export function registerMessagingRoutes(factory: FactoryApp) {
         metadata: { addon: 'messaging_wallet_topup', tenant_id: id, topup_cents: String(cents) },
       })
       return c.json({ url })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500)
+    }
+  })
+
+  // ─── Cron: charge the recurring at-cost monthly A2P campaign fee ─────────────
+  // Public path (/internal/*); does its own CRON_SECRET check.
+  factory.post('/internal/messaging/monthly', async (c) => {
+    if (!checkCronSecret(c)) return c.json({ error: 'Invalid cron secret' }, 401)
+    try {
+      const res = await chargeMonthlyCampaignFees()
+      return c.json({ success: true, ...res })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }
