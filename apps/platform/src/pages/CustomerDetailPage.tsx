@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import FeatureManagement from '../components/factory/FeatureManagement'
 import A2pRegistration from '../components/factory/A2pRegistration'
+import MessagingBilling from '../components/factory/MessagingBilling'
 
 type Tenant = {
   id: string; name: string; slug: string; email: string; phone: string
@@ -787,6 +788,9 @@ export default function CustomerDetailPage() {
               showToast={showToast}
             />
           )}
+
+          {/* Messaging billing ($10/mo enable + at-cost wallet) */}
+          <MessagingBilling tenantId={tenant.id} showToast={showToast} />
 
           {/* A2P 10DLC SMS registration */}
           <A2pRegistration tenantId={tenant.id} showToast={showToast} />
