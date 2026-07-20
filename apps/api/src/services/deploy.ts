@@ -10,6 +10,7 @@ import { spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import AdmZip from 'adm-zip'
+import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3'
 import { verticalFor } from '../config/industryRouting'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
@@ -60,7 +61,10 @@ function cloudflareHeaders(): Record<string, string> {
 }
 
 function isR2Configured(): boolean {
-  return !!(process.env.CLOUDFLARE_API_TOKEN && process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY)
+  // Bucket creation now uses the R2 S3 API (CreateBucket) with the R2 access
+  // key/secret, so the Cloudflare REST API token is NOT required for R2 anymore.
+  // (R2 API "S3 tokens" can't be used as REST Bearer tokens; the S3 creds can.)
+  return !!(process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY)
 }
 
 /**
@@ -375,30 +379,36 @@ async function deleteSupabaseProject(ref: string): Promise<void> {
 
 // ─── Cloudflare R2 Bucket Provisioning ───────────────────────────────────────
 
+// Create the tenant's R2 bucket via the S3 API. R2's Cloudflare REST endpoint
+// needs a REST Bearer token with R2 admin; the R2 "S3 tokens" we use for object
+// I/O can't do that — but they CAN create buckets over S3 when scoped to the whole
+// account with Edit permission. Using S3 here means one credential (the R2
+// access-key/secret) covers both bucket creation AND the tenant's object reads.
 async function createR2Bucket(slug: string): Promise<string> {
   const accountId = process.env.R2_ACCOUNT_ID!
   const bucketName = slug + '-media'
 
-  const res = await fetchWithTimeout(
-    CLOUDFLARE_API + '/accounts/' + accountId + '/r2/buckets',
-    {
-      method: 'PUT',
-      headers: cloudflareHeaders(),
-      body: JSON.stringify({ name: bucketName }),
+  const s3 = new S3Client({
+    region: 'auto',
+    endpoint: 'https://' + accountId + '.r2.cloudflarestorage.com',
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
     },
-  )
+  })
 
-  if (!res.ok) {
-    const body = await res.text()
-    // Bucket already exists — not an error
-    if (res.status === 409 || body.includes('already exists')) {
+  try {
+    await s3.send(new CreateBucketCommand({ Bucket: bucketName }))
+    console.log('[Deploy] Created R2 bucket:', bucketName)
+  } catch (e: any) {
+    // Already exists (ours) — idempotent, not an error.
+    if (e?.name === 'BucketAlreadyOwnedByYou' || e?.name === 'BucketAlreadyExists' || e?.$metadata?.httpStatusCode === 409) {
       console.log('[Deploy] R2 bucket already exists:', bucketName)
-      return bucketName
+    } else {
+      throw new Error('R2 bucket creation failed: ' + (e?.name || '') + ' ' + (e?.message || ''))
     }
-    throw new Error('R2 bucket creation failed (' + res.status + '): ' + body)
   }
 
-  console.log('[Deploy] Created R2 bucket:', bucketName)
   return bucketName
 }
 
