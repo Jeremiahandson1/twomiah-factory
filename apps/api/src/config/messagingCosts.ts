@@ -27,6 +27,8 @@ export const TWILIO_COSTS = {
   campaignVettingCents:   int('TWILIO_A2P_CAMPAIGN_VET_CENTS', 1500), // ~$15 one-time
   // Recurring monthly campaign fee (Low-Volume Mixed is cheaper than Standard).
   monthlyCampaignCents:   int('TWILIO_A2P_CAMPAIGN_MONTHLY_CENTS', 200), // ~$2/mo
+  // Monthly rental for the tenant's local phone number.
+  numberMonthlyCents:     int('TWILIO_NUMBER_MONTHLY_CENTS', 115),       // ~$1.15/mo
   // Per outbound SMS segment: Twilio message price + carrier pass-through fee.
   perSegmentCents:        int('TWILIO_SMS_SEGMENT_CENTS', 1),      // ~$0.01/segment
 }

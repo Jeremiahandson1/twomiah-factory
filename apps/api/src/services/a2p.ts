@@ -86,8 +86,11 @@ export interface A2pData {
   optInKeywords?: string[]
   hasEmbeddedLinks?: boolean
   hasEmbeddedPhone?: boolean
-  // The tenant's Twilio phone number SID (PN...) to add to the messaging service.
+  // An EXISTING Twilio number SID (PN...) to attach. If absent, the flow buys a
+  // local SMS-capable number automatically (preferring areaCode, then the
+  // business phone's area code, then the tenant's state).
   phoneNumberSid?: string
+  areaCode?: string
   soleProprietor?: boolean
 }
 
@@ -306,16 +309,54 @@ async function ensureCampaign(tenant: TenantRow, d: A2pData): Promise<string> {
   return campaign.sid
 }
 
-// 6) Attach the tenant's Twilio number to the messaging service.
+// The 3-digit area code from a US phone (handles +1 / 11-digit / 10-digit).
+function areaCodeFrom(phone?: string): string | null {
+  const digits = (phone || '').replace(/\D/g, '')
+  const ten = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  return ten.length >= 10 ? ten.slice(0, 3) : null
+}
+
+// Search for and BUY a local SMS-capable US number, preferring (in order) an
+// explicit area code, the business phone's area code, then the tenant's state,
+// then any US local number. Fully defensive: any failure returns null so the
+// registration still completes — the number can be added/retried later.
+async function purchaseNumber(d: A2pData): Promise<string | null> {
+  try {
+    const acctBase = `${API2010}/Accounts/${isvCreds().sid}`
+    const filters: string[] = []
+    const ac = (d.areaCode || '').replace(/\D/g, '') || areaCodeFrom(d.repPhone)
+    if (ac) filters.push(`AreaCode=${ac}`)
+    if (d.region) filters.push(`InRegion=${encodeURIComponent(d.region)}`)
+    filters.push('') // final fallback: any US local number
+    for (const f of filters) {
+      const search = await twilioFetch(
+        acctBase,
+        `/AvailablePhoneNumbers/US/Local.json?SmsEnabled=true&Limit=1${f ? '&' + f : ''}`,
+        'GET',
+      ).catch(() => null)
+      const candidate = search?.available_phone_numbers?.[0]?.phone_number
+      if (!candidate) continue
+      const bought = await twilioFetch(acctBase, '/IncomingPhoneNumbers.json', 'POST', { PhoneNumber: candidate })
+      if (bought?.sid) return bought.sid
+    }
+  } catch (e: any) {
+    console.error('[A2P] number purchase failed:', e?.message || e)
+  }
+  return null
+}
+
+// 6) Attach the tenant's Twilio number to the messaging service — buying one
+// automatically when no existing PN sid was supplied.
 async function ensurePhoneNumber(tenant: TenantRow, d: A2pData): Promise<string | null> {
   if (tenant.a2p_phone_number) return tenant.a2p_phone_number
-  if (!d.phoneNumberSid) return null // number can be added later once purchased
+  const phoneNumberSid = d.phoneNumberSid || await purchaseNumber(d)
+  if (!phoneNumberSid) return null // couldn't buy one; registration still completes, add later
   await twilioFetch(MESSAGING, `/Services/${tenant.a2p_messaging_service_sid}/PhoneNumbers`, 'POST', {
-    PhoneNumberSid: d.phoneNumberSid,
+    PhoneNumberSid: phoneNumberSid,
   })
-  await patchTenant(tenant.id, { a2p_phone_number: d.phoneNumberSid })
-  tenant.a2p_phone_number = d.phoneNumberSid
-  return d.phoneNumberSid
+  await patchTenant(tenant.id, { a2p_phone_number: phoneNumberSid })
+  tenant.a2p_phone_number = phoneNumberSid
+  return phoneNumberSid
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
