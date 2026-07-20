@@ -9,6 +9,7 @@ import { registerIntakeRoutes } from './factory/intake'
 import { registerSupportRoutes } from './factory/support'
 import { registerAdminRoutes } from './factory/admin'
 import { registerRoofReviewRoutes } from './factory/roofReview'
+import { registerA2pRoutes } from './factory/a2p'
 
 const factory = new Hono<{ Variables: FactoryAuthVariables }>()
 
@@ -56,5 +57,6 @@ registerIntakeRoutes(factory)
 registerSupportRoutes(factory)
 registerAdminRoutes(factory)
 registerRoofReviewRoutes(factory)
+registerA2pRoutes(factory)
 
 export default factory

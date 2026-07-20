@@ -949,6 +949,24 @@ export async function deployCustomer(
     if (twilioSid) integrationEnvVars.push({ key: 'TWILIO_ACCOUNT_SID', value: twilioSid })
     if (twilioToken) integrationEnvVars.push({ key: 'TWILIO_AUTH_TOKEN', value: twilioToken })
     if (twilioPhone) integrationEnvVars.push({ key: 'TWILIO_PHONE_NUMBER', value: twilioPhone })
+
+    // A2P 10DLC: once this tenant's own brand + campaign are approved, route SMS
+    // through their registered Messaging Service (a compliant 10DLC sender)
+    // instead of a bare from-number. Only injected when approved, so it's a
+    // harmless no-op for tenants without A2P set up. NOTE: activating this end
+    // to end still needs the CRM send path to prefer TWILIO_MESSAGING_SERVICE_SID
+    // over TWILIO_PHONE_NUMBER — a separate per-CRM pass (it changes send behavior).
+    try {
+      const { supabase } = await import('../middleware/auth')
+      const { data: a2pRow } = await supabase.from('tenants')
+        .select('a2p_status, a2p_messaging_service_sid')
+        .eq('id', factoryCustomer.id).single()
+      if (a2pRow?.a2p_status === 'approved' && a2pRow.a2p_messaging_service_sid) {
+        integrationEnvVars.push({ key: 'TWILIO_MESSAGING_SERVICE_SID', value: a2pRow.a2p_messaging_service_sid })
+      }
+    } catch (e: any) {
+      console.warn('[Deploy] A2P messaging-service lookup skipped:', e?.message || e)
+    }
     const resendKey = integrations?.resendKey || process.env.TWOMIAH_RESEND_API_KEY || process.env.RESEND_API_KEY || ''
     if (resendKey) integrationEnvVars.push({ key: 'RESEND_API_KEY', value: resendKey })
     if (integrations?.stripe?.secretKey) {
