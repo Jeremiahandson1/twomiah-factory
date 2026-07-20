@@ -8,6 +8,7 @@ import {
   Save, Trash2, Edit3, Database, Palette, Upload, ArrowRightLeft
 } from 'lucide-react'
 import FeatureManagement from '../components/factory/FeatureManagement'
+import A2pRegistration from '../components/factory/A2pRegistration'
 
 type Tenant = {
   id: string; name: string; slug: string; email: string; phone: string
@@ -786,6 +787,9 @@ export default function CustomerDetailPage() {
               showToast={showToast}
             />
           )}
+
+          {/* A2P 10DLC SMS registration */}
+          <A2pRegistration tenantId={tenant.id} showToast={showToast} />
 
           {/* Convert to CRM */}
           {canFlipToCrm && (
