@@ -207,6 +207,30 @@ factory.post('/stripe/webhook', async (c) => {
       }
     }
 
+    // Messaging billing: wallet top-up paid → credit the wallet AT COST; the
+    // $10/mo enable subscription checkout → mark the tenant messaging-enabled.
+    if (event.type === 'checkout.session.completed') {
+      const session = event.data?.object || {}
+      const meta = session.metadata || {}
+      if (meta.addon === 'messaging_wallet_topup' && meta.tenant_id && meta.topup_cents) {
+        const cents = parseInt(meta.topup_cents, 10)
+        if (Number.isFinite(cents) && cents > 0) {
+          import('../../services/messagingWallet').then(({ credit }) =>
+            credit(meta.tenant_id, cents, 'topup', { stripeRef: String(session.payment_intent || session.id) })
+          ).catch(err => console.error('[Wallet] Top-up credit failed:', err?.message || err))
+        }
+      } else if (meta.addon === 'messaging_enable' && meta.tenant_id) {
+        supabase.from('tenants').update({
+          messaging_enabled: true,
+          messaging_enabled_at: new Date().toISOString(),
+          messaging_sub_id: session.subscription || null,
+        }).eq('id', meta.tenant_id).then(
+          () => logTenantAudit(meta.tenant_id, 'messaging_enable', { messaging_enabled: { old: false, new: true } }, 'stripe-webhook', 'Messaging enabled'),
+          (err: any) => console.error('[Messaging] Enable mark failed:', err?.message || err),
+        )
+      }
+    }
+
     // Send email notification for past-due billing
     if (result.handled && result.updates?.billing_status === 'past_due') {
       const lookupQuery = result.factoryCustomerId

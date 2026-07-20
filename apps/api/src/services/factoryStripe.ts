@@ -568,8 +568,39 @@ async function reactivateSubscription(subscriptionId: string): Promise<Stripe.Su
   return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: false })
 }
 
+// ── Messaging enable ($10/mo) ────────────────────────────────────────────────
+// Flat monthly enable fee on its OWN subscription (separate from the tenant's
+// plan). Inline price_data so no pre-minted Stripe price is required. The wallet
+// (at-cost usage) is billed separately and must never touch this line.
+export async function createMessagingEnableCheckout(
+  factoryCustomer: { id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string },
+  amountCents: number,
+): Promise<{ sessionId: string; url: string | null; stripeCustomerId: string }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  const stripeCustomerId = await ensureCustomer(factoryCustomer)
+  const session = await stripe.checkout.sessions.create({
+    customer: stripeCustomerId,
+    mode: 'subscription',
+    line_items: [{
+      price_data: {
+        currency: 'usd',
+        unit_amount: amountCents,
+        recurring: { interval: 'month' },
+        product_data: { name: 'Messaging (SMS) — monthly enable' },
+      },
+      quantity: 1,
+    }],
+    subscription_data: { metadata: { addon: 'messaging_enable', tenant_id: factoryCustomer.id } },
+    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?messaging=enabled',
+    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?messaging=canceled',
+    metadata: { addon: 'messaging_enable', tenant_id: factoryCustomer.id },
+  })
+  return { sessionId: session.id, url: session.url, stripeCustomerId }
+}
+
 export default {
   createSubscriptionCheckout,
+  createMessagingEnableCheckout,
   createLicenseCheckout,
   createDeployCheckout,
   createPremiumWebsiteCheckout,
