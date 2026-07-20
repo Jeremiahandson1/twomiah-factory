@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { reportAiUsage } from '../services/aiUsage'
 import { authenticate } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { sql } from 'drizzle-orm';
@@ -166,6 +167,7 @@ app.post('/ai-chat', async (c) => {
     });
 
     const data = await res.json() as any;
+    reportAiUsage(data?.usage?.input_tokens, data?.usage?.output_tokens, data?.model);
     const reply = data.content?.[0]?.text || 'Sorry, I could not process that request.';
     const resolved = !reply.toLowerCase().includes('support ticket') && !reply.toLowerCase().includes('contact');
 

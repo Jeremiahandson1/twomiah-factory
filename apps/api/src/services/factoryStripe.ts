@@ -598,9 +598,38 @@ export async function createMessagingEnableCheckout(
   return { sessionId: session.id, url: session.url, stripeCustomerId }
 }
 
+// ── AI enable ($10/mo) ───────────────────────────────────────────────────────
+// Same shape as messaging enable — own subscription, inline price_data.
+export async function createAiEnableCheckout(
+  factoryCustomer: { id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string },
+  amountCents: number,
+): Promise<{ sessionId: string; url: string | null; stripeCustomerId: string }> {
+  if (!stripe) throw new Error('Stripe not configured')
+  const stripeCustomerId = await ensureCustomer(factoryCustomer)
+  const session = await stripe.checkout.sessions.create({
+    customer: stripeCustomerId,
+    mode: 'subscription',
+    line_items: [{
+      price_data: {
+        currency: 'usd',
+        unit_amount: amountCents,
+        recurring: { interval: 'month' },
+        product_data: { name: 'AI Assistant — monthly enable' },
+      },
+      quantity: 1,
+    }],
+    subscription_data: { metadata: { addon: 'ai_enable', tenant_id: factoryCustomer.id } },
+    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?ai=enabled',
+    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?ai=canceled',
+    metadata: { addon: 'ai_enable', tenant_id: factoryCustomer.id },
+  })
+  return { sessionId: session.id, url: session.url, stripeCustomerId }
+}
+
 export default {
   createSubscriptionCheckout,
   createMessagingEnableCheckout,
+  createAiEnableCheckout,
   createLicenseCheckout,
   createDeployCheckout,
   createPremiumWebsiteCheckout,

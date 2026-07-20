@@ -27,6 +27,10 @@ const JOBS: JobConfig[] = [
   { name: 'booking-reminders', path: '/api/v1/factory/internal/booking-reminders', schedule: 'hourly' },
   { name: 'booking-rebook-reminders', path: '/api/v1/factory/internal/booking-rebook-reminders', schedule: { dailyAtUtcHour: 14 } },
   { name: 'booking-review-requests', path: '/api/v1/factory/internal/booking-review-requests', schedule: { dailyAtUtcHour: 16 } },
+  // A2P vetting advances over hours–days; poll hourly. Monthly campaign fee is
+  // self-guarded to once/~27 days per tenant, so a daily tick is plenty.
+  { name: 'a2p-poll', path: '/api/v1/factory/internal/a2p/poll', schedule: 'hourly' },
+  { name: 'messaging-monthly', path: '/api/v1/factory/internal/messaging/monthly', schedule: { dailyAtUtcHour: 9 } },
 ]
 
 async function fireJob(job: JobConfig, port: number, secret: string) {

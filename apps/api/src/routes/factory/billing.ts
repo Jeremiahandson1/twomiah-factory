@@ -228,6 +228,15 @@ factory.post('/stripe/webhook', async (c) => {
           () => logTenantAudit(meta.tenant_id, 'messaging_enable', { messaging_enabled: { old: false, new: true } }, 'stripe-webhook', 'Messaging enabled'),
           (err: any) => console.error('[Messaging] Enable mark failed:', err?.message || err),
         )
+      } else if (meta.addon === 'ai_enable' && meta.tenant_id) {
+        supabase.from('tenants').update({
+          ai_enabled: true,
+          ai_enabled_at: new Date().toISOString(),
+          ai_sub_id: session.subscription || null,
+        }).eq('id', meta.tenant_id).then(
+          () => logTenantAudit(meta.tenant_id, 'ai_enable', { ai_enabled: { old: false, new: true } }, 'stripe-webhook', 'AI enabled'),
+          (err: any) => console.error('[AI] Enable mark failed:', err?.message || err),
+        )
       }
     }
 

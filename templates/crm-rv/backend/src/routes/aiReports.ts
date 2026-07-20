@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { reportAiUsage } from '../services/aiUsage'
 import { db } from '../../db/index.ts'
 import { unit, salesLead, repairOrder, invoice, contact, user } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
@@ -66,6 +67,7 @@ app.post('/generate', async (c) => {
 
   if (!res.ok) { const t = await res.text().catch(() => ''); return c.json({ error: 'AI error (' + res.status + '): ' + t.slice(0, 300) }, 502) }
   const data: any = await res.json().catch(() => ({}))
+  reportAiUsage(data?.usage?.input_tokens, data?.usage?.output_tokens, data?.model)
   const report = data?.content?.[0]?.text || 'No response generated.'
   return c.json({
     report, question, generatedAt: new Date().toISOString(),

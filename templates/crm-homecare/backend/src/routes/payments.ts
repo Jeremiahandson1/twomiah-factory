@@ -1,6 +1,7 @@
 // routes/payments.ts
 // Payment reconciliation: AI check scanner, auto-matching, reconciliation log
 import { Hono } from 'hono'
+import { reportAiUsage } from '../services/aiUsage'
 import { sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
@@ -74,6 +75,7 @@ If a field is not visible, use null.`
     }
 
     const aiResult: any = await response.json()
+    reportAiUsage(aiResult?.usage?.input_tokens, aiResult?.usage?.output_tokens, aiResult?.model)
     const textContent = aiResult.content?.[0]?.text || '{}'
 
     let extracted: any

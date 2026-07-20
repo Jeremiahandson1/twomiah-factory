@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { reportAiUsage } from '../services/aiUsage'
 import { authenticate } from '../middleware/auth.ts'
 
 // AI Trade Appraisal — instant trade-in estimate for a unit (the GM's "trade
@@ -39,6 +40,7 @@ All values are whole-dollar integers, no symbols. Trade-in (wholesale) must be b
   if (!res.ok) { const t = await res.text().catch(() => ''); return c.json({ error: 'AI error (' + res.status + '): ' + t.slice(0, 200) }, 502) }
 
   const data: any = await res.json().catch(() => ({}))
+  reportAiUsage(data?.usage?.input_tokens, data?.usage?.output_tokens, data?.model)
   const txt = data?.content?.[0]?.text || ''
   let parsed: any = null
   try { parsed = JSON.parse(txt) } catch { const m = txt.match(/\{[\s\S]*\}/); if (m) { try { parsed = JSON.parse(m[0]) } catch {} } }

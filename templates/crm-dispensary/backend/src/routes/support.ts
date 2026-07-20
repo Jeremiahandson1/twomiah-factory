@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { reportAiUsage } from '../services/aiUsage'
 import { authenticate } from '../middleware/auth.ts';
 import { db } from '../../db/index.ts';
 import { supportTicket, supportTicketMessage, supportKnowledgeBase, supportSlaPolicy, contact, user } from '../../db/schema.ts';
@@ -388,6 +389,7 @@ app.post('/ai-chat', async (c) => {
     });
 
     const data = await res.json() as any;
+    reportAiUsage(data.usage?.input_tokens, data.usage?.output_tokens, 'claude-haiku-4-5-20251001');
     const reply = data.content?.[0]?.text || 'Sorry, I could not process that request.';
 
     const resolved = !reply.toLowerCase().includes('support ticket') && !reply.toLowerCase().includes('team to handle');

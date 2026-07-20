@@ -35,3 +35,21 @@ export const TWILIO_COSTS = {
 export function a2pRegistrationCostCents(): number {
   return TWILIO_COSTS.brandRegistrationCents + TWILIO_COSTS.campaignVettingCents
 }
+
+// ── AI usage (same shape as SMS: $10/mo enable + tokens at cost) ──────────────
+export const AI_ENABLE_MONTHLY_CENTS = int('AI_ENABLE_MONTHLY_CENTS', 1000) // $10.00
+
+// At-cost Claude token rates, cents per 1,000,000 tokens. ⚠️ CONFIRM exact
+// current Claude pricing for the model the CRMs call (claude-haiku-4-5).
+export const AI_TOKEN_COSTS = {
+  inputPerMTokCents: int('AI_INPUT_PER_MTOK_CENTS', 100),   // ~$1.00 / 1M input
+  outputPerMTokCents: int('AI_OUTPUT_PER_MTOK_CENTS', 500), // ~$5.00 / 1M output
+}
+
+// Per-call cost in whole cents. Sub-cent calls round to nearest (many tiny calls
+// average out); tune the rates via env. Shares the messaging wallet.
+export function aiCostCents(inputTokens: number, outputTokens: number): number {
+  const cents = (Math.max(0, inputTokens) / 1e6) * AI_TOKEN_COSTS.inputPerMTokCents
+    + (Math.max(0, outputTokens) / 1e6) * AI_TOKEN_COSTS.outputPerMTokCents
+  return Math.round(cents)
+}

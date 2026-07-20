@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { reportAiUsage } from '../services/aiUsage'
 import { db } from '../../db/index.ts'
 import { salesLead, contact, unit, company, user } from '../../db/schema.ts'
 import { eq, and, desc } from 'drizzle-orm'
@@ -81,6 +82,7 @@ Return your answer in EXACTLY this format — these three literal markers each o
   if (!res.ok) { const t = await res.text().catch(() => ''); return c.json({ error: 'AI error (' + res.status + '): ' + t.slice(0, 200) }, 502) }
 
   const data: any = await res.json().catch(() => ({}))
+  reportAiUsage(data?.usage?.input_tokens, data?.usage?.output_tokens, data?.model)
   const txt: string = data?.content?.[0]?.text || ''
   // Robust delimited parsing (the old JSON format broke on multi-line email bodies).
   const between = (start: string, end: string | null) => {

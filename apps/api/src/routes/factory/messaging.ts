@@ -2,7 +2,7 @@ import { supabase, requireRole } from '../../middleware/auth'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
 import { getLedger, debit, chargeMonthlyCampaignFees } from '../../services/messagingWallet'
-import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS } from '../../config/messagingCosts'
+import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS, AI_ENABLE_MONTHLY_CENTS, aiCostCents } from '../../config/messagingCosts'
 
 // Messaging (SMS) usage billing: the $10/mo enable line + the prepaid at-cost
 // wallet. See services/messagingWallet.ts, config/messagingCosts.ts, and the
@@ -18,7 +18,7 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: t, error } = await supabase.from('tenants')
-      .select('messaging_enabled, messaging_enabled_at, messaging_wallet_cents').eq('id', id).single()
+      .select('messaging_enabled, messaging_enabled_at, messaging_wallet_cents, ai_enabled, ai_enabled_at').eq('id', id).single()
     if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
     let ledger: any[] = []
     try { ledger = await getLedger(id, 50) } catch { /* table may be empty */ }
@@ -27,6 +27,9 @@ export function registerMessagingRoutes(factory: FactoryApp) {
       enabledAt: t.messaging_enabled_at || null,
       walletCents: t.messaging_wallet_cents ?? 0,
       enableMonthlyCents: MESSAGING_ENABLE_MONTHLY_CENTS,
+      aiEnabled: !!t.ai_enabled,
+      aiEnabledAt: t.ai_enabled_at || null,
+      aiEnableMonthlyCents: AI_ENABLE_MONTHLY_CENTS,
       ledger,
     })
   })
@@ -99,6 +102,66 @@ export function registerMessagingRoutes(factory: FactoryApp) {
         metadata: { addon: 'messaging_wallet_topup', tenant_id: id, topup_cents: String(cents) },
       })
       return c.json({ url })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500)
+    }
+  })
+
+  // ─── Enable AI ($10/mo) — same shape as messaging, shares the wallet ─────────
+  factory.post('/customers/:id/ai/enable', requireRole('owner', 'admin'), async (c) => {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: t, error } = await supabase.from('tenants').select('*').eq('id', id).single()
+    if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
+    if (t.ai_enabled) return c.json({ error: 'AI already enabled' }, 409)
+    if (!factoryStripe.isConfigured()) return c.json({ error: 'Stripe not configured' }, 400)
+    try {
+      const result = await factoryStripe.createAiEnableCheckout(
+        { id: t.id, email: t.email, name: t.name, phone: t.phone, stripeCustomerId: t.stripe_customer_id },
+        AI_ENABLE_MONTHLY_CENTS,
+      )
+      if (result.stripeCustomerId && !t.stripe_customer_id) {
+        await supabase.from('tenants').update({ stripe_customer_id: result.stripeCustomerId }).eq('id', id)
+      }
+      return c.json({ url: result.url })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500)
+    }
+  })
+
+  factory.post('/customers/:id/ai/disable', requireRole('owner', 'admin'), async (c) => {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: t, error } = await supabase.from('tenants').select('ai_enabled, ai_sub_id').eq('id', id).single()
+    if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
+    try {
+      if (t.ai_sub_id) await factoryStripe.cancelSubscription(t.ai_sub_id, { atPeriodEnd: true })
+      await supabase.from('tenants').update({ ai_enabled: false, ai_sub_id: null }).eq('id', id)
+      await logTenantAudit(id, 'ai_disable', { ai_enabled: { old: true, new: false } }, c.get('user')?.email, 'AI disabled')
+      return c.json({ success: true })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500)
+    }
+  })
+
+  // ─── AI token usage report (CRM → factory), at cost, shared wallet ───────────
+  factory.post('/internal/ai/usage/:tenantId', async (c) => {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key').eq('id', tenantId).single()
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const inTok = Math.round(Number(parsed.data?.inputTokens) || 0)
+    const outTok = Math.round(Number(parsed.data?.outputTokens) || 0)
+    if (inTok < 0 || outTok < 0 || (inTok === 0 && outTok === 0)) return c.json({ error: 'inputTokens/outputTokens required' }, 400)
+    const cents = aiCostCents(inTok, outTok)
+    try {
+      if (cents > 0) await debit(tenantId, cents, 'ai_tokens', {
+        twilioRef: typeof parsed.data?.model === 'string' ? parsed.data.model : undefined,
+        allowNegative: true,
+      })
+      return c.json({ success: true, cents })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }
