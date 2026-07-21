@@ -1,3 +1,4 @@
+import crypto from 'crypto'
 import { supabase, requireRole } from '../../middleware/auth'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
@@ -11,6 +12,104 @@ import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS, AI_ENABLE_MONTHLY_CENTS, 
 
 const MIN_TOPUP_CENTS = 500      // $5
 const MAX_TOPUP_CENTS = 50000    // $500
+
+// ─── Tenant billing portal token (HMAC-signed, short-lived) ───────────────────
+// The CRM (with its factory key) mints a signed link to the factory-hosted
+// billing page; the page + its API calls authenticate with the token instead of
+// the secret key. Signed with a server secret; ~1h TTL.
+function portalSecret(): string {
+  return process.env.PORTAL_TOKEN_SECRET || process.env.WEBHOOK_SECRET || process.env.CRON_SECRET || ''
+}
+function signPortalToken(tenantId: string, ttlMs = 3_600_000): string {
+  const b = Buffer.from(`${tenantId}.${Date.now() + ttlMs}`).toString('base64url')
+  const sig = crypto.createHmac('sha256', portalSecret()).update(b).digest('base64url')
+  return `${b}.${sig}`
+}
+function verifyPortalToken(token: string): string | null {
+  try {
+    const [b, sig] = (token || '').split('.')
+    if (!b || !sig || !portalSecret()) return null
+    const expect = crypto.createHmac('sha256', portalSecret()).update(b).digest('base64url')
+    const a = Buffer.from(sig), e = Buffer.from(expect)
+    if (a.length !== e.length || !crypto.timingSafeEqual(a, e)) return null
+    const [tenantId, exp] = Buffer.from(b, 'base64url').toString().split('.')
+    if (!tenantId || !exp || Date.now() > Number(exp)) return null
+    return tenantId
+  } catch { return null }
+}
+const PORTAL_BASE_URL = process.env.PORTAL_BASE_URL || 'https://twomiah-factory-api.onrender.com'
+
+// Self-contained tenant billing page (no build step, no external assets). Reads
+// ?tenant= & ?t= from the URL and calls the token-authed self endpoints.
+const SMS_BILLING_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SMS & AI Billing</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0f17;color:#e5e7eb;font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:560px;margin:0 auto;padding:24px 16px}
+  h1{font-size:20px;margin:0 0 4px} .sub{color:#9ca3af;font-size:13px;margin:0 0 20px}
+  .card{background:#111827;border:1px solid #1f2937;border-radius:14px;padding:20px;margin-bottom:16px}
+  .row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0}
+  .muted{color:#9ca3af} .bal{font-size:26px;font-weight:700} .neg{color:#f87171}
+  .badge{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid}
+  .on{color:#34d399;border-color:#065f46;background:#064e3b55}
+  .off{color:#9ca3af;border-color:#374151;background:#1f293755}
+  button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:9px 14px;cursor:pointer;color:#fff;background:#4f46e5}
+  button:hover{background:#6366f1} button:disabled{background:#374151;color:#9ca3af;cursor:default}
+  input{font:inherit;width:110px;padding:9px;border-radius:10px;border:1px solid #374151;background:#0b0f17;color:#fff}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  td,th{text-align:left;padding:6px 4px;border-top:1px solid #1f2937} th{color:#9ca3af;font-weight:500}
+  .r{text-align:right} .grn{color:#34d399} .err{color:#f87171;font-size:13px}
+</style></head>
+<body><div class="wrap">
+  <h1>SMS &amp; AI Billing</h1>
+  <p class="sub">Manage your text messaging &amp; AI usage. Charges are billed at cost from a prepaid wallet.</p>
+  <div id="app" class="muted">Loading…</div>
+</div>
+<script>
+  var q = new URLSearchParams(location.search);
+  var tenant = q.get('tenant'), t = q.get('t');
+  var API = location.origin + '/api/v1/factory/internal/messaging/self/' + tenant;
+  function money(c){ return (c<0?'-$':'$') + (Math.abs(c)/100).toFixed(2); }
+  var LABEL = { topup:'Top-up', a2p_registration:'SMS registration', monthly_campaign:'Monthly fee', sms_segment:'SMS segments', ai_tokens:'AI tokens' };
+  function el(h){ var d=document.createElement('div'); d.innerHTML=h; return d.firstElementChild; }
+  async function api(path, method, body){
+    var r = await fetch(API + path + (path.indexOf('?')<0?'?':'&') + 't=' + encodeURIComponent(t), {
+      method: method||'GET', headers: body?{'Content-Type':'application/json'}:{}, body: body?JSON.stringify(body):undefined });
+    var d = await r.json().catch(function(){return {}}); if(!r.ok) throw new Error(d.error||'Request failed'); return d;
+  }
+  async function act(path, body){ try{ var d = await api(path, 'POST', body); if(d.url){ location.href=d.url; return; } load(); }catch(e){ alert(e.message); } }
+  async function load(){
+    var app = document.getElementById('app');
+    if(!tenant || !t){ app.innerHTML = '<p class="err">Invalid or missing billing link.</p>'; return; }
+    try{
+      var s = await api('');
+      var enFee = money(s.enableMonthlyCents), aiFee = money(s.aiEnableMonthlyCents), bal = s.walletCents||0;
+      var rows = (s.ledger||[]).map(function(l){
+        return '<tr><td class="muted">'+ new Date(l.created_at).toLocaleDateString() +'</td><td>'+ (LABEL[l.reason]||l.reason) +'</td><td class="r '+(l.kind==='credit'?'grn':'')+'">'+ (l.kind==='credit'?'+':'-') + money(l.amount_cents).replace('-','') +'</td><td class="r muted">'+ money(l.balance_after_cents) +'</td></tr>';
+      }).join('');
+      app.innerHTML =
+        '<div class="card"><div class="row"><span>SMS / Messaging</span>'+
+          (s.enabled ? '<span class="badge on">On · '+enFee+'/mo</span>' : '<button id="enSms">Enable · '+enFee+'/mo</button>') + '</div>'+
+          '<div class="row"><span>AI Assistant</span>'+
+          (s.aiEnabled ? '<span class="badge on">On · '+aiFee+'/mo</span>' : '<button id="enAi">Enable · '+aiFee+'/mo</button>') + '</div></div>'+
+        (s.enabled || s.aiEnabled ?
+          '<div class="card"><div class="row"><span class="muted">Wallet balance</span><span class="bal '+(bal<0?'neg':'')+'">'+money(bal)+'</span></div>'+
+            (bal<0?'<p class="err">Negative balance — top up to keep sending.</p>':'')+
+            '<div class="row"><span class="muted">Add funds (USD)</span><span><input id="amt" type="number" min="5" max="500" value="20"> <button id="topup">Add</button></span></div>'+
+            (rows?'<table><thead><tr><th>Date</th><th>Item</th><th class="r">Amount</th><th class="r">Balance</th></tr></thead><tbody>'+rows+'</tbody></table>':'') +
+          '</div>'
+          : '<p class="muted">Enable a service above to fund your usage wallet.</p>');
+      var b;
+      if(b=document.getElementById('enSms')) b.onclick=function(){ act('/enable'); };
+      if(b=document.getElementById('enAi')) b.onclick=function(){ act('/ai-enable'); };
+      if(b=document.getElementById('topup')) b.onclick=function(){ var v=parseFloat(document.getElementById('amt').value); if(v>=5) act('/topup',{amountCents:Math.round(v*100)}); };
+    }catch(e){ app.innerHTML = '<p class="err">'+ e.message +'</p>'; }
+  }
+  load();
+</script></body></html>`
 
 export function registerMessagingRoutes(factory: FactoryApp) {
   // ─── Status: enabled + wallet balance + recent ledger ────────────────────────
@@ -207,13 +306,27 @@ export function registerMessagingRoutes(factory: FactoryApp) {
   // The tenant's CRM proxies these so a tenant can enable messaging/AI and fund
   // their own wallet without the platform admin. Same Stripe flows + webhook as
   // the admin routes; auth is the tenant's own factory sync key.
+  // Auth = the tenant's factory key (CRM-to-factory) OR a valid portal token
+  // (?t=, used by the browser billing page). Either proves tenant scope.
   async function selfTenant(c: any) {
     const tenantId = c.req.param('tenantId')
     if (!UUID_RE.test(tenantId)) return { err: c.json({ error: 'Invalid tenant ID format' }, 400) }
     const { data: t } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
-    if (!t || !checkFactoryKey(c, t)) return { err: c.json({ error: 'Unauthorized' }, 401) }
+    if (!t) return { err: c.json({ error: 'Unauthorized' }, 401) }
+    const okKey = checkFactoryKey(c, t)
+    const okToken = verifyPortalToken(c.req.query('t') || '') === tenantId
+    if (!okKey && !okToken) return { err: c.json({ error: 'Unauthorized' }, 401) }
     return { t }
   }
+
+  // CRM (factory key) mints a signed link to the hosted billing page.
+  factory.post('/internal/messaging/self/:tenantId/portal', async (c) => {
+    const { t, err } = await selfTenant(c); if (err) return err
+    return c.json({ url: `${PORTAL_BASE_URL}/api/v1/factory/public/sms-billing?tenant=${t.id}&t=${signPortalToken(t.id)}` })
+  })
+
+  // The hosted billing page (public; its API calls are token-authed).
+  factory.get('/public/sms-billing', (c) => c.html(SMS_BILLING_HTML))
 
   factory.get('/internal/messaging/self/:tenantId', async (c) => {
     const { t, err } = await selfTenant(c); if (err) return err
