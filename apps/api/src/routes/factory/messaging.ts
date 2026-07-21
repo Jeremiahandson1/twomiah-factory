@@ -155,10 +155,11 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     const inTok = Math.round(Number(parsed.data?.inputTokens) || 0)
     const outTok = Math.round(Number(parsed.data?.outputTokens) || 0)
     if (inTok < 0 || outTok < 0 || (inTok === 0 && outTok === 0)) return c.json({ error: 'inputTokens/outputTokens required' }, 400)
-    const cents = aiCostCents(inTok, outTok)
+    const model = typeof parsed.data?.model === 'string' ? parsed.data.model : undefined
+    const cents = aiCostCents(inTok, outTok, model)
     try {
       if (cents > 0) await debit(tenantId, cents, 'ai_tokens', {
-        twilioRef: typeof parsed.data?.model === 'string' ? parsed.data.model : undefined,
+        twilioRef: model,
         allowNegative: true,
       })
       return c.json({ success: true, cents })
