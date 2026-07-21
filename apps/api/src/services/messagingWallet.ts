@@ -80,7 +80,7 @@ export async function canCover(tenantId: string, cents: number): Promise<boolean
 // allowNegative: Twilio already billed us, so we let the wallet go negative and
 // the tenant tops up to clear it (a negative balance blocks new A2P actions).
 export async function chargeMonthlyCampaignFees(): Promise<{ checked: number; charged: number }> {
-  const { data: tenants, error } = await supabase.from('tenants').select('id, a2p_phone_number')
+  const { data: tenants, error } = await supabase.from('tenants').select('id, a2p_phone_number, a2p_number_monthly_cents')
     .eq('messaging_enabled', true).eq('a2p_status', 'approved')
   if (error) throw new Error(error.message)
   let charged = 0
@@ -91,8 +91,10 @@ export async function chargeMonthlyCampaignFees(): Promise<{ checked: number; ch
     const lastAt = last?.[0]?.created_at ? new Date(last[0].created_at).getTime() : 0
     const daysSince = (Date.now() - lastAt) / 86_400_000
     if (daysSince >= 27) {
-      // Monthly at-cost recurring = A2P campaign fee + the number's rental (if one is held).
-      const amount = TWILIO_COSTS.monthlyCampaignCents + (t.a2p_phone_number ? TWILIO_COSTS.numberMonthlyCents : 0)
+      // Monthly at-cost recurring = A2P campaign fee + the number's real rental
+      // (captured from Twilio at purchase; config default if unknown).
+      const numberCost = t.a2p_phone_number ? (t.a2p_number_monthly_cents ?? TWILIO_COSTS.numberMonthlyCents) : 0
+      const amount = TWILIO_COSTS.monthlyCampaignCents + numberCost
       try {
         await debit(t.id, amount, 'monthly_campaign', { allowNegative: true })
         charged++

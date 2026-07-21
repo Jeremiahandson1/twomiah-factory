@@ -316,11 +316,28 @@ function areaCodeFrom(phone?: string): string | null {
   return ten.length >= 10 ? ten.slice(0, 3) : null
 }
 
+// Twilio's CURRENT recurring price (in cents) for a US number type, read live
+// from the Pricing API so we bill each number's real cost — no estimate. Returns
+// null on any failure so billing falls back to the config default.
+async function numberPriceCents(numberType = 'local'): Promise<number | null> {
+  try {
+    const p = await twilioFetch('https://pricing.twilio.com/v1', '/PhoneNumbers/Countries/US', 'GET')
+    const want = numberType.toLowerCase().replace(/[\s_-]/g, '')
+    const match = (p?.phone_number_prices || []).find(
+      (x: any) => String(x.number_type || '').toLowerCase().replace(/[\s_-]/g, '') === want,
+    )
+    const price = match ? parseFloat(match.current_price) : NaN
+    return Number.isFinite(price) ? Math.round(price * 100) : null
+  } catch {
+    return null
+  }
+}
+
 // Search for and BUY a local SMS-capable US number, preferring (in order) an
 // explicit area code, the business phone's area code, then the tenant's state,
-// then any US local number. Fully defensive: any failure returns null so the
-// registration still completes — the number can be added/retried later.
-async function purchaseNumber(d: A2pData): Promise<string | null> {
+// then any US local number. Returns the sid AND the number's real monthly price.
+// Fully defensive: any failure returns null so registration still completes.
+async function purchaseNumber(d: A2pData): Promise<{ sid: string; monthlyCents: number | null } | null> {
   try {
     const acctBase = `${API2010}/Accounts/${isvCreds().sid}`
     const filters: string[] = []
@@ -337,7 +354,7 @@ async function purchaseNumber(d: A2pData): Promise<string | null> {
       const candidate = search?.available_phone_numbers?.[0]?.phone_number
       if (!candidate) continue
       const bought = await twilioFetch(acctBase, '/IncomingPhoneNumbers.json', 'POST', { PhoneNumber: candidate })
-      if (bought?.sid) return bought.sid
+      if (bought?.sid) return { sid: bought.sid, monthlyCents: await numberPriceCents('local') }
     }
   } catch (e: any) {
     console.error('[A2P] number purchase failed:', e?.message || e)
@@ -346,15 +363,21 @@ async function purchaseNumber(d: A2pData): Promise<string | null> {
 }
 
 // 6) Attach the tenant's Twilio number to the messaging service — buying one
-// automatically when no existing PN sid was supplied.
+// automatically when no existing PN sid was supplied, and recording its real
+// monthly cost so the wallet bills exactly what Twilio charges.
 async function ensurePhoneNumber(tenant: TenantRow, d: A2pData): Promise<string | null> {
   if (tenant.a2p_phone_number) return tenant.a2p_phone_number
-  const phoneNumberSid = d.phoneNumberSid || await purchaseNumber(d)
+  let phoneNumberSid: string | null = d.phoneNumberSid || null
+  let monthlyCents: number | null = null
+  if (!phoneNumberSid) {
+    const bought = await purchaseNumber(d)
+    if (bought) { phoneNumberSid = bought.sid; monthlyCents = bought.monthlyCents }
+  }
   if (!phoneNumberSid) return null // couldn't buy one; registration still completes, add later
   await twilioFetch(MESSAGING, `/Services/${tenant.a2p_messaging_service_sid}/PhoneNumbers`, 'POST', {
     PhoneNumberSid: phoneNumberSid,
   })
-  await patchTenant(tenant.id, { a2p_phone_number: phoneNumberSid })
+  await patchTenant(tenant.id, { a2p_phone_number: phoneNumberSid, a2p_number_monthly_cents: monthlyCents })
   tenant.a2p_phone_number = phoneNumberSid
   return phoneNumberSid
 }
