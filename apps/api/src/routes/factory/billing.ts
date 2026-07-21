@@ -1,11 +1,20 @@
 import { authenticate, supabase, requireRole } from '../../middleware/auth'
 import { findRenderServicesBySlug, wireDomainInfrastructure } from '../../services/deploy'
 import factoryStripe from '../../services/factoryStripe'
-import { notifyBillingPastDue } from '../../services/email'
+import { notifyBillingPastDue, notifyMessagingEnabled } from '../../services/email'
+import { portalUrlFor } from '../../lib/portal'
 import { PRODUCTS, getProductDefaults } from '../../config/pricing'
 import { getRegistrar } from '../../services/registrar'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, diffTenantChanges, FRONTEND_URL } from './shared'
 import { triggerAutoDeploy } from './deploy'
+
+// Email the tenant a welcome + billing-portal link when a channel is enabled.
+async function emailEnabled(tenantId: string, label: string) {
+  try {
+    const { data: t } = await supabase.from('tenants').select('name, email').eq('id', tenantId).single()
+    if (t?.email) await notifyMessagingEnabled({ name: t.name, email: t.email }, portalUrlFor(tenantId), label)
+  } catch (e: any) { console.error('[Messaging] enable email failed:', e?.message || e) }
+}
 
 export function registerBillingRoutes(factory: FactoryApp) {
 // ─── Stripe Config ───────────────────────────────────────────────────────────
@@ -218,6 +227,8 @@ factory.post('/stripe/webhook', async (c) => {
           import('../../services/messagingWallet').then(({ credit }) =>
             credit(meta.tenant_id, cents, 'topup', { stripeRef: String(session.payment_intent || session.id) })
           ).catch(err => console.error('[Wallet] Top-up credit failed:', err?.message || err))
+          // Wallet recovered → clear the low-balance nudge so a future dip re-nudges.
+          supabase.from('tenants').update({ messaging_nudged_at: null }).eq('id', meta.tenant_id).then(() => {}, () => {})
         }
       } else if (meta.addon === 'messaging_enable' && meta.tenant_id) {
         supabase.from('tenants').update({
@@ -225,7 +236,7 @@ factory.post('/stripe/webhook', async (c) => {
           messaging_enabled_at: new Date().toISOString(),
           messaging_sub_id: session.subscription || null,
         }).eq('id', meta.tenant_id).then(
-          () => logTenantAudit(meta.tenant_id, 'messaging_enable', { messaging_enabled: { old: false, new: true } }, 'stripe-webhook', 'Messaging enabled'),
+          () => { logTenantAudit(meta.tenant_id, 'messaging_enable', { messaging_enabled: { old: false, new: true } }, 'stripe-webhook', 'Messaging enabled'); emailEnabled(meta.tenant_id, 'SMS / Messaging') },
           (err: any) => console.error('[Messaging] Enable mark failed:', err?.message || err),
         )
       } else if (meta.addon === 'ai_enable' && meta.tenant_id) {
@@ -234,7 +245,7 @@ factory.post('/stripe/webhook', async (c) => {
           ai_enabled_at: new Date().toISOString(),
           ai_sub_id: session.subscription || null,
         }).eq('id', meta.tenant_id).then(
-          () => logTenantAudit(meta.tenant_id, 'ai_enable', { ai_enabled: { old: false, new: true } }, 'stripe-webhook', 'AI enabled'),
+          () => { logTenantAudit(meta.tenant_id, 'ai_enable', { ai_enabled: { old: false, new: true } }, 'stripe-webhook', 'AI enabled'); emailEnabled(meta.tenant_id, 'AI Assistant') },
           (err: any) => console.error('[AI] Enable mark failed:', err?.message || err),
         )
       }

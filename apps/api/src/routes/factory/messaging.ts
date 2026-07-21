@@ -1,9 +1,10 @@
-import crypto from 'crypto'
 import { supabase, requireRole } from '../../middleware/auth'
 import { type FactoryApp, UUID_RE, parseJsonBody, logTenantAudit, checkCronSecret, checkFactoryKey, FRONTEND_URL } from './shared'
 import factoryStripe from '../../services/factoryStripe'
 import { getLedger, debit, chargeMonthlyCampaignFees } from '../../services/messagingWallet'
 import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS, AI_ENABLE_MONTHLY_CENTS, aiCostCents } from '../../config/messagingCosts'
+import { verifyPortalToken, portalUrlFor } from '../../lib/portal'
+import { notifyMessagingLowBalance } from '../../services/email'
 
 // Messaging (SMS) usage billing: the $10/mo enable line + the prepaid at-cost
 // wallet. See services/messagingWallet.ts, config/messagingCosts.ts, and the
@@ -12,32 +13,6 @@ import { MESSAGING_ENABLE_MONTHLY_CENTS, TWILIO_COSTS, AI_ENABLE_MONTHLY_CENTS, 
 
 const MIN_TOPUP_CENTS = 500      // $5
 const MAX_TOPUP_CENTS = 50000    // $500
-
-// ─── Tenant billing portal token (HMAC-signed, short-lived) ───────────────────
-// The CRM (with its factory key) mints a signed link to the factory-hosted
-// billing page; the page + its API calls authenticate with the token instead of
-// the secret key. Signed with a server secret; ~1h TTL.
-function portalSecret(): string {
-  return process.env.PORTAL_TOKEN_SECRET || process.env.WEBHOOK_SECRET || process.env.CRON_SECRET || ''
-}
-function signPortalToken(tenantId: string, ttlMs = 3_600_000): string {
-  const b = Buffer.from(`${tenantId}.${Date.now() + ttlMs}`).toString('base64url')
-  const sig = crypto.createHmac('sha256', portalSecret()).update(b).digest('base64url')
-  return `${b}.${sig}`
-}
-function verifyPortalToken(token: string): string | null {
-  try {
-    const [b, sig] = (token || '').split('.')
-    if (!b || !sig || !portalSecret()) return null
-    const expect = crypto.createHmac('sha256', portalSecret()).update(b).digest('base64url')
-    const a = Buffer.from(sig), e = Buffer.from(expect)
-    if (a.length !== e.length || !crypto.timingSafeEqual(a, e)) return null
-    const [tenantId, exp] = Buffer.from(b, 'base64url').toString().split('.')
-    if (!tenantId || !exp || Date.now() > Number(exp)) return null
-    return tenantId
-  } catch { return null }
-}
-const PORTAL_BASE_URL = process.env.PORTAL_BASE_URL || 'https://twomiah-factory-api.onrender.com'
 
 // Self-contained tenant billing page (no build step, no external assets). Reads
 // ?tenant= & ?t= from the URL and calls the token-authed self endpoints.
@@ -119,7 +94,7 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: t } = await supabase.from('tenants').select('id').eq('id', id).single()
     if (!t) return c.json({ error: 'Tenant not found' }, 404)
-    return c.json({ url: `${PORTAL_BASE_URL}/api/v1/factory/public/sms-billing?tenant=${id}&t=${signPortalToken(id)}` })
+    return c.json({ url: portalUrlFor(id) })
   })
 
   factory.get('/customers/:id/messaging', requireRole('owner', 'admin'), async (c) => {
@@ -331,7 +306,7 @@ export function registerMessagingRoutes(factory: FactoryApp) {
   // CRM (factory key) mints a signed link to the hosted billing page.
   factory.post('/internal/messaging/self/:tenantId/portal', async (c) => {
     const { t, err } = await selfTenant(c); if (err) return err
-    return c.json({ url: `${PORTAL_BASE_URL}/api/v1/factory/public/sms-billing?tenant=${t.id}&t=${signPortalToken(t.id)}` })
+    return c.json({ url: portalUrlFor(t.id) })
   })
 
   // The hosted billing page (public; its API calls are token-authed).
@@ -391,6 +366,31 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     try {
       const res = await chargeMonthlyCampaignFees()
       return c.json({ success: true, ...res })
+    } catch (e: any) {
+      return c.json({ error: e.message }, 500)
+    }
+  })
+
+  // ─── Cron: email a top-up nudge to tenants whose wallet is low/negative ───────
+  // Fully hands-off: the tenant gets a portal link and self-serves. Debounced to
+  // once per 3 days via messaging_nudged_at (cleared on top-up).
+  factory.post('/internal/messaging/low-balance-nudge', async (c) => {
+    if (!checkCronSecret(c)) return c.json({ error: 'Invalid cron secret' }, 401)
+    try {
+      const cutoff = new Date(Date.now() - 3 * 86_400_000).toISOString()
+      const { data: rows } = await supabase.from('tenants')
+        .select('id, name, email, messaging_wallet_cents, messaging_nudged_at')
+        .eq('messaging_enabled', true).lt('messaging_wallet_cents', 200)
+      let nudged = 0
+      for (const t of rows || []) {
+        if (!t.email || (t.messaging_nudged_at && t.messaging_nudged_at > cutoff)) continue
+        try {
+          await notifyMessagingLowBalance({ name: t.name, email: t.email }, portalUrlFor(t.id), t.messaging_wallet_cents ?? 0)
+          await supabase.from('tenants').update({ messaging_nudged_at: new Date().toISOString() }).eq('id', t.id)
+          nudged++
+        } catch (e: any) { console.error('[Messaging] low-balance nudge failed for', t.id, e?.message || e) }
+      }
+      return c.json({ success: true, checked: (rows || []).length, nudged })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }

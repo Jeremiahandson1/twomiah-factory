@@ -154,6 +154,34 @@ export async function notifyWelcome(
   )
 }
 
+// Tenant self-serve billing emails — carry the signed portal link so the tenant
+// can enable/top-up without any Twomiah involvement (fully hands-off).
+export async function notifyMessagingEnabled(
+  tenant: { name?: string; email?: string }, portalUrl: string, label: string
+): Promise<boolean> {
+  if (!tenant.email) return false
+  const body = `
+    <p style="color:#333;line-height:1.6;"><strong>${label}</strong> is now enabled for <strong>${tenant.name || 'your account'}</strong>.</p>
+    <p style="color:#333;line-height:1.6;">Usage (texts, AI, registration) is billed <strong>at cost</strong> from a prepaid wallet. Add funds and manage everything anytime:</p>
+    <p style="margin:20px 0;"><a href="${portalUrl}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Manage billing &amp; add funds &rarr;</a></p>`
+  return sendEmail(tenant.email, `${label} enabled — manage your usage wallet`, wrap(`${label} enabled`, body))
+}
+
+export async function notifyMessagingLowBalance(
+  tenant: { name?: string; email?: string }, portalUrl: string, balanceCents: number
+): Promise<boolean> {
+  if (!tenant.email) return false
+  const bal = (balanceCents < 0 ? '-$' : '$') + (Math.abs(balanceCents) / 100).toFixed(2)
+  const body = `
+    <p style="color:#333;line-height:1.6;">Your text-messaging usage wallet${balanceCents < 0 ? ' is now <strong>negative</strong>' : ' is running low'}.</p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
+      ${kv('Current balance', bal)}
+    </div>
+    <p style="color:#333;line-height:1.6;">Top up now to keep your texts and AI sending — it takes a minute, and everything is billed at cost.</p>
+    <p style="margin:20px 0;"><a href="${portalUrl}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">Top up your wallet &rarr;</a></p>`
+  return sendEmail(tenant.email, 'Action needed: your messaging wallet is low', wrap('Top up your usage wallet', body))
+}
+
 export async function notifyDeployComplete(
   tenant: { name: string; email?: string; slug: string; industry?: string; products?: string[]; admin_password?: string; twomiah_subdomain?: string | null },
   urls: { apiUrl?: string; deployedUrl?: string; siteUrl?: string; repoUrl?: string; adsUrl?: string; twomiahSubdomain?: string }

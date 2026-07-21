@@ -31,6 +31,7 @@ const JOBS: JobConfig[] = [
   // self-guarded to once/~27 days per tenant, so a daily tick is plenty.
   { name: 'a2p-poll', path: '/api/v1/factory/internal/a2p/poll', schedule: 'hourly' },
   { name: 'messaging-monthly', path: '/api/v1/factory/internal/messaging/monthly', schedule: { dailyAtUtcHour: 9 } },
+  { name: 'messaging-low-balance-nudge', path: '/api/v1/factory/internal/messaging/low-balance-nudge', schedule: { dailyAtUtcHour: 15 } },
 ]
 
 async function fireJob(job: JobConfig, port: number, secret: string) {
