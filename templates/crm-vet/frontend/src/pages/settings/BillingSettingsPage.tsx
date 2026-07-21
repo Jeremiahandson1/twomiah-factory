@@ -79,6 +79,13 @@ export default function BillingSettingsPage() {
     loadBillingData();
   }, []);
 
+  const openSmsBilling = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/billing/portal-link`, { headers: getAuthHeaders() });
+      const d = await res.json();
+      if (res.ok && d.url) window.open(d.url, '_blank'); else alert(d.error || 'Could not open billing');
+    } catch { alert('Could not open billing'); }
+  };
   const getAuthHeaders = (): Record<string, string> => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -246,6 +253,13 @@ export default function BillingSettingsPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Billing & Subscription</h1>
+      <div className="bg-white rounded-xl border p-6 mb-6 flex items-center justify-between gap-4">
+        <div>
+          <h2 className="font-semibold text-gray-900">SMS &amp; AI Usage</h2>
+          <p className="text-sm text-gray-500">Enable texting &amp; AI and manage your at-cost usage wallet.</p>
+        </div>
+        <button onClick={openSmsBilling} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg whitespace-nowrap">Manage SMS &amp; AI billing &rarr;</button>
+      </div>
 
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
