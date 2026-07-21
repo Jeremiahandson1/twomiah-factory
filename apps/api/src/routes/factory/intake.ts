@@ -7,6 +7,7 @@ import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
 import { buildBrief, type Intake } from '../../services/briefBuilder'
 import { renderHomepagePreview } from '../../services/previewRenderer'
+import { cacheGet, cacheSet, acquireInflight, releaseInflight } from '../../lib/previewGuard'
 import { composeSite } from '../../services/sectionComposer'
 import { renderPremiumPage, pickPremiumTemplateDir } from '../../services/premiumSiteRenderer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
@@ -738,6 +739,66 @@ factory.post('/public/intake', rateLimit(60 * 60 * 1000, 3), async (c) => {
   } catch (err: any) {
     console.error('[Intake] Error:', err.message || err)
     return c.json({ error: 'Submission failed. Please try again.' }, 500)
+  }
+})
+
+// ─── Public instant preview (self-serve, no auth, no deploy, ~$0) ──────────────
+// The homepage "preview your site" widget posts { businessName, businessType }
+// and gets back a fully rendered, self-contained standard-template homepage —
+// the SAME token-filled template a paying customer receives, NOT the premium AI
+// composer. It never writes to the DB and never touches the deploy pipeline, so
+// it costs nothing but the render itself. That render is defended on three axes
+// so it can't be spammed into a cost/DoS vector: per-IP rate limit (rateLimit
+// middleware) + global in-flight cap + identical-input cache (previewGuard).
+// Returns raw HTML for iframe srcdoc.
+factory.post('/public/preview', rateLimit(10 * 60_000, 6), async (c) => {
+  let body: any
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid request.' }, 400)
+  }
+
+  // Strip angle brackets so a name can never inject markup into the rendered
+  // HTML (token substitution is raw), and bound every field so a payload can't
+  // bloat the render.
+  const clean = (s: unknown, max: number): string =>
+    typeof s === 'string' ? s.replace(/[<>]/g, '').trim().slice(0, max) : ''
+  const businessName = clean(body.businessName, 80)
+  const businessType = clean(body.businessType ?? body.industry, 60)
+  const city = clean(body.city, 60)
+  const state = clean(body.state, 40)
+  if (businessName.length < 2 || businessType.length < 2) {
+    return c.json({ error: 'Enter a business name and what you do (e.g. "Joe\'s Roofing" and "roofing").' }, 422)
+  }
+
+  const cacheKey = [businessName, businessType, city, state].join('|').toLowerCase()
+  const cached = cacheGet(cacheKey)
+  if (cached) return c.html(cached)
+
+  const intake: Intake = {
+    businessName,
+    businessType,
+    city: city || undefined,
+    state: state || undefined,
+  }
+  const brief = buildBrief(intake)
+  if (!brief.ok) {
+    return c.json({ error: 'Could not build a preview for that — try a more common business type.' }, 422)
+  }
+
+  if (!acquireInflight()) {
+    return c.json({ error: 'Busy rendering previews right now — try again in a few seconds.' }, 503)
+  }
+  try {
+    const preview = await renderHomepagePreview(brief.config)
+    cacheSet(cacheKey, preview.html)
+    return c.html(preview.html)
+  } catch (err: any) {
+    console.error('[PublicPreview] Render failed:', err?.message || err)
+    return c.json({ error: 'Preview failed to render — please try again.' }, 500)
+  } finally {
+    releaseInflight()
   }
 })
 
