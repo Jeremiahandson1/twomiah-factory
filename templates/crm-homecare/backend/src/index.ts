@@ -20,6 +20,7 @@ const __dirname = path.dirname(__filename)
 const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 import authRoutes from './routes/auth.ts'
+import messagingBillingRoutes from './routes/messagingBilling.ts'
 import dashboardRoutes from './routes/dashboard.ts'
 import clientsRoutes from './routes/clients.ts'
 import caregiversRoutes from './routes/caregivers.ts'
@@ -162,6 +163,7 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 // API routes
 if (webhooksRoutes) app.route('/api/webhooks', webhooksRoutes)
 app.route('/api/auth', authRoutes)
+app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/clients', clientsRoutes)
 app.route('/api/caregivers', caregiversRoutes)

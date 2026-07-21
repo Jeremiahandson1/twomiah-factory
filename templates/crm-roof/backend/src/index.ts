@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename)
 const FRONTEND_DIST = path.resolve(__dirname, '..', 'frontend-dist')
 
 import authRoutes from './routes/auth.ts'
+import messagingBillingRoutes from './routes/messagingBilling.ts'
 import contactsRoutes from './routes/contacts.ts'
 import jobsRoutes from './routes/jobs.ts'
 import crewsRoutes from './routes/crews.ts'
@@ -94,6 +95,7 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 
 // API routes
 app.route('/api/auth', authRoutes)
+app.route('/api/messaging-billing', messagingBillingRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
 app.route('/api/email-domain', emailDomainRoutes)
 app.route('/api/account', accountRoutes)

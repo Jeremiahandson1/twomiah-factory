@@ -202,12 +202,29 @@ export default function SettingsPage() {
     );
   }
 
+  const openSmsBilling = async () => {
+    try {
+      const res = await fetch('/api/messaging-billing/portal-link', { headers: { Authorization: `Bearer ${token}` } });
+      const d = await res.json();
+      if (res.ok && d.url) window.open(d.url, '_blank'); else alert(d.error || 'Could not open billing');
+    } catch { alert('Could not open billing'); }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <Settings className="w-6 h-6 text-gray-400" /> Settings
         </h1>
+
+        {/* SMS & AI Billing */}
+        <div className="bg-white rounded-xl shadow-sm border p-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2"><MessageSquare className="w-4 h-4 text-gray-400" /> SMS &amp; AI Usage</h2>
+            <p className="text-sm text-gray-500 mt-1">Enable texting &amp; AI and manage your at-cost usage wallet.</p>
+          </div>
+          <button onClick={openSmsBilling} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg whitespace-nowrap">Manage billing &rarr;</button>
+        </div>
 
         {/* Company Info */}
         <div className="bg-white rounded-xl shadow-sm border p-6">
