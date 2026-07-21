@@ -339,12 +339,12 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       resolvedExpiresAt = reg.expiresAt || null
     }
 
-    // Start the 30-day free trial clock at signup. No credit card required — the
-    // tenant's CRM is provisioned immediately and they get 30 days to try it.
-    // Warning emails fire at day 23 (7 left), day 27 (3 left), and day 30.
-    // At day 30 the CRM locks to a paywall until they upgrade.
-    const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-
+    // Pay-then-deploy: the tenant is created 'pending' / awaiting-payment.
+    // NOTHING is deployed until Stripe checkout completes — the webhook
+    // (checkout.session.completed → triggerAutoDeploy) provisions the real
+    // site + CRM only after the card is charged. No free trial: the free
+    // homepage preview is the "try before you buy," and the CRM carries a
+    // 30-day money-back guarantee (a refund policy, not a deployed trial).
     const tenantRecord: Record<string, any> = {
       name: body.name.trim(),
       slug,
@@ -362,7 +362,8 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       primary_color: body.primary_color || '#FF3D00',
       plan: body.plan || 'starter10',
       deployment_model: body.deployment_model || 'saas',
-      billing_type: body.billing_type || 'trial',
+      billing_type: 'subscription',
+      billing_status: 'pending',
       monthly_amount: body.monthly_amount || null,
       status: 'pending',
       products: body.products || ['crm', 'website'],
@@ -375,15 +376,14 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       notes: body.notes || null,
       admin_password: body.admin_password || null,
       website_theme: body.website_theme || null,
-      trial_ends_at: trialEndsAt.toISOString(),
     }
 
     let { data: tenant, error: insertErr } = await supabase.from('tenants').insert(tenantRecord).select().single()
-    // If trial_ends_at column hasn't been added to the live DB yet, retry without it.
-    // This lets the code ship before the schema migration is applied.
+    // If a newer column (e.g. billing_status) hasn't been added to the live DB
+    // yet, retry without it so the code can ship ahead of the migration.
     if (insertErr && insertErr.code === '42703') {
-      console.warn('[Signup] trial_ends_at column missing, retrying without it. Run apps/api/schema.sql migration.')
-      const { trial_ends_at: _, ...fallback } = tenantRecord
+      console.warn('[Signup] Unknown column on insert, retrying without billing_status:', insertErr.message)
+      const { billing_status: _, ...fallback } = tenantRecord
       const retry = await supabase.from('tenants').insert(fallback).select().single()
       tenant = retry.data
       insertErr = retry.error
@@ -393,7 +393,7 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       return c.json({ error: 'Failed to create account. Please try again.' }, 500)
     }
 
-    console.log('[Signup] New tenant created:', tenant.id, tenant.name, tenant.plan, '(trial ends ' + trialEndsAt.toISOString() + ')')
+    console.log('[Signup] New tenant created (pending payment):', tenant.id, tenant.name, tenant.plan)
 
     // Send welcome email immediately (non-blocking)
     notifyWelcome(tenant).catch(e => console.warn('[Email] Welcome email failed:', e.message))
@@ -426,10 +426,11 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
       },
     }
 
-    // Run generation + auto-deploy in background — don't block the signup response.
-    // "No credit card required" flow: deploy fires immediately on signup, customer
-    // gets a live CRM within ~5 min, trial starts at tenant.trial_ends_at.
-    // Stripe is touched only later when they upgrade from inside the CRM.
+    // Generate the build in the background — don't block the signup response.
+    // Generation is cheap (local file-gen, no Render/DB), so it's safe to run
+    // before payment; it just produces the factory_jobs record the deploy needs.
+    // The EXPENSIVE step (Render service + Postgres) is the deploy, which only
+    // fires after checkout completes (webhook, or the race-resolution below).
     ;(async () => {
       try {
         console.log('[Signup] Auto-generating build for tenant:', tenant.id, tenant.slug)
@@ -457,28 +458,65 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
             console.error('[Signup] Job insert error:', jobErr.message)
           }
         }
-        console.log('[Signup] Build generated successfully for', tenant.slug, '— firing immediate auto-deploy')
+        console.log('[Signup] Build generated for', tenant.slug, '— awaiting payment before deploy')
 
-        // Immediate auto-deploy — no Stripe checkout gating. triggerAutoDeploy
-        // looks up the latest factory_jobs row for this tenant and kicks off
-        // runDeploy in the background. Idempotent — safe to call even if a
-        // deploy is already in progress.
+        // Pay-then-deploy race resolution: the build must exist before we can
+        // deploy, and payment can land on either side of generation. If the
+        // customer already paid while we were generating (webhook flipped
+        // billing_status → active but found no build to deploy yet), fire the
+        // deploy now. Otherwise the checkout.session.completed webhook triggers
+        // it. triggerAutoDeploy is idempotent, so at most one deploy ever runs.
         if (tenantRecord.deployment_model === 'saas') {
-          await triggerAutoDeploy(tenant.id).catch(err =>
-            console.error('[Signup] triggerAutoDeploy error:', err?.message || err)
-          )
+          const { data: fresh } = await supabase
+            .from('tenants').select('billing_status, status, render_frontend_url')
+            .eq('id', tenant.id).maybeSingle()
+          const alreadyPaid = fresh?.billing_status === 'active' || fresh?.status === 'active'
+          if (alreadyPaid && !fresh?.render_frontend_url) {
+            console.log('[Signup] Payment already completed for', tenant.slug, '— deploying now')
+            await triggerAutoDeploy(tenant.id).catch(err =>
+              console.error('[Signup] post-generate triggerAutoDeploy error:', err?.message || err)
+            )
+          }
         }
       } catch (genErr: any) {
         console.error('[Signup] Auto-generate failed for', tenant.slug, ':', genErr.message)
       }
     })()
 
+    // Create the Stripe Checkout session the customer must complete to launch.
+    // Payment (webhook) — not this request — triggers the deploy. Success/cancel
+    // land on the public marketing site, never the staff console.
+    const siteUrl = (process.env.PUBLIC_SITE_URL || 'https://twomiah.com').replace(/\/$/, '')
+    let checkoutUrl: string | null = null
+    try {
+      const checkout = await factoryStripe.createSubscriptionCheckout(
+        { id: tenant.id, email: tenant.email, name: tenant.name, phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id },
+        {
+          planId: tenant.plan || 'starter10',
+          billingCycle: 'monthly',
+          successUrl: siteUrl + '/welcome?tenant=' + tenant.id,
+          cancelUrl: siteUrl + '/signup?canceled=1',
+        }
+      )
+      checkoutUrl = checkout.url || null
+      if (checkout.stripeCustomerId && !tenant.stripe_customer_id) {
+        await supabase.from('tenants').update({ stripe_customer_id: checkout.stripeCustomerId }).eq('id', tenant.id)
+      }
+      // A session with no URL means the customer has no way to pay — treat it as
+      // a checkout failure rather than returning "success" with a dead link (the
+      // signup form would otherwise show a misleading "being built" message).
+      if (!checkoutUrl) throw new Error('Stripe returned no checkout URL')
+    } catch (payErr: any) {
+      console.error('[Signup] Checkout creation failed for', tenant.slug, ':', payErr?.message || payErr)
+      return c.json({ error: 'Account created, but we could not start checkout. Please try again or contact support.', tenantId: tenant.id }, 502)
+    }
+
     return c.json({
       success: true,
       tenantId: tenant.id,
       slug: tenant.slug,
-      trialEndsAt: trialEndsAt.toISOString(),
-      message: 'Account created successfully — your CRM is being provisioned. You will receive an email when it is ready.',
+      checkoutUrl,
+      message: 'Account created — complete checkout to launch your site.',
     })
   } catch (err: any) {
     console.error('[Signup] Error:', err.message)

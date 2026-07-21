@@ -116,7 +116,7 @@ async function ensureCustomer(
 
 export async function createSubscriptionCheckout(
   factoryCustomer: { id: string; email?: string; name?: string; phone?: string; products?: string[]; stripeCustomerId?: string; companyId?: string },
-  options: { planId?: string; monthlyAmount?: number; billingCycle?: string; trialDays?: number }
+  options: { planId?: string; monthlyAmount?: number; billingCycle?: string; trialDays?: number; successUrl?: string; cancelUrl?: string }
 ) {
   if (!stripe) throw new Error('Stripe not configured')
   const { planId = 'starter', billingCycle = 'monthly', trialDays = 0 } = options
@@ -131,8 +131,8 @@ export async function createSubscriptionCheckout(
     customer: stripeCustomerId,
     mode: 'subscription',
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
-    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
+    success_url: options.successUrl || (FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success'),
+    cancel_url: options.cancelUrl || (FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled'),
     metadata: {
       factory_customer_id: factoryCustomer.id,
       plan_id: planId,
