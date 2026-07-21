@@ -158,11 +158,12 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     const model = typeof parsed.data?.model === 'string' ? parsed.data.model : undefined
     const cents = aiCostCents(inTok, outTok, model)
     try {
-      if (cents > 0) await debit(tenantId, cents, 'ai_tokens', {
+      let balance: number | undefined
+      if (cents > 0) balance = await debit(tenantId, cents, 'ai_tokens', {
         twilioRef: model,
         allowNegative: true,
       })
-      return c.json({ success: true, cents })
+      return c.json({ success: true, cents, balance })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }
@@ -183,14 +184,23 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     const segments = Math.round(Number(parsed.data?.segments))
     if (!Number.isFinite(segments) || segments <= 0 || segments > 1000) return c.json({ error: 'segments must be 1–1000' }, 400)
     try {
-      await debit(tenantId, segments * TWILIO_COSTS.perSegmentCents, 'sms_segment', {
+      const balance = await debit(tenantId, segments * TWILIO_COSTS.perSegmentCents, 'sms_segment', {
         twilioRef: typeof parsed.data?.twilioSid === 'string' ? parsed.data.twilioSid : undefined,
         allowNegative: true,
       })
-      return c.json({ success: true })
+      return c.json({ success: true, balance })
     } catch (e: any) {
       return c.json({ error: e.message }, 500)
     }
+  })
+
+  // ─── Wallet balance (CRM → factory), for the pre-send hard-gate ──────────────
+  factory.get('/internal/messaging/balance/:tenantId', async (c) => {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: tenant } = await supabase.from('tenants').select('id, factory_sync_key, messaging_wallet_cents, messaging_enabled').eq('id', tenantId).single()
+    if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+    return c.json({ walletCents: tenant.messaging_wallet_cents ?? 0, enabled: !!tenant.messaging_enabled })
   })
 
   // ─── Cron: charge the recurring at-cost monthly A2P campaign fee ─────────────

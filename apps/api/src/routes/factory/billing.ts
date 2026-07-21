@@ -240,6 +240,27 @@ factory.post('/stripe/webhook', async (c) => {
       }
     }
 
+    // Messaging/AI ENABLE subscription lifecycle: if the $10/mo line is canceled
+    // or goes unpaid at Stripe, disable that channel so the tenant can't keep
+    // using it for free. These subs carry {addon, tenant_id} metadata (not
+    // factory_customer_id), so handleFactoryWebhook ignores them — handle here.
+    if (event.type === 'customer.subscription.deleted' || event.type === 'customer.subscription.updated') {
+      const sub = event.data?.object || {}
+      const addon = sub.metadata?.addon
+      const tenantId = sub.metadata?.tenant_id
+      const dead = event.type === 'customer.subscription.deleted' || ['canceled', 'unpaid', 'incomplete_expired'].includes(String(sub.status))
+      if (tenantId && dead && (addon === 'messaging_enable' || addon === 'ai_enable')) {
+        const patch = addon === 'messaging_enable'
+          ? { messaging_enabled: false, messaging_sub_id: null }
+          : { ai_enabled: false, ai_sub_id: null }
+        const field = addon === 'messaging_enable' ? 'messaging_enabled' : 'ai_enabled'
+        supabase.from('tenants').update(patch).eq('id', tenantId).then(
+          () => logTenantAudit(tenantId, `${addon}_lapsed`, { [field]: { old: true, new: false } }, 'stripe-webhook', `${addon} subscription ${sub.status || 'deleted'} → disabled`),
+          (err: any) => console.error(`[${addon}] Auto-disable failed:`, err?.message || err),
+        )
+      }
+    }
+
     // Send email notification for past-due billing
     if (result.handled && result.updates?.billing_status === 'past_due') {
       const lookupQuery = result.factoryCustomerId

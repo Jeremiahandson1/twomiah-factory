@@ -1,5 +1,5 @@
 import { db } from '../../db/index.ts'
-import { reportSmsUsage } from './messagingUsage'
+import { reportSmsUsage, walletSufficient } from './messagingUsage'
 import { smsMessage, contact, company } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 
@@ -14,6 +14,7 @@ export async function sendSms(companyId: string, contactId: string, body: string
 
   const twilio = (await import('twilio')).default
   const client = twilio(comp.twilioAccountSid, comp.twilioAuthToken)
+  if (!(await walletSufficient())) throw new Error('Messaging paused: usage wallet is empty — top up to resume.')
   const msg = await client.messages.create({
     body,
     ...(process.env.TWILIO_MESSAGING_SERVICE_SID ? { messagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID } : { from: comp.twilioPhoneNumber }),
