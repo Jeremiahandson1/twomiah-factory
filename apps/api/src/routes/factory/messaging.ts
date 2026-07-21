@@ -203,6 +203,65 @@ export function registerMessagingRoutes(factory: FactoryApp) {
     return c.json({ walletCents: tenant.messaging_wallet_cents ?? 0, enabled: !!tenant.messaging_enabled })
   })
 
+  // ─── Tenant self-serve billing (CRM → factory, X-Factory-Key) ────────────────
+  // The tenant's CRM proxies these so a tenant can enable messaging/AI and fund
+  // their own wallet without the platform admin. Same Stripe flows + webhook as
+  // the admin routes; auth is the tenant's own factory sync key.
+  async function selfTenant(c: any) {
+    const tenantId = c.req.param('tenantId')
+    if (!UUID_RE.test(tenantId)) return { err: c.json({ error: 'Invalid tenant ID format' }, 400) }
+    const { data: t } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+    if (!t || !checkFactoryKey(c, t)) return { err: c.json({ error: 'Unauthorized' }, 401) }
+    return { t }
+  }
+
+  factory.get('/internal/messaging/self/:tenantId', async (c) => {
+    const { t, err } = await selfTenant(c); if (err) return err
+    let ledger: any[] = []
+    try { ledger = await getLedger(t.id, 50) } catch { /* empty */ }
+    return c.json({
+      enabled: !!t.messaging_enabled, aiEnabled: !!t.ai_enabled,
+      walletCents: t.messaging_wallet_cents ?? 0,
+      enableMonthlyCents: MESSAGING_ENABLE_MONTHLY_CENTS, aiEnableMonthlyCents: AI_ENABLE_MONTHLY_CENTS,
+      ledger,
+    })
+  })
+
+  factory.post('/internal/messaging/self/:tenantId/enable', async (c) => {
+    const { t, err } = await selfTenant(c); if (err) return err
+    if (t.messaging_enabled) return c.json({ error: 'Already enabled' }, 409)
+    if (!factoryStripe.isConfigured()) return c.json({ error: 'Stripe not configured' }, 400)
+    const r = await factoryStripe.createMessagingEnableCheckout({ id: t.id, email: t.email, name: t.name, phone: t.phone, stripeCustomerId: t.stripe_customer_id }, MESSAGING_ENABLE_MONTHLY_CENTS)
+    if (r.stripeCustomerId && !t.stripe_customer_id) await supabase.from('tenants').update({ stripe_customer_id: r.stripeCustomerId }).eq('id', t.id)
+    return c.json({ url: r.url })
+  })
+
+  factory.post('/internal/messaging/self/:tenantId/ai-enable', async (c) => {
+    const { t, err } = await selfTenant(c); if (err) return err
+    if (t.ai_enabled) return c.json({ error: 'Already enabled' }, 409)
+    if (!factoryStripe.isConfigured()) return c.json({ error: 'Stripe not configured' }, 400)
+    const r = await factoryStripe.createAiEnableCheckout({ id: t.id, email: t.email, name: t.name, phone: t.phone, stripeCustomerId: t.stripe_customer_id }, AI_ENABLE_MONTHLY_CENTS)
+    if (r.stripeCustomerId && !t.stripe_customer_id) await supabase.from('tenants').update({ stripe_customer_id: r.stripeCustomerId }).eq('id', t.id)
+    return c.json({ url: r.url })
+  })
+
+  factory.post('/internal/messaging/self/:tenantId/topup', async (c) => {
+    const { t, err } = await selfTenant(c); if (err) return err
+    const parsed = await parseJsonBody(c)
+    if (parsed.error) return parsed.error
+    const cents = Math.round(Number(parsed.data?.amountCents))
+    if (!Number.isFinite(cents) || cents < MIN_TOPUP_CENTS || cents > MAX_TOPUP_CENTS) return c.json({ error: `amountCents must be ${MIN_TOPUP_CENTS}–${MAX_TOPUP_CENTS}` }, 400)
+    if (!t.stripe_customer_id) return c.json({ error: 'Enable messaging first' }, 400)
+    if (!factoryStripe.isConfigured()) return c.json({ error: 'Stripe not configured' }, 400)
+    const { url } = await factoryStripe.createOneTimeCheckoutSession({
+      customerId: t.stripe_customer_id, amountCents: cents, productName: 'Messaging wallet top-up',
+      description: `$${(cents / 100).toFixed(2)} added to messaging usage wallet`,
+      successUrl: FRONTEND_URL + '/tenants/' + t.id + '?wallet=topped_up', cancelUrl: FRONTEND_URL + '/tenants/' + t.id + '?wallet=canceled',
+      metadata: { addon: 'messaging_wallet_topup', tenant_id: t.id, topup_cents: String(cents) },
+    })
+    return c.json({ url })
+  })
+
   // ─── Cron: charge the recurring at-cost monthly A2P campaign fee ─────────────
   // Public path (/internal/*); does its own CRON_SECRET check.
   factory.post('/internal/messaging/monthly', async (c) => {
