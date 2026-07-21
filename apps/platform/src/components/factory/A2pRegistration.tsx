@@ -14,10 +14,12 @@ import {
 
 type A2pStatus = {
   status: string
+  channel: string
   collected: boolean
   einTail: string
   brandSid: string | null
   campaignSid: string | null
+  tollfreeSid: string | null
   messagingServiceSid: string | null
   phoneNumberSid: string | null
   rejectionReason: string | null
@@ -53,6 +55,7 @@ const INPUT = 'w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg te
 const LABEL = 'block text-xs text-gray-400 mb-1'
 
 const EMPTY_FORM = {
+  channel: 'a2p' as 'a2p' | 'tollfree',
   legalName: '', businessType: BUSINESS_TYPES[2], ein: '', industry: INDUSTRIES[10], website: '',
   street: '', city: '', region: '', postalCode: '',
   repFirstName: '', repLastName: '', repEmail: '', repPhone: '', repTitle: 'Owner',
@@ -101,6 +104,7 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          channel: form.channel,
           legalName: form.legalName, businessType: form.businessType, ein: form.ein,
           industry: form.industry, website: form.website,
           street: form.street, city: form.city, region: form.region, postalCode: form.postalCode,
@@ -173,9 +177,11 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
         <>
           {/* Status details */}
           <div className="mb-4 p-4 bg-gray-800/60 rounded-lg border border-gray-700 text-sm space-y-1.5">
+            {state?.channel && <Row label="Channel" value={state.channel === 'tollfree' ? 'Toll-free' : 'Local (10DLC)'} />}
             {state?.einTail && <Row label="EIN" value={state.einTail} />}
             {state?.brandSid && <Row label="Brand" value={state.brandSid} mono />}
             {state?.campaignSid && <Row label="Campaign" value={state.campaignSid} mono />}
+            {state?.tollfreeSid && <Row label="TF Verification" value={state.tollfreeSid} mono />}
             {state?.messagingServiceSid && <Row label="Messaging Service" value={state.messagingServiceSid} mono />}
             {state?.submittedAt && <Row label="Submitted" value={new Date(state.submittedAt).toLocaleString()} />}
             {state?.approvedAt && <Row label="Approved" value={new Date(state.approvedAt).toLocaleString()} />}
@@ -216,6 +222,22 @@ export default function A2pRegistration({ tenantId, showToast }: Props) {
           {/* Intake form */}
           {showForm && canEdit && (
             <div className="mt-4 p-4 bg-gray-800/40 rounded-lg border border-gray-700 space-y-4">
+              <Group title="Number type">
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    ['a2p', 'Local number (10DLC)', 'Local area code — best conversion for local businesses. Approves in hours–days.'],
+                    ['tollfree', 'Toll-free', '1-800 number — higher throughput, national feel. Verification can be slower.'],
+                  ] as const).map(([val, label, hint]) => (
+                    <button key={val} type="button" onClick={() => up('channel', val)}
+                      className={'text-left p-3 rounded-lg border transition-colors ' +
+                        (form.channel === val ? 'border-orange-500 bg-orange-500/10' : 'border-gray-700 bg-gray-800 hover:border-gray-600')}>
+                      <div className="text-sm font-medium text-white">{label}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">{hint}</div>
+                    </button>
+                  ))}
+                </div>
+              </Group>
+
               <Group title="Business">
                 <Field label="Legal business name"><input className={INPUT} value={form.legalName} onChange={e => up('legalName', e.target.value)} /></Field>
                 <div className="grid grid-cols-2 gap-3">

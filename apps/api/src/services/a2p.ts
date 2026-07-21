@@ -92,6 +92,9 @@ export interface A2pData {
   phoneNumberSid?: string
   areaCode?: string
   soleProprietor?: boolean
+  // 'a2p' = local 10DLC brand+campaign (default); 'tollfree' = a toll-free number
+  // + Toll-Free Verification (no brand/campaign, no A2P registration/campaign fees).
+  channel?: 'a2p' | 'tollfree'
 }
 
 type TenantRow = {
@@ -99,12 +102,14 @@ type TenantRow = {
   name?: string | null
   email?: string | null
   a2p_status?: string | null
+  a2p_channel?: string | null
   a2p_data?: any
   a2p_profile_sid?: string | null
   a2p_trust_bundle_sid?: string | null
   a2p_brand_sid?: string | null
   a2p_messaging_service_sid?: string | null
   a2p_campaign_sid?: string | null
+  a2p_tollfree_sid?: string | null
   a2p_phone_number?: string | null
 }
 
@@ -333,28 +338,31 @@ async function numberPriceCents(numberType = 'local'): Promise<number | null> {
   }
 }
 
-// Search for and BUY a local SMS-capable US number, preferring (in order) an
-// explicit area code, the business phone's area code, then the tenant's state,
-// then any US local number. Returns the sid AND the number's real monthly price.
-// Fully defensive: any failure returns null so registration still completes.
-async function purchaseNumber(d: A2pData): Promise<{ sid: string; monthlyCents: number | null } | null> {
+// Search for and BUY an SMS-capable US number and return its sid + real monthly
+// price. kind='local' preferences area code → business phone → state → any; the
+// A2P channel uses local, the toll-free channel uses a toll-free number. Fully
+// defensive: any failure returns null so registration still completes.
+async function purchaseNumber(d: A2pData, kind: 'local' | 'tollfree' = 'local'): Promise<{ sid: string; monthlyCents: number | null } | null> {
   try {
     const acctBase = `${API2010}/Accounts/${isvCreds().sid}`
+    const resource = kind === 'tollfree' ? 'TollFree' : 'Local'
     const filters: string[] = []
-    const ac = (d.areaCode || '').replace(/\D/g, '') || areaCodeFrom(d.repPhone)
-    if (ac) filters.push(`AreaCode=${ac}`)
-    if (d.region) filters.push(`InRegion=${encodeURIComponent(d.region)}`)
-    filters.push('') // final fallback: any US local number
+    if (kind === 'local') {
+      const ac = (d.areaCode || '').replace(/\D/g, '') || areaCodeFrom(d.repPhone)
+      if (ac) filters.push(`AreaCode=${ac}`)
+      if (d.region) filters.push(`InRegion=${encodeURIComponent(d.region)}`)
+    }
+    filters.push('') // final fallback: any number of this type
     for (const f of filters) {
       const search = await twilioFetch(
         acctBase,
-        `/AvailablePhoneNumbers/US/Local.json?SmsEnabled=true&Limit=1${f ? '&' + f : ''}`,
+        `/AvailablePhoneNumbers/US/${resource}.json?SmsEnabled=true&Limit=1${f ? '&' + f : ''}`,
         'GET',
       ).catch(() => null)
       const candidate = search?.available_phone_numbers?.[0]?.phone_number
       if (!candidate) continue
       const bought = await twilioFetch(acctBase, '/IncomingPhoneNumbers.json', 'POST', { PhoneNumber: candidate })
-      if (bought?.sid) return { sid: bought.sid, monthlyCents: await numberPriceCents('local') }
+      if (bought?.sid) return { sid: bought.sid, monthlyCents: await numberPriceCents(kind === 'tollfree' ? 'tollfree' : 'local') }
     }
   } catch (e: any) {
     console.error('[A2P] number purchase failed:', e?.message || e)
@@ -365,12 +373,12 @@ async function purchaseNumber(d: A2pData): Promise<{ sid: string; monthlyCents: 
 // 6) Attach the tenant's Twilio number to the messaging service — buying one
 // automatically when no existing PN sid was supplied, and recording its real
 // monthly cost so the wallet bills exactly what Twilio charges.
-async function ensurePhoneNumber(tenant: TenantRow, d: A2pData): Promise<string | null> {
+async function ensurePhoneNumber(tenant: TenantRow, d: A2pData, kind: 'local' | 'tollfree' = 'local'): Promise<string | null> {
   if (tenant.a2p_phone_number) return tenant.a2p_phone_number
   let phoneNumberSid: string | null = d.phoneNumberSid || null
   let monthlyCents: number | null = null
   if (!phoneNumberSid) {
-    const bought = await purchaseNumber(d)
+    const bought = await purchaseNumber(d, kind)
     if (bought) { phoneNumberSid = bought.sid; monthlyCents = bought.monthlyCents }
   }
   if (!phoneNumberSid) return null // couldn't buy one; registration still completes, add later
@@ -380,6 +388,35 @@ async function ensurePhoneNumber(tenant: TenantRow, d: A2pData): Promise<string 
   await patchTenant(tenant.id, { a2p_phone_number: phoneNumberSid, a2p_number_monthly_cents: monthlyCents })
   tenant.a2p_phone_number = phoneNumberSid
   return phoneNumberSid
+}
+
+// TOLL-FREE channel: submit a Toll-Free Verification for the tenant's toll-free
+// number + messaging service (no A2P brand/campaign). Idempotent on a2p_tollfree_sid.
+async function ensureTollFreeVerification(tenant: TenantRow, d: A2pData): Promise<string> {
+  if (tenant.a2p_tollfree_sid) return tenant.a2p_tollfree_sid
+  const v = await twilioFetch(MESSAGING, '/Tollfree/Verifications', 'POST', {
+    BusinessName: d.legalName,
+    BusinessWebsite: d.website,
+    NotificationEmail: d.repEmail,
+    UseCaseCategories: ['CUSTOMER_CARE', 'MARKETING'],
+    UseCaseSummary: d.campaignDescription,
+    ProductionMessageSample: d.messageSamples[0],
+    OptInType: 'WEB_FORM', // consent via the website consent checkbox
+    MessageVolume: '1,000',
+    BusinessStreetAddress: d.street,
+    BusinessCity: d.city,
+    BusinessStateProvinceRegion: d.region,
+    BusinessPostalCode: d.postalCode,
+    BusinessContactFirstName: d.repFirstName,
+    BusinessContactLastName: d.repLastName,
+    BusinessContactEmail: d.repEmail,
+    BusinessContactPhone: d.repPhone,
+    MessagingServiceSid: tenant.a2p_messaging_service_sid,
+    TollfreePhoneNumberSid: tenant.a2p_phone_number,
+  })
+  await patchTenant(tenant.id, { a2p_tollfree_sid: v.sid })
+  tenant.a2p_tollfree_sid = v.sid
+  return v.sid
 }
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────
@@ -396,14 +433,22 @@ export async function provisionA2p(tenantId: string): Promise<A2pStepResult[]> {
   const results: A2pStepResult[] = []
   await patchTenant(tenantId, { a2p_status: 'provisioning' })
 
-  const steps: Array<[string, () => Promise<string | null>]> = [
-    ['customer_profile', () => ensureCustomerProfile(tenant, d)],
-    ['trust_bundle', () => ensureTrustBundle(tenant, d)],
-    ['brand', () => ensureBrand(tenant, d)],
-    ['messaging_service', () => ensureMessagingService(tenant, d)],
-    ['campaign', () => ensureCampaign(tenant, d)],
-    ['phone_number', () => ensurePhoneNumber(tenant, d)],
-  ]
+  const isTollFree = (tenant.a2p_channel || d.channel) === 'tollfree'
+  const steps: Array<[string, () => Promise<string | null>]> = isTollFree
+    ? [
+        // Toll-free: no brand/campaign — buy a TF number, verify it.
+        ['messaging_service', () => ensureMessagingService(tenant, d)],
+        ['phone_number', () => ensurePhoneNumber(tenant, d, 'tollfree')],
+        ['tollfree_verification', () => ensureTollFreeVerification(tenant, d)],
+      ]
+    : [
+        ['customer_profile', () => ensureCustomerProfile(tenant, d)],
+        ['trust_bundle', () => ensureTrustBundle(tenant, d)],
+        ['brand', () => ensureBrand(tenant, d)],
+        ['messaging_service', () => ensureMessagingService(tenant, d)],
+        ['campaign', () => ensureCampaign(tenant, d)],
+        ['phone_number', () => ensurePhoneNumber(tenant, d, 'local')],
+      ]
 
   for (const [name, fn] of steps) {
     const already = existingSidFor(name, tenant)
@@ -428,6 +473,7 @@ function existingSidFor(step: string, t: TenantRow): boolean {
     case 'brand': return !!t.a2p_brand_sid
     case 'messaging_service': return !!t.a2p_messaging_service_sid
     case 'campaign': return !!t.a2p_campaign_sid
+    case 'tollfree_verification': return !!t.a2p_tollfree_sid
     case 'phone_number': return !!t.a2p_phone_number
     default: return false
   }
@@ -438,9 +484,26 @@ function existingSidFor(step: string, t: TenantRow): boolean {
 // Brand + campaign vetting is async (hours–days). Poll advances the tenant to
 // 'approved' when both clear, or 'rejected' with the failure reason.
 
-export async function pollA2pStatus(tenantId: string): Promise<{ status: string; brand?: string; campaign?: string }> {
+export async function pollA2pStatus(tenantId: string): Promise<{ status: string; brand?: string; campaign?: string; tollfree?: string }> {
   const { data: tenant, error } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
   if (error || !tenant) throw new Error(error?.message || 'Tenant not found')
+
+  // Toll-free channel: poll the Toll-Free Verification instead of brand/campaign.
+  if (tenant.a2p_channel === 'tollfree') {
+    if (!tenant.a2p_tollfree_sid) return { status: tenant.a2p_status || 'not_started' }
+    const v = await twilioFetch(MESSAGING, `/Tollfree/Verifications/${tenant.a2p_tollfree_sid}`, 'GET')
+    const s = String(v.status || '') // PENDING_REVIEW | IN_REVIEW | TWILIO_APPROVED | TWILIO_REJECTED
+    if (s === 'TWILIO_APPROVED') {
+      await patchTenant(tenantId, { a2p_status: 'approved', a2p_approved_at: new Date().toISOString(), a2p_rejection_reason: null })
+      return { status: 'approved', tollfree: s }
+    }
+    if (s === 'TWILIO_REJECTED') {
+      await patchTenant(tenantId, { a2p_status: 'rejected', a2p_rejection_reason: v.rejection_reason || 'Toll-free verification rejected' })
+      return { status: 'rejected', tollfree: s }
+    }
+    return { status: 'pending', tollfree: s }
+  }
+
   if (!tenant.a2p_brand_sid) return { status: tenant.a2p_status || 'not_started' }
 
   const brand = await twilioFetch(MESSAGING, `/a2p/BrandRegistrations/${tenant.a2p_brand_sid}`, 'GET')

@@ -41,10 +41,12 @@ export function registerA2pRoutes(factory: FactoryApp) {
 
     return c.json({
       status: t.a2p_status || 'not_started',
+      channel: t.a2p_channel || 'a2p',
       collected: !!t.a2p_data,
       einTail,
       brandSid: t.a2p_brand_sid || null,
       campaignSid: t.a2p_campaign_sid || null,
+      tollfreeSid: t.a2p_tollfree_sid || null,
       messagingServiceSid: t.a2p_messaging_service_sid || null,
       phoneNumberSid: t.a2p_phone_number || null,
       rejectionReason: t.a2p_rejection_reason || null,
@@ -70,8 +72,10 @@ export function registerA2pRoutes(factory: FactoryApp) {
       return c.json({ error: `Cannot edit A2P data while status is "${t.a2p_status}"` }, 409)
     }
 
+    const channel = parsed.data?.channel === 'tollfree' ? 'tollfree' : 'a2p'
     const { error: upErr } = await supabase.from('tenants').update({
-      a2p_data: encryptJSON(v.data),
+      a2p_data: encryptJSON({ ...v.data, channel }),
+      a2p_channel: channel,
       a2p_status: 'collected',
       a2p_rejection_reason: null,
     }).eq('id', id)
@@ -86,27 +90,28 @@ export function registerA2pRoutes(factory: FactoryApp) {
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
     const { data: t, error } = await supabase.from('tenants')
-      .select('id, a2p_status, a2p_data, messaging_enabled, messaging_wallet_cents').eq('id', id).single()
+      .select('id, a2p_status, a2p_channel, a2p_data, messaging_enabled, messaging_wallet_cents').eq('id', id).single()
     if (error || !t) return c.json({ error: error?.message || 'Tenant not found' }, error && error.code !== 'PGRST116' ? 500 : 404)
     if (!t.a2p_data) return c.json({ error: 'No A2P data collected — run intake first' }, 400)
     if (t.a2p_status === 'approved') return c.json({ error: 'Already approved' }, 409)
 
-    // Billing gate: messaging must be enabled ($10/mo) and the prepaid wallet
-    // must cover Twilio's at-cost A2P registration fee before we provision.
-    const regCost = a2pRegistrationCostCents()
+    // Messaging must be enabled ($10/mo) and the prepaid wallet must cover the
+    // registration fee before we provision — both channels billed the same for now.
     if (!t.messaging_enabled) return c.json({ error: 'Enable messaging ($10/mo) before registering', code: 'messaging_disabled' }, 402)
+    const regCost = a2pRegistrationCostCents()
     if ((t.messaging_wallet_cents ?? 0) < regCost) {
-      return c.json({ error: `Wallet balance too low for the $${(regCost / 100).toFixed(2)} at-cost A2P registration — top up first`, code: 'insufficient_wallet', requiredCents: regCost }, 402)
+      return c.json({ error: `Wallet balance too low for the $${(regCost / 100).toFixed(2)} registration — top up first`, code: 'insufficient_wallet', requiredCents: regCost }, 402)
     }
 
     try {
       const results = await provisionA2p(id)
       const failed = results.find(r => r.status === 'error')
-      // Debit the at-cost registration fee ONLY when the brand was newly created
-      // this run (status 'ok', not 'skipped') — so a resubmit never double-charges.
-      const brand = results.find(r => r.step === 'brand')
-      if (!failed && brand?.status === 'ok') {
-        await debit(id, regCost, 'a2p_registration', { twilioRef: brand.sid }).catch((e: any) =>
+      // Debit the registration fee ONLY when the registration step was newly created
+      // this run ('ok', not 'skipped') — brand for A2P, verification for toll-free —
+      // so a resubmit never double-charges.
+      const regStep = results.find(r => r.step === 'brand' || r.step === 'tollfree_verification')
+      if (!failed && regStep?.status === 'ok') {
+        await debit(id, regCost, 'a2p_registration', { twilioRef: regStep.sid }).catch((e: any) =>
           console.error('[A2P] registration debit failed for', id, e?.message || e))
       }
       await logTenantAudit(id, 'a2p_submit', { a2p_status: { old: t.a2p_status, new: failed ? 'error' : 'pending' } }, c.get('user')?.email, failed ? `A2P provisioning error at ${failed.step}` : 'A2P submitted for vetting')

@@ -91,8 +91,8 @@ export async function chargeMonthlyCampaignFees(): Promise<{ checked: number; ch
     const lastAt = last?.[0]?.created_at ? new Date(last[0].created_at).getTime() : 0
     const daysSince = (Date.now() - lastAt) / 86_400_000
     if (daysSince >= 27) {
-      // Monthly at-cost recurring = A2P campaign fee + the number's real rental
-      // (captured from Twilio at purchase; config default if unknown).
+      // Monthly recurring = campaign fee + the number's real rental. Both channels
+      // billed the same ($10 campaign) for now, per owner decision.
       const numberCost = t.a2p_phone_number ? (t.a2p_number_monthly_cents ?? TWILIO_COSTS.numberMonthlyCents) : 0
       const amount = TWILIO_COSTS.monthlyCampaignCents + numberCost
       try {
