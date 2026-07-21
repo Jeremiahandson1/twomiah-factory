@@ -113,6 +113,15 @@ const SMS_BILLING_HTML = `<!doctype html>
 
 export function registerMessagingRoutes(factory: FactoryApp) {
   // ─── Status: enabled + wallet balance + recent ledger ────────────────────────
+  // Admin mints a self-serve billing link to hand to a tenant.
+  factory.post('/customers/:id/messaging/portal-link', requireRole('owner', 'admin'), async (c) => {
+    const id = c.req.param('id')
+    if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)
+    const { data: t } = await supabase.from('tenants').select('id').eq('id', id).single()
+    if (!t) return c.json({ error: 'Tenant not found' }, 404)
+    return c.json({ url: `${PORTAL_BASE_URL}/api/v1/factory/public/sms-billing?tenant=${id}&t=${signPortalToken(id)}` })
+  })
+
   factory.get('/customers/:id/messaging', requireRole('owner', 'admin'), async (c) => {
     const id = c.req.param('id')
     if (!UUID_RE.test(id)) return c.json({ error: 'Invalid tenant ID format' }, 400)

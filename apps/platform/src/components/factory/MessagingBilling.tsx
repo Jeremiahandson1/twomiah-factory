@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase, API_URL as API } from '../../supabase'
-import { Wallet, Zap, Plus, MessageSquare, Sparkles, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Wallet, Zap, Plus, MessageSquare, Sparkles, CheckCircle, AlertTriangle, Link2 } from 'lucide-react'
 
 // Messaging + AI usage billing: two $10/mo enable lines (SMS, AI) that carry the
 // margin, plus ONE shared prepaid at-cost wallet (A2P registration, monthly
@@ -51,6 +51,17 @@ export default function MessagingBilling({ tenantId, showToast }: Props) {
     setLoading(false)
   }
 
+  async function copyLink() {
+    try {
+      const t = await token()
+      const res = await fetch(API + '/api/v1/factory/customers/' + tenantId + '/messaging/portal-link', { method: 'POST', headers: { Authorization: 'Bearer ' + t } })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.url) { showToast(data.error || 'Failed to make link', 'error'); return }
+      try { await navigator.clipboard.writeText(data.url); showToast('Tenant billing link copied — send it to them') }
+      catch { window.prompt('Tenant billing link (copy):', data.url) }
+    } catch { showToast('Failed to make link', 'error') }
+  }
+
   async function post(path: string, body?: any, opts: { redirect?: boolean } = {}) {
     setBusy(true)
     try {
@@ -94,9 +105,15 @@ export default function MessagingBilling({ tenantId, showToast }: Props) {
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-      <h2 className="text-white font-semibold flex items-center gap-2 mb-3">
-        <Zap size={16} className="text-orange-400" /> Messaging &amp; AI Billing
-      </h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-white font-semibold flex items-center gap-2">
+          <Zap size={16} className="text-orange-400" /> Messaging &amp; AI Billing
+        </h2>
+        <button onClick={copyLink} title="Generate a self-serve billing link for this tenant"
+          className="text-xs text-gray-400 hover:text-orange-400 flex items-center gap-1.5">
+          <Link2 size={13} /> Tenant link
+        </button>
+      </div>
 
       {loading ? (
         <p className="text-sm text-gray-500">Loading…</p>
