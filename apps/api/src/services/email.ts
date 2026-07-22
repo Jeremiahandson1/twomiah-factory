@@ -133,8 +133,6 @@ export async function notifyWelcome(
   if (!tenant.email) return false
 
   const product = getProductName(tenant.industry, tenant.products)
-  const trialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  const trialEndStr = trialEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   const planLabel = (tenant.plan || 'starter').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
   const body = `
@@ -142,14 +140,13 @@ export async function notifyWelcome(
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:16px;margin:16px 0;">
       ${kv('Company', tenant.name)}
       ${kv('Plan', planLabel)}
-      ${kv('Free trial ends', trialEndStr)}
     </div>
-    <p style="color:#333;line-height:1.6;">We&rsquo;re building your system now. This typically takes about <strong>10 minutes</strong>. You&rsquo;ll receive a second email with your login URL and temporary password as soon as everything is ready.</p>
+    <p style="color:#333;line-height:1.6;">As soon as your subscription is active, we&rsquo;ll build your system &mdash; this typically takes about <strong>10 minutes</strong> &mdash; and send a second email with your login URL and temporary password. Every plan is backed by our <strong>30-day money-back guarantee</strong>.</p>
     <p style="color:#666;font-size:14px;">If you have questions in the meantime, just reply to this email.</p>`
 
   return sendEmail(
     tenant.email,
-    `Welcome to Twomiah ${product} — your trial has started`,
+    `Welcome to Twomiah ${product} — ${tenant.name}`,
     wrap(`Welcome to Twomiah ${product}`, body)
   )
 }

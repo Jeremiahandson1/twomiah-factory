@@ -491,8 +491,14 @@ function PageEditor() {
   }, [decodedPageId]);
 
   const loadPageData = async () => {
+    // The homepage hero is edited in the dedicated Homepage editor (/homepage),
+    // which writes homepage.json — the ONLY source the live home page renders
+    // from. The legacy /edit/home form wrote pages.json, which the home route
+    // never reads, so edits here silently did nothing. Redirect any stale link
+    // to the editor that actually updates the live page.
+    if (decodedPageId === 'home') { navigate('/homepage', { replace: true }); return; }
     setLoading(true);
-    
+
     let data = null;
     if (decodedPageId === 'home') {
       data = {

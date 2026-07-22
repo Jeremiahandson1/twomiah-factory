@@ -26,7 +26,7 @@ function CommandPalette({ isOpen, onClose, onToggleDarkMode }: { isOpen: boolean
       { type: 'nav', label: 'View Live Site', icon: '🌐', action: () => window.open('/', '_blank') },
       
       // Pages
-      { type: 'page', label: 'Edit Home Page', icon: '🏠', action: () => navigate('/edit/home') },
+      { type: 'page', label: 'Edit Home Page', icon: '🏠', action: () => navigate('/homepage') },
     ];
 
     // Add all service pages (contractor verticals only — a store has no services).

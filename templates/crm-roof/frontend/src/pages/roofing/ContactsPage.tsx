@@ -21,6 +21,10 @@ export default function ContactsPage() {
   const [sendingSms, setSendingSms] = useState(false);
   const [detailTab, setDetailTab] = useState<'info' | 'jobs' | 'sms'>('info');
   const [togglingPortal, setTogglingPortal] = useState(false);
+  const emptyForm = { firstName: '', lastName: '', email: '', phone: '', address: '', city: '', state: '', zip: '' };
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
 
   const limit = 25;
   const headers = { Authorization: `Bearer ${token}` };
@@ -112,6 +116,37 @@ export default function ContactsPage() {
     }
   };
 
+  const createContact = async () => {
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      toast.error('First and last name are required');
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload: Record<string, string> = {};
+      Object.entries(form).forEach(([k, v]) => { if (String(v).trim()) payload[k] = String(v).trim(); });
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Could not save contact');
+      }
+      const created = await res.json();
+      toast.success('Contact added');
+      setShowCreate(false);
+      setForm(emptyForm);
+      await load();
+      selectContact(created);
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to add contact');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const totalPages = Math.ceil(total / limit) || 1;
 
   return (
@@ -119,6 +154,12 @@ export default function ContactsPage() {
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
+          <button
+            onClick={() => { setForm(emptyForm); setShowCreate(true); }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg"
+          >
+            <Plus className="w-4 h-4" /> Add Contact
+          </button>
         </div>
 
         <div className="flex gap-6">
@@ -334,6 +375,41 @@ export default function ContactsPage() {
           )}
         </div>
       </div>
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && setShowCreate(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-900">New Contact</h2>
+              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="px-6 py-5 grid grid-cols-2 gap-4">
+              {([
+                ['firstName', 'First name *'], ['lastName', 'Last name *'],
+                ['email', 'Email'], ['phone', 'Phone'],
+                ['address', 'Address'], ['city', 'City'],
+                ['state', 'State'], ['zip', 'ZIP'],
+              ] as [keyof typeof form, string][]).map(([key, label]) => (
+                <label key={key} className={`text-sm ${key === 'address' ? 'col-span-2' : ''}`}>
+                  <span className="block text-gray-600 mb-1">{label}</span>
+                  <input
+                    type={key === 'email' ? 'email' : 'text'}
+                    value={form[key]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setShowCreate(false)} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900">Cancel</button>
+              <button onClick={createContact} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
+                {saving ? 'Saving…' : 'Create Contact'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

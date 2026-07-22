@@ -32,7 +32,7 @@ function getChecklist(settings: any) {
       id: 'homepage',
       label: 'Customize your homepage',
       done: !!(settings?._homepageEdited),
-      link: '/edit/home',
+      link: '/homepage',
       hint: 'Edit hero text, tagline, and hero image'
     },
     {
@@ -274,7 +274,7 @@ function AdminDashboard() {
             <h3>📬 View Leads</h3>
             <p>{leadStats.new > 0 ? `${leadStats.new} new lead${leadStats.new !== 1 ? 's' : ''} waiting` : 'Manage contact form submissions'}</p>
           </Link>
-          <Link to="/edit/home" className="admin-card">
+          <Link to="/homepage" className="admin-card">
             <h3>🏠 Edit Home Page</h3>
             <p>Update hero section, images, and content</p>
           </Link>

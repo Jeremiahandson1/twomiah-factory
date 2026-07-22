@@ -132,10 +132,18 @@ async function deleteRenderPostgresByName(name: string): Promise<{ deleted: bool
 
 export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupResult> {
   const steps: CleanupStep[] = []
-  const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
+  // maybeSingle(), not single(): a tenant that's already gone (e.g. swept by the
+  // orphan-cleanup cron, or a double-clicked teardown) returns 0 rows. single()
+  // turns that into a cryptic "Cannot coerce the result to a single JSON object"
+  // 500; maybeSingle() returns null so we can report it cleanly + idempotently.
+  const { data: tenant, error: tenantErr } = await supabase.from('tenants').select('*').eq('id', tenantId).maybeSingle()
 
-  if (tenantErr || !tenant) {
-    return { tenantId, slug: 'unknown', steps: [{ step: 'lookup', status: 'error', detail: tenantErr?.message || 'not found' }], success: false }
+  if (tenantErr) {
+    return { tenantId, slug: 'unknown', steps: [{ step: 'lookup', status: 'error', detail: tenantErr.message }], success: false }
+  }
+  if (!tenant) {
+    // Already deleted — treat as success so a retry after the cron wins doesn't 500.
+    return { tenantId, slug: 'unknown', steps: [{ step: 'lookup', status: 'ok', detail: 'Tenant already gone (nothing to tear down).' }], success: true }
   }
 
   // ─── SAFETY GATE ─────────────────────────────────────────────────────
