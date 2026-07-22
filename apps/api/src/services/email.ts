@@ -151,6 +151,26 @@ export async function notifyWelcome(
   )
 }
 
+// Staff alert: a PAID (or paying) tenant's provisioning failed. This must never
+// die silently in logs — a charged customer with nothing delivered is the worst
+// failure mode of the pay-then-deploy model. Routed to STAFF_NOTIFY_EMAIL.
+export async function notifyProvisionFailure(
+  tenant: { id?: string; name?: string; slug?: string; email?: string }, stage: string, detail: string
+): Promise<boolean> {
+  const to = process.env.STAFF_NOTIFY_EMAIL || 'support@twomiah.com'
+  const body = `
+    <p style="color:#333;line-height:1.6;"><strong>${stage}</strong> failed for tenant <strong>${tenant.name || tenant.slug || tenant.id || 'unknown'}</strong>.</p>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:16px;margin:16px 0;">
+      ${kv('Tenant', `${tenant.name || '?'} (${tenant.slug || '?'})`)}
+      ${kv('Tenant id', tenant.id || '?')}
+      ${kv('Customer email', tenant.email || '?')}
+      ${kv('Stage', stage)}
+      ${kv('Error', detail.slice(0, 500))}
+    </div>
+    <p style="color:#333;line-height:1.6;">If this customer has paid, fix and redeploy from the platform console ASAP — they were told ~10&ndash;15 minutes.</p>`
+  return sendEmail(to, `⚠ Provisioning failed: ${tenant.slug || tenant.id || 'tenant'} (${stage})`, wrap('Provisioning failure', body))
+}
+
 // Tenant self-serve billing emails — carry the signed portal link so the tenant
 // can enable/top-up without any Twomiah involvement (fully hands-off).
 export async function notifyMessagingEnabled(
@@ -276,6 +296,10 @@ export async function notifyDeployFailed(
   tenant: { name: string; email?: string; slug: string },
   error: string
 ): Promise<boolean> {
+  // ALWAYS alert staff first (even when the tenant has no email) — under
+  // pay-then-deploy a failed deploy can mean a charged customer with nothing
+  // delivered, and the operator must know before the customer replies.
+  notifyProvisionFailure(tenant, 'Deploy', error).catch(() => {})
   if (!tenant.email) return false
 
   const body = `

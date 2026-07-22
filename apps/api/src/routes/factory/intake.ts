@@ -2,7 +2,7 @@ import { supabase, requireRole } from '../../middleware/auth'
 import { generate, type GenerateConfig } from '../../services/generator'
 import factoryStripe from '../../services/factoryStripe'
 import { uploadZip, getZipDownloadUrl, uploadIntakeAsset } from '../../services/factoryStorage'
-import { notifyWelcome, notifyNewIntake, notifyPreviewReady, notifyIntakeFeedback, notifyTrialWarning, notifyTrialExpired } from '../../services/email'
+import { notifyWelcome, notifyNewIntake, notifyPreviewReady, notifyIntakeFeedback, notifyTrialWarning, notifyTrialExpired, notifyProvisionFailure } from '../../services/email'
 import path from 'path'
 import { getRegistrar, isRegistrarConfigured } from '../../services/registrar'
 import { buildBrief, type Intake } from '../../services/briefBuilder'
@@ -480,6 +480,10 @@ factory.post('/public/signup', rateLimit(60 * 60 * 1000, 5), async (c) => {
         }
       } catch (genErr: any) {
         console.error('[Signup] Auto-generate failed for', tenant.slug, ':', genErr.message)
+        // The customer may already be mid-checkout (or paid) — never let this
+        // die in logs only. Staff gets an actionable alert with tenant + error.
+        notifyProvisionFailure(tenant, 'Build generation', genErr?.message || String(genErr))
+          .catch((e: any) => console.error('[Signup] failure-alert email failed:', e?.message))
       }
     })()
 
