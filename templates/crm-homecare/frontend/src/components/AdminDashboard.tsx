@@ -11,6 +11,7 @@ import HelpPanel from './HelpPanel';
 import ImpersonationModal from './ImpersonationModal';
 import MessageBoard from './admin/MessageBoard';
 import IntegrationsHub from './admin/IntegrationsHub';
+import FeaturesPage from './admin/FeaturesPage';
 
 // Admin pages
 import SubscriptionPricingPage from '../pages/billing/PricingPage';
@@ -135,6 +136,7 @@ const NAV_SECTIONS = [
       { id: 'alerts', label: 'Alerts', icon: '🔔' },
       { id: 'messages', label: 'Messages', icon: '💬' },
       { id: 'integrations', label: 'Integrations Hub', icon: '🔌' },
+      { id: 'features', label: 'Features', icon: '🧩' },
       { id: 'notifications', label: 'Notifications', icon: '📬' },
       { id: 'ai-receptionist', label: 'AI Receptionist', icon: '🤖' },
     ]
@@ -288,6 +290,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'notifications': return <NotificationCenter />;
       case 'messages': return <MessageBoard />;
       case 'integrations': return <IntegrationsHub />;
+      case 'features': return <FeaturesPage />;
       case 'compliance': return <ComplianceTracking />;
       case 'reports': return <ReportsAnalytics />;
       case 'payroll': return <PayrollProcessing />;

@@ -20,6 +20,7 @@ import SelfHostedPurchasePage from './pages/public/SelfHostedPurchasePage';
 import BillingSettingsPage from './pages/settings/BillingSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
+import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import VetDashboardPage from './pages/vet/DashboardPage';
 import PatientsPage from './pages/vet/PatientsPage';
@@ -185,6 +186,7 @@ function App() {
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
+                    <Route path="settings/features" element={<FeaturesSettingsPage />} />
                     <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                     <Route path="fleet" element={<FleetPage />} />
                     <Route path="inventory" element={<InventoryPage />} />

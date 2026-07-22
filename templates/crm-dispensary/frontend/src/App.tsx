@@ -89,6 +89,7 @@ import AppLayout from './components/layout/AppLayout';
 
 // Settings sub-pages
 import BillingSettingsPage from './pages/settings/BillingSettingsPage';
+import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 
 
@@ -149,6 +150,7 @@ function App() {
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
 
+                    <Route path="settings/features" element={<FeaturesSettingsPage />} />
                     {/* New feature routes */}
                     <Route path="metrc" element={<MetrcPage />} />
                     <Route path="labels" element={<LabelsPage />} />

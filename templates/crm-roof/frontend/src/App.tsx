@@ -17,6 +17,7 @@ import InvoicesPage from './pages/roofing/InvoicesPage'
 import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
+import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage'
 import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
 import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
@@ -107,6 +108,7 @@ export default function App() {
                 <Route path="leads" element={<LeadInboxPage />} />
                 <Route path="lead-sources" element={<LeadSourcesPage />} />
                 <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
+                <Route path="settings/features" element={<FeaturesSettingsPage />} />
                 <Route path="estimator" element={<EstimatorPage />} />
                 <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                 <Route path="ads" element={<AdsPage />} />

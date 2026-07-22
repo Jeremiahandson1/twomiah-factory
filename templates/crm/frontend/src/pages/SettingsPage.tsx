@@ -4,7 +4,7 @@ import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import type { Company } from '../types';
-import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, Calculator } from 'lucide-react';
+import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, Calculator, ToggleLeft } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 interface CompanyForm {
@@ -91,6 +91,9 @@ export default function SettingsPage() {
             </button>
           ))}
           <div className="border-t my-3 pt-3">
+            <button onClick={() => navigate('/crm/settings/features')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <ToggleLeft className="w-5 h-5" />Features
+            </button>
             <button onClick={() => navigate('/crm/settings/billing')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <CreditCard className="w-5 h-5" />Billing
             </button>

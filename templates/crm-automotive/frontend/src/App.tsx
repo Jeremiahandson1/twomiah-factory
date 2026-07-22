@@ -18,6 +18,7 @@ import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
 import TeamPage from './pages/TeamPage';
 import SettingsPage from './pages/SettingsPage';
+import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 
 // Automotive Pages
 import InventoryPage from './pages/automotive/InventoryPage';
@@ -78,6 +79,7 @@ function App() {
                     <Route path="alerts" element={<AlertsPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="settings/features" element={<FeaturesSettingsPage />} />
                     <Route path="support" element={<SupportPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>

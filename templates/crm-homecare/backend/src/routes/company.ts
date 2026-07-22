@@ -33,6 +33,27 @@ app.put('/', requireAdmin, async (c) => {
   return c.json(agency)
 })
 
+// PUT /features — self-serve feature toggles (Settings → Features).
+// Writes BOTH the enabledFeatures column AND settings.enabledFeatures: the
+// frontend hasFeature() falls back to the settings blob (factory sync writes
+// there), so updating only the column could never turn a blob-seeded feature off.
+app.put('/features', requireAdmin, async (c) => {
+  const { features } = await c.req.json()
+  if (!Array.isArray(features) || features.some((f) => typeof f !== 'string')) {
+    return c.json({ error: 'features must be an array of feature ids' }, 400)
+  }
+  const [existing] = await db.select().from(agencies).limit(1)
+  if (!existing) return c.json({ error: 'Agency not found' }, 404)
+  let settings = existing.settings || {}
+  if (typeof settings === 'string') { try { settings = JSON.parse(settings) } catch { settings = {} } }
+  const [agency] = await db
+    .update(agencies)
+    .set({ enabledFeatures: features, settings: { ...settings, enabledFeatures: features }, updatedAt: new Date() })
+    .where(eq(agencies.id, existing.id))
+    .returning()
+  return c.json(agency)
+})
+
 // GET /users - User management (all staff)
 app.get('/users', requireAdmin, async (c) => {
   const userList = await db

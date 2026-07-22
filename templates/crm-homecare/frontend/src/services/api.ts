@@ -130,6 +130,7 @@ class ApiClient {
   company = {
     get: () => this.get('/api/company'),
     update: (data: any) => this.request('/api/company', { method: 'PUT', body: JSON.stringify(data) }),
+    updateFeatures: (features: string[]) => this.request('/api/company/features', { method: 'PUT', body: JSON.stringify({ features }) }),
   };
 }
 

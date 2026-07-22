@@ -20,6 +20,7 @@ import SelfHostedPurchasePage from './pages/public/SelfHostedPurchasePage';
 import BillingSettingsPage from './pages/settings/BillingSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
+import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
 import ProjectsPage from './pages/ProjectsPage';
@@ -183,6 +184,7 @@ function App() {
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
+                    <Route path="settings/features" element={<FeaturesSettingsPage />} />
                     <Route path="geofences" element={<GeofencesPage />} />
                     <Route path="fleet" element={<FleetPage />} />
                     <Route path="locations" element={<LocationsPage />} />
