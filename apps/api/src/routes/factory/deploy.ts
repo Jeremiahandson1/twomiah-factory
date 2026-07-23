@@ -575,42 +575,15 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
         if (optErr) console.warn('[Deploy] Optional tenant fields failed (non-blocking):', optErr.message)
       }
 
-      // Auto-create Stripe subscription if tenant doesn't already have one
-      if (!tenant.stripe_subscription_id && tenant.deployment_model === 'saas') {
-        try {
-          const subResult = await factoryStripe.createAutoSubscription({
-            id: tenant.id, email: tenant.email, name: tenant.name,
-            phone: tenant.phone, stripeCustomerId: tenant.stripe_customer_id,
-            plan: tenant.plan,
-          })
-          if (subResult) {
-            const billingUpdate: Record<string, any> = {}
-            if (subResult.stripeCustomerId) billingUpdate.stripe_customer_id = subResult.stripeCustomerId
-            if (subResult.subscriptionId) billingUpdate.stripe_subscription_id = subResult.subscriptionId
-            billingUpdate.billing_type = 'subscription'
-            billingUpdate.billing_status = 'active'
-            // Read pricing from DB (per-product), fallback to product-specific defaults
-            const template = tenant.products?.[0] || 'crm'
-            const prodDefaults = getProductDefaults(template)
-            let planPrices: Record<string, number> = {}
-            for (const t of prodDefaults.saas_tiers) planPrices[t.id] = t.monthlyPrice
-            try {
-              const { data: pricingRow } = await supabase.from('factory_pricing').select('saas_tiers').eq('product', template).single()
-              if (pricingRow?.saas_tiers && Array.isArray(pricingRow.saas_tiers)) {
-                const dbPrices: Record<string, number> = {}
-                for (const tier of pricingRow.saas_tiers) dbPrices[tier.id] = tier.monthlyPrice
-                if (Object.keys(dbPrices).length > 0) planPrices = dbPrices
-              }
-            } catch {}
-            billingUpdate.monthly_amount = tenant.monthly_amount || planPrices[tenant.plan || 'starter'] || 149
-            const { error: billErr } = await supabase.from('tenants').update(billingUpdate).eq('id', tenant.id)
-            if (billErr) console.error('[Deploy] Billing update failed:', billErr.message)
-            else console.log('[Deploy] Auto-created Stripe subscription for', tenant.slug)
-          }
-        } catch (stripeErr: any) {
-          console.error('[Deploy] Auto-subscription failed (non-blocking):', stripeErr.message)
-        }
-      }
+      // NOTE (pay-then-deploy, 2026-07): deploys must NEVER create billing.
+      // The legacy block here auto-created a Stripe subscription for any SaaS
+      // tenant without one — correct under the old "deploy on signup, bill
+      // automatically" trial model, but under pay-then-deploy every real
+      // customer already HAS a subscription (checkout completed before the
+      // deploy fired), so the only tenants this could hit are unpaid ones:
+      // staff/manual deploys and comp/test tenants — where it minted phantom
+      // live-mode subscriptions. Billing state is owned exclusively by the
+      // Stripe webhook (checkout.session.completed) and admin billing actions.
     }
 
     console.log('[Deploy] Complete for', tenant.slug, '- status:', result.status)
