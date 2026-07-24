@@ -126,6 +126,12 @@ export const RV_INDUSTRIES = new Set([
   'powersports', 'powersport', 'motorsports',
   'motorcycle_dealer', 'motorcycle_dealership', 'atv_dealer', 'utv_dealer',
   'marine_dealer', 'boat_dealer', 'boat_dealership',
+  // Auto dealers: same sales-floor archetype (inventory, leads, deals,
+  // trade-ins, service). crm-automotive is PARKED and cannot boot — auto
+  // dealers get the maintained dealership CRM (crm-rv) instead of falling
+  // through to the contractor vertical with contractor website content.
+  'automotive', 'auto_dealer', 'auto_dealership', 'car_dealer',
+  'car_dealership', 'used_cars', 'used_car_dealer', 'auto_sales',
 ])
 
 // Veterinary practices. A client-relationship + preventive-care record

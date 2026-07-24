@@ -311,11 +311,11 @@ export async function generate(config: GenerateConfig): Promise<GenerateResult> 
       // Resolve via the central routing map so the CRM template stays
       // aligned with the website-premium template (used to drift — e.g.
       // 'cleaning' got fieldservice premium but contractor CRM).
-      // Automotive is parked, so we keep the legacy branch for it
-      // outside the central map.
-      const crmTemplate = crmIndustry === 'automotive'
-        ? 'crm-automotive'
-        : crmTemplateFor(crmIndustry)
+      // NOTE: 'automotive' now routes through the central map to crm-rv
+      // (dealership archetype) — the parked crm-automotive cannot boot
+      // (its routes import schema exports that don't exist) and must
+      // never be generated.
+      const crmTemplate = crmTemplateFor(crmIndustry)
       const crmOutputDir = crmTemplate
       console.log('[Generator] CRM template:', crmTemplate, '→', path.join(workDir, crmOutputDir))
       copyTemplate(crmTemplate, path.join(workDir, crmOutputDir), tokens)
@@ -1086,11 +1086,12 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
     try {
       const hp = JSON.parse(fs.readFileSync(homepageFile, 'utf8'))
       if (hp.hero && !hp.hero.image) {
-        // Prefer the template's dedicated hero.jpg, but several templates
-        // (dispensary, general, rv, showcase) don't ship one — for those, fall
-        // back to a real industry photo (copied in above) instead of a 404.
-        const heroJpg = path.join(websiteDir, 'build', 'images', 'hero.jpg')
-        hp.hero.image = fs.existsSync(heroJpg) ? '/images/hero.jpg' : (getServiceImage(industry, 0) || '/images/hero.jpg')
+        // The hero.jpg the templates ship is a PLACEHOLDER gradient with baked-in
+        // sample text ("Quality Craftsmanship" / "Compassionate Home Care" /
+        // "Replace with your photo via Admin") — it must never reach a live site.
+        // Prefer a real industry photo from the in-house library (copied in
+        // above); hero.jpg is only the last resort when the library has nothing.
+        hp.hero.image = getServiceImage(industry, 0) || '/images/hero.jpg'
         fs.writeFileSync(homepageFile, JSON.stringify(hp, null, 2))
       }
     } catch { /* leave homepage as-is on parse error */ }
