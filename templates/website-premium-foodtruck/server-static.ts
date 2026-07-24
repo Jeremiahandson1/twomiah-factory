@@ -29,6 +29,11 @@ import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as
 import adminRoutes from './routes/admin'
 import { secureHeaders, adminCors, loginRateLimit, isSafeUrl } from './lib/security'
 
+// Cache-busting version for local stylesheets: changes every deploy (Render
+// sets RENDER_GIT_COMMIT) so browsers can keep long max-age but never serve
+// a stale CSS bundle after a redeploy.
+const ASSET_VERSION = (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || String(Date.now())
+
 const app = new Hono()
 
 app.use('*', logger())
@@ -171,7 +176,7 @@ async function renderPage(slug: string, currentPath: string): Promise<string | n
   const lcpImage = firstHero?.data?.image && typeof firstHero.data.image === 'string' ? firstHero.data.image : ''
 
   const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings }) as string
-  return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage }) as Promise<string>
+  return ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath, lcpImage }) as Promise<string>
 }
 
 // Default placeholder served when the pages.home row doesn't exist yet
@@ -222,7 +227,7 @@ app.get('/blog', async (c) => {
     seoDescription: settings.seoDescription || 'Recent posts from ' + (settings.companyName || 'the team') + '.',
     nav: settings.nav || [],
   }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog' }) as string
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog' }) as string
   return c.html(html)
 })
 
@@ -252,7 +257,7 @@ app.get('/blog/:slug', async (c) => {
     seoDescription: post.metaDescription || post.excerpt || '',
     nav: settings.nav || [],
   }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog/' + slug }) as string
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/blog/' + slug }) as string
   return c.html(html)
 })
 
@@ -325,7 +330,7 @@ app.get('/book', async (c) => {
         return `<a class="service-card" href="/book/${escape(s.slug)}"><div class="service-card__body"><h2 class="service-card__name">${escape(s.name)}</h2>${s.description ? `<p class="service-card__desc">${escape(s.description)}</p>` : ''}<div class="service-card__meta"><span class="service-card__dur">${dur}</span>${price ? `<span class="service-card__price">${price}</span>` : ''}</div><span class="service-card__cta">Book →</span></div></a>`
       }).join('')}</div></div></section>`
   const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Book online · ' + (settings.companyName || ''), seoDescription: 'Pick a service and time that works for you.', nav: settings.nav || [] }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book' }) as string
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book' }) as string
   return c.html(html)
 })
 
@@ -354,7 +359,7 @@ app.get('/book/thanks', async (c) => {
     <p class="book-thanks__addcal">Add to your calendar: <a href="/book/${booking.id}/ics">Apple / Outlook</a> · <a href="${googleCalendarLink(booking, service?.name || 'Booking')}" target="_blank" rel="noopener noreferrer">Google</a></p>
   </div></section>`
   const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Booking confirmed', seoDescription: 'Your booking is confirmed.', nav: settings.nav || [] }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/thanks' }) as string
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/thanks' }) as string
   return c.html(html)
 })
 
@@ -415,7 +420,7 @@ app.get('/book/:serviceSlug', async (c) => {
   </div></section>
   <script src="/scripts/book-flow.js" defer></script>`
   const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Book ' + service.name + ' · ' + (settings.companyName || ''), seoDescription: service.description || '', nav: settings.nav || [] }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/' + slug }) as string
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/book/' + slug }) as string
   return c.html(html)
 })
 
@@ -880,7 +885,7 @@ app.get('/booking/:token/reschedule', async (c) => {
   </div></section>
   <script src="/scripts/book-flow.js" defer></script>`
   const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Reschedule', seoDescription: '', nav: settings.nav || [] }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token + '/reschedule' }) as string
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token + '/reschedule' }) as string
   return c.html(html)
 })
 
@@ -986,7 +991,7 @@ app.get('/booking/:token', async (c) => {
     <p style="margin-top:16px;color:var(--muted);font-size:13px;text-align:center;">Questions? Hit reply on your confirmation email.</p>
   </div></section>`
   const effectiveSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Your booking', seoDescription: '', nav: settings.nav || [] }
-  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token }) as string
+  const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, assetV: ASSET_VERSION, settings: effectiveSettings, crmApiUrl: process.env.CRM_API_URL || '', currentPath: '/booking/' + token }) as string
   return c.html(html)
 })
 

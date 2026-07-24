@@ -67,16 +67,16 @@
   </style>
 
   <!-- Styles (async / non-render-blocking via media swap; noscript = sync fallback) -->
-  <link rel="stylesheet" href="/styles/main.css" media="print" onload="this.media='all';this.onload=null">
-  <link rel="stylesheet" href="/styles/public-pages.css" media="print" onload="this.media='all';this.onload=null">
+  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>" media="print" onload="this.media='all';this.onload=null">
+  <link rel="stylesheet" href="/styles/public-pages.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>" media="print" onload="this.media='all';this.onload=null">
   <% if (typeof settings !== 'undefined' && settings && settings.theme) { %>
-  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css" media="print" onload="this.media='all';this.onload=null">
+  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>" media="print" onload="this.media='all';this.onload=null">
   <% } %>
   <noscript>
-    <link rel="stylesheet" href="/styles/main.css">
-    <link rel="stylesheet" href="/styles/public-pages.css">
+    <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
+    <link rel="stylesheet" href="/styles/public-pages.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
     <% if (typeof settings !== 'undefined' && settings && settings.theme) { %>
-    <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css">
+    <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
     <% } %>
   </noscript>
   

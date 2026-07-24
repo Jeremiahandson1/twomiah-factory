@@ -17,6 +17,11 @@ import appPaths from './config/paths.ts'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+// Cache-busting version for local stylesheets: changes every deploy (Render
+// sets RENDER_GIT_COMMIT) so browsers can keep the 24h max-age but never
+// serve a stale CSS bundle after a redeploy.
+const ASSET_VERSION = (process.env.RENDER_GIT_COMMIT || '').slice(0, 8) || String(Date.now())
+
 const app = new Hono()
 const PORT = parseInt(process.env.PORT || '3000')
 
@@ -279,7 +284,7 @@ function renderPage(c: any, pageView: string, locals: Record<string, any> = {}, 
   const settings = loadJSON('settings.json') || {}
   const navConfig = loadJSON('nav-config.json') || {}
   const menuItems = Array.isArray(navConfig.items) ? navConfig.items : Array.isArray(navConfig) ? navConfig : []
-  const shared = { settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, _jsonStr, _plainDesc, bgWithWebp, ...locals }
+  const shared = { assetV: ASSET_VERSION, settings, menuItems, BASE_URL, hasVisualizer, hasEstimator, _jsonStr, _plainDesc, bgWithWebp, ...locals }
   const pageFile = path.join(__dirname, 'views', pageView + '.ejs')
 
   return new Promise<Response>((resolve) => {

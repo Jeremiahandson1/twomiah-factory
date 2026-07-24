@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://images.unsplash.com" crossorigin>
-  <link rel="stylesheet" href="/styles/main.css">
+  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
   <%
     // Font CSS is loaded via the media-toggle pattern so it stops blocking
     // the initial render — display=swap already keeps text visible while

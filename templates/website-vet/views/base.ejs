@@ -47,12 +47,12 @@
   <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&family=Playfair+Display:wght@400;600;700&display=optional"></noscript>
   
   <!-- Styles -->
-  <link rel="stylesheet" href="/styles/main.css">
-  <link rel="stylesheet" href="/styles/public-pages.css">
+  <link rel="stylesheet" href="/styles/main.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
+  <link rel="stylesheet" href="/styles/public-pages.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
 
   <!-- Theme Override -->
   <% if (typeof settings !== 'undefined' && settings && settings.theme) { %>
-  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css">
+  <link rel="stylesheet" href="/styles/themes/<%= settings.theme %>.css?v=<%= typeof assetV === 'undefined' ? '' : assetV %>">
   <% } %>
 
   <!-- Runtime Brand Color Override (from settings) -->
