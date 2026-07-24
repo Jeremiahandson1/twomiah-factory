@@ -722,3 +722,18 @@ form input, form textarea, form select {
 .contact-section input, .contact-section textarea, .contact-section select {
   color: #1a1a1a !important;
 }
+
+/* ════════ Contrast guard (readability rule): the homepage hero puts text on a
+   dark-overlaid photo. The theme's global/section heading color (navy, slate,
+   ink) is unreadable there, and only h1 was overridden — the h2 subtitle
+   inherited the dark color. Every hero heading level must stay light. ════════ */
+.hero h2,
+.hero-section h2,
+.hero-video h2 {
+  color: rgba(255, 255, 255, 0.94);
+}
+.hero h2::after,
+.hero-section h2::after,
+.hero-video h2::after {
+  content: none;
+}

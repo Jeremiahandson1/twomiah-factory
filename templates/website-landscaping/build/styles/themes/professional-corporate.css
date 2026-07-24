@@ -644,3 +644,18 @@ form textarea:focus {
 .service-cta { background: var(--navy, #1e3a5f) !important; color: #fff !important; }
 .service-cta h2 { color: #fff !important; }
 .service-cta p { color: rgba(255, 255, 255, 0.9) !important; }
+
+/* ════════ Contrast guard (readability rule): the homepage hero puts text on a
+   dark-overlaid photo. The theme's global/section heading color (navy, slate,
+   ink) is unreadable there, and only h1 was overridden — the h2 subtitle
+   inherited the dark color. Every hero heading level must stay light. ════════ */
+.hero h2,
+.hero-section h2,
+.hero-video h2 {
+  color: rgba(255, 255, 255, 0.94);
+}
+.hero h2::after,
+.hero-section h2::after,
+.hero-video h2::after {
+  content: none;
+}
