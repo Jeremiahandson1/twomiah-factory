@@ -1078,6 +1078,22 @@ function fillWebsiteImages(websiteDir: string, config: GenerateConfig) {
     }
   } catch { /* non-fatal */ }
 
+  // The hero.jpg the templates ship is a PLACEHOLDER gradient with baked-in
+  // sample text ("Quality Craftsmanship", "Replace with your photo via Admin").
+  // homepage.json presets hero.image to '/images/hero.jpg', so fixing the JSON
+  // alone isn't enough — overwrite the FILE with the industry's real photo so
+  // every reference to /images/hero.jpg serves a real image.
+  try {
+    const heroJpgPath = path.join(websiteDir, 'build', 'images', 'hero.jpg')
+    if (fs.existsSync(heroJpgPath)) {
+      const libUrl = getServiceImage(industry, 0)
+      if (libUrl) {
+        const srcPhoto = path.join(TEMPLATES_ROOT, '_shared', 'service-images', path.basename(libUrl))
+        if (fs.existsSync(srcPhoto)) fs.copyFileSync(srcPhoto, heroJpgPath)
+      }
+    }
+  } catch { /* non-fatal */ }
+
   // Ensure the hero always has an image. AI content injection can overwrite
   // homepage.json's hero with an empty image, which drops the site into the
   // empty-hero placeholder state. Restore the shipped local hero (LCP-optimized).
