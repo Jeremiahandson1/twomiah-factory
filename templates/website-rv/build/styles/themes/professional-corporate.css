@@ -763,7 +763,8 @@ footer a:hover {
 .hero h2,
 .hero-section h2,
 .hero-video h2 {
-  color: rgba(255, 255, 255, 0.94);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45), 0 2px 14px rgba(0, 0, 0, 0.3);
 }
 .hero h2::after,
 .hero-section h2::after,
