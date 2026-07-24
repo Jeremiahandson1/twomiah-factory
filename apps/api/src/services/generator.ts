@@ -751,6 +751,13 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
   const neededRoutes = new Set<string>()
   const neededServices = new Set<string>()
 
+  // Imports may be written with or without the .ts extension ("../services/aiUsage"
+  // vs "../services/aiUsage.ts"), while the sets hold names exactly as captured and
+  // the filesystem holds real filenames. Comparing raw strings deleted files whose
+  // only importers used extensionless paths (aiUsage.ts on every CRM API deploy).
+  const hasFile = (set: Set<string>, file: string) =>
+    set.has(file) || set.has(file.replace(/\.(ts|js)$/, ''))
+
   if (manifest.core?.backend) {
     (manifest.core.backend.routes || []).forEach((f: string) => neededRoutes.add(f))
     ;(manifest.core.backend.services || []).forEach((f: string) => neededServices.add(f))
@@ -795,7 +802,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
   const routesDir = path.join(crmDir, 'backend', 'src', 'routes')
   if (fs.existsSync(routesDir)) {
     for (const file of fs.readdirSync(routesDir)) {
-      if (!neededRoutes.has(file)) continue
+      if (!hasFile(neededRoutes, file)) continue
       try {
         const content = fs.readFileSync(path.join(routesDir, file), 'utf8')
         const svcImports = content.match(/from '(?:\.\.\/|\.\/)services\/([^']+)'/g) || []
@@ -808,7 +815,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
 
     // Now delete unused route files
     for (const file of fs.readdirSync(routesDir)) {
-      if (neededRoutes.has(file)) continue
+      if (hasFile(neededRoutes, file)) continue
       fs.unlinkSync(path.join(routesDir, file))
     }
   }
@@ -819,8 +826,8 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
   const servicesDirScan = path.join(crmDir, 'backend', 'src', 'services')
   if (fs.existsSync(servicesDirScan)) {
     const depPatterns = [
-      /from '\.\/([^'/]+\.ts)'/g,                       // same-dir: from './wpsFeed.ts'
-      /import\('\.\/([^'/]+\.ts)'\)/g,                  // same-dir dynamic
+      /from '\.\/([^'/]+)'/g,                           // same-dir: from './wpsFeed.ts' or './wpsFeed'
+      /import\('\.\/([^'/]+)'\)/g,                      // same-dir dynamic
       /from '(?:\.\.\/|\.\/)services\/([^']+)'/g,       // subpath: from '../services/foo.ts'
       /import\('(?:\.\.\/|\.\/)services\/([^']+)'\)/g,  // subpath dynamic
     ]
@@ -828,7 +835,8 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
     while (added) {
       added = false
       for (const svc of Array.from(neededServices)) {
-        const svcPath = path.join(servicesDirScan, svc)
+        let svcPath = path.join(servicesDirScan, svc)
+        if (!fs.existsSync(svcPath)) svcPath = svcPath + '.ts'
         if (!fs.existsSync(svcPath)) continue
         let content: string
         try { content = fs.readFileSync(svcPath, 'utf8') } catch { continue }
@@ -849,7 +857,7 @@ function stripUnusedCRMFiles(crmDir: string, enabledFeatures: string[], manifest
   if (fs.existsSync(servicesDir)) {
     for (const entry of fs.readdirSync(servicesDir, { withFileTypes: true })) {
       if (entry.isDirectory()) continue
-      if (!neededServices.has(entry.name)) fs.unlinkSync(path.join(servicesDir, entry.name))
+      if (!hasFile(neededServices, entry.name)) fs.unlinkSync(path.join(servicesDir, entry.name))
     }
   }
 
