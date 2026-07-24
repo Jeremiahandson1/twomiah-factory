@@ -772,7 +772,12 @@ export async function deployCustomer(
   const vertical = verticalFor(ind)
   const isHomeCare = vertical === 'homecare'
   const isFieldService = vertical === 'fieldservice'
-  const isAutomotive = ind === 'automotive' // parked vertical stays inline
+  // Automotive routes through the central map to the rv dealership vertical
+  // (industryRouting ca46679) — verticalFor('automotive') === 'rv', so isRv
+  // handles it. The old raw-string special case here shadowed isRv and made
+  // deploys point rootDir at the parked crm-automotive (which the generator
+  // no longer emits), failing every automotive build.
+  const isAutomotive = false
   const isRoofing = vertical === 'roofing'
   const isLandscaping = vertical === 'landscaping'
   const isDispensary = vertical === 'dispensary'
@@ -1996,7 +2001,6 @@ export async function provisionR2ForExistingTenant(
   const ind = tenant.industry || ''
   const bucketSlug = ind === 'home_care' ? tenant.slug + '-care'
     : ['field_service', 'hvac', 'plumbing', 'electrical'].includes(ind) ? tenant.slug + '-wrench'
-    : ind === 'automotive' ? tenant.slug + '-drive'
     : ind === 'roofing' ? tenant.slug + '-roof'
     : ind === 'landscaping' ? tenant.slug + '-landscape'
     : ind === 'dispensary' ? tenant.slug + '-leaf'
