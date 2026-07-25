@@ -1386,7 +1386,12 @@ async function writeBrandingAssets(targetDir: string, branding: GenerateConfig['
     }
 
     if (!branding.logo?.startsWith('data:')) {
-      const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 64"><rect x="4" y="4" width="56" height="56" rx="12" fill="${color}"/><text x="32" y="34" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${initial}</text><text x="74" y="34" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700" fill="${color}" dominant-baseline="central">${safeName}</text></svg>`
+      // Size the viewBox to the wordmark: the old fixed 340 clipped any name
+      // longer than ~18 chars ("ZZ Fleet general contr…"). Arial bold averages
+      // ~0.62em per char; keep 340 as the floor so short names render as before.
+      const nameLen = (companyName || '').length
+      const logoWidth = Math.max(340, 74 + Math.ceil(nameLen * 26 * 0.62) + 12)
+      const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${logoWidth} 64"><rect x="4" y="4" width="56" height="56" rx="12" fill="${color}"/><text x="32" y="34" font-family="Arial,Helvetica,sans-serif" font-size="32" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central">${initial}</text><text x="74" y="34" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700" fill="${color}" dominant-baseline="central">${safeName}</text></svg>`
       write(path.join(imagesDir, 'logo.svg'), logoSvg)
       write(path.join(targetDir, 'logo.svg'), logoSvg)
       if (fs.existsSync(crmPub)) write(path.join(crmPub, 'logo.svg'), logoSvg)
