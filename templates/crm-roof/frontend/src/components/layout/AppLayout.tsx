@@ -43,8 +43,6 @@ const baseNavItems = [
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
   { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads' },
   { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
-  { label: 'Roof Estimator', icon: Calculator, to: '/crm/estimator' },
-  { label: 'Roof Reports', icon: FileBarChart, to: '/crm/roof-reports' },
 ]
 
 const fieldNavItems = [
@@ -54,6 +52,10 @@ const fieldNavItems = [
   { label: 'Reviews', icon: Star, to: '/crm/reviews', feature: 'review_requests' },
   { label: 'Financing', icon: CreditCard, to: '/crm/financing', feature: 'consumer_financing' },
   { label: 'Storm Radar', icon: Radio, to: '/crm/storm-radar', feature: 'storm_radar_overlay' },
+  // Paid add-on products — hidden unless the add-on is enabled (matching the
+  // contractor CRM: no visible-but-gated nav for products the tenant hasn't bought).
+  { label: 'Roof Estimator', icon: Calculator, to: '/crm/estimator', feature: 'instant_estimator' },
+  { label: 'Roof Reports', icon: FileBarChart, to: '/crm/roof-reports', feature: 'measurement_reports' },
 ]
 
 const bottomNavItems = [
@@ -69,10 +71,14 @@ export default function AppLayout() {
   const hasCanvassing = useFeature('canvassing_tool')
   const hasStormLeads = useFeature('storm_lead_gen')
   const hasPaidAds = useFeature('paid_ads')
+  const hasEstimator = useFeature('instant_estimator')
+  const hasRoofReports = useFeature('measurement_reports')
   const activeFieldItems = fieldNavItems.filter(item => {
     if (item.feature === 'canvassing_tool') return hasCanvassing
     if (item.feature === 'storm_lead_gen') return hasStormLeads
     if (item.feature === 'paid_ads') return hasPaidAds
+    if (item.feature === 'instant_estimator') return hasEstimator
+    if (item.feature === 'measurement_reports') return hasRoofReports
     return true
   })
 

@@ -66,11 +66,26 @@ function getStripe(): Stripe | null {
 
 const app = new Hono()
 
+// Measurement Reports is a paid, gated feature (hidden until launch). Every
+// authenticated route below — including the $9.99 Stripe purchase — must
+// refuse when the company doesn't have 'measurement_reports' enabled.
+// The two unauthenticated asset routes (aerial.png, html) stay open: they
+// serve already-purchased reports via shared links.
+const requireRoofReports = async (c: any, next: any) => {
+  const user = c.get('user') as any
+  const [comp] = await db.select().from(company).where(eq(company.id, user.companyId)).limit(1)
+  const feats = (comp?.enabledFeatures as string[]) || []
+  if (!feats.includes('measurement_reports')) {
+    return c.json({ error: 'Roof Reports is not enabled on your plan. Contact support to add it.' }, 403)
+  }
+  await next()
+}
+
 // ============================================
 // LIST REPORTS
 // ============================================
 
-app.get('/', authenticate, async (c) => {
+app.get('/', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { page = '1', limit = '20', contactId } = c.req.query() as any
 
@@ -109,7 +124,7 @@ app.get('/', authenticate, async (c) => {
 // GET SINGLE REPORT
 // ============================================
 
-app.get('/:id', authenticate, async (c) => {
+app.get('/:id', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -483,7 +498,7 @@ export async function generateAndSaveReport(
 // PURCHASE REPORT — Stripe Checkout ($9.99)
 // ============================================
 
-app.post('/purchase', authenticate, async (c) => {
+app.post('/purchase', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { address, city, state, zip, contactId, eaveOverhangInches, mode } = await c.req.json()
   const overhang = typeof eaveOverhangInches === 'number' ? Math.max(0, Math.min(36, eaveOverhangInches)) : 12
@@ -565,7 +580,7 @@ app.post('/purchase', authenticate, async (c) => {
 // CONFIRM PURCHASE — called after Stripe success redirect
 // ============================================
 
-app.post('/confirm-purchase', authenticate, async (c) => {
+app.post('/confirm-purchase', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { sessionId } = await c.req.json()
 
@@ -618,7 +633,7 @@ app.post('/confirm-purchase', authenticate, async (c) => {
 // GENERATE FOR CONTACT (with payment)
 // ============================================
 
-app.post('/purchase-for-contact/:contactId', authenticate, async (c) => {
+app.post('/purchase-for-contact/:contactId', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const contactId = c.req.param('contactId')
 
@@ -698,7 +713,7 @@ app.get('/:id/aerial.png', async (c) => {
 // SERVE PREVIEW AERIAL IMAGE (for editor before report is saved)
 // ============================================
 
-app.get('/preview-aerial/:filename', authenticate, async (c) => {
+app.get('/preview-aerial/:filename', authenticate, requireRoofReports, async (c) => {
   const filename = c.req.param('filename')
   // Sanitize — only allow alphanumeric, dash, dot
   if (!/^[a-zA-Z0-9._-]+$/.test(filename)) return c.json({ error: 'Invalid filename' }, 400)
@@ -766,7 +781,7 @@ app.get('/:id/html', async (c) => {
 // PDF / PRINT VIEW (authenticated)
 // ============================================
 
-app.get('/:id/pdf', authenticate, async (c) => {
+app.get('/:id/pdf', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -838,7 +853,7 @@ app.get('/:id/pdf', authenticate, async (c) => {
 // DELETE REPORT
 // ============================================
 
-app.delete('/:id', authenticate, async (c) => {
+app.delete('/:id', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -858,7 +873,7 @@ app.delete('/:id', authenticate, async (c) => {
 // FINALIZE REPORT — save preview + user edits to DB
 // ============================================
 
-app.post('/finalize', authenticate, async (c) => {
+app.post('/finalize', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const { preview, edges, measurements } = await c.req.json()
 
@@ -882,7 +897,7 @@ app.post('/finalize', authenticate, async (c) => {
 // EDIT EDGES (manual corrections on existing report)
 // ============================================
 
-app.patch('/:id/edges', authenticate, async (c) => {
+app.patch('/:id/edges', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -921,7 +936,7 @@ app.patch('/:id/edges', authenticate, async (c) => {
 // REVERT TO ORIGINAL (undo all manual edits)
 // ============================================
 
-app.post('/:id/revert', authenticate, async (c) => {
+app.post('/:id/revert', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
@@ -950,7 +965,7 @@ app.post('/:id/revert', authenticate, async (c) => {
 // AI ROOF DETECTION — Nearmap AI (primary) + SAM 2 (fallback)
 // ============================================
 
-app.post('/sam-segment', authenticate, async (c) => {
+app.post('/sam-segment', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
   const { imageBase64, clickPoints, labels, imageWidth, imageHeight, centerLat, centerLng, zoom } = body
@@ -1078,7 +1093,7 @@ function haversineFeet(lat1: number, lng1: number, lat2: number, lng2: number): 
 // DSM GRID — elevation data for 3D viewer
 // ============================================
 
-app.get('/:id/dsm-grid', authenticate, async (c) => {
+app.get('/:id/dsm-grid', authenticate, requireRoofReports, async (c) => {
   const user = c.get('user') as any
   const id = c.req.param('id')
 
