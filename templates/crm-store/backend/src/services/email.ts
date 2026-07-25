@@ -140,3 +140,13 @@ export async function sendOrderShipped(p: { order: EmailOrder; items: EmailItem[
     subject: `Your ${storeName} order${order.orderNumber ? ' ' + order.orderNumber : ''} has shipped`,
     html: wrap(storeName, 'Your order shipped', inner) })
 }
+
+export async function sendPasswordReset(p: { toEmail: string; storeName: string; resetUrl: string }): Promise<void> {
+  const inner = `
+    <p style="color:#444;font-size:15px;line-height:1.6;">We received a request to reset the password for your ${esc(p.storeName)} admin account.</p>
+    <p style="margin:20px 0;"><a href="${esc(p.resetUrl)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:14px;font-weight:600;">Set a new password</a></p>
+    <p style="color:#888;font-size:13px;">This link expires in 1 hour and can be used once. If you didn't request this, you can safely ignore this email — your password is unchanged.</p>`
+  await send({ from: fromFor(p.storeName), to: p.toEmail,
+    subject: `Reset your ${p.storeName} admin password`,
+    html: wrap(p.storeName, 'Reset your password', inner) })
+}

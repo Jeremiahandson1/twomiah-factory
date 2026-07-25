@@ -34,7 +34,7 @@ async function seed() {
 
   // ─── Admin User ─────────────────────────────────────────────────────────────
   const adminId = createId()
-  const passwordHash = await hash('{{DEFAULT_PASSWORD}}', 12)
+  const passwordHash = '{{HASHED_DEFAULT_PASSWORD}}' // bcrypt hash injected at generation
   await db.insert(user).values({
     id: adminId,
     companyId,

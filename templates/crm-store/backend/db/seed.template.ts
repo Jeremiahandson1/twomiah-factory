@@ -26,7 +26,7 @@ async function main() {
   }
 
   // ── Owner login (always re-hash so credentials match the generated password) ──
-  const passwordHash = await Bun.password.hash('{{DEFAULT_PASSWORD}}', 'bcrypt')
+  const passwordHash = '{{HASHED_DEFAULT_PASSWORD}}' // bcrypt hash injected at generation — plaintext never touches the repo
   const [existingUser] = await db.select().from(users).where(eq(users.email, '{{ADMIN_EMAIL}}')).limit(1)
   if (existingUser) {
     await db.update(users).set({ passwordHash, role: 'owner', isActive: true }).where(eq(users.id, existingUser.id))
@@ -76,7 +76,7 @@ async function main() {
   console.log('')
   console.log('Store admin login:')
   console.log('  Email: {{ADMIN_EMAIL}}')
-  console.log('  Password: {{DEFAULT_PASSWORD}}')
+  console.log('  Password: (set at signup — use Forgot password on the login page if lost)')
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })

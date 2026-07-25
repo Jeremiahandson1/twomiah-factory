@@ -37,7 +37,7 @@ async function main() {
     admin = existingAdmin
     console.log('Admin user already exists - skipping password reset')
   } else {
-    const passwordHash = await Bun.password.hash('{{DEFAULT_PASSWORD}}', 'bcrypt')
+    const passwordHash = '{{HASHED_DEFAULT_PASSWORD}}' // bcrypt hash injected at generation — plaintext never touches the repo
     admin = (await db.insert(users).values({
       email: '{{ADMIN_EMAIL}}',
       passwordHash,
@@ -219,7 +219,7 @@ async function main() {
   console.log('===')
   console.log(`   Agency:   {{COMPANY_NAME}}`)
   console.log(`   Login:    {{ADMIN_EMAIL}}`)
-  console.log(`   Password: {{DEFAULT_PASSWORD}}`)
+  console.log(`   Password: (set at signup — use Forgot password on the login page if lost)`)
   console.log('===')
 }
 

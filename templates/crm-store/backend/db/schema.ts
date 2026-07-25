@@ -165,6 +165,8 @@ export const users = pgTable('users', {
   role: text('role').notNull().default('owner'), // owner | staff
   isActive: boolean('is_active').notNull().default(true),
   refreshToken: text('refresh_token'), // last-issued refresh token (rotated on refresh/logout)
+  resetToken: text('reset_token'), // one-time password-reset token (1h expiry)
+  resetTokenExp: timestamp('reset_token_exp', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('users_email_unique').on(t.email)])
 

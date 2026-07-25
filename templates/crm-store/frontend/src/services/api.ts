@@ -121,6 +121,12 @@ class ApiClient {
   async changePassword(currentPassword: string, newPassword: string) {
     return this.request('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) })
   }
+  async forgotPassword(email: string) {
+    return this.request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }, false)
+  }
+  async resetPassword(token: string, password: string) {
+    return this.request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }, false)
+  }
 
   // ── Products ──
   async listProducts() { return (await this.request<{ products: Product[] }>('/api/admin/products')).products }

@@ -7,7 +7,7 @@
 //   {{COMPANY_SLUG}}     - URL-safe slug
 //   {{COMPANY_PHONE}}    - Company phone number
 //   {{ADMIN_EMAIL}}      - Admin login email
-//   {{DEFAULT_PASSWORD}} - Initial admin password (hashed at seed time)
+//   {{HASHED_DEFAULT_PASSWORD}} - bcrypt hash of the initial admin password
 //   {{PRIMARY_COLOR}}    - Brand hex color
 
 export {}

@@ -1094,10 +1094,13 @@ export default function CustomerDetailPage() {
                   </div>
                 </div>
                 {tenant.admin_password ? (
+                  // Only present briefly between signup and deploy completion —
+                  // the deploy scrubs it once the CRM holds the bcrypt hash.
                   <PasswordField password={tenant.admin_password} />
                 ) : (
-                  <p className="text-xs text-amber-400/80">
-                    Password not stored on tenant record. Check the GitHub repo's README.md after deploy completes — generator embeds it there.
+                  <p className="text-xs text-gray-500">
+                    Passwords aren't stored — the customer recovers access via{' '}
+                    <span className="text-gray-400">Forgot password</span> on their login page.
                   </p>
                 )}
               </div>

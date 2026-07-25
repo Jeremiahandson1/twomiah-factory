@@ -203,7 +203,7 @@ initFile(templatesFile, [
 
 // Default settings
 if (!fs.existsSync(settingsFile)) {
-  const defaultPassword = bcrypt.hashSync('{{DEFAULT_PASSWORD}}', 10);
+  const defaultPassword = '{{HASHED_DEFAULT_PASSWORD}}'; // bcrypt hash injected at generation — plaintext never touches the repo
   fs.writeFileSync(settingsFile, JSON.stringify({
     adminPassword: defaultPassword,
     siteName: '{{COMPANY_NAME}}',

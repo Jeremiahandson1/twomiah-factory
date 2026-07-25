@@ -2,9 +2,10 @@ import { Hono } from 'hono'
 import jwt from 'jsonwebtoken'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { users } from '../../db/schema.ts'
+import { users, storeSettings } from '../../db/schema.ts'
 import { eq } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
+import { sendPasswordReset } from '../services/email.ts'
 
 const auth = new Hono()
 
@@ -90,6 +91,53 @@ auth.post('/password', authenticate, async (c) => {
 
   const passwordHash = await Bun.password.hash(parsed.data.newPassword, 'bcrypt')
   await db.update(users).set({ passwordHash, refreshToken: null }).where(eq(users.id, found.id))
+  return c.json({ ok: true })
+})
+
+// ── Forgot / reset password ──────────────────────────────────────────────────
+// Token-based email flow, mirroring the other CRM templates. The forgot
+// endpoint ALWAYS returns ok so it can't be used to probe which emails have
+// accounts.
+
+auth.post('/forgot-password', async (c) => {
+  const body = await c.req.json().catch(() => null)
+  const email = String(body?.email || '').toLowerCase().trim()
+  if (email) {
+    const [u] = await db.select().from(users).where(eq(users.email, email)).limit(1)
+    if (u && u.isActive) {
+      const resetToken = crypto.randomUUID()
+      await db.update(users)
+        .set({ resetToken, resetTokenExp: new Date(Date.now() + 60 * 60 * 1000) })
+        .where(eq(users.id, u.id))
+      const [settings] = await db.select().from(storeSettings).limit(1)
+      const base = (process.env.BACKEND_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/$/, '')
+      // Fire-and-forget: response time must not reveal whether an email matched.
+      sendPasswordReset({
+        toEmail: u.email,
+        storeName: settings?.companyName || 'Your store',
+        resetUrl: `${base}/reset-password?token=${resetToken}`,
+      }).catch(() => {})
+    }
+  }
+  return c.json({ ok: true })
+})
+
+auth.post('/reset-password', async (c) => {
+  const body = await c.req.json().catch(() => null)
+  const token = String(body?.token || '')
+  const password = String(body?.password || '')
+  if (!token || password.length < 8) {
+    return c.json({ error: 'Password must be at least 8 characters' }, 400)
+  }
+  const [u] = await db.select().from(users).where(eq(users.resetToken, token)).limit(1)
+  if (!u || !u.resetTokenExp || new Date(u.resetTokenExp) < new Date()) {
+    return c.json({ error: 'This reset link is invalid or has expired. Request a new one.' }, 400)
+  }
+  const passwordHash = await Bun.password.hash(password, 'bcrypt')
+  // Also rotate out any live refresh token — a reset must end existing sessions.
+  await db.update(users)
+    .set({ passwordHash, resetToken: null, resetTokenExp: null, refreshToken: null })
+    .where(eq(users.id, u.id))
   return c.json({ ok: true })
 })
 

@@ -510,12 +510,9 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
       if (result.supabaseProjectRef) criticalUpdate.supabase_project_ref = result.supabaseProjectRef
       if (result.dbConnectionString) criticalUpdate.database_url = result.dbConnectionString
       if (result.factorySyncKey) criticalUpdate.factory_sync_key = result.factorySyncKey
-      // Persist the generator-minted admin password (the one seeded into the CRM DB) so
-      // it shows up on the customer detail page. Don't overwrite an existing one — that
-      // would clobber a password the customer may have already changed.
-      if (genResult.defaultPassword && !tenant.admin_password) {
-        criticalUpdate.admin_password = genResult.defaultPassword
-      }
+      // Plaintext passwords are never persisted (see scrub below) — the CRM DB
+      // holds the bcrypt hash, and recovery goes through each app's Forgot
+      // password flow, not the platform UI.
       // Same for admin_email — fall back to email if admin_email isn't already set.
       if (!tenant.admin_email && tenant.email) {
         criticalUpdate.admin_email = tenant.email
@@ -664,8 +661,23 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
       // and notifyDeployComplete uses the existing tenant.admin_password.
       // twomiahSubdomain flows into the notification so the Ready email can
       // surface the friendly URL alongside the Render-provided one.
-      const emailTenant = { ...tenant, admin_password: (result as any).adminPassword || tenant.admin_password, twomiah_subdomain: twomiahSubdomainUrl ?? tenant.twomiah_subdomain }
+      // No password in the email payload — the ready email points at the signup
+      // password / Forgot-password flow instead of carrying a credential.
+      const emailTenant = { ...tenant, admin_password: undefined, twomiah_subdomain: twomiahSubdomainUrl ?? tenant.twomiah_subdomain }
       notifyDeployComplete(emailTenant, { apiUrl: result.apiUrl, deployedUrl: result.deployedUrl, siteUrl: result.siteUrl, repoUrl: result.repoUrl, adsUrl: result.adsUrl, twomiahSubdomain: twomiahSubdomainUrl ?? undefined }).catch(e => console.warn('[Email] Deploy complete notification failed:', e.message))
+
+      // Scrub plaintext credentials now that seeding is done: the CRM DB holds
+      // the bcrypt hash, so the factory keeps no copy at rest — not on the
+      // tenant row, not inside the job's stored GenerateConfig.
+      const { error: scrubErr } = await supabase.from('tenants').update({ admin_password: null }).eq('id', tenant.id)
+      if (scrubErr) console.warn('[Deploy] admin_password scrub failed (non-blocking):', scrubErr.message)
+      try {
+        if (job.config?.company?.defaultPassword) {
+          const scrubbedConfig = { ...job.config, company: { ...job.config.company, defaultPassword: undefined } }
+          const { error: cfgErr } = await supabase.from('factory_jobs').update({ config: scrubbedConfig }).eq('id', job.id)
+          if (cfgErr) console.warn('[Deploy] job config password scrub failed (non-blocking):', cfgErr.message)
+        }
+      } catch (e: any) { console.warn('[Deploy] job config scrub failed (non-blocking):', e?.message) }
     } else {
       // Without this the tenant row stays 'deploying' forever — runDeploy never
       // rethrows, so callers' rejection handlers can't do it for us.

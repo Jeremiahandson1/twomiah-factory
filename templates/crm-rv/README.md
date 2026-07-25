@@ -83,7 +83,7 @@ npm run dev
 
 ### Demo Login
 - **Email:** {{ADMIN_EMAIL}}
-- **Password:** {{DEFAULT_PASSWORD}}
+- **Password:** chosen at signup (use Forgot password on the login page if lost)
 
 ## Project Structure
 

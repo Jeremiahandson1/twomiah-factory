@@ -59,7 +59,7 @@ function AdminLogin() {
         </form>
         
         <p style={{ marginTop: '24px', fontSize: '0.8rem', color: 'var(--admin-text-muted)', textAlign: 'center' }}>
-          Default password: <code style={{ background: 'var(--admin-surface-hover)', padding: '2px 6px', borderRadius: '4px' }}>{"{{DEFAULT_PASSWORD}}"}</code>
+          Use the password chosen at signup — or reset it from your CRM.
         </p>
       </div>
     </div>

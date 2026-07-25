@@ -88,7 +88,7 @@ export default function LoginPage() {
           <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600">
             <p className="font-medium mb-1">Demo credentials:</p>
             <p>Email: {{ADMIN_EMAIL}}</p>
-            <p>Password: {{DEFAULT_PASSWORD}}</p>
+            <p>Password: the one chosen at signup</p>
           </div>
         </div>
       </div>
