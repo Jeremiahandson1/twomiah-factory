@@ -174,58 +174,58 @@ async function main() {
 
     // Create demo equipment linked to customers
     const [eq1] = await db.insert(equipment).values({
-      name: 'Central AC Unit',
-      manufacturer: 'Carrier',
-      model: '24ACC636A003',
-      serialNumber: 'CAR-2019-48271',
+      name: 'Irrigation System — 6 Zones',
+      manufacturer: 'Rain Bird',
+      model: 'ESP-TM2',
+      serialNumber: 'RB-2019-48271',
       status: 'active',
-      location: 'Backyard (east side)',
+      location: 'Front + back lawn zones',
       purchaseDate: new Date('2019-06-15'),
       warrantyExpiry: new Date('2029-06-15'),
-      notes: '3-ton, 16 SEER. Annual tune-up due each spring.',
+      notes: 'Six-zone sprinkler system. Spring startup and fall winterization every year.',
       companyId: comp.id,
       contactId: johnson.id,
     }).returning()
 
     await db.insert(equipment).values({
-      name: 'Gas Furnace',
-      manufacturer: 'Lennox',
-      model: 'SL280UHV070V36B',
-      serialNumber: 'LNX-2019-93847',
+      name: 'Landscape Lighting System',
+      manufacturer: 'Kichler',
+      model: 'LED Pro 12V',
+      serialNumber: 'KCH-2019-93847',
       status: 'active',
-      location: 'Basement utility room',
+      location: 'Front walkway + garden beds',
       purchaseDate: new Date('2019-06-15'),
       warrantyExpiry: new Date('2029-06-15'),
-      notes: '70K BTU, two-stage variable speed. Paired with Carrier AC.',
+      notes: 'Low-voltage LED system, 14 fixtures. Transformer mounted in garage.',
       companyId: comp.id,
       contactId: johnson.id,
     }).returning()
 
     const [eq3] = await db.insert(equipment).values({
-      name: 'Tankless Water Heater',
-      manufacturer: 'Rinnai',
-      model: 'RU199iN',
-      serialNumber: 'RIN-2021-55102',
+      name: 'Backflow Preventer',
+      manufacturer: 'Febco',
+      model: '765-1',
+      serialNumber: 'FEB-2021-55102',
       status: 'active',
-      location: 'Garage wall mount',
+      location: 'Side yard near irrigation main',
       purchaseDate: new Date('2021-11-03'),
       warrantyExpiry: new Date('2033-11-03'),
-      notes: '199K BTU natural gas. Descale annually.',
+      notes: 'City requires an annual backflow test each spring.',
       companyId: comp.id,
       contactId: martinez.id,
       siteId: martinezOffice.id,
     }).returning()
 
     const [eq4] = await db.insert(equipment).values({
-      name: 'Heat Pump System',
-      manufacturer: 'Trane',
-      model: 'XR15',
-      serialNumber: 'TRN-2016-22039',
+      name: 'Irrigation Booster Pump',
+      manufacturer: 'Hunter',
+      model: 'Pro-C',
+      serialNumber: 'HTR-2016-22039',
       status: 'needs_repair',
-      location: 'Side yard',
+      location: 'Pump house at warehouse landscape beds',
       purchaseDate: new Date('2016-03-22'),
       warrantyExpiry: new Date('2026-03-22'),
-      notes: '3.5-ton heat pump. Compressor making noise — needs diagnostic.',
+      notes: 'Booster pump short-cycling — needs diagnostic.',
       companyId: comp.id,
       contactId: martinez.id,
       siteId: martinezWarehouse.id,
@@ -236,8 +236,8 @@ async function main() {
     // Create demo jobs linked to equipment
     const [job1] = await db.insert(job).values({
       number: 'JOB-00001',
-      title: 'Annual AC Tune-Up',
-      description: 'Spring maintenance on Carrier central AC. Check refrigerant levels, clean coils, inspect electrical connections.',
+      title: 'Spring Cleanup & Bed Refresh',
+      description: 'Spring cleanup: debris removal, bed edging, mulch top-up, and first mow of the season.',
       status: 'completed',
       priority: 'normal',
       jobType: 'maintenance',
@@ -256,8 +256,8 @@ async function main() {
 
     await db.insert(job).values({
       number: 'JOB-00002',
-      title: 'Heat Pump Diagnostic — Compressor Noise',
-      description: 'Customer reports loud rattling from outdoor unit. Inspect compressor, check mounting bolts, test capacitor and contactors.',
+      title: 'Irrigation Pump Diagnostic — Short Cycling',
+      description: 'Booster pump short-cycling at the warehouse beds. Inspect pump, check pressure switch, test zone valves.',
       status: 'scheduled',
       priority: 'high',
       jobType: 'repair',
@@ -275,8 +275,8 @@ async function main() {
 
     await db.insert(job).values({
       number: 'JOB-00003',
-      title: 'Tankless Water Heater Descaling',
-      description: 'Annual flush and descale of Rinnai tankless unit. Check for error codes, inspect venting.',
+      title: 'Backflow Test & Irrigation Startup',
+      description: 'Annual city-required backflow test, then spring irrigation startup: charge zones, check heads, set controller schedule.',
       status: 'scheduled',
       priority: 'normal',
       jobType: 'maintenance',
@@ -300,39 +300,39 @@ async function main() {
       // Draft quote for Johnson — capacitor replacement
       await db.insert(quote).values({
         number: 'QTE-00001',
-        name: 'AC Capacitor Replacement',
+        name: 'Sprinkler Zone Valve Replacement',
         status: 'draft',
         subtotal: '340.00',
         taxRate: '0',
         taxAmount: '0',
         discount: '0',
         total: '340.00',
-        customerMessage: 'Your AC unit is running but the start capacitor is showing signs of wear. Replacing it now will prevent a breakdown during peak summer.',
-        notes: 'Johnson called about AC making clicking noise on startup.',
+        customerMessage: 'Zone 3 of your sprinkler system is sticking open, which is why that bed stays soggy. Replacing the valve now prevents water waste and plant loss.',
+        notes: 'Johnson called about zone 3 staying wet after watering.',
         expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         companyId: comp.id,
         contactId: johnson.id,
         equipmentId: eq1.id,
       }).returning().then(async ([q]) => {
         await db.insert(quoteLineItem).values([
-          { description: 'Start/Run Capacitor (45/5 MFD)', quantity: '1', unitPrice: '85.00', total: '85.00', sortOrder: 0, quoteId: q.id },
+          { description: 'Zone Control Valve (1 in.)', quantity: '1', unitPrice: '85.00', total: '85.00', sortOrder: 0, quoteId: q.id },
           { description: 'Diagnostic Fee', quantity: '1', unitPrice: '95.00', total: '95.00', sortOrder: 1, quoteId: q.id },
-          { description: 'Labor — Capacitor Install', quantity: '1', unitPrice: '160.00', total: '160.00', sortOrder: 2, quoteId: q.id },
+          { description: 'Labor — Valve Replacement', quantity: '1', unitPrice: '160.00', total: '160.00', sortOrder: 2, quoteId: q.id },
         ])
       })
 
-      // Approved quote for Martinez — coil cleaning + refrigerant, already converted to job
+      // Approved quote for Martinez — bed renovation, already converted to job
       const [martinezQuote] = await db.insert(quote).values({
         number: 'QTE-00002',
-        name: 'Evaporator Coil Cleaning & Refrigerant Recharge',
+        name: 'Warehouse Bed Renovation & Mulch',
         status: 'approved',
         subtotal: '1240.00',
         taxRate: '0',
         taxAmount: '0',
         discount: '0',
         total: '1240.00',
-        customerMessage: 'The evaporator coil on the warehouse heat pump is heavily soiled and refrigerant is 1.5 lbs low. Cleaning and recharging will restore cooling capacity.',
-        notes: 'Martinez warehouse unit — low performance complaint.',
+        customerMessage: 'The beds at the warehouse entrance are overgrown and the mulch is depleted. A full cleanout, fresh plantings, and new mulch will restore the curb appeal.',
+        notes: 'Martinez warehouse frontage — overgrown beds complaint.',
         expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         sentAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
         approvedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
@@ -343,16 +343,16 @@ async function main() {
       }).returning()
 
       await db.insert(quoteLineItem).values([
-        { description: 'Evaporator Coil Chemical Cleaning', quantity: '1', unitPrice: '450.00', total: '450.00', sortOrder: 0, quoteId: martinezQuote.id },
-        { description: 'R-410A Refrigerant (1.5 lbs)', quantity: '1.5', unitPrice: '120.00', total: '180.00', sortOrder: 1, quoteId: martinezQuote.id },
-        { description: 'System Flush & Vacuum', quantity: '1', unitPrice: '275.00', total: '275.00', sortOrder: 2, quoteId: martinezQuote.id },
-        { description: 'Labor — Diagnostic & Service (2 hrs)', quantity: '2', unitPrice: '167.50', total: '335.00', sortOrder: 3, quoteId: martinezQuote.id },
+        { description: 'Bed Cleanout & Edging', quantity: '1', unitPrice: '450.00', total: '450.00', sortOrder: 0, quoteId: martinezQuote.id },
+        { description: 'Hardwood Mulch (1.5 cu yd, installed)', quantity: '1.5', unitPrice: '120.00', total: '180.00', sortOrder: 1, quoteId: martinezQuote.id },
+        { description: 'Shrub & Perennial Planting', quantity: '1', unitPrice: '275.00', total: '275.00', sortOrder: 2, quoteId: martinezQuote.id },
+        { description: 'Labor — Crew (2 hrs)', quantity: '2', unitPrice: '167.50', total: '335.00', sortOrder: 3, quoteId: martinezQuote.id },
       ])
 
       // Create the converted job from this quote
       const [convertedJob] = await db.insert(job).values({
         number: 'JOB-00004',
-        title: 'Evaporator Coil Cleaning & Refrigerant Recharge',
+        title: 'Warehouse Bed Renovation & Mulch',
         description: 'Converted from Quote QTE-00002',
         status: 'scheduled',
         priority: 'normal',
@@ -383,8 +383,8 @@ async function main() {
     if (existingAgreements.length === 0) {
       // Create a plan first
       const [plan] = await db.insert(agreementPlan).values({
-        name: 'HVAC Maintenance Plan',
-        description: 'Quarterly HVAC tune-ups with priority scheduling and 10% discount on repairs.',
+        name: 'Seasonal Lawn Care Plan',
+        description: 'Four seasonal visits — spring cleanup, summer maintenance, fall cleanup, winterization — with priority scheduling and 10% off extras.',
         price: '299.00',
         billingFrequency: 'annual',
         visitsIncluded: 4,
@@ -402,14 +402,14 @@ async function main() {
 
       await db.insert(serviceAgreement).values({
         number: 'AGR-00001',
-        name: 'HVAC Maintenance Plan — Johnson',
+        name: 'Seasonal Lawn Care Plan — Johnson',
         status: 'active',
         startDate: new Date('2025-06-01'),
         endDate: new Date('2026-06-01'),
         billingFrequency: 'annual',
         amount: '299.00',
         renewalType: 'auto',
-        notes: 'Covers both AC and furnace. Quarterly visits.',
+        notes: 'Covers lawn, beds, and irrigation checks. Quarterly visits.',
         planId: plan.id,
         recurrenceRule: { frequency: 'quarterly' },
         nextServiceDate: ninetyDays,
@@ -431,15 +431,15 @@ async function main() {
           companyId: comp.id,
           jobId: job1.id,
           uploadedById: adminUser.id,
-          url: 'https://placehold.co/800x600/e2e8f0/475569?text=AC+Unit+Before',
-          caption: 'AC unit before service — dirty coils visible',
+          url: 'https://placehold.co/800x600/e2e8f0/475569?text=Front+Lawn+Before',
+          caption: 'Front lawn before spring cleanup — winter debris and matted beds',
         },
         {
           companyId: comp.id,
           jobId: job1.id,
           uploadedById: adminUser.id,
-          url: 'https://placehold.co/800x600/e2e8f0/475569?text=AC+Unit+After',
-          caption: 'AC unit after service — coils cleaned and refrigerant topped off',
+          url: 'https://placehold.co/800x600/e2e8f0/475569?text=Front+Lawn+After',
+          caption: 'Front lawn after cleanup — fresh mulch and crisp edges',
         },
       ])
       console.log('Created 2 demo photos on JOB-00001')
@@ -461,7 +461,7 @@ async function main() {
         {
           conversationId: convo.id,
           direction: 'outbound',
-          body: 'Hi Sarah, this is {{COMPANY_NAME}} confirming your AC tune-up tomorrow at 9:00 AM. Reply STOP to opt out.',
+          body: 'Hi Sarah, this is {{COMPANY_NAME}} confirming your spring cleanup tomorrow at 9:00 AM. Reply STOP to opt out.',
           status: 'delivered',
           sentById: adminUser.id,
         },
@@ -487,6 +487,7 @@ async function main() {
   const industry = '{{INDUSTRY}}'
 
   const SERVICE_CATEGORIES: Record<string, string[]> = {
+    'Landscaping': ['Maintenance', 'Design & Install', 'Irrigation', 'Hardscape', 'Snow'],
     'HVAC':       ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
     'Plumbing':   ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
     'Electrical': ['Install', 'Repair', 'Maintenance', 'Emergency', 'Inspection'],
@@ -495,6 +496,17 @@ async function main() {
 
   type PricebookSeed = { name: string; description?: string; price: string; type: string; category: string }
   const INDUSTRY_PRICEBOOK: Record<string, PricebookSeed[]> = {
+    'Landscaping': [
+      { name: 'Weekly Mowing Visit', price: '65.00', type: 'service', category: 'Maintenance' },
+      { name: 'Spring Cleanup', price: '350.00', type: 'service', category: 'Maintenance' },
+      { name: 'Fall Cleanup', price: '350.00', type: 'service', category: 'Maintenance' },
+      { name: 'Mulch Install (per cu yd)', price: '95.00', type: 'service', category: 'Design & Install' },
+      { name: 'Bed Edging & Refresh', price: '150.00', type: 'service', category: 'Design & Install' },
+      { name: 'Irrigation Spring Startup', price: '120.00', type: 'service', category: 'Irrigation' },
+      { name: 'Irrigation Winterization', price: '110.00', type: 'service', category: 'Irrigation' },
+      { name: 'Paver Patio', description: 'Design + install — priced per estimate', price: '0.00', type: 'service', category: 'Hardscape' },
+      { name: 'Seasonal Snow Plowing', description: 'Per-season contract — priced per estimate', price: '0.00', type: 'service', category: 'Snow' },
+    ],
     'HVAC': [
       { name: 'AC Tune-Up', price: '89.00', type: 'service', category: 'Maintenance' },
       { name: 'Furnace Tune-Up', price: '89.00', type: 'service', category: 'Maintenance' },
@@ -526,7 +538,9 @@ async function main() {
   // Seed service categories
   const existingCats = await db.select().from(pricebookCategory).where(eq(pricebookCategory.companyId, comp.id)).limit(1)
   if (existingCats.length === 0) {
-    const categories = SERVICE_CATEGORIES[industry] || DEFAULT_CATEGORIES
+    // This is the landscaping template — unmatched industry labels (Lawn Care,
+    // Tree Service, …) get the landscaping set, not the generic trade defaults.
+    const categories = SERVICE_CATEGORIES[industry] || SERVICE_CATEGORIES['Landscaping'] || DEFAULT_CATEGORIES
     const catMap: Record<string, string> = {}
     for (let i = 0; i < categories.length; i++) {
       const [cat] = await db.insert(pricebookCategory).values({
@@ -539,7 +553,7 @@ async function main() {
     console.log(`Seeded ${categories.length} service categories for ${industry}`)
 
     // Seed pricebook items linked to categories
-    const items = INDUSTRY_PRICEBOOK[industry]
+    const items = INDUSTRY_PRICEBOOK[industry] || INDUSTRY_PRICEBOOK['Landscaping']
     if (items) {
       for (const item of items) {
         await db.insert(pricebookItem).values({

@@ -344,19 +344,39 @@ const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
 }
 
 /**
+ * Pricing model v2 (2026-07) seat-tiered plans: every feature is included and
+ * free to toggle — EXCEPT paid Add-on Products (Exterior Visualizer, Instant
+ * Roof Estimator: off by default everywhere, sold separately) and features
+ * still flagged hidden. The unknown-plan fallback shares this filter: v2 plans
+ * used to miss the v1 tier map and fall into "give ALL features", which shipped
+ * every fleet-QA tenant with the paid add-ons switched on.
+ */
+function includedByDefault(template: string): string[] {
+  return getFeaturesForTemplate(template)
+    .filter(f => f.category !== 'Add-on Products' && !f.hidden)
+    .map(f => f.id)
+}
+
+const V2_PLANS = new Set(['website', 'starter10', 'team25', 'business50'])
+
+/**
  * Get all feature IDs a plan tier unlocks for a given template.
- * Each tier includes all lower-tier features (cumulative).
+ * Each v1 tier includes all lower-tier features (cumulative); v2 seat tiers
+ * all resolve to everything-except-paid-add-ons.
  */
 export function getFeaturesForPlan(template: string, plan: string): string[] {
+  if (V2_PLANS.has(plan)) return includedByDefault(template)
+
   const tiers = PLAN_FEATURES[template]
-  if (!tiers) return getFeaturesForTemplate(template).map(f => f.id)
+  if (!tiers) return includedByDefault(template)
 
   const tierOrder = Object.keys(tiers)
   const planIndex = tierOrder.indexOf(plan)
 
   if (planIndex === -1) {
-    // Unknown plan — give all features for the template
-    return getFeaturesForTemplate(template).map(f => f.id)
+    // Unknown plan — everything except paid add-ons / hidden. Never the raw
+    // full list: a plan-name typo must not silently enable paid add-ons.
+    return includedByDefault(template)
   }
 
   const features: string[] = []
