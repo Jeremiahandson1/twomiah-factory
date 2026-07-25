@@ -141,7 +141,7 @@ export async function notifyWelcome(
       ${kv('Company', tenant.name)}
       ${kv('Plan', planLabel)}
     </div>
-    <p style="color:#333;line-height:1.6;">As soon as your subscription is active, we&rsquo;ll build your system &mdash; this typically takes about <strong>10 minutes</strong> &mdash; and send a second email with your login URL and temporary password. Every plan is backed by our <strong>30-day money-back guarantee</strong>.</p>
+    <p style="color:#333;line-height:1.6;">As soon as your subscription is active, we&rsquo;ll build your system &mdash; this typically takes about <strong>10 minutes</strong> &mdash; and send a second email with your login URL and sign-in instructions. Every plan is backed by our <strong>30-day money-back guarantee</strong>.</p>
     <p style="color:#666;font-size:14px;">If you have questions in the meantime, just reply to this email.</p>`
 
   return sendEmail(
@@ -232,9 +232,11 @@ export async function notifyDeployComplete(
   if (websiteAdminUrl) urlLines.push(kv(isStore ? 'Storefront content editor' : 'Website admin', `<a href="${websiteAdminUrl}">${websiteAdminUrl}</a>`))
   if (urls.apiUrl && urls.apiUrl !== urls.deployedUrl) urlLines.push(kv('API', `<a href="${urls.apiUrl}">${urls.apiUrl}</a>`))
 
-  const passwordLine = tenant.admin_password
-    ? `<p style="color:#333;line-height:1.6;">Your temporary password is: <code style="background:#f3f4f6;padding:2px 8px;border-radius:4px;font-size:14px;">${tenant.admin_password}</code><br><span style="color:#666;font-size:13px;">Please change this after your first login.</span></p>`
-    : `<p style="color:#333;line-height:1.6;">Log in with the email and password you created during signup.</p>`
+  // NEVER put a password in email (plaintext at rest in the recipient's inbox,
+  // forwarded threads, compromised accounts). Signup collects the password; if
+  // one was generated instead, "Forgot password" on the login page sets it via
+  // a secure emailed link — both the CRM and the premium admin ship that flow.
+  const passwordLine = `<p style="color:#333;line-height:1.6;">Log in with the email and password you chose at signup.<br><span style="color:#666;font-size:13px;">Didn&rsquo;t set one, or forgot it? Click <strong>Forgot password</strong> on the login page and we&rsquo;ll email you a secure link to set it.</span></p>`
 
   const body = `
     <p style="color:#333;line-height:1.6;">Great news! Your <strong>Twomiah ${isStore ? 'store' : product + ' CRM'}</strong> for <strong>${tenant.name}</strong> is ready to use.</p>
