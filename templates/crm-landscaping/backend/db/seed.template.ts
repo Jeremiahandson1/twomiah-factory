@@ -54,10 +54,12 @@ async function main() {
     }
     await db.update(company).set({ settings: mergedSettings, updatedAt: new Date() }).where(eq(company.id, comp.id))
     console.log('Refreshed system settings (products/siteUrl/cmsUrl)')
-    if (enabledFeatures.length > 0) {
-      await db.update(company).set({ enabledFeatures, updatedAt: new Date() }).where(eq(company.id, comp.id))
-      console.log(`Updated enabledFeatures: ${enabledFeatures.length} features`)
-    }
+    // Do NOT re-apply the generation-time feature list to an existing company:
+    // the seed runs on EVERY boot (migrate && seed && start), so this clobbered
+    // any feature change made after deploy — admin toggles, add-on purchases,
+    // factory feature-sync — back to the baked list on every restart/redeploy.
+    // enabledFeatures is set once at company creation above; after that the
+    // factory sync owns it.
   }
 
   // Create admin user only if not already present — never overwrite existing password
