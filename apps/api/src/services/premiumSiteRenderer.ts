@@ -140,7 +140,7 @@ export async function renderPremiumPage(
   // build-time brand-color tokens the template source still carries.
   const brand = safeColor(settings.primaryColor, DEFAULT_BRAND)
   const accent = safeColor(settings.accentColor, DEFAULT_ACCENT)
-  let inlined = html.replace(/<link\s+rel=["']stylesheet["']\s+href=["']\/styles\/([^"']+)["']\s*\/?>/i, (_m, p) => {
+  let inlined = html.replace(/<link\s+rel=["']stylesheet["']\s+href=["']\/styles\/([^"'?]+)(?:\?[^"']*)?["']\s*\/?>/i, (_m, p) => {
     const cssPath = path.join(buildDir, 'styles', p)
     try {
       const css = fs.readFileSync(cssPath, 'utf8')
