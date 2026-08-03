@@ -40,6 +40,14 @@ const PLAN_PRICE_MAP: Record<string, { monthly: string; annual: string }> = {
   storm:        { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_STORM        || CONSTRUCTION_PRICE,   annual: (STRIPE_PRICES as any).STRIPE_PRICE_STORM_ANNUAL  || CONSTRUCTION_PRICE_A },
   agency:       { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_AGENCY       || CONSTRUCTION_PRICE,   annual: (STRIPE_PRICES as any).STRIPE_PRICE_AGENCY_ANNUAL || CONSTRUCTION_PRICE_A },
   enterprise:   { monthly: STRIPE_PRICES.STRIPE_PRICE_ENTERPRISE,   annual: STRIPE_PRICES.STRIPE_PRICE_ENTERPRISE_ANNUAL },
+  // ── Pricing model v2 (2026-07) — flat website + seat-tiered CRM. Keys minted
+  // by create-stripe-products.ts (STRIPE_PRICE_V2_*); read via `as any` so this
+  // compiles before the mint script has regenerated stripe-prices.ts. Annual
+  // isn't offered in v2 yet — the annual slot points at the monthly price.
+  website:      { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_V2_WEBSITE,    annual: (STRIPE_PRICES as any).STRIPE_PRICE_V2_WEBSITE },
+  starter10:    { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_V2_STARTER10,  annual: (STRIPE_PRICES as any).STRIPE_PRICE_V2_STARTER10 },
+  team25:       { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_V2_TEAM25,     annual: (STRIPE_PRICES as any).STRIPE_PRICE_V2_TEAM25 },
+  business50:   { monthly: (STRIPE_PRICES as any).STRIPE_PRICE_V2_BUSINESS50, annual: (STRIPE_PRICES as any).STRIPE_PRICE_V2_BUSINESS50 },
 }
 
 const LICENSE_PRICE_MAP: Record<string, string> = {
@@ -53,6 +61,11 @@ const LICENSE_PRICE_MAP: Record<string, string> = {
   storm:        (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_STORM  || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   agency:       (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_AGENCY || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
   full:         (STRIPE_PRICES as any).STRIPE_PRICE_LICENSE_FULL || STRIPE_PRICES.STRIPE_PRICE_LICENSE_CONSTRUCTION,
+  // Pricing model v2 own-it / self-host licenses (one-time = 36× monthly)
+  website:      (STRIPE_PRICES as any).STRIPE_PRICE_V2_LICENSE_WEBSITE,
+  starter10:    (STRIPE_PRICES as any).STRIPE_PRICE_V2_LICENSE_STARTER10,
+  team25:       (STRIPE_PRICES as any).STRIPE_PRICE_V2_LICENSE_TEAM25,
+  business50:   (STRIPE_PRICES as any).STRIPE_PRICE_V2_LICENSE_BUSINESS50,
 }
 
 const DEPLOY_PRICE_MAP: Record<string, string> = {
@@ -72,6 +85,13 @@ export function getLicensePriceId(planId: string): string | null {
 
 export function getDeployPriceId(serviceId: string): string | null {
   return DEPLOY_PRICE_MAP[serviceId] || null
+}
+
+// Pricing model v2 — the optional one-time "True Customization" ($499) charge.
+// Minted as STRIPE_PRICE_V2_TRUE_CUSTOMIZATION. Charge it as a one-time via
+// createCheckoutSessionForExistingCustomer({ mode: 'payment', priceId }).
+export function getV2CustomizationPriceId(): string | null {
+  return (STRIPE_PRICES as any).STRIPE_PRICE_V2_TRUE_CUSTOMIZATION || null
 }
 
 // ── Stripe customer helper ───────────────────────────────────────────────────
@@ -163,17 +183,13 @@ export async function createLicenseCheckout(
   return { sessionId: session.id, url: session.url, stripeCustomerId }
 }
 
-// ── Premium-website checkout (subscription + one-time build fee) ────────────
+// ── Premium-website checkout (pricing model v2) ─────────────────────────────
 //
-// The standalone $75/mo + $1k one-time build product. One checkout session
-// combines:
-//   - subscription line item: STRIPE_PRICE_PREMIUM_WEBSITE_MONTHLY or _ANNUAL
-//   - add_invoice_items:      STRIPE_PRICE_PREMIUM_WEBSITE_BUILD (one-time
-//                              fee added to the first invoice)
-//   - discounts (optional):   STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH applied
-//                              automatically when the env var is set
-//                              (Stripe enforces the coupon's own valid_until
-//                              window — if it's expired, Stripe rejects it)
+// The standalone website at a flat $49/mo (STRIPE_PRICE_V2_WEBSITE), no
+// build fee. The optional $499 "True Customization" one-time
+// (STRIPE_PRICE_V2_TRUE_CUSTOMIZATION) is sold separately, never bundled
+// here. The old $75/mo + $1k-build prices (STRIPE_PRICE_PREMIUM_WEBSITE_*)
+// are retired but left minted in Stripe for existing subscriptions.
 //
 // Webhook auto-deploys via the existing checkout.session.completed →
 // triggerAutoDeploy path (routes/factory.ts:1777). The tenant's `products`
@@ -188,21 +204,13 @@ export async function createPremiumWebsiteCheckout(
   if (!stripe) throw new Error('Stripe not configured')
   const cycle: 'monthly' | 'annual' = options.billingCycle === 'annual' ? 'annual' : 'monthly'
 
-  const monthlyPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_PREMIUM_WEBSITE_MONTHLY as string | undefined
-  const annualPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_PREMIUM_WEBSITE_ANNUAL as string | undefined
-  const buildPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_PREMIUM_WEBSITE_BUILD as string | undefined
-  const launchCoupon = (STRIPE_PRICES as any).STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH as string | undefined
-
-  const recurringPriceId = cycle === 'annual' ? annualPriceId : monthlyPriceId
+  // Pricing model v2 (2026-07): the standalone website is a flat $49/mo with
+  // NO forced build fee — the optional $499 "true customization" is a separate
+  // one-time charge, not bundled here. (Old $75/mo + $1k build retired.) Annual
+  // isn't offered in v2 yet, so both cycles use the $49 monthly price.
+  const recurringPriceId = (STRIPE_PRICES as any).STRIPE_PRICE_V2_WEBSITE as string | undefined
   if (!recurringPriceId) {
-    throw new Error(
-      'Premium website price not minted in Stripe yet. Set STRIPE_PRICE_PREMIUM_WEBSITE_' +
-      (cycle === 'annual' ? 'ANNUAL' : 'MONTHLY') + ' (and STRIPE_PRICE_PREMIUM_WEBSITE_BUILD) in env, ' +
-      'then redeploy. See project_v1_deploy_config memory.'
-    )
-  }
-  if (!buildPriceId) {
-    throw new Error('Premium build fee price not set. Mint STRIPE_PRICE_PREMIUM_WEBSITE_BUILD on the Stripe dashboard.')
+    throw new Error('Website price not minted yet — run scripts/create-stripe-products.ts to mint STRIPE_PRICE_V2_WEBSITE.')
   }
 
   const stripeCustomerId = await ensureCustomer(factoryCustomer)
@@ -223,7 +231,6 @@ export async function createPremiumWebsiteCheckout(
     mode: 'subscription',
     line_items: [
       { price: recurringPriceId, quantity: 1 },
-      { price: buildPriceId, quantity: 1 },
     ],
     success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
     cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
@@ -240,13 +247,6 @@ export async function createPremiumWebsiteCheckout(
         product: 'website-premium',
       },
     },
-  }
-
-  // Launch coupon (e.g. $499 off the build fee). Stripe rejects expired
-  // coupons automatically — they expire on the coupon's own valid_until,
-  // not ours.
-  if (launchCoupon) {
-    sessionParams.discounts = [{ coupon: launchCoupon }]
   }
 
   const session = await stripe.checkout.sessions.create(sessionParams)
