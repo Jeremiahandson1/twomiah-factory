@@ -9,7 +9,7 @@ import { buildBrief, type Intake } from '../../services/briefBuilder'
 import { renderHomepagePreview } from '../../services/previewRenderer'
 import { cacheGet, cacheSet, acquireInflight, releaseInflight } from '../../lib/previewGuard'
 import { composeSite } from '../../services/sectionComposer'
-import { renderPremiumPage, pickPremiumTemplateDir } from '../../services/premiumSiteRenderer'
+import { renderPremiumPage, pickPremiumTemplateDir, safeColor } from '../../services/premiumSiteRenderer'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
@@ -1984,7 +1984,11 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
           city: intake.city || tenant.city || undefined,
           state: intake.state || tenant.state || undefined,
           stateFull: intake.stateFull || undefined,
-          industry: 'general_contractor',  // routes to website-premium-contractor; #26 generalizes
+          // Real vertical — premiumWebsiteTemplateFor resolves the SAME template
+          // the preview rendered with (pickPremiumTemplateDir uses the same
+          // resolver on the same value), so the deployed site matches the
+          // approved preview. Closes #26; was hardcoded 'general_contractor'.
+          industry: tenant.industry || 'general_contractor',
           ownerName: intake.ownerName || undefined,
           serviceRegion: intake.serviceRegion || undefined,
           nearbyCities: intake.nearbyCities || undefined,
@@ -1993,8 +1997,11 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
           plan: 'premium',
         },
         branding: {
-          primaryColor: intake.branding?.primaryColor || '#1a2e22',
-          secondaryColor: intake.branding?.secondaryColor || '#0f1f17',
+          // safeColor: the intake form has a free-text color field, and the
+          // generator bakes this string into CSS unvalidated — non-hex input
+          // must resolve to the same fallback the preview showed.
+          primaryColor: safeColor(intake.branding?.primaryColor, '#1a2e22'),
+          secondaryColor: safeColor(intake.branding?.secondaryColor, '#0f1f17'),
         },
         features: { website: [], crm: [] },
       }
