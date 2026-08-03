@@ -14,7 +14,6 @@ import CustomersPage from './pages/CustomersPage'
 import PaymentsPage from './pages/PaymentsPage'
 import DiscountsPage from './pages/DiscountsPage'
 import SettingsPage from './pages/SettingsPage'
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { isAuthenticated, loading } = useAuth()
@@ -56,10 +55,6 @@ export default function App() {
               <Route path="payments" element={<PaymentsPage />} />
               <Route path="discounts" element={<DiscountsPage />} />
               <Route path="settings" element={<SettingsPage />} />
-              <Route path="settings/email" element={<EmailAliasesPage />} />
-              <Route path="settings/email-domain" element={<EmailDomainPage />} />
-              <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
-              <Route path="email" element={<InboundMessagesPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
