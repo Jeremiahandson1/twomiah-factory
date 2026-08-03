@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'rea
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ToastProvider } from './contexts/ToastContext'
 import AppLayout from './components/layout/AppLayout'
+import OnboardingWizard from './pages/OnboardingWizard'
+import type { ReactNode } from 'react'
 import PaywallPage from './pages/PaywallPage'
 import { isTrialExpired, isTrialBypassPath } from './components/auth/trialStatus'
 // Import all pages
@@ -51,6 +53,17 @@ import PortalJobDetail from './pages/portal/PortalJobDetail'
 import PortalInvoices from './pages/portal/PortalInvoices'
 import PortalServiceRequest from './pages/portal/PortalServiceRequest'
 
+/** Sends fresh tenants to the onboarding wizard until it's completed.
+ *  Gate reads company.onboardingCompletedAt (set by POST /api/onboarding/complete);
+ *  /api/auth/me returns the full company row, so a page load refreshes it. */
+function OnboardingGate({ children }: { children: ReactNode }) {
+  const { company } = useAuth()
+  if (company && !(company as any).onboardingCompletedAt) {
+    return <Navigate to="/crm/onboarding" replace />
+  }
+  return <>{children}</>
+}
+
 function ProtectedRoute() {
   const { token, company } = useAuth()
   const location = useLocation()
@@ -87,9 +100,13 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/canvass" element={<CanvassingView />} />
             </Route>
+            {/* Onboarding wizard — shown before the CRM until completed */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/crm/onboarding" element={<OnboardingWizard />} />
+            </Route>
             {/* CRM */}
             <Route element={<ProtectedRoute />}>
-              <Route path="/crm" element={<AppLayout />}>
+              <Route path="/crm" element={<OnboardingGate><AppLayout /></OnboardingGate>}>
                 <Route index element={<PipelineBoard />} />
                 <Route path="pipeline" element={<PipelineBoard />} />
                 <Route path="jobs" element={<JobsPage />} />
