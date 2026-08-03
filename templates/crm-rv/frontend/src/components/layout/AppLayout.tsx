@@ -8,7 +8,7 @@ import {
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy,
   Inbox, ExternalLink, Bot, Calculator, FileBarChart, Caravan, GitBranch, BellRing, Send
-} from 'lucide-react';
+, Mail } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -74,6 +74,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/marketing', icon: Send, label: 'Follow-Up', features: ['follow_up_sequences'], section: 'Customers & Marketing' },
   { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'], section: 'Customers & Marketing' },
   { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'], section: 'Customers & Marketing' },
+  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/messages', icon: MessageSquare, label: 'Messages', features: ['two_way_texting'], section: 'Customers & Marketing' },
 
   // Leads

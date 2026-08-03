@@ -10,6 +10,7 @@ export const FEATURE_CATEGORIES = [
     features: [
       { id: 'google_reviews', name: 'Google Reviews Automation', description: 'Automatically request and manage Google reviews from customers' },
       { id: 'email_marketing', name: 'Email Marketing Campaigns', description: 'Create and send targeted email campaigns to leads and customers' },
+      { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox' },
       { id: 'referral_program', name: 'Referral Program', description: 'Track and reward customer referrals with automated workflows' },
       { id: 'paid_ads', name: 'Paid Ads', description: 'Run and track paid advertising campaigns' },
       { id: 'website_builder', name: 'Website Builder', description: 'Build and host a professional website for your business' },

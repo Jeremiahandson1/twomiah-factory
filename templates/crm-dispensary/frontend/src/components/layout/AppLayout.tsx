@@ -11,7 +11,7 @@ import {
   FileSearch, TrendingUp, Tv, Car, Scale, Receipt,
   Puzzle, Activity, Server, Calendar, GraduationCap, AlertTriangle,
   CheckSquare, WifiOff, ClipboardList, ShoppingBag as PurchaseIcon, RefreshCw
-} from 'lucide-react';
+, Mail } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
@@ -90,6 +90,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/eod', icon: ClipboardList, label: 'EOD Report' },
   { to: '/crm/purchase-orders', icon: PurchaseIcon, label: 'Purchase Orders', features: ['purchase_orders'] },
   { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] },
+  { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
 ];
 
 export default function AppLayout() {

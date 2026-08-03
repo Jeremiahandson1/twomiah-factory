@@ -56,6 +56,7 @@ export const FEATURE_CATEGORIES = [
     description: 'Back-office and accounting connections',
     features: [
       { id: 'two_way_texting', name: 'Two-Way Texting', description: 'Text customers from the CRM and see replies in one thread' },
+      { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox' },
       { id: 'quickbooks_sync', name: 'QuickBooks Sync', description: 'Sync invoices and payments to QuickBooks' },
     ],
   },

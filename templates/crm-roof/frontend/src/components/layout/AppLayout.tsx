@@ -28,6 +28,7 @@ import {
   Star,
   CreditCard,
   Radio,
+  Mail,
 } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
@@ -59,6 +60,7 @@ const fieldNavItems = [
 ]
 
 const bottomNavItems = [
+  { label: 'Email', icon: Mail, to: '/crm/email', feature: 'branded_email' },
   { label: 'Import', icon: Upload, to: '/crm/import' },
   { label: 'Reports', icon: BarChart3, to: '/crm/reports' },
   { label: 'Settings', icon: Settings, to: '/crm/settings' },

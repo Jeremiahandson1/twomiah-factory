@@ -62,6 +62,7 @@ import AuthorizationsManagement from './admin/AuthorizationsManagement';
 import EVVDashboard from './admin/EVVDashboard';
 import LeadInboxPage from '../pages/leads/LeadInboxPage';
 import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from '../shared';
 
 const NAV_SECTIONS = [
   {
@@ -137,6 +138,9 @@ const NAV_SECTIONS = [
       { id: 'messages', label: 'Messages', icon: '💬' },
       { id: 'integrations', label: 'Integrations Hub', icon: '🔌' },
       { id: 'features', label: 'Features', icon: '🧩' },
+      { id: 'branded-email', label: 'Branded Email', icon: '📧' },
+      { id: 'email-domain', label: 'Email Domain', icon: '🌐' },
+      { id: 'email-inbox', label: 'Email Inbox', icon: '📨' },
       { id: 'notifications', label: 'Notifications', icon: '📬' },
       { id: 'ai-receptionist', label: 'AI Receptionist', icon: '🤖' },
     ]
@@ -291,6 +295,9 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'messages': return <MessageBoard />;
       case 'integrations': return <IntegrationsHub />;
       case 'features': return <FeaturesPage />;
+      case 'branded-email': return <EmailAliasesPage />;
+      case 'email-domain': return <EmailDomainPage />;
+      case 'email-inbox': return <InboundMessagesPage />;
       case 'compliance': return <ComplianceTracking />;
       case 'reports': return <ReportsAnalytics />;
       case 'payroll': return <PayrollProcessing />;

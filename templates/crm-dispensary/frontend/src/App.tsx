@@ -86,6 +86,7 @@ import MenuSyncPage from './pages/MenuSyncPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared';
 
 // Settings sub-pages
 import BillingSettingsPage from './pages/settings/BillingSettingsPage';
@@ -148,6 +149,10 @@ function App() {
                     <Route path="team" element={<TeamPage />} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
+                    <Route path="settings/email" element={<EmailAliasesPage />} />
+                    <Route path="settings/email-domain" element={<EmailDomainPage />} />
+                    <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
+                    <Route path="email" element={<InboundMessagesPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
 
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />

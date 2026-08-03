@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, SlidersHorizontal } from 'lucide-react';
+import { Settings, Building2, Palette, Users, Plus, Send, X, Save, Calculator, ChevronRight, Zap, MessageSquare, Link2, Unlink, RefreshCw, CloudLightning, SlidersHorizontal, AtSign, Globe, Inbox } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../data/features';
@@ -332,6 +332,63 @@ export default function SettingsPage() {
               <div>
                 <h2 className="text-sm font-semibold text-gray-900">Instant Estimator Widget</h2>
                 <p className="text-xs text-gray-500">Embed a roof cost estimator on your website</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+
+        {/* Branded Email */}
+        <div
+          onClick={() => navigate('/crm/settings/email')}
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-blue-300 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                <AtSign className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Branded Email</h2>
+                <p className="text-xs text-gray-500">Set up email addresses at your own domain</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+
+        {/* Email Domain */}
+        <div
+          onClick={() => navigate('/crm/settings/email-domain')}
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-sky-300 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center">
+                <Globe className="w-5 h-5 text-sky-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Email Domain</h2>
+                <p className="text-xs text-gray-500">Connect and verify your email domain</p>
+              </div>
+            </div>
+            <ChevronRight className="w-5 h-5 text-gray-400" />
+          </div>
+        </div>
+
+        {/* Email Inbox */}
+        <div
+          onClick={() => navigate('/crm/settings/email-inbox')}
+          className="bg-white rounded-xl shadow-sm border p-6 hover:border-indigo-300 cursor-pointer transition-colors"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <Inbox className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">Email Inbox</h2>
+                <p className="text-xs text-gray-500">View messages received at your branded addresses</p>
               </div>
             </div>
             <ChevronRight className="w-5 h-5 text-gray-400" />

@@ -8,8 +8,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import { EmailAliasesStep } from '../shared';
 
-const STEPS = ['Verify Info', 'Integrations', 'Need Help?', 'All Set!'];
+const STEPS = ['Verify Info', 'Integrations', 'Branded Email', 'Need Help?', 'All Set!'];
 
 /* ─── Integration definitions ──────────────────────────────────────────────── */
 interface Integration {
@@ -313,8 +314,9 @@ export default function OnboardingWizard() {
               onSkip={skipIntegration}
             />
           )}
-          {currentStep === 2 && <StepSetupHelp choice={setupChoice} onChoose={setSetupChoice} />}
-          {currentStep === 3 && (
+          {currentStep === 2 && <EmailAliasesStep productId="crm-fieldservice" onBack={handleBack} onNext={handleNext} />}
+          {currentStep === 3 && <StepSetupHelp choice={setupChoice} onChoose={setSetupChoice} />}
+          {currentStep === 4 && (
             <StepReady
               profile={profile}
               completedIntegrations={completedIntegrations}
@@ -325,7 +327,8 @@ export default function OnboardingWizard() {
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation — hidden on the Branded Email step, which ships its own Back/Save controls */}
+      {currentStep !== 2 && (
       <div className="border-t dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4">
         <div className="max-w-2xl mx-auto flex justify-between">
           {currentStep > 0 ? (
@@ -364,6 +367,7 @@ export default function OnboardingWizard() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

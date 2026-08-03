@@ -4,7 +4,7 @@ import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import type { Company } from '../types';
-import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, Calculator, ToggleLeft } from 'lucide-react';
+import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, Calculator, ToggleLeft, AtSign, Globe, Inbox } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 interface CompanyForm {
@@ -96,6 +96,15 @@ export default function SettingsPage() {
             </button>
             <button onClick={() => navigate('/crm/settings/billing')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <CreditCard className="w-5 h-5" />Billing
+            </button>
+            <button onClick={() => navigate('/crm/settings/email')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <AtSign className="w-5 h-5" />Branded Email
+            </button>
+            <button onClick={() => navigate('/crm/settings/email-domain')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <Globe className="w-5 h-5" />Email Domain
+            </button>
+            <button onClick={() => navigate('/crm/settings/email-inbox')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <Inbox className="w-5 h-5" />Email Inbox
             </button>
             <button onClick={() => navigate('/crm/settings/integrations')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <Plug className="w-5 h-5" />Integrations

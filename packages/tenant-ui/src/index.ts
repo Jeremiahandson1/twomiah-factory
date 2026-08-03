@@ -4,6 +4,7 @@
 // Public surface is declared here so missing files break the vendoring step loudly.
 
 export { OnboardingWizard } from './onboarding/OnboardingWizard'
+export { EmailAliasesStep } from './onboarding/steps/EmailAliasesStep'
 export { EmailAliasesPage } from './settings/EmailAliasesPage'
 export { EmailDomainPage } from './settings/EmailDomainPage'
 export { AccountOffboardPage } from './settings/AccountOffboardPage'

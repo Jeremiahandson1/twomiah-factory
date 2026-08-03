@@ -87,6 +87,7 @@ import InvoiceDetailPage from './components/detail/InvoiceDetailPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared';
 
 // Portal
 import { PortalProvider } from './contexts/PortalContext';
@@ -182,6 +183,10 @@ function App() {
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
+                    <Route path="settings/email" element={<EmailAliasesPage />} />
+                    <Route path="settings/email-domain" element={<EmailDomainPage />} />
+                    <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
+                    <Route path="email" element={<InboundMessagesPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
