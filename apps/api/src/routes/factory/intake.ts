@@ -1207,6 +1207,10 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     seoDescription: intake.description,
     nav: buildPremiumNav(composedPageSlugs, layoutMode),
     layoutMode,
+    // Brand color the deployed build will use (checkout-premium reads the
+    // same intake field). Accent is NOT passed: checkout doesn't forward it
+    // either, so the preview must show the generator's default accent.
+    primaryColor: intake.branding?.primaryColor,
   }
 
   const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
@@ -1429,6 +1433,9 @@ async function renderPremiumPreviewPageStaff(id: string, slug: string, c: any) {
     seoTitle: tenant.name,
     seoDescription: intake.description,
     nav: buildPremiumNav(composedPageSlugs),
+    // Same brand-color resolution as the public preview — staff must review
+    // what the prospect (and the deployed build) will actually see.
+    primaryColor: intake.branding?.primaryColor,
   }
 
   // basePath is the STAFF route stem with the token preserved, so nav

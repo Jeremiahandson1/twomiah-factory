@@ -43,6 +43,28 @@ export interface PreviewSettings {
   seoDescription?: string
   contactCtaLabel?: string
   nav?: Array<{ label: string; href: string }>
+  primaryColor?: string
+  accentColor?: string
+}
+
+// The template CSS ships literal {{PRIMARY_COLOR}}/{{ACCENT_COLOR}} tokens
+// that generate() substitutes at build time. The preview inlines that CSS
+// straight from the template source, so the tokens must be substituted here
+// too. Fallbacks must stay in sync with what the deployed build gets:
+// checkout-premium's branding fallback (intake.ts) and buildTokenMap's
+// accent fallback (generator.ts) — preview and deployed site must agree.
+const DEFAULT_BRAND = '#1a2e22'
+const DEFAULT_ACCENT = '#f59e0b'
+
+// Intake branding values arrive from a public POST — only a hex color may
+// enter the inlined <style> block. Exported so checkout-premium applies the
+// SAME validation to the deployed build's branding: preview and deploy must
+// resolve any non-hex input (the intake form has a free-text color field)
+// to the same fallback, never to different colors.
+const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+export function safeColor(value: string | undefined, fallback: string): string {
+  const v = (value || '').trim()
+  return HEX_COLOR_RE.test(v) ? v : fallback
 }
 
 export interface PageInput {
@@ -114,10 +136,18 @@ export async function renderPremiumPage(
   const body = await ejs.renderFile(path.join(viewsDir, 'home.ejs'), { homepage, settings: effectiveSettings }) as string
   const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body, settings: effectiveSettings, currentPath }) as string
 
-  // Inline /styles/main.css so the preview is self-contained.
+  // Inline /styles/main.css so the preview is self-contained, resolving the
+  // build-time brand-color tokens the template source still carries.
+  const brand = safeColor(settings.primaryColor, DEFAULT_BRAND)
+  const accent = safeColor(settings.accentColor, DEFAULT_ACCENT)
   let inlined = html.replace(/<link\s+rel=["']stylesheet["']\s+href=["']\/styles\/([^"']+)["']\s*\/?>/i, (_m, p) => {
     const cssPath = path.join(buildDir, 'styles', p)
-    try { return '<style>\n' + fs.readFileSync(cssPath, 'utf8') + '\n</style>' }
+    try {
+      const css = fs.readFileSync(cssPath, 'utf8')
+        .replace(/\{\{PRIMARY_COLOR\}\}/g, brand)
+        .replace(/\{\{ACCENT_COLOR\}\}/g, accent)
+      return '<style>\n' + css + '\n</style>'
+    }
     catch { return _m }
   })
 
