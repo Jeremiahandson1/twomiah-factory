@@ -16,7 +16,7 @@ interface Company {
 }
 
 function getToken(): string {
-  try { return localStorage.getItem('token') || '' } catch { return '' }
+  try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' }
 }
 function authHeaders(): Record<string, string> {
   return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() }

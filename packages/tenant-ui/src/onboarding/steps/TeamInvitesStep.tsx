@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 // /api/team/invite which exists in every CRM template. Skip is always
 // available; team can be added anytime from Settings.
 
-function getToken(): string { try { return localStorage.getItem('token') || '' } catch { return '' } }
+function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
 function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } }
 
 interface Invite { email: string; role: string }

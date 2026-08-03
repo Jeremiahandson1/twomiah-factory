@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { AtSign, Globe, Inbox } from 'lucide-react'
 import api, { StoreSettings } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { centsToDollars, dollarsToCents } from '../lib/format'
 
 export default function SettingsPage() {
+  const navigate = useNavigate()
   const { toast } = useToast()
   const [settings, setSettings] = useState<StoreSettings | null>(null)
   const [form, setForm] = useState<any>({})
@@ -136,6 +139,15 @@ export default function SettingsPage() {
           </div>
         ))}
         <button onClick={save} className="btn-primary mt-2" disabled={saving}>{saving ? 'Saving…' : 'Save settings'}</button>
+      </div>
+
+      <div className="card p-5 space-y-3">
+        <h2 className="font-semibold text-gray-900">Email</h2>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => navigate('/settings/email')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><AtSign className="h-4 w-4" /> Branded Email</button>
+          <button onClick={() => navigate('/settings/email-domain')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><Globe className="h-4 w-4" /> Email Domain</button>
+          <button onClick={() => navigate('/settings/email-inbox')} className="btn-secondary text-sm inline-flex items-center gap-1.5"><Inbox className="h-4 w-4" /> Email Inbox</button>
+        </div>
       </div>
 
       <div className="card p-5 space-y-4">

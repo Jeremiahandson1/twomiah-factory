@@ -153,6 +153,7 @@ export const storeSettings = pgTable('store_settings', {
   shippingZones: jsonb('shipping_zones').$type<ShippingZone[]>(),
   taxRates: jsonb('tax_rates').$type<TaxRate[]>(),
   storefrontOrigin: text('storefront_origin'), // allowlisted origin for public API/CORS
+  onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }), // set once by POST /api/onboarding/complete
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
@@ -209,3 +210,17 @@ export const discountCodes = pgTable('discount_codes', {
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('discount_codes_code_unique').on(t.code)])
+
+// ── Branded email aliases (support@, orders@ on the tenant domain) ──
+// Field names must match packages/tenant-backend createEmailAliasesRoutes
+// (localPart/routingMode/forwardTo/enabled). Every write syncs to the factory,
+// which mirrors the alias into Cloudflare Email Routing.
+export const emailAlias = pgTable('email_alias', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  localPart: text('local_part').notNull(),                        // "support"
+  routingMode: text('routing_mode').notNull().default('forward'), // 'forward' | 'crm'
+  forwardTo: text('forward_to'),                                  // set when routing_mode='forward'
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('email_alias_local_part_idx').on(t.localPart)])

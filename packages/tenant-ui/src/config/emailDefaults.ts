@@ -8,6 +8,7 @@ export const EMAIL_ALIAS_DEFAULTS: Record<string, string[]> = {
   'crm-homecare':     ['support', 'admin', 'care'],
   'crm-fieldservice': ['support', 'admin', 'dispatch'],
   'crm-dispensary':   ['support', 'admin'],
+  'crm-store':        ['support', 'orders'],
 }
 
 export function getAliasDefaultsForProduct(product: string): string[] {

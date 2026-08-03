@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 // root router stops redirecting here. Calls /api/company/complete-onboarding
 // (added as a tiny endpoint alongside the existing company route).
 
-function getToken(): string { try { return localStorage.getItem('token') || '' } catch { return '' } }
+function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
 function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } }
 
 export function DoneStep({ onComplete }: { onComplete: () => void }): React.ReactElement {

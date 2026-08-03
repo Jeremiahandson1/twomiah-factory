@@ -5,7 +5,7 @@ import React, { useState } from 'react'
 // UI here — just a pass-through upload; Settings → Import has the full
 // mapping experience if they need it.
 
-function getToken(): string { try { return localStorage.getItem('token') || '' } catch { return '' } }
+function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
 
 export function ImportContactsStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }): React.ReactElement {
   const [file, setFile] = useState<File | null>(null)

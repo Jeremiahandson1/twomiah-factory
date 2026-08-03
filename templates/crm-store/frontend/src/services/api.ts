@@ -157,6 +157,7 @@ class ApiClient {
   // ── Settings ──
   async getSettings() { return (await this.request<{ settings: StoreSettings | null }>('/api/admin/settings')).settings }
   async updateSettings(body: Partial<StoreSettings>) { return (await this.request<{ settings: StoreSettings }>('/api/admin/settings', { method: 'PATCH', body: JSON.stringify(body) })).settings }
+  async completeOnboarding() { return this.request<{ success: boolean }>('/api/onboarding/complete', { method: 'POST' }) }
 
   // ── Payments ──
   async getPaymentStatus() { return this.request<PaymentStatus>('/api/admin/payments') }

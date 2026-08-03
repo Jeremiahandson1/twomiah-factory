@@ -11,7 +11,7 @@ interface Props {
   onNext: () => void
 }
 
-function getToken(): string { try { return localStorage.getItem('token') || '' } catch { return '' } }
+function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
 function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } }
 
 export function EmailAliasesStep({ productId, onBack, onNext }: Props): React.ReactElement {

@@ -14,11 +14,30 @@ import CustomersPage from './pages/CustomersPage'
 import PaymentsPage from './pages/PaymentsPage'
 import DiscountsPage from './pages/DiscountsPage'
 import SettingsPage from './pages/SettingsPage'
+import OnboardingWizard from './pages/OnboardingWizard'
+import { useEffect, useState } from 'react'
+import api from './services/api'
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { isAuthenticated, loading } = useAuth()
   if (loading) return <FullScreenSpinner />
   return isAuthenticated ? children : <Navigate to="/login" replace />
+}
+
+/** Sends fresh stores to the onboarding wizard until it's completed.
+ *  Reads store_settings.onboarding_completed_at via /api/admin/settings;
+ *  the wizard's completion reloads the page so this re-fetches. */
+function OnboardingGate({ children }: { children: JSX.Element }) {
+  const [state, setState] = useState<'loading' | 'go' | 'onboard'>('loading')
+  useEffect(() => {
+    api.getSettings()
+      .then(s => setState((s as any)?.onboardingCompletedAt ? 'go' : 'onboard'))
+      .catch(() => setState('go')) // settings unreadable — never lock the owner out
+  }, [])
+  if (state === 'loading') return <FullScreenSpinner />
+  if (state === 'onboard') return <Navigate to="/onboarding" replace />
+  return children
 }
 
 function PublicOnly({ children }: { children: JSX.Element }) {
@@ -44,7 +63,8 @@ export default function App() {
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/" element={<Protected><AppLayout /></Protected>}>
+            <Route path="/onboarding" element={<Protected><OnboardingWizard /></Protected>} />
+            <Route path="/" element={<Protected><OnboardingGate><AppLayout /></OnboardingGate></Protected>}>
               <Route index element={<DashboardPage />} />
               <Route path="products" element={<ProductsPage />} />
               <Route path="products/new" element={<ProductEditPage />} />
@@ -55,6 +75,10 @@ export default function App() {
               <Route path="payments" element={<PaymentsPage />} />
               <Route path="discounts" element={<DiscountsPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="settings/email" element={<EmailAliasesPage />} />
+              <Route path="settings/email-domain" element={<EmailDomainPage />} />
+              <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
+              <Route path="email" element={<InboundMessagesPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
