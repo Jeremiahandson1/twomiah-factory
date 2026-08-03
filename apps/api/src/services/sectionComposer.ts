@@ -1778,7 +1778,7 @@ from a generic service business:
 ` : ''}
 
 # Your job
-Compose ${ft ? 'SIX' : 'FOUR'} pages: ${Object.keys(recipes).join(', ')}. Each page is its own ordered list of sections.
+Compose ${Object.keys(recipes).length} pages: ${Object.keys(recipes).join(', ')}. Each page is its own ordered list of sections.
 
 # Available section types and variants
 
@@ -1791,7 +1791,7 @@ ${recipesSummary}
 # Hard rules
 1. Use only the section types listed in each page's allowed_types.
 2. Write copy that reflects THIS specific business — pull details from the description, services, goals. No generic boilerplate.
-3. The four pages should feel like one coherent site — same voice, same level of formality, narrative continuity from home → about → services → contact.
+3. The pages should feel like one coherent site — same voice, same level of formality, narrative continuity across every page.
 4. For photos, use https://images.unsplash.com/photo-<id>?w=1400&q=80 URLs. Choose ones that match the business type. If unsure, use https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1400&q=80.
 5. about/story portrait should be a person headshot, not a building or job site.
 6. team/grid members should reflect the actual scale of the business — for a 6-active-project firm, 4-6 members; for a solo operator, 1.
