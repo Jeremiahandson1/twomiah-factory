@@ -1238,6 +1238,51 @@ factory.get('/public/intake/:id/preview-premium/:slug', async (c) => {
   return renderPremiumPreviewPage(id, slug, c)
 })
 
+// Post-payment landing for the public self-serve flow. Stripe redirects here
+// on success — the prospect has no platform login, so this must be a public,
+// self-contained page. The deploy itself is driven by the checkout webhook;
+// this page only sets expectations (emails, ~10-15 min build).
+factory.get('/public/intake/:id/checkout-complete', async (c) => {
+  const id = c.req.param('id')
+  if (!UUID_RE.test(id)) return c.text('Invalid link', 400)
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('name, email')
+    .eq('id', id)
+    .maybeSingle()
+  if (!tenant) return c.text('Not found', 404)
+  const esc = (s: string) => String(s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] as string))
+  const name = esc(tenant.name || 'your business')
+  const email = esc(tenant.email || 'your email')
+  return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Payment received — Twomiah</title>
+<style>
+  body{margin:0;font-family:'Inter',system-ui,-apple-system,sans-serif;background:#f7f6f2;color:#0f172a;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+  .card{background:#fff;border-radius:16px;box-shadow:0 10px 40px rgba(0,0,0,.08);max-width:520px;width:100%;padding:40px;text-align:center}
+  .badge{width:56px;height:56px;border-radius:999px;background:#1a2e22;color:#c89a4e;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 20px}
+  h1{font-size:24px;margin:0 0 8px;color:#1a2e22}
+  p{color:#475569;line-height:1.6;margin:0 0 12px;font-size:15px}
+  ol{text-align:left;color:#475569;font-size:14px;line-height:1.7;margin:20px 0;padding-left:22px}
+  .email{font-weight:600;color:#1a2e22}
+  .note{font-size:13px;color:#94a3b8;margin-top:20px}
+  a{color:#1a2e22;font-weight:600}
+</style></head><body>
+<div class="card">
+  <div class="badge">&#10003;</div>
+  <h1>Payment received — we're building your site</h1>
+  <p>The site you approved for <strong>${name}</strong> is deploying now. You can close this page.</p>
+  <ol>
+    <li>A payment receipt from Stripe is on its way to <span class="email">${email}</span>.</li>
+    <li>We'll email you when the site is live — typically <strong>10&ndash;15 minutes</strong>.</li>
+    <li>That email includes your admin sign-in link for editing pages, photos, and posts.</li>
+  </ol>
+  <p class="note">Questions? <a href="mailto:support@twomiah.com">support@twomiah.com</a></p>
+</div>
+</body></html>`)
+})
+
 // Staff approval — flips the gate so the public preview link renders.
 // Optionally PATCHes the composition first (staff can fix wording, swap
 // section variants, etc. before approving). Sends the prospect the
@@ -2035,6 +2080,11 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
       }
     }
 
+    // Public base for the post-payment redirect targets. TWOMIAH_FACTORY_URL
+    // is authoritative (same var the preview-ready email uses); the request
+    // origin is the fallback so local/dev still round-trips.
+    const publicBase = (process.env.TWOMIAH_FACTORY_URL || new URL(c.req.url).origin).replace(/\/+$/, '')
+
     const checkout = await factoryStripe.createPremiumWebsiteCheckout(
       {
         id: tenant.id,
@@ -2043,7 +2093,15 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
         phone: tenant.phone || undefined,
         stripeCustomerId: tenant.stripe_customer_id || undefined,
       },
-      { billingCycle, intakeId: id }
+      {
+        billingCycle,
+        intakeId: id,
+        // Public prospect: success lands on the public "your site is building"
+        // page, cancel returns to the preview (buy button still there). The
+        // platform-default URLs require a staff login prospects don't have.
+        successUrl: `${publicBase}/api/v1/factory/public/intake/${id}/checkout-complete`,
+        cancelUrl: `${publicBase}/api/v1/factory/public/intake/${id}/preview-premium`,
+      }
     )
     if (!checkout.url) return c.json({ error: 'Stripe did not return a checkout URL' }, 502)
 

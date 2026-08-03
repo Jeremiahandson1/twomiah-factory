@@ -203,7 +203,15 @@ export async function createPremiumWebsiteCheckout(
   factoryCustomer: {
     id: string; email?: string; name?: string; phone?: string; stripeCustomerId?: string
   },
-  options: { billingCycle?: 'monthly' | 'annual'; intakeId?: string }
+  options: {
+    billingCycle?: 'monthly' | 'annual'
+    intakeId?: string
+    // Public self-serve prospects have no platform login — the intake route
+    // passes its own public checkout-complete / preview URLs. The platform
+    // /tenants/:id defaults below are only right for staff-driven checkouts.
+    successUrl?: string
+    cancelUrl?: string
+  }
 ) {
   if (!stripe) throw new Error('Stripe not configured')
   const cycle: 'monthly' | 'annual' = options.billingCycle === 'annual' ? 'annual' : 'monthly'
@@ -236,8 +244,8 @@ export async function createPremiumWebsiteCheckout(
     line_items: [
       { price: recurringPriceId, quantity: 1 },
     ],
-    success_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
-    cancel_url: FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
+    success_url: options.successUrl || FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=success',
+    cancel_url: options.cancelUrl || FRONTEND_URL + '/tenants/' + factoryCustomer.id + '?payment=canceled',
     metadata: {
       factory_customer_id: factoryCustomer.id,
       product: 'website-premium',
