@@ -182,14 +182,12 @@ export default function PublicIntakePage() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Get your preview in minutes</h1>
         <p className="text-gray-600 mb-6">Tell us about your business. We'll send you a complete preview to review before paying.</p>
 
-        {/* Launch promo banner — the $499-off coupon is configured in Stripe
-            (STRIPE_COUPON_PREMIUM_WEBSITE_LAUNCH) and auto-applies at
-            checkout. Marketing the savings up here is what gets people to
-            fill out the intake form instead of bouncing at "$1,000." Pull
-            this whole block when the promo ends. */}
+        {/* Pricing model v2 (2026-07): flat $49/mo, NO build fee. The optional
+            $499 "True Customization" is a separate one-time hand-labor charge
+            sold later, not part of this funnel's pitch. */}
         <div className="relative bg-white border-2 border-orange-300 rounded-xl p-5 mb-8 overflow-hidden">
           <div className="absolute top-0 right-0 bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg uppercase tracking-wider">
-            Launch Special — Save $501
+            No build fee
           </div>
           <div className="grid grid-cols-3 gap-4 text-center pt-3">
             <div>
@@ -197,20 +195,17 @@ export default function PublicIntakePage() {
               <div className="text-xs text-gray-500 mt-1">Preview + revisions</div>
             </div>
             <div className="border-x border-gray-200">
-              <div className="flex items-baseline justify-center gap-2">
-                <span className="text-base text-gray-400 line-through font-medium">$1,000</span>
-                <span className="text-2xl font-bold text-orange-600">$499</span>
-              </div>
-              <div className="text-xs text-gray-500 mt-1">One-time build, only if you approve</div>
+              <div className="text-2xl font-bold text-orange-600">$0</div>
+              <div className="text-xs text-gray-500 mt-1">Build fee — see it before you pay anything</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">$75/mo</div>
-              <div className="text-xs text-gray-500 mt-1">Hosting + CMS + edits, after launch</div>
+              <div className="text-2xl font-bold text-gray-900">$49/mo</div>
+              <div className="text-xs text-gray-500 mt-1">Hosting + CMS + edits, cancel anytime</div>
             </div>
           </div>
           <div className="text-xs text-gray-500 text-center mt-4">
-            No charge until you click <span className="font-semibold text-gray-700">Approve &amp; build my site</span> on the preview.
-            The <span className="font-semibold text-orange-600">$501 launch discount</span> is automatic at checkout — you pay $499.
+            No charge until you click <span className="font-semibold text-gray-700">Approve &amp; launch my site</span> on the preview.
+            Keep the site you approved for <span className="font-semibold text-orange-600">$49/mo</span> — that's it.
           </div>
         </div>
 

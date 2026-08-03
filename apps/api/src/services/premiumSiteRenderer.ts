@@ -309,7 +309,7 @@ function injectApproveAndBuyWidget(html: string): string {
 </style>
 <button id="__buy_fab" type="button" aria-label="Approve and start checkout">
   <span id="__buy_dot" aria-hidden="true"></span>
-  Approve & build my site — $499 launch
+  Approve & launch my site — $49/mo
 </button>
 <div id="__buy_status" role="alert"></div>
 <script data-buy-widget>
@@ -326,8 +326,8 @@ function injectApproveAndBuyWidget(html: string): string {
       body:JSON.stringify({billingCycle:'monthly'})
     }).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(o){
       if(o.ok&&o.j&&o.j.url){location.href=o.j.url}
-      else{fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError((o.j&&o.j.error)||'Could not start checkout. Try again or email support@twomiah.com.')}
-    }).catch(function(){fab.disabled=false;fab.textContent='Approve & build my site \\u2014 $499 launch';showError('Network error. Try again or email support@twomiah.com.')});
+      else{fab.disabled=false;fab.textContent='Approve & launch my site \\u2014 $49/mo';showError((o.j&&o.j.error)||'Could not start checkout. Try again or email support@twomiah.com.')}
+    }).catch(function(){fab.disabled=false;fab.textContent='Approve & launch my site \\u2014 $49/mo';showError('Network error. Try again or email support@twomiah.com.')});
   });
 })();
 </script>`

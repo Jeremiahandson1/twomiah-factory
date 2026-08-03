@@ -185,8 +185,9 @@ export async function createLicenseCheckout(
 
 // ── Premium-website checkout (subscription + one-time build fee) ────────────
 //
-// The standalone $75/mo + $1k one-time build product. One checkout session
-// combines:
+// The standalone website at a flat $49/mo (STRIPE_PRICE_V2_WEBSITE), no
+// build fee. The old $75/mo + $1k-build prices are retired but left minted
+// in Stripe for existing subscriptions. Legacy mechanics for reference:
 //   - subscription line item: STRIPE_PRICE_PREMIUM_WEBSITE_MONTHLY or _ANNUAL
 //   - add_invoice_items:      STRIPE_PRICE_PREMIUM_WEBSITE_BUILD (one-time
 //                              fee added to the first invoice)
