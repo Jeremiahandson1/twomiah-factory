@@ -27,8 +27,9 @@ export default function PaymentsPage() {
   const connect = async () => {
     setSaving(true)
     try {
-      await api.connectPayment(form)
-      toast('Payment account connected')
+      const res: any = await api.connectPayment(form)
+      if (res?.webhookConfigured) toast('Connected \u2014 payment notifications set up automatically')
+      else toast('Connected, but payment notifications need attention: ' + (res?.webhookNote || 'no webhook configured') + '. Orders still confirm on the customer\u2019s receipt page.', 'error')
       setForm({ ...form, secretKey: '', webhookSecret: '' })
       load()
     } catch (e: any) { toast(e?.message || 'Could not connect', 'error') } finally { setSaving(false) }
@@ -52,7 +53,7 @@ export default function PaymentsPage() {
           <div className="mt-3 text-sm text-gray-600 space-y-1">
             <div>Provider: <span className="font-medium capitalize">{status?.config?.provider}</span></div>
             <div>Mode: <span className="font-medium capitalize">{status?.config?.mode}</span>{status?.config?.mode === 'test' && ' (no real charges)'}</div>
-            <div>Webhook secret: {status?.config?.hasWebhookSecret ? 'set' : <span className="text-yellow-600">not set — orders won&apos;t auto-confirm</span>}</div>
+            <div>Payment notifications: {status?.config?.hasWebhookSecret ? 'active' : <span className="text-yellow-600">not set up &mdash; orders confirm on the customer&apos;s receipt page instead</span>}</div>
           </div>
           <button onClick={disconnect} className="btn-danger mt-4 text-xs">Disconnect</button>
         </div>
@@ -62,19 +63,9 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {/* Webhook URL */}
-      <div className="card p-5">
-        <h2 className="font-semibold text-gray-900">1. Add this webhook in your provider dashboard</h2>
-        <p className="text-sm text-gray-500 mt-1 mb-2">Create a webhook for the <code>checkout.session.completed</code> event pointing to:</p>
-        <div className="flex items-center gap-2">
-          <code className="flex-1 rounded bg-gray-50 border px-3 py-2 text-xs break-all">{status?.webhookUrl}</code>
-          <button onClick={copyWebhook} className="btn-secondary text-xs"><Copy className="h-3 w-3" /> Copy</button>
-        </div>
-      </div>
-
       {/* Connect form */}
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-gray-900">2. Enter your {form.provider} keys</h2>
+        <h2 className="font-semibold text-gray-900">Connect your {form.provider} account</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Provider</label>
@@ -101,11 +92,24 @@ export default function PaymentsPage() {
           <label className="label">{f.pub}</label>
           <input className="input" value={form.publishableKey} onChange={(e) => setForm({ ...form, publishableKey: e.target.value })} placeholder={f.pubPh} />
         </div>
-        <div>
-          <label className="label">{f.webhook}</label>
-          <input className="input" type="password" value={form.webhookSecret} onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })} placeholder={f.webhookPh} />
-          <p className="text-xs text-gray-400 mt-1">From the webhook you created in step 1. Required for orders to auto-confirm.</p>
-        </div>
+        <p className="text-xs text-gray-500">We{"'"}ll set up payment notifications (the webhook) in your {form.provider} account automatically when you connect.</p>
+        <details className="text-sm">
+          <summary className="cursor-pointer text-gray-500 hover:text-gray-700">Advanced: configure the webhook yourself</summary>
+          <div className="mt-3 space-y-3">
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Point your webhook at:</p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-gray-50 border px-3 py-2 text-xs break-all">{status?.webhookUrl}</code>
+                <button onClick={copyWebhook} className="btn-secondary text-xs"><Copy className="h-3 w-3" /> Copy</button>
+              </div>
+            </div>
+            <div>
+              <label className="label">{f.webhook}</label>
+              <input className="input" type="password" value={form.webhookSecret} onChange={(e) => setForm({ ...form, webhookSecret: e.target.value })} placeholder={f.webhookPh} />
+              <p className="text-xs text-gray-400 mt-1">Leave blank to let us create the webhook for you.</p>
+            </div>
+          </div>
+        </details>
         <button onClick={connect} className="btn-primary" disabled={saving || !form.secretKey || (f.pubRequired && !form.publishableKey)}>{saving ? 'Verifying…' : connected ? 'Update keys' : 'Connect'}</button>
       </div>
     </div>
