@@ -97,6 +97,24 @@ export default function OrderDetailPage() {
           <p className="text-sm text-gray-500">{order.customerEmail}</p>
           {order.customerPhone && <p className="text-sm text-gray-500">{order.customerPhone}</p>}
         </div>
+        {(order.supplierStatus || order.supplierOrderId) && (
+          <div className="card p-5">
+            <h2 className="font-semibold text-gray-900 mb-2">Supplier</h2>
+            <div className="text-sm text-gray-600 space-y-1">
+              <div>Status: <span className={"font-medium " + (order.supplierStatus === 'error' ? 'text-red-600' : order.supplierStatus === 'placed' || order.supplierStatus === 'shipped' ? 'text-green-600' : 'text-yellow-600')}>{order.supplierStatus}</span></div>
+              {order.supplierOrderId && <div>Supplier order: <span className="font-mono text-xs">{order.supplierOrderId}</span></div>}
+              {order.supplierCostCents != null && <div>Supplier cost: ${(order.supplierCostCents / 100).toFixed(2)} <span className="text-gray-400">(margin ${((order.totalCents - order.supplierCostCents) / 100).toFixed(2)})</span></div>}
+              {order.supplierError && <div className="text-red-600 text-xs">{order.supplierError}</div>}
+            </div>
+            {!order.supplierOrderId && (
+              <div className="flex gap-2 mt-3">
+                <button className="btn-primary text-xs" onClick={async () => { try { const r: any = await api.forwardOrderToSupplier(order.id); toast(r?.ok ? 'Sent to supplier' : (r?.note || 'Could not forward'), r?.ok ? undefined : 'error'); load() } catch (e: any) { toast(e?.message || 'Could not forward', 'error') } }}>Send to supplier now</button>
+                {order.supplierStatus !== 'hold' && <button className="btn-secondary text-xs" onClick={async () => { await api.holdSupplierOrder(order.id); toast('Held — will not auto-forward'); load() }}>Hold</button>}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="card p-5">
           <h2 className="font-semibold text-gray-900 mb-2">Ship to</h2>
           {order.shippingAddress ? (

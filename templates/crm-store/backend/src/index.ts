@@ -21,6 +21,7 @@ import paymentAdminRoutes from './routes/payments.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import companyShimRoutes from './routes/company.ts'
 import onboardingRoutes from './routes/onboarding.ts'
+import supplierRoutes from './suppliers/routes.ts'
 import discountAdminRoutes from './routes/discounts.ts'
 import mediaRoutes from './routes/media.ts'
 
@@ -78,6 +79,7 @@ app.route('/api/admin/payments', paymentAdminRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
 app.route('/api/company', companyShimRoutes)
 app.route('/api/onboarding', onboardingRoutes)
+app.route('/api/admin/suppliers', supplierRoutes)
 app.route('/api/admin/discounts', discountAdminRoutes)
 // Public media proxy for product images (streamed from private R2). Must be
 // registered before the SPA catch-all below so `/media/*` is not swallowed.
@@ -118,6 +120,13 @@ async function sweepStalePending(): Promise<void> {
 }
 setInterval(() => { void sweepStalePending() }, 60 * 60 * 1000)
 void sweepStalePending()
+
+// Dropship: retry un-forwarded paid orders + poll tracking for providers
+// without webhooks. Same cadence as the stale-pending sweep.
+import('./suppliers/index.ts').then(m => {
+  setInterval(() => { void m.sweepSupplierOrders() }, 60 * 60 * 1000)
+  void m.sweepSupplierOrders()
+}).catch(() => { /* suppliers module unavailable — store runs without dropship */ })
 
 const PORT = Number(process.env.PORT) || 3001
 serve({ fetch: app.fetch, port: PORT }, (info) => {

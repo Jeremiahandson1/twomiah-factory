@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { DollarSign, ShoppingBag, Package, AlertCircle, CheckCircle2, ArrowRight } from 'lucide-react'
+import { DollarSign, ShoppingBag, Package, AlertCircle, CheckCircle2, ArrowRight , Truck } from 'lucide-react'
 import api, { Order, Product, PaymentStatus } from '../services/api'
 import { money, formatDate, statusColor } from '../lib/format'
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ paidCount: 0, pendingFulfillment: 0, revenueCents: 0 })
+  const [stats, setStats] = useState({ paidCount: 0, pendingFulfillment: 0, revenueCents: 0, atSupplier: 0 })
   const [orders, setOrders] = useState<Order[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [payment, setPayment] = useState<PaymentStatus | null>(null)
@@ -44,6 +44,7 @@ export default function DashboardPage() {
         <StatCard icon={DollarSign} label="Revenue" value={money(stats.revenueCents)} />
         <StatCard icon={ShoppingBag} label="Orders" value={String(stats.paidCount)} />
         <StatCard icon={Package} label="To fulfill" value={String(stats.pendingFulfillment)} highlight={stats.pendingFulfillment > 0} />
+        {stats.atSupplier > 0 && <StatCard icon={Truck} label="At supplier" value={String(stats.atSupplier)} />}
       </div>
 
       <div className="card">

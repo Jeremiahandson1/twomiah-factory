@@ -26,6 +26,10 @@ export type ProductVariant = {
   inventoryQty: number | null; options: Record<string, string> | null; position: number
 }
 export type Order = {
+  supplierOrderId?: string | null
+  supplierStatus?: string | null
+  supplierCostCents?: number | null
+  supplierError?: string | null
   id: string; orderNumber: string | null; provider: string; status: string
   customerEmail: string; customerName: string | null; customerPhone: string | null
   shippingAddress: Address | null; billingAddress: Address | null
@@ -149,7 +153,7 @@ class ApiClient {
   // ── Orders ──
   async listOrders(status?: string) { return (await this.request<{ orders: Order[] }>(`/api/admin/orders${status ? `?status=${status}` : ''}`)).orders }
   async getOrder(id: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}`)).order }
-  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number } }>('/api/admin/orders/stats')).stats }
+  async orderStats() { return (await this.request<{ stats: { paidCount: number; pendingFulfillment: number; revenueCents: number; atSupplier: number } }>('/api/admin/orders/stats')).stats }
   async listCustomers() { return (await this.request<{ customers: any[] }>('/api/admin/orders/customers')).customers }
   async setOrderStatus(id: string, status: string) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) })).order }
   async setFulfillment(id: string, body: { trackingCarrier?: string; trackingNumber?: string; internalNote?: string; markShipped?: boolean }) { return (await this.request<{ order: Order }>(`/api/admin/orders/${id}/fulfillment`, { method: 'PATCH', body: JSON.stringify(body) })).order }
@@ -163,6 +167,16 @@ class ApiClient {
   async getPaymentStatus() { return this.request<PaymentStatus>('/api/admin/payments') }
   async connectPayment(body: { provider: string; mode: string; secretKey: string; publishableKey?: string; webhookSecret?: string }) { return this.request('/api/admin/payments/connect', { method: 'POST', body: JSON.stringify(body) }) }
   async disconnectPayment() { return this.request('/api/admin/payments/disconnect', { method: 'POST' }) }
+
+  // ── Suppliers (dropshipping) ──
+  async getSupplierStatus() { return this.request<any>('/api/admin/suppliers') }
+  async connectSupplier(body: { provider: string; mode: string; apiKey: string; accountEmail?: string }) { return this.request('/api/admin/suppliers/connect', { method: 'POST', body: JSON.stringify(body) }) }
+  async disconnectSupplier() { return this.request('/api/admin/suppliers/disconnect', { method: 'POST' }) }
+  async setSupplierAutoForward(enabled: boolean) { return this.request('/api/admin/suppliers/auto-forward', { method: 'POST', body: JSON.stringify({ enabled }) }) }
+  async getVariantSupplierMap() { return (await this.request<{ map: Array<{ variantId: string; supplierVariantRef: string; supplierItemName: string | null }> }>('/api/admin/suppliers/variant-map')).map }
+  async setVariantSupplierRef(variantId: string, ref: string) { return this.request<{ ok: boolean; name?: string; cleared?: boolean }>(`/api/admin/suppliers/variant-map/${variantId}`, { method: 'PUT', body: JSON.stringify({ ref }) }) }
+  async forwardOrderToSupplier(id: string) { return this.request<{ ok: boolean; note?: string }>(`/api/admin/suppliers/orders/${id}/forward`, { method: 'POST' }) }
+  async holdSupplierOrder(id: string) { return this.request<{ ok: boolean }>(`/api/admin/suppliers/orders/${id}/hold`, { method: 'POST' }) }
 
   // ── Discount codes ──
   async listDiscounts() { return (await this.request<{ codes: DiscountCode[] }>('/api/admin/discounts')).codes }

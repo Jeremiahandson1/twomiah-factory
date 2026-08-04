@@ -117,6 +117,29 @@ export default function ProductEditPage() {
 
 // ── Variants ─────────────────────────────────────────────────────────────────
 function VariantsSection({ product, onChange }: { product: Product; onChange: () => void }) {
+  // Dropship: variant → supplier-item links (only shown when a supplier is connected)
+  const [supplierConnected, setSupplierConnected] = useState(false)
+  const [supplierMap, setSupplierMap] = useState<Record<string, { ref: string; name: string | null }>>({})
+  useEffect(() => {
+    api.getSupplierStatus().then((st: any) => {
+      if (!st?.config?.connected) return
+      setSupplierConnected(true)
+      api.getVariantSupplierMap().then(rows => {
+        const m: Record<string, { ref: string; name: string | null }> = {}
+        rows.forEach(r => { m[r.variantId] = { ref: r.supplierVariantRef, name: r.supplierItemName } })
+        setSupplierMap(m)
+      }).catch(() => {})
+    }).catch(() => {})
+  }, [])
+  const saveSupplierRef = async (v: ProductVariant, ref: string) => {
+    const prev = supplierMap[v.id]?.ref || ''
+    if (ref.trim() === prev) return
+    try {
+      const res: any = await api.setVariantSupplierRef(v.id, ref.trim())
+      if (res?.cleared) { const m = { ...supplierMap }; delete m[v.id]; setSupplierMap(m); toast('Supplier link removed') }
+      else { setSupplierMap({ ...supplierMap, [v.id]: { ref: ref.trim(), name: res?.name || null } }); toast('Linked: ' + (res?.name || ref)) }
+    } catch (e: any) { toast(e?.message || 'Supplier did not recognize that item', 'error') }
+  }
   const { toast } = useToast()
   const [adding, setAdding] = useState(false)
   const blank = { sku: '', name: 'Default', price: '', inventory: '' }
@@ -155,6 +178,9 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
               <input className="input w-24 py-1" defaultValue={centsToDollars(v.priceCents)} onBlur={(e) => updatePrice(v, e.target.value)} />
             </div>
             <input className="input w-20 py-1" placeholder="∞" defaultValue={v.inventoryQty ?? ''} onBlur={(e) => updateInv(v, e.target.value)} title="Inventory (blank = untracked)" />
+            {supplierConnected && (
+              <input className="input w-32 py-1" placeholder="Supplier item id" defaultValue={supplierMap[v.id]?.ref ?? ''} onBlur={(e) => saveSupplierRef(v, e.target.value)} title={supplierMap[v.id]?.name || 'Supplier item id (Printful sync variant / CJ vid). Blank = not dropshipped.'} />
+            )}
             <button onClick={() => del(v)} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}

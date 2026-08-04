@@ -12,6 +12,7 @@ import OrdersPage from './pages/OrdersPage'
 import OrderDetailPage from './pages/OrderDetailPage'
 import CustomersPage from './pages/CustomersPage'
 import PaymentsPage from './pages/PaymentsPage'
+import SuppliersPage from './pages/SuppliersPage'
 import DiscountsPage from './pages/DiscountsPage'
 import SettingsPage from './pages/SettingsPage'
 import OnboardingWizard from './pages/OnboardingWizard'
@@ -73,6 +74,7 @@ export default function App() {
               <Route path="orders/:id" element={<OrderDetailPage />} />
               <Route path="customers" element={<CustomersPage />} />
               <Route path="payments" element={<PaymentsPage />} />
+              <Route path="suppliers" element={<SuppliersPage />} />
               <Route path="discounts" element={<DiscountsPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="settings/email" element={<EmailAliasesPage />} />

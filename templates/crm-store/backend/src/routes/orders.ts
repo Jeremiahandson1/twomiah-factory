@@ -10,7 +10,7 @@ const admin = new Hono()
 admin.use('*', authenticate)
 
 // Email the customer that their order shipped (with tracking). Non-blocking.
-async function notifyShipped(order: typeof orders.$inferSelect): Promise<void> {
+export async function notifyShipped(order: typeof orders.$inferSelect): Promise<void> {
   try {
     const [settings] = await db.select().from(storeSettings).limit(1)
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
@@ -41,11 +41,13 @@ admin.get('/stats', async (c) => {
   const [row] = await db.select({
     paidCount: sql<number>`count(*) filter (where ${orders.status} not in ('pending','cancelled'))`,
     pendingFulfillment: sql<number>`count(*) filter (where ${orders.status} = 'paid')`,
+    atSupplier: sql<number>`count(*) filter (where ${orders.supplierStatus} = 'placed')`,
     revenueCents: sql<number>`coalesce(sum(${orders.totalCents}) filter (where ${orders.status} not in ('pending','cancelled')), 0)`,
   }).from(orders)
   return c.json({ stats: {
     paidCount: Number(row.paidCount),
     pendingFulfillment: Number(row.pendingFulfillment),
+    atSupplier: Number(row.atSupplier),
     revenueCents: Number(row.revenueCents),
   } })
 })

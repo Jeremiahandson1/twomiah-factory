@@ -45,6 +45,12 @@ async function finalizeOrder(order: typeof orders.$inferSelect, result: WebhookR
     } catch { /* non-blocking */ }
   }
 
+  // Dropship: forward the paid order to the connected supplier. Fire-and-forget
+  // — supplier problems must never block payment finalization; the sweep retries.
+  import('../suppliers/index.ts')
+    .then(m => m.forwardOrderToSupplier(order.id))
+    .catch(() => { /* logged inside */ })
+
   const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id))
   for (const it of items) {
     if (!it.variantId) continue
@@ -328,6 +334,51 @@ pub.post('/checkout', async (c) => {
 })
 
 // ── Webhook: signature-verified, idempotent order confirmation ───────────────
+// Supplier shipment webhook (Printful). Verified by the URL token we embedded
+// when auto-configuring the webhook at connect time. Writes tracking through
+// the same fields as manual fulfillment so the shipped email reuses.
+pub.post('/webhooks/supplier', async (c) => {
+  const rawBody = await c.req.text()
+  const headers: Record<string, string> = {}
+  c.req.raw.headers.forEach((v, k) => { headers[k.toLowerCase()] = v })
+  const { getActiveSupplier } = await import('../suppliers/index.ts')
+  const active = await getActiveSupplier()
+  if (!active) return c.json({ error: 'No supplier configured' }, 400)
+  let result
+  try {
+    result = await active.provider.verifyAndParseWebhook({ rawBody, headers, urlToken: c.req.query('t') || undefined })
+  } catch (err: any) {
+    logger.warn('supplier webhook rejected', { error: err?.message })
+    return c.json({ error: 'Invalid webhook' }, 400)
+  }
+  if (result.type !== 'shipped') return c.json({ received: true })
+
+  let order
+  if (result.externalId) {
+    ;[order] = await db.select().from(orders).where(eq(orders.id, result.externalId)).limit(1)
+  }
+  if (!order && result.supplierOrderId) {
+    ;[order] = await db.select().from(orders).where(eq(orders.supplierOrderId, result.supplierOrderId)).limit(1)
+  }
+  if (!order) {
+    logger.warn('supplier webhook for unknown order', { supplierOrderId: result.supplierOrderId })
+    return c.json({ received: true })
+  }
+  const [updated] = await db.update(orders).set({
+    status: 'shipped',
+    supplierStatus: 'shipped',
+    trackingCarrier: result.trackingCarrier,
+    trackingNumber: result.trackingNumber,
+    fulfilledAt: new Date(),
+    updatedAt: new Date(),
+  }).where(eq(orders.id, order.id)).returning()
+  if (order.status !== 'shipped') {
+    const { notifyShipped } = await import('./orders.ts')
+    void notifyShipped(updated)
+  }
+  return c.json({ received: true })
+})
+
 pub.post('/webhooks/payment', async (c) => {
   const rawBody = await c.req.text()
   const headers: Record<string, string> = {}

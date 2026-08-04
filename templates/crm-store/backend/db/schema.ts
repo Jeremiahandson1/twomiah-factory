@@ -84,6 +84,11 @@ export const orders = pgTable('orders', {
   customerPhone: text('customer_phone'),
   shippingAddress: jsonb('shipping_address').$type<Address>(),
   billingAddress: jsonb('billing_address').$type<Address>(),
+  // Dropship forwarding (null when no supplier is connected / items unmapped)
+  supplierOrderId: text('supplier_order_id'),
+  supplierStatus: text('supplier_status'), // 'placed' | 'error' | 'unmapped' | 'hold' | 'shipped'
+  supplierCostCents: integer('supplier_cost_cents'),
+  supplierError: text('supplier_error'),
 
   subtotalCents: integer('subtotal_cents').notNull(),
   shippingCents: integer('shipping_cents').notNull().default(0),
@@ -224,3 +229,25 @@ export const emailAlias = pgTable('email_alias', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('email_alias_local_part_idx').on(t.localPart)])
+
+// ── Dropship supplier connection (Printful / CJ) ──
+export const supplierConfig = pgTable('supplier_config', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  provider: text('provider').notNull(), // 'printful' | 'cj'
+  mode: text('mode').notNull().default('test'),
+  credentialsEnc: text('credentials_enc').notNull(), // AES-GCM (apiKey/accountEmail/webhookToken)
+  autoForward: boolean('auto_forward').notNull().default(true),
+  connected: boolean('connected').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// Our variant → the supplier's variant. An order only auto-forwards when
+// EVERY line item has a mapping (never partial-forward).
+export const variantSupplierMap = pgTable('variant_supplier_map', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  variantId: uuid('variant_id').notNull().references(() => productVariants.id, { onDelete: 'cascade' }),
+  supplierVariantRef: text('supplier_variant_ref').notNull(),
+  supplierItemName: text('supplier_item_name'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('variant_supplier_map_variant_unique').on(t.variantId)])
