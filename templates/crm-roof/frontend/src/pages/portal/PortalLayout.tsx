@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { Home, Briefcase, Receipt, PenTool, LogOut, Menu, X } from 'lucide-react';
+import { Home, Briefcase, Receipt, PenTool, FileSignature, LogOut, Menu, X } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { to: '/portal/dashboard', label: 'Dashboard', icon: Home },
+  { to: '/portal', label: 'Dashboard', icon: Home },
   { to: '/portal/jobs', label: 'Jobs', icon: Briefcase },
+  { to: '/portal/quotes', label: 'Proposals', icon: FileSignature },
   { to: '/portal/invoices', label: 'Invoices', icon: Receipt },
   { to: '/portal/service-request', label: 'Service Request', icon: PenTool },
 ];

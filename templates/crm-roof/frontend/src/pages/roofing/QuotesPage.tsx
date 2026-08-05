@@ -31,6 +31,7 @@ export default function QuotesPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  const [certQuote, setCertQuote] = useState<any | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     contactId: '',
@@ -152,6 +153,7 @@ export default function QuotesPage() {
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Contact</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Job</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Status</th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500">Signed</th>
                   <th className="text-right px-4 py-3 font-medium text-gray-500">Total</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Created</th>
                   <th className="text-left px-4 py-3 font-medium text-gray-500">Expires</th>
@@ -160,9 +162,9 @@ export default function QuotesPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">Loading...</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">Loading...</td></tr>
                 ) : quotes.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-12 text-gray-400">No quotes found</td></tr>
+                  <tr><td colSpan={9} className="text-center py-12 text-gray-400">No quotes found</td></tr>
                 ) : (
                   quotes.map((q) => (
                     <tr key={q.id} className="border-b last:border-0 hover:bg-gray-50">
@@ -180,6 +182,22 @@ export default function QuotesPage() {
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[q.status] || 'bg-gray-100 text-gray-600'}`}>
                           {formatStatus(q.status)}
                         </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        {q.signedBy ? (
+                          <button
+                            onClick={() => setCertQuote(q)}
+                            className="text-green-700 hover:underline text-left"
+                            title="View signature certificate"
+                          >
+                            {q.signedBy}
+                            <span className="block text-gray-500">
+                              {q.signedAt ? new Date(q.signedAt).toLocaleDateString() : ''}
+                            </span>
+                          </button>
+                        ) : (
+                          <span className="text-gray-400">&mdash;</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-gray-900">
                         ${Number(q.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -236,6 +254,44 @@ export default function QuotesPage() {
           )}
         </div>
       </div>
+
+      {/* Signature certificate */}
+      {certQuote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setCertQuote(null)}>
+          <div className="bg-white rounded-xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Signed Acceptance</h3>
+                <p className="text-sm text-gray-500">{certQuote.quoteNumber || 'Proposal'}</p>
+              </div>
+              <button onClick={() => setCertQuote(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="border border-green-200 rounded-lg bg-green-50 p-4">
+              {certQuote.signature && (
+                <img src={certQuote.signature} alt="Customer signature" className="max-h-24 bg-white rounded" />
+              )}
+              <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700">
+                <div><span className="text-gray-500">Signed by</span><p className="font-medium">{certQuote.signedBy || '-'}</p></div>
+                <div><span className="text-gray-500">Signed at</span><p className="font-medium">{certQuote.signedAt ? new Date(certQuote.signedAt).toLocaleString() : '-'}</p></div>
+                <div><span className="text-gray-500">IP address</span><p className="font-mono text-xs">{certQuote.signedIp || '-'}</p></div>
+                <div><span className="text-gray-500">Consent</span><p className="font-medium">{certQuote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
+              </div>
+              {certQuote.signatureHash && (
+                <p className="mt-3 text-xs text-gray-500 break-all">
+                  <span className="text-gray-400">Document fingerprint (SHA-256): </span>
+                  <span className="font-mono">{certQuote.signatureHash}</span>
+                </p>
+              )}
+              {certQuote.signedUserAgent && (
+                <p className="mt-1 text-xs text-gray-400 break-all">{certQuote.signedUserAgent}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Modal */}
       {modalOpen && (

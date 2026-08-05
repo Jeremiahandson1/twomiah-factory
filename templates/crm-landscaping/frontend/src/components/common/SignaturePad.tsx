@@ -221,9 +221,7 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
             />
           </div>
 
-          <SignaturePad onSave={handleSave} onCancel={onClose} width={450} height={150} />
-
-          <label className="mt-4 flex items-start gap-2 cursor-pointer">
+          <label className="mb-4 flex items-start gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={consent}
@@ -234,6 +232,9 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
               I agree that my electronic signature is the legal equivalent of my handwritten signature. <span className="text-red-500">*</span>
             </span>
           </label>
+
+          <SignaturePad onSave={handleSave} onCancel={onClose} width={450} height={150} />
+
         </div>
       </div>
     </div>

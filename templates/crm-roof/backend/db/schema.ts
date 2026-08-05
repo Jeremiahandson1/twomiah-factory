@@ -274,6 +274,16 @@ export const quote = pgTable('quote', {
   expiresAt: timestamp('expires_at').notNull(),
   approvedAt: timestamp('approved_at'),
   declinedAt: timestamp('declined_at'),
+  // E-signature evidence — a homeowner signing a roof proposal in the portal.
+  // signatureHash is a SHA-256 of the exact quote they saw, so a later edit is
+  // provable; consentAt records the affirmative "sign electronically" act.
+  signature: text('signature'),
+  signedAt: timestamp('signed_at'),
+  signedBy: text('signed_by'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
   convertedToJobId: text('converted_to_job_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

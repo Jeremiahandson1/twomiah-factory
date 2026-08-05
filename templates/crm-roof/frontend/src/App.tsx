@@ -50,6 +50,7 @@ import PortalLogin from './pages/portal/PortalLogin'
 import PortalLayout from './pages/portal/PortalLayout'
 import PortalDashboard from './pages/portal/PortalDashboard'
 import PortalJobDetail from './pages/portal/PortalJobDetail'
+import PortalQuotes from './pages/portal/PortalQuotes'
 import PortalInvoices from './pages/portal/PortalInvoices'
 import PortalServiceRequest from './pages/portal/PortalServiceRequest'
 
@@ -88,7 +89,11 @@ export default function App() {
             <Route path="/portal/login" element={<PortalLogin />} />
             <Route path="/portal" element={<PortalLayout />}>
               <Route index element={<PortalDashboard />} />
+              {/* the nav and dashboard tiles have always linked here */}
+              <Route path="dashboard" element={<PortalDashboard />} />
+              <Route path="jobs" element={<PortalDashboard />} />
               <Route path="jobs/:id" element={<PortalJobDetail />} />
+              <Route path="quotes" element={<PortalQuotes />} />
               <Route path="invoices" element={<PortalInvoices />} />
               <Route path="service-request" element={<PortalServiceRequest />} />
             </Route>

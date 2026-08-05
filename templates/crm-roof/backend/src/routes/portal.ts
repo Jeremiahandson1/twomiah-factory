@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import crypto from 'crypto'
 import { db } from '../../db/index.ts'
-import { portalSession, contact, company, job, jobPhoto, invoice } from '../../db/schema.ts'
+import { portalSession, contact, company, job, jobPhoto, invoice, quote } from '../../db/schema.ts'
 import { eq, and, desc, gt, sql, count } from 'drizzle-orm'
 
 const app = new Hono()
@@ -173,6 +173,174 @@ app.get('/jobs/:id', portalAuth, async (c) => {
     statusDescription: STATUS_DESCRIPTIONS[foundJob.status] || foundJob.status,
     photos: filteredPhotos,
   })
+})
+
+// =============================================
+// QUOTES — view and sign a proposal
+// A roof proposal is the contract. A signature only binds if we can show WHO
+// signed, WHAT they saw, and that they affirmatively agreed to sign
+// electronically (ESIGN/UETA), so the approve route demands all three and
+// freezes the document it applied to.
+// =============================================
+
+const MAX_SIGNATURE_BYTES = 500_000
+
+function validateSignatureInput(body: any): { ok: true; signerName: string } | { ok: false; error: string } {
+  const signature = body?.signature
+  const signerName = typeof body?.signedBy === 'string' ? body.signedBy.trim() : ''
+  if (typeof signature !== 'string' || !signature.startsWith('data:image/')) {
+    return { ok: false, error: 'A signature is required.' }
+  }
+  if (signature.length > MAX_SIGNATURE_BYTES) {
+    return { ok: false, error: 'Signature image is too large.' }
+  }
+  if (!signerName) return { ok: false, error: 'Please type your full name to sign.' }
+  if (body?.consent !== true) {
+    return { ok: false, error: 'You must agree to sign electronically before approving.' }
+  }
+  return { ok: true, signerName }
+}
+
+/** Caller IP as seen through Render's proxy, best-effort. */
+function signerIp(c: any): string | null {
+  const fwd = c.req.header('x-forwarded-for')
+  if (fwd) return fwd.split(',')[0].trim() || null
+  return c.req.header('x-real-ip') || null
+}
+
+/** SHA-256 of exactly what the homeowner saw — later edits become provable. */
+function documentFingerprint(payload: unknown): string {
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+}
+
+// List quotes for contact
+app.get('/quotes', portalAuth, async (c) => {
+  const portalContact = c.get('portalContact') as any
+  const companyId = c.get('portalCompanyId') as string
+
+  const quotes = await db.select({
+    id: quote.id,
+    quoteNumber: quote.quoteNumber,
+    status: quote.status,
+    total: quote.total,
+    expiresAt: quote.expiresAt,
+    approvedAt: quote.approvedAt,
+    declinedAt: quote.declinedAt,
+    signedBy: quote.signedBy,
+    signedAt: quote.signedAt,
+    createdAt: quote.createdAt,
+  }).from(quote)
+    // Drafts are the roofer's working copy — the homeowner never sees them.
+    .where(and(eq(quote.contactId, portalContact.id), eq(quote.companyId, companyId), sql`${quote.status} <> 'draft'`))
+    .orderBy(desc(quote.createdAt))
+
+  return c.json(quotes)
+})
+
+// One quote, with everything the homeowner is agreeing to
+app.get('/quotes/:id', portalAuth, async (c) => {
+  const portalContact = c.get('portalContact') as any
+  const companyId = c.get('portalCompanyId') as string
+  const id = c.req.param('id')
+
+  const [foundQuote] = await db.select().from(quote)
+    .where(and(eq(quote.id, id), eq(quote.contactId, portalContact.id), eq(quote.companyId, companyId)))
+    .limit(1)
+  if (!foundQuote || foundQuote.status === 'draft') return c.json({ error: 'Quote not found' }, 404)
+
+  // Mark it seen the first time they open it
+  if (foundQuote.status === 'sent') {
+    await db.update(quote).set({ status: 'viewed', updatedAt: new Date() }).where(eq(quote.id, id))
+  }
+
+  const [comp] = await db.select().from(company).where(eq(company.id, companyId)).limit(1)
+
+  return c.json({
+    ...foundQuote,
+    status: foundQuote.status === 'sent' ? 'viewed' : foundQuote.status,
+    company: comp ? { name: comp.name, email: comp.email, phone: comp.phone } : null,
+  })
+})
+
+// Sign and approve a quote
+app.post('/quotes/:id/approve', portalAuth, async (c) => {
+  const portalContact = c.get('portalContact') as any
+  const companyId = c.get('portalCompanyId') as string
+  const id = c.req.param('id')
+  const body = await c.req.json()
+
+  const check = validateSignatureInput(body)
+  if (!check.ok) return c.json({ error: check.error }, 400)
+  const signerName = check.signerName
+
+  const [foundQuote] = await db.select().from(quote)
+    .where(and(eq(quote.id, id), eq(quote.contactId, portalContact.id), eq(quote.companyId, companyId)))
+    .limit(1)
+  if (!foundQuote || foundQuote.status === 'draft') return c.json({ error: 'Quote not found' }, 404)
+  if (foundQuote.status === 'approved') return c.json({ error: 'Quote already approved' }, 400)
+  if (foundQuote.expiresAt && new Date(foundQuote.expiresAt) < new Date()) {
+    return c.json({ error: 'This quote has expired — please ask for an updated proposal.' }, 400)
+  }
+
+  const signedAt = new Date()
+  const ip = signerIp(c)
+  const userAgent = c.req.header('user-agent') || null
+  const documentHash = documentFingerprint({
+    id: foundQuote.id,
+    quoteNumber: foundQuote.quoteNumber,
+    subtotal: foundQuote.subtotal,
+    taxRate: foundQuote.taxRate,
+    taxAmount: foundQuote.taxAmount,
+    total: foundQuote.total,
+    notes: foundQuote.notes || '',
+    customerMessage: foundQuote.customerMessage || '',
+    lineItems: foundQuote.lineItems,
+  })
+
+  const [updated] = await db.update(quote).set({
+    status: 'approved',
+    approvedAt: signedAt,
+    signature: body.signature,
+    signedAt,
+    signedBy: signerName,
+    signedIp: ip,
+    signedUserAgent: userAgent,
+    signatureHash: documentHash,
+    consentAt: signedAt,
+    updatedAt: signedAt,
+  }).where(eq(quote.id, id)).returning()
+
+  // A signed proposal moves the roofing pipeline forward, same as the admin
+  // marking it signed by hand.
+  if (foundQuote.jobId) {
+    await db.update(job).set({ status: 'signed', updatedAt: signedAt }).where(eq(job.id, foundQuote.jobId))
+  }
+
+  return c.json({ success: true, quote: updated })
+})
+
+// Decline a quote
+app.post('/quotes/:id/decline', portalAuth, async (c) => {
+  const portalContact = c.get('portalContact') as any
+  const companyId = c.get('portalCompanyId') as string
+  const id = c.req.param('id')
+  const { reason } = await c.req.json().catch(() => ({ reason: null }))
+
+  const [foundQuote] = await db.select().from(quote)
+    .where(and(eq(quote.id, id), eq(quote.contactId, portalContact.id), eq(quote.companyId, companyId)))
+    .limit(1)
+  if (!foundQuote || foundQuote.status === 'draft') return c.json({ error: 'Quote not found' }, 404)
+  if (foundQuote.status === 'approved') return c.json({ error: 'Quote already approved' }, 400)
+
+  const now = new Date()
+  const [updated] = await db.update(quote).set({
+    status: 'declined',
+    declinedAt: now,
+    notes: reason ? `${foundQuote.notes ? foundQuote.notes + '\n\n' : ''}Declined by customer: ${String(reason).slice(0, 500)}` : foundQuote.notes,
+    updatedAt: now,
+  }).where(eq(quote.id, id)).returning()
+
+  return c.json({ success: true, quote: updated })
 })
 
 // List invoices for contact
