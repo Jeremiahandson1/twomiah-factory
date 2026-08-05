@@ -23,7 +23,7 @@
  */
 import { Hono, type Context } from 'hono'
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
-import { eq, asc, desc, and, not } from 'drizzle-orm'
+import { eq, asc, desc, and, not, gte } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import sharp from 'sharp'
@@ -40,6 +40,7 @@ import {
   bookings as bookingsTbl,
   bookingCalendarConnections as calConnTbl,
   bookingWaitlist as waitlistTbl,
+  pageViews,
 } from '../db/schema'
 import { gte, lte } from 'drizzle-orm'
 import { isNull } from 'drizzle-orm'
@@ -785,6 +786,7 @@ const SETTINGS_FIELDS = [
   'bookingReminderEmailSubject', 'bookingReminderEmailIntro',
   'bookingDefaultDriveTimeMinutes',
   'primaryColor', 'secondaryColor', 'accentColor',
+  'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId',
   'logoUrl', 'faviconUrl', 'nav',
 ] as const
 
@@ -1721,6 +1723,27 @@ app.get('/audit', authMiddleware, requireAdmin, async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '100', 10) || 100, 500)
   const rows = await db.select().from(auditLogTbl).orderBy(desc(auditLogTbl.createdAt)).limit(limit)
   return c.json({ entries: rows })
+})
+
+// ─── Site analytics (owner traffic + leads numbers) ──────────────────────
+app.get('/analytics', authMiddleware, async (c) => {
+  const dayStr = (d: Date) => d.toISOString().slice(0, 10)
+  const now = Date.now()
+  const d30 = dayStr(new Date(now - 30 * 864e5))
+  const d60 = dayStr(new Date(now - 60 * 864e5))
+  const views = await db.select().from(pageViews).where(gte(pageViews.day, d60))
+  let last30 = 0, prev30 = 0
+  const byPath: Record<string, number> = {}
+  for (const v of views) {
+    if (v.day >= d30) { last30 += v.count; byPath[v.path] = (byPath[v.path] || 0) + v.count }
+    else prev30 += v.count
+  }
+  const topPages = Object.entries(byPath).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([path, count]) => ({ path, count }))
+  const cut = new Date(now - 30 * 864e5)
+  const leadRows = await db.select({ createdAt: leadsTbl.createdAt }).from(leadsTbl).where(gte(leadsTbl.createdAt, new Date(now - 60 * 864e5)))
+  let leads30 = 0, leadsPrev30 = 0
+  for (const l of leadRows) { if (l.createdAt >= cut) leads30++; else leadsPrev30++ }
+  return c.json({ viewsLast30: last30, viewsPrev30: prev30, leadsLast30: leads30, leadsPrev30, topPages })
 })
 
 export default app
