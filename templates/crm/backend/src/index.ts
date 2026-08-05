@@ -17,6 +17,7 @@ import { authenticate } from './middleware/auth.ts'
 import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
+import { startMarketingProcessor } from './services/marketing.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -453,6 +454,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 initializeSocket(server as any)
 syncFeatures().catch(console.error)
 startReviewProcessor()
+startMarketingProcessor()
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

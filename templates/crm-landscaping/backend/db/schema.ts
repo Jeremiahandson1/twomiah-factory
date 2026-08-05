@@ -123,6 +123,8 @@ export const contact = pgTable('contact', {
   lastPortalVisit: timestamp('last_portal_visit'),
   qbCustomerId: text('qb_customer_id'),
   optedOutSms: boolean('opted_out_sms').default(false).notNull(),
+  emailOptOut: boolean('email_opt_out').default(false).notNull(),
+  emailOptOutAt: timestamp('email_opt_out_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 
@@ -611,6 +613,9 @@ export const campaign = pgTable('campaign', {
   subject: text('subject'),
   content: text('content'),
   status: text('status').default('draft').notNull(),
+  audienceType: text('audience_type').default('all').notNull(),
+  audienceFilter: json('audience_filter'),
+  unsubscribeCount: integer('unsubscribe_count').default(0).notNull(),
   scheduledDate: timestamp('scheduled_date'),
   sentAt: timestamp('sent_at'),
   recipientCount: integer('recipient_count').default(0).notNull(),

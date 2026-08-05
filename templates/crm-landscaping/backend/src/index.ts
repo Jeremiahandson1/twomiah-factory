@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { startMarketingProcessor } from './services/marketing.ts'
 import type { Context, Next } from 'hono'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
@@ -312,6 +313,8 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 })
 
 initializeSocket(server as any)
+
+startMarketingProcessor()
 syncFeatures().catch(console.error)
 
 // Recurring scheduling background job — scan every 6 hours

@@ -10,7 +10,15 @@ import api from '../../services/api';
 interface MarketingStats {
   totalCampaigns: number;
   activeSequences: number;
+  activeEnrollments?: number;
   emailsSent30Days: number;
+  campaignSends30Days?: number;
+  opened30Days?: number;
+  clicked30Days?: number;
+  unsubscribed30Days?: number;
+  openRate?: number;
+  clickRate?: number;
+  totalOptOuts?: number;
 }
 
 /**
@@ -52,6 +60,9 @@ export default function MarketingPage() {
           <StatCard icon={Mail} label="Total Campaigns" value={stats.totalCampaigns} />
           <StatCard icon={Zap} label="Active Sequences" value={stats.activeSequences} color="purple" />
           <StatCard icon={Send} label="Emails (30d)" value={stats.emailsSent30Days} color="green" />
+          <StatCard icon={Mail} label="Open rate (30d)" value={`${stats.openRate ?? 0}%`} color="blue" />
+          <StatCard icon={Zap} label="Click rate (30d)" value={`${stats.clickRate ?? 0}%`} color="purple" />
+          <StatCard icon={Users} label="Unsubscribed" value={stats.totalOptOuts ?? 0} color="gray" />
         </div>
       )}
 
@@ -89,7 +100,7 @@ interface StatCardProps {
   icon: LucideIcon;
   label: string;
   value: string | number;
-  color?: 'gray' | 'purple' | 'green';
+  color?: 'gray' | 'purple' | 'green' | 'blue';
 }
 
 function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
@@ -97,6 +108,7 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
     gray: 'bg-gray-50 text-gray-600',
     purple: 'bg-purple-50 text-purple-600',
     green: 'bg-green-50 text-green-600',
+    blue: 'bg-blue-50 text-blue-600',
   };
 
   return (
@@ -423,22 +435,45 @@ interface CampaignFormModalProps {
 }
 
 function CampaignFormModal({ campaign, onSave, onClose }: CampaignFormModalProps) {
-  const [form, setForm] = useState<{ name: string; subject: string; body: string; audienceType: string }>({
+  const existingFilter = (campaign?.audienceFilter as { type?: string; createdAfter?: string } | null) || null;
+  const [form, setForm] = useState<{ name: string; subject: string; body: string; audienceType: string; segmentType: string; segmentCreatedAfter: string }>({
     name: (campaign?.name as string) || '',
     subject: (campaign?.subject as string) || '',
     body: (campaign?.body as string) || '',
     audienceType: (campaign?.audienceType as string) || 'all',
+    segmentType: existingFilter?.type || '',
+    segmentCreatedAfter: (existingFilter?.createdAfter || '').slice(0, 10),
   });
   const [saving, setSaving] = useState<boolean>(false);
+  const [audienceCount, setAudienceCount] = useState<number | null>(null);
+
+  // What the segment actually resolves to, server-side, before anyone hits send.
+  const audienceFilter = form.audienceType === 'segment'
+    ? { ...(form.segmentType ? { type: form.segmentType } : {}), ...(form.segmentCreatedAfter ? { createdAfter: form.segmentCreatedAfter } : {}) }
+    : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setAudienceCount(null);
+    const t = setTimeout(async () => {
+      try {
+        const preview = await api.post('/api/marketing/audience/preview', { audienceType: form.audienceType, audienceFilter });
+        if (!cancelled) setAudienceCount(Number(preview?.count ?? 0));
+      } catch {
+        if (!cancelled) setAudienceCount(0);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [form.audienceType, form.segmentType, form.segmentCreatedAfter]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setSaving(true);
     try {
       if (campaign) {
-        await api.put(`/api/marketing/campaigns/${campaign.id}`, form);
+        await api.put(`/api/marketing/campaigns/${campaign.id}`, { ...form, audienceFilter });
       } else {
-        await api.post('/api/marketing/campaigns', form);
+        await api.post('/api/marketing/campaigns', { ...form, audienceFilter });
       }
       onSave();
     } catch (error: unknown) {
@@ -472,6 +507,33 @@ function CampaignFormModal({ campaign, onSave, onClose }: CampaignFormModalProps
                 <option value="all">All Contacts</option>
                 <option value="segment">Segment</option>
               </select>
+              {form.audienceType === 'segment' && (
+                <div className="mt-3 grid sm:grid-cols-2 gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Contact type</label>
+                    <select value={form.segmentType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForm({ ...form, segmentType: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-sm">
+                      <option value="">Any type</option>
+                      <option value="lead">Leads</option>
+                      <option value="client">Clients</option>
+                      <option value="subcontractor">Subcontractors</option>
+                      <option value="vendor">Vendors</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Added on or after</label>
+                    <input type="date" value={form.segmentCreatedAfter}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, segmentCreatedAfter: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                </div>
+              )}
+              <p className="mt-2 text-xs text-gray-500">
+                {audienceCount === null
+                  ? 'Counting recipients...'
+                  : `This campaign will go to ${audienceCount} contact${audienceCount === 1 ? '' : 's'}.`}
+                {' '}Contacts who unsubscribed are always excluded.
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email Body (HTML)</label>
