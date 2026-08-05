@@ -251,3 +251,19 @@ export const variantSupplierMap = pgTable('variant_supplier_map', {
   supplierItemName: text('supplier_item_name'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('variant_supplier_map_variant_unique').on(t.variantId)])
+
+// -- Inbound email routed into the back-office via crm-mode aliases --
+// Field names match packages/tenant-backend inbound routes.
+export const inboundMessage = pgTable('inbound_message', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  toLocalPart: text('to_local_part').notNull(),
+  fromEmail: text('from_email').notNull(),
+  fromName: text('from_name'),
+  subject: text('subject'),
+  textBody: text('text_body'),
+  htmlBody: text('html_body'),
+  spfVerdict: text('spf_verdict'),
+  dkimVerdict: text('dkim_verdict'),
+  rawHeaders: text('raw_headers'),
+  receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('inbound_message_received_at_idx').on(t.receivedAt)])

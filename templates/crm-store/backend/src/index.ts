@@ -22,6 +22,8 @@ import emailAliasesRoutes from './routes/emailAliases.ts'
 import companyShimRoutes from './routes/company.ts'
 import onboardingRoutes from './routes/onboarding.ts'
 import supplierRoutes from './suppliers/routes.ts'
+import inboundParseRoutes from './routes/inboundParse.ts'
+import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import discountAdminRoutes from './routes/discounts.ts'
 import mediaRoutes from './routes/media.ts'
 
@@ -80,6 +82,8 @@ app.route('/api/email-aliases', emailAliasesRoutes)
 app.route('/api/company', companyShimRoutes)
 app.route('/api/onboarding', onboardingRoutes)
 app.route('/api/admin/suppliers', supplierRoutes)
+app.route('/api/internal/inbound-email', inboundParseRoutes)
+app.route('/api/inbound-messages', inboundMessagesRoutes)
 app.route('/api/admin/discounts', discountAdminRoutes)
 // Public media proxy for product images (streamed from private R2). Must be
 // registered before the SPA catch-all below so `/media/*` is not swallowed.

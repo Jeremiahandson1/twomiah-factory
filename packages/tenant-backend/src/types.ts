@@ -31,6 +31,9 @@ export interface EmailAliasesDeps {
 }
 
 export interface InboundParseDeps {
+  /** Reply-from-branded-address: sends mail AS localPart@tenantDomain via the
+   *  template's own email service. Absent → the reply endpoint returns 501. */
+  sendReply?: (args: { fromLocalPart: string; to: string; subject: string; text: string }) => Promise<{ success: boolean }>
   db: any
   inboundMessageTable: any
 }

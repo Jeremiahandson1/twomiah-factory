@@ -299,4 +299,4 @@ const emailService = {
 }
 
 export default emailService
-export { emailService, send }
+export { emailService, send, templates }

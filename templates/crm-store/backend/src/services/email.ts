@@ -150,3 +150,6 @@ export async function sendPasswordReset(p: { toEmail: string; storeName: string;
     subject: `Reset your ${p.storeName} admin password`,
     html: wrap(p.storeName, 'Reset your password', inner) })
 }
+
+// Exported for the inbound-message reply route (sends AS alias@storedomain).
+export { send }

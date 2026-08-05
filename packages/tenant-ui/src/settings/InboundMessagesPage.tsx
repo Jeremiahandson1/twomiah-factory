@@ -28,6 +28,9 @@ function authHeaders(): Record<string, string> {
 
 export function InboundMessagesPage(): React.ReactElement {
   const [messages, setMessages] = useState<InboundMessage[]>([])
+  const [replyText, setReplyText] = useState('')
+  const [replySending, setReplySending] = useState(false)
+  const [replyNote, setReplyNote] = useState<{ ok: boolean; msg: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<InboundMessage | null>(null)
@@ -105,6 +108,38 @@ export function InboundMessagesPage(): React.ReactElement {
                 ) : (
                   <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800">{selected.textBody || '(no body)'}</pre>
                 )}
+                {/* Reply — sends AS the alias the customer wrote to */}
+                <div className="border-t border-gray-100 mt-4 pt-3">
+                  <div className="text-xs text-gray-500 mb-2">Reply as <span className="font-mono">{selected.toLocalPart}@</span> to <span className="font-mono">{selected.fromEmail}</span></div>
+                  <textarea
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm min-h-[100px]"
+                    placeholder="Write your reply..."
+                    value={replyText}
+                    onChange={e => { setReplyText(e.target.value); setReplyNote(null) }}
+                  />
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 text-white rounded-md text-sm font-semibold"
+                      disabled={replySending || !replyText.trim()}
+                      onClick={async () => {
+                        setReplySending(true); setReplyNote(null)
+                        try {
+                          const r = await fetch('/api/inbound-messages/' + selected.id + '/reply', {
+                            method: 'POST', headers: authHeaders(), body: JSON.stringify({ text: replyText }),
+                          })
+                          const d = await r.json().catch(() => ({}))
+                          if (!r.ok) throw new Error(d.error || 'Send failed')
+                          setReplyText('')
+                          setReplyNote({ ok: true, msg: 'Reply sent' })
+                        } catch (err: any) {
+                          setReplyNote({ ok: false, msg: err?.message || 'Send failed' })
+                        }
+                        setReplySending(false)
+                      }}
+                    >{replySending ? 'Sending…' : 'Send reply'}</button>
+                    {replyNote && <span className={'text-xs ' + (replyNote.ok ? 'text-green-600' : 'text-red-600')}>{replyNote.msg}</span>}
+                  </div>
+                </div>
               </div>
             )}
           </div>

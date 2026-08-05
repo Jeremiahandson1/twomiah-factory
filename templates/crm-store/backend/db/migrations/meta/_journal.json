@@ -36,6 +36,13 @@
       "when": 1791200000000,
       "tag": "0004_dropship_suppliers",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0005_inbound_messages",
+      "breakpoints": true
     }
   ]
 }
