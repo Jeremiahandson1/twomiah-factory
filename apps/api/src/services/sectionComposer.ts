@@ -12,6 +12,7 @@
  * instead of just better-worded.
  */
 import path from 'path'
+import { getHeroLibrary } from '../config/heroLibrary.ts'
 
 export interface ComposerInput {
   businessName: string
@@ -1180,13 +1181,21 @@ function buildSitePrompt(input: ComposerInput): string {
         `S${i + 1}. ${p.url}${p.tag ? '  [tag: ' + p.tag + ']' : ''}${p.alt ? '  [alt: ' + p.alt + ']' : ''}`
       ).join('\n') + '\n'
   }
+  // Tier 3 — curated self-hosted library (verified by eye; heroLibrary.ts).
+  const libraryList = getHeroLibrary(input.businessType).slice(0, 30)
+  if (libraryList.length > 0) {
+    photosSection += `\n# Tier 3 — Curated library (pre-vetted for this trade; always safe)\n` +
+      libraryList.map((p, i) => `L${i + 1}. ${p.url}  [tag: ${p.tag}]`).join('\n') + '\n'
+  }
   if (photosSection) {
     photosSection += `\nRules for the photo tiers:\n` +
       `- Tier 1 (customer photos) ALWAYS beats Tier 2 (stock) when one fits the slot.\n` +
       `- Tier 2 (stock) ALWAYS beats the hardcoded Unsplash example URLs below.\n` +
       `- Match tags to section context: 'hero' tag for hero sections, 'team' for team/grid members, 'services' for service item images.\n` +
       `- Never reuse the same photo across two sections on the same page unless unavoidable.\n` +
-      `- Only fall back to the example URLs in rule 4 below if BOTH tiers are exhausted.\n`
+      (libraryList.length > 0
+        ? `- Use ONLY photo URLs from the tiers above. NEVER invent, modify, or recall image URLs from memory.\n`
+        : `- Only fall back to the example URLs in rule 4 below if the photo tiers are exhausted.\n`)
   }
 
   return `You are composing a multi-page website for ${input.businessName} — a ${input.businessType} in ${[input.city, input.state].filter(Boolean).join(', ') || 'the region they serve'}.
@@ -1792,7 +1801,7 @@ ${recipesSummary}
 1. Use only the section types listed in each page's allowed_types.
 2. Write copy that reflects THIS specific business — pull details from the description, services, goals. No generic boilerplate.
 3. The pages should feel like one coherent site — same voice, same level of formality, narrative continuity across every page.
-4. For photos, use https://images.unsplash.com/photo-<id>?w=1400&q=80 URLs. Choose ones that match the business type. If unsure, use https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1400&q=80.
+4. Photos: if a PHOTOS section is provided above, use ONLY those URLs. Otherwise use https://images.unsplash.com/photo-<id>?w=1400&q=80 URLs matching the business type; if unsure, use https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1400&q=80.
 5. about/story portrait should be a person headshot, not a building or job site.
 6. team/grid members should reflect the actual scale of the business — for a 6-active-project firm, 4-6 members; for a solo operator, 1.
 7. Realistic numbers only. If the intake doesn't give specific stats, omit them. Never fabricate ratings, project counts, or years.

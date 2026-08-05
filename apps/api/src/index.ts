@@ -48,6 +48,22 @@ app.use('*', cors({
   credentials: true,
 }))
 
+// Curated hero library — self-hosted, immutable stock imagery the composer
+// references (see config/heroLibrary.ts). Public by design.
+app.get('/hero-library/:group/:file', async (c) => {
+  const group = c.req.param('group')
+  const file = c.req.param('file')
+  if (!/^[a-z0-9-]+$/.test(group) || !/^[a-z0-9.-]+\.(jpg|jpeg|png|webp)$/.test(file) || file.includes('..')) return c.text('Not found', 404)
+  const fs = await import('fs')
+  const path = await import('path')
+  const p = path.join(import.meta.dir, '..', 'assets', 'hero-library', group, file)
+  if (!fs.existsSync(p)) return c.text('Not found', 404)
+  const ext = file.split('.').pop()
+  c.header('Content-Type', ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg')
+  c.header('Cache-Control', 'public, max-age=31536000, immutable')
+  return c.body(fs.readFileSync(p))
+})
+
 app.route('/api/v1/factory', factoryRoutes)
 app.route('/api/v1/qbwc', qbwcRoutes)
 app.route('/api/v1/brief', briefRoutes)
