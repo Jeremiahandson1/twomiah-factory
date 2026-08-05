@@ -172,6 +172,12 @@
         ['mousemove','mousedown','touchstart','keydown','scroll','pointerdown']
           .forEach(function(e){ window.addEventListener(e, window.__loadAnalytics, { once: true, passive: true }); });
         setTimeout(window.__loadAnalytics, 5000);
+      <% if (((typeof _a !== 'undefined' && _a.mode) || settings?.analyticsMode || 'standard') !== 'deferred') { %>
+      // Standard mode (default): load immediately -- Google's verification
+      // tooling only detects tags that load at page load (Claflin field
+      // lesson). 'deferred' opt-in keeps the interaction-delayed behavior.
+      window.__loadAnalytics();
+      <% } %>
       })();
     }
   </script>

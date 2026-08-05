@@ -173,6 +173,8 @@
     const _gadsId = _a.googleAdsId         || settings?.googleAdsId         || '';
   %>
 
+  <% const _mode = _a.mode || settings?.analyticsMode || 'standard'; %>
+  <% if (_mode === 'deferred') { %>
   <%/* ── GTM/GA4 deferred loader (Claflin 3.1) ─────────────────────────
        Inline dataLayer + gtag stubs run immediately so config calls and
        custom events queue without blocking the main thread. The heavy
@@ -222,6 +224,22 @@
       setTimeout(window.__loadAnalytics, 5000);
     })();
   </script>
+  <% } %>
+
+  <% } else { %>
+  <%/* Standard (plain) Google install — DEFAULT. Google's verification
+       tooling (Tag Assistant, Ads checks) reliably detects only this form;
+       the deferred loader above is opt-in via settings.analytics.mode =
+       'deferred' for owners who prefer the page-speed trade. */%>
+  <% if (_gtmId) { %>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','<%= _gtmId %>');</script>
+  <% } %>
+  <% if (_gaId || _gadsId) { %>
+  <script async src="https://www.googletagmanager.com/gtag/js?id=<%= _gaId || _gadsId %>"></script>
+  <% } %>
+  <% if (_gtmId || _gaId || _gadsId) { %>
+  <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());<% if (_gaId) { %>gtag('config','<%= _gaId %>');<% } %><% if (_gadsId) { %>gtag('config','<%= _gadsId %>');window._gadsId='<%= _gadsId %>';<% } %></script>
+  <% } %>
   <% } %>
 
   <%/* ── Custom event tracking — queues against the gtag stub above ── */%>
