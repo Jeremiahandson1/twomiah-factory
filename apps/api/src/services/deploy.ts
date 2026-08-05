@@ -1007,6 +1007,11 @@ export async function deployCustomer(
           { key: 'FACTORY_SYNC_KEY', value: factorySyncKey },
           { key: 'TENANT_ID', value: factoryCustomer.id },
           { key: 'FACTORY_URL', value: process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || 'https://twomiah-factory.onrender.com' },
+          // Google OAuth client — lets the CRM refresh GBP/calendar tokens itself.
+          ...(process.env.GOOGLE_CALENDAR_CLIENT_ID && process.env.GOOGLE_CALENDAR_CLIENT_SECRET ? [
+            { key: 'GOOGLE_CALENDAR_CLIENT_ID', value: process.env.GOOGLE_CALENDAR_CLIENT_ID },
+            { key: 'GOOGLE_CALENDAR_CLIENT_SECRET', value: process.env.GOOGLE_CALENDAR_CLIENT_SECRET },
+          ] : []),
           ...integrationEnvVars,
           ...r2EnvVars,
         ]

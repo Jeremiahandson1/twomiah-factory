@@ -99,6 +99,13 @@
       "when": 1772785271406,
       "tag": "0013_fix_storm_radar_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791400000000,
+      "tag": "0014_add_gbp_connection",
+      "breakpoints": true
     }
   ]
 }

@@ -20,7 +20,7 @@ import ReportsPage from './pages/roofing/ReportsPage'
 import SettingsPage from './pages/settings/SettingsPage'
 import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage'
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage'
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared'
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from './shared'
 import InsuranceClaimPage from './pages/roofing/InsuranceClaimPage'
 import AdjusterDirectoryPage from './pages/roofing/AdjusterDirectoryPage'
 import CanvassingView from './pages/roofing/CanvassingView'
@@ -131,6 +131,7 @@ export default function App() {
                 <Route path="settings/email-domain" element={<EmailDomainPage />} />
                 <Route path="settings/email-inbox" element={<InboundMessagesPage />} />
                 <Route path="email" element={<InboundMessagesPage />} />
+                <Route path="google-reviews" element={<GbpReviewsPage />} />
                 <Route path="estimator" element={<EstimatorPage />} />
                 <Route path="ai-receptionist" element={<AIReceptionistPage />} />
                 <Route path="ads" element={<AdsPage />} />

@@ -468,6 +468,100 @@ factory.get('/calendar/google/callback', async (c) => {
   return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'google=connected')
 })
 
+// ─── Google Business Profile OAuth broker ────────────────────────────────────
+// Same pattern as the calendar flow above: one approved Google app, consent
+// lands back on the factory, tokens forward to the tenant's CRM backend.
+// Scope is business.manage (reviews read/reply, location info). NOTE: Google
+// gates the Business Profile APIs behind an access application — until that's
+// approved on the Cloud project, API calls return quota errors even though
+// the OAuth consent itself succeeds.
+factory.get('/gbp/google/auth', async (c) => {
+  const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID
+  if (!clientId) return c.json({ error: 'Google OAuth not configured' }, 503)
+  const tenantId = c.req.query('tenant')
+  const userId = c.req.query('user')
+  const returnUrl = c.req.query('return') || ''
+  if (!tenantId || !userId || !returnUrl) return c.json({ error: 'tenant, user, return are required' }, 400)
+  const { data: tenant } = await supabase.from('tenants').select('id, website_url, render_backend_url').eq('id', tenantId).single()
+  if (!tenant) return c.json({ error: 'tenant not found' }, 404)
+  const allowed = [tenant.render_backend_url, tenant.website_url].filter(Boolean) as string[]
+  if (!allowed.some(u => returnUrl.startsWith(u)) && !returnUrl.startsWith('http://localhost')) {
+    return c.json({ error: 'return URL must point to your tenant app' }, 400)
+  }
+  const state = newOauthState({ tenantId, userId, returnUrl })
+  const factoryUrl = process.env.FACTORY_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ''
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: 'code',
+    scope: 'https://www.googleapis.com/auth/business.manage',
+    redirect_uri: factoryUrl.replace(/\/$/, '') + '/gbp/google/callback',
+    access_type: 'offline',
+    prompt: 'consent',
+    state,
+  })
+  return c.redirect('https://accounts.google.com/o/oauth2/v2/auth?' + params.toString())
+})
+
+factory.get('/gbp/google/callback', async (c) => {
+  const code = c.req.query('code')
+  const state = c.req.query('state') || ''
+  const error = c.req.query('error')
+  const entry = consumeOauthState(state)
+  if (!entry) return c.html('<p>Sign-in session expired. Please try again from your admin.</p>', 400)
+  if (error || !code) return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'gbp=denied')
+
+  const clientId = process.env.GOOGLE_CALENDAR_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CALENDAR_CLIENT_SECRET
+  const factoryUrl = process.env.FACTORY_PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || ''
+  if (!clientId || !clientSecret) return c.html('<p>Server misconfiguration.</p>', 503)
+
+  let tokens: any
+  try {
+    const body = new URLSearchParams({
+      code, client_id: clientId, client_secret: clientSecret,
+      redirect_uri: factoryUrl.replace(/\/$/, '') + '/gbp/google/callback',
+      grant_type: 'authorization_code',
+    })
+    const res = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
+    if (!res.ok) return c.html('<p>Token exchange failed: ' + (await res.text().catch(() => '')) + '</p>', 502)
+    tokens = await res.json()
+  } catch (e: any) {
+    return c.html('<p>Token exchange error: ' + e?.message + '</p>', 502)
+  }
+
+  let externalEmail = ''
+  try {
+    const ures = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { 'Authorization': 'Bearer ' + tokens.access_token } })
+    if (ures.ok) { const ud: any = await ures.json(); externalEmail = ud.email || '' }
+  } catch { /* non-fatal */ }
+
+  const { data: tenant } = await supabase.from('tenants').select('render_backend_url, factory_sync_key').eq('id', entry.tenantId).single()
+  if (!tenant?.render_backend_url || !tenant?.factory_sync_key) {
+    return c.html('<p>Tenant routing not configured.</p>', 502)
+  }
+  try {
+    const r = await fetch(tenant.render_backend_url.replace(/\/$/, '') + '/api/internal/gbp/store-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': tenant.factory_sync_key },
+      body: JSON.stringify({
+        userId: entry.userId,
+        externalAccountEmail: externalEmail,
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token || null,
+        expiresInSec: tokens.expires_in || 3600,
+      }),
+    })
+    if (!r.ok) {
+      const text = await r.text().catch(() => '')
+      return c.html('<p>Tenant accept failed: ' + text + '</p>', 502)
+    }
+  } catch (e: any) {
+    return c.html('<p>Tenant call error: ' + e?.message + '</p>', 502)
+  }
+
+  return c.redirect(entry.returnUrl + (entry.returnUrl.includes('?') ? '&' : '?') + 'gbp=connected')
+})
+
 // ─── Twomiah Bookings Outlook Calendar OAuth orchestration ─────────────────
 // Mirror of the Google flow against Microsoft identity platform.
 // One approved Azure AD app for the platform; tokens forwarded to the

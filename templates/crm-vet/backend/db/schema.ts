@@ -3814,3 +3814,17 @@ export const wellnessEnrollment = pgTable('wellness_enrollment', {
   index('wellness_enrollment_patient_id_idx').on(t.patientId),
 ])
 
+
+// -- Google Business Profile connection (single row; factory-brokered OAuth) --
+export const gbpConnection = pgTable('gbp_connection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  externalEmail: text('external_email'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at'),
+  accountName: text('account_name'),
+  locationName: text('location_name'),
+  locationTitle: text('location_title'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})

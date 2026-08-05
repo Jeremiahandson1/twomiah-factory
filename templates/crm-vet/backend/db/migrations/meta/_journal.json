@@ -120,6 +120,13 @@
       "when": 1772785271409,
       "tag": "0016_vet_domain",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791400000000,
+      "tag": "0017_add_gbp_connection",
+      "breakpoints": true
     }
   ]
 }

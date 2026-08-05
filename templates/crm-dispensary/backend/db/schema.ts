@@ -2628,3 +2628,17 @@ export const offlineTransaction = pgTable('offline_transactions', {
   index('offline_tx_company_idx').on(t.companyId),
   index('offline_tx_status_idx').on(t.status),
 ])
+
+// -- Google Business Profile connection (single row; factory-brokered OAuth) --
+export const gbpConnection = pgTable('gbp_connection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  externalEmail: text('external_email'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at'),
+  accountName: text('account_name'),
+  locationName: text('location_name'),
+  locationTitle: text('location_title'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})

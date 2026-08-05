@@ -61,6 +61,7 @@ const fieldNavItems = [
 
 const bottomNavItems = [
   { label: 'Email', icon: Mail, to: '/crm/email', feature: 'branded_email' },
+  { label: 'Google Reviews', icon: Star, to: '/crm/google-reviews', feature: 'google_business' },
   { label: 'Import', icon: Upload, to: '/crm/import' },
   { label: 'Reports', icon: BarChart3, to: '/crm/reports' },
   { label: 'Settings', icon: Settings, to: '/crm/settings' },

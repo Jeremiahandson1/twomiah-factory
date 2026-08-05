@@ -63,6 +63,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/warranties', icon: Star, label: 'Warranties', features: ['warranties'] },
   { to: '/crm/call-tracking', icon: Phone, label: 'Call Tracking', features: ['call_tracking'] },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
+  { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
   { to: '/crm/ai-receptionist', icon: Bot, label: 'AI Receptionist', features: ['ai_receptionist'] },
   { to: '/crm/recurring', icon: Repeat, label: 'Recurring', features: ['recurring_jobs'] },
   { to: '/crm/takeoffs', icon: Scissors, label: 'Takeoffs', features: ['takeoff_tools'] },

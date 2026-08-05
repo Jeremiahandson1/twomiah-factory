@@ -8,6 +8,7 @@
 export { createEmailAliasesRoutes } from './emailAliases'
 export { createInboundParseRoute } from './inboundParse'
 export { createInboundMessagesRoutes } from './inboundMessages'
+export { createGbpAdminRoutes, createGbpInternalRoutes } from './gbp'
 export { createOnboardingRoutes } from './onboarding'
 export { createEmailDomainRoutes } from './emailDomain'
 export { createAccountRoutes } from './account'

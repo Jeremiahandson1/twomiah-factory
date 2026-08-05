@@ -57,6 +57,7 @@ export const FEATURE_CATEGORIES = [
     features: [
       { id: 'two_way_texting', name: 'Two-Way Texting', description: 'Text customers from the CRM and see replies in one thread' },
       { id: 'branded_email', name: 'Branded Email', description: 'support@yourdomain addresses — forward anywhere or receive replies in the CRM email inbox' },
+      { id: 'google_business', name: 'Google Reviews', description: 'Connect your Google Business Profile - see your rating and reply to reviews from the CRM' },
       { id: 'quickbooks_sync', name: 'QuickBooks Sync', description: 'Sync invoices and payments to QuickBooks' },
     ],
   },
