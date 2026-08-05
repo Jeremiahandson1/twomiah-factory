@@ -87,6 +87,7 @@ export default function ChangeOrdersPage() {
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'amount', label: 'Amount', render: (v: unknown) => `$${Number(v).toLocaleString()}` },
     { key: 'daysAdded', label: 'Days', render: (v: unknown) => v ? `+${v}` : '-' },
+    { key: 'signedBy', label: 'Signed', render: (v: unknown, row: Record<string, unknown>) => v ? <span className="text-green-700 text-sm">{v as string}{row.signedAt ? ` \u00b7 ${new Date(row.signedAt as string).toLocaleDateString()}` : ''}</span> : <span className="text-gray-400">-</span> },
   ];
 
   return (

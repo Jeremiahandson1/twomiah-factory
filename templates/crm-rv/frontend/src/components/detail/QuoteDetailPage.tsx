@@ -186,6 +186,30 @@ export default function QuoteDetailPage() {
             </div>
           )}
 
+          {quote.signature ? (
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
+              <h2 className="font-semibold mb-3">Signed Acceptance</h2>
+              <div className="border border-green-200 rounded-lg bg-green-50 p-4">
+                <img src={quote.signature as string} alt="Customer signature" className="max-h-24 bg-white rounded" />
+                <div className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-700">
+                  <div><span className="text-gray-500">Signed by</span><p className="font-medium">{quote.signedBy as string || '-'}</p></div>
+                  <div><span className="text-gray-500">Signed at</span><p className="font-medium">{quote.signedAt ? new Date(quote.signedAt as string).toLocaleString() : '-'}</p></div>
+                  <div><span className="text-gray-500">IP address</span><p className="font-mono text-xs">{quote.signedIp as string || '-'}</p></div>
+                  <div><span className="text-gray-500">Consent</span><p className="font-medium">{quote.consentAt ? 'Agreed to sign electronically' : '-'}</p></div>
+                </div>
+                {quote.signatureHash ? (
+                  <p className="mt-3 text-xs text-gray-500 break-all">
+                    <span className="text-gray-400">Document fingerprint (SHA-256): </span>
+                    <span className="font-mono">{quote.signatureHash as string}</span>
+                  </p>
+                ) : null}
+                {quote.signedUserAgent ? (
+                  <p className="mt-1 text-xs text-gray-400 break-all">{quote.signedUserAgent as string}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
           {quote.terms && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
               <h2 className="font-semibold mb-2">Terms & Conditions</h2>

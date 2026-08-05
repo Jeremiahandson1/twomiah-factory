@@ -192,6 +192,7 @@ interface SignatureData {
   signature: string;
   signedBy: string;
   signedAt: string;
+  consent: boolean;
 }
 
 interface SignatureModalProps {
@@ -207,10 +208,15 @@ interface SignatureModalProps {
  */
 export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document', signerName = '' }: SignatureModalProps) {
   const [name, setName] = useState(signerName);
+  const [consent, setConsent] = useState(false);
 
   useEffect(() => {
     setName(signerName);
   }, [signerName]);
+
+  useEffect(() => {
+    if (isOpen) setConsent(false);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -219,10 +225,15 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
       alert('Please enter your name.');
       return;
     }
+    if (!consent) {
+      alert('Please agree to sign electronically before continuing.');
+      return;
+    }
     onSave({
       signature: signatureData,
       signedBy: name.trim(),
       signedAt: new Date().toISOString(),
+      consent: true,
     });
   };
 
@@ -248,9 +259,17 @@ export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document
 
           <SignaturePad onSave={handleSave} onCancel={onClose} width={450} height={150} />
 
-          <p className="mt-4 text-xs text-gray-500">
-            By signing, you agree this electronic signature is legally equivalent to your handwritten signature.
-          </p>
+          <label className="mt-4 flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConsent(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+            />
+            <span className="text-xs text-gray-600">
+              I agree that my electronic signature is the legal equivalent of my handwritten signature. <span className="text-red-500">*</span>
+            </span>
+          </label>
         </div>
       </div>
     </div>

@@ -158,6 +158,7 @@ export function PortalQuoteDetail() {
         body: JSON.stringify({
           signature: signatureData.signature,
           signedBy: signatureData.signedBy,
+          consent: signatureData.consent,
         }),
       });
       setQuote({ 

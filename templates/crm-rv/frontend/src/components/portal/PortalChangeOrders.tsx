@@ -34,6 +34,7 @@ interface SignatureData {
   signature: string;
   signedBy: string;
   signedAt: string;
+  consent: boolean;
 }
 
 interface ChangeOrderCardProps {
@@ -169,7 +170,7 @@ export function PortalChangeOrderDetail() {
     try {
       await portalFetch(`/change-orders/${changeOrderId}/approve`, {
         method: 'POST',
-        body: JSON.stringify({ signature: signatureData.signature, signedBy: signatureData.signedBy }),
+        body: JSON.stringify({ signature: signatureData.signature, signedBy: signatureData.signedBy , consent: signatureData.consent }),
       });
       setChangeOrder({ ...changeOrder!, status: 'approved', signature: signatureData.signature, signedBy: signatureData.signedBy, approvedAt: signatureData.signedAt });
     } catch (error: unknown) {

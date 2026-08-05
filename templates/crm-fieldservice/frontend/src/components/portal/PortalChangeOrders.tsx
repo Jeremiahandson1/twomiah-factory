@@ -155,6 +155,7 @@ export function PortalChangeOrderDetail() {
         body: JSON.stringify({
           signature: signatureData.signature,
           signedBy: signatureData.signedBy,
+          consent: signatureData.consent,
         }),
       });
       setChangeOrder({ 

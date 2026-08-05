@@ -10,7 +10,7 @@ import crypto from 'crypto'
 import path from 'path'
 import { eq, and, inArray, count, sum, sql, desc, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job, message, lienWaiver, rfi, submittal, document, documentShare, user, activity } from '../../db/schema.ts'
+import { contact, company, project, quote, quoteLineItem, invoice, invoiceLineItem, payment, changeOrder, job, message, lienWaiver, rfi, submittal, document, documentShare, user, activity, auditLog, changeOrderLineItem } from '../../db/schema.ts'
 import selections from '../services/selections.ts'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -530,11 +530,92 @@ app.get('/p/:token/quotes/:quoteId', portalAuth, async (c) => {
 })
 
 // Approve quote
+// =============================================
+// E-SIGNATURE EVIDENCE
+// A signature only binds if we can show WHO signed, WHAT they saw, and that
+// they affirmatively agreed to sign electronically (ESIGN/UETA). These helpers
+// validate the act and freeze the document it applied to.
+// =============================================
+const MAX_SIGNATURE_BYTES = 500_000
+
+function validateSignatureInput(body: any): { ok: true; signerName: string } | { ok: false; error: string } {
+  const signature = body?.signature
+  const signerName = typeof body?.signedBy === 'string' ? body.signedBy.trim() : ''
+  if (typeof signature !== 'string' || !signature.startsWith('data:image/')) {
+    return { ok: false, error: 'A signature is required.' }
+  }
+  if (signature.length > MAX_SIGNATURE_BYTES) {
+    return { ok: false, error: 'Signature image is too large.' }
+  }
+  if (!signerName) return { ok: false, error: 'Please type your full name to sign.' }
+  if (body?.consent !== true) {
+    return { ok: false, error: 'You must agree to sign electronically before approving.' }
+  }
+  return { ok: true, signerName }
+}
+
+/** Caller IP as seen through Render's proxy, best-effort. */
+function signerIp(c: any): string | null {
+  const fwd = c.req.header('x-forwarded-for')
+  if (fwd) return fwd.split(',')[0].trim() || null
+  return c.req.header('x-real-ip') || null
+}
+
+/** SHA-256 of exactly what the signer saw — later edits become provable. */
+function documentFingerprint(payload: unknown): string {
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+}
+
+/** Signature audit row. Best-effort: auditing must never void a signature. */
+async function recordSignatureAudit(params: {
+  companyId: string
+  entity: string
+  entityId: string
+  entityName: string
+  signerName: string
+  signerEmail?: string | null
+  ip: string | null
+  userAgent: string | null
+  documentHash: string
+  signedAt: Date
+  amount?: unknown
+}) {
+  try {
+    await db.insert(auditLog).values({
+      companyId: params.companyId,
+      action: `${params.entity}.signed`,
+      entity: params.entity,
+      entityId: params.entityId,
+      entityName: params.entityName,
+      ipAddress: params.ip,
+      userAgent: params.userAgent,
+      userName: params.signerName,
+      userEmail: params.signerEmail || null,
+      metadata: {
+        signedAt: params.signedAt.toISOString(),
+        documentHash: params.documentHash,
+        amount: params.amount ?? null,
+        consent: true,
+        consentText: 'I agree that my electronic signature is the legal equivalent of my handwritten signature.',
+        method: 'customer-portal-drawn-signature',
+      },
+    })
+  } catch (err) {
+    console.error('[esign] audit write failed:', err)
+  }
+}
+
 app.post('/p/:token/quotes/:quoteId/approve', portalAuth, async (c) => {
   const portal = c.get('portal') as any
   const portalContact = portal.contact
   const quoteId = c.req.param('quoteId')
-  const { signature, signedBy, notes } = await c.req.json()
+  const body = await c.req.json()
+  const { notes } = body
+
+  // Signature-grade or nothing — an approve with no signature used to pass here.
+  const check = validateSignatureInput(body)
+  if (!check.ok) return c.json({ error: check.error }, 400)
+  const signerName = check.signerName
 
   const [foundQuote] = await db
     .select()
@@ -550,17 +631,62 @@ app.post('/p/:token/quotes/:quoteId/approve', portalAuth, async (c) => {
     return c.json({ error: 'Quote already approved' }, 400)
   }
 
+  const signedLineItems = await db
+    .select()
+    .from(quoteLineItem)
+    .where(eq(quoteLineItem.quoteId, quoteId))
+
+  const signedAt = new Date()
+  const ip = signerIp(c)
+  const userAgent = c.req.header('user-agent') || null
+  const documentHash = documentFingerprint({
+    id: foundQuote.id,
+    number: foundQuote.number,
+    name: foundQuote.name,
+    subtotal: foundQuote.subtotal,
+    taxRate: foundQuote.taxRate,
+    taxAmount: foundQuote.taxAmount,
+    discount: foundQuote.discount,
+    total: foundQuote.total,
+    terms: foundQuote.terms || '',
+    lineItems: signedLineItems.map((li) => ({
+      description: li.description,
+      quantity: li.quantity,
+      unitPrice: li.unitPrice,
+      total: li.total,
+    })),
+  })
+
   const [updated] = await db
     .update(quote)
     .set({
       status: 'approved',
-      approvedAt: new Date(),
-      signature: signature || null,
-      signedAt: signature ? new Date() : null,
-      updatedAt: new Date(),
+      approvedAt: signedAt,
+      signature: body.signature,
+      signedAt,
+      signedBy: signerName,
+      signedIp: ip,
+      signedUserAgent: userAgent,
+      signatureHash: documentHash,
+      consentAt: signedAt,
+      updatedAt: signedAt,
     })
     .where(eq(quote.id, quoteId))
     .returning()
+
+  await recordSignatureAudit({
+    companyId: portalContact.companyId,
+    entity: 'quote',
+    entityId: quoteId,
+    entityName: `${foundQuote.number} — ${foundQuote.name}`,
+    signerName,
+    signerEmail: portalContact.email,
+    ip,
+    userAgent,
+    documentHash,
+    signedAt,
+    amount: foundQuote.total,
+  })
 
   notifyCollaboratorAction({
     companyId: portalContact.companyId,
@@ -568,11 +694,12 @@ app.post('/p/:token/quotes/:quoteId/approve', portalAuth, async (c) => {
     entityType: 'quote',
     entityId: quoteId,
     action: 'approved',
-    actorName: signedBy || portalContact.name,
+    actorName: signerName,
     actorRole: portalContact.type || 'client',
-    summary: `approved quote ${foundQuote.number} "${foundQuote.name}"`,
-    details: { notes: notes || null },
+    summary: `signed and approved quote ${foundQuote.number} "${foundQuote.name}"`,
+    details: { notes: notes || null, signedBy: signerName, documentHash },
   })
+
 
   return c.json({ success: true, quote: updated })
 })
@@ -887,7 +1014,12 @@ app.post('/p/:token/change-orders/:changeOrderId/approve', portalAuth, async (c)
   const portal = c.get('portal') as any
   const portalContact = portal.contact
   const changeOrderId = c.req.param('changeOrderId')
-  const { signature, signedBy, notes } = await c.req.json()
+  const body = await c.req.json()
+  const { notes } = body
+
+  const check = validateSignatureInput(body)
+  if (!check.ok) return c.json({ error: check.error }, 400)
+  const signerName = check.signerName
 
   // Get contact's project IDs
   const contactProjects = await db
@@ -920,16 +1052,61 @@ app.post('/p/:token/change-orders/:changeOrderId/approve', portalAuth, async (c)
     return c.json({ error: 'Change order already approved' }, 400)
   }
 
+  const signedLineItems = await db
+    .select()
+    .from(changeOrderLineItem)
+    .where(eq(changeOrderLineItem.changeOrderId, changeOrderId))
+
+  const signedAt = new Date()
+  const ip = signerIp(c)
+  const userAgent = c.req.header('user-agent') || null
+  const documentHash = documentFingerprint({
+    id: foundChangeOrder.id,
+    number: foundChangeOrder.number,
+    title: foundChangeOrder.title,
+    description: foundChangeOrder.description || '',
+    reason: foundChangeOrder.reason || '',
+    amount: foundChangeOrder.amount,
+    daysAdded: foundChangeOrder.daysAdded,
+    lineItems: signedLineItems.map((li) => ({
+      description: li.description,
+      quantity: li.quantity,
+      unitPrice: li.unitPrice,
+      total: li.total,
+    })),
+  })
+
   const [updated] = await db
     .update(changeOrder)
     .set({
       status: 'approved',
-      approvedDate: new Date(),
-      approvedBy: signedBy || portalContact.name,
-      updatedAt: new Date(),
+      approvedDate: signedAt,
+      approvedBy: signerName,
+      signature: body.signature,
+      signedAt,
+      signedBy: signerName,
+      signedIp: ip,
+      signedUserAgent: userAgent,
+      signatureHash: documentHash,
+      consentAt: signedAt,
+      updatedAt: signedAt,
     })
     .where(eq(changeOrder.id, changeOrderId))
     .returning()
+
+  await recordSignatureAudit({
+    companyId: portalContact.companyId,
+    entity: 'change_order',
+    entityId: changeOrderId,
+    entityName: `${foundChangeOrder.number} — ${foundChangeOrder.title}`,
+    signerName,
+    signerEmail: portalContact.email,
+    ip,
+    userAgent,
+    documentHash,
+    signedAt,
+    amount: foundChangeOrder.amount,
+  })
 
   notifyCollaboratorAction({
     companyId: portalContact.companyId,
@@ -937,11 +1114,12 @@ app.post('/p/:token/change-orders/:changeOrderId/approve', portalAuth, async (c)
     entityType: 'change_order',
     entityId: changeOrderId,
     action: 'approved',
-    actorName: signedBy || portalContact.name,
+    actorName: signerName,
     actorRole: portalContact.type || 'client',
-    summary: `approved change order ${foundChangeOrder.number} "${foundChangeOrder.title}" ($${Number(foundChangeOrder.amount || 0).toLocaleString()})`,
-    details: { notes: notes || null },
+    summary: `signed and approved change order ${foundChangeOrder.number} "${foundChangeOrder.title}" ($${Number(foundChangeOrder.amount || 0).toLocaleString()})`,
+    details: { notes: notes || null, signedBy: signerName, documentHash },
   })
+
 
   return c.json({ success: true, changeOrder: updated })
 })

@@ -14,7 +14,7 @@ interface PortalQuoteData {
   [key: string]: unknown;
 }
 
-interface SignatureData { signature: string; signedBy: string; signedAt: string; }
+interface SignatureData { signature: string; signedBy: string; signedAt: string; consent: boolean; }
 interface QuoteCardProps { quote: PortalQuoteData; token: string | undefined; highlight?: boolean; }
 
 export default function PortalQuotes() {
@@ -79,7 +79,7 @@ export function PortalQuoteDetail() {
 
   const handleApprove = async (signatureData: SignatureData) => {
     setActionLoading(true); setShowSignatureModal(false);
-    try { await portalFetch(`/quotes/${quoteId}/approve`, { method: 'POST', body: JSON.stringify({ signature: signatureData.signature, signedBy: signatureData.signedBy }) }); setQuote({ ...quote!, status: 'approved', signature: signatureData.signature, signedBy: signatureData.signedBy, approvedAt: signatureData.signedAt }); }
+    try { const res = await portalFetch(`/quotes/${quoteId}/approve`, { method: 'POST', body: JSON.stringify({ signature: signatureData.signature, signedBy: signatureData.signedBy , consent: signatureData.consent }) }); const saved = (res as { quote?: PortalQuoteData })?.quote; setQuote(saved ? { ...quote!, ...saved } : { ...quote!, status: 'approved', signature: signatureData.signature, signedBy: signatureData.signedBy, approvedAt: signatureData.signedAt }); }
     catch (error: unknown) { const message = error instanceof Error ? error.message : 'Unknown error'; alert('Failed to approve quote: ' + message); }
     finally { setActionLoading(false); }
   };
