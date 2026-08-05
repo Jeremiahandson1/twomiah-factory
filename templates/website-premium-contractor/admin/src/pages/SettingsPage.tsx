@@ -6,6 +6,11 @@ import { Label, TextField, TextAreaField, ImageUrlField } from '../components/Fi
 interface NavItem { label: string; href: string }
 
 interface Settings {
+  googleTagManagerId?: string | null
+  googleAnalyticsId?: string | null
+  googleAdsId?: string | null
+  facebookPixelId?: string | null
+  microsoftClarityId?: string | null
   id?: string
   companyName: string
   tagline?: string | null
@@ -134,6 +139,27 @@ export function SettingsPage() {
           </div>
           <TextAreaField label="Address" rows={2} value={settings.address || ''} onChange={(e) => update({ address: e.target.value })} />
           <TextField label="Contact CTA button label" value={settings.contactCtaLabel || ''} onChange={(e) => update({ contactCtaLabel: e.target.value })} />
+        </div>
+      </section>
+
+      {/* Tracking & Analytics */}
+      <section className="card card-padding mb-6">
+        <h2 className="text-lg text-ink mb-1">Tracking &amp; Analytics</h2>
+        <p className="text-sm text-slate-500 mb-4">Paste IDs from Google or your marketing pro. Standard snippets are used, so Google&apos;s verification tools detect them. Leave blank to disable.</p>
+        <div className="grid grid-cols-2 gap-4">
+          {([
+            ['googleTagManagerId', 'Google Tag Manager', 'GTM-XXXXXXX'],
+            ['googleAnalyticsId', 'Google Analytics 4', 'G-XXXXXXXXXX'],
+            ['googleAdsId', 'Google Ads', 'AW-XXXXXXXXX'],
+            ['facebookPixelId', 'Facebook Pixel', '1234567890'],
+            ['microsoftClarityId', 'Microsoft Clarity', 'abcdefghij'],
+          ] as const).map(([key, label, ph]) => (
+            <div key={key}>
+              <Label>{label}</Label>
+              <input type="text" placeholder={ph} value={(settings as any)[key] || ''}
+                onChange={(e) => update({ [key]: e.target.value } as Partial<Settings>)} className="input" />
+            </div>
+          ))}
         </div>
       </section>
 

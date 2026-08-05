@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, jsonb, integer, boolean, index } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, timestamp, jsonb, integer, boolean, index, uniqueIndex } from 'drizzle-orm/pg-core'
 
 // Single-row company/settings — same row updated by the admin. Mirrors
 // the pattern in other templates but stripped to only what the
@@ -24,6 +24,15 @@ export const settings = pgTable('settings', {
   // Branding assets
   logoUrl: text('logo_url'),
   faviconUrl: text('favicon_url'),
+  // Tracking IDs — rendered as PLAIN standard snippets in views/base.ejs
+  // (Google-tool-detectable; the deferred loader is deliberately NOT used
+  // here — see the Claflin field lesson in the one-stop roadmap).
+  googleTagManagerId: text('google_tag_manager_id'),
+  googleAnalyticsId: text('google_analytics_id'),
+  googleAdsId: text('google_ads_id'),
+  facebookPixelId: text('facebook_pixel_id'),
+  microsoftClarityId: text('microsoft_clarity_id'),
+
   // Per-tenant copy for the public booking flow. null falls back to
   // hardcoded defaults in the template.
   bookingHeroTitle: text('booking_hero_title'),
@@ -452,4 +461,15 @@ export const bookingCalendarConnections = pgTable('booking_calendar_connections'
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   userProviderIdx: index('booking_cal_user_provider_idx').on(t.userId, t.provider),
+}))
+
+// -- First-party traffic counter: day x path upsert. No cookies, no PII --
+// gives owners "is my site working" numbers without any Google dependency.
+export const pageViews = pgTable('page_views', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  day: text('day').notNull(),   // YYYY-MM-DD (UTC) — lexical compare == date compare
+  path: text('path').notNull(),
+  count: integer('count').notNull().default(0),
+}, (t) => ({
+  dayPathIdx: uniqueIndex('page_views_day_path_idx').on(t.day, t.path),
 }))

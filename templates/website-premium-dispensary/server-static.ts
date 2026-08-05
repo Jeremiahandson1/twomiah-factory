@@ -19,13 +19,13 @@ import { registerMedia } from './services/mediaProxy.ts'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { serveStatic } from 'hono/bun'
-import { eq, asc, desc, and, gte, lte } from 'drizzle-orm'
+import { eq, asc, desc, and, gte, lte, sql } from 'drizzle-orm'
 import ejs from 'ejs'
 import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import { db } from './db'
-import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl } from './db/schema'
+import { settings as settingsTbl, pages as pagesTbl, leads as leadsTbl, posts as postsTbl, pageViews as pageViewsTbl } from './db/schema'
 import adminRoutes from './routes/admin'
 import { secureHeaders, adminCors, loginRateLimit, isSafeUrl } from './lib/security'
 
@@ -153,6 +153,15 @@ async function loadPage(slug: string) {
   return rows[0] || null
 }
 
+// First-party pageview counter — fire-and-forget day/path upsert; a failed
+// count must never affect a render.
+function countView(path: string): void {
+  const day = new Date().toISOString().slice(0, 10)
+  db.insert(pageViewsTbl).values({ day, path, count: 1 })
+    .onConflictDoUpdate({ target: [pageViewsTbl.day, pageViewsTbl.path], set: { count: sql`${pageViewsTbl.count} + 1` } })
+    .catch(() => { /* non-blocking */ })
+}
+
 async function renderPage(slug: string, currentPath: string): Promise<string | null> {
   const [page, settingsRow] = await Promise.all([loadPage(slug), loadSettings()])
   if (!page || !page.isPublished) return null
@@ -191,6 +200,7 @@ function defaultHomePlaceholder(siteName: string): string {
 // ── Page routes ───────────────────────────────────────────────────────────
 app.get('/', async (c) => {
   const html = await renderPage('home', '/')
+  if (html) countView('/')
   if (!html) {
     const siteName = process.env.SITE_NAME || 'Your Site'
     return c.html(defaultHomePlaceholder(siteName))
@@ -1026,6 +1036,7 @@ app.get('/:slug', async (c) => {
   const slug = c.req.param('slug')
   if (['api', 'admin', 'uploads', 'images', 'styles', 'scripts', 'health', 'sitemap.xml', 'robots.txt', 'blog', 'book', 'booking'].includes(slug)) return c.notFound()
   const html = await renderPage(slug, '/' + slug)
+  if (html) countView('/' + slug)
   if (!html) return c.notFound()
   return c.html(html)
 })
@@ -1926,7 +1937,8 @@ app.post('/api/internal/sync-settings', async (c) => {
 
   const allowed: Record<string, any> = {}
   const fields = ['companyName', 'tagline', 'phone', 'email', 'address', 'seoTitle', 'seoDescription',
-    'contactCtaLabel', 'primaryColor', 'secondaryColor', 'accentColor', 'logoUrl', 'faviconUrl', 'nav']
+    'contactCtaLabel', 'primaryColor', 'secondaryColor', 'accentColor', 'logoUrl', 'faviconUrl',
+    'googleTagManagerId', 'googleAnalyticsId', 'googleAdsId', 'facebookPixelId', 'microsoftClarityId', 'nav']
   for (const f of fields) if (f in patch) allowed[f] = patch[f]
   if (Object.keys(allowed).length === 0) return c.json({ ok: true, noChanges: true })
 
