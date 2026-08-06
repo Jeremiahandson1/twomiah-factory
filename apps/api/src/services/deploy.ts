@@ -1020,6 +1020,21 @@ export async function deployCustomer(
         }
         // Always include ADS_URL so the ads page works from first deploy
         backendEnvVars.push({ key: 'ADS_URL', value: process.env.TWOMIAH_ADS_URL || 'https://twomiah-ads.onrender.com' })
+        // Sending identity. Without this the CRM falls back to
+        // noreply@<their domain>, which the mail provider rejects until that
+        // domain is verified — so nothing the CRM sent ever left the building.
+        // Send from our verified domain and let replies go to the owner.
+        {
+          const ownerEmail = (factoryCustomer as any)?.config?.company?.email || (factoryCustomer as any)?.email || ''
+          const tenantDomain = ((factoryCustomer as any)?.config?.company?.domain || '').replace(/^https?:\/\//, '').replace(/\/$/, '')
+          const verifiedSender = process.env.FACTORY_FROM_EMAIL || ''
+          const fromEmail = process.env.TENANT_VERIFY_OWN_DOMAIN === 'true' && tenantDomain
+            ? 'noreply@' + tenantDomain
+            : verifiedSender
+          if (fromEmail) backendEnvVars.push({ key: 'FROM_EMAIL', value: fromEmail })
+          if (factoryCustomer.name) backendEnvVars.push({ key: 'FROM_NAME', value: factoryCustomer.name })
+          if (ownerEmail) backendEnvVars.push({ key: 'REPLY_TO_EMAIL', value: ownerEmail })
+        }
         // AI features in the CRM (AI Reports, AI support) call Claude directly.
         if (process.env.ANTHROPIC_API_KEY) backendEnvVars.push({ key: 'ANTHROPIC_API_KEY', value: process.env.ANTHROPIC_API_KEY })
         // If this tenant has a premium website, the CRM SchedulePage

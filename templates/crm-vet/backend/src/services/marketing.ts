@@ -13,13 +13,8 @@
 import { db } from '../../db/index.ts'
 import { campaign, contact, emailLog } from '../../db/schema.ts'
 import { eq, and, or, desc, count, sql, gte, ilike, inArray } from 'drizzle-orm'
-import sgMail from '@sendgrid/mail'
+import { sendRaw } from './email.ts'
 import { createId } from '@paralleldrive/cuid2'
-
-// Initialize SendGrid
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY)
-}
 
 // NOTE: The Drizzle schema has a simplified `campaign` table and `emailLog` table.
 // The Prisma version had emailTemplate, emailCampaign, emailRecipient, emailClick,
@@ -746,20 +741,10 @@ function decorateCampaignHtml(html: string, recipientId: string | null, contactI
 }
 
 async function sendEmail({ to, subject, html, fromName, fromEmail }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string }) {
-  if (!process.env.SENDGRID_API_KEY) {
-    console.log('Email would be sent:', { to, subject })
-    return
-  }
-
-  await sgMail.send({
-    to,
-    from: {
-      email: fromEmail || process.env.DEFAULT_FROM_EMAIL!,
-      name: fromName || process.env.DEFAULT_FROM_NAME!,
-    },
-    subject,
-    html,
-  })
+  // Provider-agnostic: whatever the tenant has configured (the deploy pipeline
+  // provisions Resend). This used to call SendGrid directly and no-op without
+  // SENDGRID_API_KEY, which no tenant ever gets.
+  await sendRaw({ to, subject, html, fromName, fromEmail })
 }
 
 function personalizeContent(content: string, contactData: any): string {

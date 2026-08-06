@@ -463,6 +463,9 @@ async function send(
       subject,
       html,
       text,
+      // Mail goes out from a verified sending domain, so replies have to be
+      // pointed back at the business or the customer's reply lands nowhere.
+      ...(process.env.REPLY_TO_EMAIL ? { replyTo: process.env.REPLY_TO_EMAIL } : {}),
       ...options,
     });
 
@@ -474,12 +477,36 @@ async function send(
   }
 }
 
+/**
+ * Send an arbitrary subject/html message (campaigns, drip steps) through the
+ * configured provider. `send()` above is template-based; bulk mail composes its
+ * own body, but must not bring its own provider.
+ */
+async function sendRaw(
+  { to, subject, html, fromName, fromEmail }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string },
+): Promise<{ success: boolean; messageId?: string; dev?: boolean }> {
+  const from = { name: fromName || FROM_NAME, address: fromEmail || FROM_EMAIL };
+
+  if (!transporter) {
+    console.log('EMAIL (dev mode, no provider configured) ->', to, '|', subject);
+    return { success: true, dev: true };
+  }
+
+  const result = await transporter.sendMail({
+    from, to, subject, html,
+    ...(process.env.REPLY_TO_EMAIL ? { replyTo: process.env.REPLY_TO_EMAIL } : {}),
+  });
+  logger.info('Email sent', { to, subject, provider: PROVIDER });
+  return { success: true, messageId: result.messageId };
+}
+
 // ============================================
 // CONVENIENCE METHODS
 // ============================================
 
 const emailService = {
   send,
+  sendRaw,
   PROVIDER,
 
   // Auth
@@ -506,4 +533,4 @@ const emailService = {
 };
 
 export default emailService;
-export { emailService, send, templates };
+export { emailService, send, sendRaw, templates };
