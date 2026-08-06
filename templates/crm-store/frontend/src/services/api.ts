@@ -36,6 +36,7 @@ export type Order = {
   subtotalCents: number; shippingCents: number; taxCents: number; discountCents: number; totalCents: number
   currency: string; trackingCarrier: string | null; trackingNumber: string | null
   internalNote: string | null; createdAt: string; items?: OrderItem[]
+  labelUrl?: string | null; labelCostCents?: number | null; labelPurchasedAt?: string | null
 }
 export type OrderItem = {
   id: string; productName: string; variantName: string; sku: string; imageUrl: string | null
@@ -58,6 +59,20 @@ export type PaymentStatus = {
   webhookUrl: string
 }
 export type User = { id: string; email: string; name: string | null; role: string }
+
+export type Review = {
+  id: string; productId: string; productName?: string | null; productSlug?: string | null
+  authorName: string; authorEmail?: string | null; rating: number
+  title?: string | null; body?: string | null
+  status: 'pending' | 'approved' | 'rejected'; verifiedPurchase: boolean; createdAt: string
+}
+export type Parcel = { lengthIn: number; widthIn: number; heightIn: number; weightOz: number }
+export type ShippingConfig = {
+  connected: boolean; provider: string | null; mode?: string
+  defaultParcel: Parcel; fromAddress: (Address & { name?: string; phone?: string }) | null
+}
+export type RateQuote = { id: string; carrier: string; service: string; amountCents: number; currency: string; estimatedDays?: number | null }
+export type BoughtLabel = { carrier: string; service?: string; trackingCode: string; labelUrl: string; costCents: number }
 
 class ApiClient {
   private baseUrl = API_URL
@@ -183,6 +198,25 @@ class ApiClient {
   async createDiscount(body: Partial<DiscountCode>) { return (await this.request<{ code: DiscountCode }>('/api/admin/discounts', { method: 'POST', body: JSON.stringify(body) })).code }
   async updateDiscount(id: string, body: Partial<DiscountCode>) { return (await this.request<{ code: DiscountCode }>(`/api/admin/discounts/${id}`, { method: 'PATCH', body: JSON.stringify(body) })).code }
   async deleteDiscount(id: string) { return this.request(`/api/admin/discounts/${id}`, { method: 'DELETE' }) }
+
+  // ── Reviews ──
+  async listReviews(status = 'pending') { return (await this.request<{ data: Review[] }>(`/api/admin/reviews?status=${status}`)).data }
+  async reviewCounts() { return this.request<{ pending: number; approved: number; rejected: number }>('/api/admin/reviews/counts') }
+  async setReviewStatus(id: string, status: 'pending' | 'approved' | 'rejected') {
+    return this.request<Review>(`/api/admin/reviews/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
+  }
+  async deleteReview(id: string) { return this.request(`/api/admin/reviews/${id}`, { method: 'DELETE' }) }
+
+  // ── Shipping labels ──
+  async shippingConfig() { return this.request<ShippingConfig>('/api/admin/shipping/config') }
+  async connectShipping(body: { provider: 'easypost'; apiKey: string; mode: 'test' | 'live'; fromAddress: Address & { name?: string; phone?: string }; defaultParcel?: Parcel }) {
+    return this.request<{ ok: boolean }>('/api/admin/shipping/config', { method: 'POST', body: JSON.stringify(body) })
+  }
+  async disconnectShipping() { return this.request<{ ok: boolean }>('/api/admin/shipping/config', { method: 'DELETE' }) }
+  async orderRates(orderId: string) { return (await this.request<{ data: RateQuote[] }>(`/api/admin/shipping/orders/${orderId}/rates`)).data }
+  async buyLabel(orderId: string, body: { rateId?: string; markShipped?: boolean }) {
+    return this.request<{ label: BoughtLabel; order: Order }>(`/api/admin/shipping/orders/${orderId}/label`, { method: 'POST', body: JSON.stringify(body) })
+  }
 }
 
 export const api = new ApiClient()

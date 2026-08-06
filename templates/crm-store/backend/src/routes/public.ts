@@ -4,6 +4,7 @@ import { db } from '../../db/index.ts'
 import {
   products, productImages, productVariants, orders, orderItems,
   storeSettings, paymentConfig, discountCodes,
+  productReviews,
 } from '../../db/schema.ts'
 import type { ShippingZone, TaxRate } from '../../db/schema.ts'
 import { eq, and, inArray, asc, sql } from 'drizzle-orm'
@@ -412,6 +413,70 @@ pub.post('/webhooks/payment', async (c) => {
 })
 
 // Order confirmation for the storefront success page (limited, non-sensitive).
+// ── Reviews ─────────────────────────────────────────────────────────────────
+pub.get('/products/:slug/reviews', async (c) => {
+  const [row] = await db.select().from(products)
+    .where(and(eq(products.slug, c.req.param('slug')), eq(products.status, 'active'))).limit(1)
+  if (!row) return c.json({ error: 'Not found' }, 404)
+  const { approvedReviews, ratingSummaries } = await import('../services/reviews.ts')
+  const [reviews, summary] = await Promise.all([approvedReviews(row.id), ratingSummaries([row.id])])
+  return c.json({ reviews, summary: summary[row.id] ?? { average: 0, count: 0 } })
+})
+
+const reviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  authorName: z.string().min(1).max(80),
+  authorEmail: z.string().email().optional(),
+  title: z.string().max(120).optional(),
+  body: z.string().max(4000).optional(),
+})
+
+pub.post('/products/:slug/reviews', async (c) => {
+  const [settings] = await db.select().from(storeSettings).limit(1)
+  if (settings && settings.reviewsEnabled === false) return c.json({ error: 'Reviews are turned off' }, 403)
+
+  const parsed = reviewSchema.safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ error: 'Please give a rating from 1 to 5 and your name' }, 400)
+
+  const [row] = await db.select().from(products)
+    .where(and(eq(products.slug, c.req.param('slug')), eq(products.status, 'active'))).limit(1)
+  if (!row) return c.json({ error: 'Not found' }, 404)
+
+  const { findVerifyingOrder } = await import('../services/reviews.ts')
+  const orderId = parsed.data.authorEmail ? await findVerifyingOrder(row.id, parsed.data.authorEmail) : null
+
+  await db.insert(productReviews).values({
+    productId: row.id,
+    orderId,
+    authorName: parsed.data.authorName.trim(),
+    authorEmail: parsed.data.authorEmail ?? null,
+    rating: parsed.data.rating,
+    title: parsed.data.title?.trim() || null,
+    body: parsed.data.body?.trim() || null,
+    verifiedPurchase: !!orderId,
+    status: 'pending',
+  })
+
+  // Deliberately not published on submit: the owner approves first.
+  return c.json({ ok: true, message: 'Thanks! Your review will appear once it is approved.' }, 201)
+})
+
+// ── Abandoned cart recovery ─────────────────────────────────────────────────
+// The link in the reminder email. Rebuilds a checkout for the same items and
+// bounces the customer straight to the payment page.
+pub.get('/recover/:token', async (c) => {
+  const origin = new URL(c.req.url).origin
+  try {
+    const { resumeCheckout } = await import('../services/abandonedCart.ts')
+    const url = await resumeCheckout(c.req.param('token'), origin)
+    if (!url) return c.text('This cart is no longer available.', 404)
+    return c.redirect(url)
+  } catch (err: any) {
+    logger.error('cart recovery failed', { error: err?.message })
+    return c.text('We could not reopen that cart. Please contact us.', 500)
+  }
+})
+
 pub.get('/order-summary', async (c) => {
   // Stripe returns with ?session_id=<providerSessionId>; Square/PayPal return with
   // ?ref=<our order id>. Either resolves to the same order.

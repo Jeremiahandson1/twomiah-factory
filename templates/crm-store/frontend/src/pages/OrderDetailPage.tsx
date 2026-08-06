@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
-import api, { Order } from '../services/api'
+import api, { Order, type RateQuote } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
 import { money, formatDate, statusColor } from '../lib/format'
 
@@ -141,6 +141,89 @@ export default function OrderDetailPage() {
           <button onClick={() => saveFulfillment(true)} className="btn-primary">Save & mark shipped</button>
         </div>
       </div>
+      {/* Shipping label */}
+      <LabelPanel orderId={id!} order={order} onBought={load} />
+    </div>
+  )
+}
+
+// Buy a carrier label for this order. Hidden entirely when no carrier account
+// is connected — the manual tracking fields above still work on their own.
+function LabelPanel({ orderId, order, onBought }: { orderId: string; order: Order; onBought: () => void }) {
+  const { toast } = useToast()
+  const [connected, setConnected] = useState<boolean | null>(null)
+  const [rates, setRates] = useState<RateQuote[] | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    api.shippingConfig().then((c) => setConnected(c.connected)).catch(() => setConnected(false))
+  }, [])
+
+  if (connected === false && !order.labelUrl) return null
+
+  const loadRates = async () => {
+    setBusy(true)
+    try {
+      setRates(await api.orderRates(orderId))
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not get rates', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const buy = async (rateId?: string) => {
+    setBusy(true)
+    try {
+      const res = await api.buyLabel(orderId, { rateId, markShipped: true })
+      toast('Label bought — customer emailed')
+      window.open(res.label.labelUrl, '_blank')
+      onBought()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Could not buy label', 'error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card p-5 space-y-3">
+      <h2 className="font-semibold text-gray-900">Shipping label</h2>
+
+      {order.labelUrl ? (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-600">
+            {order.trackingCarrier} {order.trackingNumber}
+            {order.labelCostCents != null && <span className="text-gray-400"> · ${(order.labelCostCents / 100).toFixed(2)}</span>}
+          </p>
+          <a href={order.labelUrl} target="_blank" rel="noreferrer" className="btn-secondary">Print label</a>
+        </div>
+      ) : !order.shippingAddress ? (
+        <p className="text-sm text-gray-500">This order has no shipping address, so a label cannot be bought.</p>
+      ) : (
+        <>
+          {!rates ? (
+            <button onClick={loadRates} disabled={busy} className="btn-secondary">{busy ? 'Checking…' : 'Get rates'}</button>
+          ) : rates.length === 0 ? (
+            <p className="text-sm text-gray-500">No rates came back for this address and parcel.</p>
+          ) : (
+            <div className="space-y-2">
+              {rates.map((r) => (
+                <div key={r.id} className="flex items-center justify-between border rounded-lg px-3 py-2">
+                  <span className="text-sm text-gray-700">
+                    {r.carrier} {r.service}
+                    {r.estimatedDays ? <span className="text-gray-400"> · {r.estimatedDays} days</span> : null}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="text-sm font-medium">${(r.amountCents / 100).toFixed(2)}</span>
+                    <button onClick={() => buy(r.id)} disabled={busy} className="btn-primary">Buy</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

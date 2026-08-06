@@ -25,6 +25,8 @@ import supplierRoutes from './suppliers/routes.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import discountAdminRoutes from './routes/discounts.ts'
+import reviewAdminRoutes from './routes/reviews.ts'
+import shippingAdminRoutes from './routes/shipping.ts'
 import mediaRoutes from './routes/media.ts'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -85,6 +87,8 @@ app.route('/api/admin/suppliers', supplierRoutes)
 app.route('/api/internal/inbound-email', inboundParseRoutes)
 app.route('/api/inbound-messages', inboundMessagesRoutes)
 app.route('/api/admin/discounts', discountAdminRoutes)
+app.route('/api/admin/reviews', reviewAdminRoutes)
+app.route('/api/admin/shipping', shippingAdminRoutes)
 // Public media proxy for product images (streamed from private R2). Must be
 // registered before the SPA catch-all below so `/media/*` is not swallowed.
 app.route('/media', mediaRoutes)
@@ -111,7 +115,9 @@ if (hasFrontendBuild) {
 // Stale-cart sweep: checkouts that were started but never paid linger as
 // 'pending'. Cancel any older than 24h so the orders list + revenue stats stay
 // clean. Runs hourly (and once at boot). Non-blocking.
-const STALE_PENDING_MS = 24 * 60 * 60 * 1000
+// 7 days: the abandoned-cart reminder needs room to work before a pending
+// order is written off (it used to be cancelled after 24h, unrecovered).
+const STALE_PENDING_MS = 7 * 24 * 60 * 60 * 1000
 async function sweepStalePending(): Promise<void> {
   try {
     const cutoff = new Date(Date.now() - STALE_PENDING_MS)
@@ -124,6 +130,19 @@ async function sweepStalePending(): Promise<void> {
 }
 setInterval(() => { void sweepStalePending() }, 60 * 60 * 1000)
 void sweepStalePending()
+
+// Abandoned carts: remind once, then let the sweep above age them out. Before
+// this, every abandoned cart was cancelled silently and never followed up.
+import('./services/abandonedCart.ts').then((m) => {
+  setInterval(() => { void m.sweepAbandonedCarts() }, 30 * 60 * 1000)
+  setTimeout(() => { void m.sweepAbandonedCarts() }, 60_000)
+}).catch(() => { /* recovery module unavailable — store still runs */ })
+
+// Ask for a review once, a few days after an order ships.
+import('./services/reviews.ts').then((m) => {
+  setInterval(() => { void m.sweepReviewRequests() }, 6 * 60 * 60 * 1000)
+  setTimeout(() => { void m.sweepReviewRequests() }, 120_000)
+}).catch(() => { /* reviews module unavailable — store still runs */ })
 
 // Dropship: retry un-forwarded paid orders + poll tracking for providers
 // without webhooks. Same cadence as the stale-pending sweep.

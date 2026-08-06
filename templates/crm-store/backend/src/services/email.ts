@@ -141,6 +141,51 @@ export async function sendOrderShipped(p: { order: EmailOrder; items: EmailItem[
     html: wrap(storeName, 'Your order shipped', inner) })
 }
 
+export async function sendAbandonedCart(p: {
+  order: EmailOrder
+  items: EmailItem[]
+  storeName: string
+  recoverUrl: string
+  supportEmail?: string | null
+}): Promise<void> {
+  const { order, items, storeName, recoverUrl } = p
+  const inner = `
+    <p style="color:#444;font-size:15px;line-height:1.6;">You left something behind${firstName(order.customerName)}. Your items are still here — finish whenever you are ready.</p>
+    ${itemsTable(items, order.currency)}
+    ${totalsTable(order)}
+    <p style="margin:26px 0 0;"><a href="${esc(recoverUrl)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;font-size:15px;">Complete your order</a></p>
+    <p style="color:#888;font-size:13px;margin-top:22px;">If you have changed your mind, you can ignore this — nothing has been charged.${p.supportEmail ? ' Questions? Just reply to this email.' : ''}</p>`
+  await send({
+    from: fromFor(storeName),
+    to: order.customerEmail,
+    replyTo: p.supportEmail || undefined,
+    subject: `You left ${items.length === 1 ? 'an item' : 'items'} in your ${storeName} cart`,
+    html: wrap(storeName, 'Still interested?', inner),
+  })
+}
+
+export async function sendReviewRequest(p: {
+  order: EmailOrder
+  items: EmailItem[]
+  storeName: string
+  reviewUrl: string
+  supportEmail?: string | null
+}): Promise<void> {
+  const { order, items, storeName, reviewUrl } = p
+  const inner = `
+    <p style="color:#444;font-size:15px;line-height:1.6;">Hope you are enjoying your order${firstName(order.customerName)}. If you have a minute, a short review helps other shoppers a lot.</p>
+    ${itemsTable(items, order.currency)}
+    <p style="margin:26px 0 0;"><a href="${esc(reviewUrl)}" style="display:inline-block;background:#111;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;font-size:15px;">Leave a review</a></p>
+    <p style="color:#888;font-size:13px;margin-top:22px;">Only if you want to — no follow-ups after this one.${p.supportEmail ? ' Something wrong? Reply to this email and we will fix it.' : ''}</p>`
+  await send({
+    from: fromFor(storeName),
+    to: order.customerEmail,
+    replyTo: p.supportEmail || undefined,
+    subject: `How was your ${storeName} order?`,
+    html: wrap(storeName, 'How did we do?', inner),
+  })
+}
+
 export async function sendPasswordReset(p: { toEmail: string; storeName: string; resetUrl: string }): Promise<void> {
   const inner = `
     <p style="color:#444;font-size:15px;line-height:1.6;">We received a request to reset the password for your ${esc(p.storeName)} admin account.</p>

@@ -104,6 +104,18 @@ export const orders = pgTable('orders', {
   trackingCarrier: text('tracking_carrier'),
   trackingNumber: text('tracking_number'),
 
+  // Abandoned-cart recovery. A pending order IS the abandoned cart: checkout
+  // records it, with items, before the customer ever reaches the payment page.
+  recoveryToken: text('recovery_token'),
+  abandonedEmailSentAt: timestamp('abandoned_email_sent_at', { withTimezone: true }),
+  recoveredAt: timestamp('recovered_at', { withTimezone: true }),
+  reviewRequestSentAt: timestamp('review_request_sent_at', { withTimezone: true }),
+  // Carrier label bought through the shipping provider (tracking itself still
+  // lives in trackingCarrier/trackingNumber, shared with manual fulfilment).
+  labelUrl: text('label_url'),
+  labelCostCents: integer('label_cost_cents'),
+  labelPurchasedAt: timestamp('label_purchased_at', { withTimezone: true }),
+
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -132,6 +144,44 @@ export const orderItems = pgTable('order_items', {
 // ── Payment config (the merchant's OWN provider account) ─────────────────────
 // Exactly one active row. `credentials` is encrypted at rest (AES-GCM, key from
 // PAYMENT_ENC_KEY) and is NEVER returned by any public endpoint or to the client.
+// ── Shipping carrier (label purchase) ───────────────────────────────────────
+// Same shape as supplier_config: one connected row, credentials encrypted at
+// rest, everything else null-safe so a store with no carrier just keeps
+// entering tracking numbers by hand.
+export const shippingConfig = pgTable('shipping_config', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  provider: text('provider').notNull(), // 'easypost'
+  mode: text('mode').notNull().default('test'),
+  credentialsEnc: text('credentials_enc').notNull(), // AES-GCM (apiKey)
+  fromAddress: jsonb('from_address').$type<Address & { name?: string; phone?: string }>(),
+  defaultParcel: jsonb('default_parcel').$type<{ lengthIn: number; widthIn: number; heightIn: number; weightOz: number }>(),
+  connected: boolean('connected').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// ── Product reviews ─────────────────────────────────────────────────────────
+// Reviews land as 'pending' and are only shown publicly once approved — an
+// open review box on a small store is a spam magnet.
+export const productReviews = pgTable('product_reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  // Set when the review came from a real order — that is what "verified" means.
+  orderId: uuid('order_id').references(() => orders.id, { onDelete: 'set null' }),
+  authorName: text('author_name').notNull(),
+  authorEmail: text('author_email'),
+  rating: integer('rating').notNull(),
+  title: text('title'),
+  body: text('body'),
+  status: text('status').notNull().default('pending'), // pending | approved | rejected
+  verifiedPurchase: boolean('verified_purchase').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('product_reviews_product_idx').on(t.productId),
+  index('product_reviews_status_idx').on(t.status),
+])
+
 export const paymentConfig = pgTable('payment_config', {
   id: uuid('id').primaryKey().defaultRandom(),
   provider: paymentProviderEnum('provider').notNull(),
@@ -158,6 +208,10 @@ export const storeSettings = pgTable('store_settings', {
   shippingZones: jsonb('shipping_zones').$type<ShippingZone[]>(),
   taxRates: jsonb('tax_rates').$type<TaxRate[]>(),
   storefrontOrigin: text('storefront_origin'), // allowlisted origin for public API/CORS
+  abandonedCartEnabled: boolean('abandoned_cart_enabled').notNull().default(true),
+  abandonedCartDelayMinutes: integer('abandoned_cart_delay_minutes').notNull().default(60),
+  reviewsEnabled: boolean('reviews_enabled').notNull().default(true),
+  reviewRequestDays: integer('review_request_days').notNull().default(7),
   onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }), // set once by POST /api/onboarding/complete
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
