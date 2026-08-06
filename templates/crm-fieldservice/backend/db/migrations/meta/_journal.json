@@ -99,6 +99,13 @@
       "when": 1791400200000,
       "tag": "0013_marketing_fixes",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791400300000,
+      "tag": "0014_email_recipient_fk",
+      "breakpoints": true
     }
   ]
 }

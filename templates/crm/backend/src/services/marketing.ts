@@ -14,6 +14,7 @@ import { db } from '../../db/index.ts'
 import { campaign, contact, emailLog } from '../../db/schema.ts'
 import { eq, and, or, desc, count, sql, gte, ilike, inArray } from 'drizzle-orm'
 import sgMail from '@sendgrid/mail'
+import { createId } from '@paralleldrive/cuid2'
 
 // Initialize SendGrid
 if (process.env.SENDGRID_API_KEY) {
@@ -194,6 +195,24 @@ export async function updateCampaign(campaignId: string, companyId: string, data
 /**
  * Send campaign
  */
+/** Per-recipient delivery + engagement for one campaign. */
+export async function getCampaignRecipients(campaignId: string, companyId: string) {
+  const [campaignRow] = await db.select()
+    .from(campaign)
+    .where(and(eq(campaign.id, campaignId), eq(campaign.companyId, companyId)))
+  if (!campaignRow) return null
+
+  const result = await db.execute(sql`
+    SELECT er.id, er.email, er.status, er.sent_at, er.opened_at, er.clicked_at,
+           er.open_count, er.click_count, er.unsubscribed_at, c.name AS contact_name
+    FROM email_recipient er
+    LEFT JOIN contact c ON er.contact_id = c.id
+    WHERE er.campaign_id = ${campaignId}
+    ORDER BY er.created_at DESC
+  `)
+  return result.rows ?? []
+}
+
 export async function sendCampaign(campaignId: string, companyId: string) {
   const [campaignRow] = await db.select()
     .from(campaign)
@@ -216,8 +235,8 @@ export async function sendCampaign(campaignId: string, companyId: string) {
     try {
       // One recipient row per send — this is what open/click/unsubscribe hang off.
       const rec = await db.execute(sql`
-        INSERT INTO email_recipient (campaign_id, contact_id, email, status)
-        VALUES (${campaignId}, ${c.id}, ${c.email}, 'sent')
+        INSERT INTO email_recipient (id, campaign_id, contact_id, email, status)
+        VALUES (${createId()}, ${campaignId}, ${c.id}, ${c.email}, 'sent')
         RETURNING id
       `)
       recipientId = ((rec.rows?.[0] as any) || {}).id ?? null
@@ -248,6 +267,9 @@ export async function sendCampaign(campaignId: string, companyId: string) {
 
       sentCount++
     } catch (error: any) {
+      // A recipient failing silently is how you discover a broken campaign a
+      // week later. Say so in the log.
+      console.error('[Marketing] Send failed for', c.email, '-', error?.message || error)
       if (recipientId) {
         await db.execute(sql`UPDATE email_recipient SET status = 'failed' WHERE id = ${recipientId}`).catch(() => {})
       }
@@ -328,8 +350,8 @@ export async function createSequence(companyId: string, data: any) {
   }))
 
   const seqResult = await db.execute(sql`
-    INSERT INTO drip_sequence (company_id, name, description, trigger, active, steps)
-    VALUES (${companyId}, ${data.name}, ${data.description || null}, ${data.trigger || 'manual'},
+    INSERT INTO drip_sequence (id, company_id, name, description, trigger, active, steps)
+    VALUES (${createId()}, ${companyId}, ${data.name}, ${data.description || null}, ${data.trigger || 'manual'},
             ${data.active === true}, ${JSON.stringify(steps)}::json)
     RETURNING *
   `)
@@ -410,8 +432,8 @@ export async function enrollInSequence(sequenceId: string, contactId: string, co
   }
 
   const result = await db.execute(sql`
-    INSERT INTO sequence_enrollment (sequence_id, contact_id, current_step, status, next_email_at)
-    VALUES (${sequenceId}, ${contactId}, 1, 'active', NOW())
+    INSERT INTO sequence_enrollment (id, sequence_id, contact_id, current_step, status, next_email_at)
+    VALUES (${createId()}, ${sequenceId}, ${contactId}, 1, 'active', NOW())
     RETURNING *
   `)
 
@@ -623,7 +645,7 @@ export async function trackClick(recipientId: string, url: string) {
   const row = (result.rows?.[0] as any)
 
   await db.execute(sql`
-    INSERT INTO email_click (recipient_id, url) VALUES (${recipientId}, ${url})
+    INSERT INTO email_click (id, recipient_id, url) VALUES (${createId()}, ${recipientId}, ${url})
   `)
 
   if (row?.campaign_id && Number(row.click_count) === 1) {
@@ -828,6 +850,7 @@ export default {
   getCampaign,
   updateCampaign,
   sendCampaign,
+  getCampaignRecipients,
   scheduleCampaign,
   createSequence,
   updateSequence,

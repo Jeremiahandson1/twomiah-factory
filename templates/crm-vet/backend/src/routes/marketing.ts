@@ -192,6 +192,13 @@ app.get('/stats', async (c) => {
   return c.json(stats)
 })
 
+app.get('/campaigns/:id/recipients', async (c) => {
+  const user = c.get('user') as any
+  const rows = await marketing.getCampaignRecipients(c.req.param('id')!, user.companyId)
+  if (rows === null) return c.json({ error: 'Campaign not found' }, 404)
+  return c.json({ data: rows })
+})
+
 // Who would this actually go to? Checked before sending, not after.
 app.post('/audience/preview', async (c) => {
   const user = c.get('user') as any
