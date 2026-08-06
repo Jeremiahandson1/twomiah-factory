@@ -107,12 +107,25 @@ app.post('/public/:companySlug', async (c) => {
   return c.json({
     success: true,
     confirmationCode: result.confirmationCode,
+    bookingId: result.bookingId,
+    // When the service requires a deposit the booking is held as pending and
+    // the widget finishes payment with this client secret.
+    deposit: result.deposit,
     appointment: {
       date: data.date,
       time: data.time,
       service: result.job.title,
     },
   }, 201)
+})
+
+// Confirmation lookup — the customer has a code, not a login.
+app.get('/public/:companySlug/lookup/:code', async (c) => {
+  const [found] = await db.select({ id: company.id }).from(company).where(eq(company.slug, c.req.param('companySlug'))).limit(1)
+  if (!found) return c.json({ error: 'Company not found' }, 404)
+  const row = await booking.getBookingByCode(found.id, c.req.param('code').toUpperCase())
+  if (!row) return c.json({ error: 'Booking not found' }, 404)
+  return c.json(row)
 })
 
 // ============================================

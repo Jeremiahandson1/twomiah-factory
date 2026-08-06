@@ -215,6 +215,41 @@ export async function createCheckoutSession(
 /**
  * Process Stripe webhook event
  */
+/**
+ * Deposit for an online booking. Keyed by booking_id in metadata so the
+ * webhook can confirm the booking when the card clears.
+ */
+export async function createBookingDepositIntent(params: {
+  bookingId: string
+  companyId: string
+  amount: number
+  contactRow: any
+  description?: string
+}) {
+  if (!stripe) throw new Error('Stripe is not configured')
+  const customer = await getOrCreateCustomer(params.contactRow)
+
+  const intent = await stripe.paymentIntents.create({
+    amount: Math.round(params.amount * 100),
+    currency: 'usd',
+    customer: customer.id,
+    description: params.description || 'Booking deposit',
+    automatic_payment_methods: { enabled: true },
+    metadata: {
+      booking_id: params.bookingId,
+      company_id: params.companyId,
+      contact_id: params.contactRow.id,
+      kind: 'booking_deposit',
+    },
+  })
+
+  return {
+    paymentIntentId: intent.id,
+    clientSecret: intent.client_secret,
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+  }
+}
+
 export async function handleWebhook(event: Stripe.Event) {
   switch (event.type) {
     case 'payment_intent.succeeded':
@@ -233,7 +268,24 @@ export async function handleWebhook(event: Stripe.Event) {
  * Handle successful payment
  */
 async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
-  const { invoice_id } = paymentIntent.metadata
+  const { invoice_id, booking_id } = paymentIntent.metadata
+
+  // Booking deposit: confirm the booking and the job it created.
+  if (booking_id) {
+    const paidAmount = paymentIntent.amount / 100
+    await db.execute(sql`
+      UPDATE online_booking
+      SET deposit_status = 'paid', deposit_paid_at = NOW(), status = 'confirmed', updated_at = NOW()
+      WHERE id = ${booking_id}
+    `)
+    const bookingRow = await db.execute(sql`SELECT job_id FROM online_booking WHERE id = ${booking_id} LIMIT 1`)
+    const jobId = ((bookingRow.rows?.[0] as any) || {}).job_id
+    if (jobId) {
+      await db.execute(sql`UPDATE job SET status = 'scheduled', updated_at = NOW() WHERE id = ${jobId}`)
+    }
+    console.log('[Stripe] Booking deposit paid:', booking_id, paidAmount)
+    return { handled: true, booking_id }
+  }
 
   if (!invoice_id) {
     console.log('Payment without invoice metadata:', paymentIntent.id)

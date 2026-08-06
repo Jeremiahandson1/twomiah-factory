@@ -1700,6 +1700,11 @@ export const onlineBooking = pgTable('online_booking', {
   scheduledDate: timestamp('scheduled_date').notNull(),
   notes: text('notes'),
   status: text('status').default('pending').notNull(),
+  confirmationCode: text('confirmation_code'),
+  depositAmount: decimal('deposit_amount', { precision: 10, scale: 2 }).default('0').notNull(),
+  depositStatus: text('deposit_status').default('none').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  depositPaidAt: timestamp('deposit_paid_at'),
 
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

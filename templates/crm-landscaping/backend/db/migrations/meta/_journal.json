@@ -113,6 +113,13 @@
       "when": 1791400300000,
       "tag": "0015_email_recipient_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791400400000,
+      "tag": "0016_booking_deposits",
+      "breakpoints": true
     }
   ]
 }

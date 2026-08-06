@@ -366,23 +366,110 @@ export async function createBooking(companyId: string, data: {
     source: 'online_booking',
   }).returning();
 
-  // Create booking record
+  // Create booking record.
+  // NOTE: this used to write customer_first_name/customer_last_name/
+  // confirmation_code — columns online_booking does not have — so every
+  // booking blew up here after the job and contact had already been created.
   const confirmationCode = generateConfirmationCode();
+  const depositRequired = !!(service?.deposit_required) && Number(service?.deposit_amount || 0) > 0;
+  const depositAmount = depositRequired ? Number(service.deposit_amount) : 0;
+  const bookingId = createId();
+
   await db.execute(sql`
-    INSERT INTO online_booking (id, company_id, job_id, contact_id, service_id, scheduled_date, customer_first_name, customer_last_name, customer_email, customer_phone, notes, status, confirmation_code, created_at, updated_at)
+    INSERT INTO online_booking (
+      id, company_id, job_id, contact_id, service_id, scheduled_date,
+      customer_name, customer_email, customer_phone, notes, status,
+      confirmation_code, deposit_amount, deposit_status, created_at, updated_at
+    )
     VALUES (
-      gen_random_uuid(), ${companyId}, ${newJob.id}, ${theContact.id}, ${serviceId || null},
-      ${scheduledDate}, ${firstName}, ${lastName}, ${email}, ${phone || null},
-      ${notes || null}, 'confirmed', ${confirmationCode},
+      ${bookingId}, ${companyId}, ${newJob.id}, ${theContact.id}, ${serviceId || null},
+      ${scheduledDate}, ${firstName + ' ' + lastName}, ${email}, ${phone || null},
+      ${notes || null}, ${depositRequired ? 'pending' : 'confirmed'}, ${confirmationCode},
+      ${String(depositAmount)}, ${depositRequired ? 'pending' : 'none'},
       NOW(), NOW()
     )
   `);
 
+  // A booking that owes a deposit is not confirmed until it is paid.
+  let deposit: { required: boolean; amount: number; clientSecret?: string; publishableKey?: string } = {
+    required: depositRequired,
+    amount: depositAmount,
+  };
+
+  if (depositRequired) {
+    await db.update(job).set({ status: 'pending', updatedAt: new Date() }).where(eq(job.id, newJob.id));
+    try {
+      const { createBookingDepositIntent } = await import('./stripe.ts');
+      const intent = await createBookingDepositIntent({
+        bookingId,
+        companyId,
+        amount: depositAmount,
+        contactRow: theContact,
+        description: `Deposit for ${service?.name || 'booking'}`,
+      });
+      if (intent?.clientSecret) {
+        await db.execute(sql`
+          UPDATE online_booking SET payment_intent_id = ${intent.paymentIntentId} WHERE id = ${bookingId}
+        `);
+        deposit = { ...deposit, clientSecret: intent.clientSecret, publishableKey: intent.publishableKey };
+      }
+    } catch (err: any) {
+      // Card processing not configured, or Stripe refused. Keep the booking —
+      // the owner can still collect the deposit by hand — but say so.
+      console.error('[Booking] Deposit intent failed:', err?.message || err);
+    }
+  }
+
   return {
     job: newJob,
     contact: theContact,
+    bookingId,
     confirmationCode,
+    deposit,
   };
+}
+
+/**
+ * Bookings for the owner. The admin route has always called this; the service
+ * never defined it, so GET /api/booking threw "getBookings is not a function".
+ */
+export async function getBookings(
+  companyId: string,
+  { status, page = 1, limit = 50 }: { status?: string; page?: number; limit?: number } = {},
+) {
+  const offset = (page - 1) * limit;
+  const rows = await db.execute(sql`
+    SELECT ob.*, bs.name AS service_name, j.number AS job_number
+    FROM online_booking ob
+    LEFT JOIN bookable_service bs ON ob.service_id = bs.id
+    LEFT JOIN job j ON ob.job_id = j.id
+    WHERE ob.company_id = ${companyId}
+      ${status ? sql`AND ob.status = ${status}` : sql``}
+    ORDER BY ob.scheduled_date DESC
+    LIMIT ${limit} OFFSET ${offset}
+  `);
+  const totalResult = await db.execute(sql`
+    SELECT COUNT(*)::int AS value FROM online_booking
+    WHERE company_id = ${companyId} ${status ? sql`AND status = ${status}` : sql``}
+  `);
+  const total = Number(((totalResult.rows?.[0] as any) || {}).value ?? 0);
+
+  return {
+    data: rows.rows ?? [],
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+  };
+}
+
+/** Look a booking up by the code the customer was given. */
+export async function getBookingByCode(companyId: string, code: string) {
+  const result = await db.execute(sql`
+    SELECT ob.*, bs.name AS service_name
+    FROM online_booking ob
+    LEFT JOIN bookable_service bs ON ob.service_id = bs.id
+    WHERE ob.company_id = ${companyId} AND ob.confirmation_code = ${code}
+    LIMIT 1
+  `);
+  return (result.rows?.[0] as any) ?? null;
 }
 
 function generateConfirmationCode(): string {
@@ -422,5 +509,7 @@ export default {
   getAvailableSlots,
   getAvailableDates,
   createBooking,
+  getBookings,
+  getBookingByCode,
   getEmbedCode,
 };
