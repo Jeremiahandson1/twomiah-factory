@@ -105,11 +105,14 @@ export async function updateBookingSettings(companyId: string, data: Record<stri
 /**
  * Get services available for online booking
  */
-export async function getBookableServices(companyId: string) {
+// activeOnly: the public widget wants bookable services; the owner's settings
+// screen has to see the ones they switched off too.
+export async function getBookableServices(companyId: string, activeOnly = false) {
   const result = await db.execute(sql`
     SELECT * FROM bookable_service
-    WHERE company_id = ${companyId} AND active = true
-    ORDER BY sort_order ASC
+    WHERE company_id = ${companyId}
+      ${activeOnly ? sql`AND active = true` : sql``}
+    ORDER BY sort_order ASC, name ASC
   `);
   return (result as any).rows || result;
 }
@@ -122,24 +125,35 @@ export async function createBookableService(companyId: string, data: {
   description?: string;
   durationMinutes?: number;
   price?: number;
-  priceType?: string;
+  depositRequired?: boolean;
+  depositAmount?: number;
+  active?: boolean;
   sortOrder?: number;
 }) {
+  // Columns match the table: it has deposit_required/deposit_amount and no
+  // price_type — writing price_type made every create fail.
+  const id = createId();
   await db.execute(sql`
-    INSERT INTO bookable_service (id, company_id, name, description, duration_minutes, price, price_type, active, sort_order, created_at, updated_at)
+    INSERT INTO bookable_service (
+      id, company_id, name, description, duration_minutes, price,
+      deposit_required, deposit_amount, active, sort_order, created_at, updated_at
+    )
     VALUES (
-      gen_random_uuid(), ${companyId}, ${data.name}, ${data.description || null},
-      ${data.durationMinutes || 60}, ${data.price || 0}, ${data.priceType || 'starting_at'},
-      true, ${data.sortOrder || 0}, NOW(), NOW()
+      ${id}, ${companyId}, ${data.name}, ${data.description || null},
+      ${data.durationMinutes || 60}, ${String(data.price ?? 0)},
+      ${data.depositRequired === true}, ${String(data.depositAmount ?? 0)},
+      ${data.active !== false}, ${data.sortOrder || 0}, NOW(), NOW()
     )
   `);
+  const result = await db.execute(sql`SELECT * FROM bookable_service WHERE id = ${id}`);
+  return (result.rows?.[0] as any) ?? { id };
 }
 
 /**
  * Update bookable service
  */
 export async function updateBookableService(serviceId: string, companyId: string, data: Record<string, unknown>) {
-  const allowedCols = ['name', 'description', 'duration_minutes', 'price', 'price_type', 'active', 'sort_order'];
+  const allowedCols = ['name', 'description', 'duration_minutes', 'price', 'deposit_required', 'deposit_amount', 'active', 'sort_order'];
   for (const [key, value] of Object.entries(data)) {
     const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
     if (!allowedCols.includes(colName)) continue;
@@ -489,13 +503,18 @@ function generateConfirmationCode(): string {
  * Generate embed code for website
  */
 export function getEmbedCode(_companyId: string, companySlug: string): string {
+  // The global is TwomiahBooking, not one built from the company name — a
+  // business name with a space in it produced invalid JavaScript. apiUrl is
+  // explicit so the widget still reaches the CRM from the customer's own site.
+  const host = (process.env.FRONTEND_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
   return `<!-- {{COMPANY_NAME}} Online Booking Widget -->
 <div id="{{COMPANY_SLUG}}-booking"></div>
-<script src="${process.env.FRONTEND_URL || 'https://{{COMPANY_DOMAIN}}'}/booking-widget.js"></script>
+<script src="${host}/booking-widget.js"></script>
 <script>
-  {{COMPANY_NAME}}Booking.init({
+  TwomiahBooking.init({
     container: '#{{COMPANY_SLUG}}-booking',
     company: '${companySlug}',
+    apiUrl: '${host}'
   });
 </script>`;
 }

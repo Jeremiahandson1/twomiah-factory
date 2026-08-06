@@ -8,7 +8,7 @@ import {
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy,
   Inbox, ExternalLink, Bot, Calculator, FileBarChart
-, Mail } from 'lucide-react';
+, Mail, CalendarCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -56,6 +56,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/inventory', icon: Warehouse, label: 'Inventory', features: ['inventory'] },
   { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
   { to: '/crm/reviews', icon: Star, label: 'Reviews', features: ['review_requests'] },
+  { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
   { to: '/crm/ads', icon: Target, label: 'Ads', features: ['paid_ads'] },
   { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },

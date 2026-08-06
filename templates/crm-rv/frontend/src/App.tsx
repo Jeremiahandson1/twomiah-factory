@@ -38,6 +38,7 @@ import FleetPage from './pages/fleet/FleetPage';
 import InventoryPage from './pages/inventory/InventoryPage';
 import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
+import BookingsPage from './pages/booking/BookingsPage';
 import AgreementsPage from './pages/agreements/AgreementsPage';
 import WarrantiesPage from './pages/warranties/WarrantiesPage';
 import CallTrackingPage from './pages/calltracking/CallTrackingPage';
@@ -180,6 +181,7 @@ function App() {
                     <Route path="alerts" element={<AlertsPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
+                    <Route path="bookings" element={<BookingsPage />} />
                     <Route path="agreements" element={<AgreementsPage />} />
                     <Route path="warranties" element={<WarrantiesPage />} />
                     <Route path="call-tracking" element={<CallTrackingPage />} />

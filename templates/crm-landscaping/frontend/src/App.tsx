@@ -48,6 +48,7 @@ import CommissionsPage from './pages/CommissionsPage';
 import InventoryPage from './pages/inventory/InventoryPage';
 import EquipmentPage from './pages/equipment/EquipmentPage';
 import MarketingPage from './pages/marketing/MarketingPage';
+import BookingsPage from './pages/booking/BookingsPage';
 import PricebookPage from './pages/pricebook/PricebookPage';
 import AgreementsPage from './pages/agreements/AgreementsPage';
 import WarrantiesPage from './pages/warranties/WarrantiesPage';
@@ -197,6 +198,7 @@ function App() {
                     <Route path="inventory" element={<InventoryPage />} />
                     <Route path="equipment" element={<EquipmentPage />} />
                     <Route path="marketing" element={<MarketingPage />} />
+                    <Route path="bookings" element={<BookingsPage />} />
                     <Route path="pricebook" element={<PricebookPage />} />
                     <Route path="agreements" element={<AgreementsPage />} />
                     <Route path="warranties" element={<WarrantiesPage />} />

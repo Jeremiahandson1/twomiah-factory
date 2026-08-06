@@ -8,7 +8,7 @@ import {
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy, BookOpen,
   Radio, FileSignature, Box, BookMarked, Inbox, ExternalLink, Bot, Calculator, MapPin
-, Mail } from 'lucide-react';
+, Mail, CalendarCheck } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
@@ -42,6 +42,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/commissions', icon: DollarSign, label: 'Commissions', features: ['commission_tracking'] },
   { to: '/crm/inventory', icon: Warehouse, label: 'Inventory', features: ['inventory'] },
   { to: '/crm/equipment', icon: Wrench, label: 'Equipment', features: ['equipment_tracking'] },
+  { to: '/crm/bookings', icon: CalendarCheck, label: 'Online Booking', features: ['online_booking'] },
   { to: '/crm/marketing', icon: Megaphone, label: 'Marketing', features: ['google_reviews', 'email_marketing', 'referral_program'] },
   { to: '/crm/pricebook', icon: CreditCard, label: 'Pricebook', features: ['pricebook'] },
   { to: '/crm/agreements', icon: ShieldCheck, label: 'Agreements', features: ['service_agreements'] },
