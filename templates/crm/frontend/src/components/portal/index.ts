@@ -12,3 +12,4 @@ export { default as PortalSubmittalReview } from './PortalSubmittalReview';
 export { default as PortalSharedDocuments } from './PortalSharedDocuments';
 export { default as PortalAssignedRfis } from './PortalAssignedRfis';
 export { default as PortalProjectFiles } from './PortalProjectFiles';
+export { default as PortalPaymentMethods } from './PortalPaymentMethods';

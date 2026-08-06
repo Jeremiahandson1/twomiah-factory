@@ -5,3 +5,4 @@ export { default as PortalInvoices, PortalInvoiceDetail } from './PortalInvoices
 export { default as PortalMessages } from './PortalMessages';
 export { default as PortalMyJobs } from './PortalMyJobs';
 export { default as PortalSharedDocuments } from './PortalSharedDocuments';
+export { default as PortalPaymentMethods } from './PortalPaymentMethods';

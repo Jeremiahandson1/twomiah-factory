@@ -241,4 +241,44 @@ app.post('/portal/payment-intent', async (c) => {
   return c.json(result);
 });
 
+// ── Saved cards ────────────────────────────────────────────────────────────
+// Same portal-token check as /portal/payment-intent above.
+async function contactForPortalToken(portalToken: string) {
+  if (!portalToken) return null;
+  const [contactRow] = await db.select().from(contact)
+    .where(and(eq(contact.portalToken, portalToken), eq(contact.portalEnabled, true)))
+    .limit(1);
+  return contactRow || null;
+}
+
+// Start saving a card without charging it.
+app.post('/portal/setup-intent', async (c) => {
+  const { portalToken } = await c.req.json();
+  const contactRow = await contactForPortalToken(portalToken);
+  if (!contactRow) return c.json({ error: 'Invalid portal access' }, 401);
+  try {
+    return c.json(await stripeService.createSetupIntent(contactRow));
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Card setup is unavailable' }, 400);
+  }
+});
+
+// Cards this customer already has on file.
+app.post('/portal/payment-methods', async (c) => {
+  const { portalToken } = await c.req.json();
+  const contactRow = await contactForPortalToken(portalToken);
+  if (!contactRow) return c.json({ error: 'Invalid portal access' }, 401);
+  return c.json({ data: await stripeService.listSavedPaymentMethods(contactRow) });
+});
+
+// Owner-side: which cards does this contact have? Drives the autopay toggle.
+app.get('/payment-methods/:contactId', requirePermission('invoices:read'), async (c) => {
+  const user = c.get('user') as any;
+  const [contactRow] = await db.select().from(contact)
+    .where(and(eq(contact.id, c.req.param('contactId')), eq(contact.companyId, user.companyId)))
+    .limit(1);
+  if (!contactRow) return c.json({ error: 'Contact not found' }, 404);
+  return c.json({ data: await stripeService.listSavedPaymentMethods(contactRow) });
+});
+
 export default app;

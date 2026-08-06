@@ -6,3 +6,4 @@ export { default as PortalInvoices, PortalInvoiceDetail } from './PortalInvoices
 export { default as PortalChangeOrders, PortalChangeOrderDetail } from './PortalChangeOrders';
 export { default as PortalSelections } from './PortalSelections';
 export { default as PortalMessages } from './PortalMessages';
+export { default as PortalPaymentMethods } from './PortalPaymentMethods';

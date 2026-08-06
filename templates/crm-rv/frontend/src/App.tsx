@@ -91,6 +91,7 @@ import {
   PortalQuotes,
   PortalQuoteDetail,
   PortalInvoices,
+  PortalPaymentMethods,
   PortalInvoiceDetail,
   PortalMessages,
   PortalMyJobs,
@@ -206,6 +207,7 @@ function App() {
                     <Route path="quotes" element={<PortalQuotes />} />
                     <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
                     <Route path="invoices" element={<PortalInvoices />} />
+                    <Route path="payment-methods" element={<PortalPaymentMethods />} />
                     <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
                     <Route path="messages" element={<PortalMessages />} />
                     {/* Service / collaborator routes */}

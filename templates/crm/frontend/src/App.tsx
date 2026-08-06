@@ -100,6 +100,7 @@ import {
   PortalQuotes,
   PortalQuoteDetail,
   PortalInvoices,
+  PortalPaymentMethods,
   PortalInvoiceDetail,
   PortalChangeOrders,
   PortalChangeOrderDetail,
@@ -233,6 +234,7 @@ function App() {
                     <Route path="quotes" element={<PortalQuotes />} />
                     <Route path="quotes/:quoteId" element={<PortalQuoteDetail />} />
                     <Route path="invoices" element={<PortalInvoices />} />
+                    <Route path="payment-methods" element={<PortalPaymentMethods />} />
                     <Route path="invoices/:invoiceId" element={<PortalInvoiceDetail />} />
                     <Route path="change-orders" element={<PortalChangeOrders />} />
                     <Route path="change-orders/:changeOrderId" element={<PortalChangeOrderDetail />} />

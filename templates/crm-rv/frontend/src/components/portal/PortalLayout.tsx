@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useParams } from 'react-router-dom';
-import { Home, FileText, Receipt, MessageSquare, Loader2, Hammer, FolderOpen } from 'lucide-react';
+import { Home, FileText, Receipt, MessageSquare, Loader2, Hammer, FolderOpen , CreditCard } from 'lucide-react';
 import { usePortal } from '../../contexts/PortalContext';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -63,6 +63,7 @@ export default function PortalLayout() {
         dashboard,
         { to: `/portal/${token}/quotes`, icon: FileText, label: 'Quotes' },
         { to: `/portal/${token}/invoices`, icon: Receipt, label: 'Invoices' },
+          { to: `/portal/${token}/payment-methods`, icon: CreditCard, label: 'Payment Method' },
         { to: `/portal/${token}/my-jobs`, icon: Hammer, label: 'Service' },
         documents,
         messages,

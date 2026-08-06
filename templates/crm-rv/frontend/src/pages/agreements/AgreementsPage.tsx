@@ -121,6 +121,17 @@ export default function AgreementsPage() {
     loadData();
   }, [statusFilter]);
 
+  const runBilling = async () => {
+    try {
+      const result = await api.post('/api/agreements/billing/run', {});
+      const failed = (result?.failures || []).length;
+      alert(`Billed ${result?.invoiced ?? 0} agreement(s), charged ${result?.charged ?? 0}` + (failed ? `, ${failed} failed` : ''));
+      loadData();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Could not run billing');
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -160,6 +171,11 @@ export default function AgreementsPage() {
           >
             <FileText className="w-4 h-4" />
             New Plan
+          </button>
+          <button onClick={runBilling} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+
+            Bill due agreements
+
           </button>
           <button
             onClick={() => { setSelectedAgreement(null); setShowAgreementForm(true); }}
@@ -265,6 +281,7 @@ export default function AgreementsPage() {
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Visits</th>
                     <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Expires</th>
+                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Autopay</th>
                     <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Price</th>
                     <th className="px-4 py-3"></th>
                   </tr>
@@ -272,6 +289,7 @@ export default function AgreementsPage() {
                 <tbody className="divide-y">
                   {filteredAgreements.map((agreement: Agreement) => (
                     <AgreementRow
+                      onChanged={loadData}
                       key={agreement.id}
                       agreement={agreement}
                       onView={() => { setSelectedAgreement(agreement); }}
@@ -352,7 +370,48 @@ function StatCard({ icon: Icon, label, value, color = 'gray' }: StatCardProps) {
   );
 }
 
-function AgreementRow({ agreement, onView, onRenew }: AgreementRowProps) {
+/**
+ * Autopay for one agreement. Charging needs a card on file — the customer adds
+ * one from the Payment Method screen in their portal.
+ */
+function AutopayToggle({ agreement, onChanged }: { agreement: Agreement; onChanged?: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const on = (agreement as unknown as { autopay?: boolean }).autopay === true;
+  const lastError = (agreement as unknown as { autopayLastError?: string | null }).autopayLastError;
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      await api.put(`/api/agreements/${agreement.id}/autopay`, { enabled: !on });
+      // page convention: alert() for anything the owner must notice
+      onChanged?.();
+    } catch (err: unknown) {
+      // The API explains exactly why (usually: no saved card yet) — say that.
+      alert(err instanceof Error ? err.message : 'Could not change autopay');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={busy || agreement.status !== 'active'}
+        title={agreement.status !== 'active' ? 'Only active agreements can autopay' : 'Charge the customer automatically each billing period'}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${on ? 'bg-green-500' : 'bg-gray-300'}`}
+      >
+        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${on ? 'translate-x-5' : 'translate-x-1'}`} />
+      </button>
+      {lastError && (
+        <p className="mt-1 text-[11px] text-red-600 max-w-[12rem]" title={lastError}>Last charge failed</p>
+      )}
+    </div>
+  );
+}
+
+function AgreementRow({ agreement, onView, onRenew, onChanged }: AgreementRowProps & { onChanged?: () => void }) {
   const isExpiringSoon = new Date(agreement.endDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   const statusColors: Record<string, string> = {
@@ -388,6 +447,9 @@ function AgreementRow({ agreement, onView, onRenew }: AgreementRowProps) {
             {new Date(agreement.endDate).toLocaleDateString()}
           </span>
         </div>
+      </td>
+      <td className="px-4 py-3">
+        <AutopayToggle agreement={agreement} onChanged={onChanged} />
       </td>
       <td className="px-4 py-3 text-right font-medium">
         ${Number(agreement.price).toFixed(2)}
