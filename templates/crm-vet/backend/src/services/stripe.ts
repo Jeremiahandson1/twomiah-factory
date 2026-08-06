@@ -113,6 +113,8 @@ export async function createPaymentIntent(invoiceRow: any, contactRow: any) {
       company_id: invoiceRow.companyId,
       contact_id: contactRow.id,
     },
+    // Keep the card on file so recurring agreements can be charged later.
+    setup_future_usage: 'off_session',
     automatic_payment_methods: { enabled: true },
   })
 
@@ -249,6 +251,75 @@ export async function createBookingDepositIntent(params: {
     clientSecret: intent.client_secret,
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
   }
+}
+
+/**
+ * Save a card for a customer without charging it (agreement autopay
+ * enrolment). Nothing stored a payment method before, which is why automatic
+ * billing could not exist.
+ */
+export async function createSetupIntent(contactRow: any) {
+  if (!stripe) throw new Error('Stripe is not configured')
+  const customer = await getOrCreateCustomer(contactRow)
+  const intent = await stripe.setupIntents.create({
+    customer: customer.id,
+    usage: 'off_session',
+    metadata: { contact_id: contactRow.id, company_id: contactRow.companyId },
+  })
+  return {
+    clientSecret: intent.client_secret,
+    setupIntentId: intent.id,
+    publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '',
+  }
+}
+
+/** Cards this customer has already given us. */
+export async function listSavedPaymentMethods(contactRow: any) {
+  if (!stripe) return []
+  const fields = (contactRow.customFields as any) || {}
+  const customerId = fields.stripeCustomerId
+  if (!customerId) return []
+  const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' })
+  return methods.data.map((m) => ({
+    id: m.id,
+    brand: m.card?.brand,
+    last4: m.card?.last4,
+    expMonth: m.card?.exp_month,
+    expYear: m.card?.exp_year,
+  }))
+}
+
+/**
+ * Charge an invoice against a stored card, with the customer not present.
+ * The existing payment_intent.succeeded webhook records the payment — this
+ * deliberately does not write a payment row itself, so a configured webhook
+ * cannot double-count it.
+ */
+export async function chargeInvoiceOffSession(invoiceRow: any, contactRow: any, paymentMethodId: string) {
+  if (!stripe) throw new Error('Stripe is not configured')
+  const customer = await getOrCreateCustomer(contactRow)
+  const balance = Number(invoiceRow.total) - Number(invoiceRow.amountPaid || 0)
+  const amount = Math.round(balance * 100)
+  if (amount <= 0) throw new Error('Invoice has no balance due')
+
+  const intent = await stripe.paymentIntents.create({
+    amount,
+    currency: 'usd',
+    customer: customer.id,
+    payment_method: paymentMethodId,
+    off_session: true,
+    confirm: true,
+    description: `Invoice ${invoiceRow.number} (autopay)`,
+    metadata: {
+      invoice_id: invoiceRow.id,
+      invoice_number: invoiceRow.number,
+      company_id: invoiceRow.companyId,
+      contact_id: contactRow.id,
+      kind: 'agreement_autopay',
+    },
+  })
+
+  return { paymentIntentId: intent.id, status: intent.status }
 }
 
 export async function handleWebhook(event: Stripe.Event) {

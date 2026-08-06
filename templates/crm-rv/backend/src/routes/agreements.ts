@@ -153,4 +153,25 @@ app.get('/reports/expiring', async (c) => {
   return c.json(expiring)
 })
 
+// Autopay for one agreement. Requires a card already on file for the customer.
+app.put('/:id/autopay', requirePermission('agreements:update'), async (c) => {
+  const user = c.get('user') as any
+  const { enabled, paymentMethodId } = await c.req.json()
+  try {
+    const updated = await agreements.setAgreementAutopay(c.req.param('id')!, user.companyId, {
+      enabled: enabled === true,
+      paymentMethodId: paymentMethodId ?? null,
+    })
+    return c.json(updated)
+  } catch (err: any) {
+    return c.json({ error: err?.message || 'Could not update autopay' }, 400)
+  }
+})
+
+// Run recurring billing now rather than waiting for the worker.
+app.post('/billing/run', requirePermission('invoices:create'), async (c) => {
+  const user = c.get('user') as any
+  return c.json(await agreements.processDueAgreements(user.companyId))
+})
+
 export default app

@@ -359,14 +359,142 @@ export async function getUpcomingVisits(companyId: string, { days = 30 }: { days
 /**
  * Get agreements due for billing
  */
-export async function getAgreementsDueForBilling(companyId: string) {
-  return db.select()
-    .from(serviceAgreement)
-    .where(and(
-      eq(serviceAgreement.companyId, companyId),
-      eq(serviceAgreement.status, 'active'),
-    ));
+/** Months between invoices for each billing frequency we support. */
+function billingIntervalMonths(frequency: string): number {
+  switch ((frequency || '').toLowerCase()) {
+    case 'weekly': return 0.25
+    case 'monthly': return 1
+    case 'quarterly': return 3
+    case 'semiannual':
+    case 'semi_annual': return 6
+    case 'annual':
+    case 'yearly': return 12
+    default: return 1
+  }
 }
+
+function addInterval(from: Date, frequency: string): Date {
+  const next = new Date(from)
+  const months = billingIntervalMonths(frequency)
+  if (months < 1) next.setDate(next.getDate() + 7)
+  else next.setMonth(next.getMonth() + months)
+  return next
+}
+
+/**
+ * Agreements whose next bill date has arrived. This used to return every
+ * active agreement, so "due" meant nothing and the same agreement could be
+ * billed twice in a month.
+ */
+export async function getAgreementsDueForBilling(companyId?: string) {
+  const conditions = [
+    eq(serviceAgreement.status, 'active'),
+    sql`(${serviceAgreement.nextBillDate} IS NULL OR ${serviceAgreement.nextBillDate} <= NOW())`,
+    sql`${serviceAgreement.startDate} <= NOW()`,
+    sql`(${serviceAgreement.endDate} IS NULL OR ${serviceAgreement.endDate} >= NOW())`,
+  ]
+  if (companyId) conditions.push(eq(serviceAgreement.companyId, companyId))
+  return db.select().from(serviceAgreement).where(and(...conditions))
+}
+
+/**
+ * Turn autopay on or off for one agreement. A card has to be on file first —
+ * customers get one saved when they pay an invoice or a deposit online.
+ */
+export async function setAgreementAutopay(
+  agreementId: string,
+  companyId: string,
+  { enabled, paymentMethodId }: { enabled: boolean; paymentMethodId?: string | null },
+) {
+  const agreement = await getAgreement(agreementId, companyId)
+  if (!agreement) throw new Error('Agreement not found')
+
+  let methodId = paymentMethodId ?? agreement.paymentMethodId ?? null
+  if (enabled && !methodId) {
+    const [contactRow] = await db.select().from(contact).where(eq(contact.id, agreement.contactId))
+    const { listSavedPaymentMethods } = await import('./stripe.ts')
+    const methods = await listSavedPaymentMethods(contactRow)
+    if (!methods.length) {
+      throw new Error('This customer has no saved card yet. They can add one by paying an invoice online.')
+    }
+    methodId = methods[0].id
+  }
+
+  const [updated] = await db.update(serviceAgreement)
+    .set({
+      autopay: enabled,
+      paymentMethodId: enabled ? methodId : null,
+      autopayLastError: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(serviceAgreement.id, agreementId), eq(serviceAgreement.companyId, companyId)))
+    .returning()
+  return updated
+}
+
+/**
+ * Bill every agreement that is due. Invoices are raised either way; autopay
+ * agreements are also charged against their saved card. A failed charge leaves
+ * the invoice standing and records why, rather than silently retrying forever.
+ */
+export async function processDueAgreements(companyId?: string) {
+  const due = await getAgreementsDueForBilling(companyId)
+  let invoiced = 0
+  let charged = 0
+  const failures: Array<{ agreementId: string; error: string }> = []
+
+  for (const agreement of due) {
+    try {
+      const inv = await processAgreementBilling(agreement.id, agreement.companyId)
+      invoiced++
+
+      if (agreement.autopay && agreement.paymentMethodId) {
+        try {
+          const [contactRow] = await db.select().from(contact).where(eq(contact.id, agreement.contactId))
+          const { chargeInvoiceOffSession } = await import('./stripe.ts')
+          const result = await chargeInvoiceOffSession(inv, contactRow, agreement.paymentMethodId)
+          if (result.status === 'succeeded') charged++
+          else failures.push({ agreementId: agreement.id, error: 'Charge status: ' + result.status })
+        } catch (chargeErr: any) {
+          const message = chargeErr?.message || String(chargeErr)
+          failures.push({ agreementId: agreement.id, error: message })
+          await db.update(serviceAgreement)
+            .set({ autopayLastError: message.slice(0, 500), updatedAt: new Date() })
+            .where(eq(serviceAgreement.id, agreement.id))
+          console.error('[Agreements] Autopay charge failed:', agreement.id, message)
+        }
+      }
+    } catch (err: any) {
+      failures.push({ agreementId: agreement.id, error: err?.message || String(err) })
+      console.error('[Agreements] Billing failed:', agreement.id, err?.message || err)
+    }
+  }
+
+  return { due: due.length, invoiced, charged, failures }
+}
+
+/**
+ * Daily worker. Agreement billing only ever happened when someone clicked.
+ */
+export function startAgreementBillingProcessor() {
+  const INTERVAL = 12 * 60 * 60 * 1000 // twice a day
+  console.log('[Agreements] Starting recurring billing processor (every 12h)')
+
+  const run = async () => {
+    try {
+      const result = await processDueAgreements()
+      if (result.invoiced || result.failures.length) {
+        console.log('[Agreements] billed', result.invoiced, 'invoiced,', result.charged, 'charged,', result.failures.length, 'failed')
+      }
+    } catch (err: any) {
+      console.error('[Agreements] Processor error:', err?.message || err)
+    }
+  }
+
+  setInterval(run, INTERVAL)
+  setTimeout(run, 90_000)
+}
+
 
 /**
  * Process billing for agreement
@@ -395,6 +523,17 @@ export async function processAgreementBilling(agreementId: string, companyId: st
     unitPrice: String(agreement.amount),
     total: String(agreement.amount),
   });
+
+  // Record what was billed and when the next one falls due — without this the
+  // same agreement could be billed again tomorrow.
+  const billedAt = new Date();
+  await db.update(serviceAgreement)
+    .set({
+      lastBilledAt: billedAt,
+      nextBillDate: addInterval(agreement.nextBillDate ? new Date(agreement.nextBillDate) : billedAt, agreement.billingFrequency),
+      updatedAt: billedAt,
+    })
+    .where(eq(serviceAgreement.id, agreementId));
 
   return inv;
 }
@@ -486,6 +625,9 @@ export default {
   getUpcomingVisits,
   getAgreementsDueForBilling,
   processAgreementBilling,
+  startAgreementBillingProcessor,
+  processDueAgreements,
+  setAgreementAutopay,
   getAgreementStats,
   getExpiringAgreements,
 };

@@ -18,6 +18,7 @@ import { errorHandler, handleUncaughtExceptions } from './utils/errors.ts'
 import { syncFeatures } from './startup/featureSync.ts'
 import { startReviewProcessor } from './services/reviews.ts'
 import { startMarketingProcessor } from './services/marketing.ts'
+import { startAgreementBillingProcessor } from './services/agreements.ts'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -455,6 +456,7 @@ initializeSocket(server as any)
 syncFeatures().catch(console.error)
 startReviewProcessor()
 startMarketingProcessor()
+startAgreementBillingProcessor()
 
 const shutdown = async (signal: string) => {
   logger.info(`${signal} received, shutting down gracefully`)

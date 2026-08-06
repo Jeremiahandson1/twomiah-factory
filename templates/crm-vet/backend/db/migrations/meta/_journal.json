@@ -155,6 +155,13 @@
       "when": 1791400400000,
       "tag": "0021_booking_deposits",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791400500000,
+      "tag": "0022_agreement_autopay",
+      "breakpoints": true
     }
   ]
 }
