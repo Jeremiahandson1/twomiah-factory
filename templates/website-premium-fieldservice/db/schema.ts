@@ -473,3 +473,19 @@ export const pageViews = pgTable('page_views', {
 }, (t) => ({
   dayPathIdx: uniqueIndex('page_views_day_path_idx').on(t.day, t.path),
 }))
+
+// ── Branded email aliases ───────────────────────────────────────────────────
+// A website-only tenant owns their domain but had no way to create a mailbox
+// on it. Rules are mirrored to the factory, which owns the Cloudflare Email
+// Routing config. routingMode is always 'forward' — 'crm' delivery needs a CRM.
+export const emailAlias = pgTable('email_alias', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  localPart: text('local_part').notNull().unique(),
+  routingMode: text('routing_mode').notNull().default('forward'),
+  forwardTo: text('forward_to'),
+  enabled: boolean('enabled').notNull().default(true),
+  lastSyncedAt: timestamp('last_synced_at'),
+  syncError: text('sync_error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})

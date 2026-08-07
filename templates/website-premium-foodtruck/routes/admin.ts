@@ -41,6 +41,7 @@ import {
   bookingCalendarConnections as calConnTbl,
   bookingWaitlist as waitlistTbl,
   pageViews,
+  emailAlias,
 } from '../db/schema'
 import { gte, lte } from 'drizzle-orm'
 import { isNull } from 'drizzle-orm'
@@ -1723,6 +1724,121 @@ app.get('/audit', authMiddleware, requireAdmin, async (c) => {
   const limit = Math.min(parseInt(c.req.query('limit') || '100', 10) || 100, 500)
   const rows = await db.select().from(auditLogTbl).orderBy(desc(auditLogTbl.createdAt)).limit(limit)
   return c.json({ entries: rows })
+})
+
+// ─── Branded email aliases ───────────────────────────────────────────────
+// support@theirdomain.com for a tenant with no CRM. Every write is mirrored to
+// the factory, which owns the Cloudflare Email Routing rules; a sync failure is
+// recorded on the row rather than rolling back — local data is authoritative
+// and the owner can retry.
+async function syncAliasToFactory(alias: {
+  localPart: string; routingMode: string; forwardTo: string | null; enabled: boolean
+}): Promise<{ ok: boolean; error?: string }> {
+  const base = (process.env.FACTORY_URL || '').replace(/\/$/, '')
+  const tenantId = process.env.TENANT_ID
+  const key = process.env.FACTORY_SYNC_KEY
+  if (!base || !tenantId || !key) return { ok: false, error: 'Factory sync is not configured' }
+  try {
+    const res = await fetch(`${base}/api/v1/factory/customers/${tenantId}/email-alias-sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Factory-Key': key },
+      body: JSON.stringify(alias),
+      signal: AbortSignal.timeout(20_000),
+    })
+    if (!res.ok) return { ok: false, error: `Factory responded ${res.status}` }
+    return { ok: true }
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Could not reach the factory' }
+  }
+}
+
+function validAlias(body: any): { ok: true; localPart: string; forwardTo: string } | { ok: false; error: string } {
+  const localPart = typeof body?.localPart === 'string' ? body.localPart.trim().toLowerCase() : ''
+  if (!/^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$/.test(localPart)) {
+    return { ok: false, error: 'Use letters, numbers, dots or hyphens (e.g. support)' }
+  }
+  const forwardTo = typeof body?.forwardTo === 'string' ? body.forwardTo.trim() : ''
+  if (!forwardTo.includes('@')) return { ok: false, error: 'Where should this mail forward to?' }
+  return { ok: true, localPart, forwardTo }
+}
+
+app.get('/email-aliases', authMiddleware, async (c) => {
+  const rows = await db.select().from(emailAlias).orderBy(asc(emailAlias.localPart))
+  const [s] = await db.select().from(settings).limit(1)
+  return c.json({ data: rows, domain: s?.domain || null })
+})
+
+app.post('/email-aliases', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const check = validAlias(body)
+  if (!check.ok) return c.json({ error: check.error }, 400)
+
+  const [existing] = await db.select().from(emailAlias).where(eq(emailAlias.localPart, check.localPart)).limit(1)
+  if (existing) return c.json({ error: 'That address already exists' }, 409)
+
+  const sync = await syncAliasToFactory({
+    localPart: check.localPart, routingMode: 'forward', forwardTo: check.forwardTo, enabled: true,
+  })
+  const [created] = await db.insert(emailAlias).values({
+    localPart: check.localPart,
+    routingMode: 'forward',
+    forwardTo: check.forwardTo,
+    enabled: true,
+    lastSyncedAt: sync.ok ? new Date() : null,
+    syncError: sync.ok ? null : (sync.error || 'Sync failed'),
+  }).returning()
+  return c.json({ alias: created, synced: sync.ok, syncError: sync.error ?? null }, 201)
+})
+
+app.patch('/email-aliases/:id', authMiddleware, async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const [existing] = await db.select().from(emailAlias).where(eq(emailAlias.id, c.req.param('id'))).limit(1)
+  if (!existing) return c.json({ error: 'Address not found' }, 404)
+
+  const forwardTo = typeof body?.forwardTo === 'string' ? body.forwardTo.trim() : existing.forwardTo
+  const enabled = body?.enabled === undefined ? existing.enabled : body.enabled === true
+  if (!forwardTo || !forwardTo.includes('@')) return c.json({ error: 'Where should this mail forward to?' }, 400)
+
+  const sync = await syncAliasToFactory({
+    localPart: existing.localPart, routingMode: 'forward', forwardTo, enabled,
+  })
+  const [updated] = await db.update(emailAlias).set({
+    forwardTo,
+    enabled,
+    lastSyncedAt: sync.ok ? new Date() : existing.lastSyncedAt,
+    syncError: sync.ok ? null : (sync.error || 'Sync failed'),
+    updatedAt: new Date(),
+  }).where(eq(emailAlias.id, existing.id)).returning()
+  return c.json({ alias: updated, synced: sync.ok, syncError: sync.error ?? null })
+})
+
+app.delete('/email-aliases/:id', authMiddleware, async (c) => {
+  const [existing] = await db.select().from(emailAlias).where(eq(emailAlias.id, c.req.param('id'))).limit(1)
+  if (!existing) return c.json({ error: 'Address not found' }, 404)
+  // Disable at the factory first so mail stops flowing even if the row lingers.
+  await syncAliasToFactory({
+    localPart: existing.localPart, routingMode: 'forward', forwardTo: existing.forwardTo, enabled: false,
+  })
+  await db.delete(emailAlias).where(eq(emailAlias.id, existing.id))
+  return c.json({ ok: true })
+})
+
+// Retry a failed mirror without changing anything.
+app.post('/email-aliases/:id/resync', authMiddleware, async (c) => {
+  const [existing] = await db.select().from(emailAlias).where(eq(emailAlias.id, c.req.param('id'))).limit(1)
+  if (!existing) return c.json({ error: 'Address not found' }, 404)
+  const sync = await syncAliasToFactory({
+    localPart: existing.localPart,
+    routingMode: 'forward',
+    forwardTo: existing.forwardTo,
+    enabled: existing.enabled,
+  })
+  const [updated] = await db.update(emailAlias).set({
+    lastSyncedAt: sync.ok ? new Date() : existing.lastSyncedAt,
+    syncError: sync.ok ? null : (sync.error || 'Sync failed'),
+    updatedAt: new Date(),
+  }).where(eq(emailAlias.id, existing.id)).returning()
+  return c.json({ alias: updated, synced: sync.ok, syncError: sync.error ?? null })
 })
 
 // ─── Site analytics (owner traffic + leads numbers) ──────────────────────
