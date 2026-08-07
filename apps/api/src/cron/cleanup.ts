@@ -2,7 +2,14 @@
 // Designed to run as a Render Cron Job every hour
 
 const rawUrl = process.env.RENDER_API_URL || process.env.API_URL || 'https://twomiah-factory-api.onrender.com'
-const API_URL = rawUrl.startsWith('http') ? rawUrl : 'https://' + rawUrl
+// Render wires API_URL from the web service's hostport — an INTERNAL address
+// like "twomiah-factory-api:3001", which serves plain HTTP. Prefixing https://
+// onto it makes every request fail with "Unable to connect", which is exactly
+// what the hourly cleanup cron has been doing on every run. Only a real
+// hostname (with a dot) gets TLS.
+const API_URL = /^https?:\/\//.test(rawUrl)
+  ? rawUrl
+  : (rawUrl.split(':')[0].includes('.') ? 'https://' : 'http://') + rawUrl
 const CRON_SECRET = process.env.CRON_SECRET
 
 if (!CRON_SECRET) {
