@@ -110,18 +110,27 @@ export function getMissingConfig(): string[] {
 
 // ─── GitHub ───────────────────────────────────────────────────────────────────
 
-async function deleteGitHubRepo(repoFullName: string) {
+/** Returns true only when the repo is confirmed gone — teardown reports on it,
+ *  so "I tried" must not read as "I deleted it". */
+export async function deleteGitHubRepo(repoFullName: string): Promise<boolean> {
   try {
     const res = await fetchWithTimeout(GITHUB_API + '/repos/' + repoFullName, { method: 'DELETE', headers: githubHeaders() })
+    if (res.status === 404) return true // already gone — idempotent
     if (res.status === 204) {
       console.log('[Deploy] Deleted existing repo', repoFullName)
       for (let i = 0; i < 10; i++) {
         await sleep(3000)
         const check = await fetchWithTimeout(GITHUB_API + '/repos/' + repoFullName, { headers: githubHeaders() })
-        if (check.status === 404) { console.log('[Deploy] Repo deletion confirmed'); return }
+        if (check.status === 404) { console.log('[Deploy] Repo deletion confirmed'); return true }
       }
+      return false
     }
-  } catch (e: any) { console.warn('[Deploy] Could not delete repo:', e.message) }
+    console.warn('[Deploy] Repo delete returned', res.status, 'for', repoFullName)
+    return false
+  } catch (e: any) {
+    console.warn('[Deploy] Could not delete repo:', e.message)
+    return false
+  }
 }
 
 async function createGitHubRepo(slug: string, description: string): Promise<{ full_name: string; clone_url: string }> {

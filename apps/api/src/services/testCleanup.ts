@@ -202,6 +202,29 @@ export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupRes
     detail: `${dbDeleted} database(s) deleted`,
   })
 
+  // ─── 3.5) GitHub repo ────────────────────────────────────────────────
+  // Deleting the Render services leaves the repo behind, and a private repo
+  // per throwaway tenant piles up quietly. deploy.ts names it <GITHUB_ORG>/<slug>;
+  // tenants.github_repo holds the full name when the deploy recorded it.
+  const repoFullName = tenant.github_repo
+    || (process.env.GITHUB_ORG ? process.env.GITHUB_ORG + '/' + slug : null)
+  if (repoFullName) {
+    try {
+      const { deleteGitHubRepo } = await import('./deploy')
+      const deleted = await deleteGitHubRepo(repoFullName)
+      steps.push({
+        step: 'github_repo',
+        // Already gone is a fine outcome for an idempotent teardown.
+        status: deleted === false ? 'warning' : 'ok',
+        detail: repoFullName + (deleted === false ? ' (not deleted — check the token has delete_repo scope)' : ''),
+      })
+    } catch (e: any) {
+      steps.push({ step: 'github_repo', status: 'warning', detail: repoFullName + ': ' + e.message })
+    }
+  } else {
+    steps.push({ step: 'github_repo', status: 'skipped', detail: 'no repo name and no GITHUB_ORG' })
+  }
+
   // ─── 4) Cloudflare zone (only if we created one) ─────────────────────
   if (tenant.cloudflare_zone_id) {
     try {
