@@ -44,6 +44,7 @@ factory.use('*', async (c, next) => {
     || c.req.path.endsWith('/offboard/status')
     || c.req.path.includes('/email-domain/')
     || c.req.path.endsWith('/email-alias-sync')
+    || c.req.path.endsWith('/support-tickets')
     || c.req.path.endsWith('/offboard')
     || c.req.path.endsWith('/reactivate')
   ) return next()
