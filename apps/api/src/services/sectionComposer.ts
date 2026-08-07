@@ -906,6 +906,62 @@ const FIELDSERVICE_PAGE_RECIPES = {
 // conversion than a generic contact form), then humanizes through
 // caregiver profiles, then top-funnels SEO via insurance coverage
 // explainers.
+const VET_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a veterinary clinic. Answer "can you see my animal, and can I trust you with it" in that order — urgency first, then the people.',
+    allowed_types: ['urgent', 'hero', 'trust', 'services', 'team', 'reservation', 'testimonials', 'stats', 'cta'],
+    required_sequence: '1 urgent/bar first (open-now state + phone — the highest-intent visitor has a sick animal RIGHT NOW and will not scroll), 1 hero/split or hero/full-bleed (real clinic or staff-with-animal photography, never stock of a stranger hugging a dog), 1 trust/badges (AAHA accreditation, Fear Free certification, state license, years serving the area — only badges the clinic actually holds), 1 services/grid (wellness, dental, surgery, diagnostics, urgent care — by SERVICE not by species unless the clinic is species-specific), 1 reservation/cta with heading "Book an appointment" and buttonLabel "Request a time" (Twomiah Bookings), optional 1 team/grid (owners choose a vet, not a building — faces matter more here than in most verticals), optional 1 testimonials, close with 1 cta',
+  },
+  services: {
+    purpose: 'What the clinic treats and how care actually works. Reassurance plus practical detail.',
+    allowed_types: ['hero', 'services', 'faq', 'trust', 'reservation', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Our services"), 1 services/grid or services/list with plain-English descriptions (an owner does not know what "dental prophylaxis" means — say "cleaning under anesthesia, with x-rays"), optional 1 trust/badges, 1 faq covering anesthesia safety, what a visit costs, and payment plans, optional 1 reservation/cta, close with 1 cta',
+  },
+  team: {
+    purpose: 'The veterinarians and technicians. In this vertical the relationship is with a person.',
+    allowed_types: ['hero', 'team', 'testimonials', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Meet the team"), 1 team/grid with credentials (DVM, VMD, RVT) and one human detail each — never a wall of identical white coats, optional 1 testimonials, close with 1 cta',
+  },
+  about: {
+    purpose: 'Clinic story, philosophy, facility. The deep-trust page.',
+    allowed_types: ['about', 'stats', 'trust', 'gallery', 'testimonials', 'cta'],
+    required_sequence: '1 about/story (why the practice exists, in the owner-vet voice), optional 1 stats/bar with real numbers only, optional 1 trust/badges, optional 1 gallery of the actual facility (owners want to see where their animal stays), optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Get seen. Hours, location, urgent-care routing.',
+    allowed_types: ['urgent', 'hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 urgent/bar, optional 1 hero (short), 1 contact/form-info with hours and parking/entrance detail, optional 1 reservation/cta with buttonLabel "Request an appointment" (Twomiah Bookings), optional 1 faq about after-hours emergencies and which ER hospital the clinic refers to',
+  },
+} as const
+
+const RV_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for an RV / marine / powersports dealership. Units sell units — lead with inventory, then the reasons to buy here instead of the dealer two hours away.',
+    allowed_types: ['hero', 'inventory', 'trust', 'services', 'stats', 'testimonials', 'reservation', 'cta'],
+    required_sequence: '1 hero/full-bleed (real lot or a delivered customer, not a catalogue render), 1 inventory/showcase with featured units (this is the page — buyers browse units, not copy), 1 trust/badges (manufacturer certifications, dealer awards, financing partners, years in business — real ones only), optional 1 services/grid covering service, parts and consignment (service revenue is why a dealership survives), optional 1 stats/bar, optional 1 testimonials from delivered buyers, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), close with 1 cta',
+  },
+  inventory: {
+    purpose: 'The full featured-unit page. Browsing surface for buyers who are already shopping.',
+    allowed_types: ['hero', 'inventory', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Inventory"), 1 inventory/showcase with as many units as supplied, 1 faq covering trade-ins, financing terms, delivery radius and what "as-is" means on a used unit, close with 1 cta. NEVER imply the list is a live feed of everything on the lot — it is a featured selection and the disclaimer says so',
+  },
+  service: {
+    purpose: 'Service and parts department. Recurring revenue, and the reason a buyer comes back.',
+    allowed_types: ['hero', 'services', 'trust', 'reservation', 'faq', 'cta'],
+    required_sequence: '1 hero/centered-stats (eyebrow="Service + parts"), 1 services/grid (winterizing, roof reseal, appliance repair, warranty work, storage), optional 1 trust/badges for factory-certified techs, 1 reservation/cta with buttonLabel "Book service" (Twomiah Bookings), optional 1 faq on turnaround time and whether they service units bought elsewhere, close with 1 cta',
+  },
+  about: {
+    purpose: 'Who the dealership is. Family-owned beats corporate in this vertical, when true.',
+    allowed_types: ['about', 'stats', 'team', 'trust', 'testimonials', 'cta'],
+    required_sequence: '1 about/story, optional 1 stats/bar (years, units delivered, service bays — real numbers), optional 1 team/grid, optional 1 trust/badges, optional 1 testimonials, close with 1 cta',
+  },
+  contact: {
+    purpose: 'Get them to the lot or on the phone.',
+    allowed_types: ['hero', 'contact', 'reservation', 'faq'],
+    required_sequence: 'optional 1 hero (short), 1 contact/form-info with lot hours and directions, optional 1 reservation/cta with buttonLabel "Schedule a walkthrough" (Twomiah Bookings), optional 1 faq about trade appraisals and financing pre-approval',
+  },
+} as const
+
 const HOMECARE_PAGE_RECIPES = {
   home: {
     purpose: 'Front door for a home-care agency. Empathetic but concrete trust signals, then a guided care-finder wizard, then humanize with caregivers.',
@@ -1108,6 +1164,8 @@ function buildSitePrompt(input: ComposerInput): string {
   const businessType = input.businessType || ''
   const ft = /\b(food[_\s\-]?truck|mobile[_\s\-]?food|food[_\s\-]?cart|mobile[_\s\-]?kitchen|pop[_\s\-]?up[_\s\-]?kitchen)\b/i.test(businessType)
   const dispensary = /\b(dispensary|cannabis|cannabis[_\s\-]?retail)\b/i.test(businessType)
+  const vet = /\b(vet|vets|veterinary|veterinarian|animal[_\s\-]?hospital|animal[_\s\-]?clinic|pet[_\s\-]?hospital|pet[_\s\-]?clinic|equine[_\s\-]?vet)\b/i.test(businessType)
+  const rv = /\b(rv|rvs|motorhome|motor[_\s\-]?home|travel[_\s\-]?trailer|fifth[_\s\-]?wheel|camper|powersports|power[_\s\-]?sports|atv|utv|snowmobile|marine[_\s\-]?dealer|boat[_\s\-]?dealer|dealership)\b/i.test(businessType)
   const roofing = /\b(roofing|roof|roofer|storm[_\s\-]?restoration|siding[_\s\-]?roofing)\b/i.test(businessType)
   const landscaping = /\b(landscaping|lawn[_\s\-]?care|lawncare|landscape[_\s\-]?design|snow[_\s\-]?removal|tree[_\s\-]?service|arborist|hardscape)\b/i.test(businessType)
   const homecare = /\b(home[_\s\-]?care|homecare|in[_\s\-]?home[_\s\-]?care|senior[_\s\-]?care|caregiving|companion[_\s\-]?care|home[_\s\-]?health)\b/i.test(businessType)
@@ -1124,7 +1182,11 @@ function buildSitePrompt(input: ComposerInput): string {
   const contractor = /\b(contractor|general[_\s\-]?contractor|construction|remodeling|remodeler|siding|home[_\s\-]?improvement|kitchen|kitchen[_\s\-]?remodeling|kitchen[_\s\-]?design|kitchen[_\s\-]?installation|bath[_\s\-]?remodeling|bathroom[_\s\-]?remodeling|deck[_\s\-]?builder|fence[_\s\-]?installation|drywall|flooring|framing|concrete|masonry|tile[_\s\-]?installer|cabinet[_\s\-]?maker)\b/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
-    : dispensary
+    : vet
+      ? VET_PAGE_RECIPES
+      : rv
+        ? RV_PAGE_RECIPES
+        : dispensary
       ? DISPENSARY_PAGE_RECIPES
       : roofing
         ? ROOFING_PAGE_RECIPES

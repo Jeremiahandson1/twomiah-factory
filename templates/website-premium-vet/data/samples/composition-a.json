@@ -1,0 +1,61 @@
+{
+  "_note": "Composition A — design-build led. Big single hero, alternating services rows (each one its own moment), photo-led closing CTA.",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "full-bleed",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=2000&q=80",
+        "eyebrow": "Custom homes since 2008",
+        "title": "Built to last where you'll spend the rest of your life",
+        "subtitle": "Design-build homes and full-house renovations across Madison, Verona, and the Driftless region. Every project led by the same partner from sketch to keys.",
+        "primaryCta": { "label": "Start a project", "href": "#contact" },
+        "secondaryCta": { "label": "See recent work", "href": "#services" }
+      }
+    },
+    {
+      "type": "services",
+      "variant": "alternating",
+      "data": {
+        "heading": "What we build",
+        "intro": "Three lines of work, all run by the same crew. We do fewer projects a year on purpose — so every one of them is worth a callback.",
+        "items": [
+          {
+            "title": "Design-build custom homes",
+            "description": "From a blank lot to a finished home in 14–18 months. We handle architecture, engineering, permitting, and construction under one roof — no general-contractor handoff, no finger-pointing.",
+            "image": "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1400&q=80",
+            "bullets": ["Single point of contact from concept to keys", "Fixed-fee architecture phase, transparent construction billing", "Energy-recovery ventilation and high-performance envelope standard"]
+          },
+          {
+            "title": "Whole-house renovations",
+            "description": "Mid-century, farmhouse, lake cottage — we work on the bones of older buildings without losing what makes them feel like home. Specialists in additions that don't look like additions.",
+            "image": "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=1400&q=80",
+            "bullets": ["Foundation reinforcement and structural opening-up", "Period-appropriate millwork and refinishing", "Energy upgrades that pay back in under a decade"]
+          },
+          {
+            "title": "Detached studios & ADUs",
+            "description": "Garden offices, guest cottages, workshop barns. Same standards as the main house, scaled for the budget. Madison zoning expertise included.",
+            "image": "https://images.unsplash.com/photo-1551739440-5dd934d3a94a?w=1400&q=80",
+            "bullets": ["Pre-fab where it makes sense, custom where it matters", "Built to outlast the warranty paper", "Zoning consultation included in proposal"]
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "split",
+      "data": {
+        "image": "https://images.unsplash.com/photo-1572120360610-d971b9d7767c?w=1400&q=80",
+        "heading": "Tell us what you're imagining",
+        "subtitle": "A 30-minute call. We'll talk through the site, the budget, what's important to you, and whether we're the right firm. No pitch deck.",
+        "bullets": [
+          "Free initial consultation, on site or over video",
+          "Fixed-fee feasibility study before any commitment",
+          "References from clients in your zip code"
+        ],
+        "primaryCta": { "label": "Schedule a call", "href": "#contact" },
+        "phone": "608-555-0142"
+      }
+    }
+  ]
+}

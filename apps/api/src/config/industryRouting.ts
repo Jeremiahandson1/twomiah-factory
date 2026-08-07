@@ -40,6 +40,8 @@ export type PremiumWebsiteTemplate =
   | 'website-premium-dispensary'
   | 'website-premium-showcase'
   | 'website-premium-foodtruck'
+  | 'website-premium-vet'
+  | 'website-premium-rv'
 
 export type LegacyWebsiteTemplate =
   | 'website-general'
@@ -245,12 +247,11 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
 
 export function premiumWebsiteTemplateFor(industry: string | undefined | null): PremiumWebsiteTemplate {
   const v = verticalFor(industry)
-  // RV/powersports is a CRM-only vertical for now — no dedicated premium
-  // website template exists. Fall back to the contractor site so a premium
-  // website request never resolves to a nonexistent template directory.
-  if (v === 'rv') return 'website-premium-contractor'
-  // Veterinary is a CRM-only vertical — no dedicated premium site template.
-  if (v === 'veterinary') return 'website-premium-contractor'
+  // Both verticals used to fall back to the contractor site, so a vet clinic
+  // buying a premium website got a general-contractor site. They have their own
+  // templates now.
+  if (v === 'rv') return 'website-premium-rv'
+  if (v === 'veterinary') return 'website-premium-vet'
   // Store uses the dedicated website-store storefront (not a premium marketing
   // site) — this fallback only guards against a nonexistent template dir.
   if (v === 'store') return 'website-premium-contractor'

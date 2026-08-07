@@ -1,0 +1,52 @@
+<%
+  // Urgent-care bar for a veterinary clinic. The highest-intent visitor on a
+  // vet site is someone whose animal is sick right now — this answers "are you
+  // open and can you see us" before anything else on the page.
+  //
+  // Server-rendered open/closed state from settings.businessHours, same
+  // approach as the field-service emergency bar. No client clock, so the
+  // answer is correct in the customer's first paint.
+  var heading = data.heading || 'Sick or injured pet?'
+  var phone = data.phone || settings.phone || ''
+  var afterHoursNote = data.afterHoursNote || 'After hours, call and our answering service will page the on-call veterinarian.'
+  var emergencyPartner = data.emergencyPartner || null   // { name, phone, address }
+  var walkIns = data.walkIns === true
+
+  function currentlyOpen() {
+    try {
+      var hours = (settings && settings.businessHours) || null
+      if (!hours) return null
+      var now = new Date()
+      var day = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][now.getDay()]
+      var today = hours[day]
+      if (!today || today.closed) return false
+      var mins = now.getHours() * 60 + now.getMinutes()
+      function toMins(t) { var p = String(t).split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0) }
+      return mins >= toMins(today.open) && mins < toMins(today.close)
+    } catch (e) { return null }
+  }
+  var open = currentlyOpen()
+%>
+<section class="urgent-bar<%= open === false ? ' urgent-bar--closed' : '' %>" aria-label="Urgent care">
+  <div class="urgent-bar__inner">
+    <div class="urgent-bar__copy">
+      <p class="urgent-bar__heading"><%= heading %></p>
+      <% if (open === true) { %>
+        <p class="urgent-bar__status urgent-bar__status--open">We are open now<%= walkIns ? ' — walk-ins welcome' : '' %></p>
+      <% } else if (open === false) { %>
+        <p class="urgent-bar__status urgent-bar__status--closed"><%= afterHoursNote %></p>
+      <% } %>
+    </div>
+    <% if (phone) { %>
+      <a class="urgent-bar__call" href="tel:<%= String(phone).replace(/[^0-9+]/g, '') %>">
+        Call <%= phone %>
+      </a>
+    <% } %>
+  </div>
+  <% if (emergencyPartner && emergencyPartner.name) { %>
+    <p class="urgent-bar__partner">
+      Life-threatening emergency after hours? Go straight to
+      <strong><%= emergencyPartner.name %></strong><% if (emergencyPartner.phone) { %> — <%= emergencyPartner.phone %><% } %><% if (emergencyPartner.address) { %>, <%= emergencyPartner.address %><% } %>.
+    </p>
+  <% } %>
+</section>

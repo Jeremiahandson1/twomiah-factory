@@ -1,0 +1,75 @@
+{
+  "_note": "Composition B — same business, lead with credibility metrics. Centered hero + stat band, services as a card menu, single CTA banner. Reads as ‘established firm with the numbers to back it up.’",
+  "sections": [
+    {
+      "type": "hero",
+      "variant": "centered-stats",
+      "data": {
+        "eyebrow": "Driftless region custom-home builder",
+        "title": "Build a home that's still your favorite in twenty years",
+        "subtitle": "Westridge has been the design-build firm Madison families call when they want a project finished right, on time, and without surprises in the final bill.",
+        "primaryCta": { "label": "Start a project", "href": "#contact" },
+        "stats": [
+          { "value": "16 yrs", "label": "In business" },
+          { "value": "62", "label": "Homes built" },
+          { "value": "4.9 ★", "label": "Client rating" },
+          { "value": "$0", "label": "Change-order avg" }
+        ]
+      }
+    },
+    {
+      "type": "hero",
+      "variant": "split",
+      "data": {
+        "flip": true,
+        "eyebrow": "Our approach",
+        "title": "Fewer projects, fully run by the partner you hired",
+        "subtitle": "Most firms our size are juggling 20+ jobs at once. We cap at six. That's why our project managers know your tile installer's first name.",
+        "image": "https://images.unsplash.com/photo-1581094794329-c8112a89af12?w=1400&q=80",
+        "primaryCta": { "label": "See how we work", "href": "#services" },
+        "stats": [
+          { "value": "6", "label": "Active projects" },
+          { "value": "1", "label": "Partner per build" },
+          { "value": "98%", "label": "On-time delivery" }
+        ]
+      }
+    },
+    {
+      "type": "services",
+      "variant": "cards-grid",
+      "data": {
+        "heading": "Three lines of work",
+        "intro": "Same crew, same standards, three sizes of project.",
+        "items": [
+          {
+            "title": "Custom homes",
+            "description": "Design-build from a blank lot to a finished home in 14–18 months. Architecture, engineering, and construction under one roof.",
+            "image": "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Whole-house renovations",
+            "description": "Mid-century, farmhouse, lake cottage. We work on the bones of older buildings without losing what makes them feel like home.",
+            "image": "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=900&q=80",
+            "href": "#contact"
+          },
+          {
+            "title": "Studios & ADUs",
+            "description": "Garden offices, guest cottages, workshop barns. Same standards as the main house, scaled for the budget.",
+            "image": "https://images.unsplash.com/photo-1551739440-5dd934d3a94a?w=900&q=80",
+            "href": "#contact"
+          }
+        ]
+      }
+    },
+    {
+      "type": "cta",
+      "variant": "banner",
+      "data": {
+        "heading": "Ready to start the conversation?",
+        "subtitle": "30-minute consult, free. We'll know within a call whether we're the right firm for what you're imagining.",
+        "primaryCta": { "label": "Get in touch", "href": "#contact" }
+      }
+    }
+  ]
+}
