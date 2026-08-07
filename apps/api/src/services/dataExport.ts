@@ -40,7 +40,15 @@ export async function exportTenantData(params: {
   tenantSlug: string
   tenantDatabaseUrl: string
 }): Promise<ExportResult> {
-  const client = new PgClient({ connectionString: params.tenantDatabaseUrl, connectionTimeoutMillis: 10_000 })
+  // TLS when the connection string is external (an operator running this from
+  // their own machine); Render refuses external connections without it.
+  const needsTls = /\.(oregon|ohio|frankfurt|singapore|virginia)[-.]postgres\.render\.com/.test(params.tenantDatabaseUrl)
+    || /[?&]sslmode=require/.test(params.tenantDatabaseUrl)
+  const client = new PgClient({
+    connectionString: params.tenantDatabaseUrl,
+    connectionTimeoutMillis: 10_000,
+    ssl: needsTls ? { rejectUnauthorized: false } : undefined,
+  })
   try {
     await client.connect()
 
