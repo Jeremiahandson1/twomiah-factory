@@ -39,11 +39,17 @@ import * as path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
+// Load apps/api/.env when it exists (a laptop). In a deployed environment —
+// the weekly regression cron — there is no .env file and the variables come
+// from the environment itself. This used to throw ENOENT and take the whole
+// run down before a single test started.
 const envPath = path.join(__dirname, '..', '.env')
-for (const rawLine of fs.readFileSync(envPath, 'utf8').split('\n')) {
-  const line = rawLine.replace(/\r$/, '')
-  const m = line.match(/^([^#=]+)=(.*)$/)
-  if (m && !process.env[m[1].trim()]) process.env[m[1].trim()] = m[2].trim()
+if (fs.existsSync(envPath)) {
+  for (const rawLine of fs.readFileSync(envPath, 'utf8').split('\n')) {
+    const line = rawLine.replace(/\r$/, '')
+    const m = line.match(/^([^#=]+)=(.*)$/)
+    if (m && !process.env[m[1].trim()]) process.env[m[1].trim()] = m[2].trim()
+  }
 }
 
 import { supabase } from '../src/middleware/auth'
