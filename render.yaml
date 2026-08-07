@@ -54,6 +54,28 @@ services:
       - key: PORT
         value: "3000"
 
+  # ─── Daily Lifecycle Cron ────────────────────────────────────────────────────
+  # Trial warnings, 60/30/7-day domain + subscription renewal warnings, offboard
+  # teardown pickup and preview follow-ups. These endpoints were written to be
+  # "run daily by an external scheduler" that never existed, so none of it fired.
+  - type: cron
+    name: twomiah-factory-daily
+    runtime: node
+    schedule: "0 13 * * *"   # 08:00 US Central, once a day
+    buildCommand: cd apps/api && bun install
+    startCommand: cd apps/api && bun run src/cron/daily.ts
+    envVars:
+      - key: API_URL
+        fromService:
+          type: web
+          name: twomiah-factory-api
+          property: hostport
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: twomiah-factory-api
+          envVarKey: CRON_SECRET
+
   # ─── Cleanup Cron Job ────────────────────────────────────────────────────────
   - type: cron
     name: twomiah-factory-cleanup
