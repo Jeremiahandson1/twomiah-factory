@@ -26,6 +26,9 @@ export interface StatusComponent {
   name: string
   state: ComponentState
   detail: string
+  /** Operator-only hint. The public page never renders this; the staff Status
+   *  page does. Keeps runbook steps off a page customers read. */
+  operatorNote?: string
 }
 
 export interface StatusIncident {
@@ -88,7 +91,8 @@ async function checkTenants(): Promise<StatusComponent> {
       if (/health_status|health_checked_at/.test(error.message || '')) {
         return {
           key: 'tenants', name, state: 'unknown',
-          detail: 'Monitoring not reporting yet — run migrations/2026-08-07_tenants_health.sql',
+          detail: 'Monitoring is not reporting yet',
+          operatorNote: 'Run apps/api/migrations/2026-08-07_tenants_health.sql',
         }
       }
       return { key: 'tenants', name, state: 'unknown', detail: error.message }

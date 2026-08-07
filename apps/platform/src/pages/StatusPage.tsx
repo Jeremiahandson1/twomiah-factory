@@ -16,6 +16,8 @@ type StatusComponent = {
   name: string
   state: ComponentState
   detail: string
+  // Operator-only; deliberately absent from the public page's rendering.
+  operatorNote?: string
 }
 
 type Incident = {
@@ -184,6 +186,9 @@ export default function StatusPage() {
                 <div>
                   <p className="text-white font-medium">{comp.name}</p>
                   <p className="text-xs text-gray-500">{comp.detail}</p>
+                  {comp.operatorNote && (
+                    <p className="text-xs text-amber-400/80 mt-0.5">{comp.operatorNote}</p>
+                  )}
                 </div>
                 <span className={'text-sm font-semibold whitespace-nowrap ' + STATE_STYLE[comp.state]}>
                   {STATE_LABEL[comp.state]}
