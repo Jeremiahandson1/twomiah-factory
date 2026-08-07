@@ -91,6 +91,7 @@ import PortalEquipmentDetail from './pages/portal/PortalEquipmentDetail';
 import PortalAgreements from './pages/portal/PortalAgreements';
 import PortalInvoices from './pages/portal/PortalInvoices';
 import PortalServiceRequest from './pages/portal/PortalServiceRequest';
+import ContactSupportPage from './pages/support/ContactSupportPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
@@ -183,6 +184,7 @@ function App() {
                     <Route path="inspections" element={<InspectionsPage />} />
                     <Route path="bids" element={<BidsPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/email" element={<EmailAliasesPage />} />

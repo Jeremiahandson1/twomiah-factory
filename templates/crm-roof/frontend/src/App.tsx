@@ -53,6 +53,7 @@ import PortalJobDetail from './pages/portal/PortalJobDetail'
 import PortalQuotes from './pages/portal/PortalQuotes'
 import PortalInvoices from './pages/portal/PortalInvoices'
 import PortalServiceRequest from './pages/portal/PortalServiceRequest'
+import ContactSupportPage from './pages/support/ContactSupportPage'
 
 /** Sends fresh tenants to the onboarding wizard until it's completed.
  *  Gate reads company.onboardingCompletedAt (set by POST /api/onboarding/complete);
@@ -126,6 +127,7 @@ export default function App() {
                 <Route path="invoices" element={<InvoicesPage />} />
                 <Route path="reports" element={<ReportsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="contact-support" element={<ContactSupportPage />} />
                 <Route path="canvassing" element={<CanvassingDashboard />} />
                 <Route path="storm-leads" element={<StormLeadsPage />} />
                 <Route path="leads" element={<LeadInboxPage />} />

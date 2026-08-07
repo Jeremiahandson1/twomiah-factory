@@ -13,6 +13,7 @@ import { and, eq, lt } from 'drizzle-orm'
 import logger from './services/logger.ts'
 
 import authRoutes from './routes/auth.ts'
+import platformSupportRoutes from './routes/platformSupport.ts'
 import publicRoutes from './routes/public.ts'
 import productAdminRoutes from './routes/products.ts'
 import orderAdminRoutes from './routes/orders.ts'
@@ -76,6 +77,7 @@ app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOStri
 app.route('/api/public', publicRoutes)
 // Auth + tenant admin API.
 app.route('/api/auth', authRoutes)
+app.route('/api/platform-support', platformSupportRoutes)
 app.route('/api/admin/products', productAdminRoutes)
 app.route('/api/admin/orders', orderAdminRoutes)
 app.route('/api/admin/settings', settingsAdminRoutes)

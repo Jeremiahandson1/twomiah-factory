@@ -11,7 +11,7 @@ import {
   FileSearch, TrendingUp, Tv, Car, Scale, Receipt,
   Puzzle, Activity, Server, Calendar, GraduationCap, AlertTriangle,
   CheckSquare, WifiOff, ClipboardList, ShoppingBag as PurchaseIcon, RefreshCw
-, Mail } from 'lucide-react';
+, Mail, LifeBuoy } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { SkipLink, RouteAnnouncer } from '../common/Accessibility';
@@ -92,6 +92,7 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/menu-sync', icon: RefreshCw, label: 'Menu Sync', features: ['menu_sync'] },
   { to: '/crm/email', icon: Mail, label: 'Email', features: ['branded_email'] },
   { to: '/crm/google-reviews', icon: Star, label: 'Google Reviews', features: ['google_business'] },
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ];
 
 export default function AppLayout() {

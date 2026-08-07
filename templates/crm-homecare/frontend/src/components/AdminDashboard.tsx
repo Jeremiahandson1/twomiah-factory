@@ -61,6 +61,7 @@ import PayersServiceCodes from './admin/PayersServiceCodes';
 import AuthorizationsManagement from './admin/AuthorizationsManagement';
 import EVVDashboard from './admin/EVVDashboard';
 import LeadInboxPage from '../pages/leads/LeadInboxPage';
+import ContactSupportPage from '../pages/support/ContactSupportPage';
 import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
 import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from '../shared';
 
@@ -75,6 +76,7 @@ const NAV_SECTIONS = [
       { id: 'care-plans', label: 'Care Plans', icon: '❤️' },
       { id: 'lead-inbox', label: 'Lead Inbox', icon: '📥' },
       { id: 'lead-sources', label: 'Lead Sources', icon: '🔗' },
+      { id: 'contact-twomiah', label: 'Contact Twomiah', icon: '🛟' },
     ]
   },
   {
@@ -328,6 +330,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       // ai-receptionist handled above (line 275)
       case 'ads': return <AdsPage />;
       case 'lead-inbox': return <LeadInboxPage />;
+      case 'contact-twomiah': return <ContactSupportPage />;
       case 'lead-sources': return <LeadSourcesPage />;
       case 'payers-service-codes': return <PayersServiceCodes />;
       case 'authorizations': return <AuthorizationsManagement />;

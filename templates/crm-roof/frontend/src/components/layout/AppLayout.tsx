@@ -28,8 +28,7 @@ import {
   Star,
   CreditCard,
   Radio,
-  Mail,
-} from 'lucide-react'
+  Mail, LifeBuoy } from 'lucide-react'
 import { useFeature } from '../../data/features'
 
 const baseNavItems = [
@@ -44,6 +43,7 @@ const baseNavItems = [
   { label: 'Adjusters', icon: Shield, to: '/crm/adjusters' },
   { label: 'Lead Inbox', icon: Inbox, to: '/crm/leads' },
   { label: 'AI Receptionist', icon: Bot, to: '/crm/ai-receptionist' },
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ]
 
 const fieldNavItems = [

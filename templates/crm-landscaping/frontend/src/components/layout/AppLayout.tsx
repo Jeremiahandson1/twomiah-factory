@@ -73,6 +73,8 @@ const ALL_NAV_ITEMS = [
   { to: '/crm/snow-billing', icon: Snowflake, label: 'Snow Billing', section: 'Operations', features: ['snow_billing'] },
   { to: '/website-cms', external: true, id: 'website-cms', icon: ExternalLink, label: 'Website CMS', section: 'Operations' },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
+
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ];
 
 export default function AppLayout() {

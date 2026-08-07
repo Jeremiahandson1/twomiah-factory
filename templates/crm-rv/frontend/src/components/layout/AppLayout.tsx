@@ -90,6 +90,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   // Help
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'], section: 'Help' },
   { to: '/crm/help', icon: BookOpen, label: 'Help', section: 'Help' },
+
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ];
 
 export default function AppLayout() {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Home, Package, ShoppingBag, Users, CreditCard, Tag, Settings, LogOut, Menu, X, Store , Mail , Truck , Star } from 'lucide-react'
+import { Home, Package, ShoppingBag, Users, CreditCard, Tag, Settings, LogOut, Menu, X, Store , Mail , Truck , Star, LifeBuoy } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 
 const NAV = [
@@ -15,6 +15,8 @@ const NAV = [
   { to: '/reviews', label: 'Reviews', icon: Star },
   { to: '/email', label: 'Email', icon: Mail },
   { to: '/settings', label: 'Settings', icon: Settings },
+
+  { to: '/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ]
 
 const companyName = import.meta.env.VITE_COMPANY_NAME || 'Store'

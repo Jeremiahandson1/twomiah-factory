@@ -78,6 +78,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/roof-reports', icon: FileBarChart, label: 'Roof Reports', features: ['instant_estimator'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
+
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ];
 
 export default function AppLayout() {

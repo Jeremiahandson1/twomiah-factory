@@ -18,6 +18,7 @@ import ShippingPage from './pages/ShippingPage'
 import DiscountsPage from './pages/DiscountsPage'
 import SettingsPage from './pages/SettingsPage'
 import OnboardingWizard from './pages/OnboardingWizard'
+import ContactSupportPage from './pages/support/ContactSupportPage'
 import { useEffect, useState } from 'react'
 import api from './services/api'
 import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared'
@@ -81,6 +82,7 @@ export default function App() {
               <Route path="shipping" element={<ShippingPage />} />
               <Route path="discounts" element={<DiscountsPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="contact-support" element={<ContactSupportPage />} />
               <Route path="settings/email" element={<EmailAliasesPage />} />
               <Route path="settings/email-domain" element={<EmailDomainPage />} />
               <Route path="settings/email-inbox" element={<InboundMessagesPage />} />

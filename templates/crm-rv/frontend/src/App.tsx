@@ -73,6 +73,7 @@ import RentalsPage from './pages/rv/RentalsPage';
 import AccountingPage from './pages/rv/AccountingPage';
 import ServicePage from './pages/rv/ServicePage';
 import AlertsPage from './pages/rv/AlertsPage';
+import ContactSupportPage from './pages/support/ContactSupportPage';
 
 // Detail Pages
 import ContactDetailPage from './components/detail/ContactDetailPage';
@@ -153,6 +154,7 @@ function App() {
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/email" element={<EmailAliasesPage />} />

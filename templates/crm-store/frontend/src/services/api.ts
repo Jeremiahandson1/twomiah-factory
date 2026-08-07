@@ -4,6 +4,11 @@
 
 const API_URL = import.meta.env.VITE_API_URL || ''
 
+export type VendorTicket = {
+  id: string; number: string; subject: string;
+  status: string; priority: string; created_at: string
+}
+
 export type Product = {
   id: string
   slug: string
@@ -185,6 +190,19 @@ class ApiClient {
 
   // ── Suppliers (dropshipping) ──
   async getSupplierStatus() { return this.request<any>('/api/admin/suppliers') }
+
+  // Contact Twomiah — vendor support. Our backend proxies these to the
+  // factory with the tenant sync key; nothing tenant-identifying is sent
+  // from the browser.
+  async getPlatformTickets() {
+    return this.request<{ data: VendorTicket[]; unavailable?: boolean }>('/api/platform-support/tickets')
+  }
+  async createPlatformTicket(input: { subject: string; description?: string; priority?: string }) {
+    return this.request<{ number?: string }>('/api/platform-support/tickets', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  }
   async connectSupplier(body: { provider: string; mode: string; apiKey: string; accountEmail?: string }) { return this.request('/api/admin/suppliers/connect', { method: 'POST', body: JSON.stringify(body) }) }
   async disconnectSupplier() { return this.request('/api/admin/suppliers/disconnect', { method: 'POST' }) }
   async setSupplierAutoForward(enabled: boolean) { return this.request('/api/admin/suppliers/auto-forward', { method: 'POST', body: JSON.stringify({ enabled }) }) }

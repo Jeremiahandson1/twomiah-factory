@@ -1,6 +1,6 @@
 import { supabase, requireRole } from '../../middleware/auth'
 import { notifyNewTicket, notifyTicketReply } from '../../services/email'
-import { type FactoryApp, parseJsonBody, UUID_RE } from './shared'
+import { type FactoryApp, parseJsonBody, UUID_RE, checkFactoryKey } from './shared'
 
 export function registerSupportRoutes(factory: FactoryApp) {
 // ─── Support Tickets (Level 1: CRM customers → Twomiah) ─────────────────────
@@ -221,6 +221,90 @@ factory.post('/support/tickets/:id/rate', async (c) => {
 })
 
 // ─── Customer-facing ticket endpoints (public, by tenant) ────────────────────
+
+// ─── Tenant-authenticated support (server-to-server, X-Factory-Key) ────────
+// The tenant's own backend calls these on behalf of a signed-in owner, so the
+// tenant id is proven by the sync key rather than taken on trust from a
+// request body. This is the path in-app support uses.
+
+factory.post('/customers/:id/support-tickets', async (c) => {
+  const tenantId = c.req.param('id')
+  if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('id, name, slug, email, admin_email, plan, factory_sync_key')
+    .eq('id', tenantId)
+    .single()
+  if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+
+  const parsed = await parseJsonBody(c)
+  if (parsed.error) return parsed.error
+  const body = parsed.data
+
+  const subject = typeof body?.subject === 'string' ? body.subject.trim() : ''
+  if (!subject) return c.json({ error: 'A subject is required' }, 400)
+
+  const { count } = await supabase.from('support_tickets').select('id', { count: 'exact', head: true })
+  const number = 'TWO-' + String((count || 0) + 1).padStart(4, '0')
+  const now = new Date()
+
+  // Same SLA table the staff-side create uses.
+  const slaDefaults: Record<string, { response: number; resolve: number }> = {
+    critical: { response: 30, resolve: 240 },
+    urgent: { response: 60, resolve: 480 },
+    high: { response: 120, resolve: 960 },
+    normal: { response: 240, resolve: 1440 },
+    low: { response: 480, resolve: 2880 },
+  }
+  const priority = ['low', 'normal', 'high', 'urgent', 'critical'].includes(body?.priority) ? body.priority : 'normal'
+  const sla = slaDefaults[priority]
+
+  const { data: ticket, error } = await supabase.from('support_tickets').insert({
+    number,
+    subject: subject.slice(0, 300),
+    description: typeof body?.description === 'string' ? body.description.slice(0, 8000) : null,
+    status: 'open',
+    priority,
+    category: typeof body?.category === 'string' ? body.category : null,
+    source: 'in_app',
+    tenant_id: tenantId,
+    submitter_email: body?.submitter_email || tenant.admin_email || tenant.email || null,
+    submitter_name: body?.submitter_name || null,
+    sla_response_due: new Date(now.getTime() + sla.response * 60000).toISOString(),
+    sla_resolve_due: new Date(now.getTime() + sla.resolve * 60000).toISOString(),
+  }).select().single()
+
+  if (error) return c.json({ error: error.message }, 500)
+
+  // Staff need to know a customer is waiting, same as any other ticket.
+  try {
+    await notifyNewTicket(ticket as any, tenant as any)
+  } catch { /* alerting must never fail the customer's submission */ }
+
+  return c.json(ticket, 201)
+})
+
+factory.get('/customers/:id/support-tickets', async (c) => {
+  const tenantId = c.req.param('id')
+  if (!UUID_RE.test(tenantId)) return c.json({ error: 'Invalid tenant ID' }, 400)
+
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('id, factory_sync_key')
+    .eq('id', tenantId)
+    .single()
+  if (!tenant || !checkFactoryKey(c, tenant)) return c.json({ error: 'Unauthorized' }, 401)
+
+  const { data, error } = await supabase
+    .from('support_tickets')
+    .select('id, number, subject, status, priority, created_at, updated_at, resolved_at')
+    .eq('tenant_id', tenantId)
+    .order('created_at', { ascending: false })
+    .limit(50)
+  if (error) return c.json({ error: error.message }, 500)
+  return c.json({ data: data || [] })
+})
 
 factory.post('/public/support/tickets', async (c) => {
   const parsed = await parseJsonBody(c)

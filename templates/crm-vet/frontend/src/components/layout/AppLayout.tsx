@@ -76,6 +76,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/lead-sources', icon: ExternalLink, label: 'Lead Sources', features: ['lead_inbox'] },
   { to: '/crm/support', icon: LifeBuoy, label: 'Support', features: ['support_tickets'] },
   { to: '/crm/help', icon: BookOpen, label: 'Help' },
+
+  { to: '/crm/contact-support', icon: LifeBuoy, label: 'Contact Twomiah' },
 ];
 
 export default function AppLayout() {

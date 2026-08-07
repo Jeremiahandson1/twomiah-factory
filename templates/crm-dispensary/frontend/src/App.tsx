@@ -92,6 +92,7 @@ import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage 
 import BillingSettingsPage from './pages/settings/BillingSettingsPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
+import ContactSupportPage from './pages/support/ContactSupportPage';
 
 
 /** Redirects to onboarding wizard if the company hasn't completed it yet. */
@@ -148,6 +149,7 @@ function App() {
                     <Route path="audit" element={<AuditLogPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="settings/billing" element={<BillingSettingsPage />} />
                     <Route path="settings/email" element={<EmailAliasesPage />} />
                     <Route path="settings/email-domain" element={<EmailDomainPage />} />
