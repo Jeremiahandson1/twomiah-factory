@@ -20,6 +20,7 @@ import SelfHostedPurchasePage from './pages/public/SelfHostedPurchasePage';
 import BillingSettingsPage from './pages/settings/BillingSettingsPage';
 import IntegrationsPage from './pages/settings/IntegrationsPage';
 import MigrationPage from './pages/settings/MigrationPage';
+import ImportPage from './pages/settings/ImportPage';
 import DashboardPage from './pages/DashboardPage';
 import ContactsPage from './pages/ContactsPage';
 import VisualizerPage from './pages/VisualizerPage';
@@ -192,6 +193,7 @@ function App() {
                     <Route path="google-reviews" element={<GbpReviewsPage />} />
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
+                    <Route path="settings/import" element={<ImportPage />} />
                     <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
                     <Route path="fleet" element={<FleetPage />} />

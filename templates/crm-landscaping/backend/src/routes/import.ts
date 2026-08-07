@@ -163,4 +163,28 @@ app.post('/products', async (c) => {
   return c.json(results)
 })
 
+// Import invoices (open balances are what a switching business cannot re-key)
+app.post('/invoices', async (c) => {
+  const user = c.get('user') as any
+  const formData = await c.req.formData()
+  const file = formData.get('file') as File | null
+
+  if (!file) {
+    return c.json({ error: 'No file uploaded' }, 400)
+  }
+
+  const csvContent = await file.text()
+  const dryRun = formData.get('dryRun') === 'true'
+  const skipDuplicates = formData.get('skipDuplicates') !== 'false'
+  const createMissingContacts = formData.get('createMissingContacts') !== 'false'
+
+  const results = await importService.importInvoices(csvContent, user.companyId, {
+    dryRun,
+    skipDuplicates,
+    createMissingContacts,
+  })
+
+  return c.json(results)
+})
+
 export default app

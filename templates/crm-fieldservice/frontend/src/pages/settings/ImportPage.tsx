@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { 
   Upload, Download, FileText, Check, X, AlertCircle, 
-  Loader2, Users, FolderKanban, Briefcase, Package 
+  Loader2, Users, FolderKanban, Briefcase, Package,
+  Receipt,
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -10,6 +11,7 @@ const IMPORT_TYPES = [
   { id: 'projects', label: 'Projects', icon: FolderKanban, description: 'Import project records' },
   { id: 'jobs', label: 'Service Calls', icon: Briefcase, description: 'Import work orders and service calls' },
   { id: 'products', label: 'Products/Services', icon: Package, description: 'Import products and service items' },
+  { id: 'invoices', label: 'Invoices', icon: Receipt, description: 'Import invoices and open balances from Jobber, HousecallPro or QuickBooks' },
 ];
 
 export default function ImportPage() {
@@ -23,6 +25,7 @@ export default function ImportPage() {
     skipDuplicates: true,
     updateExisting: false,
     defaultType: 'client',
+      createMissingContacts: true,
   });
 
   const handleFileChange = async (e) => {
@@ -228,6 +231,17 @@ export default function ImportPage() {
               />
               <span className="text-gray-700">Update existing records if found</span>
             </label>
+            {selectedType === 'invoices' && (
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={options.createMissingContacts !== false}
+                  onChange={(e) => setOptions({ ...options, createMissingContacts: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-300 text-gray-900"
+                />
+                <span className="text-gray-700">Create customers that do not exist yet (recommended — an invoice with no customer is hard to use)</span>
+              </label>
+            )}
             {selectedType === 'contacts' && (
               <div className="flex items-center gap-3">
                 <span className="text-gray-700">Default contact type:</span>

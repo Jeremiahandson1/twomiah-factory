@@ -112,6 +112,9 @@ export default function SettingsPage() {
             <button onClick={() => navigate('/crm/settings/migration')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <ArrowRightLeft className="w-5 h-5" />Migrate Data
             </button>
+            <button onClick={() => navigate('/crm/settings/import')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
+              <Upload className="w-5 h-5" />Import from CSV
+            </button>
             <button onClick={() => navigate('/crm/settings/estimator')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <Calculator className="w-5 h-5" />Instant Estimator
             </button>

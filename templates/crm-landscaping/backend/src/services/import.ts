@@ -10,7 +10,7 @@
 
 import { parse } from 'csv-parse/sync'
 import { db } from '../../db/index.ts'
-import { contact, project, job, user, pricebookItem } from '../../db/schema.ts'
+import { contact, project, job, user, pricebookItem, invoice, invoiceLineItem, payment } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc } from 'drizzle-orm'
 
 /**
@@ -528,6 +528,280 @@ function parseBoolean(value: string | null): boolean {
 /**
  * Validate CSV structure before import
  */
+// ============================================
+// INVOICE IMPORT
+// ============================================
+
+const INVOICE_COLUMN_MAP = {
+  number: ['invoice_number', 'invoice', 'number', 'invoice_no', 'inv_number', 'doc_number', 'reference'],
+  contactName: ['customer', 'customer_name', 'client', 'client_name', 'contact', 'contact_name', 'bill_to', 'name'],
+  contactEmail: ['customer_email', 'client_email', 'contact_email', 'email', 'bill_to_email'],
+  issueDate: ['invoice_date', 'issue_date', 'date', 'created_date', 'issued_on', 'created_at'],
+  dueDate: ['due_date', 'payment_due', 'due', 'due_on'],
+  status: ['status', 'invoice_status', 'state', 'payment_status'],
+  subtotal: ['subtotal', 'sub_total', 'net', 'amount_before_tax'],
+  taxAmount: ['tax', 'tax_amount', 'sales_tax', 'tax_total', 'vat'],
+  discount: ['discount', 'discount_amount', 'discount_total'],
+  total: ['total', 'amount', 'invoice_total', 'grand_total', 'total_amount', 'amount_due_total'],
+  amountPaid: ['amount_paid', 'paid', 'payments', 'paid_amount', 'total_paid', 'amount_received'],
+  balance: ['balance', 'balance_due', 'amount_due', 'outstanding', 'open_balance'],
+  notes: ['notes', 'note', 'memo', 'message', 'internal_note'],
+  terms: ['terms', 'payment_terms'],
+  projectName: ['project', 'project_name', 'job', 'job_name'],
+  // Line-item columns — present when the export is one row per line
+  itemDescription: ['line_item', 'item', 'item_name', 'description', 'service', 'product', 'line_description'],
+  itemQuantity: ['quantity', 'qty', 'units', 'hours'],
+  itemUnitPrice: ['unit_price', 'rate', 'price', 'unit_cost', 'each'],
+  itemTotal: ['line_total', 'item_total', 'amount', 'extended', 'line_amount'],
+}
+
+/** Money as typed by accounting exports: "$1,234.56", "(45.00)", "1 234,56". */
+function parseMoney(value: string | null): number {
+  if (!value) return 0
+  const negative = /^\s*\(.*\)\s*$/.test(value)
+  const cleaned = String(value).replace(/[^0-9.\-]/g, '')
+  const n = Number.parseFloat(cleaned)
+  if (Number.isNaN(n)) return 0
+  return negative ? -Math.abs(n) : n
+}
+
+function parseDateSafe(value: string | null): Date | null {
+  if (!value) return null
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/** Map whatever the old system called it onto our invoice statuses. */
+function normalizeInvoiceStatus(raw: string | null, total: number, paid: number): string {
+  const s = (raw || '').toLowerCase().trim()
+  if (['paid', 'closed', 'complete', 'completed', 'settled'].includes(s)) return 'paid'
+  if (['void', 'voided', 'cancelled', 'canceled'].includes(s)) return 'cancelled'
+  if (['draft', 'unsent', 'new'].includes(s)) return 'draft'
+  if (['overdue', 'past_due', 'late'].includes(s)) return 'overdue'
+  if (['sent', 'open', 'unpaid', 'awaiting_payment', 'pending', 'partial'].includes(s)) return 'sent'
+  // No usable status column: infer from the money.
+  if (paid > 0 && paid + 0.005 >= total) return 'paid'
+  return total > 0 ? 'sent' : 'draft'
+}
+
+/**
+ * Import invoices. Handles one-row-per-invoice and one-row-per-line-item
+ * exports; rows sharing an invoice number are grouped into a single invoice.
+ */
+export async function importInvoices(
+  csvContent: string,
+  companyId: string,
+  options: ImportOptions & { createMissingContacts?: boolean } = {},
+): Promise<ImportResults> {
+  const { dryRun = false, skipDuplicates = true, createMissingContacts = true } = options
+
+  const records = parseCSV(csvContent)
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+
+  // ── group rows into invoices ───────────────────────────────────────────────
+  type Grouped = { rows: Record<string, string>[]; firstLine: number }
+  const groups = new Map<string, Grouped>()
+  for (let i = 0; i < records.length; i++) {
+    const row = normalizeColumns(records[i])
+    const number = getValue(row, ...INVOICE_COLUMN_MAP.number)
+    // No invoice number: treat the row as its own invoice rather than merging
+    // unrelated rows together.
+    const key = number ? 'num:' + number.trim().toLowerCase() : 'row:' + i
+    const existing = groups.get(key)
+    if (existing) existing.rows.push(row)
+    else groups.set(key, { rows: [row], firstLine: i + 2 })
+  }
+
+  let generated = 0
+  const [lastInvoice] = await db.select({ number: invoice.number })
+    .from(invoice)
+    .where(eq(invoice.companyId, companyId))
+    .orderBy(desc(invoice.createdAt))
+    .limit(1)
+  const lastSeq = Number.parseInt((lastInvoice?.number || '').replace(/\D/g, ''), 10)
+  let nextSeq = Number.isNaN(lastSeq) ? 1 : lastSeq + 1
+
+  for (const [, group] of groups) {
+    const head = group.rows[0]
+    const lineNum = group.firstLine
+
+    try {
+      let number = getValue(head, ...INVOICE_COLUMN_MAP.number)
+      if (!number) {
+        number = `INV-${String(nextSeq++).padStart(5, '0')}`
+        generated++
+      }
+
+      if (skipDuplicates) {
+        const [dupe] = await db.select({ id: invoice.id })
+          .from(invoice)
+          .where(and(eq(invoice.companyId, companyId), eq(invoice.number, number)))
+          .limit(1)
+        if (dupe) {
+          results.skipped++
+          continue
+        }
+      }
+
+      // ── customer ──
+      let contactId: string | null = null
+      const email = getValue(head, ...INVOICE_COLUMN_MAP.contactEmail)
+      const name = getValue(head, ...INVOICE_COLUMN_MAP.contactName)
+
+      if (email) {
+        const [found] = await db.select({ id: contact.id })
+          .from(contact)
+          .where(and(eq(contact.companyId, companyId), ilike(contact.email, email)))
+          .limit(1)
+        contactId = found?.id ?? null
+      }
+      if (!contactId && name) {
+        const [found] = await db.select({ id: contact.id })
+          .from(contact)
+          .where(and(eq(contact.companyId, companyId), ilike(contact.name, name)))
+          .limit(1)
+        contactId = found?.id ?? null
+      }
+      if (!contactId && createMissingContacts && (name || email)) {
+        // An invoice with no customer is close to useless, so the customer is
+        // created from what the invoice knows and reported back.
+        if (!dryRun) {
+          const [created] = await db.insert(contact).values({
+            companyId,
+            name: name || email!,
+            email: email || null,
+            type: 'client',
+            source: 'import',
+          }).returning({ id: contact.id })
+          contactId = created?.id ?? null
+        }
+        results.records.push({ line: lineNum, createdContact: name || email })
+      }
+
+      // ── line items ──
+      const lineItems: Array<{ description: string; quantity: string; unitPrice: string; total: string }> = []
+      for (const row of group.rows) {
+        const description = getValue(row, ...INVOICE_COLUMN_MAP.itemDescription)
+        const qtyRaw = getValue(row, ...INVOICE_COLUMN_MAP.itemQuantity)
+        const priceRaw = getValue(row, ...INVOICE_COLUMN_MAP.itemUnitPrice)
+        if (!description && !priceRaw) continue
+
+        const quantity = qtyRaw ? parseMoney(qtyRaw) || 1 : 1
+        const unitPrice = priceRaw ? parseMoney(priceRaw) : 0
+        const explicitTotal = getValue(row, ...INVOICE_COLUMN_MAP.itemTotal)
+        const lineTotal = explicitTotal ? parseMoney(explicitTotal) : quantity * unitPrice
+
+        lineItems.push({
+          description: description || 'Imported item',
+          quantity: String(quantity),
+          unitPrice: String(unitPrice || (quantity ? lineTotal / quantity : 0)),
+          total: String(lineTotal),
+        })
+      }
+
+      // ── money ──
+      const declaredTotal = parseMoney(getValue(head, ...INVOICE_COLUMN_MAP.total))
+      const lineSum = lineItems.reduce((sum, li) => sum + Number(li.total), 0)
+      const taxAmount = parseMoney(getValue(head, ...INVOICE_COLUMN_MAP.taxAmount))
+      const discount = parseMoney(getValue(head, ...INVOICE_COLUMN_MAP.discount))
+      let subtotal = parseMoney(getValue(head, ...INVOICE_COLUMN_MAP.subtotal))
+      if (!subtotal) subtotal = lineSum || Math.max(declaredTotal - taxAmount + discount, 0)
+      const total = declaredTotal || subtotal + taxAmount - discount
+
+      const balance = parseMoney(getValue(head, ...INVOICE_COLUMN_MAP.balance))
+      const paidRaw = getValue(head, ...INVOICE_COLUMN_MAP.amountPaid)
+      // Exports give paid OR balance; derive whichever is missing.
+      const amountPaid = paidRaw ? parseMoney(paidRaw) : (balance ? Math.max(total - balance, 0) : 0)
+
+      const status = normalizeInvoiceStatus(getValue(head, ...INVOICE_COLUMN_MAP.status), total, amountPaid)
+      const issueDate = parseDateSafe(getValue(head, ...INVOICE_COLUMN_MAP.issueDate)) || new Date()
+      const dueDate = parseDateSafe(getValue(head, ...INVOICE_COLUMN_MAP.dueDate))
+
+      // ── project link (optional) ──
+      let projectId: string | null = null
+      const projectName = getValue(head, ...INVOICE_COLUMN_MAP.projectName)
+      if (projectName) {
+        const [found] = await db.select({ id: project.id })
+          .from(project)
+          .where(and(eq(project.companyId, companyId), ilike(project.name, `%${projectName}%`)))
+          .limit(1)
+        projectId = found?.id ?? null
+      }
+
+      const record = {
+        line: lineNum,
+        number,
+        contact: name || email || null,
+        total,
+        amountPaid,
+        status,
+        lineItems: lineItems.length,
+      }
+
+      if (dryRun) {
+        results.records.push(record)
+        results.imported++
+        continue
+      }
+
+      const [created] = await db.insert(invoice).values({
+        companyId,
+        contactId,
+        projectId,
+        number,
+        status,
+        issueDate,
+        dueDate,
+        subtotal: String(subtotal),
+        taxRate: '0',
+        taxAmount: String(taxAmount),
+        discount: String(discount),
+        total: String(total),
+        amountPaid: String(amountPaid),
+        notes: getValue(head, ...INVOICE_COLUMN_MAP.notes),
+        terms: getValue(head, ...INVOICE_COLUMN_MAP.terms),
+        paidAt: status === 'paid' ? (parseDateSafe(getValue(head, ...INVOICE_COLUMN_MAP.issueDate)) || new Date()) : null,
+      }).returning()
+
+      if (lineItems.length) {
+        await db.insert(invoiceLineItem).values(lineItems.map((li, idx) => ({
+          invoiceId: created.id,
+          description: li.description,
+          quantity: li.quantity,
+          unitPrice: li.unitPrice,
+          total: li.total,
+          sortOrder: idx,
+        })))
+      }
+
+      // Money already collected becomes real payment history, so the balance
+      // after migrating matches the balance before it.
+      if (amountPaid > 0) {
+        await db.insert(payment).values({
+          invoiceId: created.id,
+          amount: String(amountPaid),
+          method: 'other',
+          reference: 'imported',
+          notes: 'Imported from previous system',
+          paidAt: issueDate,
+        })
+      }
+
+      results.records.push({ ...record, id: created.id })
+      results.imported++
+    } catch (error: any) {
+      results.errors.push({ line: lineNum, error: error.message })
+      results.skipped++
+    }
+  }
+
+  if (generated > 0) {
+    results.records.push({ note: `${generated} invoice(s) had no number and were assigned one` })
+  }
+
+  return results
+}
+
 export function validateCSV(csvContent: string, type: string) {
   try {
     const records = parseCSV(csvContent)
@@ -545,6 +819,7 @@ export function validateCSV(csvContent: string, type: string) {
       projects: PROJECT_COLUMN_MAP.name,
       jobs: JOB_COLUMN_MAP.title,
       products: PRODUCT_COLUMN_MAP.name,
+      invoices: INVOICE_COLUMN_MAP.total,
     }
 
     const required = requiredMap[type]
@@ -580,6 +855,7 @@ export function getTemplate(type: string): string {
     projects: 'Name,Number,Description,Status,Address,City,State,Zip,Value,Start Date,End Date,Contact Name,Contact Email\nNew Office Build,PRJ-001,Commercial office renovation,active,456 Oak Ave,Chicago,IL,60601,150000,2024-01-15,2024-06-30,Jane Doe,jane@client.com',
     jobs: 'Title,Number,Type,Status,Priority,Scheduled Date,Address,City,State,Zip,Notes,Project,Contact,Assigned To\nHVAC Installation,JOB-001,installation,scheduled,high,2024-02-01,789 Pine St,Chicago,IL,60602,Bring extra filters,New Office Build,Jane Doe,john@company.com',
     products: 'Name,SKU,Type,Price,Unit,Category,Description,Taxable\nStandard Labor,LAB-001,service,75.00,hour,Labor,Standard hourly rate,yes\nPVC Pipe 4in,MAT-001,product,12.50,foot,Materials,4 inch PVC pipe,yes',
+    invoices: 'Invoice Number,Customer,Customer Email,Invoice Date,Due Date,Status,Item,Quantity,Unit Price,Line Total,Subtotal,Tax,Total,Amount Paid,Balance,Notes\nINV-1001,Jane Doe,jane@client.com,2026-01-15,2026-02-14,sent,Service call,1,150.00,150.00,150.00,12.38,162.38,0,162.38,Imported from previous system\nINV-1001,Jane Doe,jane@client.com,2026-01-15,2026-02-14,sent,Parts,2,25.00,50.00,150.00,12.38,162.38,0,162.38,',
   }
 
   return templates[type] || ''
@@ -590,6 +866,7 @@ export default {
   importProjects,
   importJobs,
   importProducts,
+  importInvoices,
   validateCSV,
   previewImport: validateCSV,
   getTemplate,
