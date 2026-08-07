@@ -76,6 +76,29 @@ services:
           name: twomiah-factory-api
           envVarKey: CRON_SECRET
 
+  # ─── Weekly Regression Cron ──────────────────────────────────────────────────
+  # Runs the factory test matrix (smoke, generate-only, no AI compose) so
+  # template/generator breakage is found by us on a Sunday rather than by a
+  # customer's deploy on a Tuesday. Creates no Render services and spends no
+  # Anthropic credits; every test tenant it makes, it deletes.
+  - type: cron
+    name: twomiah-factory-regression
+    runtime: node
+    schedule: "0 14 * * 0"   # Sundays, 09:00 US Central
+    buildCommand: cd apps/api && bun install
+    startCommand: cd apps/api && bun run src/cron/regression.ts
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FACTORY_FROM_EMAIL
+        sync: false
+      - key: STAFF_NOTIFY_EMAIL
+        sync: false
+
   # ─── Cleanup Cron Job ────────────────────────────────────────────────────────
   - type: cron
     name: twomiah-factory-cleanup
