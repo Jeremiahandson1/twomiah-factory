@@ -9,6 +9,7 @@ import PortalInvoices    from './PortalInvoices';
 import PortalCarePlan    from './PortalCarePlan';
 import PortalMessages    from './PortalMessages';
 import PortalNotifications from './PortalNotifications';
+import PortalDocuments  from './PortalDocuments';
 
 const NAV = [
   { key: 'visits',        label: 'My Schedule',    icon: '📅' },
@@ -16,6 +17,7 @@ const NAV = [
   { key: 'caregivers',    label: 'My Caregivers',  icon: '👤' },
   { key: 'care-plan',     label: 'Care Plan',      icon: '📋' },
   { key: 'invoices',      label: 'Billing',        icon: '📄' },
+  { key: 'documents',     label: 'Documents',      icon: '📝' },
   { key: 'messages',      label: 'Messages',       icon: '💬' },
   { key: 'notifications', label: 'Notifications',  icon: '🔔' },
 ];
@@ -67,6 +69,7 @@ const ClientPortal = ({ user, token, onLogout }) => {
       case 'caregivers':    return <PortalCaregivers token={token} />;
       case 'care-plan':     return <PortalCarePlan token={token} />;
       case 'invoices':      return <PortalInvoices token={token} />;
+      case 'documents':     return <PortalDocuments token={token} />;
       case 'messages':      return <PortalMessages token={token} onRead={handleMessagesRead} />;
       case 'notifications': return <PortalNotifications token={token} onRead={handleNotificationsRead} />;
       default:              return <PortalVisits token={token} />;

@@ -103,6 +103,33 @@ interface TemplateResult {
 }
 
 const templates: Record<string, (data: any) => TemplateResult> = {
+  documentSignatureRequest: (data) => ({
+    subject: `Please sign: ${data.documentTitle}`,
+    html: `
+      <!DOCTYPE html><html><head><style>${baseStyles}</style></head>
+      <body><div class="container">
+        <div class="header"><h1 style="margin:0;">${data.companyName}</h1><p style="margin:4px 0 0;opacity:0.9;">Document to sign</p></div>
+        <div class="content">
+          <h2>${data.documentTitle}</h2>
+          <p>Hi ${data.contactName},</p>
+          <p>${data.companyName} has sent you a document to read and sign. You can open it in your care portal, read it in full, and sign it there.</p>
+          <p style="text-align:center;margin:28px 0;">
+            <a class="button" href="${data.portalUrl}">Open my care portal</a>
+          </p>
+          <p style="font-size:13px;color:#666;">If you would rather sign on paper, or you have questions about anything in the document, contact us before signing.</p>
+        </div>
+      </div></body></html>
+    `,
+    text: `${data.documentTitle}
+
+Hi ${data.contactName},
+
+${data.companyName} has sent you a document to read and sign. Open your care portal to read it in full and sign it:
+
+${data.portalUrl}
+
+If you would rather sign on paper, or have questions about anything in it, contact us before signing.`,
+  }),
   portalInvite: (data) => ({
     subject: `Your ${data.companyName} Care Portal Access`,
     html: `
@@ -291,6 +318,7 @@ const emailService = {
   PROVIDER,
   isConfigured: PROVIDER !== 'console',
   sendPortalInvite: (to: string, data: Record<string, unknown>) => send(to, 'portalInvite', data),
+  sendDocumentSignatureRequest: (to: string, data: Record<string, unknown>) => send(to, 'documentSignatureRequest', data),
   sendPortalSetupInvite: (to: string, data: Record<string, unknown>) => send(to, 'portalSetupInvite', data),
   sendInvoiceEmail: (to: string, data: Record<string, unknown>) => send(to, 'invoiceEmail', data),
   sendFamilyPortalWelcome: (to: string, data: Record<string, unknown>) => send(to, 'familyPortalWelcome', data),

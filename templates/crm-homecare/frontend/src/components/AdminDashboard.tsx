@@ -62,6 +62,7 @@ import AuthorizationsManagement from './admin/AuthorizationsManagement';
 import EVVDashboard from './admin/EVVDashboard';
 import LeadInboxPage from '../pages/leads/LeadInboxPage';
 import ContactSupportPage from '../pages/support/ContactSupportPage';
+import ClientDocuments from './admin/ClientDocuments';
 import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
 import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from '../shared';
 
@@ -72,6 +73,7 @@ const NAV_SECTIONS = [
       { id: 'dashboard', label: 'Dashboard', icon: '📊' },
       { id: 'clients', label: 'Clients', icon: '👤' },
       { id: 'onboarding', label: 'Onboarding', icon: '📋' },
+      { id: 'client-documents', label: 'Client Documents', icon: '✍️' },
       { id: 'referrals', label: 'Referral Sources', icon: '🏥' },
       { id: 'care-plans', label: 'Care Plans', icon: '❤️' },
       { id: 'lead-inbox', label: 'Lead Inbox', icon: '📥' },
@@ -318,6 +320,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'claims': return <ClaimsManagement />;
       case 'medications': return <MedicationsManagement />;
       case 'documents': return <DocumentsManagement />;
+      case 'client-documents': return <ClientDocuments />;
       case 'adl': return <ADLTracking />;
       case 'background-checks': return <BackgroundChecks />;
       case 'sms': return <SMSManagement />;

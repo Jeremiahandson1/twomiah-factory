@@ -1,3 +1,4 @@
+import './config/publicUrl.ts'
 import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
 import { cors } from 'hono/cors'
@@ -34,6 +35,7 @@ try { payrollRoutes = (await import('./routes/payroll.ts')).default } catch {}
 import complianceRoutes from './routes/compliance.ts'
 import communicationRoutes from './routes/communication.ts'
 import documentsRoutes from './routes/documents.ts'
+import clientDocumentsRoutes from './routes/clientDocuments.ts'
 import notificationsRoutes from './routes/notifications.ts'
 import pushRoutes from './routes/push.ts'
 import smsRoutes from './routes/sms.ts'
@@ -178,6 +180,7 @@ if (payrollRoutes) app.route('/api/payroll', payrollRoutes)
 app.route('/api/compliance', complianceRoutes)
 app.route('/api/communication', communicationRoutes)
 app.route('/api/documents', documentsRoutes)
+app.route('/api/client-documents', clientDocumentsRoutes)
 app.route('/api/notifications', notificationsRoutes)
 app.route('/api/push', pushRoutes)
 app.route('/api/sms', smsRoutes)

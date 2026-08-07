@@ -25,6 +25,8 @@ import {
   clientNotifications,
   portalMessageThreads,
   portalMessages,
+  clientDocuments,
+  auditLogs,
 } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import emailService from '../services/email.ts'
@@ -491,7 +493,7 @@ async function portalAuth(c: Context, next: Next) {
 // =============================================
 
 // Portal home: client profile + summary
-app.get('/portal/me', portalAuth, async (c) => {
+app.get('/me', portalAuth, async (c) => {
   const client = c.get('portalClient') as any
   const clientId = client.id
 
@@ -561,7 +563,7 @@ app.get('/portal/me', portalAuth, async (c) => {
 })
 
 // Schedule (upcoming visits)
-app.get('/portal/visits', portalAuth, async (c) => {
+app.get('/visits', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const rows = await db.select({
     id: schedules.id,
@@ -582,7 +584,7 @@ app.get('/portal/visits', portalAuth, async (c) => {
 })
 
 // Visit history (paginated)
-app.get('/portal/history', portalAuth, async (c) => {
+app.get('/history', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const limit = Math.min(parseInt(c.req.query('limit') || '10'), 50)
   const offset = parseInt(c.req.query('offset') || '0')
@@ -611,7 +613,7 @@ app.get('/portal/history', portalAuth, async (c) => {
 })
 
 // Invoices
-app.get('/portal/invoices', portalAuth, async (c) => {
+app.get('/invoices', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const invoiceRows = await db.select()
     .from(invoices)
@@ -630,7 +632,7 @@ app.get('/portal/invoices', portalAuth, async (c) => {
 })
 
 // Caregivers
-app.get('/portal/caregivers', portalAuth, async (c) => {
+app.get('/caregivers', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const rows = await db.select({
     assignment_id: clientAssignments.id,
@@ -651,7 +653,7 @@ app.get('/portal/caregivers', portalAuth, async (c) => {
 // STRIPE PAYMENT
 // =============================================
 
-app.post('/portal/invoices/:invoiceId/pay', portalAuth, async (c) => {
+app.post('/invoices/:invoiceId/pay', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const invoiceId = c.req.param('invoiceId')
 
@@ -705,7 +707,7 @@ app.post('/portal/invoices/:invoiceId/pay', portalAuth, async (c) => {
 // INVOICE PDF
 // =============================================
 
-app.get('/portal/invoices/:invoiceId/pdf', portalAuth, async (c) => {
+app.get('/invoices/:invoiceId/pdf', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const client = c.get('portalClient') as any
   const invoiceId = c.req.param('invoiceId')
@@ -741,7 +743,7 @@ app.get('/portal/invoices/:invoiceId/pdf', portalAuth, async (c) => {
 // CARE PLAN
 // =============================================
 
-app.get('/portal/care-plan', portalAuth, async (c) => {
+app.get('/care-plan', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const client = c.get('portalClient') as any
 
@@ -809,7 +811,7 @@ app.get('/portal/care-plan', portalAuth, async (c) => {
 // =============================================
 
 // List message threads
-app.get('/portal/messages', portalAuth, async (c) => {
+app.get('/messages', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
 
   const threads = await db.select()
@@ -845,7 +847,7 @@ app.get('/portal/messages', portalAuth, async (c) => {
 })
 
 // Create new message thread
-app.post('/portal/messages', portalAuth, async (c) => {
+app.post('/messages', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const client = c.get('portalClient') as any
   const { subject, body } = await c.req.json()
@@ -872,7 +874,7 @@ app.post('/portal/messages', portalAuth, async (c) => {
 })
 
 // Get thread messages
-app.get('/portal/messages/:threadId', portalAuth, async (c) => {
+app.get('/messages/:threadId', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const threadId = c.req.param('threadId')
 
@@ -894,7 +896,7 @@ app.get('/portal/messages/:threadId', portalAuth, async (c) => {
 })
 
 // Reply to thread
-app.post('/portal/messages/:threadId', portalAuth, async (c) => {
+app.post('/messages/:threadId', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const client = c.get('portalClient') as any
   const threadId = c.req.param('threadId')
@@ -934,7 +936,7 @@ app.post('/portal/messages/:threadId', portalAuth, async (c) => {
 })
 
 // Mark thread as read
-app.post('/portal/messages/:threadId/read', portalAuth, async (c) => {
+app.post('/messages/:threadId/read', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const threadId = c.req.param('threadId')
 
@@ -950,7 +952,7 @@ app.post('/portal/messages/:threadId/read', portalAuth, async (c) => {
 // NOTIFICATIONS
 // =============================================
 
-app.get('/portal/notifications', portalAuth, async (c) => {
+app.get('/notifications', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
 
   const rows = await db.select()
@@ -962,7 +964,7 @@ app.get('/portal/notifications', portalAuth, async (c) => {
   return c.json(rows)
 })
 
-app.post('/portal/notifications/:id/read', portalAuth, async (c) => {
+app.post('/notifications/:id/read', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const notifId = c.req.param('id')
 
@@ -975,7 +977,7 @@ app.post('/portal/notifications/:id/read', portalAuth, async (c) => {
 })
 
 // Also support PUT for backwards compat with existing frontend
-app.put('/portal/notifications/:id/read', portalAuth, async (c) => {
+app.put('/notifications/:id/read', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
   const notifId = c.req.param('id')
 
@@ -987,7 +989,7 @@ app.put('/portal/notifications/:id/read', portalAuth, async (c) => {
   return c.json({ success: true })
 })
 
-app.post('/portal/notifications/read-all', portalAuth, async (c) => {
+app.post('/notifications/read-all', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
 
   await db
@@ -999,7 +1001,7 @@ app.post('/portal/notifications/read-all', portalAuth, async (c) => {
 })
 
 // Also support PUT for backwards compat
-app.put('/portal/notifications/read-all', portalAuth, async (c) => {
+app.put('/notifications/read-all', portalAuth, async (c) => {
   const clientId = c.get('portalClientId') as string
 
   await db
@@ -1008,6 +1010,172 @@ app.put('/portal/notifications/read-all', portalAuth, async (c) => {
     .where(and(eq(clientNotifications.clientId, clientId), eq(clientNotifications.isRead, false)))
 
   return c.json({ success: true })
+})
+
+// =============================================
+// PORTAL ROUTES: signable documents
+// =============================================
+// The client (or whoever holds their portal access) signs the agency's
+// paperwork here. Staff-side sending and the certificate view are in
+// routes/clientDocuments.ts.
+
+const MAX_SIGNATURE_BYTES = 400_000
+
+function signerIp(c: Context): string | null {
+  const fwd = c.req.header('x-forwarded-for')
+  if (fwd) return fwd.split(',')[0].trim() || null
+  return c.req.header('x-real-ip') || null
+}
+
+function documentFingerprint(payload: unknown): string {
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')
+}
+
+function validateSignatureInput(body: any): { ok: true; signerName: string } | { ok: false; error: string } {
+  const signature = body?.signature
+  const signerName = typeof body?.signedBy === 'string' ? body.signedBy.trim() : ''
+  if (typeof signature !== 'string' || !signature.startsWith('data:image/')) {
+    return { ok: false, error: 'Please draw your signature.' }
+  }
+  if (signature.length > MAX_SIGNATURE_BYTES) {
+    return { ok: false, error: 'Signature image is too large.' }
+  }
+  if (!signerName) return { ok: false, error: 'Please type your full name to sign.' }
+  if (body?.consent !== true) {
+    return { ok: false, error: 'You must agree to sign electronically before signing.' }
+  }
+  return { ok: true, signerName }
+}
+
+// List this client's documents. Void ones are not shown — they were withdrawn.
+app.get('/documents', portalAuth, async (c) => {
+  const clientId = c.get('portalClientId') as string
+  const rows = await db
+    .select({
+      id: clientDocuments.id,
+      title: clientDocuments.title,
+      status: clientDocuments.status,
+      sentAt: clientDocuments.sentAt,
+      signedAt: clientDocuments.signedAt,
+      signedBy: clientDocuments.signedBy,
+      declinedAt: clientDocuments.declinedAt,
+    })
+    .from(clientDocuments)
+    .where(and(eq(clientDocuments.clientId, clientId), sql`${clientDocuments.status} <> 'void'`))
+    .orderBy(desc(clientDocuments.sentAt))
+
+  return c.json({ data: rows })
+})
+
+// Open one. Opening marks it viewed, which is part of the evidence trail.
+app.get('/documents/:id', portalAuth, async (c) => {
+  const clientId = c.get('portalClientId') as string
+  const [doc] = await db
+    .select()
+    .from(clientDocuments)
+    .where(and(eq(clientDocuments.id, c.req.param('id')), eq(clientDocuments.clientId, clientId)))
+    .limit(1)
+
+  if (!doc || doc.status === 'void') return c.json({ error: 'Document not found' }, 404)
+
+  if (!doc.viewedAt) {
+    await db
+      .update(clientDocuments)
+      .set({ viewedAt: new Date(), status: doc.status === 'sent' ? 'viewed' : doc.status, updatedAt: new Date() } as any)
+      .where(eq(clientDocuments.id, doc.id))
+  }
+
+  return c.json(doc)
+})
+
+app.post('/documents/:id/sign', portalAuth, async (c) => {
+  const clientId = c.get('portalClientId') as string
+  const body = await c.req.json().catch(() => ({}))
+
+  const validation = validateSignatureInput(body)
+  if (!validation.ok) return c.json({ error: validation.error }, 400)
+
+  const [doc] = await db
+    .select()
+    .from(clientDocuments)
+    .where(and(eq(clientDocuments.id, c.req.param('id')), eq(clientDocuments.clientId, clientId)))
+    .limit(1)
+
+  if (!doc || doc.status === 'void') return c.json({ error: 'Document not found' }, 404)
+  // Signing twice would overwrite the first signature's evidence.
+  if (doc.status === 'signed') return c.json({ error: 'This document has already been signed' }, 400)
+
+  const relationship = typeof body?.signerRelationship === 'string' && body.signerRelationship.trim()
+    ? body.signerRelationship.trim().slice(0, 100)
+    : 'Self'
+
+  const now = new Date()
+  // Hash the text that was actually on screen, so the signature is bound to
+  // this wording and not to whatever the template says later.
+  const hash = documentFingerprint({
+    id: doc.id,
+    title: doc.title,
+    body: doc.body,
+    clientId: doc.clientId,
+    signedBy: validation.signerName,
+    signedAt: now.toISOString(),
+  })
+
+  const [updated] = await db
+    .update(clientDocuments)
+    .set({
+      status: 'signed',
+      signedAt: now,
+      signedBy: validation.signerName,
+      signerRelationship: relationship,
+      signedIp: signerIp(c),
+      signedUserAgent: (c.req.header('user-agent') || '').slice(0, 500),
+      signatureImage: body.signature,
+      consentAt: now,
+      documentHash: hash,
+      updatedAt: now,
+    } as any)
+    .where(eq(clientDocuments.id, doc.id))
+    .returning()
+
+  try {
+    await db.insert(auditLogs).values({
+      userId: 'client:' + clientId,
+      action: 'client_document.signed',
+      tableName: 'client_documents',
+      recordId: doc.id,
+      newData: { title: doc.title, signedBy: validation.signerName, relationship, documentHash: hash } as any,
+      ipAddress: signerIp(c),
+    } as any)
+  } catch (err) {
+    // The signature is saved; a missing audit row must not undo it.
+    logger.error('[portal] audit write failed for signed document', { error: (err as Error).message })
+  }
+
+  return c.json(updated)
+})
+
+app.post('/documents/:id/decline', portalAuth, async (c) => {
+  const clientId = c.get('portalClientId') as string
+  const body = await c.req.json().catch(() => ({}))
+  const reason = typeof body?.reason === 'string' ? body.reason.trim().slice(0, 1000) : ''
+
+  const [doc] = await db
+    .select()
+    .from(clientDocuments)
+    .where(and(eq(clientDocuments.id, c.req.param('id')), eq(clientDocuments.clientId, clientId)))
+    .limit(1)
+
+  if (!doc || doc.status === 'void') return c.json({ error: 'Document not found' }, 404)
+  if (doc.status === 'signed') return c.json({ error: 'This document has already been signed' }, 400)
+
+  const [updated] = await db
+    .update(clientDocuments)
+    .set({ status: 'declined', declinedAt: new Date(), declineReason: reason || null, updatedAt: new Date() } as any)
+    .where(eq(clientDocuments.id, doc.id))
+    .returning()
+
+  return c.json(updated)
 })
 
 export default app

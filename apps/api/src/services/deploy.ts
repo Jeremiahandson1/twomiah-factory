@@ -1108,6 +1108,25 @@ export async function deployCustomer(
         results.apiUrl = backendUrl
         // Frontend is served by the same backend service — same URL
         results.deployedUrl = backendUrl
+
+        // Every emailed link the CRM sends — portal invites, password resets,
+        // invoice payment links, Stripe return URLs — is built from
+        // FRONTEND_URL, and it was never set on any tenant. Unset, those came
+        // out relative ("/portal?token=…") or literally "undefined/portal/…",
+        // which mail clients flag as an unsafe link. The service's own URL is
+        // right because the CRM frontend is served by this same service; a
+        // tenant with its own domain gets it overwritten at domain setup.
+        // Cannot go in the create payload — the URL is not known until the
+        // service exists.
+        if (backendSvc.id) {
+          // No custom domain exists yet at this point in the deploy; domain
+          // setup updates this value when a tenant attaches one.
+          const publicUrl = backendUrl
+          const okFrontendUrl = await updateRenderEnvVars(backendSvc.id, [{ key: 'FRONTEND_URL', value: publicUrl }])
+          if (!okFrontendUrl) {
+            console.warn('[Deploy] Could not set FRONTEND_URL — emailed links will fall back to the service URL')
+          }
+        }
         results.steps.push({ step: 'render_frontend', status: 'ok', note: 'served by backend' })
       } catch (err: any) {
         results.steps.push({ step: 'render_crm', status: 'error', error: err.message })

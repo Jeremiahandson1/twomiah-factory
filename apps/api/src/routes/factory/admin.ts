@@ -162,6 +162,16 @@ factory.post('/customers/:id/domain', requireRole('owner', 'admin'), async (c) =
         if (backendServiceId) {
           const appResult = await addCustomDomain(backendServiceId, 'app.' + domain)
           if (!appResult.success && !appResult.error?.includes('already')) renderErrors.push('CRM backend (app.): ' + appResult.error)
+
+          // Point the CRM's emailed links at the branded domain. Everything it
+          // sends — portal invites, password resets, invoice payment links,
+          // Stripe return URLs — is built from FRONTEND_URL, so leaving it on
+          // the onrender.com URL sends customers to the wrong hostname.
+          const { updateRenderEnvVars } = await import('../../services/deploy')
+          const okEnv = await updateRenderEnvVars(backendServiceId, [
+            { key: 'FRONTEND_URL', value: 'https://app.' + domain },
+          ])
+          if (!okEnv) renderErrors.push('CRM backend: domain attached but FRONTEND_URL was not updated — emailed links will keep using the onrender.com URL')
         }
       }
     }

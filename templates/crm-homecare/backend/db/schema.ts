@@ -2016,3 +2016,55 @@ export const gbpConnection = pgTable('gbp_connection', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
+
+
+// ==================== CLIENT SIGNABLE DOCUMENTS ====================
+// The agency's standard paperwork, signed by the client or their responsible
+// party in the portal. Distinct from formTemplates/formSubmissions, which are
+// STAFF-filled forms about a client, and from complianceDocuments, which staff
+// acknowledge. See migrations/0013_client_documents.sql.
+
+export const clientDocumentTemplates = pgTable('client_document_templates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  key: text('key').notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  requiresRelationship: boolean('requires_relationship').default(true).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('client_document_templates_key_idx').on(t.key),
+])
+
+export const clientDocuments = pgTable('client_documents', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  clientId: text('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+  templateId: text('template_id').references(() => clientDocumentTemplates.id, { onDelete: 'set null' }),
+  documentKey: text('document_key').notNull(),
+  title: text('title').notNull(),
+  // Snapshot of the exact text presented. Editing the template later must not
+  // change what somebody already signed.
+  body: text('body').notNull(),
+  status: text('status').default('sent').notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+  viewedAt: timestamp('viewed_at'),
+  signedAt: timestamp('signed_at'),
+  signedBy: text('signed_by'),
+  signerRelationship: text('signer_relationship'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureImage: text('signature_image'),
+  consentAt: timestamp('consent_at'),
+  documentHash: text('document_hash'),
+  declinedAt: timestamp('declined_at'),
+  declineReason: text('decline_reason'),
+  voidedAt: timestamp('voided_at'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('client_documents_client_id_idx').on(t.clientId),
+  index('client_documents_status_idx').on(t.status),
+])

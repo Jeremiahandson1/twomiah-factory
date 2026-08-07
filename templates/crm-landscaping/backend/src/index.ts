@@ -1,3 +1,4 @@
+import './config/publicUrl.ts'
 import { Hono } from 'hono'
 import { startMarketingProcessor } from './services/marketing.ts'
 import { startAgreementBillingProcessor } from './services/agreements.ts'

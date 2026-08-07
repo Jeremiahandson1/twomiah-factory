@@ -1,3 +1,4 @@
+import './config/publicUrl.ts'
 import { Hono } from 'hono'
 import type { Context, Next } from 'hono'
 import { cors } from 'hono/cors'
