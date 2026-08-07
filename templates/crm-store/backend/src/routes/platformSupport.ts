@@ -17,14 +17,18 @@ function factoryConfig() {
   const tenantId = process.env.TENANT_ID || ''
   const key = process.env.FACTORY_SYNC_KEY || ''
   if (!url || !tenantId || !key) return null
-  return { endpoint: url + '/api/v1/factory/customers/' + tenantId + '/support-tickets', key }
+  return {
+    endpoint: url + '/api/v1/factory/customers/' + tenantId + '/support-tickets',
+    statusUrl: url + '/status',
+    key,
+  }
 }
 
 app.get('/tickets', async (c) => {
   const cfg = factoryConfig()
   // Not configured is not an error the customer should see as a failure — the
   // page falls back to telling them where to email.
-  if (!cfg) return c.json({ data: [], unavailable: true })
+  if (!cfg) return c.json({ data: [], unavailable: true, statusUrl: null })
   try {
     const res = await fetch(cfg.endpoint, {
       headers: { 'X-Factory-Key': cfg.key },
@@ -32,7 +36,7 @@ app.get('/tickets', async (c) => {
     })
     if (!res.ok) return c.json({ data: [], unavailable: true })
     const body = await res.json()
-    return c.json({ data: Array.isArray(body?.data) ? body.data : [] })
+    return c.json({ data: Array.isArray(body?.data) ? body.data : [], statusUrl: cfg.statusUrl })
   } catch {
     return c.json({ data: [], unavailable: true })
   }

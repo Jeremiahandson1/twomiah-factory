@@ -10,6 +10,7 @@ import TenantsPage from './pages/TenantsPage'
 import CustomerDetailPage from './pages/CustomerDetailPage'
 import FactoryPage from './pages/FactoryPage'
 import SupportPage from './pages/SupportPage'
+import StatusPage from './pages/StatusPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
 import PricingAdminPage from './pages/PricingAdminPage'
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="tenants/:id" element={<CustomerDetailPage />} />
             <Route path="factory" element={<RequireRole allowed={['owner', 'admin', 'editor']}><FactoryPage /></RequireRole>} />
             <Route path="support" element={<SupportPage />} />
+            <Route path="status" element={<StatusPage />} />
             <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="pricing" element={<RequireRole allowed={['owner', 'admin']}><PricingAdminPage /></RequireRole>} />
             <Route path="roof-review" element={<RequireRole allowed={['owner', 'admin']}><RoofReviewPage /></RequireRole>} />

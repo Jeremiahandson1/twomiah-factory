@@ -25,6 +25,7 @@ const TICKET_STATUS_STYLE: Record<string, string> = {
 export default function ContactSupportPage() {
   const [tickets, setTickets] = useState<VendorTicket[]>([]);
   const [unavailable, setUnavailable] = useState(false);
+  const [statusUrl, setStatusUrl] = useState<string | null>(null);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('normal');
@@ -37,6 +38,7 @@ export default function ContactSupportPage() {
       const res = await api.get('/api/platform-support/tickets');
       setTickets(Array.isArray(res?.data) ? res.data : []);
       setUnavailable(!!res?.unavailable);
+      setStatusUrl(res?.statusUrl || null);
     } catch {
       setUnavailable(true);
     }
@@ -73,6 +75,12 @@ export default function ContactSupportPage() {
         <p className="text-gray-500 mt-1">
           Something wrong with the software itself? Tell us here — it goes straight to our team.
         </p>
+        {statusUrl && (
+          <p className="text-sm mt-2">
+            Before you write: <a href={statusUrl} target="_blank" rel="noreferrer"
+              className="text-blue-600 underline">check whether we already know about an outage</a>.
+          </p>
+        )}
       </div>
 
       {sentNumber && (

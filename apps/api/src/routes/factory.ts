@@ -7,6 +7,7 @@ import { registerLifecycleRoutes } from './factory/lifecycle'
 import { registerBillingRoutes } from './factory/billing'
 import { registerIntakeRoutes } from './factory/intake'
 import { registerSupportRoutes } from './factory/support'
+import { registerStatusRoutes } from './factory/status'
 import { registerAdminRoutes } from './factory/admin'
 import { registerRoofReviewRoutes } from './factory/roofReview'
 import { registerA2pRoutes } from './factory/a2p'
@@ -57,6 +58,7 @@ registerLifecycleRoutes(factory)
 registerBillingRoutes(factory)
 registerIntakeRoutes(factory)
 registerSupportRoutes(factory)
+registerStatusRoutes(factory)
 registerAdminRoutes(factory)
 registerRoofReviewRoutes(factory)
 registerA2pRoutes(factory)

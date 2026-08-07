@@ -6,11 +6,16 @@ import factoryRoutes from './routes/factory.ts'
 import qbwcRoutes from './routes/qbwc.ts'
 import briefRoutes from './routes/brief.ts'
 import { startScheduler } from './services/scheduler.ts'
+import { STATUS_PAGE_HTML } from './services/statusPageHtml.ts'
 
 const app = new Hono()
 
 // Health check before logger so it doesn't flood logs (Render pings every 5s)
 app.get('/health', (c) => c.json({ ok: true, ts: new Date().toISOString() }))
+
+// Public status page. Served from the API, not the platform SPA, so it still
+// loads when the platform host is the thing that is down.
+app.get('/status', (c) => c.html(STATUS_PAGE_HTML))
 
 // Outbound-IP echo — used to find this service's external IP when
 // configuring API whitelists (Namecheap, etc.) on third-party
