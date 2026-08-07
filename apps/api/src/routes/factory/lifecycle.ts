@@ -746,6 +746,30 @@ factory.post('/internal/booking-reminders', async (c) => {
   return c.json({ ok: true, tenants: results.length, totalSent, results })
 })
 
+// ─── Tenant health sweep ──────────────────────────────────────────────────
+// Daily via the lifecycle cron. Checks the things that actually take a tenant
+// off the air (site reachable, CRM API reachable, TLS cert expiry, DNS
+// delegation) and alerts staff on the transition into unhealthy.
+factory.post('/internal/health-sweep', async (c) => {
+  if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
+  const { sweepTenantHealth } = await import('../../services/healthMonitor')
+  const result = await sweepTenantHealth()
+  return c.json({ ok: true, timestamp: new Date().toISOString(), ...result })
+})
+
+// One tenant, checked on demand — for when an operator is looking at a
+// specific customer and wants the answer now rather than tomorrow.
+factory.get('/admin/tenants/:id/health', requireRole('owner', 'admin'), async (c) => {
+  const { data: tenant, error } = await supabase
+    .from('tenants')
+    .select('id, slug, name, domain, website_url, render_frontend_url, render_backend_url, cloudflare_zone_id')
+    .eq('id', c.req.param('id'))
+    .single()
+  if (error || !tenant) return c.json({ error: 'Tenant not found' }, 404)
+  const { checkTenant } = await import('../../services/healthMonitor')
+  return c.json(await checkTenant(tenant as any))
+})
+
 // ─── Renewal check cron (domain + sub renewals + teardown pickup) ──────────
 // Runs daily via external scheduler (same x-cron-secret pattern as /internal/trial-check).
 // Idempotent — sentinel columns prevent duplicate warnings.

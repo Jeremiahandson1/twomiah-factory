@@ -40,7 +40,13 @@ async function run() {
   console.log('[Cron] Daily lifecycle sweep at', new Date().toISOString())
   let failed = false
 
-  for (const path of ['/api/v1/factory/internal/trial-check', '/api/v1/factory/internal/renewal-check']) {
+  for (const path of [
+    '/api/v1/factory/internal/trial-check',
+    '/api/v1/factory/internal/renewal-check',
+    // Health sweep last: it is the slowest (TLS handshakes per tenant)
+    // and a failure here must not stop renewals from going out.
+    '/api/v1/factory/internal/health-sweep',
+  ]) {
     try {
       const { ok, body } = await call(path)
       console.log(`[Cron] ${path}:`, ok ? 'ok' : 'FAILED', JSON.stringify(body))

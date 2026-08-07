@@ -459,3 +459,12 @@ create index if not exists tenants_domain_expires_idx on tenants(domain_expires_
 alter table tenants add column if not exists is_test_tenant boolean not null default false;
 create index if not exists tenants_is_test_tenant_created_at_idx on tenants(is_test_tenant, created_at) where is_test_tenant = true;
 create index if not exists tenants_offboard_grace_idx on tenants(offboard_grace_ends_at) where offboard_grace_ends_at is not null;
+
+-- ── Tenant health monitor (daily sweep) ─────────────────────────────────────
+-- Latest result per tenant. health_alerted_at throttles staff alerts to the
+-- transition into unhealthy plus one reminder a day while it stays down.
+alter table tenants add column if not exists health_status text;         -- healthy | degraded | down
+alter table tenants add column if not exists health_checked_at timestamptz;
+alter table tenants add column if not exists health_detail jsonb;
+alter table tenants add column if not exists health_alerted_at timestamptz;
+create index if not exists idx_tenants_health_status on tenants(health_status);
