@@ -16,6 +16,11 @@ export const settings = pgTable('settings', {
   // Navigation as { label, href } array — the admin reorders / renames
   // / hides without touching template code.
   nav: jsonb('nav').notNull().default([]),
+  // Photographer credits for curated-library photos used on this site.
+  // Rendered in the footer by views/base.ejs — required by the Pexels API
+  // Guidelines wherever one of their photos appears. Seeded from the
+  // factory bootstrap payload; drizzle-kit push adds the column at boot.
+  photoCredits: jsonb('photo_credits').notNull().default([]),
   contactCtaLabel: text('contact_cta_label').notNull().default('Get in touch'),
   // Brand colors (consumed via CSS variables in build/styles/main.css).
   primaryColor: text('primary_color'),

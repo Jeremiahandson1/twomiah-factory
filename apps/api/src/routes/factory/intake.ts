@@ -10,6 +10,7 @@ import { renderHomepagePreview } from '../../services/previewRenderer'
 import { cacheGet, cacheSet, acquireInflight, releaseInflight } from '../../lib/previewGuard'
 import { composeSite } from '../../services/sectionComposer'
 import { renderPremiumPage, pickPremiumTemplateDir, safeColor } from '../../services/premiumSiteRenderer'
+import { collectImageUrls, heroCreditsForUrls } from '../../config/heroLibrary'
 import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } from '../../services/unsplashPlus'
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
@@ -1211,6 +1212,11 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     // same intake field). Accent is NOT passed: checkout doesn't forward it
     // either, so the preview must show the generator's default accent.
     primaryColor: intake.branding?.primaryColor,
+    // Photo credits for curated-library images on this page. The customer
+    // approves this preview before paying, so it has to show what the live
+    // site will show — including the attribution the Pexels API Guidelines
+    // require wherever one of their photos appears.
+    photoCredits: heroCreditsForUrls(collectImageUrls(sectionsToRender)),
   }
 
   const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
@@ -1705,6 +1711,11 @@ factory.get('/internal/site-bootstrap/:tenantId', async (c) => {
     // Services/About. Same buildPremiumNav helper used by the preview
     // endpoints above.
     nav: buildPremiumNav(pages.map(p => p.slug)),
+    // Credits for every curated-library photo across the composed pages. The
+    // settings row is seeded once at first boot, so this covers the whole
+    // site rather than a single page — a photo used on /services still gets
+    // credited in the footer that renders on every page.
+    photoCredits: heroCreditsForUrls(collectImageUrls(pages)),
   }
 
   // Note: admin credentials are NOT returned here. The seed reads them
