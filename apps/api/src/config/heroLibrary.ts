@@ -42,8 +42,20 @@ export interface PhotoCredit {
 // selection). Keep the two in sync when adding verticals.
 export const HERO_LIBRARY: Record<string, HeroImage[]> = {
   contractor: [],
-  roofing: [],
-  homecare: [],
+  roofing: [
+    { file: "roofing-01.jpg", tag: "hero", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/professional-roofer-installing-shingles-on-new-roof-33404248/", sourceId: "33404248", license: 'Pexels License' },
+    { file: "roofing-02.jpg", tag: "services", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/professional-roofing-installation-in-allen-texas-37677394/", sourceId: "37677394", license: 'Pexels License' },
+    { file: "roofing-03.jpg", tag: "crew", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/roof-installation-on-brick-house-in-fort-worth-33404080/", sourceId: "33404080", license: 'Pexels License' },
+    { file: "roofing-04.jpg", tag: "projects", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/roof-repair-and-construction-in-fort-worth-33404981/", sourceId: "33404981", license: 'Pexels License' },
+    { file: "roofing-05.jpg", tag: "projects", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/new-roof-installation-on-brick-house-in-texas-34304714/", sourceId: "34304714", license: 'Pexels License' },
+    { file: "roofing-06.jpg", tag: "safety", source: 'pexels', photographer: "Daniel & Hannah Snipes", photographerUrl: "https://www.pexels.com/@prolificpeople", sourceUrl: "https://www.pexels.com/photo/roofer-at-work-with-safety-gear-in-north-carolina-38346822/", sourceId: "38346822", license: 'Pexels License' },
+  ],
+  homecare: [
+    { file: "homecare-01.jpg", tag: "hero", source: 'pexels', photographer: "Yaroslav Shuraev", photographerUrl: "https://www.pexels.com/@yaroslav-shuraev", sourceUrl: "https://www.pexels.com/photo/elderly-woman-showing-her-earring-to-her-friend-8087554/", sourceId: "8087554", license: 'Pexels License' },
+    { file: "homecare-02.jpg", tag: "services", source: 'pexels', photographer: "Los Muertos Crew", photographerUrl: "https://www.pexels.com/@cristian-rojas", sourceUrl: "https://www.pexels.com/photo/woman-and-man-wearing-aprons-preparing-food-in-a-kitchen-8064899/", sourceId: "8064899", license: 'Pexels License' },
+    { file: "homecare-03.jpg", tag: "housekeeping", source: 'pexels', photographer: "cottonbro studio", photographerUrl: "https://www.pexels.com/@cottonbro", sourceUrl: "https://www.pexels.com/photo/elderly-women-holding-a-white-cloth-6942735/", sourceId: "6942735", license: 'Pexels License' },
+    { file: "homecare-04.jpg", tag: "companionship", source: 'pexels', photographer: "Kampus Production", photographerUrl: "https://www.pexels.com/@kampus", sourceUrl: "https://www.pexels.com/photo/man-in-pink-polo-shirt-sitting-beside-a-woman-in-white-t-shirt-8871440/", sourceId: "8871440", license: 'Pexels License' },
+  ],
   fieldservice: [],
   landscaping: [],
   dispensary: [],
