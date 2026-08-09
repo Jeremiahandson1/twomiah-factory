@@ -41,7 +41,13 @@ export interface PhotoCredit {
 // Groups mirror the composer's recipe verticals (sectionComposer.ts recipe
 // selection). Keep the two in sync when adding verticals.
 export const HERO_LIBRARY: Record<string, HeroImage[]> = {
-  contractor: [],
+  contractor: [
+    { file: "contractor-01.jpg", tag: "hero", source: 'pexels', photographer: "Mikael Blomkvist", photographerUrl: "https://www.pexels.com/@mikael-blomkvist", sourceUrl: "https://www.pexels.com/photo/man-in-black-shirt-holding-black-power-tool-8961401/", sourceId: "8961401", license: 'Pexels License' },
+    { file: "contractor-02.jpg", tag: "consultation", source: 'pexels', photographer: "Mikael Blomkvist", photographerUrl: "https://www.pexels.com/@mikael-blomkvist", sourceUrl: "https://www.pexels.com/photo/man-in-blue-denim-jeans-standing-beside-woman-in-black-and-white-checkered-shirt-8961343/", sourceId: "8961343", license: 'Pexels License' },
+    { file: "contractor-03.jpg", tag: "services", source: 'pexels', photographer: "https://kaboompics.com/", photographerUrl: "https://www.pexels.com/@karola-g", sourceUrl: "https://www.pexels.com/photo/person-hammering-a-nail-into-the-wood-7285984/", sourceId: "7285984", license: 'Pexels License' },
+    { file: "contractor-04.jpg", tag: "craft", source: 'pexels', photographer: "Los Muertos Crew", photographerUrl: "https://www.pexels.com/@cristian-rojas", sourceUrl: "https://www.pexels.com/photo/close-up-shot-of-a-carpenter-measuring-a-wood-plank-8447774/", sourceId: "8447774", license: 'Pexels License' },
+    { file: "contractor-05.jpg", tag: "projects", source: 'pexels', photographer: "Curtis Adams", photographerUrl: "https://www.pexels.com/@curtis-adams-1694007", sourceUrl: "https://www.pexels.com/photo/modern-neutral-kitchen-with-granite-countertops-36777548/", sourceId: "36777548", license: 'Pexels License' },
+  ],
   roofing: [
     { file: "roofing-01.jpg", tag: "hero", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/professional-roofer-installing-shingles-on-new-roof-33404248/", sourceId: "33404248", license: 'Pexels License' },
     { file: "roofing-02.jpg", tag: "services", source: 'pexels', photographer: "Ryan Stephens", photographerUrl: "https://www.pexels.com/@rstephens", sourceUrl: "https://www.pexels.com/photo/professional-roofing-installation-in-allen-texas-37677394/", sourceId: "37677394", license: 'Pexels License' },
@@ -56,7 +62,12 @@ export const HERO_LIBRARY: Record<string, HeroImage[]> = {
     { file: "homecare-03.jpg", tag: "housekeeping", source: 'pexels', photographer: "cottonbro studio", photographerUrl: "https://www.pexels.com/@cottonbro", sourceUrl: "https://www.pexels.com/photo/elderly-women-holding-a-white-cloth-6942735/", sourceId: "6942735", license: 'Pexels License' },
     { file: "homecare-04.jpg", tag: "companionship", source: 'pexels', photographer: "Kampus Production", photographerUrl: "https://www.pexels.com/@kampus", sourceUrl: "https://www.pexels.com/photo/man-in-pink-polo-shirt-sitting-beside-a-woman-in-white-t-shirt-8871440/", sourceId: "8871440", license: 'Pexels License' },
   ],
-  fieldservice: [],
+  fieldservice: [
+    { file: "fieldservice-01.jpg", tag: "hero", source: 'pexels', photographer: "Anastasia Shuraeva", photographerUrl: "https://www.pexels.com/@anastasia-shuraeva", sourceUrl: "https://www.pexels.com/photo/a-man-in-white-button-up-shirt-smiling-7647233/", sourceId: "7647233", license: 'Pexels License' },
+    { file: "fieldservice-02.jpg", tag: "plumbing", source: 'pexels', photographer: "Sergei Starostin", photographerUrl: "https://www.pexels.com/@sejio402", sourceUrl: "https://www.pexels.com/photo/professional-plumber-installing-a-radiator-pipe-29226620/", sourceId: "29226620", license: 'Pexels License' },
+    { file: "fieldservice-03.jpg", tag: "electrical", source: 'pexels', photographer: "Mikael Blomkvist", photographerUrl: "https://www.pexels.com/@mikael-blomkvist", sourceUrl: "https://www.pexels.com/photo/a-man-and-a-woman-wearing-goggles-holding-red-pipes-8961701/", sourceId: "8961701", license: 'Pexels License' },
+    { file: "fieldservice-04.jpg", tag: "tools", source: 'pexels', photographer: "AS Photography", photographerUrl: "https://www.pexels.com/@asphotography", sourceUrl: "https://www.pexels.com/photo/wrench-and-pipes-on-sketch-14953886/", sourceId: "14953886", license: 'Pexels License' },
+  ],
   landscaping: [],
   dispensary: [],
   restaurant: [],
