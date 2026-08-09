@@ -15,6 +15,27 @@
 export interface HeroImage {
   file: string // filename under assets/hero-library/<group>/
   tag: string  // what the shot shows — the composer matches this to sections
+
+  // ─── Attribution ───────────────────────────────────────────────────
+  // The Pexels API Guidelines require crediting the photographer and
+  // linking back to Pexels wherever an API-sourced photo is shown — a
+  // stricter obligation than the Pexels License itself, and the one we
+  // committed to when applying for the key. The curation harness fills
+  // these from the API response; nothing here is typed by hand.
+  source?: 'pexels' | 'unsplash' | 'other'
+  photographer?: string      // e.g. "Ryan Stephens"
+  photographerUrl?: string   // their profile page on the source site
+  sourceUrl?: string         // the photo's page on the source site
+  sourceId?: string          // the source's own id, for re-checking later
+  license?: string           // e.g. "Pexels License"
+}
+
+/** What a site renders in its footer for one photo. */
+export interface PhotoCredit {
+  photographer: string
+  photographerUrl?: string
+  sourceUrl?: string
+  source: string
 }
 
 // Groups mirror the composer's recipe verticals (sectionComposer.ts recipe
@@ -68,4 +89,63 @@ export function getHeroLibrary(businessType: string): Array<{ url: string; tag: 
     ...(group !== 'generic' ? (HERO_LIBRARY.generic || []).map(i => ({ ...i, group: 'generic' })) : []),
   ]
   return entries.map(i => ({ url: `${base}/hero-library/${i.group}/${i.file}`, tag: i.tag }))
+}
+
+
+/** Map a served hero-library URL back to its manifest entry.
+ *  Returns null for anything that is not ours (customer uploads, stock). */
+export function heroImageForUrl(url: string): { group: string; image: HeroImage } | null {
+  const m = /\/hero-library\/([^/]+)\/([^/?#]+)/.exec(url || '')
+  if (!m) return null
+  const [, group, file] = m
+  const image = (HERO_LIBRARY[group] || []).find(i => i.file === file)
+  return image ? { group, image } : null
+}
+
+/** Credits for the images a composed site actually uses.
+ *
+ *  Deliberately driven by the URLs that ended up in the content rather than
+ *  by the whole library: a site credits the photos on it, not the ones it
+ *  could have used. De-duplicated by photographer + photo, because the same
+ *  image can appear in several sections.
+ */
+export function heroCreditsForUrls(urls: Array<string | null | undefined>): PhotoCredit[] {
+  const seen = new Set<string>()
+  const credits: PhotoCredit[] = []
+  for (const url of urls) {
+    const hit = heroImageForUrl(url || '')
+    if (!hit) continue
+    const { image } = hit
+    // An image with no photographer recorded is not creditable — skip it
+    // rather than render an empty credit line.
+    if (!image.photographer) continue
+    const key = image.photographer + '|' + (image.sourceUrl || image.file)
+    if (seen.has(key)) continue
+    seen.add(key)
+    credits.push({
+      photographer: image.photographer,
+      photographerUrl: image.photographerUrl,
+      sourceUrl: image.sourceUrl,
+      source: image.source === 'pexels' ? 'Pexels'
+        : image.source === 'unsplash' ? 'Unsplash'
+        : (image.source || 'stock'),
+    })
+  }
+  return credits
+}
+
+/** Every image URL inside an arbitrary composed-content object. */
+export function collectImageUrls(value: unknown, found: string[] = []): string[] {
+  if (typeof value === 'string') {
+    if (/^https?:\/\//.test(value) && /\/hero-library\//.test(value)) found.push(value)
+    return found
+  }
+  if (Array.isArray(value)) {
+    for (const v of value) collectImageUrls(v, found)
+    return found
+  }
+  if (value && typeof value === 'object') {
+    for (const v of Object.values(value as Record<string, unknown>)) collectImageUrls(v, found)
+  }
+  return found
 }

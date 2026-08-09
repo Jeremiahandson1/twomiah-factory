@@ -795,6 +795,16 @@
         <p>Serving {{CITY}}, {{NEARBY_CITY_4}}, {{NEARBY_CITY_1}}, and the {{SERVICE_REGION}}</p>
       </div>
     </div>
+    <% if (typeof settings !== 'undefined' && settings && Array.isArray(settings.photoCredits) && settings.photoCredits.length) { %>
+  <div class="photo-credits" style="padding:10px 16px;text-align:center;font-size:12px;line-height:1.6;opacity:.65;">
+    Photos:
+    <% settings.photoCredits.forEach(function (c, i) { %><%
+      %><% if (c.photographerUrl) { %><a href="<%= c.photographerUrl %>" rel="nofollow noopener" target="_blank" style="color:inherit;"><%= c.photographer %></a><% } else { %><%= c.photographer %><% } %><%
+      %> on <% if (c.sourceUrl) { %><a href="<%= c.sourceUrl %>" rel="nofollow noopener" target="_blank" style="color:inherit;"><%= c.source %></a><% } else { %><%= c.source %><% } %><%
+      %><%= i < settings.photoCredits.length - 1 ? ', ' : '' %><%
+    %><% }) %>
+  </div>
+  <% } %>
   </footer>
 
   <!-- Scripts -->

@@ -4,6 +4,7 @@
  */
 
 import fs from 'fs'
+import { collectImageUrls, heroCreditsForUrls } from '../config/heroLibrary.ts'
 import path from 'path'
 import crypto from 'crypto'
 import { spawnSync } from 'child_process'
@@ -1195,6 +1196,29 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
           if (ai.settings.defaultMetaDescription) settings.defaultMetaDescription = ai.settings.defaultMetaDescription
           fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2))
         }
+      }
+
+      // Photo credits for any curated-library images the composer actually
+      // used. The Pexels API Guidelines require crediting the photographer
+      // and linking back, so this is not optional decoration — it is the
+      // condition under which we may use the photos at all. Written even
+      // when empty is pointless, so an empty list writes nothing and the
+      // footer renders nothing.
+      try {
+        const credits = heroCreditsForUrls(collectImageUrls(ai))
+        if (credits.length > 0) {
+          const settingsFile = path.join(dataDir, 'settings.json')
+          const settings = fs.existsSync(settingsFile)
+            ? JSON.parse(fs.readFileSync(settingsFile, 'utf8'))
+            : {}
+          settings.photoCredits = credits
+          fs.writeFileSync(settingsFile, JSON.stringify(settings, null, 2))
+          console.log('[Generator] Photo credits written for', credits.length, 'image(s)')
+        }
+      } catch (creditErr: any) {
+        // A missing credit line must not fail a build, but it must be loud:
+        // shipping an uncredited Pexels photo breaches the API guidelines.
+        console.error('[Generator] COULD NOT WRITE PHOTO CREDITS:', creditErr?.message)
       }
 
       // Write AI-generated blog posts
