@@ -30,12 +30,17 @@ export interface HeroImage {
   license?: string           // e.g. "Pexels License"
 }
 
-/** What a site renders in its footer for one photo. */
+/** One line in a site's footer credit. Grouped per photographer rather than
+ *  per photo — four photos by the same person read as one credit, not four. */
 export interface PhotoCredit {
   photographer: string
   photographerUrl?: string
+  /** The photo's own page. Present only when this photographer contributed a
+   *  single image; one link cannot point at four pages. */
   sourceUrl?: string
   source: string
+  /** How many of this photographer's photos the site uses. */
+  count: number
 }
 
 // Groups mirror the composer's recipe verticals (sectionComposer.ts recipe
@@ -172,8 +177,9 @@ function displayName(name: string): string {
 }
 
 export function heroCreditsForUrls(urls: Array<string | null | undefined>): PhotoCredit[] {
-  const seen = new Set<string>()
-  const credits: PhotoCredit[] = []
+  const seenImage = new Set<string>()
+  const byPhotographer = new Map<string, PhotoCredit>()
+
   for (const url of urls) {
     const hit = heroImageForUrl(url || '')
     if (!hit) continue
@@ -181,19 +187,34 @@ export function heroCreditsForUrls(urls: Array<string | null | undefined>): Phot
     // An image with no photographer recorded is not creditable — skip it
     // rather than render an empty credit line.
     if (!image.photographer) continue
-    const key = image.photographer + '|' + (image.sourceUrl || image.file)
-    if (seen.has(key)) continue
-    seen.add(key)
-    credits.push({
-      photographer: displayName(image.photographer),
-      photographerUrl: image.photographerUrl,
-      sourceUrl: image.sourceUrl,
-      source: image.source === 'pexels' ? 'Pexels'
-        : image.source === 'unsplash' ? 'Unsplash'
-        : (image.source || 'stock'),
-    })
+
+    // Count each distinct photo once, however many sections reuse it.
+    const imageKey = image.photographer + '|' + (image.sourceUrl || image.file)
+    if (seenImage.has(imageKey)) continue
+    seenImage.add(imageKey)
+
+    const source = image.source === 'pexels' ? 'Pexels'
+      : image.source === 'unsplash' ? 'Unsplash'
+      : (image.source || 'stock')
+
+    const key = displayName(image.photographer) + '|' + source
+    const existing = byPhotographer.get(key)
+    if (existing) {
+      existing.count++
+      // Two photos, so the single-photo deep link no longer applies.
+      existing.sourceUrl = undefined
+    } else {
+      byPhotographer.set(key, {
+        photographer: displayName(image.photographer),
+        photographerUrl: image.photographerUrl,
+        sourceUrl: image.sourceUrl,
+        source,
+        count: 1,
+      })
+    }
   }
-  return credits
+
+  return [...byPhotographer.values()]
 }
 
 /** Every image URL inside an arbitrary composed-content object. */
