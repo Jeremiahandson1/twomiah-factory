@@ -12,6 +12,7 @@ import PortalLogin from './components/portal/PortalLogin';
 import PortalSetup from './components/portal/PortalSetup';
 import ClientPortal from './components/portal/ClientPortal';
 import { ToastContainer, toast } from './components/Toast';
+import { API_BASE_URL } from './config';
 import { ConfirmModal } from './components/ConfirmModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import LeadInboxPage from './pages/leads/LeadInboxPage';
@@ -71,6 +72,43 @@ const PortalApp = () => {
   const [client, setClient]   = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken]     = useState(localStorage.getItem('portal_token'));
+  const [linkError, setLinkError] = useState('');
+  // An emailed portal link arrives as /portal?token=<database token>, which is
+  // not a JWT. Redeem it once for a session, then take it out of the URL so it
+  // does not sit in browser history or get pasted into a share.
+  const [redeeming] = useState(() => new URLSearchParams(window.location.search).has('token'));
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkToken = params.get('token');
+    if (!linkToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/portal/exchange`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: linkToken }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.ok && data.token) {
+          localStorage.setItem('portal_token', data.token);
+          setToken(data.token);
+        } else {
+          setLinkError(data.error || 'This link is no longer valid. Please contact your care coordinator.');
+        }
+      } catch {
+        if (!cancelled) setLinkError('We could not open your portal. Please check your connection and try again.');
+      } finally {
+        if (!cancelled) {
+          window.history.replaceState({}, '', window.location.pathname);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('portal_token');
@@ -95,8 +133,10 @@ const PortalApp = () => {
         handleLogout();
       }
     }
-    setLoading(false);
-  }, [token, handleLogout]);
+    // While a link is being redeemed the exchange effect owns `loading`,
+    // otherwise the login screen flashes before the portal opens.
+    if (!redeeming || token) setLoading(false);
+  }, [token, handleLogout, redeeming]);
 
   const handleLogin = (token, clientData) => {
     localStorage.setItem('portal_token', token);
@@ -107,7 +147,19 @@ const PortalApp = () => {
 
   if (loading) return <div className="loading"><div className="spinner"></div></div>;
 
-  if (!client) return <PortalLogin onLogin={handleLogin} />;
+  if (!client) return (
+    <>
+      {linkError && (
+        <div style={{
+          maxWidth: '520px', margin: '24px auto -8px', padding: '0.85rem 1rem',
+          background: '#fed7d7', color: '#822727', borderRadius: '8px', textAlign: 'center',
+        }}>
+          {linkError}
+        </div>
+      )}
+      <PortalLogin onLogin={handleLogin} />
+    </>
+  );
 
   return (
     <ErrorBoundary>

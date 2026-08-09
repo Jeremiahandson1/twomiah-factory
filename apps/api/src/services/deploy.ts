@@ -641,35 +641,39 @@ async function createRenderStaticSite(config: {
   return await res.json()
 }
 
+/**
+ * Set env vars on a Render service WITHOUT disturbing the others.
+ *
+ * This used to GET the existing vars, merge, and PUT the whole collection —
+ * and Render's collection PUT replaces every variable on the service. The GET
+ * was unpaginated and Render's list defaults to 20 items, so any service with
+ * more than 20 vars lost everything past the first page on every call. That
+ * damage is invisible until the next rebuild, when the service starts with a
+ * truncated environment (a tenant CRM losing DATABASE_URL cannot boot).
+ *
+ * The per-key endpoint updates one variable and touches nothing else, so there
+ * is no read to truncate and no collection to replace. Returns true only if
+ * every variable was accepted, so callers can report honestly.
+ */
 export async function updateRenderEnvVars(serviceId: string, envVars: Array<{ key: string; value: string }>) {
-  // Fetch existing env vars first so we don't wipe them (PUT replaces all)
-  const existing: Array<{ key: string; value: string }> = []
-  try {
-    const getRes = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars', {
-      method: 'GET', headers: renderHeaders(),
-    })
-    if (getRes.ok) {
-      const data = await getRes.json()
-      const items = Array.isArray(data) ? data : []
-      for (const item of items) {
-        const ev = item.envVar || item
-        if (ev.key) existing.push({ key: ev.key, value: ev.value })
+  let allOk = true
+  for (const { key, value } of envVars) {
+    try {
+      const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars/' + encodeURIComponent(key), {
+        method: 'PUT',
+        headers: renderHeaders(),
+        body: JSON.stringify({ value }),
+      })
+      if (!res.ok) {
+        allOk = false
+        console.warn('[Deploy] Could not set env var', key, 'on', serviceId, '- status', res.status)
       }
+    } catch (e: any) {
+      allOk = false
+      console.warn('[Deploy] Could not set env var', key, 'on', serviceId, '-', e.message)
     }
-  } catch (e: any) {
-    console.warn('[Deploy] Failed to fetch existing env vars:', e.message)
   }
-  // Merge: new values override existing
-  const updateKeys = new Set(envVars.map(ev => ev.key))
-  const merged = [
-    ...existing.filter(ev => !updateKeys.has(ev.key)),
-    ...envVars,
-  ]
-  const res = await fetchWithTimeout(RENDER_API + '/services/' + serviceId + '/env-vars', {
-    method: 'PUT', headers: renderHeaders(),
-    body: JSON.stringify(merged.map(ev => ({ key: ev.key, value: ev.value }))),
-  })
-  return res.ok
+  return allOk
 }
 
 function getServiceUrl(renderResponse: any): string {

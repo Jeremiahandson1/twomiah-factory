@@ -342,6 +342,54 @@ app.post('/login', async (c) => {
 })
 
 // Set password (from invite link)
+// Exchange an emailed portal link token for a client session.
+//
+// The link in a portal invite carries the database token from
+// clients.portalToken, not a JWT. The SPA speaks JWT everywhere else, so
+// rather than teach every call two auth shapes, the link is redeemed once
+// here for the same token /login issues.
+app.post('/exchange', async (c) => {
+  const body = await c.req.json().catch(() => ({}))
+  const linkToken = typeof body?.token === 'string' ? body.token.trim() : ''
+  if (!linkToken) return c.json({ error: 'Missing link token' }, 400)
+
+  const [foundClient] = await db
+    .select()
+    .from(clients)
+    .where(and(eq(clients.portalToken, linkToken), eq(clients.portalEnabled, true)))
+    .limit(1)
+
+  // Deliberately the same message for "no such token" and "portal disabled":
+  // a link that does not work should not report which.
+  if (!foundClient) {
+    return c.json({ error: 'This link is no longer valid. Please contact your care coordinator.' }, 401)
+  }
+  if (foundClient.portalTokenExp && new Date() > new Date(foundClient.portalTokenExp)) {
+    return c.json({ error: 'This link has expired. Please contact your care coordinator.' }, 401)
+  }
+
+  await db
+    .update(clients)
+    .set({ lastPortalVisit: new Date(), updatedAt: new Date() } as any)
+    .where(eq(clients.id, foundClient.id))
+
+  const token = jwt.sign(
+    {
+      clientId: foundClient.id,
+      role: 'client',
+      firstName: foundClient.firstName,
+      lastName: foundClient.lastName,
+    },
+    process.env.JWT_SECRET!,
+    { expiresIn: '30d' },
+  )
+
+  return c.json({
+    token,
+    client: { id: foundClient.id, firstName: foundClient.firstName, lastName: foundClient.lastName },
+  })
+})
+
 app.post('/set-password', async (c) => {
   const { token, password } = await c.req.json()
 
