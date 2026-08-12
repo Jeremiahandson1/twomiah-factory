@@ -182,6 +182,27 @@ factory.post('/customers/:id/email-domain/verify', async (c) => {
 // to pay for a new domain registration. The actual Namecheap call
 // happens on the webhook (checkout.session.completed) so a customer
 // can't get charged without us also kicking off the registration.
+// Where does the registrar say this domain points? Read-only — it cannot change
+// a domain. Exists because the registrar is the only source of truth for a
+// repoint: our own tables record what we intended, not what took.
+factory.get('/internal/registrar/nameservers', async (c) => {
+  if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
+
+  const domain = (c.req.query('domain') || '').trim().toLowerCase()
+  if (!domain || !DOMAIN_RE.test(domain)) return c.json({ error: 'Invalid domain format' }, 400)
+  if (!isRegistrarConfigured()) return c.json({ error: 'Registrar is not configured on this environment' }, 503)
+
+  const registrar = await getRegistrar()
+  const result = await registrar.getNameservers(domain)
+  if (!result.success) return c.json({ domain, error: result.error }, 502)
+  return c.json({
+    domain,
+    nameservers: result.nameservers || [],
+    // true = still on the registrar's own DNS, so any zone we built is unused
+    usingRegistrarDns: result.usingRegistrarDns ?? null,
+  })
+})
+
 factory.post('/internal/domain/buy/:tenantId', async (c) => {
   try {
     const tenantId = c.req.param('tenantId')

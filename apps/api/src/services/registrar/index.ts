@@ -72,6 +72,11 @@ export interface RegistrarProvider {
   // factory built for it.
   setNameservers(domain: string, nameservers: string[]): Promise<{ success: boolean; error?: string }>
 
+  // Where the registrar says the domain currently points. The registrar is the
+  // source of truth here — our own tables cannot confirm a repoint took — so
+  // this is how setNameservers gets verified.
+  getNameservers(domain: string): Promise<{ success: boolean; nameservers?: string[]; usingRegistrarDns?: boolean; error?: string }>
+
   getDomain(domain: string): Promise<DomainInfo | null>
 
   // Transfer-out prep: remove the registrar lock

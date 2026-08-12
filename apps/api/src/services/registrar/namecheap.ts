@@ -270,6 +270,27 @@ export function createNamecheapProvider(): RegistrarProvider {
       }
     },
 
+    async getNameservers(domain: string) {
+      const dot = domain.indexOf('.')
+      if (dot < 1) return { success: false, error: 'Not a domain: ' + domain }
+
+      try {
+        const xml = await callApi('namecheap.domains.dns.getList', {
+          SLD: domain.slice(0, dot),
+          TLD: domain.slice(dot + 1),
+        })
+        // IsUsingOurDNS="true" means the domain sits on Namecheap's own
+        // BasicDNS — i.e. a zone we built elsewhere is not being used.
+        const usingRegistrarDns = attr(xml, 'DomainDNSGetListResult', 'IsUsingOurDNS') === 'true'
+        const nameservers = (xml.match(/<Nameserver>([^<]+)<\/Nameserver>/g) || [])
+          .map((m) => m.replace(/<\/?Nameserver>/g, '').trim().toLowerCase())
+          .filter(Boolean)
+        return { success: true, nameservers, usingRegistrarDns }
+      } catch (err: any) {
+        return { success: false, error: err.message }
+      }
+    },
+
     async setNameservers(domain: string, nameservers: string[]) {
       // Namecheap splits the domain into second-level and top-level parts, and
       // takes the nameservers as one comma-separated list.
