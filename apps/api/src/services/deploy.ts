@@ -1896,6 +1896,17 @@ export async function wireDomainInfrastructure(opts: WireDomainOptions): Promise
       result.cloudflareNameServers = zone.nameServers
       result.steps.push({ step: 'cloudflare_zone', status: 'ok', detail: zoneId })
     } else {
+      // Reusing a zone still has to answer "which nameservers?" — the caller
+      // uses it to point the registrar at Cloudflare, and an undefined answer
+      // reads as "no nameservers" and silently leaves the domain on the
+      // registrar's DNS. Not fatal if the read fails: wiring continues and the
+      // caller already handles not knowing.
+      try {
+        const existing = await cloudflare.getCloudflareZoneStatus(zoneId)
+        if (existing.nameServers.length > 0) result.cloudflareNameServers = existing.nameServers
+      } catch (e: any) {
+        console.warn('[Domain] Could not read nameservers for reused zone', zoneId, '-', e.message)
+      }
       result.steps.push({ step: 'cloudflare_zone', status: 'ok', detail: 'reused ' + zoneId })
     }
     result.cloudflareZoneId = zoneId
