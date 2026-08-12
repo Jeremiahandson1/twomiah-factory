@@ -379,6 +379,27 @@ async function handleDomainRegistration(opts: {
     if (wire.sendgridDomainAuthId) {
       await supabase.from('tenants').update({ sendgrid_domain_auth_id: wire.sendgridDomainAuthId }).eq('id', tenantId)
     }
+    // Hand the registrar Cloudflare's nameservers. Only for domains WE bought:
+    // a customer's own domain stays at their registrar and they point it
+    // themselves. Without this the zone above is built and never used.
+    if (wire.cloudflareNameServers && wire.cloudflareNameServers.length >= 2) {
+      const ns = await registrar.setNameservers(domain, wire.cloudflareNameServers)
+      if (ns.success) {
+        console.log('[Domain] Nameservers pointed at Cloudflare for', domain)
+      } else {
+        // Not a refund: the domain is registered and the zone exists. But it
+        // will not resolve until this is done, so it must be loud and it must
+        // be recorded — a silent failure here looks like a working purchase
+        // and is discovered by the customer.
+        console.error('[Domain] SETTING NAMESERVERS FAILED for', domain, '-', ns.error)
+        await supabase.from('tenants').update({
+          domain_status: 'nameservers_failed',
+        }).eq('id', tenantId)
+      }
+    } else {
+      console.error('[Domain] No Cloudflare nameservers returned for', domain, '- registrar left on its own DNS')
+    }
+
     console.log('[Domain] Wire infra:', wire.success ? 'ok' : 'partial', wire.errors)
   } catch (e: any) {
     console.error('[Domain] Wire infra threw:', e.message)

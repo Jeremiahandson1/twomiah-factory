@@ -32,8 +32,52 @@ function authParams(): URLSearchParams {
   return params
 }
 
+// Namecheap verifies the request's source IP against the account allowlist and
+// expects ClientIp to be that same address. Reading it from an env var means the
+// value rots the day the host's egress IP changes, and every call starts failing
+// with a message that looks like an auth problem rather than a config one.
+//
+// So ask what our egress actually is, once per process, and cache it. This does
+// not put the address on Namecheap's allowlist — only the dashboard can do that —
+// but it stops us naming an address we are not calling from, and it says so out
+// loud when the two disagree.
+let clientIpPromise: Promise<string> | null = null
+
+async function resolveClientIp(): Promise<string> {
+  const configured = process.env.NAMECHEAP_CLIENT_IP || ''
+  // Escape hatch for a host that egresses through a different address than the
+  // one the outside world sees (a static NAT in front of us, say).
+  if (process.env.NAMECHEAP_DETECT_IP === 'false') return configured
+
+  if (!clientIpPromise) {
+    clientIpPromise = (async () => {
+      try {
+        const r = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(8000) })
+        const j = (await r.json()) as { ip?: string }
+        const ip = (j.ip || '').trim()
+        if (!ip) throw new Error('no ip in response')
+        if (configured && ip !== configured) {
+          console.warn(
+            '[Namecheap] Egress IP is ' + ip + ' but NAMECHEAP_CLIENT_IP says ' + configured +
+            ' - using ' + ip + '. Allowlist it under Namecheap Profile > Tools > API Access.',
+          )
+        }
+        return ip
+      } catch (err: any) {
+        // Retry on the next call rather than caching a failure for the life of
+        // the process.
+        clientIpPromise = null
+        console.warn('[Namecheap] Egress IP lookup failed (' + err.message + '); using NAMECHEAP_CLIENT_IP')
+        return configured
+      }
+    })()
+  }
+  return clientIpPromise
+}
+
 async function callApi(command: string, extra: Record<string, string>): Promise<string> {
   const params = authParams()
+  params.set('ClientIp', await resolveClientIp())
   params.set('Command', command)
   for (const [k, v] of Object.entries(extra)) params.set(k, v)
   const url = host() + '?' + params.toString()
@@ -223,6 +267,33 @@ export function createNamecheapProvider(): RegistrarProvider {
         }
       } catch {
         return null
+      }
+    },
+
+    async setNameservers(domain: string, nameservers: string[]) {
+      // Namecheap splits the domain into second-level and top-level parts, and
+      // takes the nameservers as one comma-separated list.
+      const dot = domain.indexOf('.')
+      if (dot < 1) return { success: false, error: 'Not a domain: ' + domain }
+      const sld = domain.slice(0, dot)
+      const tld = domain.slice(dot + 1)
+
+      const clean = nameservers.map((n) => n.trim().toLowerCase()).filter(Boolean)
+      // Two is the registry minimum; sending one silently leaves the domain on
+      // the old DNS, which is the failure this whole function exists to fix.
+      if (clean.length < 2) {
+        return { success: false, error: 'Need at least two nameservers, got ' + clean.length }
+      }
+
+      try {
+        await callApi('namecheap.domains.dns.setCustom', {
+          SLD: sld,
+          TLD: tld,
+          Nameservers: clean.join(','),
+        })
+        return { success: true }
+      } catch (err: any) {
+        return { success: false, error: err.message }
       }
     },
 

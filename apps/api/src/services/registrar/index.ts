@@ -66,6 +66,12 @@ export interface RegistrarProvider {
 
   renew(domain: string, years: number): Promise<{ success: boolean; expiresAt?: Date; error?: string }>
 
+  // Point a domain WE registered at someone else's nameservers — in practice
+  // Cloudflare's, once the zone exists. Without this a domain we sold keeps
+  // resolving through the registrar's own DNS and never sees the zone the
+  // factory built for it.
+  setNameservers(domain: string, nameservers: string[]): Promise<{ success: boolean; error?: string }>
+
   getDomain(domain: string): Promise<DomainInfo | null>
 
   // Transfer-out prep: remove the registrar lock
