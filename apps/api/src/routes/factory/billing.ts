@@ -416,6 +416,10 @@ async function refundAndEmail(opts: {
   reason: 'no_phone' | 'registrar_failed' | string
   detail?: string
 }): Promise<void> {
+  // Logged here rather than left to the caller: this is the one place every
+  // refund path passes through, and the detail is about to be kept out of the
+  // customer's email on purpose.
+  console.error('[Domain] Refunding', opts.domain, '- reason:', opts.reason, '- detail:', opts.detail || '(none)')
   try {
     const r = await factoryStripe.refundPaymentIntent(opts.paymentIntent, 'requested_by_customer')
     console.log('[Domain] Refund issued:', r.refundId, r.status)
@@ -425,9 +429,16 @@ async function refundAndEmail(opts: {
   const to = opts.tenant.admin_email || opts.tenant.email
   if (!to) return
   const { sendEmail } = await import('../../services/email')
+  // Never the registrar's raw error. It is frequently a fault on our side —
+  // an outbound IP missing from an allowlist, an expired key — which means
+  // nothing to the customer and reads as though they were at fault. The detail
+  // is in the log above; the reference below is what connects them.
   const reasonText = opts.reason === 'no_phone'
     ? 'we did not have a phone number on file for your account, and the domain registrar requires one'
-    : 'the domain registrar rejected the request: ' + (opts.detail || 'unknown error')
+    : 'something went wrong on the registrar\'s end. It was not your card, and nothing is wrong with your account'
+  // Last segment of the payment intent — enough for us to find the charge, the
+  // refund and the log line, without printing the whole id.
+  const reference = opts.paymentIntent.slice(-8)
   await sendEmail(to,
     'About your ' + opts.domain + ' registration',
     '<p>Hi ' + (opts.tenant.name || 'there') + ',</p>' +
@@ -436,7 +447,8 @@ async function refundAndEmail(opts: {
     '<p>If you want to try again, you can either:</p>' +
     '<ul><li>Go back to your admin → Domain → Buy a new one and try a different name</li>' +
     '<li>Or if you already own a domain elsewhere, use the "I already own a domain" tab instead</li></ul>' +
-    '<p>Reply to this email if you want help — a real person reads it.</p>'
+    '<p>Reply to this email if you want help — a real person reads it.</p>' +
+    '<p style="color:#888;font-size:12px">Reference: ' + reference + '</p>'
   ).catch(e => console.warn('[Domain] Email send failed:', e?.message))
 }
 
