@@ -278,6 +278,23 @@ export async function restoreTenantData(
     )
     const present = new Set(existing.rows.map(r => r.table_name))
 
+    // Which columns are json/jsonb, straight from the target. node-pg renders a
+    // JS array as a Postgres ARRAY literal ({a,b}) rather than as JSON, so an
+    // array living in a jsonb column is rejected — while a real text[] column
+    // needs exactly that array form. The value alone cannot tell the two apart;
+    // the target's own type can.
+    const typeRes = await client.query<{ table_name: string; column_name: string; data_type: string }>(
+      "SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = 'public' AND data_type IN ('json','jsonb')",
+    )
+    const jsonColumns = new Map<string, Set<string>>()
+    for (const r of typeRes.rows) {
+      if (!jsonColumns.has(r.table_name)) jsonColumns.set(r.table_name, new Set())
+      jsonColumns.get(r.table_name)!.add(r.column_name)
+    }
+
+    // Tables that actually have something to load, after the cheap rejections.
+    const loadable: Array<[string, any[]]> = []
+
     for (const [table, rows] of Object.entries(envelope.tables)) {
       if (onlyTables && !onlyTables.includes(table)) continue
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -299,14 +316,32 @@ export async function restoreTenantData(
         continue
       }
 
+      loadable.push([table, rows])
+    }
+
+    // Truncate everything first, as its own phase. TRUNCATE ... CASCADE on a
+    // parent empties its children too, so truncating table-by-table while
+    // loading would wipe rows an earlier pass had just restored.
+    if (truncate && loadable.length > 0) {
+      for (const [table] of loadable) {
+        const quoted = '"' + table.replace(/"/g, '""') + '"'
+        try {
+          await client.query('TRUNCATE ' + quoted + ' CASCADE')
+        } catch (err: any) {
+          out.tables.push({ table, rows: 0, status: 'failed', detail: 'truncate failed: ' + err?.message })
+          out.success = false
+        }
+      }
+    }
+
+    const loadTable = async (table: string, rows: any[]): Promise<string | null> => {
       const quoted = '"' + table.replace(/"/g, '""') + '"'
       const columns = Object.keys(rows[0])
       const colList = columns.map(c => '"' + c.replace(/"/g, '""') + '"').join(', ')
+      const jsonCols = jsonColumns.get(table)
 
       try {
         await client.query('BEGIN')
-        if (truncate) await client.query('TRUNCATE ' + quoted + ' CASCADE')
-
         // Batched multi-row inserts; ON CONFLICT DO NOTHING so a partial
         // restore can be re-run without exploding on primary keys.
         const BATCH = 200
@@ -315,7 +350,11 @@ export async function restoreTenantData(
           const values: any[] = []
           const tuples = slice.map((row: any, rowIdx: number) => {
             const placeholders = columns.map((col, colIdx) => {
-              values.push(row[col] === undefined ? null : row[col])
+              let v = row[col] === undefined ? null : row[col]
+              // Only for columns the target declares as json/jsonb — a real
+              // array column must keep its array form.
+              if (v !== null && typeof v === 'object' && jsonCols?.has(col)) v = JSON.stringify(v)
+              values.push(v)
               return '$' + (rowIdx * columns.length + colIdx + 1)
             })
             return '(' + placeholders.join(', ') + ')'
@@ -326,13 +365,48 @@ export async function restoreTenantData(
           )
         }
         await client.query('COMMIT')
-        out.tables.push({ table, rows: rows.length, status: 'restored' })
+        return null
       } catch (err: any) {
         await client.query('ROLLBACK').catch(() => {})
-        out.tables.push({ table, rows: rows.length, status: 'failed', detail: err?.message })
-        out.success = false
+        return err?.message || 'unknown error'
       }
     }
+
+    // Repeat passes while anything new succeeds. A child whose parent has not
+    // been loaded yet fails on a foreign key; next pass, with the parent in
+    // place, it loads. This beats ordering the tables because the dependency
+    // order is the target's, not the envelope's, and it needs no privilege that
+    // a Render database will not grant.
+    let pending = loadable
+    let lastErrors = new Map<string, string>()
+    while (pending.length > 0) {
+      const stillPending: Array<[string, any[]]> = []
+      const errors = new Map<string, string>()
+
+      for (const [table, rows] of pending) {
+        const err = await loadTable(table, rows)
+        if (err === null) {
+          out.tables.push({ table, rows: rows.length, status: 'restored' })
+        } else {
+          stillPending.push([table, rows])
+          errors.set(table, err)
+        }
+      }
+
+      // No progress this pass — everything left is a real failure, not an
+      // ordering problem. Report and stop rather than looping.
+      if (stillPending.length === pending.length) {
+        for (const [table, rows] of stillPending) {
+          out.tables.push({ table, rows: rows.length, status: 'failed', detail: errors.get(table) })
+          out.success = false
+        }
+        break
+      }
+
+      pending = stillPending
+      lastErrors = errors
+    }
+    void lastErrors
 
     return out
   } catch (err: any) {

@@ -99,6 +99,51 @@ Each table loads in its own transaction, so a failure on one table cannot leave
 another half-written. A table present in the backup but missing from the target
 is reported as a failure, never skipped quietly.
 
+## Rehearsing a restore
+
+Do this periodically. It is the only thing that proves the backups are worth
+having, and the first time it was run it found two bugs that made every archive
+unrestorable — a json column holding an array was rejected outright, and tables
+loaded in alphabetical order tripped over their own foreign keys.
+
+Nothing here touches a customer database. `--into` names the target directly, so
+there is no code path that can reach one.
+
+```bash
+# 1. a scratch postgres, free and disposable
+docker run -d --name restore-drill -e POSTGRES_PASSWORD=drill \
+  -e POSTGRES_DB=drill -p 55432:5432 postgres:16
+
+# 2. the schema a real tenant would have — its own migrations, in order
+cd templates/crm/backend/db/migrations
+for f in $(ls *.sql | sort); do
+  docker exec -i restore-drill psql -U postgres -d drill -q < "$f"
+done
+
+# 3. a real archive out of R2 (any db-backups/daily/<db>/ object)
+
+# 4. dry run, then for real
+cd apps/api
+bun run scripts/restore-tenant.ts --into \
+  "postgresql://postgres:drill@localhost:55432/drill" ./archive.json.gz
+bun run scripts/restore-tenant.ts --into \
+  "postgresql://postgres:drill@localhost:55432/drill" ./archive.json.gz --live
+
+# 5. tear down — the archive holds customer data, do not leave it lying about
+docker rm -f restore-drill && rm ./archive.json.gz
+```
+
+What to check, beyond "restore OK":
+
+- **Row counts match the envelope.** `tableCount`/`totalRows` are in the archive.
+- **Re-run it.** Filling gaps is idempotent; counts must not double.
+- **`--truncate --live`.** Counts must come back identical, not multiply.
+- **json/jsonb columns kept their shape** — an array must still be an array:
+  ```sql
+  SELECT jsonb_typeof(enabled_features::jsonb) FROM company;  -- array
+  SELECT jsonb_typeof(tags::jsonb) FROM contact LIMIT 1;      -- array
+  ```
+
 ## Verifying the machinery still works
 
 ```bash
@@ -113,6 +158,15 @@ customer data.** Run it against a test tenant after any change to the backup
 code.
 
 Last verified: 9/9 passing against `storetest-msdoio52-b0db`, 2026-08-07.
+
+**Do not read that as "restore works".** The self-test creates its own throwaway
+table, so it never meets a json column or a foreign key — it passed 9/9 while
+the restore path could not load a real tenant at all. Treat it as a check of the
+round-trip plumbing, and the drill above as the check of restore itself.
+
+Restore drill: passed against Claflin's own archive into a crm-template schema,
+2026-08-13 — 69 rows across 9 tables, idempotent re-run, truncate mode, and json
+arrays intact.
 
 ## Known gaps — be honest about these
 
