@@ -9,6 +9,7 @@
  * There is no escape hatch for real customers; they go through /offboard.
  */
 import { supabase } from '../middleware/auth'
+import { S3Client, ListBucketsCommand, ListObjectsV2Command, DeleteObjectsCommand, DeleteBucketCommand } from '@aws-sdk/client-s3'
 import { deleteZone } from './cloudflare'
 import { deleteDomainAuth as deleteSendGridAuth } from './sendgrid'
 import factoryStripe from './factoryStripe'
@@ -130,6 +131,56 @@ async function deleteRenderPostgresByName(name: string): Promise<{ deleted: bool
   }
 }
 
+/**
+ * Delete every R2 bucket belonging to a tenant.
+ *
+ * Matched by listing rather than by recomputing deploy.ts's vertical suffix
+ * mapping (<slug>-care-media, <slug>-roof-media, <slug>-shop-media, ...). That
+ * mapping already exists in two places; a third copy would drift, and a drifted
+ * copy fails by silently leaving the bucket behind — exactly the bug this is
+ * fixing. Matching on the slug boundary covers every suffix, present or future.
+ */
+async function deleteTenantR2Buckets(slug: string): Promise<{ deleted: string[]; failed: string[] }> {
+  const out = { deleted: [] as string[], failed: [] as string[] }
+  if (!process.env.R2_ACCOUNT_ID || !process.env.R2_ACCESS_KEY_ID) return out
+
+  const s3 = new S3Client({
+    region: 'auto',
+    endpoint: 'https://' + process.env.R2_ACCOUNT_ID + '.r2.cloudflarestorage.com',
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+    },
+  })
+
+  const all: any = await s3.send(new ListBucketsCommand({}))
+  // The boundary matters: slug "zz-fleet" must not match "zz-fleet-two-media".
+  const mine = (all.Buckets || [])
+    .map((b: any) => String(b.Name))
+    .filter((n: string) => n === slug + '-media' || (n.startsWith(slug + '-') && n.endsWith('-media')))
+
+  for (const bucket of mine) {
+    try {
+      // A bucket has to be empty before it can be dropped.
+      let token: string | undefined
+      do {
+        const page: any = await s3.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token, MaxKeys: 1000 }))
+        const objects = (page.Contents || []).map((o: any) => ({ Key: o.Key }))
+        if (objects.length > 0) {
+          await s3.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: objects } }))
+        }
+        token = page.IsTruncated ? page.NextContinuationToken : undefined
+      } while (token)
+
+      await s3.send(new DeleteBucketCommand({ Bucket: bucket }))
+      out.deleted.push(bucket)
+    } catch (e: any) {
+      out.failed.push(bucket + ': ' + (e?.name || e?.message || 'unknown'))
+    }
+  }
+  return out
+}
+
 export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupResult> {
   const steps: CleanupStep[] = []
   // maybeSingle(), not single(): a tenant that's already gone (e.g. swept by the
@@ -223,6 +274,24 @@ export async function hardDeleteTestTenant(tenantId: string): Promise<CleanupRes
     }
   } else {
     steps.push({ step: 'github_repo', status: 'skipped', detail: 'no repo name and no GITHUB_ORG' })
+  }
+
+  // ─── 3.6) R2 bucket ──────────────────────────────────────────────────
+  // Same story as the repo: deleting the services leaves the bucket, and one
+  // per throwaway tenant piles up quietly.
+  try {
+    const buckets = await deleteTenantR2Buckets(slug)
+    if (buckets.deleted.length === 0 && buckets.failed.length === 0) {
+      steps.push({ step: 'r2_bucket', status: 'ok', detail: 'no buckets for this tenant' })
+    } else {
+      steps.push({
+        step: 'r2_bucket',
+        status: buckets.failed.length > 0 ? 'warning' : 'ok',
+        detail: [buckets.deleted.join(', '), buckets.failed.join('; ')].filter(Boolean).join(' | '),
+      })
+    }
+  } catch (e: any) {
+    steps.push({ step: 'r2_bucket', status: 'warning', detail: e.message })
   }
 
   // ─── 4) Cloudflare zone (only if we created one) ─────────────────────

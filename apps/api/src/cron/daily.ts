@@ -30,7 +30,9 @@ async function call(path: string): Promise<{ ok: boolean; body: any }> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-cron-secret': CRON_SECRET || '' },
     body: JSON.stringify({}),
-    signal: AbortSignal.timeout(120_000),
+    // Backups dump every table of every tenant database; two minutes is a
+    // sweep-sized budget, not a backup-sized one.
+    signal: AbortSignal.timeout(path.includes('backup') ? 900_000 : 120_000),
   })
   const body = await res.json().catch(() => ({}))
   return { ok: res.ok, body }
@@ -43,9 +45,11 @@ async function run() {
   for (const path of [
     '/api/v1/factory/internal/trial-check',
     '/api/v1/factory/internal/renewal-check',
-    // Health sweep last: it is the slowest (TLS handshakes per tenant)
-    // and a failure here must not stop renewals from going out.
+    // Health sweep then backups last: they are the slowest (TLS handshakes
+    // per tenant; a full dump per database) and a failure in either must not
+    // stop renewals from going out.
     '/api/v1/factory/internal/health-sweep',
+    '/api/v1/factory/internal/backup-sweep',
   ]) {
     try {
       const { ok, body } = await call(path)

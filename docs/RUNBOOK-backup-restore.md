@@ -40,6 +40,28 @@ The archive is data-only JSON: every table in the public schema, minus
 migration bookkeeping and session tables. Schema is not included on purpose —
 it comes from the tenant's own drizzle migrations, which run at boot.
 
+## Where the backups are
+
+In R2, under two prefixes with different lifetimes:
+
+```
+db-backups/daily/<database-name>/    kept 30 days
+db-backups/monthly/<database-name>/  kept 365 days (written on the 1st)
+```
+
+One object per database per run, gzipped, named
+`<database-name>_export_<timestamp>.json.gz`. A tenant with a CRM and a site
+has two databases and therefore two archives — restore them one at a time.
+
+Retention is enforced by R2 lifecycle rules, not by a pruning job of ours, so
+there is no delete loop that can go wrong and nothing that can quietly stop
+running. The rules are applied by `scripts/r2-lifecycle.ts` (dry run by
+default); change a prefix in `tenantBackup.ts` and you must change the rule
+with it.
+
+Restore reads gzipped and plain files alike — it detects gzip by magic bytes,
+not by the extension, so a renamed file still works.
+
 ## Restoring
 
 Recovery order matters:
@@ -60,17 +82,17 @@ Recovery order matters:
 
 3. **Dry run first.** This is the default and it writes nothing:
    ```bash
-   bun run scripts/restore-tenant.ts <tenant-slug> ./backup.json
+   bun run scripts/restore-tenant.ts <tenant-slug> ./backup.json.gz
    ```
    Read the table list. Confirm the row counts look like the tenant you expect.
 
 4. **Restore for real:**
    ```bash
    # fill gaps only — existing rows are left alone (ON CONFLICT DO NOTHING)
-   bun run scripts/restore-tenant.ts <tenant-slug> ./backup.json --live
+   bun run scripts/restore-tenant.ts <tenant-slug> ./backup.json.gz --live
 
    # replace table contents — use after data loss or corruption
-   bun run scripts/restore-tenant.ts <tenant-slug> ./backup.json --truncate --live
+   bun run scripts/restore-tenant.ts <tenant-slug> ./backup.json.gz --truncate --live
    ```
 
 Each table loads in its own transaction, so a failure on one table cannot leave
@@ -94,10 +116,13 @@ Last verified: 9/9 passing against `storetest-msdoio52-b0db`, 2026-08-07.
 
 ## Known gaps — be honest about these
 
-- **Backups are not scheduled yet.** `--all` exists and works; wiring it into
-  the daily cron is a decision about R2 storage cost and retention that has not
-  been made. Until then, backups are manual.
-- **No retention policy.** Nothing prunes `db-backups/` in R2.
+- **Recovery point is 24 hours.** Backups run once a day, at the end of the
+  `twomiah-factory-daily` cron (`POST /internal/backup-sweep`). Anything written
+  since the last run is not in a backup. That is the floor this buys you, and it
+  is a real limit, not a formality.
+- **A backup you have not restored is a hope, not a backup.** The self-test
+  below exercises the machinery; re-run it periodically rather than assuming
+  the last green run still holds.
 - **Restore refuses multi-database tenants** rather than guessing which archive
   belongs where. Point `tenants.database_url` at the intended database and
   restore one at a time.

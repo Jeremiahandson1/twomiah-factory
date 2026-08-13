@@ -22,6 +22,11 @@ import { supabase } from '../middleware/auth'
 import { exportTenantData } from './dataExport'
 
 const BACKUP_PREFIX = 'db-backups/'
+// Retention is enforced by R2 lifecycle rules keyed on these prefixes (see
+// scripts/r2-lifecycle.ts), NOT by pruning code — there is no delete loop to
+// get wrong. Change a prefix here and you must change the rule with it.
+const DAILY_PREFIX = BACKUP_PREFIX + 'daily/'
+const MONTHLY_PREFIX = BACKUP_PREFIX + 'monthly/' 
 
 /**
  * A pg client that works from inside Render AND from an operator's machine.
@@ -47,6 +52,7 @@ export interface BackupResult {
   tableCount?: number
   rowCount?: number
   sizeBytes?: number
+  uncompressedBytes?: number
   error?: string
 }
 
@@ -117,7 +123,7 @@ export async function backupTenant(tenant: {
   id: string
   slug: string
   database_url?: string | null
-}): Promise<BackupResult[]> {
+}, opts?: { prefix?: string }): Promise<BackupResult[]> {
   const databases = await resolveTenantDatabases(tenant)
   if (databases.length === 0) {
     return [{ success: false, tenantSlug: tenant.slug, error: 'No database found for this tenant' }]
@@ -129,17 +135,24 @@ export async function backupTenant(tenant: {
     // merging them would make the restore ambiguous.
     const result = await exportTenantData({
       tenantId: tenant.id,
-      tenantSlug: BACKUP_PREFIX.replace(/\/$/, '') + '/' + db.name,
+      // The real slug: this goes in the envelope, and a restore reads it.
+      tenantSlug: tenant.slug,
+      // Keyed by DATABASE name, because a tenant can have several.
+      keyLabel: db.name,
+      keyPrefix: opts?.prefix || DAILY_PREFIX,
       tenantDatabaseUrl: db.url,
+      compress: true,
+      signUrl: false,
     })
     results.push({
       success: result.success,
       tenantSlug: tenant.slug,
       database: db.name,
-      key: result.signedUrl ? result.signedUrl.split('?')[0] : undefined,
+      key: result.key,
       tableCount: result.tableCount,
       rowCount: result.rowCount,
       sizeBytes: result.sizeBytes,
+      uncompressedBytes: result.uncompressedBytes,
       error: result.error,
     })
   }
@@ -163,8 +176,17 @@ export async function backupAllTenants(): Promise<{
     return { attempted: 0, succeeded: 0, failed: 0, results: [{ success: false, tenantSlug: '*', error: error.message }] }
   }
 
+  // On the 1st, also write a copy under the long-retention prefix. Same
+  // envelope, written twice — the goal is a file that outlives the 30-day
+  // daily window, and dumping every database a second time to get it would be
+  // wasteful.
+  const isFirstOfMonth = new Date().getUTCDate() === 1
+
   for (const tenant of data || []) {
     results.push(...(await backupTenant(tenant as any)))
+    if (isFirstOfMonth) {
+      results.push(...(await backupTenant(tenant as any, { prefix: MONTHLY_PREFIX })))
+    }
   }
   return {
     attempted: results.length,

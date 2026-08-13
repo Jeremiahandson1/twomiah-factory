@@ -11,6 +11,7 @@
  * its migrations run, then restore.
  */
 import { readFileSync } from 'fs'
+import { gunzipSync } from 'zlib'
 import { createClient } from '@supabase/supabase-js'
 import { resolveTenantDatabases, restoreTenantData } from '../src/services/tenantBackup'
 
@@ -44,7 +45,11 @@ if (databases.length > 1) {
   process.exit(1)
 }
 
-const envelope = JSON.parse(readFileSync(file, 'utf8'))
+// Scheduled backups are gzipped. Detected by magic bytes rather than by the
+// file extension, so an operator who renamed the file can still restore it.
+const fileBuf = readFileSync(file)
+const isGzip = fileBuf.length > 2 && fileBuf[0] === 0x1f && fileBuf[1] === 0x8b
+const envelope = JSON.parse((isGzip ? gunzipSync(fileBuf) : fileBuf).toString('utf8'))
 console.log(`restoring into ${databases[0].name}`)
 console.log(`backup taken: ${envelope.exportedAt || 'unknown'} — ${Object.keys(envelope.tables || {}).length} tables`)
 console.log(live ? (truncate ? 'MODE: live, replacing table contents' : 'MODE: live, filling gaps only') : 'MODE: dry run (nothing will be written)')

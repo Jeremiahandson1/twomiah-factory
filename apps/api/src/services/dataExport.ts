@@ -8,6 +8,7 @@
 // this should stream straight to S3 via multipart upload (not yet).
 
 import { Client as PgClient } from 'pg'
+import { gzipSync } from 'zlib'
 
 const EXPORT_PREFIX = 'data-exports/'
 // R2/S3 caps presigned URL expiry at 7 days (604800s). If the customer
@@ -31,7 +32,12 @@ export interface ExportResult {
   expiresAt?: Date
   tableCount?: number
   rowCount?: number
+  /** Bytes actually stored — post-compression when compressed. */
   sizeBytes?: number
+  /** Bytes before compression, so the ratio is visible in logs. */
+  uncompressedBytes?: number
+  /** Object key, so a caller can record exactly what it wrote. */
+  key?: string
   error?: string
 }
 
@@ -39,6 +45,17 @@ export async function exportTenantData(params: {
   tenantId: string
   tenantSlug: string
   tenantDatabaseUrl: string
+  /** Where the object lands. Retention is per-prefix, so this is what decides
+   *  how long the file lives. Defaults to the customer-export location. */
+  keyPrefix?: string
+  /** Folder + filename stem under the prefix. Defaults to the tenant slug; a
+   *  backup uses the DATABASE name, because a tenant can have several. */
+  keyLabel?: string
+  /** gzip the envelope. Off for a customer download (they open it), on for a
+   *  backup (the restore path reads it). */
+  compress?: boolean
+  /** Presign a download URL. Pointless for a backup — nobody clicks it. */
+  signUrl?: boolean
 }): Promise<ExportResult> {
   // TLS when the connection string is external (an operator running this from
   // their own machine); Render refuses external connections without it.
@@ -81,24 +98,38 @@ export async function exportTenantData(params: {
       totalRows,
       tables: bundle,
     }
-    const jsonBuf = Buffer.from(JSON.stringify(envelope, null, 2), 'utf8')
-    const key = EXPORT_PREFIX + params.tenantSlug + '/' + params.tenantSlug + '_export_' + exportedAt.replace(/[:.]/g, '-') + '.json'
+    const label = params.keyLabel || params.tenantSlug
+    const prefix = params.keyPrefix || EXPORT_PREFIX
+    const compress = params.compress === true
+    const wantUrl = params.signUrl !== false
+
+    // Indentation is for a human reading the file; a backup has no such reader.
+    const raw = Buffer.from(JSON.stringify(envelope, compress ? undefined : null, compress ? undefined : 2), 'utf8')
+    const body = compress ? gzipSync(raw) : raw
+    const key = prefix + label + '/' + label + '_export_' + exportedAt.replace(/[:.]/g, '-') + '.json' + (compress ? '.gz' : '')
 
     // Upload via the existing R2 client used for factory zips
-    const uploaded = await uploadBufferToR2(jsonBuf, key, 'application/json')
+    const uploaded = await uploadBufferToR2(body, key, compress ? 'application/gzip' : 'application/json')
     if (!uploaded) return { success: false, error: 'R2 not configured — cannot upload data export' }
 
-    const signedUrl = await signR2Url(key, SIGNED_URL_EXPIRES)
-    if (!signedUrl) return { success: false, error: 'Could not generate signed URL for export' }
+    let signedUrl: string | undefined
+    if (wantUrl) {
+      const url = await signR2Url(key, SIGNED_URL_EXPIRES)
+      if (!url) return { success: false, error: 'Could not generate signed URL for export' }
+      signedUrl = url
+    }
 
-    const expiresAt = new Date(Date.now() + SIGNED_URL_EXPIRES * 1000)
+    const expiresAt = wantUrl ? new Date(Date.now() + SIGNED_URL_EXPIRES * 1000) : undefined
     return {
       success: true,
       signedUrl,
       expiresAt,
+      key,
       tableCount: Object.keys(bundle).length,
       rowCount: totalRows,
-      sizeBytes: jsonBuf.length,
+      // What the object actually costs to store, not what it would have.
+      sizeBytes: body.length,
+      uncompressedBytes: raw.length,
     }
   } catch (err: any) {
     return { success: false, error: err.message }

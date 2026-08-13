@@ -182,6 +182,43 @@ factory.post('/customers/:id/email-domain/verify', async (c) => {
 // to pay for a new domain registration. The actual Namecheap call
 // happens on the webhook (checkout.session.completed) so a customer
 // can't get charged without us also kicking off the registration.
+// Nightly database backups for every active tenant. Runs here rather than in
+// the cron process itself because tenant databases refuse external connections
+// (empty ipAllowList) — only something inside Render can reach them.
+factory.post('/internal/backup-sweep', async (c) => {
+  if (!checkCronSecret(c)) return c.json({ error: 'Unauthorized' }, 401)
+
+  const { backupAllTenants } = await import('../../services/tenantBackup')
+  const result = await backupAllTenants()
+
+  const failures = result.results.filter(r => !r.success)
+  const bytes = result.results.reduce((n, r) => n + (r.sizeBytes || 0), 0)
+  const raw = result.results.reduce((n, r) => n + (r.uncompressedBytes || r.sizeBytes || 0), 0)
+  console.log('[Backup] %d/%d ok, %d bytes stored (%d raw)', result.succeeded, result.attempted, bytes, raw)
+
+  // A backup that silently stops is indistinguishable from one that never ran,
+  // which is the failure mode that actually costs data.
+  if (failures.length > 0) {
+    const { notifyProvisionFailure } = await import('../../services/email')
+    await notifyProvisionFailure(
+      { slug: failures.map(f => f.tenantSlug).join(', ') },
+      'Nightly database backup',
+      failures.map(f => (f.database || f.tenantSlug) + ': ' + (f.error || 'unknown error')).join('\n'),
+    ).catch((e: any) => console.warn('[Backup] Staff alert failed:', e?.message))
+  }
+
+  return c.json({
+    ok: failures.length === 0,
+    attempted: result.attempted,
+    succeeded: result.succeeded,
+    failed: result.failed,
+    storedBytes: bytes,
+    uncompressedBytes: raw,
+    // The cron treats a non-empty errors[] as a failed run.
+    errors: failures.map(f => (f.database || f.tenantSlug) + ': ' + (f.error || 'unknown error')),
+  })
+})
+
 // Where does the registrar say this domain points? Read-only — it cannot change
 // a domain. Exists because the registrar is the only source of truth for a
 // repoint: our own tables record what we intended, not what took.
