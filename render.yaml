@@ -81,6 +81,19 @@ services:
   # template/generator breakage is found by us on a Sunday rather than by a
   # customer's deploy on a Tuesday. Creates no Render services and spends no
   # Anthropic credits; every test tenant it makes, it deletes.
+  # Tenant databases live in Ohio (deploy.ts defaults) while the API lives in
+  # Oregon, and a database is only reachable from inside its own region. This
+  # runner exists so Ohio databases get backed up at all — the Oregon sweep in
+  # the daily cron cannot reach them.
+  - type: cron
+    name: twomiah-factory-backup-ohio
+    runtime: node
+    region: ohio
+    plan: starter
+    schedule: "0 13 * * *"   # 08:00 US Central, alongside the daily sweep
+    buildCommand: cd apps/api && bun install
+    startCommand: cd apps/api && bun run src/cron/backup.ts
+
   - type: cron
     name: twomiah-factory-regression
     runtime: node

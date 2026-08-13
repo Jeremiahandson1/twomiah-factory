@@ -25,7 +25,13 @@ const BACKUP_PREFIX = 'db-backups/'
 // Retention is enforced by R2 lifecycle rules keyed on these prefixes (see
 // scripts/r2-lifecycle.ts), NOT by pruning code — there is no delete loop to
 // get wrong. Change a prefix here and you must change the rule with it.
-const DAILY_PREFIX = BACKUP_PREFIX + 'daily/'
+// Which region's databases this process is responsible for. Explicit rather
+// than sniffed: a wrong guess would silently skip everything.
+export function backupRegion(): string | null {
+  return process.env.BACKUP_REGION || null
+}
+
+const DAILY_PREFIX = BACKUP_PREFIX + 'daily/' 
 const MONTHLY_PREFIX = BACKUP_PREFIX + 'monthly/' 
 
 /**
@@ -60,6 +66,8 @@ export interface TenantDatabase {
   name: string
   id: string
   url: string
+  /** Render region. Only a runner in the same region can reach it. */
+  region?: string
   /** The other connection string. Which of the two works depends on where this
    *  is running, and getting it wrong looks like a dead connection. */
   fallbackUrl?: string
@@ -107,7 +115,7 @@ export async function resolveTenantDatabases(tenant: {
         ? (info.internalConnectionString || info.externalConnectionString)
         : (info.externalConnectionString || info.internalConnectionString)
       const fallbackUrl = insideRender ? info.externalConnectionString : info.internalConnectionString
-      if (url) out.push({ name: db.name, id: db.id, url, fallbackUrl: fallbackUrl === url ? undefined : fallbackUrl })
+      if (url) out.push({ name: db.name, id: db.id, url, region: db.region, fallbackUrl: fallbackUrl === url ? undefined : fallbackUrl })
     }
     if (out.length === 0 && tenant.database_url) {
       out.push({ name: tenant.slug + '-db', id: 'unknown', url: tenant.database_url })
@@ -142,7 +150,13 @@ export async function backupTenant(tenant: {
   }
 
   const results: BackupResult[] = []
+  const region = backupRegion()
   for (const db of databases) {
+    // Not ours to back up. Skipped silently and NOT reported as a failure: a
+    // runner that alerts nightly about databases it cannot reach by design
+    // trains everyone to ignore backup alerts.
+    if (region && db.region && db.region !== region) continue
+
     // One archive per database — a tenant with a CRM and a site has two, and
     // merging them would make the restore ambiguous.
     // A connection failure here is usually the wrong route, not a dead
