@@ -60,6 +60,9 @@ export interface TenantDatabase {
   name: string
   id: string
   url: string
+  /** The other connection string. Which of the two works depends on where this
+   *  is running, and getting it wrong looks like a dead connection. */
+  fallbackUrl?: string
 }
 
 /**
@@ -94,8 +97,17 @@ export async function resolveTenantDatabases(tenant: {
       const infoRes = await fetch(`https://api.render.com/v1/postgres/${db.id}/connection-info`, { headers })
       if (!infoRes.ok) continue
       const info = await infoRes.json()
-      const url = info.externalConnectionString || info.internalConnectionString
-      if (url) out.push({ name: db.name, id: db.id, url })
+      // Inside Render the external string is a trap: tenant databases have an
+      // empty ipAllowList, so Render refuses external connections and the
+      // client reports "Connection terminated unexpectedly". From an
+      // operator's machine the opposite holds — the internal hostname does not
+      // resolve at all. Prefer by environment, keep the other as a fallback.
+      const insideRender = !!process.env.RENDER || !!process.env.RENDER_SERVICE_ID || !!process.env.RENDER_EXTERNAL_URL
+      const url = insideRender
+        ? (info.internalConnectionString || info.externalConnectionString)
+        : (info.externalConnectionString || info.internalConnectionString)
+      const fallbackUrl = insideRender ? info.externalConnectionString : info.internalConnectionString
+      if (url) out.push({ name: db.name, id: db.id, url, fallbackUrl: fallbackUrl === url ? undefined : fallbackUrl })
     }
     if (out.length === 0 && tenant.database_url) {
       out.push({ name: tenant.slug + '-db', id: 'unknown', url: tenant.database_url })
@@ -133,17 +145,25 @@ export async function backupTenant(tenant: {
   for (const db of databases) {
     // One archive per database — a tenant with a CRM and a site has two, and
     // merging them would make the restore ambiguous.
-    const result = await exportTenantData({
+    // A connection failure here is usually the wrong route, not a dead
+    // database — so try the other one before calling the backup failed.
+    const runExport = async (url: string) => exportTenantData({
       tenantId: tenant.id,
       // The real slug: this goes in the envelope, and a restore reads it.
       tenantSlug: tenant.slug,
       // Keyed by DATABASE name, because a tenant can have several.
       keyLabel: db.name,
       keyPrefix: opts?.prefix || DAILY_PREFIX,
-      tenantDatabaseUrl: db.url,
+      tenantDatabaseUrl: url,
       compress: true,
       signUrl: false,
     })
+
+    let result = await runExport(db.url)
+    if (!result.success && db.fallbackUrl && /connect|terminated|timeout|ENOTFOUND|ECONNREFUSED/i.test(result.error || '')) {
+      console.warn('[Backup] %s: %s — retrying on the other connection route', db.name, result.error)
+      result = await runExport(db.fallbackUrl)
+    }
     results.push({
       success: result.success,
       tenantSlug: tenant.slug,
