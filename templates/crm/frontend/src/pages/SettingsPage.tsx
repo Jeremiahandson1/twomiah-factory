@@ -53,7 +53,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
-  const [newUser, setNewUser] = useState<NewUserForm>({ firstName: '', lastName: '', email: '', password: '', role: 'user' });
+  const [newUser, setNewUser] = useState<NewUserForm>({ firstName: '', lastName: '', email: '', password: '', role: 'field' });
 
   useEffect(() => {
     if (company) {
@@ -82,7 +82,7 @@ export default function SettingsPage() {
       await api.company.createUser(newUser);
       toast.success('User added');
       setAddUserOpen(false);
-      setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'user' });
+      setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'field' });
       loadUsers();
     } catch (err) { toast.error((err as Error).message || 'Could not add the user'); }
     finally { setAddingUser(false); }
@@ -199,7 +199,7 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Users</h2>
-                <Button onClick={() => { setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'user' }); setAddUserOpen(true); }}>Add User</Button>
+                <Button onClick={() => { setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'field' }); setAddUserOpen(true); }}>Add User</Button>
               </div>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
@@ -237,10 +237,9 @@ export default function SettingsPage() {
                       <div>
                         <label className="text-xs text-gray-500 block mb-1">Role</label>
                         <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as NewUserForm['role'] })} className="w-full text-sm border rounded-lg px-3 py-2">
-                          <option value="user">User — day-to-day access</option>
-                          <option value="field">Field — mobile / on-site access</option>
-                          <option value="manager">Manager — can approve and manage work</option>
-                          <option value="admin">Admin — full access including settings</option>
+                          <option value="field">Staff — day-to-day work: view jobs, log time, expenses and notes</option>
+                          <option value="manager">Manager — full access to work and invoicing, but not company settings</option>
+                          <option value="admin">Admin — full access, including company settings and team</option>
                         </select>
                       </div>
                     </div>
