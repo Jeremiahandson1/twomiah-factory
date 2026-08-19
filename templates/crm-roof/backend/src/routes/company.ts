@@ -20,7 +20,9 @@ app.get('/', async (c) => {
 
 app.put('/features', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
-  const { features } = await c.req.json()
+  // Guard the body — null/malformed threw on the destructure and became a 500.
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+  const { features } = body as { features?: unknown }
   if (!Array.isArray(features) || features.some((f) => typeof f !== 'string')) {
     return c.json({ error: 'features must be an array of feature ids' }, 400)
   }

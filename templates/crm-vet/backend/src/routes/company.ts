@@ -31,7 +31,15 @@ app.put('/', requireAdmin, async (c) => {
 
 app.put('/features', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
-  const { features } = await c.req.json()
+  // Guard the body: null and malformed both used to throw on the destructure
+  // and surface as a 500. Then REQUIRE a string array — previously any shape was
+  // written through, and `undefined` made drizzle skip the column entirely, so a
+  // malformed save silently did nothing and still returned 200.
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
+  const { features } = body as { features?: unknown }
+  if (!Array.isArray(features) || features.some((f: unknown) => typeof f !== 'string')) {
+    return c.json({ error: 'features must be an array of feature ids' }, 400)
+  }
   const [result] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(result)
