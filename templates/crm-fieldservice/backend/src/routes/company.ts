@@ -57,7 +57,13 @@ app.post('/users', requireAdmin, async (c) => {
   const schema = z.object({ email: z.string().email(), password: z.string().min(8), firstName: z.string().min(1), lastName: z.string().min(1), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).default('user') })
   const body = await c.req.json()
   if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
-  const data = schema.parse(body)
+  // safeParse, not parse: a ZodError carries no status, so the global
+  // errorHandler turned every bad field into a 500 that production masked as
+  // "Internal server error" — a typo'd email looked like a crash to the owner
+  // adding a teammate.
+  const parsed = schema.safeParse(body)
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid user details' }, 400)
+  const data = parsed.data
 
   const [existing] = await db.select().from(user).where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId))).limit(1)
   if (existing) return c.json({ error: 'Email already exists' }, 409)
