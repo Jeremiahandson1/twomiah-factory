@@ -46,7 +46,7 @@ app.post('/', requireOwner, async (c) => {
     role: z.enum(['staff']).default('staff'),
   })
 
-  const body = await c.req.json().catch(() => ({}))
+  const body = (await c.req.json().catch(() => null)) ?? {}
   if (typeof (body as any).email === 'string') (body as any).email = (body as any).email.toLowerCase().trim()
 
   const parsed = schema.safeParse(body)

@@ -62,7 +62,7 @@ app.post('/', requireAdmin, async (c) => {
 
   // .catch: a missing or malformed body must not throw past validation into a
   // 500 — the caller gets a 400 that names the problem instead.
-  const body = await c.req.json().catch(() => ({} as any))
+  const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (typeof body.email === 'string') body.email = body.email.toLowerCase().trim()
 
   const parsed = schema.safeParse(body)
