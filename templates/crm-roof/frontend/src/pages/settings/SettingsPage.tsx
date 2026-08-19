@@ -16,6 +16,10 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingCompany, setSavingCompany] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
+  // Mirrors the server's requireAdmin (admin|owner) — this app has no
+  // PermissionsContext, and the same expression is already used by
+  // FeaturesSettingsPage. Without it a teammate is offered buttons that 403.
+  const canManageUsers = currentUser?.role === 'admin' || currentUser?.role === 'owner';
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', password: '', role: 'user' });
   const [inviting, setInviting] = useState(false);
@@ -577,12 +581,14 @@ export default function SettingsPage() {
             <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <Users className="w-4 h-4 text-gray-400" /> User Management
             </h2>
-            <button
-              onClick={() => { setInviteForm({ email: '', firstName: '', lastName: '', password: '', role: 'user' }); setInviteOpen(true); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add User
-            </button>
+            {canManageUsers && (
+              <button
+                onClick={() => { setInviteForm({ email: '', firstName: '', lastName: '', password: '', role: 'user' }); setInviteOpen(true); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add User
+              </button>
+            )}
           </div>
 
           <div className="divide-y">
@@ -596,14 +602,16 @@ export default function SettingsPage() {
                   <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
                     {u.role || 'user'}
                   </span>
-                  {u.id !== currentUser?.userId ? (
-                    <button
-                      onClick={() => toggleUserAccess(u.id, u.isActive !== false)}
-                      className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}`}
-                    >
-                      {u.isActive === false ? 'Restore access' : 'Revoke access'}
-                    </button>
-                  ) : <span className="text-xs text-gray-400">You</span>}
+                  {u.id === currentUser?.userId
+                    ? <span className="text-xs text-gray-400">You</span>
+                    : canManageUsers ? (
+                      <button
+                        onClick={() => toggleUserAccess(u.id, u.isActive !== false)}
+                        className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}`}
+                      >
+                        {u.isActive === false ? 'Restore access' : 'Revoke access'}
+                      </button>
+                    ) : null}
                 </div>
               </div>
             ))}

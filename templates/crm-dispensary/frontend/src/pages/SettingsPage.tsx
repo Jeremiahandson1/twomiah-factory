@@ -41,6 +41,9 @@ export default function SettingsPage() {
   const [tab, setTab] = useState('general');
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
+  // Mirrors the server's requireAdmin (admin|owner). Without this a non-admin
+  // could fill in the whole form and get a bare 403 toast.
+  const canManageUsers = (user as any)?.role === 'admin' || (user as any)?.role === 'owner';
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
   const [newUser, setNewUser] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'field' });
@@ -571,9 +574,11 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Team Members</h2>
                 <div className="flex items-center gap-2">
-                  <Button onClick={() => { setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'field' }); setAddUserOpen(true); }}>
-                    Add User
-                  </Button>
+                  {canManageUsers && (
+                    <Button onClick={() => { setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'field' }); setAddUserOpen(true); }}>
+                      Add User
+                    </Button>
+                  )}
                   <Button onClick={() => navigate('/crm/team')}>
                     Manage Team
                   </Button>
@@ -648,11 +653,13 @@ export default function SettingsPage() {
                             : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-right">
-                          {u.id !== (user as any)?.id ? (
-                            <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>
-                              {u.isActive ? 'Revoke access' : 'Restore access'}
-                            </button>
-                          ) : <span className="text-xs text-gray-400">You</span>}
+                          {u.id === (user as any)?.id
+                            ? <span className="text-xs text-gray-400">You</span>
+                            : canManageUsers ? (
+                              <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>
+                                {u.isActive ? 'Revoke access' : 'Restore access'}
+                              </button>
+                            ) : null}
                         </td>
                       </tr>
                     ))}

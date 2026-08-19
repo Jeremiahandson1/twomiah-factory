@@ -51,6 +51,10 @@ export default function SettingsPage() {
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
   const [saving, setSaving] = useState(false);
+  // Mirrors the server's requireAdmin (admin|owner). Without this a 'field'
+  // user could fill in the whole form and get a bare 403 toast.
+  const canManageUsers = ((user as unknown as Record<string, unknown> | null)?.role === 'admin')
+    || ((user as unknown as Record<string, unknown> | null)?.role === 'owner');
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [addingUser, setAddingUser] = useState(false);
   const [newUser, setNewUser] = useState<NewUserForm>({ firstName: '', lastName: '', email: '', password: '', role: 'field' });
@@ -212,15 +216,17 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold">Users</h2>
-                <Button onClick={() => { setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'field' }); setAddUserOpen(true); }}>Add User</Button>
+                {canManageUsers && <Button onClick={() => { setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'field' }); setAddUserOpen(true); }}>Add User</Button>}
               </div>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
                   <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th><th className="px-4 py-2 text-right text-xs font-medium">Access</th></tr></thead>
                   <tbody className="divide-y">{users.map((u: Record<string, unknown>) => (
-                    <tr key={u.id as string}><td className="px-4 py-3">{u.firstName as string} {u.lastName as string}</td><td className="px-4 py-3">{u.email as string}</td><td className="px-4 py-3 capitalize">{u.role as string}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) !== (user as Record<string, unknown> | null)?.id ? (
+                    <tr key={u.id as string}><td className="px-4 py-3">{u.firstName as string} {u.lastName as string}</td><td className="px-4 py-3">{u.email as string}</td><td className="px-4 py-3 capitalize">{u.role as string}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) === (user as Record<string, unknown> | null)?.id
+                      ? <span className="text-xs text-gray-400">You</span>
+                      : canManageUsers ? (
                       <button onClick={() => handleToggleUserAccess(u.id as string, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
-                    ) : <span className="text-xs text-gray-400">You</span>}</td></tr>
+                    ) : null}</td></tr>
                   ))}</tbody>
                 </table>
               </div>
