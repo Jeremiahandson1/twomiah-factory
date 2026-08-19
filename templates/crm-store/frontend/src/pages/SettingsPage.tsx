@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AtSign, Globe, Inbox } from 'lucide-react'
-import api, { StoreSettings } from '../services/api'
+import api, { StoreSettings, StoreUser } from '../services/api'
 import { useToast } from '../contexts/ToastContext'
+import { useAuth } from '../contexts/AuthContext'
 import { centsToDollars, dollarsToCents } from '../lib/format'
 
 export default function SettingsPage() {
@@ -16,6 +17,32 @@ export default function SettingsPage() {
   // Password change
   const [pw, setPw] = useState({ current: '', next: '' })
   const [pwSaving, setPwSaving] = useState(false)
+
+  // Staff logins. Nothing in this app could create a second login before, so a
+  // store on a seat-based plan was permanently a one-person account.
+  const { user } = useAuth()
+  const isOwner = user?.role === 'owner'
+  const [staff, setStaff] = useState<StoreUser[]>([])
+  const [newStaff, setNewStaff] = useState({ name: '', email: '', password: '' })
+  const [addingStaff, setAddingStaff] = useState(false)
+
+  const loadStaff = () => {
+    if (!isOwner) return
+    api.listUsers().then(setStaff).catch(() => { /* non-fatal: the rest of Settings still works */ })
+  }
+  useEffect(loadStaff, [isOwner])
+
+  const addStaff = async () => {
+    setAddingStaff(true)
+    try {
+      await api.createUser(newStaff)
+      toast('Staff member added')
+      setNewStaff({ name: '', email: '', password: '' })
+      loadStaff()
+    } catch (e: any) {
+      toast(e?.message || 'Could not add the staff member', 'error')
+    } finally { setAddingStaff(false) }
+  }
 
   useEffect(() => {
     api.getSettings().then((s) => {
@@ -156,6 +183,37 @@ export default function SettingsPage() {
         <div><label className="label">New password</label><input className="input" type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} placeholder="At least 8 characters" /></div>
         <button onClick={changePassword} className="btn-secondary" disabled={pwSaving || !pw.current || pw.next.length < 8}>{pwSaving ? 'Saving…' : 'Update password'}</button>
       </div>
+
+      {/* Staff logins. Owner-only: the backend rejects this for role 'staff',
+          so the card is hidden rather than showing buttons that 403. */}
+      {isOwner && (
+        <div className="card p-5 space-y-4">
+          <h2 className="font-semibold text-gray-900">Team</h2>
+
+          <div className="divide-y border rounded-lg">
+            {staff.map((u) => (
+              <div key={u.id} className="flex items-center justify-between px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{u.name || u.email}</p>
+                  <p className="text-xs text-gray-500">{u.email}</p>
+                </div>
+                <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{u.role}</span>
+              </div>
+            ))}
+            {staff.length === 0 && <p className="px-4 py-6 text-sm text-gray-400 text-center">Just you so far</p>}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div><label className="label">Name</label><input className="input" value={newStaff.name} onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })} /></div>
+            <div><label className="label">Email</label><input className="input" type="email" value={newStaff.email} onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })} /></div>
+            <div><label className="label">Temporary password</label><input className="input" value={newStaff.password} onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })} placeholder="At least 8 characters" /></div>
+          </div>
+          <p className="text-xs text-gray-400">Share the password with them — they can change it from this page after signing in.</p>
+          <button onClick={addStaff} className="btn-primary" disabled={addingStaff || !newStaff.name.trim() || !newStaff.email.trim() || newStaff.password.length < 8}>
+            {addingStaff ? 'Adding…' : 'Add staff member'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

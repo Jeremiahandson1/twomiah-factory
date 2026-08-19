@@ -9,6 +9,17 @@ export type VendorTicket = {
   status: string; priority: string; created_at: string
 }
 
+// A staff login for the store admin. Mirrors the `users` table's public columns
+// (role is 'owner' | 'staff'); password material never reaches the browser.
+export type StoreUser = {
+  id: string
+  email: string
+  name: string | null
+  role: string
+  isActive: boolean
+  createdAt: string
+}
+
 export type Product = {
   id: string
   slug: string
@@ -202,6 +213,11 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(input),
     })
+  }
+  // Staff logins. Owner-only on the backend; `staff` is the only creatable role.
+  async listUsers() { return (await this.request<{ data: StoreUser[] }>('/api/admin/users')).data }
+  async createUser(input: { name: string; email: string; password: string }) {
+    return this.request<StoreUser>('/api/admin/users', { method: 'POST', body: JSON.stringify(input) })
   }
   async connectSupplier(body: { provider: string; mode: string; apiKey: string; accountEmail?: string }) { return this.request('/api/admin/suppliers/connect', { method: 'POST', body: JSON.stringify(body) }) }
   async disconnectSupplier() { return this.request('/api/admin/suppliers/disconnect', { method: 'POST' }) }

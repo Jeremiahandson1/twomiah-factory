@@ -27,6 +27,7 @@ import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
 import discountAdminRoutes from './routes/discounts.ts'
 import reviewAdminRoutes from './routes/reviews.ts'
+import userAdminRoutes from './routes/users.ts'
 import shippingAdminRoutes from './routes/shipping.ts'
 import mediaRoutes from './routes/media.ts'
 
@@ -90,6 +91,7 @@ app.route('/api/internal/inbound-email', inboundParseRoutes)
 app.route('/api/inbound-messages', inboundMessagesRoutes)
 app.route('/api/admin/discounts', discountAdminRoutes)
 app.route('/api/admin/reviews', reviewAdminRoutes)
+app.route('/api/admin/users', userAdminRoutes)
 app.route('/api/admin/shipping', shippingAdminRoutes)
 // Public media proxy for product images (streamed from private R2). Must be
 // registered before the SPA catch-all below so `/media/*` is not swallowed.
