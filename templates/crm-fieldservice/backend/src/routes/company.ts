@@ -115,10 +115,40 @@ app.post('/users', requireAdmin, async (c) => {
 })
 
 app.put('/users/:id', requireAdmin, async (c) => {
+  const currentUser = c.get('user') as any
   const id = c.req.param('id')
   const schema = z.object({ firstName: z.string().optional(), lastName: z.string().optional(), phone: z.string().optional(), role: z.enum(['admin', 'manager', 'user', 'field']).optional(), isActive: z.boolean().optional() })
-  const data = schema.parse(await c.req.json())
-  const [result] = await db.update(user).set({ ...data, updatedAt: new Date() }).where(eq(user.id, id)).returning({
+  // safeParse, not parse — a ZodError has no .status and the global handler
+  // turns it into a 500 that production masks as "Internal server error".
+  const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
+  const data = parsed.data
+
+  // Scope the lookup to this company. The original updated by id alone, so a
+  // well-formed request could reach a row this admin has no claim to.
+  const [target] = await db.select().from(user)
+    .where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId))).limit(1)
+  if (!target) return c.json({ error: 'User not found' }, 404)
+
+  // Guards against locking the company out of its own CRM. Losing the last
+  // administrator is unrecoverable from inside the product — there is no
+  // self-serve path back, it needs a database edit.
+  const losingAccess = data.isActive === false
+  const losingAdmin = losingAccess || (data.role !== undefined && data.role !== 'admin' && (target.role === 'admin' || target.role === 'owner'))
+  if (losingAccess && id === currentUser.userId) {
+    return c.json({ error: "You can't remove your own access." }, 400)
+  }
+  if (losingAdmin && (target.role === 'admin' || target.role === 'owner')) {
+    const activeUsers = await db.select({ id: user.id, role: user.role }).from(user)
+      .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+    const admins = activeUsers.filter(u => u.role === 'admin' || u.role === 'owner')
+    if (admins.length <= 1) {
+      return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
+    }
+  }
+
+  const [result] = await db.update(user).set({ ...data, updatedAt: new Date() })
+    .where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId))).returning({
     id: user.id,
     email: user.email,
     firstName: user.firstName,

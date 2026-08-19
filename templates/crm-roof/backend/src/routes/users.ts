@@ -9,8 +9,17 @@ const app = new Hono()
 app.use('*', authenticate)
 
 // GET / — list company users (for dropdowns: assign rep, assign crew lead, etc.)
+//
+// Active-only by DEFAULT, because that is what the assignment dropdowns want.
+// Pass ?includeInactive=1 for the Settings list, which has to show revoked
+// people so they can be reactivated — otherwise deactivating someone hides them
+// forever and the action is one-way.
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
+  const includeInactive = c.req.query('includeInactive') === '1'
+  const where = includeInactive
+    ? eq(user.companyId, currentUser.companyId)
+    : and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true))
   const users = await db
     .select({
       id: user.id,
@@ -22,7 +31,7 @@ app.get('/', async (c) => {
       isActive: user.isActive,
     })
     .from(user)
-    .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+    .where(where)
 
   return c.json({ data: users })
 })
@@ -110,6 +119,61 @@ app.post('/', requireAdmin, async (c) => {
     })
 
   return c.json(created, 201)
+})
+
+// PUT /:id — change a teammate's role, or revoke their access.
+//
+// Revoking is a deactivation, not a delete: jobs, quotes and audit rows point at
+// this user, and the seat count is of ACTIVE users, so isActive=false is what
+// actually frees a seat. Before this route existed there was no way to remove
+// someone's access at all — a fired employee kept their login until somebody
+// edited the database by hand.
+app.put('/:id', requireAdmin, async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const schema = z.object({
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+    phone: z.string().optional(),
+    role: z.enum(['admin', 'manager', 'user']).optional(),
+    isActive: z.boolean().optional(),
+  })
+  const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
+  const data = parsed.data
+
+  const [target] = await db.select().from(user)
+    .where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId))).limit(1)
+  if (!target) return c.json({ error: 'User not found' }, 404)
+
+  // Losing the last administrator is unrecoverable from inside the product.
+  const losingAccess = data.isActive === false
+  const demoting = data.role !== undefined && data.role !== 'admin' && (target.role === 'admin' || target.role === 'owner')
+  if (losingAccess && id === currentUser.userId) {
+    return c.json({ error: "You can't remove your own access." }, 400)
+  }
+  if ((losingAccess || demoting) && (target.role === 'admin' || target.role === 'owner')) {
+    const activeUsers = await db.select({ id: user.id, role: user.role }).from(user)
+      .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+    const admins = activeUsers.filter(u => u.role === 'admin' || u.role === 'owner')
+    if (admins.length <= 1) {
+      return c.json({ error: 'This is the only administrator left — promote someone else first.' }, 400)
+    }
+  }
+
+  const [updated] = await db.update(user).set({ ...data, updatedAt: new Date() })
+    .where(and(eq(user.id, id), eq(user.companyId, currentUser.companyId)))
+    .returning({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+    })
+
+  return c.json(updated)
 })
 
 export default app

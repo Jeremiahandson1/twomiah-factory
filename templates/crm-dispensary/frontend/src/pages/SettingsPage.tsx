@@ -101,6 +101,18 @@ export default function SettingsPage() {
     loadUsers();
   }, [company]);
 
+  // Revoking access is a deactivation, not a delete — orders and loyalty rows
+  // point at this user, and the seat count is of ACTIVE users, so this is also
+  // what frees a seat. Before this the table was read-only.
+  const handleToggleUserAccess = async (id: string, currentlyActive: boolean) => {
+    if (currentlyActive && !confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.')) return;
+    try {
+      await api.company.updateUser(id, { isActive: !currentlyActive });
+      toast.success(currentlyActive ? 'Access revoked' : 'Access restored');
+      loadUsers();
+    } catch (err) { toast.error((err as Error).message || 'Could not change access'); }
+  };
+
   // "Manage Team" opens the team_member roster — HR records with no login. This
   // creates an actual seat, which is what the plan is sold by; nothing in the UI
   // called the (long-existing) create-user endpoint before, so every dispensary
@@ -616,6 +628,7 @@ export default function SettingsPage() {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Access</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -633,6 +646,13 @@ export default function SettingsPage() {
                           {u.isActive
                             ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
                             : <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Inactive</span>}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right">
+                          {u.id !== (user as any)?.id ? (
+                            <button onClick={() => handleToggleUserAccess(u.id, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>
+                              {u.isActive ? 'Revoke access' : 'Restore access'}
+                            </button>
+                          ) : <span className="text-xs text-gray-400">You</span>}
                         </td>
                       </tr>
                     ))}

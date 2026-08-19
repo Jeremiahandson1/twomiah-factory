@@ -219,6 +219,11 @@ class ApiClient {
   async createUser(input: { name: string; email: string; password: string }) {
     return this.request<StoreUser>('/api/admin/users', { method: 'POST', body: JSON.stringify(input) })
   }
+  // Revoke = deactivate. Orders and fulfilment reference the user, and the seat
+  // count is of active users, so isActive=false is what frees a seat.
+  async updateUser(id: string, input: { name?: string; isActive?: boolean }) {
+    return this.request<StoreUser>(`/api/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(input) })
+  }
   async connectSupplier(body: { provider: string; mode: string; apiKey: string; accountEmail?: string }) { return this.request('/api/admin/suppliers/connect', { method: 'POST', body: JSON.stringify(body) }) }
   async disconnectSupplier() { return this.request('/api/admin/suppliers/disconnect', { method: 'POST' }) }
   async setSupplierAutoForward(enabled: boolean) { return this.request('/api/admin/suppliers/auto-forward', { method: 'POST', body: JSON.stringify({ enabled }) }) }

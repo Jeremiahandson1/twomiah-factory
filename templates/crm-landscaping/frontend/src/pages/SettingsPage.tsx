@@ -31,6 +31,19 @@ export default function SettingsPage() {
     catch (err) { console.error('Failed to load users'); }
   };
 
+  // Revoking access is a deactivation, not a delete — jobs and quotes point at
+  // this user, and the seat count is of ACTIVE users, so this is also what frees
+  // a seat. Before this the table was read-only: you could add a teammate and
+  // never remove one.
+  const handleToggleUserAccess = async (id: string, currentlyActive: boolean) => {
+    if (currentlyActive && !confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.')) return;
+    try {
+      await api.company.updateUser(id, { isActive: !currentlyActive });
+      toast.success(currentlyActive ? 'Access revoked' : 'Access restored');
+      loadUsers();
+    } catch (err) { toast.error((err as Error).message || 'Could not change access'); }
+  };
+
   // Adding a teammate is what makes the seat-based plan real: the backend
   // endpoint has always existed, but nothing in the UI called it, so every
   // account was stuck at one login regardless of the tier being paid for.
@@ -205,9 +218,11 @@ export default function SettingsPage() {
               )}
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
-                  <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th></tr></thead>
+                  <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th><th className="px-4 py-2 text-right text-xs font-medium">Access</th></tr></thead>
                   <tbody className="divide-y">{users.map(u => (
-                    <tr key={u.id}><td className="px-4 py-3">{u.firstName} {u.lastName}</td><td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 capitalize">{u.role}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td></tr>
+                    <tr key={u.id}><td className="px-4 py-3">{u.firstName} {u.lastName}</td><td className="px-4 py-3">{u.email}</td><td className="px-4 py-3 capitalize">{u.role}</td><td className="px-4 py-3">{u.isActive ? <span className="text-green-600">Active</span> : <span className="text-gray-400">Inactive</span>}</td><td className="px-4 py-3 text-right">{(u.id as string) !== (user as Record<string, unknown> | null)?.id ? (
+                      <button onClick={() => handleToggleUserAccess(u.id as string, !!u.isActive)} className={`text-xs font-medium ${u.isActive ? 'text-red-600 hover:text-red-700' : 'text-green-600 hover:text-green-700'}`}>{u.isActive ? 'Revoke access' : 'Restore access'}</button>
+                    ) : <span className="text-xs text-gray-400">You</span>}</td></tr>
                   ))}</tbody>
                 </table>
               </div>

@@ -6,7 +6,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useFeature } from '../../data/features';
 
 export default function SettingsPage() {
-  const { token } = useAuth();
+  const { token, user: currentUser } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -45,7 +45,9 @@ export default function SettingsPage() {
     try {
       const fetches: Promise<any>[] = [
         fetch('/api/settings/company', { headers }).catch(() => null),
-        fetch('/api/users', { headers }),
+        // includeInactive: this list has to show revoked people so they can be
+        // restored. The assignment dropdowns elsewhere still get active-only.
+        fetch('/api/users?includeInactive=1', { headers }),
       ];
       if (hasQB) fetches.push(fetch('/api/quickbooks/status', { headers }).catch(() => null));
       if (hasStorm) fetches.push(fetch('/api/storms/service-area', { headers }).catch(() => null));
@@ -110,6 +112,30 @@ export default function SettingsPage() {
       toast.error('Failed to save');
     } finally {
       setSavingBranding(false);
+    }
+  };
+
+  // Revoking is a deactivation, not a delete — jobs, quotes and audit rows point
+  // at this user, and the seat count is of ACTIVE users, so this is what frees a
+  // seat. Until now roof had no way to remove anyone's access at all.
+  const toggleUserAccess = async (id: string, currentlyActive: boolean) => {
+    if (currentlyActive && !confirm('Revoke access for this user? They will not be able to sign in, and their seat is freed.')) return;
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !currentlyActive }),
+      });
+      if (!res.ok) {
+        // Surface the real reason — "only administrator left" is actionable,
+        // a generic failure is not.
+        const detail = await res.json().catch(() => null);
+        throw new Error(detail?.error || 'Could not change access');
+      }
+      toast.success(currentlyActive ? 'Access revoked' : 'Access restored');
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not change access');
     }
   };
 
@@ -560,15 +586,25 @@ export default function SettingsPage() {
           </div>
 
           <div className="divide-y">
-            {users.map((user) => (
-              <div key={user.id} className="flex items-center justify-between py-3">
+            {users.map((u) => (
+              <div key={u.id} className="flex items-center justify-between py-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
+                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.email}</p>
+                  <p className="text-xs text-gray-500">{u.email}</p>
                 </div>
-                <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
-                  {user.role || 'user'}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
+                    {u.role || 'user'}
+                  </span>
+                  {u.id !== currentUser?.userId ? (
+                    <button
+                      onClick={() => toggleUserAccess(u.id, u.isActive !== false)}
+                      className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}`}
+                    >
+                      {u.isActive === false ? 'Restore access' : 'Revoke access'}
+                    </button>
+                  ) : <span className="text-xs text-gray-400">You</span>}
+                </div>
               </div>
             ))}
             {users.length === 0 && (

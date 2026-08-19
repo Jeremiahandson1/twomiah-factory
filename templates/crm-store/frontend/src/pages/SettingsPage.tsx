@@ -32,6 +32,20 @@ export default function SettingsPage() {
   }
   useEffect(loadStaff, [isOwner])
 
+  // Revoke = deactivate, never delete: orders and fulfilment history reference
+  // the user. Until now a departing employee kept full access to products,
+  // orders, customers and payments with no way to remove them.
+  const toggleStaffAccess = async (id: string, currentlyActive: boolean) => {
+    if (currentlyActive && !confirm('Revoke access for this staff member? They will not be able to sign in.')) return
+    try {
+      await api.updateUser(id, { isActive: !currentlyActive })
+      toast(currentlyActive ? 'Access revoked' : 'Access restored')
+      loadStaff()
+    } catch (e: any) {
+      toast(e?.message || 'Could not change access', 'error')
+    }
+  }
+
   const addStaff = async () => {
     setAddingStaff(true)
     try {
@@ -194,10 +208,20 @@ export default function SettingsPage() {
             {staff.map((u) => (
               <div key={u.id} className="flex items-center justify-between px-4 py-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{u.name || u.email}</p>
+                  <p className={`text-sm font-medium ${u.isActive === false ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{u.name || u.email}</p>
                   <p className="text-xs text-gray-500">{u.email}</p>
                 </div>
-                <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{u.role}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">{u.role}</span>
+                  {u.id !== user?.id ? (
+                    <button
+                      onClick={() => toggleStaffAccess(u.id, u.isActive !== false)}
+                      className={`text-xs font-medium ${u.isActive === false ? 'text-green-600 hover:text-green-700' : 'text-red-600 hover:text-red-700'}`}
+                    >
+                      {u.isActive === false ? 'Restore access' : 'Revoke access'}
+                    </button>
+                  ) : <span className="text-xs text-gray-400">You</span>}
+                </div>
               </div>
             ))}
             {staff.length === 0 && <p className="px-4 py-6 text-sm text-gray-400 text-center">Just you so far</p>}

@@ -95,4 +95,49 @@ app.post('/', requireOwner, async (c) => {
   return c.json(created, 201)
 })
 
+// PUT /:id — rename a staff member, or revoke their access.
+//
+// Deactivation, not deletion: orders and fulfilment history reference the user,
+// and the seat count is of ACTIVE users so isActive=false is what frees a seat.
+// Until this existed a store owner had NO way to remove a login — a departing
+// employee kept full access to products, orders, customers and payments, and
+// the only recourse was editing the database.
+app.put('/:id', requireOwner, async (c) => {
+  const currentUser = c.get('user') as any
+  const id = c.req.param('id')
+
+  const schema = z.object({
+    name: z.string().min(1).optional(),
+    isActive: z.boolean().optional(),
+  })
+  const parsed = schema.safeParse(await c.req.json().catch(() => ({})))
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid changes' }, 400)
+  const data = parsed.data
+
+  const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1)
+  if (!target) return c.json({ error: 'User not found' }, 404)
+
+  // An owner locking themselves out has no way back in without a DB edit.
+  if (data.isActive === false) {
+    if (id === currentUser.userId) return c.json({ error: "You can't remove your own access." }, 400)
+    if (target.role === 'owner') {
+      const active = await db.select({ id: users.id, role: users.role }).from(users).where(eq(users.isActive, true))
+      if (active.filter(u => u.role === 'owner').length <= 1) {
+        return c.json({ error: 'This is the only owner — you cannot deactivate them.' }, 400)
+      }
+    }
+  }
+
+  const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning({
+    id: users.id,
+    email: users.email,
+    name: users.name,
+    role: users.role,
+    isActive: users.isActive,
+    createdAt: users.createdAt,
+  })
+
+  return c.json(updated)
+})
+
 export default app
