@@ -17,7 +17,7 @@ export default function SettingsPage() {
   const [savingCompany, setSavingCompany] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ email: '', name: '', role: 'user' });
+  const [inviteForm, setInviteForm] = useState({ email: '', firstName: '', lastName: '', password: '', role: 'user' });
   const [inviting, setInviting] = useState(false);
 
   // QuickBooks state
@@ -115,20 +115,29 @@ export default function SettingsPage() {
 
   const inviteUser = async () => {
     if (!inviteForm.email.trim()) { toast.error('Email is required'); return; }
+    if (!inviteForm.firstName.trim() || !inviteForm.lastName.trim()) { toast.error('First and last name are required'); return; }
+    if (inviteForm.password.length < 8) { toast.error('Password must be at least 8 characters'); return; }
     setInviting(true);
     try {
-      const res = await fetch('/api/users/invite', {
+      // POST /api/users — this used to call /api/users/invite, which was never
+      // implemented, so the button 404'd every time.
+      const res = await fetch('/api/users', {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(inviteForm),
       });
-      if (!res.ok) throw new Error();
-      toast.success('Invitation sent');
+      if (!res.ok) {
+        // Surface the real reason (duplicate email, weak password) instead of a
+        // generic failure the owner can't act on.
+        const detail = await res.json().catch(() => null);
+        throw new Error(detail?.error || 'Could not add the user');
+      }
+      toast.success('User added');
       setInviteOpen(false);
-      setInviteForm({ email: '', name: '', role: 'user' });
+      setInviteForm({ email: '', firstName: '', lastName: '', password: '', role: 'user' });
       load();
-    } catch {
-      toast.error('Failed to send invitation');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not add the user');
     } finally {
       setInviting(false);
     }
@@ -543,10 +552,10 @@ export default function SettingsPage() {
               <Users className="w-4 h-4 text-gray-400" /> User Management
             </h2>
             <button
-              onClick={() => { setInviteForm({ email: '', name: '', role: 'user' }); setInviteOpen(true); }}
+              onClick={() => { setInviteForm({ email: '', firstName: '', lastName: '', password: '', role: 'user' }); setInviteOpen(true); }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700"
             >
-              <Plus className="w-3.5 h-3.5" /> Invite User
+              <Plus className="w-3.5 h-3.5" /> Add User
             </button>
           </div>
 
@@ -554,7 +563,7 @@ export default function SettingsPage() {
             {users.map((user) => (
               <div key={user.id} className="flex items-center justify-between py-3">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">{user.name || user.email}</p>
+                  <p className="text-sm font-medium text-gray-900">{[user.firstName, user.lastName].filter(Boolean).join(' ') || user.email}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
                 <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 capitalize">
@@ -574,32 +583,42 @@ export default function SettingsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setInviteOpen(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Invite User</h2>
+              <h2 className="text-lg font-bold text-gray-900">Add User</h2>
               <button onClick={() => setInviteOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
-              <div>
-                <label className="text-xs text-gray-500 block mb-1">Email *</label>
-                <input value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">First name *</label>
+                  <input value={inviteForm.firstName} onChange={(e) => setInviteForm({ ...inviteForm, firstName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Last name *</label>
+                  <input value={inviteForm.lastName} onChange={(e) => setInviteForm({ ...inviteForm, lastName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                </div>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Name</label>
-                <input value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                <label className="text-xs text-gray-500 block mb-1">Email *</label>
+                <input type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Temporary password *</label>
+                <input type="text" value={inviteForm.password} onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" placeholder="At least 8 characters" />
+                <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Role</label>
                 <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                  <option value="sales">Sales</option>
-                  <option value="technician">Technician</option>
+                  <option value="user">User — day-to-day access</option>
+                  <option value="manager">Manager — can approve and manage jobs</option>
+                  <option value="admin">Admin — full access including settings</option>
                 </select>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setInviteOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
               <button onClick={inviteUser} disabled={inviting} className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                <Send className="w-4 h-4" /> {inviting ? 'Sending...' : 'Send Invite'}
+                <Send className="w-4 h-4" /> {inviting ? 'Adding...' : 'Add User'}
               </button>
             </div>
           </div>

@@ -32,6 +32,16 @@ interface TabItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+// Roles the backend accepts (routes/company.ts POST /users). Keep in sync — a
+// role outside this set is rejected by the zod enum with a 400.
+interface NewUserForm {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: 'admin' | 'manager' | 'user' | 'field';
+}
+
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { user, company, updateCompany } = useAuth();
@@ -41,6 +51,9 @@ export default function SettingsPage() {
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [users, setUsers] = useState<Record<string, unknown>[]>([]);
   const [saving, setSaving] = useState(false);
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [addingUser, setAddingUser] = useState(false);
+  const [newUser, setNewUser] = useState<NewUserForm>({ firstName: '', lastName: '', email: '', password: '', role: 'user' });
 
   useEffect(() => {
     if (company) {
@@ -52,6 +65,27 @@ export default function SettingsPage() {
   const loadUsers = async () => {
     try { const data = await api.company.users(); setUsers(Array.isArray(data) ? data : (data?.data ?? [])); }
     catch (err) { console.error('Failed to load users'); }
+  };
+
+  // Adding a teammate is what makes the seat-based plan real: the backend
+  // endpoint has always existed, but nothing in the UI called it, so every
+  // account was stuck at one login regardless of the tier being paid for.
+  // The admin sets the first password and passes it along — no invite email,
+  // because tenant outbound mail isn't guaranteed and a mail that never
+  // arrives is indistinguishable from a broken product.
+  const handleAddUser = async () => {
+    if (!newUser.firstName.trim() || !newUser.lastName.trim()) { toast.error('First and last name are required'); return; }
+    if (!newUser.email.trim()) { toast.error('Email is required'); return; }
+    if (newUser.password.length < 8) { toast.error('Password must be at least 8 characters'); return; }
+    setAddingUser(true);
+    try {
+      await api.company.createUser(newUser);
+      toast.success('User added');
+      setAddUserOpen(false);
+      setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'user' });
+      loadUsers();
+    } catch (err) { toast.error((err as Error).message || 'Could not add the user'); }
+    finally { setAddingUser(false); }
   };
 
   const handleSaveCompany = async () => {
@@ -163,7 +197,10 @@ export default function SettingsPage() {
           )}
           {tab === 'users' && (
             <div className="space-y-4">
-              <h2 className="text-lg font-semibold">Users</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Users</h2>
+                <Button onClick={() => { setNewUser({ firstName: '', lastName: '', email: '', password: '', role: 'user' }); setAddUserOpen(true); }}>Add User</Button>
+              </div>
               <div className="border rounded-lg overflow-hidden">
                 <table className="w-full">
                   <thead className="bg-gray-50"><tr><th className="px-4 py-2 text-left text-xs font-medium">Name</th><th className="px-4 py-2 text-left text-xs font-medium">Email</th><th className="px-4 py-2 text-left text-xs font-medium">Role</th><th className="px-4 py-2 text-left text-xs font-medium">Status</th></tr></thead>
@@ -172,6 +209,48 @@ export default function SettingsPage() {
                   ))}</tbody>
                 </table>
               </div>
+
+              {addUserOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAddUserOpen(false)}>
+                  <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6" onClick={(e) => e.stopPropagation()}>
+                    <h3 className="text-lg font-semibold mb-4">Add User</h3>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">First name *</label>
+                          <input value={newUser.firstName} onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 block mb-1">Last name *</label>
+                          <input value={newUser.lastName} onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">Email *</label>
+                        <input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">Temporary password *</label>
+                        <input type="text" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="At least 8 characters" className="w-full text-sm border rounded-lg px-3 py-2" />
+                        <p className="text-xs text-gray-400 mt-1">Share this with them — they can change it after signing in.</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 block mb-1">Role</label>
+                        <select value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value as NewUserForm['role'] })} className="w-full text-sm border rounded-lg px-3 py-2">
+                          <option value="user">User — day-to-day access</option>
+                          <option value="field">Field — mobile / on-site access</option>
+                          <option value="manager">Manager — can approve and manage work</option>
+                          <option value="admin">Admin — full access including settings</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <button onClick={() => setAddUserOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
+                      <Button onClick={handleAddUser} disabled={addingUser}>{addingUser ? 'Adding...' : 'Add User'}</Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
