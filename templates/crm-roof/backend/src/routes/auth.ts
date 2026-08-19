@@ -203,6 +203,9 @@ app.post('/login', async (c) => {
       primaryColor: foundCompany.primaryColor,
       enabledFeatures: foundCompany.enabledFeatures,
       settings: foundCompany.settings,
+      // Same flag as /me — kept in sync so a fresh login doesn't bounce the
+      // user into the onboarding wizard they already finished.
+      onboardingCompletedAt: foundCompany.onboardingCompletedAt,
       limits,
       vertical: 'roofing',
     },
@@ -260,6 +263,12 @@ app.get('/me', authenticate, async (c) => {
       primaryColor: foundCompany.primaryColor,
       enabledFeatures: foundCompany.enabledFeatures,
       settings: foundCompany.settings,
+      // OnboardingGate (App.tsx) redirects to /crm/onboarding whenever this is
+      // falsy. It was never included here, so the flag was ALWAYS undefined and
+      // every roof user was bounced back to the wizard forever — completing it
+      // reloaded /crm, /me answered without the flag, and the gate redirected
+      // again. The whole CRM was unreachable.
+      onboardingCompletedAt: foundCompany.onboardingCompletedAt,
       limits,
       vertical: 'roofing',
     },
