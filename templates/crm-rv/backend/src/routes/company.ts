@@ -65,6 +65,36 @@ app.post('/users', requireAdmin, async (c) => {
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid user details' }, 400)
   const data = parsed.data
 
+  // Seat cap. These plans are sold by the seat (10 / 25 / 50), so the software
+  // has to hold that line — but only where a limit is actually configured.
+  // SEAT_LIMIT (env, written by the factory at deploy) wins; settings.seatLimit
+  // lets staff set or change it without a redeploy. Neither set => no cap, on
+  // purpose: refusing a paying customer's teammate because we never recorded
+  // their plan is a worse failure than a missed cap.
+  //
+  // NOT checkUsageLimits() from featureGate.ts — that demands a valid
+  // subscription row (nothing ever inserts one, so every tenant would get 402)
+  // and enforces the v1 PLAN_LIMITS ladder where starter = 2 users.
+  const [companyRow] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
+  const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
+  const seatLimit = Number.isInteger(envSeats) && envSeats > 0
+    ? envSeats
+    : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
+
+  if (seatLimit) {
+    // Count the seats that can actually sign in — deactivated users free a seat.
+    const activeSeats = await db.select({ id: user.id }).from(user)
+      .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+    if (activeSeats.length >= seatLimit) {
+      return c.json({
+        error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
+        seatLimit,
+        activeSeats: activeSeats.length,
+      }, 403)
+    }
+  }
+
   const [existing] = await db.select().from(user).where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId))).limit(1)
   if (existing) return c.json({ error: 'Email already exists' }, 409)
 

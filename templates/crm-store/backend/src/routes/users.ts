@@ -55,6 +55,24 @@ app.post('/', requireOwner, async (c) => {
   }
   const data = parsed.data
 
+  // Seat cap. Env-only here: store_settings has no free-form settings column
+  // (only typed shippingZones/taxRates), so unlike the CRM templates there is
+  // nowhere to stash a per-tenant override without a migration. Unset => no
+  // cap, on purpose — refusing a paying owner's staff member because we never
+  // recorded their plan is a worse failure than a missed cap.
+  const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
+  const seatLimit = Number.isInteger(envSeats) && envSeats > 0 ? envSeats : null
+  if (seatLimit) {
+    const activeSeats = await db.select({ id: users.id }).from(users).where(eq(users.isActive, true))
+    if (activeSeats.length >= seatLimit) {
+      return c.json({
+        error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
+        seatLimit,
+        activeSeats: activeSeats.length,
+      }, 403)
+    }
+  }
+
   // users.email carries a unique index — check first so the caller gets a
   // readable message instead of a raw constraint violation.
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1)

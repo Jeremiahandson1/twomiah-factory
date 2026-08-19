@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { user } from '../../db/schema.ts'
+import { company, user } from '../../db/schema.ts'
 import { eq, and } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
@@ -59,6 +59,31 @@ app.post('/', requireAdmin, async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message || 'Invalid user details' }, 400)
   }
   const data = parsed.data
+
+  // Seat cap — same contract as the crm-family templates. SEAT_LIMIT (env,
+  // written by the factory at deploy) wins; company.settings.seatLimit lets
+  // staff change it without a redeploy. Neither set => no cap, on purpose:
+  // refusing a paying customer's teammate because we never recorded their plan
+  // is a worse failure than a missed cap.
+  const [companyRow] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
+  const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
+  const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
+  const seatLimit = Number.isInteger(envSeats) && envSeats > 0
+    ? envSeats
+    : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
+
+  if (seatLimit) {
+    // Deactivated users free a seat, so count only those who can sign in.
+    const activeSeats = await db.select({ id: user.id }).from(user)
+      .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+    if (activeSeats.length >= seatLimit) {
+      return c.json({
+        error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
+        seatLimit,
+        activeSeats: activeSeats.length,
+      }, 403)
+    }
+  }
 
   // Scoped to the company: the same address may legitimately exist in another tenant.
   const [existing] = await db

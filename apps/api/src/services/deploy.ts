@@ -12,6 +12,7 @@ import path from 'path'
 import AdmZip from 'adm-zip'
 import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3'
 import { verticalFor } from '../config/industryRouting'
+import { seatsForPlan } from '../config/planSeats'
 import * as cloudflare from './cloudflare'
 import * as sendgrid from './sendgrid'
 import * as resend from './resend'
@@ -1017,6 +1018,11 @@ export async function deployCustomer(
           { key: 'ENCRYPTION_KEY', value: encryptionKey },
           { key: 'PORT', value: '10000' },
           { key: 'FEATURE_PACKAGE', value: tenantPlan },
+          // Seat cap for this plan. Emitted ONLY when the plan maps to a known
+          // seat count (see config/planSeats.ts); an unmapped or legacy plan
+          // leaves SEAT_LIMIT unset, and the CRM then enforces no cap rather
+          // than guessing a number and locking a paying customer out.
+          ...(seatsForPlan(tenantPlan) ? [{ key: 'SEAT_LIMIT', value: String(seatsForPlan(tenantPlan)) }] : []),
           { key: 'FACTORY_SYNC_KEY', value: factorySyncKey },
           { key: 'TENANT_ID', value: factoryCustomer.id },
           { key: 'FACTORY_URL', value: process.env.TWOMIAH_FACTORY_URL || process.env.FACTORY_PUBLIC_URL || 'https://twomiah-factory.onrender.com' },
