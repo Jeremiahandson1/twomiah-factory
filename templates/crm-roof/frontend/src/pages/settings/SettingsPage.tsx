@@ -609,9 +609,16 @@ export default function SettingsPage() {
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Role</label>
                 <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })} className="w-full text-sm border rounded-lg px-3 py-2">
-                  <option value="user">User — day-to-day access</option>
-                  <option value="manager">Manager — can approve and manage jobs</option>
-                  <option value="admin">Admin — full access including settings</option>
+                  {/* Only two levels, because only two are enforced. This app has
+                      no PermissionsContext and `requireManager` is defined in
+                      middleware/auth.ts but applied to ZERO routes — every
+                      business route is a bare app.use('*', authenticate). So a
+                      'manager' would have had exactly the same access as a
+                      'user', and offering both implied a restriction that does
+                      not exist. Add a real middle tier here only after wiring
+                      requireManager onto the routes it should guard. */}
+                  <option value="user">Team member — full access to jobs, quotes, invoices and contacts</option>
+                  <option value="admin">Admin — everything above plus settings, features and adding users</option>
                 </select>
               </div>
             </div>
