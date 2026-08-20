@@ -42,6 +42,14 @@ factory.use('*', async (c, next) => {
     // CRM authenticates with X-Factory-Key (validated in each handler or by
     // factoryKeyOrRole), not a Supabase JWT. Gating them here returned
     // "Missing Authorization header" to every tenant call since launch.
+    // SendGrid Inbound Parse posts customer mail here. It cannot send a
+    // Supabase JWT, so gating it here made every inbound message 401 with
+    // "Missing Authorization header" before the handler ran — inbound email
+    // could never have worked. The route authenticates itself: a 32-char
+    // secret in the path, timing-safe compared against
+    // SENDGRID_INBOUND_PARSE_WEBHOOK_SECRET (lifecycle.ts). Same class of bug
+    // as /support-tickets and /email-alias-sync below.
+    || c.req.path.includes('/inbound-parse/')
     || c.req.path.endsWith('/offboard/status')
     || c.req.path.includes('/email-domain/')
     || c.req.path.endsWith('/email-alias-sync')
