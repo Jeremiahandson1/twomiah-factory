@@ -71,56 +71,69 @@ app.post('/', requireAdmin, async (c) => {
   }
   const data = parsed.data
 
+  // Hash before the transaction — bcrypt takes ~100ms and must not be done
+  // while holding a row lock.
+  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
+  const { password: _password, ...rest } = data
+
   // Seat cap — same contract as the crm-family templates. SEAT_LIMIT (env,
   // written by the factory at deploy) wins; company.settings.seatLimit lets
   // staff change it without a redeploy. Neither set => no cap, on purpose:
   // refusing a paying customer's teammate because we never recorded their plan
   // is a worse failure than a missed cap.
-  const [companyRow] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-  const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
-  const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
-  const seatLimit = Number.isInteger(envSeats) && envSeats > 0
-    ? envSeats
-    : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
+  //
+  // Count + insert run together under a lock. A bare transaction would NOT be
+  // enough: at READ COMMITTED two concurrent adds each count the same 9 and both
+  // insert, putting a 10-seat plan on 11. Taking the company row FOR UPDATE
+  // makes competing adds for this company queue behind us.
+  const outcome = await db.transaction(async (tx) => {
+    const [companyRow] = await tx.select().from(company)
+      .where(eq(company.id, currentUser.companyId)).limit(1).for('update')
 
-  if (seatLimit) {
-    // Deactivated users free a seat, so count only those who can sign in.
-    const activeSeats = await db.select({ id: user.id }).from(user)
-      .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
-    if (activeSeats.length >= seatLimit) {
-      return c.json({
-        error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
-        seatLimit,
-        activeSeats: activeSeats.length,
-      }, 403)
+    const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
+    const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
+    const seatLimit = Number.isInteger(envSeats) && envSeats > 0
+      ? envSeats
+      : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
+
+    if (seatLimit) {
+      // Deactivated users free a seat, so count only those who can sign in.
+      const activeSeats = await tx.select({ id: user.id }).from(user)
+        .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+      if (activeSeats.length >= seatLimit) {
+        return { status: 403 as const, body: {
+          error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
+          seatLimit,
+          activeSeats: activeSeats.length,
+        } }
+      }
     }
-  }
 
-  // Scoped to the company: the same address may legitimately exist in another tenant.
-  const [existing] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId)))
-    .limit(1)
-  if (existing) return c.json({ error: 'That email already has an account here' }, 409)
+    // Scoped to the company: the same address may legitimately exist in another tenant.
+    const [existing] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId)))
+      .limit(1)
+    if (existing) return { status: 409 as const, body: { error: 'That email already has an account here' } }
 
-  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
-  const { password: _password, ...rest } = data
+    const [created] = await tx
+      .insert(user)
+      .values({ ...rest, passwordHash, companyId: currentUser.companyId })
+      .returning({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        role: user.role,
+        isActive: user.isActive,
+      })
 
-  const [created] = await db
-    .insert(user)
-    .values({ ...rest, passwordHash, companyId: currentUser.companyId })
-    .returning({
-      id: user.id,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      phone: user.phone,
-      role: user.role,
-      isActive: user.isActive,
-    })
+    return { status: 201 as const, body: created }
+  })
 
-  return c.json(created, 201)
+  return c.json(outcome.body as any, outcome.status)
 })
 
 // PUT /:id — change a teammate's role, or revoke their access.

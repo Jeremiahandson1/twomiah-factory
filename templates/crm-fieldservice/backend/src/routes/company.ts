@@ -77,6 +77,11 @@ app.post('/users', requireAdmin, async (c) => {
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Invalid user details' }, 400)
   const data = parsed.data
 
+  // Hash before opening the transaction — bcrypt takes ~100ms and must not be
+  // done while holding a row lock.
+  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
+  const { password, ...rest } = data
+
   // Seat cap. These plans are sold by the seat (10 / 25 / 50), so the software
   // has to hold that line — but only where a limit is actually configured.
   // SEAT_LIMIT (env, written by the factory at deploy) wins; settings.seatLimit
@@ -87,43 +92,53 @@ app.post('/users', requireAdmin, async (c) => {
   // NOT checkUsageLimits() from featureGate.ts — that demands a valid
   // subscription row (nothing ever inserts one, so every tenant would get 402)
   // and enforces the v1 PLAN_LIMITS ladder where starter = 2 users.
-  const [companyRow] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
-  const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
-  const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
-  const seatLimit = Number.isInteger(envSeats) && envSeats > 0
-    ? envSeats
-    : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
+  //
+  // The count and the insert MUST happen together under a lock. A plain
+  // transaction is not enough: at READ COMMITTED two concurrent adds would each
+  // count the same 9 and both insert. Locking the company row first makes every
+  // competing add for this company queue behind us.
+  const outcome = await db.transaction(async (tx) => {
+    const [companyRow] = await tx.select().from(company)
+      .where(eq(company.id, currentUser.companyId)).limit(1).for('update')
 
-  if (seatLimit) {
-    // Count the seats that can actually sign in — deactivated users free a seat.
-    const activeSeats = await db.select({ id: user.id }).from(user)
-      .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
-    if (activeSeats.length >= seatLimit) {
-      return c.json({
-        error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
-        seatLimit,
-        activeSeats: activeSeats.length,
-      }, 403)
+    const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
+    const settingSeats = Number.parseInt(String((companyRow?.settings as any)?.seatLimit ?? ''), 10)
+    const seatLimit = Number.isInteger(envSeats) && envSeats > 0
+      ? envSeats
+      : (Number.isInteger(settingSeats) && settingSeats > 0 ? settingSeats : null)
+
+    if (seatLimit) {
+      // Count the seats that can actually sign in — deactivated users free a seat.
+      const activeSeats = await tx.select({ id: user.id }).from(user)
+        .where(and(eq(user.companyId, currentUser.companyId), eq(user.isActive, true)))
+      if (activeSeats.length >= seatLimit) {
+        return { status: 403 as const, body: {
+          error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
+          seatLimit,
+          activeSeats: activeSeats.length,
+        } }
+      }
     }
-  }
 
-  const [existing] = await db.select().from(user).where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId))).limit(1)
-  if (existing) return c.json({ error: 'Email already exists' }, 409)
+    const [existing] = await tx.select().from(user)
+      .where(and(eq(user.email, data.email), eq(user.companyId, currentUser.companyId))).limit(1)
+    if (existing) return { status: 409 as const, body: { error: 'Email already exists' } }
 
-  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
-  const { password, ...rest } = data
-  const [newUser] = await db.insert(user).values({
-    ...rest,
-    passwordHash,
-    companyId: currentUser.companyId,
-  }).returning({
-    id: user.id,
-    email: user.email,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    role: user.role,
+    const [newUser] = await tx.insert(user).values({
+      ...rest,
+      passwordHash,
+      companyId: currentUser.companyId,
+    }).returning({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+    })
+    return { status: 201 as const, body: newUser }
   })
-  return c.json(newUser, 201)
+
+  return c.json(outcome.body as any, outcome.status)
 })
 
 app.put('/users/:id', requireAdmin, async (c) => {

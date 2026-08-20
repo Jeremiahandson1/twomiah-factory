@@ -8,7 +8,7 @@
 // Owner-only on purpose: `staff` should not be able to mint more logins.
 import { Hono } from 'hono'
 import { z } from 'zod'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { users } from '../../db/schema.ts'
 import { authenticate, requireOwner } from '../middleware/auth.ts'
@@ -55,44 +55,58 @@ app.post('/', requireOwner, async (c) => {
   }
   const data = parsed.data
 
+  // Hash before the transaction — bcrypt takes ~100ms and must not be done
+  // while holding a lock.
+  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
+
   // Seat cap. Env-only here: store_settings has no free-form settings column
   // (only typed shippingZones/taxRates), so unlike the CRM templates there is
   // nowhere to stash a per-tenant override without a migration. Unset => no
   // cap, on purpose — refusing a paying owner's staff member because we never
   // recorded their plan is a worse failure than a missed cap.
-  const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
-  const seatLimit = Number.isInteger(envSeats) && envSeats > 0 ? envSeats : null
-  if (seatLimit) {
-    const activeSeats = await db.select({ id: users.id }).from(users).where(eq(users.isActive, true))
-    if (activeSeats.length >= seatLimit) {
-      return c.json({
-        error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
-        seatLimit,
-        activeSeats: activeSeats.length,
-      }, 403)
+  //
+  // Count + insert must be serialised, or two concurrent adds each count the
+  // same N and both insert, exceeding the plan. The CRM templates lock their
+  // company row; this database has no company table (one store per database),
+  // so a transaction-scoped ADVISORY lock plays that role. It releases
+  // automatically on commit or rollback.
+  const outcome = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('crm_store_seat_add'))`)
+
+    const envSeats = Number.parseInt(process.env.SEAT_LIMIT || '', 10)
+    const seatLimit = Number.isInteger(envSeats) && envSeats > 0 ? envSeats : null
+    if (seatLimit) {
+      const activeSeats = await tx.select({ id: users.id }).from(users).where(eq(users.isActive, true))
+      if (activeSeats.length >= seatLimit) {
+        return { status: 403 as const, body: {
+          error: `Your plan includes ${seatLimit} user${seatLimit === 1 ? '' : 's'} and ${activeSeats.length} are already active. Deactivate someone or upgrade to add more.`,
+          seatLimit,
+          activeSeats: activeSeats.length,
+        } }
+      }
     }
-  }
 
-  // users.email carries a unique index — check first so the caller gets a
-  // readable message instead of a raw constraint violation.
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1)
-  if (existing) return c.json({ error: 'That email already has an account here' }, 409)
+    // users.email carries a unique index — check first so the caller gets a
+    // readable message instead of a raw constraint violation.
+    const [existing] = await tx.select({ id: users.id }).from(users).where(eq(users.email, data.email)).limit(1)
+    if (existing) return { status: 409 as const, body: { error: 'That email already has an account here' } }
 
-  const passwordHash = await Bun.password.hash(data.password, 'bcrypt')
+    const [created] = await tx
+      .insert(users)
+      .values({ email: data.email, name: data.name, role: data.role, passwordHash })
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+      })
 
-  const [created] = await db
-    .insert(users)
-    .values({ email: data.email, name: data.name, role: data.role, passwordHash })
-    .returning({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      role: users.role,
-      isActive: users.isActive,
-      createdAt: users.createdAt,
-    })
+    return { status: 201 as const, body: created }
+  })
 
-  return c.json(created, 201)
+  return c.json(outcome.body as any, outcome.status)
 })
 
 // PUT /:id — rename a staff member, or revoke their access.
