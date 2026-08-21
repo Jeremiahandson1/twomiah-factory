@@ -115,6 +115,17 @@ app.use('*', secureHeaders({
 }))
 
 // CORS — restrict to frontend origin in production
+// The public booking endpoints are consumed by the embeddable widget running
+// on OTHER origins (the tenant's website, or any site they paste the embed
+// into). The global CORS below locks to FRONTEND_URL, which would block every
+// off-site embed — so these public routes get an explicit open policy.
+// They are unauthenticated by design and send no credentials.
+app.use('/api/booking/public/*', cors({
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type'],
+}))
+
 app.use('*', cors({
   origin: process.env.FRONTEND_URL || '*',
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

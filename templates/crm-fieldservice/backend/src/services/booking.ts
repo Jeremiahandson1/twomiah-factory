@@ -14,7 +14,7 @@
  */
 
 import { db } from '../../db/index.ts';
-import { contact, job } from '../../db/schema.ts';
+import { contact, job, bookingSettings } from '../../db/schema.ts';
 import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 
@@ -26,75 +26,76 @@ import { createId } from '@paralleldrive/cuid2';
  * Get/create booking settings for a company
  */
 export async function getBookingSettings(companyId: string) {
-  const result = await db.execute(sql`
-    SELECT * FROM booking_settings WHERE company_id = ${companyId} LIMIT 1
-  `);
-  const rows = (result as any).rows || result;
+  // Drizzle-typed on purpose. The previous implementation was raw SQL against
+  // columns the table has never had (lead_time_hours, title, require_phone,
+  // logo_url...) — every settings read 500'd on the defaults-INSERT and the
+  // public booking page could not even load. Typed access makes that class of
+  // drift a compile error instead of a live-tenant discovery.
+  let [row] = await db.select().from(bookingSettings)
+    .where(eq(bookingSettings.companyId, companyId)).limit(1);
 
-  if (rows.length > 0) return rows[0];
+  if (!row) {
+    const [created] = await db.insert(bookingSettings).values({
+      companyId,
+      enabled: true,
+      leadTimeDays: 1,
+      maxDaysOut: 30,
+      slotDurationMinutes: 60,
+      workingHours: {
+        monday: { start: '09:00', end: '17:00', enabled: true },
+        tuesday: { start: '09:00', end: '17:00', enabled: true },
+        wednesday: { start: '09:00', end: '17:00', enabled: true },
+        thursday: { start: '09:00', end: '17:00', enabled: true },
+        friday: { start: '09:00', end: '17:00', enabled: true },
+        saturday: { start: '09:00', end: '14:00', enabled: false },
+        sunday: { start: '09:00', end: '14:00', enabled: false },
+      },
+      welcomeMessage: 'Book an appointment',
+      confirmationMessage: "You're booked — see you soon!",
+      primaryColor: '{{PRIMARY_COLOR}}',
+    }).returning();
+    row = created;
+  }
 
-  // Create defaults
-  const defaultSettings = {
-    enabled: true,
-    title: 'Book an Appointment',
-    description: 'Schedule your service appointment online.',
-    leadTimeHours: 24,
-    maxDaysOut: 30,
-    slotDurationMinutes: 60,
-    workingHours: {
-      monday: { start: '08:00', end: '17:00', enabled: true },
-      tuesday: { start: '08:00', end: '17:00', enabled: true },
-      wednesday: { start: '08:00', end: '17:00', enabled: true },
-      thursday: { start: '08:00', end: '17:00', enabled: true },
-      friday: { start: '08:00', end: '17:00', enabled: true },
-      saturday: { start: '09:00', end: '14:00', enabled: false },
-      sunday: { start: '09:00', end: '14:00', enabled: false },
-    },
+  // One normalized shape for every consumer. The snake_case aliases are what
+  // the slot/date logic below reads; the camelCase fields are what the route
+  // and the widget read. lead time is STORED in days, exposed in hours.
+  return {
+    ...row,
+    slot_duration_minutes: row.slotDurationMinutes,
+    working_hours: row.workingHours,
+    lead_time_hours: (row.leadTimeDays ?? 1) * 24,
+    max_days_out: row.maxDaysOut,
+    title: row.welcomeMessage || 'Book an appointment',
+    description: row.confirmationMessage || '',
+    // The table carries no require flags; these trades need a phone to
+    // confirm and a street address to show up at.
     requirePhone: true,
     requireAddress: true,
-    sendConfirmationEmail: true,
-    sendConfirmationSms: false,
-    primaryColor: '{{PRIMARY_COLOR}}',
-    logoUrl: null,
+    logoUrl: row.logo || null,
   };
-
-  await db.execute(sql`
-    INSERT INTO booking_settings (id, company_id, enabled, title, description, lead_time_hours, max_days_out, slot_duration_minutes, working_hours, require_phone, require_address, send_confirmation_email, send_confirmation_sms, primary_color, logo_url, created_at, updated_at)
-    VALUES (
-      gen_random_uuid(), ${companyId}, true,
-      ${defaultSettings.title}, ${defaultSettings.description},
-      ${defaultSettings.leadTimeHours}, ${defaultSettings.maxDaysOut}, ${defaultSettings.slotDurationMinutes},
-      ${JSON.stringify(defaultSettings.workingHours)}::jsonb,
-      ${defaultSettings.requirePhone}, ${defaultSettings.requireAddress},
-      ${defaultSettings.sendConfirmationEmail}, ${defaultSettings.sendConfirmationSms},
-      ${defaultSettings.primaryColor}, ${null},
-      NOW(), NOW()
-    )
-  `);
-
-  const created = await db.execute(sql`SELECT * FROM booking_settings WHERE company_id = ${companyId} LIMIT 1`);
-  return ((created as any).rows || created)[0];
 }
 
 export async function updateBookingSettings(companyId: string, data: Record<string, unknown>) {
-  const existing = await db.execute(sql`SELECT id FROM booking_settings WHERE company_id = ${companyId} LIMIT 1`);
-  const rows = (existing as any).rows || existing;
+  await getBookingSettings(companyId); // ensure the row exists
 
-  if (rows.length > 0) {
-    // Build parameterized update
-    const allowedCols = ['business_hours', 'slot_duration_minutes', 'buffer_minutes', 'advance_booking_days', 'require_approval', 'notifications_email'];
-    for (const [key, value] of Object.entries(data)) {
-      const colName = key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
-      if (!allowedCols.includes(colName)) continue;
-      if (typeof value === 'object' && value !== null) {
-        await db.execute(sql`UPDATE booking_settings SET ${sql.raw(`"${colName}"`)} = ${JSON.stringify(value)}::jsonb, updated_at = NOW() WHERE company_id = ${companyId}`);
-      } else {
-        await db.execute(sql`UPDATE booking_settings SET ${sql.raw(`"${colName}"`)} = ${value}, updated_at = NOW() WHERE company_id = ${companyId}`);
-      }
-    }
-  } else {
-    await getBookingSettings(companyId); // creates defaults
-  }
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (typeof data.enabled === 'boolean') updates.enabled = data.enabled;
+  if (data.slotDurationMinutes != null) updates.slotDurationMinutes = Number(data.slotDurationMinutes);
+  if (data.maxDaysOut != null) updates.maxDaysOut = Number(data.maxDaysOut);
+  // Accept either unit; the column is days.
+  if (data.leadTimeDays != null) updates.leadTimeDays = Number(data.leadTimeDays);
+  else if (data.leadTimeHours != null) updates.leadTimeDays = Math.ceil(Number(data.leadTimeHours) / 24);
+  if (data.workingHours && typeof data.workingHours === 'object') updates.workingHours = data.workingHours;
+  if (typeof data.welcomeMessage === 'string') updates.welcomeMessage = data.welcomeMessage;
+  if (typeof data.confirmationMessage === 'string') updates.confirmationMessage = data.confirmationMessage;
+  if (typeof data.primaryColor === 'string') updates.primaryColor = data.primaryColor;
+  if (typeof data.logo === 'string' || data.logo === null) updates.logo = data.logo;
+  if (typeof data.notifyEmail === 'boolean') updates.notifyEmail = data.notifyEmail;
+  if (typeof data.notifySms === 'boolean') updates.notifySms = data.notifySms;
+
+  await db.update(bookingSettings).set(updates as any)
+    .where(eq(bookingSettings.companyId, companyId));
 
   return getBookingSettings(companyId);
 }
