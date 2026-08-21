@@ -16,6 +16,7 @@
 import { db } from '../../db/index.ts';
 import { contact, job } from '../../db/schema.ts';
 import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
+import { createId } from '@paralleldrive/cuid2';
 
 // ============================================
 // BOOKING SETTINGS
