@@ -117,7 +117,7 @@ export default function StepGenerate({ config, onBack, onReset }: Props) {
       <div className="grid gap-4 mb-6">
         <div className="flex items-center gap-3 bg-gray-800/50 border border-gray-700 rounded-xl p-4">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-lg flex-shrink-0" style={{ backgroundColor: config.branding.primaryColor }}>{config.tenant_name.charAt(0)}</div>
-          <div><div className="text-white font-bold">{config.tenant_name}</div><div className="text-gray-400 text-sm">{config.tenant_slug}.twomiah.app</div></div>
+          <div><div className="text-white font-bold">{config.tenant_name}</div><div className="text-gray-400 text-sm">{config.tenant_slug}</div></div>
         </div>
         <SummaryCard title="Products" items={config.products.map(p => p.toUpperCase())} />
         <SummaryCard title="Company" items={[config.company.name, config.company.email, config.company.phone, [config.company.city, config.company.state].filter(Boolean).join(', '), config.company.domain].filter(Boolean)} />

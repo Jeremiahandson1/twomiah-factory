@@ -65,7 +65,7 @@ export default function NewTenantModal({ onClose, onCreated }: Props) {
               <label className="block text-xs text-gray-400 mb-1">Slug (subdomain)</label>
               <input name="slug" value={form.slug} onChange={handleChange} required
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
-              <p className="text-xs text-gray-600 mt-1">{form.slug}.twomiah.app</p>
+              <p className="text-xs text-gray-600 mt-1">{form.slug} — services deploy as {form.slug || 'slug'}-*.onrender.com</p>
             </div>
             <div>
               <label className="block text-xs text-gray-400 mb-1">Email</label>

@@ -278,8 +278,7 @@ export default function PublicIntakePage() {
               <h2 className="text-xl font-bold text-gray-900">Pick your domain</h2>
               <p className="text-sm text-gray-500">
                 Have a domain in mind? Type it below and we'll check availability. Skip this step and we'll launch you
-                on a temporary <span className="font-mono text-gray-700">.twomiah.app</span> URL — you can hook up a real
-                domain whenever you're ready in admin.
+                on a temporary URL — you can hook up a real domain whenever you're ready in admin.
               </p>
               <Field label="Domain you'd like (optional)" hint="No https://, just the name. We'll check if it's open.">
                 <input
