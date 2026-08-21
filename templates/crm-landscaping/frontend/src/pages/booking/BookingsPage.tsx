@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Calendar, Plus, Copy, Check, DollarSign, Clock, ExternalLink } from 'lucide-react';
 import api from '../../services/api';
+import BookingSettingsTab from './BookingSettingsTab';
 import { useToast } from '../../contexts/ToastContext';
 
 const STATUS_STYLES = {
@@ -94,7 +95,7 @@ export default function BookingsPage() {
       </div>
 
       <div className="flex gap-1 border-b mb-6">
-        {([['bookings', 'Bookings'], ['services', 'Bookable Services'], ['embed', 'Embed Code']] ).map(([id, label]) => (
+        {([['bookings', 'Bookings'], ['services', 'Bookable Services'], ['settings', 'Settings'], ['embed', 'Embed Code']] ).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -198,6 +199,8 @@ export default function BookingsPage() {
           })}
         </div>
       )}
+
+      {tab === 'settings' && <BookingSettingsTab />}
 
       {tab === 'embed' && (
         <div className="bg-white rounded-xl border p-6">

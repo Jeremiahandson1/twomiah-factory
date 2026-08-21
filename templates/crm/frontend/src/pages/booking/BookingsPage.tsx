@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Calendar, Plus, Copy, Check, DollarSign, Clock, ExternalLink } from 'lucide-react';
 import api from '../../services/api';
+import BookingSettingsTab from './BookingSettingsTab';
 import { useToast } from '../../contexts/ToastContext';
 
 interface BookingRow {
@@ -51,7 +52,7 @@ const money = (v: unknown) => `$${Number(v || 0).toLocaleString(undefined, { min
 
 export default function BookingsPage() {
   const toast = useToast();
-  const [tab, setTab] = useState<'bookings' | 'services' | 'embed'>('bookings');
+  const [tab, setTab] = useState<'bookings' | 'services' | 'embed' | 'settings'>('bookings');
   const [bookings, setBookings] = useState<BookingRow[]>([]);
   const [services, setServices] = useState<BookableService[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,7 +125,7 @@ export default function BookingsPage() {
       </div>
 
       <div className="flex gap-1 border-b mb-6">
-        {([['bookings', 'Bookings'], ['services', 'Bookable Services'], ['embed', 'Embed Code']] as const).map(([id, label]) => (
+        {([['bookings', 'Bookings'], ['services', 'Bookable Services'], ['settings', 'Settings'], ['embed', 'Embed Code']] as const).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
@@ -228,6 +229,8 @@ export default function BookingsPage() {
           })}
         </div>
       )}
+
+      {tab === 'settings' && <BookingSettingsTab />}
 
       {tab === 'embed' && (
         <div className="bg-white rounded-xl border p-6">
