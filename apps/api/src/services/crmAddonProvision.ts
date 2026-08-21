@@ -82,14 +82,21 @@ async function doProvision(tenantId: string): Promise<{ success: boolean; crmUrl
   const ownerRow = await credRes.json() as { email: string; passwordHash: string; name: string | null }
   console.log('[CrmAddon] Owner found:', ownerRow.email)
 
-  // 3. Refuse to clobber an existing CRM service — that needs human eyes
-  const { buildCrmApiHost } = await import('../config/industryRouting')
+  // 3. Refuse to clobber an existing CRM service — that needs human eyes.
+  // Checked under EVERY name this tenant could historically live at, not just
+  // the current one: an industry that gained a dedicated vertical (salon,
+  // events, rv) renames the service, and a guard on the new name alone would
+  // miss the old service and provision a duplicate beside it.
+  const { buildCrmApiHost, crmApiHostCandidates } = await import('../config/industryRouting')
   const crmApiName = buildCrmApiHost(tenant.slug, tenant.industry || '').replace('.onrender.com', '')
-  const checkExisting = await fetch(RENDER_API + '/services?name=' + crmApiName + '&limit=3', { headers: renderHeaders() })
-  const existingList = await checkExisting.json() as any[]
-  const existingCrm = existingList?.[0]?.service || existingList?.[0]
-  if (existingCrm?.id) {
-    throw new Error('CRM service "' + crmApiName + '" already exists on Render but tenant.products lacks crm — needs manual verification')
+  for (const host of crmApiHostCandidates(tenant.slug, tenant.industry || '')) {
+    const candidate = host.replace('.onrender.com', '')
+    const checkExisting = await fetch(RENDER_API + '/services?name=' + candidate + '&limit=3', { headers: renderHeaders() })
+    const existingList = await checkExisting.json() as any[]
+    const existingCrm = existingList?.[0]?.service || existingList?.[0]
+    if (existingCrm?.id && existingCrm?.name === candidate) {
+      throw new Error('CRM service "' + candidate + '" already exists on Render but tenant.products lacks crm — needs manual verification')
+    }
   }
 
   console.log('[CrmAddon] Generating CRM zip for', tenant.slug)

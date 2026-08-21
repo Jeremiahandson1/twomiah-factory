@@ -104,17 +104,23 @@ console.log('Owner found:', ownerRow.email)
 // Service name must match what deploy.ts will actually create — use
 // the central routing config so e.g. cleaning → wrench, not just
 // the narrow hvac/plumbing/electrical set.
-const { buildCrmApiHost } = await import('../src/config/industryRouting.ts')
+const { buildCrmApiHost, crmApiHostCandidates } = await import('../src/config/industryRouting.ts')
 const crmApiName = buildCrmApiHost(tenant.slug, tenant.industry || '').replace('.onrender.com', '')
 
-const checkExisting = await fetch('https://api.render.com/v1/services?name=' + crmApiName + '&limit=3', { headers: renderHeaders })
-const existingCrmList = await checkExisting.json() as any[]
-const existingCrm = existingCrmList?.[0]?.service || existingCrmList?.[0]
+// Guard under every historical name, not just the current one — a vertical
+// rename (salon/events/rv) would otherwise hide an existing CRM from this
+// check and this script would provision a duplicate beside it.
 const force = process.argv.includes('--force')
-if (existingCrm?.id && !force) {
-  console.error('CRM service already exists at', crmApiName, '(' + existingCrm.id + ')')
-  console.error('Re-run with --force to delete and re-deploy. Otherwise consider this provisioned.')
-  process.exit(1)
+for (const host of crmApiHostCandidates(tenant.slug, tenant.industry || '')) {
+  const candidate = host.replace('.onrender.com', '')
+  const checkExisting = await fetch('https://api.render.com/v1/services?name=' + candidate + '&limit=3', { headers: renderHeaders })
+  const existingCrmList = await checkExisting.json() as any[]
+  const existingCrm = existingCrmList?.[0]?.service || existingCrmList?.[0]
+  if (existingCrm?.id && existingCrm?.name === candidate && !force) {
+    console.error('CRM service already exists at', candidate, '(' + existingCrm.id + ')')
+    console.error('Re-run with --force to delete and re-deploy. Otherwise consider this provisioned.')
+    process.exit(1)
+  }
 }
 
 console.log('Generating CRM zip…')

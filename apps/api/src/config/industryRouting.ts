@@ -383,6 +383,30 @@ export function buildCrmApiHost(slug: string, industry: string | undefined | nul
     : `${slug}-api.onrender.com`
 }
 
+/**
+ * Every Render API-service host a tenant could plausibly live under, current
+ * naming FIRST. For "does a CRM already exist for this tenant?" guards —
+ * checking only buildCrmApiHost() misses tenants provisioned before their
+ * industry had a dedicated vertical, and a missed guard means a DUPLICATE CRM
+ * gets provisioned next to the live one.
+ *
+ * Historical renames covered:
+ *  - Aug 2026: salon + events verticals — those industries previously fell to
+ *    the contractor fallback, so an older tenant sits at plain `{slug}-api`.
+ *    The same applies to ANY industry that gains a vertical later, which is
+ *    why the plain name is always a candidate rather than a per-era list.
+ *  - Auto dealers: rerouted from the parked crm-automotive (`-drive-api`)
+ *    to crm-rv (ca466791), so an old automotive tenant sits at `-drive-api`.
+ *
+ * Extra candidates only make the guards MORE conservative (they refuse when
+ * anything plausible exists) — never less safe.
+ */
+export function crmApiHostCandidates(slug: string, industry: string | undefined | null): string[] {
+  const candidates = [buildCrmApiHost(slug, industry), `${slug}-api.onrender.com`]
+  if (verticalFor(industry) === 'rv') candidates.push(`${slug}-drive-api.onrender.com`)
+  return [...new Set(candidates)]
+}
+
 // ─── Site layout mode per vertical ───────────────────────────────────────
 // Some verticals naturally want a one-page scroll (food truck: location +
 // menu + schedule + catering all flow on one phone screen, IG-bio-link

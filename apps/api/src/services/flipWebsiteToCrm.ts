@@ -68,15 +68,22 @@ async function doFlip(tenantId: string): Promise<{ success: boolean; crmUrl?: st
     }
   }
 
-  // 2. Refuse to clobber an existing CRM service.
-  const { buildCrmApiHost } = await import('../config/industryRouting')
+  // 2. Refuse to clobber an existing CRM service. Checked under EVERY name this
+  // tenant could historically live at (see crmApiHostCandidates) — a vertical
+  // rename (salon/events/rv) would otherwise hide the old service from this
+  // guard and a duplicate CRM would be provisioned beside it.
+  const { buildCrmApiHost, crmApiHostCandidates } = await import('../config/industryRouting')
   const RENDER_API = 'https://api.render.com/v1'
   const renderHeaders = () => ({ Authorization: 'Bearer ' + process.env.RENDER_API_KEY, accept: 'application/json' })
   const crmApiName = buildCrmApiHost(tenant.slug, tenant.industry || '').replace('.onrender.com', '')
-  const checkExisting = await fetch(RENDER_API + '/services?name=' + crmApiName + '&limit=3', { headers: renderHeaders() })
-  const existingList = await checkExisting.json() as any[]
-  if ((existingList?.[0]?.service?.id || existingList?.[0]?.id)) {
-    throw new Error('CRM service "' + crmApiName + '" already exists on Render but tenant lacks crm — needs manual verification')
+  for (const host of crmApiHostCandidates(tenant.slug, tenant.industry || '')) {
+    const candidate = host.replace('.onrender.com', '')
+    const checkExisting = await fetch(RENDER_API + '/services?name=' + candidate + '&limit=3', { headers: renderHeaders() })
+    const existingList = await checkExisting.json() as any[]
+    const found = existingList?.[0]?.service || existingList?.[0]
+    if (found?.id && found?.name === candidate) {
+      throw new Error('CRM service "' + candidate + '" already exists on Render but tenant lacks crm — needs manual verification')
+    }
   }
 
   // 3. Generate + deploy the CRM (industry drives crm-rv selection).
