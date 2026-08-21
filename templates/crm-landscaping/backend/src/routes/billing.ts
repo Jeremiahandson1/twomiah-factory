@@ -739,7 +739,7 @@ app.post('/webhook', async (c) => {
 
   let event
   try {
-    event = stripe!.webhooks.constructEvent(
+    event = await stripe!.webhooks.constructEventAsync(
       rawBody,
       sig!,
       process.env.STRIPE_WEBHOOK_SECRET!

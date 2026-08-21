@@ -210,7 +210,7 @@ app.post('/webhook', requireStripe, async (c) => {
   let event: any
   try {
     const body = await c.req.text()
-    event = stripe.webhooks.constructEvent(body, sig, webhookSecret)
+    event = await stripe.webhooks.constructEventAsync(body, sig, webhookSecret)
   } catch (err: any) {
     logger.error('Webhook signature verification failed', { error: err.message })
     return c.json({ error: `Webhook Error: ${err.message}` }, 400)

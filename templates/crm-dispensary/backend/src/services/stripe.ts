@@ -333,8 +333,10 @@ export async function createRefund(paymentIntentId: string, amount: number | nul
 /**
  * Verify webhook signature
  */
-export function constructWebhookEvent(payload: string | Buffer, signature: string) {
-  return stripe!.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET!)
+// Bun serves requests on WebCrypto, whose signature check is async-only —
+// Stripe's sync constructEvent() throws SubtleCryptoProvider errors here.
+export async function constructWebhookEvent(payload: string | Buffer, signature: string) {
+  return await stripe!.webhooks.constructEventAsync(payload, signature, process.env.STRIPE_WEBHOOK_SECRET!)
 }
 
 /**

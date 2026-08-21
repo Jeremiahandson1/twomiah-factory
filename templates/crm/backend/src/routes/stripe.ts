@@ -17,7 +17,7 @@ app.post('/webhook', async (c) => {
   const signature = c.req.header('stripe-signature');
   const rawBody = await c.req.text();
 
-  const event = stripeService.constructWebhookEvent(rawBody, signature);
+  const event = await stripeService.constructWebhookEvent(rawBody, signature);
   const result = await stripeService.handleWebhook(event);
 
   console.log(`Stripe webhook ${event.type}:`, result);
