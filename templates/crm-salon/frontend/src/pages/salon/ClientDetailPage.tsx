@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import ServiceRecordEditorModal, { ServiceRecord } from '../../components/salon/ServiceRecordEditorModal';
+import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 
 /**
  * Client chart — GET /api/clients/:contactId returns
@@ -68,7 +69,6 @@ interface Detail {
   memberships?: Membership[];
   stats?: Stats;
 }
-interface StylistOption { id: string; firstName?: string; lastName?: string }
 
 function fmtDate(s?: string | null): string {
   if (!s) return '—';
@@ -396,7 +396,7 @@ export default function ClientDetailPage() {
 
 function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: string; profile: Profile; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
-  const [stylists, setStylists] = useState<StylistOption[]>([]);
+  const [stylists, setStylists] = useState<StaffMember[]>([]);
   const [form, setForm] = useState({
     preferredStylistId: profile.preferredStylistId || '',
     hairType: profile.hairType || '',
@@ -413,8 +413,7 @@ function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: stri
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.get('/api/team?limit=500');
-        setStylists(res.data || []);
+        setStylists(await fetchStaff());
       } catch { /* the rest of the form still works */ }
     })();
   }, []);
@@ -468,7 +467,7 @@ function ProfileModal({ contactId, profile, onSave, onClose }: { contactId: stri
               <label className="block text-sm font-medium text-gray-700 mb-1">Regular Stylist</label>
               <select value={form.preferredStylistId} onChange={(e) => set('preferredStylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                 <option value="">No preference</option>
-                {stylists.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.id}</option>)}
+                {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
               </select>
             </div>
             <div>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Search, Loader2, X, CalendarDays, Users, DoorOpen, LayoutGrid, List } from 'lucide-react';
 import api from '../../services/api';
 import ClientPicker from '../../components/events/ClientPicker';
+import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 
 /**
  * Events — the pipeline and the book, over the same list.
@@ -240,12 +241,11 @@ function ListView({ events }: { events: EventRow[] }) {
 /* ---------------- New Event Modal ---------------- */
 
 interface SpaceOption { id: string; name?: string; seatedCapacity?: number; standingCapacity?: number }
-interface StaffOption { id: string; firstName?: string; lastName?: string }
 
 function NewEventModal({ onSave, onClose }: { onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
-  const [staff, setStaff] = useState<StaffOption[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [contactId, setContactId] = useState<string>('');
   const [form, setForm] = useState({
     name: '', eventType: 'private_dining', eventDate: '', startTime: '', endTime: '',
@@ -256,12 +256,12 @@ function NewEventModal({ onSave, onClose }: { onSave: () => void; onClose: () =>
   useEffect(() => {
     (async () => {
       try {
-        const [spaceRes, teamRes] = await Promise.all([
+        const [spaceRes, people] = await Promise.all([
           api.get('/api/event-spaces'),
-          api.get('/api/team?limit=500'),
+          fetchStaff(),
         ]);
         setSpaces(spaceRes.data || []);
-        setStaff(teamRes.data || []);
+        setStaff(people);
       } catch {
         /* degrade gracefully — an enquiry can be logged without either */
       }
@@ -357,7 +357,7 @@ function NewEventModal({ onSave, onClose }: { onSave: () => void; onClose: () =>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Coordinator</label>
                 <select value={form.coordinatorId} onChange={(e) => set('coordinatorId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
-                  {staff.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.id}</option>)}
+                  {staff.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
                 </select>
               </div>
             </div>

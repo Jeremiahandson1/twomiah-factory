@@ -4,6 +4,7 @@ import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, Armch
 import api from '../../services/api';
 import ClientPicker from '../../components/salon/ClientPicker';
 import ServiceRecordEditorModal from '../../components/salon/ServiceRecordEditorModal';
+import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 
 /**
  * The book — single-day list over /api/appointments?from=&to=.
@@ -47,7 +48,6 @@ interface Appointment {
   stylistLastName?: string;
 }
 interface ServiceOption { id: string; name?: string; durationMin?: number; price?: string | number }
-interface StylistOption { id: string; firstName?: string; lastName?: string }
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -206,7 +206,7 @@ export default function AppointmentsPage() {
 function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: string; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
-  const [stylists, setStylists] = useState<StylistOption[]>([]);
+  const [stylists, setStylists] = useState<StaffMember[]>([]);
   const [contactId, setContactId] = useState<string>('');
   const [form, setForm] = useState({
     serviceId: '', stylistId: '',
@@ -218,12 +218,12 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
   useEffect(() => {
     (async () => {
       try {
-        const [svcRes, teamRes] = await Promise.all([
+        const [svcRes, staff] = await Promise.all([
           api.get('/api/service-menu'),
-          api.get('/api/team?limit=500'),
+          fetchStaff(),
         ]);
         setServices(svcRes.data || []);
-        setStylists(teamRes.data || []);
+        setStylists(staff);
       } catch {
         /* degrade gracefully */
       }
@@ -298,7 +298,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
                 <label className="block text-sm font-medium text-gray-700 mb-1">Stylist</label>
                 <select value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
-                  {stylists.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.id}</option>)}
+                  {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
                 </select>
               </div>
             </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Scissors, Plus, Trash2 } from 'lucide-react';
 import api from '../../services/api';
+import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 
 /**
  * Service record editor — the formula log.
@@ -36,7 +37,6 @@ export interface ServiceRecord {
 }
 
 interface ServiceOption { id: string; name?: string; price?: string | number }
-interface StylistOption { id: string; firstName?: string; lastName?: string }
 
 interface Props {
   contactId: string;
@@ -55,7 +55,7 @@ function toDateInput(s?: string): string {
 export default function ServiceRecordEditorModal({ contactId, record, appointmentId, onSave, onClose }: Props) {
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
-  const [stylists, setStylists] = useState<StylistOption[]>([]);
+  const [stylists, setStylists] = useState<StaffMember[]>([]);
   const [formula, setFormula] = useState<FormulaLine[]>(
     record?.formula?.length ? record.formula : [{ product: '', shade: '', parts: '' }]
   );
@@ -75,12 +75,12 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
   useEffect(() => {
     (async () => {
       try {
-        const [svcRes, teamRes] = await Promise.all([
+        const [svcRes, staff] = await Promise.all([
           api.get('/api/service-menu'),
-          api.get('/api/team?limit=500'),
+          fetchStaff(),
         ]);
         setServices(svcRes.data || []);
-        setStylists(teamRes.data || []);
+        setStylists(staff);
       } catch {
         /* degrade gracefully — the record can still be written free-hand */
       }
@@ -156,7 +156,7 @@ export default function ServiceRecordEditorModal({ contactId, record, appointmen
                 <label className="block text-sm font-medium text-gray-700 mb-1">Stylist</label>
                 <select value={form.stylistId} onChange={(e) => set('stylistId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
-                  {stylists.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.id}</option>)}
+                  {stylists.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
                 </select>
               </div>
               <div>
