@@ -198,7 +198,11 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Add-on Products
   // Paid add-on — offered ONLY to contractor (crm) and roofer (crm-roof). Never a plan-tier freebie.
   { id: 'visualizer', name: 'Exterior Visualizer', description: 'AI-powered exterior visualization for siding, roofing, paint colors', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'] },
-  { id: 'instant_estimator', name: 'Instant Roof Estimator', description: 'Google Solar-powered instant roof estimates with embeddable widget and lead capture', category: 'Add-on Products', core: false, templates: ['crm', 'crm-roof'], hidden: true },
+  // 'instant_estimator' REMOVED 2026-08-20 — the Instant Roof Estimator does not
+  // work yet, so it must not be enableable, sellable or listed anywhere. Its
+  // routes/pages still exist in crm and crm-roof but every surface is gated on
+  // this id, so with no entry here it can never switch on. Re-add only when the
+  // feature actually works.
 ]
 
 export const FEATURE_MAP = Object.fromEntries(FEATURE_REGISTRY.map(f => [f.id, f]))
@@ -263,7 +267,7 @@ const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
       'submittals', 'lien_waivers', 'draw_schedules', 'aia_forms', 'gantt_charts',
       'custom_dashboards', 'map_view',
     ],
-    enterprise: ['instant_estimator'], // visualizer removed — paid add-on, not tier-bundled
+    enterprise: [], // visualizer + instant_estimator removed — add-ons, not tier-bundled
   },
   'crm-fieldservice': {
     starter: [
@@ -321,7 +325,7 @@ const PLAN_FEATURES: Record<string, Record<string, string[]>> = {
     ],
     business: [
       'insurance_workflow', 'materials', 'call_tracking', 'reports',
-      'photo_capture', 'instant_estimator', 'consumer_financing',
+      'photo_capture', 'consumer_financing',
     ],
     storm: [
       'storm_lead_gen', 'canvassing_tool', 'ai_receptionist', 'paid_ads',

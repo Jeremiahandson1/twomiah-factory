@@ -10,7 +10,9 @@ export const FEATURE_CATEGORIES = [
     description: 'Extra tools you can switch on — every feature is included in your plan',
     features: [
       { id: 'paid_ads', name: 'Paid Ads Dashboard', description: 'Track ad spend and the leads your campaigns bring in' },
-      { id: 'instant_estimator', name: 'Instant Estimator', description: 'Let families get a ballpark care estimate online' },
+      // 'instant_estimator' removed 2026-08-20 — a clone artifact. It was the
+      // ROOF estimator relabelled as a "care estimate", it does not work, and
+      // home care has no estimator page to reach even if switched on.
     ],
   },
 ]

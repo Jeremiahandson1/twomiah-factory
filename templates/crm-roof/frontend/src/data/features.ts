@@ -45,7 +45,8 @@ export const FEATURE_CATEGORIES = [
     description: 'What your customers see and use',
     features: [
       { id: 'customer_portal', name: 'Customer Portal', description: 'Give customers a login to see their jobs, quotes, and invoices' },
-      { id: 'instant_estimator', name: 'Instant Estimator', description: 'Let homeowners get a ballpark roof estimate online' },
+      // 'instant_estimator' removed 2026-08-20 — the estimator does not work
+      // yet, and listing it here let an owner switch it on for themselves.
       { id: 'pricebook', name: 'Price Book', description: 'Standardized pricing for materials and labor' },
       { id: 'visualizer', name: 'Home Visualizer', description: 'Show customers their home with new roofing/siding colors' },
     ],
