@@ -27,6 +27,37 @@ function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETC
   return fetch(url, { ...options, signal: AbortSignal.timeout(timeout) })
 }
 
+/**
+ * Register the tenant's Stripe webhook endpoint in THEIR Stripe account so
+ * payment results (deposits, invoice payments, checkout) actually reach the
+ * CRM. A signing secret is only returned at creation, so on redeploy any
+ * existing endpoint for this URL is deleted and recreated — its old secret
+ * is unrecoverable and would silently fail verification forever.
+ */
+async function ensureStripeWebhookEndpoint(secretKey: string, webhookUrl: string): Promise<{ secret?: string; endpointId?: string; error?: string }> {
+  const sh = (path: string, init?: RequestInit) => fetchWithTimeout('https://api.stripe.com/v1' + path, {
+    ...init,
+    headers: { Authorization: 'Bearer ' + secretKey, ...(init?.body ? { 'Content-Type': 'application/x-www-form-urlencoded' } : {}) },
+  })
+  try {
+    const listRes = await sh('/webhook_endpoints?limit=100')
+    const list = await listRes.json() as any
+    if (!listRes.ok) return { error: list?.error?.message || ('list failed: ' + listRes.status) }
+    for (const ep of list.data || []) {
+      if (ep.url === webhookUrl) await sh('/webhook_endpoints/' + ep.id, { method: 'DELETE' })
+    }
+    const body = new URLSearchParams()
+    body.set('url', webhookUrl)
+    for (const ev of ['payment_intent.succeeded', 'payment_intent.payment_failed', 'checkout.session.completed']) body.append('enabled_events[]', ev)
+    const createRes = await sh('/webhook_endpoints', { method: 'POST', body: body.toString() })
+    const created = await createRes.json() as any
+    if (!createRes.ok) return { error: created?.error?.message || ('create failed: ' + createRes.status) }
+    return { secret: created.secret, endpointId: created.id }
+  } catch (e: any) {
+    return { error: e?.message || String(e) }
+  }
+}
+
 function renderHeaders(): Record<string, string> {
   return {
     'Authorization': 'Bearer ' + process.env.RENDER_API_KEY,
@@ -1146,6 +1177,21 @@ export async function deployCustomer(
           const okFrontendUrl = await updateRenderEnvVars(backendSvc.id, [{ key: 'FRONTEND_URL', value: publicUrl }])
           if (!okFrontendUrl) {
             console.warn('[Deploy] Could not set FRONTEND_URL — emailed links will fall back to the service URL')
+          }
+        }
+
+        // A CRM holding Stripe keys but no webhook endpoint can take cards
+        // yet never hear the result — deposits sit pending forever. When no
+        // hand-configured webhook secret exists, register the endpoint in the
+        // tenant's own Stripe account and inject the returned signing secret.
+        if (backendSvc.id && integrations?.stripe?.secretKey && !integrations.stripe.webhookSecret) {
+          const wh = await ensureStripeWebhookEndpoint(integrations.stripe.secretKey, backendUrl + '/api/stripe/webhook')
+          if (wh.secret) {
+            const okWh = await updateRenderEnvVars(backendSvc.id, [{ key: 'STRIPE_WEBHOOK_SECRET', value: wh.secret }])
+            if (okWh) console.log('[Deploy] Stripe webhook endpoint registered:', wh.endpointId)
+            else console.warn('[Deploy] Stripe webhook registered but the env write failed:', wh.endpointId)
+          } else {
+            console.warn('[Deploy] Stripe webhook auto-registration skipped:', wh.error)
           }
         }
         results.steps.push({ step: 'render_frontend', status: 'ok', note: 'served by backend' })

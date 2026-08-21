@@ -170,7 +170,32 @@ export async function updateBookableService(serviceId: string, companyId: string
 /**
  * Get available time slots for a date
  */
+
+// Abandoned deposit checkouts must not squat on bookable capacity: a booking
+// still owing its deposit after the hold window is cancelled and its appointment
+// released the next time availability is computed.
+const rawHoldMinutes = Number(process.env.BOOKING_DEPOSIT_HOLD_MINUTES)
+const DEPOSIT_HOLD_MINUTES = Number.isFinite(rawHoldMinutes) && rawHoldMinutes > 0 ? rawHoldMinutes : 30
+
+export async function expireStaleDepositHolds(companyId: string) {
+  const expired = await db.execute(sql`
+    UPDATE online_booking
+    SET status = 'cancelled', deposit_status = 'expired', updated_at = NOW()
+    WHERE company_id = ${companyId}
+      AND status = 'pending'
+      AND deposit_status = 'pending'
+      AND created_at < NOW() - (${DEPOSIT_HOLD_MINUTES} * interval '1 minute')
+    RETURNING appointment_id
+  `)
+  const ids = ((expired as any).rows || []).map((r: any) => r.appointment_id).filter(Boolean)
+  for (const id of ids) {
+    await db.execute(sql`UPDATE appointment SET status = 'cancelled', updated_at = NOW() WHERE id = ${id}`)
+  }
+  return ids.length
+}
+
 export async function getAvailableSlots(companyId: string, date: string, serviceId?: string) {
+  await expireStaleDepositHolds(companyId);
   const settings = await getBookingSettings(companyId);
 
   let service: any = null;

@@ -39,7 +39,7 @@ async function main() {
     // features.website MUST stay [] — a non-empty list makes stripWebsiteFeatures
     // wipe services/blog/gallery on the site side (see project_website_content_pipeline).
     features: { crm: salonFeatures, website: [], paid_ads: false },
-    integrations: { twilio: { accountSid: '', authToken: '', phoneNumber: '' }, sendgrid: { apiKey: '' }, stripe: { secretKey: '', publishableKey: '', webhookSecret: '' }, googleMaps: { apiKey: '' }, sentry: { dsn: '' }, nearmap: { apiKey: '' }, replicate: { apiToken: '' } },
+    integrations: { twilio: { accountSid: '', authToken: '', phoneNumber: '' }, sendgrid: { apiKey: '' }, stripe: { secretKey: process.env.STRIPE_SECRET_KEY || '', publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || '', webhookSecret: '' }, googleMaps: { apiKey: '' }, sentry: { dsn: '' }, nearmap: { apiKey: '' }, replicate: { apiToken: '' } },
     content: { services: [], customServices: [], heroTagline: '', aboutText: '', ctaText: '', description: '' },
   }
 
