@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Loader2, X, CalendarDays, Clock, User, Phone, CheckCircle2, DoorOpen } from 'lucide-react';
 import api from '../../services/api';
 import OwnerPicker, { ContactLite } from '../../components/vet/OwnerPicker';
+import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
 
 /**
  * Appointments — single-day list over /api/appointments?from=&to=.
@@ -171,12 +172,11 @@ export default function AppointmentsPage() {
 /* ---------------- New Appointment Modal ---------------- */
 
 interface PatientOption { id: string; name?: string; ownerId?: string; ownerName?: string }
-interface ProviderOption { id: string; firstName?: string; lastName?: string }
 
 function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: string; onSave: () => void; onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [patients, setPatients] = useState<PatientOption[]>([]);
-  const [providers, setProviders] = useState<ProviderOption[]>([]);
+  const [providers, setProviders] = useState<StaffMember[]>([]);
   const [ownerId, setOwnerId] = useState<string>('');
   const [form, setForm] = useState({
     patientId: '', providerId: '', type: 'wellness',
@@ -188,12 +188,12 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
   useEffect(() => {
     (async () => {
       try {
-        const [patRes, teamRes] = await Promise.all([
+        const [patRes, staff] = await Promise.all([
           api.get('/api/patients?limit=500'),
-          api.get('/api/team?limit=500'),
+          fetchStaff(),
         ]);
         setPatients(patRes.data || []);
-        setProviders(teamRes.data || []);
+        setProviders(staff);
       } catch {
         /* degrade gracefully */
       }
@@ -269,7 +269,7 @@ function NewAppointmentModal({ defaultDay, onSave, onClose }: { defaultDay: stri
                 <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
                 <select value={form.providerId} onChange={(e) => set('providerId', e.target.value)} className="w-full px-3 py-2 border rounded-lg">
                   <option value="">Unassigned</option>
-                  {providers.map((u) => <option key={u.id} value={u.id}>{[u.firstName, u.lastName].filter(Boolean).join(' ') || u.id}</option>)}
+                  {providers.map((u) => <option key={u.id} value={u.id}>{staffName(u)}</option>)}
                 </select>
               </div>
             </div>

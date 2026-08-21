@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import VisitEditorModal, { Visit } from '../../components/vet/VisitEditorModal';
+import { openPrintable } from '../../lib/printable';
 import { ageFromDob } from './PatientsPage';
 
 /**
@@ -332,7 +333,7 @@ export default function PatientDetailPage() {
                       <td className="px-4 py-3">
                         {v.isRabies && (
                           <button
-                            onClick={() => window.open(`/api/reminders/rabies/${v.id}`, '_blank')}
+                            onClick={() => openPrintable(`/api/reminders/rabies/${v.id}`)}
                             className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700"
                           >
                             <ExternalLink className="w-3 h-3" /> Rabies Certificate
