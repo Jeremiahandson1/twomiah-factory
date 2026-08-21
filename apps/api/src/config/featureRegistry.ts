@@ -41,7 +41,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'drag_drop_calendar', name: 'Drag & Drop Calendar', description: 'Visual job scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
   { id: 'recurring_jobs', name: 'Recurring Jobs', description: 'Automated recurring job creation', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
   { id: 'route_optimization', name: 'Route Optimization', description: 'Optimize daily service routes', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
-  { id: 'online_booking', name: 'Online Booking', description: 'Customer self-scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'online_booking', name: 'Online Booking', description: 'Customer self-scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-salon'] },
   { id: 'service_dispatch', name: 'Service Dispatch', description: 'Real-time dispatch board', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
   { id: 'service_agreements', name: 'Service Agreements', description: 'Maintenance agreement management', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
   { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },

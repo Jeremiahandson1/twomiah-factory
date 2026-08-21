@@ -327,6 +327,24 @@ function tenantDateTimeToUtc(isoDate: string, minuteOfDay: number): Date {
 app.get('/book', async (c) => {
   const settings = await loadSettings()
   if (!settings) return c.text('Bookings not configured yet.', 503)
+
+  // Salon tenants: booking is a CRM feature and the CRM is the system of
+  // record — this page embeds the CRM's widget instead of the site's own
+  // engine, so every booking lands directly in the salon's appointment book.
+  // Gated on CRM_BOOKING_WIDGET (set by deploy.ts for salon deploys only) so
+  // other verticals on this template keep the built-in engine.
+  if (process.env.CRM_BOOKING_WIDGET === '1' && process.env.CRM_API_URL) {
+    const crm = process.env.CRM_API_URL.replace(/\/$/, '')
+    const widgetBody = `<section class="book-services"><div class="container">
+      <h1 class="book-services__title">Book an appointment</h1>
+      <div id="crm-booking"></div>
+      <script src="${crm}/booking-widget.js"></script>
+      <script>TwomiahBooking.init({ container: '#crm-booking', company: '{{COMPANY_SLUG}}', apiUrl: '${crm}' });</script>
+    </div></section>`
+    const widgetSettings = { ...settings, homeHref: '/', contactHref: '/contact', seoTitle: 'Book online · ' + (settings.companyName || ''), seoDescription: 'Pick a service and time that works for you.', nav: settings.nav || [] }
+    const html = await ejs.renderFile(path.join(viewsDir, 'base.ejs'), { body: widgetBody, assetV: ASSET_VERSION, settings: widgetSettings, crmApiUrl: crm, currentPath: '/book' }) as string
+    return c.html(html)
+  }
   const services = await db.select().from(bookingServicesTbl)
     .where(eq(bookingServicesTbl.isActive, true))
     .orderBy(asc(bookingServicesTbl.displayOrder), asc(bookingServicesTbl.name))

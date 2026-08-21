@@ -114,7 +114,7 @@ app.post('/public/:companySlug', async (c) => {
     appointment: {
       date: data.date,
       time: data.time,
-      service: result.job.title,
+      service: result.serviceName,
     },
   }, 201)
 })

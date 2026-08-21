@@ -6,7 +6,7 @@
  * - Service selection
  * - Date/time slot picker
  * - Customer info collection
- * - Creates job in system
+ * - Creates the appointment in The Book
  *
  * NOTE: bookingSettings, bookableService, onlineBooking tables are not in the
  * current schema. This uses raw SQL for those. Add them to db/schema.ts for
@@ -14,8 +14,9 @@
  */
 
 import { db } from '../../db/index.ts';
-import { contact, job } from '../../db/schema.ts';
+import { contact, appointment, serviceMenu } from '../../db/schema.ts';
 import { eq, and, gte, lte, count, sql } from 'drizzle-orm';
+import { createId } from '@paralleldrive/cuid2';
 
 // ============================================
 // BOOKING SETTINGS
@@ -214,28 +215,34 @@ export async function getAvailableSlots(companyId: string, date: string, service
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const existingJobs = await db.select({
-    scheduledDate: job.scheduledDate,
-    estimatedHours: job.estimatedHours,
+  // Salon: the calendar of record is the APPOINTMENT book, so online slots are
+  // subtracted against it — a walk-in booked at the desk blocks the online slot
+  // and vice versa. (The contractor-family templates subtract jobs here.)
+  const existingAppointments = await db.select({
+    startTime: appointment.startTime,
+    endTime: appointment.endTime,
+    status: appointment.status,
   })
-    .from(job)
+    .from(appointment)
     .where(and(
-      eq(job.companyId, companyId),
-      gte(job.scheduledDate, startOfDay),
-      lte(job.scheduledDate, endOfDay),
+      eq(appointment.companyId, companyId),
+      gte(appointment.startTime, startOfDay),
+      lte(appointment.startTime, endOfDay),
     ));
 
-  // Mark unavailable slots
-  for (const j of existingJobs) {
-    if (!j.scheduledDate) continue;
-    const jobTime = j.scheduledDate.getHours() * 60 + j.scheduledDate.getMinutes();
-    const jobDuration = (Number(j.estimatedHours) || 1) * 60;
+  // Mark unavailable slots. Cancelled / no-show rows free the slot back up.
+  for (const a of existingAppointments) {
+    if (!a.startTime || a.status === 'cancelled' || a.status === 'no_show') continue;
+    const apptStart = a.startTime.getHours() * 60 + a.startTime.getMinutes();
+    const apptEnd = a.endTime
+      ? a.endTime.getHours() * 60 + a.endTime.getMinutes()
+      : apptStart + 60;
 
     for (const slot of slots) {
       const [slotHour, slotMin] = slot.time.split(':').map(Number);
       const slotTime = slotHour * 60 + slotMin;
 
-      if (slotTime < jobTime + jobDuration && slotTime + slotDuration > jobTime) {
+      if (slotTime < apptEnd && slotTime + slotDuration > apptStart) {
         slot.available = false;
       }
     }
@@ -365,25 +372,36 @@ export async function createBooking(companyId: string, data: {
   const scheduledDate = new Date(date);
   scheduledDate.setHours(hour, min, 0, 0);
 
-  // Create job
-  const [{ value: jobCount }] = await db.select({ value: count() }).from(job).where(eq(job.companyId, companyId));
-  const [newJob] = await db.insert(job).values({
+  // Create the APPOINTMENT — this is what the front desk sees in The Book.
+  // The bookable_service catalog is the widget's own; if a service-menu entry
+  // with the same name exists, link it so the row carries its service name
+  // (and the rebooking engine picks it up once a service record is written).
+  const durationMin = service ? Number(service.duration_minutes) || 60 : 60;
+  const endTimeDate = new Date(scheduledDate.getTime() + durationMin * 60000);
+
+  let menuServiceId: string | null = null;
+  if (service?.name) {
+    const [menuMatch] = await db.select({ id: serviceMenu.id }).from(serviceMenu)
+      .where(and(eq(serviceMenu.companyId, companyId), sql`lower(${serviceMenu.name}) = lower(${service.name})`))
+      .limit(1);
+    menuServiceId = menuMatch?.id || null;
+  }
+
+  const [newAppointment] = await db.insert(appointment).values({
     companyId,
     contactId: theContact.id,
-    number: `JOB-${String(jobCount + 1).padStart(5, '0')}`,
-    title: service?.name || 'Online Booking',
-    description: notes || `Booked online for ${service?.name || 'service'}`,
+    serviceId: menuServiceId,
     status: 'scheduled',
-    priority: 'normal',
-    scheduledDate,
-    estimatedHours: service ? String(service.duration_minutes / 60) : '1',
-    source: 'online_booking',
+    startTime: scheduledDate,
+    endTime: endTimeDate,
+    quotedPrice: service?.price != null ? String(service.price) : null,
+    notes: `Online booking: ${service?.name || 'service'}${notes ? ' — ' + notes : ''}`,
   }).returning();
 
   // Create booking record.
   // NOTE: this used to write customer_first_name/customer_last_name/
   // confirmation_code — columns online_booking does not have — so every
-  // booking blew up here after the job and contact had already been created.
+  // booking blew up here after the appointment and contact had already been created.
   const confirmationCode = generateConfirmationCode();
   const depositRequired = !!(service?.deposit_required) && Number(service?.deposit_amount || 0) > 0;
   const depositAmount = depositRequired ? Number(service.deposit_amount) : 0;
@@ -391,12 +409,12 @@ export async function createBooking(companyId: string, data: {
 
   await db.execute(sql`
     INSERT INTO online_booking (
-      id, company_id, job_id, contact_id, service_id, scheduled_date,
+      id, company_id, appointment_id, contact_id, service_id, scheduled_date,
       customer_name, customer_email, customer_phone, notes, status,
       confirmation_code, deposit_amount, deposit_status, created_at, updated_at
     )
     VALUES (
-      ${bookingId}, ${companyId}, ${newJob.id}, ${theContact.id}, ${serviceId || null},
+      ${bookingId}, ${companyId}, ${newAppointment.id}, ${theContact.id}, ${serviceId || null},
       ${scheduledDate}, ${firstName + ' ' + lastName}, ${email}, ${phone || null},
       ${notes || null}, ${depositRequired ? 'pending' : 'confirmed'}, ${confirmationCode},
       ${String(depositAmount)}, ${depositRequired ? 'pending' : 'none'},
@@ -411,7 +429,8 @@ export async function createBooking(companyId: string, data: {
   };
 
   if (depositRequired) {
-    await db.update(job).set({ status: 'pending', updatedAt: new Date() }).where(eq(job.id, newJob.id));
+    // The appointment stays 'scheduled' — deposit state lives on the
+    // online_booking row, and the owner's Bookings list shows it as pending.
     try {
       const { createBookingDepositIntent } = await import('./stripe.ts');
       const intent = await createBookingDepositIntent({
@@ -435,7 +454,8 @@ export async function createBooking(companyId: string, data: {
   }
 
   return {
-    job: newJob,
+    appointment: newAppointment,
+    serviceName: service?.name || 'Online Booking',
     contact: theContact,
     bookingId,
     confirmationCode,
@@ -453,10 +473,10 @@ export async function getBookings(
 ) {
   const offset = (page - 1) * limit;
   const rows = await db.execute(sql`
-    SELECT ob.*, bs.name AS service_name, j.number AS job_number
+    SELECT ob.*, bs.name AS service_name, a.status AS appointment_status
     FROM online_booking ob
     LEFT JOIN bookable_service bs ON ob.service_id = bs.id
-    LEFT JOIN job j ON ob.job_id = j.id
+    LEFT JOIN appointment a ON ob.appointment_id = a.id
     WHERE ob.company_id = ${companyId}
       ${status ? sql`AND ob.status = ${status}` : sql``}
     ORDER BY ob.scheduled_date DESC

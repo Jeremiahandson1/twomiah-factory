@@ -1360,6 +1360,9 @@ export async function deployCustomer(
         }
         if (results.apiUrl) {
           siteEnvVars.push({ key: 'CRM_API_URL', value: results.apiUrl })
+          // Salon: the website's /book embeds the CRM's booking widget (CRM is
+          // the system of record) instead of the site's built-in engine.
+          if (isSalon) siteEnvVars.push({ key: 'CRM_BOOKING_WIDGET', value: '1' })
           siteEnvVars.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
         }
         // Premium sites push their drizzle schema to the dedicated DB on
@@ -1431,6 +1434,7 @@ export async function deployCustomer(
           if (siteUrl) siteEnvUpdates.push({ key: 'SITE_URL', value: siteUrl })
           if (results.apiUrl) {
             siteEnvUpdates.push({ key: 'CRM_API_URL', value: results.apiUrl })
+            if (isSalon) siteEnvUpdates.push({ key: 'CRM_BOOKING_WIDGET', value: '1' })
             siteEnvUpdates.push({ key: 'WEBHOOK_SECRET', value: jwtSecret })
           }
           if (siteEnvUpdates.length > 0) await updateRenderEnvVars(siteSvc.id, siteEnvUpdates)

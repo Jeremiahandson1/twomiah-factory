@@ -1667,7 +1667,10 @@ export const onlineBooking = pgTable('online_booking', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   companyId: text('company_id').notNull().references(() => company.id),
 
+  // Salon: an online booking lands in the appointment book. jobId remains for
+  // schema compatibility with the contractor-family templates but is not written.
   jobId: text('job_id').references(() => job.id),
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
   contactId: text('contact_id').references(() => contact.id),
   serviceId: text('service_id').references(() => bookableService.id),
 

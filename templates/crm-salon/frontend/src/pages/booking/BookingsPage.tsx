@@ -12,7 +12,7 @@ interface BookingRow {
   status?: string;
   confirmation_code?: string;
   service_name?: string;
-  job_number?: string;
+  appointment_status?: string;
   deposit_amount?: string | number;
   deposit_status?: string;
   [k: string]: unknown;

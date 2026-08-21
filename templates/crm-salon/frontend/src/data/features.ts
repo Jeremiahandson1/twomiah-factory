@@ -26,6 +26,7 @@ export const FEATURE_CATEGORIES = [
       { id: 'salon_booking', name: 'The Book', description: 'Chair and stylist scheduling with check-in and double-book protection' },
       { id: 'rebooking_reminders', name: 'Rebooking & Recall', description: 'Who is due back, who has lapsed, whose birthday is coming — with bulk texting' },
       { id: 'salon_memberships', name: 'Memberships & Packages', description: 'Recurring memberships and prepaid visit packages' },
+      { id: 'online_booking', name: 'Online Booking', description: 'Clients book from your website; bookings land straight in The Book' },
     ]
   },
   {
