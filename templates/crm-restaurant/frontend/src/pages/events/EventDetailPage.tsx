@@ -7,6 +7,7 @@ import {
 import api from '../../services/api';
 import { STATUSES, STATUS_COLORS, EVENT_TYPES, fmtEventDate, money, prettyType } from './EventsPage';
 import { fetchStaff, staffName, type StaffMember } from '../../lib/staff';
+import { openPrintable } from '../../lib/printable';
 
 /**
  * The event file — GET /api/events/:id returns
@@ -189,7 +190,7 @@ export default function EventDetailPage() {
             </select>
             <button onClick={() => setShowEdit(true)} className="px-3 py-1.5 border rounded-lg text-sm hover:bg-gray-50">Edit</button>
             <button
-              onClick={() => window.open(`/api/events/${ev.id}/beo`, '_blank')}
+              onClick={() => openPrintable(`/api/events/${ev.id}/beo`)}
               className="flex items-center gap-1 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm"
             >
               <ExternalLink className="w-4 h-4" /> Print BEO
