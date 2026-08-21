@@ -29,6 +29,7 @@ export type CrmTemplate =
   | 'crm-dispensary'
   | 'crm-rv'
   | 'crm-vet'
+  | 'crm-salon'
   | 'crm-store'
 
 export type PremiumWebsiteTemplate =
@@ -65,6 +66,7 @@ export type Vertical =
   | 'foodtruck'
   | 'rv'
   | 'veterinary'
+  | 'salon'
   | 'store'
 
 // ─── Industry sets per vertical ─────────────────────────────────────
@@ -108,8 +110,28 @@ export const FIELDSERVICE_INDUSTRIES = new Set([
 
 export const SHOWCASE_INDUSTRIES = new Set([
   'restaurant', 'hospitality', 'hotel', 'cafe',
-  'fitness', 'gym', 'yoga', 'beauty', 'salon', 'spa',
+  'fitness', 'gym', 'yoga',
   'events', 'wedding', 'catering', 'photography',
+])
+
+// Salons, barbershops, nail/lash/brow bars, day spas. The retention
+// archetype (see VET_INDUSTRIES): the money is in getting the client back on
+// cadence, so crm-salon is a service menu -> the book -> formula record ->
+// rebooking reminder, NOT the recurring-job model.
+//
+// 'salon' / 'spa' / 'beauty' used to sit in SHOWCASE_INDUSTRIES, which gave a
+// salon the generic contractor CRM ("jobs", "quotes", "crews") — and
+// 'hair_salon' / 'barber' weren't listed anywhere, so they fell through to the
+// contractor fallback outright. They keep the showcase WEBSITE, which is the
+// right look for them; only the CRM changes.
+export const SALON_INDUSTRIES = new Set([
+  'salon', 'hair_salon', 'hairdresser', 'hair_stylist', 'beauty', 'beauty_salon',
+  'barber', 'barbershop', 'barber_shop',
+  'nail_salon', 'nails', 'nail_bar',
+  'spa', 'day_spa', 'med_spa', 'medspa',
+  'esthetician', 'esthetics', 'skincare', 'facials',
+  'lash', 'lash_bar', 'lash_extensions', 'brow_bar', 'waxing', 'wax_salon',
+  'blow_dry_bar', 'braiding', 'braiding_salon',
 ])
 
 export const FOODTRUCK_INDUSTRIES = new Set([
@@ -214,6 +236,9 @@ export function verticalFor(industry: string | undefined | null): Vertical {
   if (RV_INDUSTRIES.has(i)) return 'rv'
   if (VET_INDUSTRIES.has(i)) return 'veterinary'
   if (STORE_INDUSTRIES.has(i)) return 'store'
+  // Salon must check BEFORE showcase: a salon still gets the showcase-style
+  // website, but it gets its own CRM rather than the contractor base.
+  if (SALON_INDUSTRIES.has(i)) return 'salon'
   if (SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
   // Explicit contractor list + the empty/other fallback both land here.
   // Showcase doesn't get the fallback — it's the most specialized vertical
@@ -231,9 +256,10 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     case 'dispensary':   return 'crm-dispensary'
     case 'rv':           return 'crm-rv'
     case 'veterinary':   return 'crm-vet'
+    case 'salon':        return 'crm-salon'
     case 'store':        return 'crm-store'
-    // Showcase verticals (restaurants, salons, etc.) don't have a
-    // dedicated CRM template yet — most don't need full job/quote
+    // Remaining showcase verticals (restaurants, gyms, photographers) don't
+    // have a dedicated CRM template yet — most don't need full job/quote
     // workflows. Default to the contractor base, which is the most
     // general-purpose CRM we have (contacts, jobs, invoices).
     case 'showcase':     return 'crm'
@@ -252,6 +278,10 @@ export function premiumWebsiteTemplateFor(industry: string | undefined | null): 
   // templates now.
   if (v === 'rv') return 'website-premium-rv'
   if (v === 'veterinary') return 'website-premium-vet'
+  // Salons are a CRM-only vertical on the website side: the showcase template
+  // (and the composer's salon recipe) is already the right look for them, and
+  // there is no website-premium-salon dir to route to.
+  if (v === 'salon') return 'website-premium-showcase'
   // Store uses the dedicated website-store storefront (not a premium marketing
   // site) — this fallback only guards against a nonexistent template dir.
   if (v === 'store') return 'website-premium-contractor'
@@ -278,6 +308,8 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
     rv:           'website-general' as LegacyWebsiteTemplate,
     // No vet website template (CRM-only vertical) — falls back to general.
     veterinary:   'website-general' as LegacyWebsiteTemplate,
+    // Salons keep the showcase site; only the CRM is salon-specific.
+    salon:        'website-showcase',
     // E-commerce storefront (Next.js). The generator ladder routes here.
     store:        'website-store',
   }
@@ -304,6 +336,7 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'dispensary':   return 'leaf'
     case 'rv':           return 'rv'   // {slug}-rv-api.onrender.com
     case 'veterinary':   return 'vet'  // {slug}-vet-api.onrender.com
+    case 'salon':        return 'salon' // {slug}-salon-api.onrender.com
     case 'store':        return 'shop' // {slug}-shop-api.onrender.com
     case 'showcase':     return ''     // shares the contractor base CRM
     case 'foodtruck':    return ''     // shares the contractor base CRM
@@ -342,6 +375,7 @@ const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
   showcase: 'multi-page',
   rv: 'multi-page',
   veterinary: 'multi-page',
+  salon: 'multi-page',
   store: 'multi-page',
 }
 

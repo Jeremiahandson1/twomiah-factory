@@ -1,0 +1,3807 @@
+import { pgTable, text, boolean, integer, decimal, real, timestamp, date, time, json, uniqueIndex, index } from 'drizzle-orm/pg-core'
+import { relations } from 'drizzle-orm'
+import { createId } from '@paralleldrive/cuid2'
+
+// ==================== MULTI-TENANT ====================
+
+export const company = pgTable('company', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  logo: text('logo'),
+  primaryColor: text('primary_color').default('{{PRIMARY_COLOR}}').notNull(),
+  secondaryColor: text('secondary_color'),
+  website: text('website'),
+  licenseNumber: text('license_number'),
+  enabledFeatures: json('enabled_features').default([]).notNull(),
+  settings: json('settings').default({}).notNull(),
+  integrations: json('integrations').default({}).notNull(),
+
+  // Instant Estimator
+  estimatorEnabled: boolean('estimator_enabled').default(false).notNull(),
+  pricePerSquareLow: decimal('price_per_square_low', { precision: 10, scale: 2 }).default('350.00').notNull(),
+  pricePerSquareHigh: decimal('price_per_square_high', { precision: 10, scale: 2 }).default('550.00').notNull(),
+  estimatorHeadline: text('estimator_headline').default('Get Your Free Instant Estimate').notNull(),
+  estimatorDisclaimer: text('estimator_disclaimer').default('This is an automated estimate based on satellite data. Final pricing may vary after on-site inspection.').notNull(),
+
+  // Stripe
+  stripeCustomerId: text('stripe_customer_id').unique(),
+  subscriptionTier: text('subscription_tier'),
+  licenseType: text('license_type'),
+  lifetimeAccess: boolean('lifetime_access').default(false).notNull(),
+
+  // Twilio
+  twilioPhoneNumber: text('twilio_phone_number'),
+  twilioAccountSid: text('twilio_account_sid'),
+  twilioAuthToken: text('twilio_auth_token'),
+
+  // Onboarding (V1 domain + email setup wizard)
+  onboardingCompletedAt: timestamp('onboarding_completed_at'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// ==================== EMAIL ALIASES ====================
+// Per-tenant email addresses on their connected domain (e.g. support@, admin@).
+// routing_mode='forward' → Cloudflare forwards to forward_to (external email).
+// routing_mode='crm'     → Cloudflare forwards to factory-wide SendGrid Inbound
+//   Parse hostname; the webhook looks up by alias + lands the message as a
+//   conversation thread on the matching contact.
+
+export const emailAlias = pgTable('email_alias', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  localPart: text('local_part').notNull(),                          // "support"
+  routingMode: text('routing_mode').notNull().default('forward'),   // 'forward' | 'crm'
+  forwardTo: text('forward_to'),                                    // set only when routing_mode='forward'
+  enabled: boolean('enabled').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  localPartIdx: uniqueIndex('email_alias_local_part_idx').on(t.localPart),
+}))
+
+// Inbound messages received via SendGrid Inbound Parse for aliases in
+// routing_mode='crm'. Kept intentionally simple in V1 — no conversation
+// threading, no attachment storage. Just a timestamped inbox of what came
+// in, with enough fields for a later UI to match to contacts and thread.
+
+export const inboundMessage = pgTable('inbound_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  toLocalPart: text('to_local_part').notNull(),        // alias that received it
+  fromEmail: text('from_email').notNull(),
+  fromName: text('from_name'),
+  subject: text('subject'),
+  textBody: text('text_body'),
+  htmlBody: text('html_body'),
+  spfVerdict: text('spf_verdict'),
+  dkimVerdict: text('dkim_verdict'),
+  rawHeaders: text('raw_headers'),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+}, (t) => ({
+  receivedAtIdx: index('inbound_message_received_at_idx').on(t.receivedAt),
+  fromEmailIdx: index('inbound_message_from_email_idx').on(t.fromEmail),
+}))
+
+// ==================== USERS ====================
+
+export const user = pgTable('user', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  email: text('email').notNull(),
+  passwordHash: text('password_hash').notNull(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  phone: text('phone'),
+  avatar: text('avatar'),
+  role: text('role').default('user').notNull(),
+  hourlyRate: decimal('hourly_rate', { precision: 10, scale: 2 }),
+  isActive: boolean('is_active').default(true).notNull(),
+  lastLogin: timestamp('last_login'),
+  refreshToken: text('refresh_token'),
+  resetToken: text('reset_token'),
+  resetTokenExp: timestamp('reset_token_exp'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('user_email_company_id_key').on(t.email, t.companyId),
+  index('user_company_id_idx').on(t.companyId),
+])
+
+// ==================== CRM ====================
+
+export const contact = pgTable('contact', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  type: text('type').default('lead').notNull(),
+  name: text('name').notNull(),
+  company: text('company'),
+  email: text('email'),
+  phone: text('phone'),
+  mobile: text('mobile'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  lat: real('lat'),
+  lng: real('lng'),
+  notes: text('notes'),
+  source: text('source'),
+  tags: json('tags').default([]).notNull(),
+  customFields: json('custom_fields').default({}).notNull(),
+  portalEnabled: boolean('portal_enabled').default(false).notNull(),
+  portalToken: text('portal_token'),
+  portalTokenExp: timestamp('portal_token_exp'),
+  lastPortalVisit: timestamp('last_portal_visit'),
+  emailOptOut: boolean('email_opt_out').default(false).notNull(),
+  emailOptOutAt: timestamp('email_opt_out_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('contact_company_id_idx').on(t.companyId),
+  index('contact_type_idx').on(t.type),
+])
+
+// ==================== PROJECTS ====================
+
+export const project = pgTable('project', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  status: text('status').default('planning').notNull(),
+  type: text('type'),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  lat: real('lat'),
+  lng: real('lng'),
+  startDate: timestamp('start_date'),
+  endDate: timestamp('end_date'),
+  estimatedValue: decimal('estimated_value', { precision: 12, scale: 2 }),
+  actualValue: decimal('actual_value', { precision: 12, scale: 2 }),
+  budget: decimal('budget', { precision: 12, scale: 2 }),
+  progress: integer('progress').default(0).notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('project_company_id_idx').on(t.companyId),
+  index('project_status_idx').on(t.status),
+])
+
+// ==================== JOBS ====================
+
+export const job = pgTable('job', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').default('scheduled').notNull(),
+  priority: text('priority').default('normal').notNull(),
+  type: text('type'),
+  source: text('source'),
+  scheduledDate: timestamp('scheduled_date'),
+  scheduledEndDate: timestamp('scheduled_end_date'),
+  scheduledTime: text('scheduled_time'),
+  estimatedHours: decimal('estimated_hours', { precision: 5, scale: 2 }),
+  estimatedValue: decimal('estimated_value', { precision: 12, scale: 2 }),
+  actualHours: decimal('actual_hours', { precision: 5, scale: 2 }),
+  address: text('address'),
+  city: text('city'),
+  state: text('state'),
+  zip: text('zip'),
+  lat: real('lat'),
+  lng: real('lng'),
+  geofenceRadius: integer('geofence_radius').default(100),
+  notes: text('notes'),
+  internalNotes: text('internal_notes'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
+  subcontractorId: text('subcontractor_id').references(() => contact.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('job_company_id_idx').on(t.companyId),
+  index('job_status_idx').on(t.status),
+  index('job_scheduled_date_idx').on(t.scheduledDate),
+  index('job_assigned_to_id_idx').on(t.assignedToId),
+  index('job_subcontractor_id_idx').on(t.subcontractorId),
+])
+
+// ==================== QUOTES ====================
+
+export const quote = pgTable('quote', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  name: text('name').notNull(),
+  status: text('status').default('draft').notNull(),
+  issueDate: timestamp('issue_date').defaultNow().notNull(),
+  expiryDate: timestamp('expiry_date'),
+  subtotal: decimal('subtotal', { precision: 12, scale: 2 }).default('0').notNull(),
+  taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default('0').notNull(),
+  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  discount: decimal('discount', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  notes: text('notes'),
+  terms: text('terms'),
+  sentAt: timestamp('sent_at'),
+  viewedAt: timestamp('viewed_at'),
+  approvedAt: timestamp('approved_at'),
+  signature: text('signature'),
+  signedAt: timestamp('signed_at'),
+  signedBy: text('signed_by'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('quote_company_id_idx').on(t.companyId),
+  index('quote_status_idx').on(t.status),
+])
+
+export const quoteLineItem = pgTable('quote_line_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  description: text('description').notNull(),
+  type: text('type'),
+  quantity: decimal('quantity', { precision: 10, scale: 2 }).default('1').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+
+  quoteId: text('quote_id').notNull().references(() => quote.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('quote_line_item_quote_id_idx').on(t.quoteId),
+])
+
+// ==================== INVOICES ====================
+
+export const invoice = pgTable('invoice', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  status: text('status').default('draft').notNull(),
+  issueDate: timestamp('issue_date').defaultNow().notNull(),
+  dueDate: timestamp('due_date'),
+  subtotal: decimal('subtotal', { precision: 12, scale: 2 }).default('0').notNull(),
+  taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default('0').notNull(),
+  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  discount: decimal('discount', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).default('0').notNull(),
+  notes: text('notes'),
+  terms: text('terms'),
+  sentAt: timestamp('sent_at'),
+  paidAt: timestamp('paid_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  quoteId: text('quote_id').unique().references(() => quote.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('invoice_company_id_idx').on(t.companyId),
+  index('invoice_status_idx').on(t.status),
+])
+
+export const invoiceLineItem = pgTable('invoice_line_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  description: text('description').notNull(),
+  type: text('type'),
+  quantity: decimal('quantity', { precision: 10, scale: 2 }).default('1').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('invoice_line_item_invoice_id_idx').on(t.invoiceId),
+])
+
+export const payment = pgTable('payment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  method: text('method').default('other').notNull(),
+  reference: text('reference'),
+  notes: text('notes'),
+  paidAt: timestamp('paid_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  invoiceId: text('invoice_id').notNull().references(() => invoice.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('payment_invoice_id_idx').on(t.invoiceId),
+])
+
+// ==================== TIME & EXPENSES ====================
+
+export const timeEntry = pgTable('time_entry', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  date: timestamp('date').defaultNow().notNull(),
+  hours: decimal('hours', { precision: 5, scale: 2 }).notNull(),
+  hourlyRate: decimal('hourly_rate', { precision: 10, scale: 2 }),
+  description: text('description'),
+  billable: boolean('billable').default(true).notNull(),
+  approved: boolean('approved').default(false).notNull(),
+  approvedAt: timestamp('approved_at'),
+  isAutoClocked: boolean('is_auto_clocked').default(false).notNull(),
+  clockIn: timestamp('clock_in'),
+  clockOut: timestamp('clock_out'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('time_entry_company_id_idx').on(t.companyId),
+  index('time_entry_user_id_idx').on(t.userId),
+  index('time_entry_job_id_idx').on(t.jobId),
+  index('time_entry_date_idx').on(t.date),
+])
+
+export const expense = pgTable('expense', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  date: timestamp('date').defaultNow().notNull(),
+  category: text('category').notNull(),
+  vendor: text('vendor'),
+  description: text('description'),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  receiptUrl: text('receipt_url'),
+  billable: boolean('billable').default(true).notNull(),
+  reimbursable: boolean('reimbursable').default(false).notNull(),
+  reimbursed: boolean('reimbursed').default(false).notNull(),
+  reimbursedAt: timestamp('reimbursed_at'),
+  approved: boolean('approved').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('expense_company_id_idx').on(t.companyId),
+  index('expense_project_id_idx').on(t.projectId),
+  index('expense_job_id_idx').on(t.jobId),
+])
+
+// ==================== CONSTRUCTION ====================
+
+export const dailyLog = pgTable('daily_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  date: timestamp('date').defaultNow().notNull(),
+  weather: text('weather'),
+  conditions: text('conditions'),
+  crewSize: integer('crew_size'),
+  hoursWorked: decimal('hours_worked', { precision: 10, scale: 2 }),
+  workPerformed: text('work_performed'),
+  materials: text('materials'),
+  equipment: text('equipment'),
+  delays: text('delays'),
+  safetyNotes: text('safety_notes'),
+  temperature: integer('temperature'),
+  workCompleted: text('work_completed'),
+  visitors: text('visitors'),
+  photos: json('photos').default([]).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('daily_log_company_id_idx').on(t.companyId),
+  index('daily_log_project_id_idx').on(t.projectId),
+  index('daily_log_date_idx').on(t.date),
+])
+
+export const rfi = pgTable('rfi', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  subject: text('subject').notNull(),
+  question: text('question').notNull(),
+  status: text('status').default('open').notNull(),
+  priority: text('priority').default('normal').notNull(),
+  assignedTo: text('assigned_to'),
+  dueDate: timestamp('due_date'),
+  response: text('response'),
+  respondedAt: timestamp('responded_at'),
+  respondedBy: text('responded_by'),
+  closedAt: timestamp('closed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('rfi_company_id_idx').on(t.companyId),
+  index('rfi_project_id_idx').on(t.projectId),
+])
+
+export const submittal = pgTable('submittal', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').default('pending').notNull(),
+  specSection: text('spec_section'),
+  dueDate: timestamp('due_date'),
+  submittedDate: timestamp('submitted_date'),
+  approvedDate: timestamp('approved_date'),
+  approvedBy: text('approved_by'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('submittal_company_id_idx').on(t.companyId),
+  index('submittal_project_id_idx').on(t.projectId),
+])
+
+export const changeOrder = pgTable('change_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').default('draft').notNull(),
+  reason: text('reason'),
+  amount: decimal('amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  daysAdded: integer('days_added').default(0).notNull(),
+  submittedDate: timestamp('submitted_date'),
+  approvedDate: timestamp('approved_date'),
+  approvedBy: text('approved_by'),
+  signature: text('signature'),
+  signedAt: timestamp('signed_at'),
+  signedBy: text('signed_by'),
+  signedIp: text('signed_ip'),
+  signedUserAgent: text('signed_user_agent'),
+  signatureHash: text('signature_hash'),
+  consentAt: timestamp('consent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('change_order_company_id_idx').on(t.companyId),
+  index('change_order_project_id_idx').on(t.projectId),
+])
+
+export const changeOrderLineItem = pgTable('change_order_line_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  description: text('description').notNull(),
+  quantity: decimal('quantity', { precision: 10, scale: 2 }).default('1').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+
+  changeOrderId: text('change_order_id').notNull().references(() => changeOrder.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('change_order_line_item_change_order_id_idx').on(t.changeOrderId),
+])
+
+export const punchListItem = pgTable('punch_list_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  description: text('description').notNull(),
+  location: text('location'),
+  status: text('status').default('open').notNull(),
+  priority: text('priority').default('normal').notNull(),
+  assignedTo: text('assigned_to'),
+  dueDate: timestamp('due_date'),
+  completedAt: timestamp('completed_at'),
+  verifiedAt: timestamp('verified_at'),
+  verifiedBy: text('verified_by'),
+  photos: json('photos').default([]).notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('punch_list_item_company_id_idx').on(t.companyId),
+  index('punch_list_item_project_id_idx').on(t.projectId),
+  index('punch_list_item_status_idx').on(t.status),
+])
+
+export const inspection = pgTable('inspection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  type: text('type').notNull(),
+  status: text('status').default('scheduled').notNull(),
+  scheduledDate: timestamp('scheduled_date'),
+  inspector: text('inspector'),
+  result: text('result'),
+  notes: text('notes'),
+  deficiencies: text('deficiencies'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('inspection_company_id_idx').on(t.companyId),
+  index('inspection_project_id_idx').on(t.projectId),
+])
+
+// ==================== BIDDING ====================
+
+export const bid = pgTable('bid', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  projectName: text('project_name').notNull(),
+  client: text('client'),
+  status: text('status').default('draft').notNull(),
+  bidType: text('bid_type').default('lump_sum').notNull(),
+  dueDate: timestamp('due_date'),
+  dueTime: text('due_time'),
+  estimatedValue: decimal('estimated_value', { precision: 12, scale: 2 }),
+  bidAmount: decimal('bid_amount', { precision: 12, scale: 2 }),
+  bondRequired: boolean('bond_required').default(false).notNull(),
+  prebidDate: timestamp('prebid_date'),
+  prebidLocation: text('prebid_location'),
+  scope: text('scope'),
+  notes: text('notes'),
+  submittedAt: timestamp('submitted_at'),
+  resultDate: timestamp('result_date'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('bid_company_id_idx').on(t.companyId),
+  index('bid_status_idx').on(t.status),
+])
+
+// ==================== MARKETING ====================
+
+export const campaign = pgTable('campaign', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  type: text('type').default('email').notNull(),
+  subject: text('subject'),
+  content: text('content'),
+  status: text('status').default('draft').notNull(),
+  audienceType: text('audience_type').default('all').notNull(),
+  audienceFilter: json('audience_filter'),
+  unsubscribeCount: integer('unsubscribe_count').default(0).notNull(),
+  scheduledDate: timestamp('scheduled_date'),
+  sentAt: timestamp('sent_at'),
+  recipientCount: integer('recipient_count').default(0).notNull(),
+  openCount: integer('open_count').default(0).notNull(),
+  clickCount: integer('click_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('campaign_company_id_idx').on(t.companyId),
+])
+
+// ==================== COMMUNICATION ====================
+
+export const message = pgTable('message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  type: text('type').default('email').notNull(),
+  direction: text('direction').default('outbound').notNull(),
+  subject: text('subject'),
+  body: text('body').notNull(),
+  status: text('status').default('draft').notNull(),
+  sentAt: timestamp('sent_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('message_company_id_idx').on(t.companyId),
+  index('message_contact_id_idx').on(t.contactId),
+])
+
+// ==================== DOCUMENTS ====================
+
+export const document = pgTable('document', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  type: text('type').default('general').notNull(),
+  filename: text('filename').notNull(),
+  originalName: text('original_name').notNull(),
+  mimeType: text('mime_type'),
+  size: integer('size'),
+  path: text('path').notNull(),
+  url: text('url').notNull(),
+  thumbnailUrl: text('thumbnail_url'),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('document_company_id_idx').on(t.companyId),
+  index('document_project_id_idx').on(t.projectId),
+  index('document_contact_id_idx').on(t.contactId),
+  index('document_type_idx').on(t.type),
+])
+
+export const documentShare = pgTable('document_share', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  sharedById: text('shared_by_id').references(() => user.id, { onDelete: 'set null' }),
+  sharedAt: timestamp('shared_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('document_share_unique').on(t.documentId, t.contactId),
+  index('document_share_contact_idx').on(t.contactId),
+])
+
+// ==================== TEAM ====================
+
+export const teamMember = pgTable('team_member', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  role: text('role'),
+  department: text('department'),
+  hireDate: timestamp('hire_date'),
+  hourlyRate: decimal('hourly_rate', { precision: 10, scale: 2 }),
+  active: boolean('active').default(true).notNull(),
+  skills: json('skills').default([]).notNull(),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('team_member_company_id_idx').on(t.companyId),
+])
+
+// ==================== SMS ====================
+
+export const smsConversation = pgTable('sms_conversation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  phoneNumber: text('phone_number').notNull(),
+  status: text('status').default('active').notNull(),
+  unreadCount: integer('unread_count').default(0).notNull(),
+  lastMessageAt: timestamp('last_message_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('sms_conversation_company_id_phone_number_key').on(t.companyId, t.phoneNumber),
+  index('sms_conversation_company_id_status_idx').on(t.companyId, t.status),
+])
+
+export const smsMessage = pgTable('sms_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  direction: text('direction').notNull(),
+  body: text('body').notNull(),
+  status: text('status').default('queued').notNull(),
+  twilioSid: text('twilio_sid').unique(),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  mediaUrls: json('media_urls'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  sentAt: timestamp('sent_at'),
+  deliveredAt: timestamp('delivered_at'),
+
+  conversationId: text('conversation_id').notNull().references(() => smsConversation.id, { onDelete: 'cascade' }),
+  sentById: text('sent_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('sms_message_conversation_id_created_at_idx').on(t.conversationId, t.createdAt),
+])
+
+export const smsTemplate = pgTable('sms_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  body: text('body').notNull(),
+  category: text('category'),
+  active: boolean('active').default(true).notNull(),
+  useCount: integer('use_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('sms_template_company_id_category_idx').on(t.companyId, t.category),
+])
+
+export const scheduledSms = pgTable('scheduled_sms', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  to: text('to').notNull(),
+  body: text('body').notNull(),
+  scheduledFor: timestamp('scheduled_for').notNull(),
+  status: text('status').default('pending').notNull(),
+  sentAt: timestamp('sent_at'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('scheduled_sms_company_id_scheduled_for_status_idx').on(t.companyId, t.scheduledFor, t.status),
+])
+
+export const emailLog = pgTable('email_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  to: text('to').notNull(),
+  subject: text('subject').notNull(),
+  body: text('body'),
+  status: text('status').default('queued').notNull(),
+  sendgridId: text('sendgrid_id'),
+  errorMessage: text('error_message'),
+  openedAt: timestamp('opened_at'),
+  clickedAt: timestamp('clicked_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  sentAt: timestamp('sent_at'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  sentById: text('sent_by_id').references(() => user.id, { onDelete: 'set null' }),
+
+  invoiceId: text('invoice_id').references(() => invoice.id, { onDelete: 'set null' }),
+  quoteId: text('quote_id').references(() => quote.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('email_log_company_id_created_at_idx').on(t.companyId, t.createdAt),
+  index('email_log_contact_id_idx').on(t.contactId),
+])
+
+// ==================== GPS/LOCATION ====================
+
+export const locationLog = pgTable('location_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  lat: real('lat').notNull(),
+  lng: real('lng').notNull(),
+  accuracy: real('accuracy'),
+  timestamp: timestamp('timestamp').defaultNow().notNull(),
+  action: text('action'),
+
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('location_log_user_id_company_id_timestamp_idx').on(t.userId, t.companyId, t.timestamp),
+  index('location_log_job_id_idx').on(t.jobId),
+])
+
+export const geofence = pgTable('geofence', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  lat: real('lat').notNull(),
+  lng: real('lng').notNull(),
+  radius: integer('radius').default(100).notNull(),
+  address: text('address'),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').unique().references(() => job.id, { onDelete: 'set null' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('geofence_company_id_active_idx').on(t.companyId, t.active),
+])
+
+export const geofenceEvent = pgTable('geofence_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  inside: boolean('inside').notNull(),
+  lat: real('lat').notNull(),
+  lng: real('lng').notNull(),
+  accuracy: real('accuracy'),
+  distance: real('distance'),
+  timestamp: timestamp('timestamp').defaultNow().notNull(),
+
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  geofenceId: text('geofence_id').notNull().references(() => geofence.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('geofence_event_user_id_geofence_id_timestamp_idx').on(t.userId, t.geofenceId, t.timestamp),
+])
+
+export const userSettings = pgTable('user_settings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().unique().references(() => user.id, { onDelete: 'cascade' }),
+
+  locationTrackingEnabled: boolean('location_tracking_enabled').default(false).notNull(),
+  autoClockEnabled: boolean('auto_clock_enabled').default(false).notNull(),
+  backgroundTrackingEnabled: boolean('background_tracking_enabled').default(false).notNull(),
+  locationAccuracy: text('location_accuracy').default('high').notNull(),
+  trackingInterval: integer('tracking_interval').default(30).notNull(),
+  geofenceRadius: integer('geofence_radius').default(100).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+// ==================== INVENTORY ====================
+
+export const inventoryItem = pgTable('inventory_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sku: text('sku').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  category: text('category'),
+
+  unitCost: decimal('unit_cost', { precision: 10, scale: 2 }).default('0').notNull(),
+  unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).default('0').notNull(),
+  unit: text('unit').default('each').notNull(),
+
+  minStockLevel: integer('min_stock_level').default(0).notNull(),
+  reorderPoint: integer('reorder_point').default(0).notNull(),
+  reorderQuantity: integer('reorder_quantity').default(0).notNull(),
+
+  vendor: text('vendor'),
+  vendorPartNumber: text('vendor_part_number'),
+  barcode: text('barcode'),
+  imageUrl: text('image_url'),
+  taxable: boolean('taxable').default(true).notNull(),
+  active: boolean('active').default(true).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('inventory_item_company_id_sku_key').on(t.companyId, t.sku),
+  index('inventory_item_company_id_category_idx').on(t.companyId, t.category),
+])
+
+export const inventoryLocation = pgTable('inventory_location', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  type: text('type').default('warehouse').notNull(),
+  address: text('address'),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  assignedUserId: text('assigned_user_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('inventory_location_company_id_type_idx').on(t.companyId, t.type),
+])
+
+export const stockLevel = pgTable('stock_level', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  quantity: integer('quantity').default(0).notNull(),
+
+  itemId: text('item_id').notNull().references(() => inventoryItem.id, { onDelete: 'cascade' }),
+  locationId: text('location_id').notNull().references(() => inventoryLocation.id, { onDelete: 'cascade' }),
+}, (t) => [
+  uniqueIndex('stock_level_item_id_location_id_key').on(t.itemId, t.locationId),
+])
+
+export const inventoryTransaction = pgTable('inventory_transaction', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  type: text('type').notNull(),
+  quantity: integer('quantity').notNull(),
+  previousQuantity: integer('previous_quantity').notNull(),
+  newQuantity: integer('new_quantity').notNull(),
+  reason: text('reason'),
+  cost: decimal('cost', { precision: 10, scale: 2 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').notNull().references(() => inventoryItem.id, { onDelete: 'cascade' }),
+  locationId: text('location_id').notNull().references(() => inventoryLocation.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('inventory_transaction_company_id_created_at_idx').on(t.companyId, t.createdAt),
+])
+
+export const inventoryUsage = pgTable('inventory_usage', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  quantity: integer('quantity').notNull(),
+  returnedQuantity: integer('returned_quantity').default(0).notNull(),
+  unitCost: decimal('unit_cost', { precision: 10, scale: 2 }).notNull(),
+  unitPrice: decimal('unit_price', { precision: 10, scale: 2 }).notNull(),
+  totalCost: decimal('total_cost', { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal('total_price', { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').notNull().references(() => inventoryItem.id, { onDelete: 'cascade' }),
+  locationId: text('location_id').notNull().references(() => inventoryLocation.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('inventory_usage_job_id_idx').on(t.jobId),
+])
+
+export const inventoryTransfer = pgTable('inventory_transfer', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  quantity: integer('quantity').notNull(),
+  status: text('status').default('pending').notNull(),
+  notes: text('notes'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').notNull().references(() => inventoryItem.id, { onDelete: 'cascade' }),
+  fromLocationId: text('from_location_id').notNull().references(() => inventoryLocation.id, { onDelete: 'cascade' }),
+  toLocationId: text('to_location_id').notNull().references(() => inventoryLocation.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('inventory_transfer_company_id_status_idx').on(t.companyId, t.status),
+])
+
+export const purchaseOrder = pgTable('purchase_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  vendor: text('vendor').notNull(),
+  vendorEmail: text('vendor_email'),
+  status: text('status').default('draft').notNull(),
+  total: decimal('total', { precision: 10, scale: 2 }).default('0').notNull(),
+  notes: text('notes'),
+  expectedDate: timestamp('expected_date'),
+  receivedAt: timestamp('received_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  locationId: text('location_id').references(() => inventoryLocation.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  uniqueIndex('purchase_order_company_id_number_key').on(t.companyId, t.number),
+])
+
+export const purchaseOrderItem = pgTable('purchase_order_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  quantity: integer('quantity').notNull(),
+  receivedQuantity: integer('received_quantity').default(0).notNull(),
+  unitCost: decimal('unit_cost', { precision: 10, scale: 2 }).notNull(),
+  totalCost: decimal('total_cost', { precision: 10, scale: 2 }).notNull(),
+
+  purchaseOrderId: text('purchase_order_id').notNull().references(() => purchaseOrder.id, { onDelete: 'cascade' }),
+  itemId: text('item_id').notNull().references(() => inventoryItem.id, { onDelete: 'cascade' }),
+})
+
+// ==================== PRICEBOOK ====================
+
+export const pricebookCategory = pgTable('pricebook_category', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  parentId: text('parent_id').references(() => pricebookCategory.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('pricebook_category_company_id_idx').on(t.companyId),
+])
+
+export const pricebookItem = pgTable('pricebook_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  type: text('type').default('service').notNull(),
+  code: text('code'),
+  price: decimal('price', { precision: 12, scale: 2 }).notNull(),
+  cost: decimal('cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  unit: text('unit').default('each').notNull(),
+  taxable: boolean('taxable').default(true).notNull(),
+  active: boolean('active').default(true).notNull(),
+  imageUrl: text('image_url'),
+  customerDescription: text('customer_description'),
+  laborHours: decimal('labor_hours', { precision: 8, scale: 2 }),
+  showToCustomer: boolean('show_to_customer').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').references(() => pricebookCategory.id),
+  inventoryItemId: text('inventory_item_id').references(() => inventoryItem.id),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('pricebook_item_company_id_idx').on(t.companyId),
+  index('pricebook_item_category_id_idx').on(t.categoryId),
+])
+
+// ==================== REVIEWS ====================
+
+export const reviewRequest = pgTable('review_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  status: text('status').default('pending').notNull(), // pending, sent, clicked, completed, failed
+  channel: text('channel').default('both').notNull(), // sms, email, both
+  sentAt: timestamp('sent_at'),
+  clickedAt: timestamp('clicked_at'),
+  followUpSentAt: timestamp('follow_up_sent_at'),
+  openedAt: timestamp('opened_at'),
+  submittedAt: timestamp('submitted_at'),
+  reviewLink: text('review_link'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('review_request_company_id_idx').on(t.companyId),
+  index('review_request_status_idx').on(t.status),
+])
+
+export const review = pgTable('review', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  rating: integer('rating').notNull(),
+  comment: text('comment'),
+  platform: text('platform').default('google').notNull(),
+  externalId: text('external_id'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  requestId: text('request_id').unique().references(() => reviewRequest.id),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('review_company_id_idx').on(t.companyId),
+])
+
+// ==================== FINANCING ====================
+
+export const financingApplication = pgTable('financing_application', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').default('wisetack').notNull(), // wisetack, greensky, mosaic, synchrony, hearth, enhancify, service_finance
+  status: text('status').default('pending').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  term: integer('term'),
+  apr: decimal('apr', { precision: 5, scale: 2 }),
+  externalId: text('external_id'),
+  applicationUrl: text('application_url'),
+  approvedAmount: decimal('approved_amount', { precision: 12, scale: 2 }),
+  providerData: json('provider_data'), // raw response from provider
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('financing_application_company_id_idx').on(t.companyId),
+])
+
+// ==================== SERVICE AGREEMENTS ====================
+
+export const serviceAgreement = pgTable('service_agreement', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  name: text('name').notNull(),
+  status: text('status').default('active').notNull(),
+  startDate: timestamp('start_date').notNull(),
+  endDate: timestamp('end_date'),
+  renewalType: text('renewal_type').default('auto').notNull(),
+  autopay: boolean('autopay').default(false).notNull(),
+  paymentMethodId: text('payment_method_id'),
+  lastBilledAt: timestamp('last_billed_at'),
+  nextBillDate: timestamp('next_bill_date'),
+  autopayLastError: text('autopay_last_error'),
+  billingFrequency: text('billing_frequency').default('monthly').notNull(),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  terms: text('terms'),
+  notes: text('notes'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  planId: text('plan_id'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('service_agreement_company_id_idx').on(t.companyId),
+])
+
+export const agreementVisit = pgTable('agreement_visit', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scheduledDate: timestamp('scheduled_date').notNull(),
+  completedAt: timestamp('completed_at'),
+  status: text('status').default('scheduled').notNull(),
+  notes: text('notes'),
+
+  agreementId: text('agreement_id').notNull().references(() => serviceAgreement.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('agreement_visit_agreement_id_idx').on(t.agreementId),
+])
+
+// ==================== EQUIPMENT ====================
+
+export const equipmentCategory = pgTable('equipment_category', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('equipment_category_company_id_idx').on(t.companyId),
+])
+
+export const equipment = pgTable('equipment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  serialNumber: text('serial_number'),
+  model: text('model'),
+  manufacturer: text('manufacturer'),
+  status: text('status').default('active').notNull(),
+  location: text('location'),
+  purchaseDate: timestamp('purchase_date'),
+  warrantyExpiry: timestamp('warranty_expiry'),
+  notes: text('notes'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').references(() => equipmentCategory.id),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('equipment_company_id_idx').on(t.companyId),
+])
+
+export const equipmentMaintenance = pgTable('equipment_maintenance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  type: text('type').notNull(),
+  description: text('description'),
+  cost: decimal('cost', { precision: 10, scale: 2 }),
+  performedAt: timestamp('performed_at').defaultNow().notNull(),
+  nextDueDate: timestamp('next_due_date'),
+
+  equipmentId: text('equipment_id').notNull().references(() => equipment.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('equipment_maintenance_equipment_id_idx').on(t.equipmentId),
+])
+
+// ==================== FLEET ====================
+
+export const vehicle = pgTable('vehicle', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  type: text('type').default('truck').notNull(),
+  make: text('make'),
+  model: text('model'),
+  year: integer('year'),
+  vin: text('vin'),
+  licensePlate: text('license_plate'),
+  status: text('status').default('active').notNull(),
+  color: text('color'),
+  notes: text('notes'),
+  assignedUserId: text('assigned_user_id').references(() => user.id),
+  currentMileage: integer('current_mileage'),
+  fuelType: text('fuel_type'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('vehicle_company_id_idx').on(t.companyId),
+  index('vehicle_assigned_user_id_idx').on(t.assignedUserId),
+])
+
+export const vehicleMaintenance = pgTable('vehicle_maintenance', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  type: text('type').notNull(),
+  description: text('description'),
+  cost: decimal('cost', { precision: 10, scale: 2 }),
+  mileage: integer('mileage'),
+  performedAt: timestamp('performed_at').defaultNow().notNull(),
+  nextDueDate: timestamp('next_due_date'),
+  nextDueMileage: integer('next_due_mileage'),
+
+  vehicleId: text('vehicle_id').notNull().references(() => vehicle.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('vehicle_maintenance_vehicle_id_idx').on(t.vehicleId),
+])
+
+export const fuelLog = pgTable('fuel_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  gallons: decimal('gallons', { precision: 8, scale: 3 }).notNull(),
+  pricePerGallon: decimal('price_per_gallon', { precision: 6, scale: 3 }).notNull(),
+  totalCost: decimal('total_cost', { precision: 10, scale: 2 }).notNull(),
+  mileage: integer('mileage'),
+  station: text('station'),
+
+  vehicleId: text('vehicle_id').notNull().references(() => vehicle.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('fuel_log_vehicle_id_idx').on(t.vehicleId),
+])
+
+// ==================== EMAIL MARKETING ====================
+
+export const emailTemplate = pgTable('email_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  type: text('type'),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('email_template_company_id_idx').on(t.companyId),
+])
+
+export const emailCampaign = pgTable('email_campaign', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  subject: text('subject').notNull(),
+  body: text('body').notNull(),
+  status: text('status').default('draft').notNull(),
+  recipientFilter: json('recipient_filter'),
+  scheduledAt: timestamp('scheduled_at'),
+  sentAt: timestamp('sent_at'),
+  stats: json('stats'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('email_campaign_company_id_idx').on(t.companyId),
+])
+
+export const automation = pgTable('automation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(),
+  conditions: json('conditions'),
+  actions: json('actions').notNull(),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('automation_company_id_idx').on(t.companyId),
+])
+
+// ==================== CALL TRACKING ====================
+
+export const trackingNumber = pgTable('tracking_number', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  phoneNumber: text('phone_number').notNull(),
+  forwardTo: text('forward_to'),
+  name: text('name'),
+  source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  providerId: text('provider_id'),
+  provider: text('provider'),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('tracking_number_company_id_idx').on(t.companyId),
+])
+
+export const phoneCall = pgTable('phone_call', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  callerNumber: text('caller_number').notNull(),
+  status: text('status').notNull(),
+  duration: integer('duration'),
+  recordingUrl: text('recording_url'),
+  transcription: text('transcription'),
+
+  trackingNumberId: text('tracking_number_id').notNull().references(() => trackingNumber.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').references(() => company.id),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('phone_call_tracking_number_id_idx').on(t.trackingNumberId),
+])
+
+// ==================== SCHEDULING ====================
+
+export const scheduleEvent = pgTable('schedule_event', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  type: text('type').default('appointment').notNull(),
+  start: timestamp('start').notNull(),
+  end: timestamp('end').notNull(),
+  allDay: boolean('all_day').default(false).notNull(),
+  status: text('status').default('scheduled').notNull(),
+  notes: text('notes'),
+  color: text('color'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('schedule_event_company_id_start_idx').on(t.companyId, t.start),
+])
+
+export const recurringSchedule = pgTable('recurring_schedule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  pattern: text('pattern').notNull(),
+  interval: integer('interval').default(1).notNull(),
+  daysOfWeek: json('days_of_week').default([]).notNull(),
+  startDate: timestamp('start_date').notNull(),
+  endDate: timestamp('end_date'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('recurring_schedule_company_id_idx').on(t.companyId),
+])
+
+// ==================== SELECTIONS ====================
+
+export const selectionCategory = pgTable('selection_category', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  icon: text('icon'),
+  defaultAllowance: decimal('default_allowance', { precision: 12, scale: 2 }).default('0'),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('selection_category_company_id_idx').on(t.companyId),
+  index('selection_category_company_id_active_idx').on(t.companyId, t.active),
+  uniqueIndex('selection_category_company_id_name_idx').on(t.companyId, t.name),
+])
+
+export const selectionItem = pgTable('selection_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  price: decimal('price', { precision: 12, scale: 2 }).default('0').notNull(),
+  imageUrl: text('image_url'),
+  allowance: decimal('allowance', { precision: 12, scale: 2 }),
+  active: boolean('active').default(true).notNull(),
+
+  categoryId: text('category_id').notNull().references(() => selectionCategory.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('selection_item_category_id_idx').on(t.categoryId),
+  index('selection_item_company_id_active_idx').on(t.companyId, t.active),
+])
+
+export const selection = pgTable('selection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  status: text('status').default('pending').notNull(),
+  notes: text('notes'),
+  approvedAt: timestamp('approved_at'),
+
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  itemId: text('item_id').notNull().references(() => selectionItem.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('selection_project_id_idx').on(t.projectId),
+])
+
+// ==================== TAKEOFFS ====================
+
+export const takeoff = pgTable('takeoff', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  status: text('status').default('draft').notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('takeoff_company_id_idx').on(t.companyId),
+])
+
+export const takeoffItem = pgTable('takeoff_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sheetId: text('sheet_id').references(() => takeoffSheet.id, { onDelete: 'cascade' }),
+  assemblyId: text('assembly_id').references(() => takeoffAssembly.id),
+  name: text('name').notNull(),
+  location: text('location'),
+  measurementType: text('measurement_type').default('area'),
+  length: decimal('length', { precision: 12, scale: 4 }).default('0'),
+  width: decimal('width', { precision: 12, scale: 4 }).default('0'),
+  height: decimal('height', { precision: 12, scale: 4 }).default('0'),
+  quantity: decimal('quantity', { precision: 12, scale: 4 }).default('1').notNull(),
+  measurementValue: decimal('measurement_value', { precision: 12, scale: 4 }).default('0'),
+  wasteFactor: decimal('waste_factor', { precision: 5, scale: 2 }).default('10'),
+  notes: text('notes'),
+  sortOrder: integer('sort_order').default(0),
+  description: text('description'),
+  unit: text('unit'),
+  category: text('category'),
+  takeoffId: text('takeoff_id').references(() => takeoff.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('takeoff_item_sheet_id_idx').on(t.sheetId),
+  index('takeoff_item_takeoff_id_idx').on(t.takeoffId),
+])
+
+// ==================== WARRANTIES ====================
+
+export const warranty = pgTable('warranty', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  type: text('type').notNull(),
+  startDate: timestamp('start_date').notNull(),
+  endDate: timestamp('end_date'),
+  duration: integer('duration'),
+  durationUnit: text('duration_unit'),
+  coverage: text('coverage'),
+  notes: text('notes'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('warranty_company_id_idx').on(t.companyId),
+])
+
+export const warrantyClaim = pgTable('warranty_claim', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  status: text('status').default('open').notNull(),
+  description: text('description').notNull(),
+  resolution: text('resolution'),
+  resolvedAt: timestamp('resolved_at'),
+
+  warrantyId: text('warranty_id').notNull().references(() => warranty.id, { onDelete: 'cascade' }),
+  projectWarrantyId: text('project_warranty_id'),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('warranty_claim_warranty_id_idx').on(t.warrantyId),
+])
+
+// ==================== BILLING ====================
+
+export const subscription = pgTable('subscription', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().unique().references(() => company.id),
+
+  stripeSubscriptionId: text('stripe_subscription_id').notNull().unique(),
+
+  packageId: text('package_id').notNull(),
+  billingCycle: text('billing_cycle').notNull(),
+  status: text('status').default('active').notNull(),
+
+  userCount: integer('user_count').default(1).notNull(),
+  basePrice: decimal('base_price', { precision: 10, scale: 2 }).notNull(),
+  totalPrice: decimal('total_price', { precision: 10, scale: 2 }).notNull(),
+  features: json('features').default([]).notNull(),
+  addons: json('addons'),
+
+  trialEndsAt: timestamp('trial_ends_at'),
+  currentPeriodStart: timestamp('current_period_start').notNull(),
+  currentPeriodEnd: timestamp('current_period_end').notNull(),
+  canceledAt: timestamp('canceled_at'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const license = pgTable('license', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  type: text('type').notNull(),
+  packageId: text('package_id'),
+  features: json('features').notNull(),
+
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  stripePaymentId: text('stripe_payment_id'),
+
+  purchasedAt: timestamp('purchased_at').notNull(),
+  expiresAt: timestamp('expires_at'),
+  status: text('status').default('active').notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('license_company_id_idx').on(t.companyId),
+])
+
+export const addonPurchase = pgTable('addon_purchase', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  addonId: text('addon_id').notNull(),
+  quantity: integer('quantity').default(1).notNull(),
+  amount: decimal('amount', { precision: 10, scale: 2 }).notNull(),
+  stripePaymentId: text('stripe_payment_id'),
+  expiresAt: timestamp('expires_at'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('addon_purchase_company_id_idx').on(t.companyId),
+])
+
+export const usageRecord = pgTable('usage_record', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  type: text('type').notNull(),
+  quantity: integer('quantity').default(1).notNull(),
+  metadata: json('metadata'),
+
+  recordedAt: timestamp('recorded_at').defaultNow().notNull(),
+}, (t) => [
+  index('usage_record_company_id_type_recorded_at_idx').on(t.companyId, t.type, t.recordedAt),
+])
+
+export const billingInvoice = pgTable('billing_invoice', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  number: text('number').notNull().unique(),
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  lineItems: json('line_items').notNull(),
+  subtotal: decimal('subtotal', { precision: 10, scale: 2 }).notNull(),
+  tax: decimal('tax', { precision: 10, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 10, scale: 2 }).notNull(),
+  status: text('status').default('pending').notNull(),
+  dueDate: timestamp('due_date').notNull(),
+  paidAt: timestamp('paid_at'),
+  stripeInvoiceId: text('stripe_invoice_id'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('billing_invoice_company_id_idx').on(t.companyId),
+])
+
+export const selfHostedLicense = pgTable('self_hosted_license', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  email: text('email').notNull(),
+  companyName: text('company_name').notNull(),
+  licenseType: text('license_type').notNull(),
+  licenseKey: text('license_key').notNull().unique(),
+  stripeSessionId: text('stripe_session_id'),
+  stripeCustomerId: text('stripe_customer_id'),
+  purchasedAt: timestamp('purchased_at').notNull(),
+  expiresAt: timestamp('expires_at'),
+  isActive: boolean('is_active').default(true).notNull(),
+  downloadCount: integer('download_count').default(0).notNull(),
+  lastDownloadAt: timestamp('last_download_at'),
+  metadata: json('metadata'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('self_hosted_license_email_idx').on(t.email),
+  index('self_hosted_license_license_key_idx').on(t.licenseKey),
+])
+
+// ==================== ONLINE BOOKING ====================
+
+export const bookingSettings = pgTable('booking_settings', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().unique().references(() => company.id),
+
+  enabled: boolean('enabled').default(true).notNull(),
+  leadTimeDays: integer('lead_time_days').default(1).notNull(),
+  maxDaysOut: integer('max_days_out').default(30).notNull(),
+  slotDurationMinutes: integer('slot_duration_minutes').default(60).notNull(),
+  workingHours: json('working_hours').notNull(),
+
+  primaryColor: text('primary_color'),
+  logo: text('logo'),
+  welcomeMessage: text('welcome_message'),
+  confirmationMessage: text('confirmation_message'),
+
+  notifyEmail: boolean('notify_email').default(true).notNull(),
+  notifySms: boolean('notify_sms').default(false).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const bookableService = pgTable('bookable_service', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  name: text('name').notNull(),
+  description: text('description'),
+  durationMinutes: integer('duration_minutes').default(60).notNull(),
+  price: decimal('price', { precision: 10, scale: 2 }).default('0').notNull(),
+  depositRequired: boolean('deposit_required').default(false).notNull(),
+  depositAmount: decimal('deposit_amount', { precision: 10, scale: 2 }).default('0').notNull(),
+  active: boolean('active').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('bookable_service_company_id_idx').on(t.companyId),
+])
+
+export const onlineBooking = pgTable('online_booking', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  jobId: text('job_id').references(() => job.id),
+  contactId: text('contact_id').references(() => contact.id),
+  serviceId: text('service_id').references(() => bookableService.id),
+
+  customerName: text('customer_name').notNull(),
+  customerEmail: text('customer_email').notNull(),
+  customerPhone: text('customer_phone'),
+  scheduledDate: timestamp('scheduled_date').notNull(),
+  notes: text('notes'),
+  status: text('status').default('pending').notNull(),
+  confirmationCode: text('confirmation_code'),
+  depositAmount: decimal('deposit_amount', { precision: 10, scale: 2 }).default('0').notNull(),
+  depositStatus: text('deposit_status').default('none').notNull(),
+  paymentIntentId: text('payment_intent_id'),
+  depositPaidAt: timestamp('deposit_paid_at'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('online_booking_company_id_idx').on(t.companyId),
+])
+
+// ==================== CUSTOM FORMS ====================
+
+export const formTemplate = pgTable('form_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  name: text('name').notNull(),
+  description: text('description'),
+  category: text('category').notNull(),
+  fields: json('fields').notNull(),
+
+  requireSignature: boolean('require_signature').default(false).notNull(),
+  requirePhoto: boolean('require_photo').default(false).notNull(),
+  autoAttachTo: json('auto_attach_to'),
+  active: boolean('active').default(true).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('form_template_company_id_idx').on(t.companyId),
+])
+
+export const formSubmission = pgTable('form_submission', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  templateId: text('template_id').notNull().references(() => formTemplate.id),
+
+  jobId: text('job_id').references(() => job.id),
+  projectId: text('project_id').references(() => project.id),
+  contactId: text('contact_id').references(() => contact.id),
+
+  values: json('values').notNull(),
+  signature: text('signature'),
+  signedAt: timestamp('signed_at'),
+  signedBy: text('signed_by'),
+
+  submittedById: text('submitted_by_id').references(() => user.id),
+  submittedAt: timestamp('submitted_at').defaultNow().notNull(),
+  status: text('status').default('submitted').notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('form_submission_company_id_idx').on(t.companyId),
+  index('form_submission_template_id_idx').on(t.templateId),
+])
+
+// ==================== LIEN WAIVERS ====================
+
+export const lienWaiver = pgTable('lien_waiver', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  projectId: text('project_id').notNull().references(() => project.id),
+  vendorId: text('vendor_id').references(() => contact.id),
+
+  vendorName: text('vendor_name').notNull(),
+  vendorType: text('vendor_type'),
+  waiverType: text('waiver_type').notNull(),
+
+  throughDate: timestamp('through_date'),
+  amountPrevious: decimal('amount_previous', { precision: 12, scale: 2 }).default('0').notNull(),
+  amountCurrent: decimal('amount_current', { precision: 12, scale: 2 }).default('0').notNull(),
+  amountTotal: decimal('amount_total', { precision: 12, scale: 2 }).default('0').notNull(),
+
+  status: text('status').default('draft').notNull(),
+  requestedAt: timestamp('requested_at'),
+  dueDate: timestamp('due_date'),
+  receivedAt: timestamp('received_at'),
+
+  documentUrl: text('document_url'),
+  signedDate: timestamp('signed_date'),
+  notarized: boolean('notarized').default(false).notNull(),
+
+  approvedAt: timestamp('approved_at'),
+  approvedById: text('approved_by_id').references(() => user.id),
+  approvalNotes: text('approval_notes'),
+
+  rejectedAt: timestamp('rejected_at'),
+  rejectedById: text('rejected_by_id').references(() => user.id),
+  rejectionReason: text('rejection_reason'),
+
+  notes: text('notes'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('lien_waiver_company_id_idx').on(t.companyId),
+  index('lien_waiver_project_id_idx').on(t.projectId),
+])
+
+// ==================== DRAW SCHEDULES ====================
+
+export const scheduleOfValues = pgTable('schedule_of_values', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  projectId: text('project_id').notNull().unique().references(() => project.id),
+
+  contractAmount: decimal('contract_amount', { precision: 12, scale: 2 }).notNull(),
+  retainagePercent: decimal('retainage_percent', { precision: 5, scale: 2 }).default('10').notNull(),
+  status: text('status').default('draft').notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('schedule_of_values_company_id_idx').on(t.companyId),
+])
+
+export const sovLineItem = pgTable('sov_line_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  scheduleOfValuesId: text('schedule_of_values_id').notNull().references(() => scheduleOfValues.id, { onDelete: 'cascade' }),
+
+  itemNumber: text('item_number').notNull(),
+  description: text('description').notNull(),
+  scheduledValue: decimal('scheduled_value', { precision: 12, scale: 2 }).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('sov_line_item_schedule_of_values_id_idx').on(t.scheduleOfValuesId),
+])
+
+export const drawRequest = pgTable('draw_request', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id),
+
+  scheduleOfValuesId: text('schedule_of_values_id').notNull().references(() => scheduleOfValues.id),
+  projectId: text('project_id').notNull().references(() => project.id),
+
+  drawNumber: integer('draw_number').notNull(),
+  periodFrom: timestamp('period_from'),
+  periodTo: timestamp('period_to'),
+
+  grossAmount: decimal('gross_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  retainageAmount: decimal('retainage_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  netAmount: decimal('net_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+
+  status: text('status').default('draft').notNull(),
+  submittedAt: timestamp('submitted_at'),
+
+  approvedAt: timestamp('approved_at'),
+  approvedById: text('approved_by_id').references(() => user.id),
+  approvalNotes: text('approval_notes'),
+
+  rejectedAt: timestamp('rejected_at'),
+  rejectedById: text('rejected_by_id').references(() => user.id),
+  rejectionReason: text('rejection_reason'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('draw_request_schedule_of_values_id_draw_number_idx').on(t.scheduleOfValuesId, t.drawNumber),
+  index('draw_request_company_id_idx').on(t.companyId),
+  index('draw_request_project_id_idx').on(t.projectId),
+])
+
+export const drawLineItem = pgTable('draw_line_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  drawRequestId: text('draw_request_id').notNull().references(() => drawRequest.id, { onDelete: 'cascade' }),
+
+  sovLineItemId: text('sov_line_item_id').notNull().references(() => sovLineItem.id),
+
+  completedThisPeriod: decimal('completed_this_period', { precision: 12, scale: 2 }).default('0').notNull(),
+  materialsStored: decimal('materials_stored', { precision: 12, scale: 2 }).default('0').notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('draw_line_item_draw_request_id_idx').on(t.drawRequestId),
+])
+
+// ==================== AUDIT LOG ====================
+
+export const auditLog = pgTable('audit_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  action: text('action').notNull(),
+  entity: text('entity').notNull(),
+  entityId: text('entity_id'),
+  entityName: text('entity_name'),
+  changes: json('changes'),
+  metadata: json('metadata'),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  userId: text('user_id'),
+  userName: text('user_name'),
+  userEmail: text('user_email'),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('audit_log_company_id_idx').on(t.companyId),
+  index('audit_log_entity_entity_id_idx').on(t.entity, t.entityId),
+  index('audit_log_user_id_idx').on(t.userId),
+  index('audit_log_created_at_idx').on(t.createdAt),
+])
+
+// ==================== MISSING MODELS ====================
+
+export const agreementPlan = pgTable('agreement_plan', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  price: decimal('price', { precision: 12, scale: 2 }).default('0').notNull(),
+  billingFrequency: text('billing_frequency').default('annual').notNull(),
+  visitsIncluded: integer('visits_included').default(0).notNull(),
+  discountPercent: decimal('discount_percent', { precision: 5, scale: 2 }).default('0').notNull(),
+  priorityService: boolean('priority_service').default(false).notNull(),
+  durationMonths: integer('duration_months').default(12).notNull(),
+  autoRenew: boolean('auto_renew').default(true).notNull(),
+  includedServices: json('included_services'),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('agreement_plan_company_id_active_idx').on(t.companyId, t.active),
+])
+
+export const warrantyTemplate = pgTable('warranty_template', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  category: text('category'),
+  durationMonths: integer('duration_months').default(12).notNull(),
+  coverageDetails: text('coverage_details'),
+  exclusions: text('exclusions'),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('warranty_template_company_id_active_idx').on(t.companyId, t.active),
+])
+
+export const projectWarranty = pgTable('project_warranty', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id),
+  contactId: text('contact_id').references(() => contact.id),
+  templateId: text('template_id').references(() => warrantyTemplate.id),
+  name: text('name').notNull(),
+  category: text('category'),
+  description: text('description'),
+  coverageDetails: text('coverage_details'),
+  exclusions: text('exclusions'),
+  startDate: timestamp('start_date'),
+  durationMonths: integer('duration_months').default(12).notNull(),
+  expiresAt: timestamp('expires_at'),
+  documentUrl: text('document_url'),
+  status: text('status').default('active').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_warranty_company_id_idx').on(t.companyId),
+  index('project_warranty_project_id_idx').on(t.projectId),
+])
+
+export const takeoffAssembly = pgTable('takeoff_assembly', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  category: text('category'),
+  measurementType: text('measurement_type').default('area').notNull(),
+  wasteFactor: decimal('waste_factor', { precision: 5, scale: 2 }).default('10').notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('takeoff_assembly_company_id_active_idx').on(t.companyId, t.active),
+])
+
+export const assemblyMaterial = pgTable('assembly_material', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  assemblyId: text('assembly_id').notNull().references(() => takeoffAssembly.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  quantityPer: decimal('quantity_per', { precision: 10, scale: 4 }).default('1').notNull(),
+  unit: text('unit').default('each').notNull(),
+  unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  inventoryItemId: text('inventory_item_id').references(() => inventoryItem.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('assembly_material_assembly_id_idx').on(t.assemblyId),
+])
+
+export const takeoffSheet = pgTable('takeoff_sheet', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').references(() => project.id),
+  name: text('name').notNull(),
+  description: text('description'),
+  planReference: text('plan_reference'),
+  planUrl: text('plan_url'),
+  status: text('status').default('draft').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('takeoff_sheet_company_id_idx').on(t.companyId),
+  index('takeoff_sheet_project_id_idx').on(t.projectId),
+])
+
+export const recurringInvoice = pgTable('recurring_invoice', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id),
+  projectId: text('project_id').references(() => project.id),
+  frequency: text('frequency').default('monthly').notNull(),
+  startDate: timestamp('start_date').notNull(),
+  endDate: timestamp('end_date'),
+  nextRunDate: timestamp('next_run_date').notNull(),
+  terms: text('terms').default('30').notNull(),
+  subtotal: decimal('subtotal', { precision: 12, scale: 2 }).default('0').notNull(),
+  taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default('0').notNull(),
+  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  discount: decimal('discount', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  notes: text('notes'),
+  autoSend: boolean('auto_send').default(false).notNull(),
+  status: text('status').default('active').notNull(),
+  lastRunDate: timestamp('last_run_date'),
+  invoiceCount: integer('invoice_count').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('recurring_invoice_company_id_idx').on(t.companyId),
+  index('recurring_invoice_next_run_date_idx').on(t.nextRunDate),
+])
+
+export const recurringLineItem = pgTable('recurring_line_item', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  recurringInvoiceId: text('recurring_invoice_id').notNull().references(() => recurringInvoice.id, { onDelete: 'cascade' }),
+  description: text('description').notNull(),
+  quantity: decimal('quantity', { precision: 10, scale: 2 }).default('1').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0),
+}, (t) => [
+  index('recurring_line_item_recurring_invoice_id_idx').on(t.recurringInvoiceId),
+])
+
+export const equipmentType = pgTable('equipment_type', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  category: text('category'),
+  brand: text('brand'),
+  defaultWarrantyMonths: integer('default_warranty_months').default(12).notNull(),
+  defaultLifespanYears: integer('default_lifespan_years').default(15).notNull(),
+  maintenanceIntervalMonths: integer('maintenance_interval_months').default(12).notNull(),
+  fields: json('fields'),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('equipment_type_company_id_active_idx').on(t.companyId, t.active),
+])
+
+export const emailRecipient = pgTable('email_recipient', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  campaignId: text('campaign_id').notNull().references(() => emailCampaign.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id),
+  email: text('email').notNull(),
+  status: text('status').default('pending').notNull(),
+  sentAt: timestamp('sent_at'),
+  openedAt: timestamp('opened_at'),
+  clickedAt: timestamp('clicked_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('email_recipient_campaign_id_status_idx').on(t.campaignId, t.status),
+])
+
+export const task = pgTable('task', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  createdById: text('created_by_id').references(() => user.id),
+  assignedToId: text('assigned_to_id').references(() => user.id),
+  projectId: text('project_id').references(() => project.id),
+  jobId: text('job_id').references(() => job.id),
+  contactId: text('contact_id').references(() => contact.id),
+  title: text('title').notNull(),
+  description: text('description'),
+  dueDate: timestamp('due_date'),
+  priority: text('priority').default('medium').notNull(),
+  status: text('status').default('pending').notNull(),
+  checklist: json('checklist'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('task_company_id_idx').on(t.companyId),
+  index('task_assigned_to_id_idx').on(t.assignedToId),
+  index('task_project_id_idx').on(t.projectId),
+  index('task_due_date_idx').on(t.dueDate),
+])
+
+export const activity = pgTable('activity', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  action: text('action').notNull(),
+  description: text('description'),
+  metadata: json('metadata'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('activity_company_id_idx').on(t.companyId),
+  index('activity_entity_type_entity_id_idx').on(t.entityType, t.entityId),
+])
+
+// activityLog table removed — use `activity` table instead (identical schema, consolidated)
+
+export const callLog = pgTable('call_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  trackingNumberId: text('tracking_number_id').references(() => trackingNumber.id),
+  contactId: text('contact_id').references(() => contact.id),
+  callerNumber: text('caller_number'),
+  callerName: text('caller_name'),
+  callerCity: text('caller_city'),
+  callerState: text('caller_state'),
+  source: text('source'),
+  campaign: text('campaign'),
+  medium: text('medium'),
+  keyword: text('keyword'),
+  landingPage: text('landing_page'),
+  direction: text('direction').default('inbound'),
+  duration: integer('duration'),
+  status: text('status').default('completed').notNull(),
+  startTime: timestamp('start_time'),
+  endTime: timestamp('end_time'),
+  recordingUrl: text('recording_url'),
+  transcription: text('transcription'),
+  tags: json('tags'),
+  notes: text('notes'),
+  firstTimeCaller: boolean('first_time_caller').default(false),
+  providerId: text('provider_id'),
+  isLead: boolean('is_lead').default(false),
+  leadValue: decimal('lead_value', { precision: 12, scale: 2 }),
+  aiSummary: text('ai_summary'),
+  aiResponseSent: boolean('ai_response_sent').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('call_log_company_id_idx').on(t.companyId),
+  index('call_log_contact_id_idx').on(t.contactId),
+])
+
+// ==================== AI RECEPTIONIST ====================
+
+export const aiReceptionistRule = pgTable('ai_receptionist_rule', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(), // after_hours, missed_call, voicemail, new_lead, booking_request, keyword
+  channel: text('channel').notNull(), // sms, email, both
+  messageTemplate: text('message_template').notNull(),
+  delayMinutes: integer('delay_minutes').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  keywordMatch: text('keyword_match'), // for keyword trigger
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('ai_receptionist_rule_company_id_idx').on(t.companyId),
+])
+
+export const aiReceptionistSettings = pgTable('ai_receptionist_settings', {
+  companyId: text('company_id').primaryKey().references(() => company.id, { onDelete: 'cascade' }),
+  isEnabled: boolean('is_enabled').default(false).notNull(),
+  businessHoursStart: text('business_hours_start').default('09:00').notNull(),
+  businessHoursEnd: text('business_hours_end').default('17:00').notNull(),
+  timezone: text('timezone').default('America/Chicago').notNull(),
+  greetingText: text('greeting_text'),
+  forwardingNumber: text('forwarding_number'),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const comment = pgTable('comment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id),
+  entityType: text('entity_type').notNull(),
+  entityId: text('entity_id').notNull(),
+  content: text('content').notNull(),
+  mentions: json('mentions'),
+  attachments: json('attachments'),
+  parentId: text('parent_id').references(() => comment.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('comment_company_id_idx').on(t.companyId),
+  index('comment_entity_type_entity_id_idx').on(t.entityType, t.entityId),
+])
+
+export const commentReaction = pgTable('comment_reaction', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  commentId: text('comment_id').notNull().references(() => comment.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id),
+  reaction: text('reaction').notNull(),
+}, (t) => [
+  uniqueIndex('comment_reaction_comment_id_user_id_reaction_idx').on(t.commentId, t.userId, t.reaction),
+  index('comment_reaction_comment_id_idx').on(t.commentId),
+])
+
+export const dripSequence = pgTable('drip_sequence', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  trigger: text('trigger').notNull(),
+  active: boolean('active').default(false).notNull(),
+  steps: json('steps'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('drip_sequence_company_id_idx').on(t.companyId),
+])
+
+export const sequenceEnrollment = pgTable('sequence_enrollment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sequenceId: text('sequence_id').notNull().references(() => dripSequence.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  currentStep: integer('current_step').default(1).notNull(),
+  status: text('status').default('active').notNull(),
+  nextEmailAt: timestamp('next_email_at'),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('sequence_enrollment_sequence_id_idx').on(t.sequenceId),
+  index('sequence_enrollment_contact_id_idx').on(t.contactId),
+  index('sequence_enrollment_next_email_at_idx').on(t.nextEmailAt),
+])
+
+export const emailClick = pgTable('email_click', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  recipientId: text('recipient_id').notNull().references(() => emailRecipient.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  clickedAt: timestamp('clicked_at').defaultNow().notNull(),
+}, (t) => [
+  index('email_click_recipient_id_idx').on(t.recipientId),
+])
+
+export const equipmentServiceRecord = pgTable('equipment_service_record', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  equipmentId: text('equipment_id').notNull().references(() => equipment.id, { onDelete: 'cascade' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  jobId: text('job_id').references(() => job.id),
+  technicianId: text('technician_id').references(() => user.id),
+  serviceDate: timestamp('service_date').defaultNow().notNull(),
+  serviceType: text('service_type').notNull(),
+  description: text('description'),
+  partsUsed: json('parts_used'),
+  laborHours: decimal('labor_hours', { precision: 8, scale: 2 }),
+  cost: decimal('cost', { precision: 12, scale: 2 }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('equipment_service_record_equipment_id_idx').on(t.equipmentId),
+  index('equipment_service_record_company_id_idx').on(t.companyId),
+])
+
+export const jobAssignment = pgTable('job_assignment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  jobId: text('job_id').notNull().references(() => job.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id),
+  role: text('role'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('job_assignment_job_id_user_id_idx').on(t.jobId, t.userId),
+  index('job_assignment_job_id_idx').on(t.jobId),
+  index('job_assignment_user_id_idx').on(t.userId),
+])
+
+export const oauthState = pgTable('oauth_state', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  state: text('state').notNull().unique(),
+  provider: text('provider').notNull(),
+  companyId: text('company_id'),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('oauth_state_state_idx').on(t.state),
+])
+
+export const photo = pgTable('photo', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id),
+  entityType: text('entity_type'),
+  entityId: text('entity_id'),
+  filename: text('filename').notNull(),
+  originalName: text('original_name'),
+  mimeType: text('mime_type').default('image/jpeg').notNull(),
+  size: integer('size'),
+  width: integer('width'),
+  height: integer('height'),
+  thumbnailPath: text('thumbnail_path'),
+  caption: text('caption'),
+  tags: json('tags'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('photo_company_id_idx').on(t.companyId),
+  index('photo_entity_type_entity_id_idx').on(t.entityType, t.entityId),
+])
+
+export const pricebookGoodBetterBest = pgTable('pricebook_good_better_best', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  pricebookItemId: text('pricebook_item_id').notNull().references(() => pricebookItem.id, { onDelete: 'cascade' }),
+  tier: text('tier').notNull(),
+  name: text('name'),
+  description: text('description'),
+  price: decimal('price', { precision: 12, scale: 2 }).notNull(),
+  features: json('features'),
+}, (t) => [
+  index('pricebook_good_better_best_pricebook_item_id_idx').on(t.pricebookItemId),
+])
+
+export const pricebookMaterial = pgTable('pricebook_material', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  pricebookItemId: text('pricebook_item_id').notNull().references(() => pricebookItem.id, { onDelete: 'cascade' }),
+  inventoryItemId: text('inventory_item_id').references(() => inventoryItem.id),
+  quantity: decimal('quantity', { precision: 10, scale: 4 }).default('1').notNull(),
+  priceOverride: decimal('price_override', { precision: 12, scale: 2 }),
+}, (t) => [
+  index('pricebook_material_pricebook_item_id_idx').on(t.pricebookItemId),
+])
+
+export const product = pgTable('product', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  sku: text('sku'),
+  price: decimal('price', { precision: 12, scale: 2 }).default('0').notNull(),
+  category: text('category'),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('product_company_id_idx').on(t.companyId),
+])
+
+export const projectBaseline = pgTable('project_baseline', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  taskSnapshots: json('task_snapshots'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_baseline_project_id_idx').on(t.projectId),
+])
+
+export const projectSelection = pgTable('project_selection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').references(() => selectionCategory.id),
+  name: text('name').notNull(),
+  description: text('description'),
+  location: text('location'),
+  allowance: decimal('allowance', { precision: 12, scale: 2 }),
+  quantity: integer('quantity').default(1),
+  unit: text('unit').default('each'),
+  dueDate: timestamp('due_date'),
+  availableOptions: json('available_options'),
+  status: text('status').default('pending').notNull(),
+  selectedOptionId: text('selected_option_id'),
+  selectedAt: timestamp('selected_at'),
+  selectedById: text('selected_by_id'),
+  clientNotes: text('client_notes'),
+  priceDifference: decimal('price_difference', { precision: 12, scale: 2 }),
+  approvedAt: timestamp('approved_at'),
+  approvedById: text('approved_by_id'),
+  orderedAt: timestamp('ordered_at'),
+  orderNumber: text('order_number'),
+  expectedDelivery: timestamp('expected_delivery'),
+  receivedAt: timestamp('received_at'),
+  receivedNotes: text('received_notes'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_selection_project_id_idx').on(t.projectId),
+])
+
+export const projectTask = pgTable('project_task', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  parentId: text('parent_id'),
+  name: text('name').notNull(),
+  description: text('description'),
+  startDate: timestamp('start_date'),
+  endDate: timestamp('end_date'),
+  duration: integer('duration'),
+  progress: integer('progress').default(0).notNull(),
+  assignedToId: text('assigned_to_id').references(() => user.id),
+  status: text('status').default('not_started').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('project_task_project_id_idx').on(t.projectId),
+  index('project_task_parent_id_idx').on(t.parentId),
+])
+
+export const taskDependency = pgTable('task_dependency', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  predecessorId: text('predecessor_id').notNull().references(() => projectTask.id, { onDelete: 'cascade' }),
+  successorId: text('successor_id').notNull().references(() => projectTask.id, { onDelete: 'cascade' }),
+  type: text('type').default('finish_to_start').notNull(),
+  lagDays: integer('lag_days').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('task_dependency_project_id_idx').on(t.projectId),
+])
+
+export const selectionOption = pgTable('selection_option', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').references(() => selectionCategory.id),
+  name: text('name').notNull(),
+  description: text('description'),
+  manufacturer: text('manufacturer'),
+  model: text('model'),
+  sku: text('sku'),
+  price: decimal('price', { precision: 12, scale: 2 }).default('0').notNull(),
+  cost: decimal('cost', { precision: 12, scale: 2 }).default('0'),
+  unit: text('unit').default('each'),
+  imageUrl: text('image_url'),
+  images: json('images'),
+  specSheet: text('spec_sheet'),
+  leadTimeDays: integer('lead_time_days').default(0),
+  inStock: boolean('in_stock').default(true),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('selection_option_company_id_idx').on(t.companyId),
+  index('selection_option_category_id_idx').on(t.categoryId),
+])
+
+export const smsAutoResponder = pgTable('sms_auto_responder', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  trigger: text('trigger').notNull(),
+  keywords: json('keywords'),
+  message: text('message').notNull(),
+  afterHoursOnly: boolean('after_hours_only').default(false).notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('sms_auto_responder_company_id_idx').on(t.companyId),
+])
+
+export const takeoffCalculatedMaterial = pgTable('takeoff_calculated_material', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  itemId: text('item_id').notNull(),
+  materialName: text('material_name').notNull(),
+  unit: text('unit').notNull(),
+  baseQuantity: decimal('base_quantity', { precision: 12, scale: 4 }).notNull(),
+  wasteQuantity: decimal('waste_quantity', { precision: 12, scale: 4 }).default('0').notNull(),
+  totalQuantity: decimal('total_quantity', { precision: 12, scale: 4 }).notNull(),
+  unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  unitPrice: decimal('unit_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  totalCost: decimal('total_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  totalPrice: decimal('total_price', { precision: 12, scale: 2 }).default('0').notNull(),
+  inventoryItemId: text('inventory_item_id'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('takeoff_calculated_material_item_id_idx').on(t.itemId),
+])
+
+// ==================== SUPPORT TICKETS ====================
+
+export const supportTicket = pgTable('support_ticket', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  subject: text('subject').notNull(),
+  description: text('description'),
+  status: text('status').default('open').notNull(), // open, in_progress, waiting, resolved, closed
+  priority: text('priority').default('normal').notNull(), // low, normal, high, urgent, critical
+  category: text('category'), // billing, technical, feature_request, bug, general
+  type: text('type').default('internal').notNull(), // internal (from CRM users) or external (from contacts/clients)
+  source: text('source').default('portal').notNull(), // portal, email, ai_chat, phone, api
+
+  // SLA tracking
+  slaResponseDue: timestamp('sla_response_due'),
+  slaResolveDue: timestamp('sla_resolve_due'),
+  firstResponseAt: timestamp('first_response_at'),
+  resolvedAt: timestamp('resolved_at'),
+  closedAt: timestamp('closed_at'),
+  escalatedAt: timestamp('escalated_at'),
+  escalationLevel: integer('escalation_level').default(0).notNull(),
+
+  // AI fields
+  aiSuggested: boolean('ai_suggested').default(false).notNull(),
+  aiCategory: text('ai_category'),
+  aiPriorityScore: integer('ai_priority_score'),
+
+  // Rating
+  rating: integer('rating'), // 1-5 post-resolution
+  ratingComment: text('rating_comment'),
+
+  // Relations
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  assignedToId: text('assigned_to_id').references(() => user.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  // Tags & metadata
+  tags: json('tags').default([]).notNull(),
+  metadata: json('metadata').default({}).notNull(),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_ticket_company_id_idx').on(t.companyId),
+  index('support_ticket_status_idx').on(t.status),
+  index('support_ticket_priority_idx').on(t.priority),
+  index('support_ticket_assigned_to_idx').on(t.assignedToId),
+  index('support_ticket_contact_id_idx').on(t.contactId),
+  index('support_ticket_category_idx').on(t.category),
+])
+
+export const supportTicketMessage = pgTable('support_ticket_message', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  body: text('body').notNull(),
+  isInternal: boolean('is_internal').default(false).notNull(), // internal note vs visible reply
+  isAi: boolean('is_ai').default(false).notNull(),
+  attachments: json('attachments').default([]).notNull(),
+
+  ticketId: text('ticket_id').notNull().references(() => supportTicket.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_ticket_message_ticket_id_idx').on(t.ticketId),
+])
+
+export const supportKnowledgeBase = pgTable('support_knowledge_base', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  category: text('category'),
+  tags: json('tags').default([]).notNull(),
+  isFaq: boolean('is_faq').default(false).notNull(),
+  published: boolean('published').default(true).notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+  viewCount: integer('view_count').default(0).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_kb_company_id_idx').on(t.companyId),
+  index('support_kb_category_idx').on(t.category),
+])
+
+export const supportSlaPolicy = pgTable('support_sla_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  priority: text('priority').notNull(), // maps to ticket priority
+  responseTimeMinutes: integer('response_time_minutes').notNull(),
+  resolveTimeMinutes: integer('resolve_time_minutes').notNull(),
+  escalateAfterMinutes: integer('escalate_after_minutes'),
+  active: boolean('active').default(true).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('support_sla_policy_company_id_idx').on(t.companyId),
+])
+
+export const pushSubscription = pgTable('push_subscription', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('push_subscription_user_id_idx').on(t.userId),
+])
+
+// ==================== LEAD INBOX ====================
+
+export const leadSource = pgTable('lead_source', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  platform: text('platform').notNull(), // angi, homeadvisor, thumbtack, google_lsa, houzz, other
+  label: text('label').notNull(),
+  inboundEmail: text('inbound_email'),
+  webhookUrl: text('webhook_url'),
+  webhookSecret: text('webhook_secret'),
+  enabled: boolean('enabled').default(true).notNull(),
+  config: json('config').default({}).notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('lead_source_company_id_idx').on(t.companyId),
+  index('lead_source_platform_idx').on(t.platform),
+])
+
+export const lead = pgTable('lead', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourcePlatform: text('source_platform').notNull(),
+  sourceId: text('source_id').references(() => leadSource.id, { onDelete: 'set null' }),
+  homeownerName: text('homeowner_name').notNull(),
+  email: text('email'),
+  phone: text('phone'),
+  jobType: text('job_type'),
+  location: text('location'),
+  budget: text('budget'),
+  description: text('description'),
+  status: text('status').default('new').notNull(), // new, contacted, converted, dismissed
+  rawPayload: json('raw_payload'),
+  convertedContactId: text('converted_contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  contactedAt: timestamp('contacted_at'),
+  receivedAt: timestamp('received_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('lead_company_id_idx').on(t.companyId),
+  index('lead_status_idx').on(t.status),
+  index('lead_platform_idx').on(t.sourcePlatform),
+  index('lead_received_at_idx').on(t.receivedAt),
+])
+
+export const roofReport = pgTable('roof_report', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+
+  address: text('address').notNull(),
+  city: text('city').notNull(),
+  state: text('state').notNull(),
+  zip: text('zip').notNull(),
+  lat: real('lat').notNull(),
+  lng: real('lng').notNull(),
+  formattedAddress: text('formatted_address'),
+
+  totalAreaSqft: real('total_area_sqft').notNull(),
+  totalSquares: real('total_squares').notNull(),
+  segmentCount: integer('segment_count').notNull(),
+  imageryQuality: text('imagery_quality').notNull(),
+  imageryDate: text('imagery_date'),
+  aerialImagePath: text('aerial_image_path'),
+  roofMaskPath: text('roof_mask_path'),
+
+  segments: json('segments').notNull(),
+  edges: json('edges').notNull(),
+  measurements: json('measurements').notNull(),
+  rawSolarData: json('raw_solar_data'),
+
+  userEdited: boolean('user_edited').default(false).notNull(),
+  originalEdges: json('original_edges'),
+  originalMeasurements: json('original_measurements'),
+
+  status: text('status').default('paid').notNull(),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  amountCharged: decimal('amount_charged', { precision: 10, scale: 2 }).default('9.99'),
+
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('roof_report_company_id_idx').on(t.companyId),
+  index('roof_report_contact_id_idx').on(t.contactId),
+])
+
+// ==================== RELATIONS ====================
+
+export const companyRelations = relations(company, ({ many, one }) => ({
+  users: many(user),
+  contacts: many(contact),
+  projects: many(project),
+  jobs: many(job),
+  quotes: many(quote),
+  invoices: many(invoice),
+  timeEntries: many(timeEntry),
+  expenses: many(expense),
+  dailyLogs: many(dailyLog),
+  rfis: many(rfi),
+  submittals: many(submittal),
+  changeOrders: many(changeOrder),
+  punchListItems: many(punchListItem),
+  inspections: many(inspection),
+  bids: many(bid),
+  campaigns: many(campaign),
+  messages: many(message),
+  documents: many(document),
+  teamMembers: many(teamMember),
+  smsConversations: many(smsConversation),
+  smsTemplates: many(smsTemplate),
+  scheduledSmses: many(scheduledSms),
+  emailLogs: many(emailLog),
+  locationLogs: many(locationLog),
+  geofences: many(geofence),
+  inventoryItems: many(inventoryItem),
+  inventoryLocations: many(inventoryLocation),
+  inventoryTransactions: many(inventoryTransaction),
+  inventoryUsages: many(inventoryUsage),
+  inventoryTransfers: many(inventoryTransfer),
+  purchaseOrders: many(purchaseOrder),
+  pricebookCategories: many(pricebookCategory),
+  pricebookItems: many(pricebookItem),
+  reviewRequests: many(reviewRequest),
+  reviews: many(review),
+  financingApplications: many(financingApplication),
+  serviceAgreements: many(serviceAgreement),
+  equipmentCategories: many(equipmentCategory),
+  equipmentList: many(equipment),
+  vehicles: many(vehicle),
+  emailTemplates: many(emailTemplate),
+  emailCampaigns: many(emailCampaign),
+  automations: many(automation),
+  trackingNumbers: many(trackingNumber),
+  phoneCalls: many(phoneCall),
+  scheduleEvents: many(scheduleEvent),
+  recurringSchedules: many(recurringSchedule),
+  selectionCategories: many(selectionCategory),
+  selectionItems: many(selectionItem),
+  takeoffs: many(takeoff),
+  warranties: many(warranty),
+  warrantyClaims: many(warrantyClaim),
+  subscription: one(subscription),
+  licenses: many(license),
+  addonPurchases: many(addonPurchase),
+  usageRecords: many(usageRecord),
+  billingInvoices: many(billingInvoice),
+  bookingSettings: one(bookingSettings),
+  bookableServices: many(bookableService),
+  onlineBookings: many(onlineBooking),
+  formTemplates: many(formTemplate),
+  formSubmissions: many(formSubmission),
+  lienWaivers: many(lienWaiver),
+  schedulesOfValues: many(scheduleOfValues),
+  drawRequests: many(drawRequest),
+  auditLogs: many(auditLog),
+  agreementPlans: many(agreementPlan),
+  warrantyTemplates: many(warrantyTemplate),
+  projectWarranties: many(projectWarranty),
+  takeoffAssemblies: many(takeoffAssembly),
+  takeoffSheets: many(takeoffSheet),
+  recurringInvoices: many(recurringInvoice),
+  equipmentTypes: many(equipmentType),
+  tasks: many(task),
+  activities: many(activity),
+  callLogs: many(callLog),
+  aiReceptionistRules: many(aiReceptionistRule),
+  aiReceptionistSettings: one(aiReceptionistSettings),
+  comments: many(comment),
+  dripSequences: many(dripSequence),
+  equipmentServiceRecords: many(equipmentServiceRecord),
+  photos: many(photo),
+  products: many(product),
+  projectBaselines: many(projectBaseline),
+  projectSelections: many(projectSelection),
+  projectTasks: many(projectTask),
+  taskDependencies: many(taskDependency),
+  selectionOptions: many(selectionOption),
+  smsAutoResponders: many(smsAutoResponder),
+  supportTickets: many(supportTicket),
+  supportKnowledgeBases: many(supportKnowledgeBase),
+  supportSlaPolicies: many(supportSlaPolicy),
+  leadSources: many(leadSource),
+  leads: many(lead),
+  roofReports: many(roofReport),
+}))
+
+export const userRelations = relations(user, ({ one, many }) => ({
+  company: one(company, { fields: [user.companyId], references: [company.id] }),
+  settings: one(userSettings),
+  timeEntries: many(timeEntry),
+  dailyLogs: many(dailyLog),
+  messages: many(message),
+  locationLogs: many(locationLog),
+  geofenceEvents: many(geofenceEvent),
+  smsMessages: many(smsMessage),
+  scheduleEvents: many(scheduleEvent),
+  jobsAssigned: many(job, { relationName: 'jobAssignedTo' }),
+  jobsCreated: many(job, { relationName: 'jobCreatedBy' }),
+  documentsUploaded: many(document, { relationName: 'documentUploadedBy' }),
+  inventoryLocationsAssigned: many(inventoryLocation),
+  inventoryTransactions: many(inventoryTransaction),
+  inventoryUsages: many(inventoryUsage),
+  inventoryTransfers: many(inventoryTransfer),
+  purchaseOrdersCreated: many(purchaseOrder),
+  scheduledSmsesCreated: many(scheduledSms),
+  emailLogsSent: many(emailLog),
+  vehiclesAssigned: many(vehicle),
+  formSubmissions: many(formSubmission),
+  lienWaiversApproved: many(lienWaiver, { relationName: 'lienWaiverApprovedBy' }),
+  lienWaiversRejected: many(lienWaiver, { relationName: 'lienWaiverRejectedBy' }),
+  drawRequestsApproved: many(drawRequest, { relationName: 'drawRequestApprovedBy' }),
+  drawRequestsRejected: many(drawRequest, { relationName: 'drawRequestRejectedBy' }),
+  tasksCreated: many(task, { relationName: 'taskCreatedBy' }),
+  tasksAssigned: many(task, { relationName: 'taskAssignedTo' }),
+  activities: many(activity),
+  comments: many(comment),
+  commentReactions: many(commentReaction),
+  equipmentServiceRecords: many(equipmentServiceRecord),
+  jobAssignments: many(jobAssignment),
+  photos: many(photo),
+  projectTasks: many(projectTask),
+  supportTicketsAssigned: many(supportTicket, { relationName: 'supportTicketAssignedTo' }),
+  supportTicketsCreated: many(supportTicket, { relationName: 'supportTicketCreatedBy' }),
+  supportTicketMessages: many(supportTicketMessage),
+  supportKnowledgeBases: many(supportKnowledgeBase),
+  pushSubscriptions: many(pushSubscription),
+}))
+
+export const contactRelations = relations(contact, ({ one, many }) => ({
+  company: one(company, { fields: [contact.companyId], references: [company.id] }),
+  projects: many(project),
+  jobs: many(job),
+  quotes: many(quote),
+  invoices: many(invoice),
+  messages: many(message),
+  smsConversations: many(smsConversation),
+  scheduledSmses: many(scheduledSms),
+  emailLogs: many(emailLog),
+  documents: many(document),
+  reviewRequests: many(reviewRequest),
+  reviews: many(review),
+  financingApplications: many(financingApplication),
+  serviceAgreements: many(serviceAgreement),
+  selections: many(selection),
+  lienWaivers: many(lienWaiver),
+  onlineBookings: many(onlineBooking),
+  formSubmissions: many(formSubmission),
+  projectWarranties: many(projectWarranty),
+  recurringInvoices: many(recurringInvoice),
+  emailRecipients: many(emailRecipient),
+  sequenceEnrollments: many(sequenceEnrollment),
+  tasks: many(task),
+  callLogs: many(callLog),
+  supportTickets: many(supportTicket),
+  supportTicketMessages: many(supportTicketMessage),
+  leadsConverted: many(lead),
+  roofReports: many(roofReport),
+}))
+
+export const projectRelations = relations(project, ({ one, many }) => ({
+  company: one(company, { fields: [project.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [project.contactId], references: [contact.id] }),
+  jobs: many(job),
+  quotes: many(quote),
+  invoices: many(invoice),
+  timeEntries: many(timeEntry),
+  expenses: many(expense),
+  dailyLogs: many(dailyLog),
+  rfis: many(rfi),
+  submittals: many(submittal),
+  changeOrders: many(changeOrder),
+  punchListItems: many(punchListItem),
+  inspections: many(inspection),
+  documents: many(document),
+  geofences: many(geofence),
+  selections: many(selection),
+  takeoffs: many(takeoff),
+  lienWaivers: many(lienWaiver),
+  scheduleOfValues: one(scheduleOfValues),
+  drawRequests: many(drawRequest),
+  recurringInvoices: many(recurringInvoice),
+  formSubmissions: many(formSubmission),
+  projectWarranties: many(projectWarranty),
+  takeoffSheets: many(takeoffSheet),
+  projectBaselines: many(projectBaseline),
+  projectSelections: many(projectSelection),
+  projectTasks: many(projectTask),
+  taskDependencies: many(taskDependency),
+  tasks: many(task),
+}))
+
+export const jobRelations = relations(job, ({ one, many }) => ({
+  company: one(company, { fields: [job.companyId], references: [company.id] }),
+  project: one(project, { fields: [job.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [job.contactId], references: [contact.id] }),
+  assignedTo: one(user, { fields: [job.assignedToId], references: [user.id], relationName: 'jobAssignedTo' }),
+  createdBy: one(user, { fields: [job.createdById], references: [user.id], relationName: 'jobCreatedBy' }),
+  quote: one(quote, { fields: [job.quoteId], references: [quote.id] }),
+  timeEntries: many(timeEntry),
+  expenses: many(expense),
+  documents: many(document),
+  locationLogs: many(locationLog),
+  geofences: many(geofence),
+  scheduledSmses: many(scheduledSms),
+  inventoryTransactions: many(inventoryTransaction),
+  inventoryUsages: many(inventoryUsage),
+  reviewRequests: many(reviewRequest),
+  onlineBookings: many(onlineBooking),
+  formSubmissions: many(formSubmission),
+  jobAssignments: many(jobAssignment),
+  equipmentServiceRecords: many(equipmentServiceRecord),
+  tasks: many(task),
+}))
+
+export const quoteRelations = relations(quote, ({ one, many }) => ({
+  company: one(company, { fields: [quote.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [quote.contactId], references: [contact.id] }),
+  project: one(project, { fields: [quote.projectId], references: [project.id] }),
+  lineItems: many(quoteLineItem),
+  jobs: many(job),
+  invoice: one(invoice),
+}))
+
+export const quoteLineItemRelations = relations(quoteLineItem, ({ one }) => ({
+  quote: one(quote, { fields: [quoteLineItem.quoteId], references: [quote.id] }),
+}))
+
+export const invoiceRelations = relations(invoice, ({ one, many }) => ({
+  company: one(company, { fields: [invoice.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [invoice.contactId], references: [contact.id] }),
+  project: one(project, { fields: [invoice.projectId], references: [project.id] }),
+  quote: one(quote, { fields: [invoice.quoteId], references: [quote.id] }),
+  lineItems: many(invoiceLineItem),
+  payments: many(payment),
+  documents: many(document),
+}))
+
+export const invoiceLineItemRelations = relations(invoiceLineItem, ({ one }) => ({
+  invoice: one(invoice, { fields: [invoiceLineItem.invoiceId], references: [invoice.id] }),
+}))
+
+export const paymentRelations = relations(payment, ({ one }) => ({
+  invoice: one(invoice, { fields: [payment.invoiceId], references: [invoice.id] }),
+}))
+
+export const timeEntryRelations = relations(timeEntry, ({ one }) => ({
+  company: one(company, { fields: [timeEntry.companyId], references: [company.id] }),
+  user: one(user, { fields: [timeEntry.userId], references: [user.id] }),
+  job: one(job, { fields: [timeEntry.jobId], references: [job.id] }),
+  project: one(project, { fields: [timeEntry.projectId], references: [project.id] }),
+}))
+
+export const expenseRelations = relations(expense, ({ one }) => ({
+  company: one(company, { fields: [expense.companyId], references: [company.id] }),
+  project: one(project, { fields: [expense.projectId], references: [project.id] }),
+  job: one(job, { fields: [expense.jobId], references: [job.id] }),
+}))
+
+export const dailyLogRelations = relations(dailyLog, ({ one }) => ({
+  company: one(company, { fields: [dailyLog.companyId], references: [company.id] }),
+  project: one(project, { fields: [dailyLog.projectId], references: [project.id] }),
+  user: one(user, { fields: [dailyLog.userId], references: [user.id] }),
+}))
+
+// ==================== AIA FORMS (G702/G703) ====================
+export const aiaForm = pgTable('aia_form', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull().references(() => project.id, { onDelete: 'cascade' }),
+  formType: text('form_type').notNull(), // 'G702' or 'G703'
+  applicationNumber: integer('application_number').notNull(),
+  periodTo: timestamp('period_to').notNull(),
+  contractSum: decimal('contract_sum', { precision: 12, scale: 2 }).notNull(),
+  netChangeByChangeOrders: decimal('net_change_by_change_orders', { precision: 12, scale: 2 }).default('0').notNull(),
+  contractSumToDate: decimal('contract_sum_to_date', { precision: 12, scale: 2 }).notNull(),
+  totalCompletedAndStored: decimal('total_completed_and_stored', { precision: 12, scale: 2 }).notNull(),
+  retainagePercent: decimal('retainage_percent', { precision: 5, scale: 2 }).default('10').notNull(),
+  retainageAmount: decimal('retainage_amount', { precision: 12, scale: 2 }).notNull(),
+  totalEarnedLessRetainage: decimal('total_earned_less_retainage', { precision: 12, scale: 2 }).notNull(),
+  lessPreviousCertificates: decimal('less_previous_certificates', { precision: 12, scale: 2 }).default('0').notNull(),
+  currentPaymentDue: decimal('current_payment_due', { precision: 12, scale: 2 }).notNull(),
+  balanceToFinish: decimal('balance_to_finish', { precision: 12, scale: 2 }).notNull(),
+  lineItems: json('line_items').notNull(), // G703 continuation rows
+  status: text('status').default('draft').notNull(), // draft, signed, submitted, paid
+  signedBy: text('signed_by'),
+  signedAt: timestamp('signed_at'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => ({
+  companyIdx: index('aia_form_company_id_idx').on(t.companyId),
+  projectIdx: index('aia_form_project_id_idx').on(t.projectId),
+}))
+
+export const rfiRelations = relations(rfi, ({ one }) => ({
+  company: one(company, { fields: [rfi.companyId], references: [company.id] }),
+  project: one(project, { fields: [rfi.projectId], references: [project.id] }),
+}))
+
+export const submittalRelations = relations(submittal, ({ one }) => ({
+  company: one(company, { fields: [submittal.companyId], references: [company.id] }),
+  project: one(project, { fields: [submittal.projectId], references: [project.id] }),
+}))
+
+export const changeOrderRelations = relations(changeOrder, ({ one, many }) => ({
+  company: one(company, { fields: [changeOrder.companyId], references: [company.id] }),
+  project: one(project, { fields: [changeOrder.projectId], references: [project.id] }),
+  lineItems: many(changeOrderLineItem),
+}))
+
+export const changeOrderLineItemRelations = relations(changeOrderLineItem, ({ one }) => ({
+  changeOrder: one(changeOrder, { fields: [changeOrderLineItem.changeOrderId], references: [changeOrder.id] }),
+}))
+
+export const punchListItemRelations = relations(punchListItem, ({ one }) => ({
+  company: one(company, { fields: [punchListItem.companyId], references: [company.id] }),
+  project: one(project, { fields: [punchListItem.projectId], references: [project.id] }),
+}))
+
+export const inspectionRelations = relations(inspection, ({ one }) => ({
+  company: one(company, { fields: [inspection.companyId], references: [company.id] }),
+  project: one(project, { fields: [inspection.projectId], references: [project.id] }),
+}))
+
+export const bidRelations = relations(bid, ({ one }) => ({
+  company: one(company, { fields: [bid.companyId], references: [company.id] }),
+}))
+
+export const campaignRelations = relations(campaign, ({ one }) => ({
+  company: one(company, { fields: [campaign.companyId], references: [company.id] }),
+}))
+
+export const messageRelations = relations(message, ({ one }) => ({
+  company: one(company, { fields: [message.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [message.contactId], references: [contact.id] }),
+  user: one(user, { fields: [message.userId], references: [user.id] }),
+}))
+
+export const documentRelations = relations(document, ({ one }) => ({
+  company: one(company, { fields: [document.companyId], references: [company.id] }),
+  project: one(project, { fields: [document.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [document.contactId], references: [contact.id] }),
+  job: one(job, { fields: [document.jobId], references: [job.id] }),
+  invoice: one(invoice, { fields: [document.invoiceId], references: [invoice.id] }),
+  uploadedBy: one(user, { fields: [document.uploadedById], references: [user.id], relationName: 'documentUploadedBy' }),
+}))
+
+export const teamMemberRelations = relations(teamMember, ({ one }) => ({
+  company: one(company, { fields: [teamMember.companyId], references: [company.id] }),
+}))
+
+export const smsConversationRelations = relations(smsConversation, ({ one, many }) => ({
+  company: one(company, { fields: [smsConversation.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [smsConversation.contactId], references: [contact.id] }),
+  messages: many(smsMessage),
+}))
+
+export const smsMessageRelations = relations(smsMessage, ({ one }) => ({
+  conversation: one(smsConversation, { fields: [smsMessage.conversationId], references: [smsConversation.id] }),
+  sentBy: one(user, { fields: [smsMessage.sentById], references: [user.id] }),
+}))
+
+export const smsTemplateRelations = relations(smsTemplate, ({ one }) => ({
+  company: one(company, { fields: [smsTemplate.companyId], references: [company.id] }),
+}))
+
+export const scheduledSmsRelations = relations(scheduledSms, ({ one }) => ({
+  company: one(company, { fields: [scheduledSms.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [scheduledSms.contactId], references: [contact.id] }),
+  job: one(job, { fields: [scheduledSms.jobId], references: [job.id] }),
+  createdBy: one(user, { fields: [scheduledSms.createdById], references: [user.id] }),
+}))
+
+export const emailLogRelations = relations(emailLog, ({ one }) => ({
+  company: one(company, { fields: [emailLog.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [emailLog.contactId], references: [contact.id] }),
+  sentBy: one(user, { fields: [emailLog.sentById], references: [user.id] }),
+}))
+
+export const locationLogRelations = relations(locationLog, ({ one }) => ({
+  user: one(user, { fields: [locationLog.userId], references: [user.id] }),
+  company: one(company, { fields: [locationLog.companyId], references: [company.id] }),
+  job: one(job, { fields: [locationLog.jobId], references: [job.id] }),
+}))
+
+export const geofenceRelations = relations(geofence, ({ one, many }) => ({
+  company: one(company, { fields: [geofence.companyId], references: [company.id] }),
+  job: one(job, { fields: [geofence.jobId], references: [job.id] }),
+  project: one(project, { fields: [geofence.projectId], references: [project.id] }),
+  events: many(geofenceEvent),
+}))
+
+export const geofenceEventRelations = relations(geofenceEvent, ({ one }) => ({
+  user: one(user, { fields: [geofenceEvent.userId], references: [user.id] }),
+  geofence: one(geofence, { fields: [geofenceEvent.geofenceId], references: [geofence.id] }),
+}))
+
+export const userSettingsRelations = relations(userSettings, ({ one }) => ({
+  user: one(user, { fields: [userSettings.userId], references: [user.id] }),
+}))
+
+export const inventoryItemRelations = relations(inventoryItem, ({ one, many }) => ({
+  company: one(company, { fields: [inventoryItem.companyId], references: [company.id] }),
+  stockLevels: many(stockLevel),
+  transactions: many(inventoryTransaction),
+  usages: many(inventoryUsage),
+  transfers: many(inventoryTransfer),
+  purchaseOrderItems: many(purchaseOrderItem),
+  pricebookItems: many(pricebookItem),
+  assemblyMaterials: many(assemblyMaterial),
+  pricebookMaterials: many(pricebookMaterial),
+}))
+
+export const inventoryLocationRelations = relations(inventoryLocation, ({ one, many }) => ({
+  company: one(company, { fields: [inventoryLocation.companyId], references: [company.id] }),
+  assignedUser: one(user, { fields: [inventoryLocation.assignedUserId], references: [user.id] }),
+  stockLevels: many(stockLevel),
+  transactions: many(inventoryTransaction),
+  usages: many(inventoryUsage),
+  transfersFrom: many(inventoryTransfer, { relationName: 'transferFromLocation' }),
+  transfersTo: many(inventoryTransfer, { relationName: 'transferToLocation' }),
+  purchaseOrders: many(purchaseOrder),
+}))
+
+export const stockLevelRelations = relations(stockLevel, ({ one }) => ({
+  item: one(inventoryItem, { fields: [stockLevel.itemId], references: [inventoryItem.id] }),
+  location: one(inventoryLocation, { fields: [stockLevel.locationId], references: [inventoryLocation.id] }),
+}))
+
+export const inventoryTransactionRelations = relations(inventoryTransaction, ({ one }) => ({
+  company: one(company, { fields: [inventoryTransaction.companyId], references: [company.id] }),
+  item: one(inventoryItem, { fields: [inventoryTransaction.itemId], references: [inventoryItem.id] }),
+  location: one(inventoryLocation, { fields: [inventoryTransaction.locationId], references: [inventoryLocation.id] }),
+  user: one(user, { fields: [inventoryTransaction.userId], references: [user.id] }),
+  job: one(job, { fields: [inventoryTransaction.jobId], references: [job.id] }),
+}))
+
+export const inventoryUsageRelations = relations(inventoryUsage, ({ one }) => ({
+  company: one(company, { fields: [inventoryUsage.companyId], references: [company.id] }),
+  job: one(job, { fields: [inventoryUsage.jobId], references: [job.id] }),
+  item: one(inventoryItem, { fields: [inventoryUsage.itemId], references: [inventoryItem.id] }),
+  location: one(inventoryLocation, { fields: [inventoryUsage.locationId], references: [inventoryLocation.id] }),
+  user: one(user, { fields: [inventoryUsage.userId], references: [user.id] }),
+}))
+
+export const inventoryTransferRelations = relations(inventoryTransfer, ({ one }) => ({
+  company: one(company, { fields: [inventoryTransfer.companyId], references: [company.id] }),
+  item: one(inventoryItem, { fields: [inventoryTransfer.itemId], references: [inventoryItem.id] }),
+  fromLocation: one(inventoryLocation, { fields: [inventoryTransfer.fromLocationId], references: [inventoryLocation.id], relationName: 'transferFromLocation' }),
+  toLocation: one(inventoryLocation, { fields: [inventoryTransfer.toLocationId], references: [inventoryLocation.id], relationName: 'transferToLocation' }),
+  user: one(user, { fields: [inventoryTransfer.userId], references: [user.id] }),
+}))
+
+export const purchaseOrderRelations = relations(purchaseOrder, ({ one, many }) => ({
+  company: one(company, { fields: [purchaseOrder.companyId], references: [company.id] }),
+  location: one(inventoryLocation, { fields: [purchaseOrder.locationId], references: [inventoryLocation.id] }),
+  createdBy: one(user, { fields: [purchaseOrder.createdById], references: [user.id] }),
+  items: many(purchaseOrderItem),
+}))
+
+export const purchaseOrderItemRelations = relations(purchaseOrderItem, ({ one }) => ({
+  purchaseOrder: one(purchaseOrder, { fields: [purchaseOrderItem.purchaseOrderId], references: [purchaseOrder.id] }),
+  item: one(inventoryItem, { fields: [purchaseOrderItem.itemId], references: [inventoryItem.id] }),
+}))
+
+export const pricebookCategoryRelations = relations(pricebookCategory, ({ one, many }) => ({
+  company: one(company, { fields: [pricebookCategory.companyId], references: [company.id] }),
+  items: many(pricebookItem),
+  selectionItems: many(selectionItem),
+  selectionOptions: many(selectionOption),
+  projectSelections: many(projectSelection),
+}))
+
+export const pricebookItemRelations = relations(pricebookItem, ({ one, many }) => ({
+  company: one(company, { fields: [pricebookItem.companyId], references: [company.id] }),
+  category: one(pricebookCategory, { fields: [pricebookItem.categoryId], references: [pricebookCategory.id] }),
+  inventoryItem: one(inventoryItem, { fields: [pricebookItem.inventoryItemId], references: [inventoryItem.id] }),
+  goodBetterBest: many(pricebookGoodBetterBest),
+  materials: many(pricebookMaterial),
+}))
+
+export const reviewRequestRelations = relations(reviewRequest, ({ one }) => ({
+  company: one(company, { fields: [reviewRequest.companyId], references: [company.id] }),
+  job: one(job, { fields: [reviewRequest.jobId], references: [job.id] }),
+  contact: one(contact, { fields: [reviewRequest.contactId], references: [contact.id] }),
+  review: one(review),
+}))
+
+export const reviewRelations = relations(review, ({ one }) => ({
+  company: one(company, { fields: [review.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [review.contactId], references: [contact.id] }),
+  request: one(reviewRequest, { fields: [review.requestId], references: [reviewRequest.id] }),
+}))
+
+export const financingApplicationRelations = relations(financingApplication, ({ one }) => ({
+  company: one(company, { fields: [financingApplication.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [financingApplication.contactId], references: [contact.id] }),
+}))
+
+export const serviceAgreementRelations = relations(serviceAgreement, ({ one, many }) => ({
+  company: one(company, { fields: [serviceAgreement.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [serviceAgreement.contactId], references: [contact.id] }),
+  visits: many(agreementVisit),
+}))
+
+export const agreementVisitRelations = relations(agreementVisit, ({ one }) => ({
+  agreement: one(serviceAgreement, { fields: [agreementVisit.agreementId], references: [serviceAgreement.id] }),
+}))
+
+export const equipmentCategoryRelations = relations(equipmentCategory, ({ one, many }) => ({
+  company: one(company, { fields: [equipmentCategory.companyId], references: [company.id] }),
+  equipment: many(equipment),
+}))
+
+export const equipmentRelations = relations(equipment, ({ one, many }) => ({
+  company: one(company, { fields: [equipment.companyId], references: [company.id] }),
+  category: one(equipmentCategory, { fields: [equipment.categoryId], references: [equipmentCategory.id] }),
+  maintenanceRecords: many(equipmentMaintenance),
+  serviceRecords: many(equipmentServiceRecord),
+}))
+
+export const equipmentMaintenanceRelations = relations(equipmentMaintenance, ({ one }) => ({
+  equipment: one(equipment, { fields: [equipmentMaintenance.equipmentId], references: [equipment.id] }),
+}))
+
+export const vehicleRelations = relations(vehicle, ({ one, many }) => ({
+  company: one(company, { fields: [vehicle.companyId], references: [company.id] }),
+  assignedUser: one(user, { fields: [vehicle.assignedUserId], references: [user.id] }),
+  maintenanceRecords: many(vehicleMaintenance),
+  fuelLogs: many(fuelLog),
+}))
+
+export const vehicleMaintenanceRelations = relations(vehicleMaintenance, ({ one }) => ({
+  vehicle: one(vehicle, { fields: [vehicleMaintenance.vehicleId], references: [vehicle.id] }),
+}))
+
+export const fuelLogRelations = relations(fuelLog, ({ one }) => ({
+  vehicle: one(vehicle, { fields: [fuelLog.vehicleId], references: [vehicle.id] }),
+}))
+
+export const emailTemplateRelations = relations(emailTemplate, ({ one }) => ({
+  company: one(company, { fields: [emailTemplate.companyId], references: [company.id] }),
+}))
+
+export const emailCampaignRelations = relations(emailCampaign, ({ one, many }) => ({
+  company: one(company, { fields: [emailCampaign.companyId], references: [company.id] }),
+  recipients: many(emailRecipient),
+}))
+
+export const automationRelations = relations(automation, ({ one }) => ({
+  company: one(company, { fields: [automation.companyId], references: [company.id] }),
+}))
+
+export const trackingNumberRelations = relations(trackingNumber, ({ one, many }) => ({
+  company: one(company, { fields: [trackingNumber.companyId], references: [company.id] }),
+  phoneCalls: many(phoneCall),
+  callLogs: many(callLog),
+}))
+
+export const phoneCallRelations = relations(phoneCall, ({ one }) => ({
+  trackingNumber: one(trackingNumber, { fields: [phoneCall.trackingNumberId], references: [trackingNumber.id] }),
+  company: one(company, { fields: [phoneCall.companyId], references: [company.id] }),
+}))
+
+export const scheduleEventRelations = relations(scheduleEvent, ({ one }) => ({
+  company: one(company, { fields: [scheduleEvent.companyId], references: [company.id] }),
+  user: one(user, { fields: [scheduleEvent.userId], references: [user.id] }),
+}))
+
+export const recurringScheduleRelations = relations(recurringSchedule, ({ one }) => ({
+  company: one(company, { fields: [recurringSchedule.companyId], references: [company.id] }),
+}))
+
+export const selectionCategoryRelations = relations(selectionCategory, ({ one, many }) => ({
+  company: one(company, { fields: [selectionCategory.companyId], references: [company.id] }),
+  items: many(selectionItem),
+  selections: many(selection),
+}))
+
+export const selectionItemRelations = relations(selectionItem, ({ one, many }) => ({
+  category: one(selectionCategory, { fields: [selectionItem.categoryId], references: [selectionCategory.id] }),
+  company: one(company, { fields: [selectionItem.companyId], references: [company.id] }),
+  selections: many(selection),
+}))
+
+export const selectionRelations = relations(selection, ({ one }) => ({
+  project: one(project, { fields: [selection.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [selection.contactId], references: [contact.id] }),
+  item: one(selectionItem, { fields: [selection.itemId], references: [selectionItem.id] }),
+}))
+
+export const takeoffRelations = relations(takeoff, ({ one, many }) => ({
+  company: one(company, { fields: [takeoff.companyId], references: [company.id] }),
+  project: one(project, { fields: [takeoff.projectId], references: [project.id] }),
+  items: many(takeoffItem),
+}))
+
+export const takeoffItemRelations = relations(takeoffItem, ({ one }) => ({
+  sheet: one(takeoffSheet, { fields: [takeoffItem.sheetId], references: [takeoffSheet.id] }),
+  assembly: one(takeoffAssembly, { fields: [takeoffItem.assemblyId], references: [takeoffAssembly.id] }),
+  takeoff: one(takeoff, { fields: [takeoffItem.takeoffId], references: [takeoff.id] }),
+}))
+
+export const warrantyRelations = relations(warranty, ({ one, many }) => ({
+  company: one(company, { fields: [warranty.companyId], references: [company.id] }),
+  claims: many(warrantyClaim),
+}))
+
+export const warrantyClaimRelations = relations(warrantyClaim, ({ one }) => ({
+  warranty: one(warranty, { fields: [warrantyClaim.warrantyId], references: [warranty.id] }),
+  company: one(company, { fields: [warrantyClaim.companyId], references: [company.id] }),
+}))
+
+export const subscriptionRelations = relations(subscription, ({ one }) => ({
+  company: one(company, { fields: [subscription.companyId], references: [company.id] }),
+}))
+
+export const licenseRelations = relations(license, ({ one }) => ({
+  company: one(company, { fields: [license.companyId], references: [company.id] }),
+}))
+
+export const addonPurchaseRelations = relations(addonPurchase, ({ one }) => ({
+  company: one(company, { fields: [addonPurchase.companyId], references: [company.id] }),
+}))
+
+export const usageRecordRelations = relations(usageRecord, ({ one }) => ({
+  company: one(company, { fields: [usageRecord.companyId], references: [company.id] }),
+}))
+
+export const billingInvoiceRelations = relations(billingInvoice, ({ one }) => ({
+  company: one(company, { fields: [billingInvoice.companyId], references: [company.id] }),
+}))
+
+export const bookingSettingsRelations = relations(bookingSettings, ({ one }) => ({
+  company: one(company, { fields: [bookingSettings.companyId], references: [company.id] }),
+}))
+
+export const bookableServiceRelations = relations(bookableService, ({ one, many }) => ({
+  company: one(company, { fields: [bookableService.companyId], references: [company.id] }),
+  bookings: many(onlineBooking),
+}))
+
+export const onlineBookingRelations = relations(onlineBooking, ({ one }) => ({
+  company: one(company, { fields: [onlineBooking.companyId], references: [company.id] }),
+  job: one(job, { fields: [onlineBooking.jobId], references: [job.id] }),
+  contact: one(contact, { fields: [onlineBooking.contactId], references: [contact.id] }),
+  service: one(bookableService, { fields: [onlineBooking.serviceId], references: [bookableService.id] }),
+}))
+
+export const formTemplateRelations = relations(formTemplate, ({ one, many }) => ({
+  company: one(company, { fields: [formTemplate.companyId], references: [company.id] }),
+  submissions: many(formSubmission),
+}))
+
+export const formSubmissionRelations = relations(formSubmission, ({ one }) => ({
+  company: one(company, { fields: [formSubmission.companyId], references: [company.id] }),
+  template: one(formTemplate, { fields: [formSubmission.templateId], references: [formTemplate.id] }),
+  job: one(job, { fields: [formSubmission.jobId], references: [job.id] }),
+  project: one(project, { fields: [formSubmission.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [formSubmission.contactId], references: [contact.id] }),
+  submittedBy: one(user, { fields: [formSubmission.submittedById], references: [user.id] }),
+}))
+
+export const lienWaiverRelations = relations(lienWaiver, ({ one }) => ({
+  company: one(company, { fields: [lienWaiver.companyId], references: [company.id] }),
+  project: one(project, { fields: [lienWaiver.projectId], references: [project.id] }),
+  vendor: one(contact, { fields: [lienWaiver.vendorId], references: [contact.id] }),
+  approvedBy: one(user, { fields: [lienWaiver.approvedById], references: [user.id], relationName: 'lienWaiverApprovedBy' }),
+  rejectedBy: one(user, { fields: [lienWaiver.rejectedById], references: [user.id], relationName: 'lienWaiverRejectedBy' }),
+}))
+
+export const scheduleOfValuesRelations = relations(scheduleOfValues, ({ one, many }) => ({
+  company: one(company, { fields: [scheduleOfValues.companyId], references: [company.id] }),
+  project: one(project, { fields: [scheduleOfValues.projectId], references: [project.id] }),
+  lineItems: many(sovLineItem),
+  drawRequests: many(drawRequest),
+}))
+
+export const sovLineItemRelations = relations(sovLineItem, ({ one, many }) => ({
+  scheduleOfValues: one(scheduleOfValues, { fields: [sovLineItem.scheduleOfValuesId], references: [scheduleOfValues.id] }),
+  drawLineItems: many(drawLineItem),
+}))
+
+export const drawRequestRelations = relations(drawRequest, ({ one, many }) => ({
+  company: one(company, { fields: [drawRequest.companyId], references: [company.id] }),
+  scheduleOfValues: one(scheduleOfValues, { fields: [drawRequest.scheduleOfValuesId], references: [scheduleOfValues.id] }),
+  project: one(project, { fields: [drawRequest.projectId], references: [project.id] }),
+  approvedBy: one(user, { fields: [drawRequest.approvedById], references: [user.id], relationName: 'drawRequestApprovedBy' }),
+  rejectedBy: one(user, { fields: [drawRequest.rejectedById], references: [user.id], relationName: 'drawRequestRejectedBy' }),
+  lineItems: many(drawLineItem),
+}))
+
+export const drawLineItemRelations = relations(drawLineItem, ({ one }) => ({
+  drawRequest: one(drawRequest, { fields: [drawLineItem.drawRequestId], references: [drawRequest.id] }),
+  sovLineItem: one(sovLineItem, { fields: [drawLineItem.sovLineItemId], references: [sovLineItem.id] }),
+}))
+
+export const auditLogRelations = relations(auditLog, ({ one }) => ({
+  company: one(company, { fields: [auditLog.companyId], references: [company.id] }),
+}))
+
+export const agreementPlanRelations = relations(agreementPlan, ({ one }) => ({
+  company: one(company, { fields: [agreementPlan.companyId], references: [company.id] }),
+}))
+
+export const warrantyTemplateRelations = relations(warrantyTemplate, ({ one, many }) => ({
+  company: one(company, { fields: [warrantyTemplate.companyId], references: [company.id] }),
+  projectWarranties: many(projectWarranty),
+}))
+
+export const projectWarrantyRelations = relations(projectWarranty, ({ one }) => ({
+  company: one(company, { fields: [projectWarranty.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectWarranty.projectId], references: [project.id] }),
+  contact: one(contact, { fields: [projectWarranty.contactId], references: [contact.id] }),
+  template: one(warrantyTemplate, { fields: [projectWarranty.templateId], references: [warrantyTemplate.id] }),
+}))
+
+export const takeoffAssemblyRelations = relations(takeoffAssembly, ({ one, many }) => ({
+  company: one(company, { fields: [takeoffAssembly.companyId], references: [company.id] }),
+  materials: many(assemblyMaterial),
+  takeoffItems: many(takeoffItem),
+}))
+
+export const assemblyMaterialRelations = relations(assemblyMaterial, ({ one }) => ({
+  assembly: one(takeoffAssembly, { fields: [assemblyMaterial.assemblyId], references: [takeoffAssembly.id] }),
+  inventoryItem: one(inventoryItem, { fields: [assemblyMaterial.inventoryItemId], references: [inventoryItem.id] }),
+}))
+
+export const takeoffSheetRelations = relations(takeoffSheet, ({ one, many }) => ({
+  company: one(company, { fields: [takeoffSheet.companyId], references: [company.id] }),
+  project: one(project, { fields: [takeoffSheet.projectId], references: [project.id] }),
+  items: many(takeoffItem),
+}))
+
+export const recurringInvoiceRelations = relations(recurringInvoice, ({ one, many }) => ({
+  company: one(company, { fields: [recurringInvoice.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [recurringInvoice.contactId], references: [contact.id] }),
+  project: one(project, { fields: [recurringInvoice.projectId], references: [project.id] }),
+  lineItems: many(recurringLineItem),
+}))
+
+export const recurringLineItemRelations = relations(recurringLineItem, ({ one }) => ({
+  recurringInvoice: one(recurringInvoice, { fields: [recurringLineItem.recurringInvoiceId], references: [recurringInvoice.id] }),
+}))
+
+export const equipmentTypeRelations = relations(equipmentType, ({ one }) => ({
+  company: one(company, { fields: [equipmentType.companyId], references: [company.id] }),
+}))
+
+export const emailRecipientRelations = relations(emailRecipient, ({ one, many }) => ({
+  campaign: one(emailCampaign, { fields: [emailRecipient.campaignId], references: [emailCampaign.id] }),
+  contact: one(contact, { fields: [emailRecipient.contactId], references: [contact.id] }),
+  clicks: many(emailClick),
+}))
+
+export const taskRelations = relations(task, ({ one }) => ({
+  company: one(company, { fields: [task.companyId], references: [company.id] }),
+  createdBy: one(user, { fields: [task.createdById], references: [user.id], relationName: 'taskCreatedBy' }),
+  assignedTo: one(user, { fields: [task.assignedToId], references: [user.id], relationName: 'taskAssignedTo' }),
+  project: one(project, { fields: [task.projectId], references: [project.id] }),
+  job: one(job, { fields: [task.jobId], references: [job.id] }),
+  contact: one(contact, { fields: [task.contactId], references: [contact.id] }),
+}))
+
+export const activityRelations = relations(activity, ({ one }) => ({
+  company: one(company, { fields: [activity.companyId], references: [company.id] }),
+  user: one(user, { fields: [activity.userId], references: [user.id] }),
+}))
+
+export const callLogRelations = relations(callLog, ({ one }) => ({
+  company: one(company, { fields: [callLog.companyId], references: [company.id] }),
+  trackingNumber: one(trackingNumber, { fields: [callLog.trackingNumberId], references: [trackingNumber.id] }),
+  contact: one(contact, { fields: [callLog.contactId], references: [contact.id] }),
+}))
+
+export const aiReceptionistRuleRelations = relations(aiReceptionistRule, ({ one }) => ({
+  company: one(company, { fields: [aiReceptionistRule.companyId], references: [company.id] }),
+}))
+
+export const aiReceptionistSettingsRelations = relations(aiReceptionistSettings, ({ one }) => ({
+  company: one(company, { fields: [aiReceptionistSettings.companyId], references: [company.id] }),
+}))
+
+export const commentRelations = relations(comment, ({ one, many }) => ({
+  company: one(company, { fields: [comment.companyId], references: [company.id] }),
+  user: one(user, { fields: [comment.userId], references: [user.id] }),
+  reactions: many(commentReaction),
+}))
+
+export const commentReactionRelations = relations(commentReaction, ({ one }) => ({
+  comment: one(comment, { fields: [commentReaction.commentId], references: [comment.id] }),
+  user: one(user, { fields: [commentReaction.userId], references: [user.id] }),
+}))
+
+export const dripSequenceRelations = relations(dripSequence, ({ one, many }) => ({
+  company: one(company, { fields: [dripSequence.companyId], references: [company.id] }),
+  enrollments: many(sequenceEnrollment),
+}))
+
+export const sequenceEnrollmentRelations = relations(sequenceEnrollment, ({ one }) => ({
+  sequence: one(dripSequence, { fields: [sequenceEnrollment.sequenceId], references: [dripSequence.id] }),
+  contact: one(contact, { fields: [sequenceEnrollment.contactId], references: [contact.id] }),
+}))
+
+export const emailClickRelations = relations(emailClick, ({ one }) => ({
+  recipient: one(emailRecipient, { fields: [emailClick.recipientId], references: [emailRecipient.id] }),
+}))
+
+export const equipmentServiceRecordRelations = relations(equipmentServiceRecord, ({ one }) => ({
+  equipment: one(equipment, { fields: [equipmentServiceRecord.equipmentId], references: [equipment.id] }),
+  company: one(company, { fields: [equipmentServiceRecord.companyId], references: [company.id] }),
+  job: one(job, { fields: [equipmentServiceRecord.jobId], references: [job.id] }),
+  technician: one(user, { fields: [equipmentServiceRecord.technicianId], references: [user.id] }),
+}))
+
+export const jobAssignmentRelations = relations(jobAssignment, ({ one }) => ({
+  job: one(job, { fields: [jobAssignment.jobId], references: [job.id] }),
+  user: one(user, { fields: [jobAssignment.userId], references: [user.id] }),
+}))
+
+export const photoRelations = relations(photo, ({ one }) => ({
+  company: one(company, { fields: [photo.companyId], references: [company.id] }),
+  user: one(user, { fields: [photo.userId], references: [user.id] }),
+}))
+
+export const pricebookGoodBetterBestRelations = relations(pricebookGoodBetterBest, ({ one }) => ({
+  pricebookItem: one(pricebookItem, { fields: [pricebookGoodBetterBest.pricebookItemId], references: [pricebookItem.id] }),
+}))
+
+export const pricebookMaterialRelations = relations(pricebookMaterial, ({ one }) => ({
+  pricebookItem: one(pricebookItem, { fields: [pricebookMaterial.pricebookItemId], references: [pricebookItem.id] }),
+  inventoryItem: one(inventoryItem, { fields: [pricebookMaterial.inventoryItemId], references: [inventoryItem.id] }),
+}))
+
+export const productRelations = relations(product, ({ one }) => ({
+  company: one(company, { fields: [product.companyId], references: [company.id] }),
+}))
+
+export const projectBaselineRelations = relations(projectBaseline, ({ one }) => ({
+  company: one(company, { fields: [projectBaseline.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectBaseline.projectId], references: [project.id] }),
+}))
+
+export const projectSelectionRelations = relations(projectSelection, ({ one }) => ({
+  company: one(company, { fields: [projectSelection.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectSelection.projectId], references: [project.id] }),
+  category: one(selectionCategory, { fields: [projectSelection.categoryId], references: [selectionCategory.id] }),
+}))
+
+export const projectTaskRelations = relations(projectTask, ({ one, many }) => ({
+  company: one(company, { fields: [projectTask.companyId], references: [company.id] }),
+  project: one(project, { fields: [projectTask.projectId], references: [project.id] }),
+  assignedTo: one(user, { fields: [projectTask.assignedToId], references: [user.id] }),
+  predecessorOf: many(taskDependency, { relationName: 'predecessorTask' }),
+  successorOf: many(taskDependency, { relationName: 'successorTask' }),
+}))
+
+export const taskDependencyRelations = relations(taskDependency, ({ one }) => ({
+  company: one(company, { fields: [taskDependency.companyId], references: [company.id] }),
+  project: one(project, { fields: [taskDependency.projectId], references: [project.id] }),
+  predecessor: one(projectTask, { fields: [taskDependency.predecessorId], references: [projectTask.id], relationName: 'predecessorTask' }),
+  successor: one(projectTask, { fields: [taskDependency.successorId], references: [projectTask.id], relationName: 'successorTask' }),
+}))
+
+export const selectionOptionRelations = relations(selectionOption, ({ one }) => ({
+  company: one(company, { fields: [selectionOption.companyId], references: [company.id] }),
+  category: one(selectionCategory, { fields: [selectionOption.categoryId], references: [selectionCategory.id] }),
+}))
+
+export const smsAutoResponderRelations = relations(smsAutoResponder, ({ one }) => ({
+  company: one(company, { fields: [smsAutoResponder.companyId], references: [company.id] }),
+}))
+
+export const supportTicketRelations = relations(supportTicket, ({ one, many }) => ({
+  contact: one(contact, { fields: [supportTicket.contactId], references: [contact.id] }),
+  assignedTo: one(user, { fields: [supportTicket.assignedToId], references: [user.id], relationName: 'supportTicketAssignedTo' }),
+  createdBy: one(user, { fields: [supportTicket.createdById], references: [user.id], relationName: 'supportTicketCreatedBy' }),
+  company: one(company, { fields: [supportTicket.companyId], references: [company.id] }),
+  messages: many(supportTicketMessage),
+}))
+
+export const supportTicketMessageRelations = relations(supportTicketMessage, ({ one }) => ({
+  ticket: one(supportTicket, { fields: [supportTicketMessage.ticketId], references: [supportTicket.id] }),
+  user: one(user, { fields: [supportTicketMessage.userId], references: [user.id] }),
+  contact: one(contact, { fields: [supportTicketMessage.contactId], references: [contact.id] }),
+}))
+
+export const supportKnowledgeBaseRelations = relations(supportKnowledgeBase, ({ one }) => ({
+  company: one(company, { fields: [supportKnowledgeBase.companyId], references: [company.id] }),
+  createdBy: one(user, { fields: [supportKnowledgeBase.createdById], references: [user.id] }),
+}))
+
+export const supportSlaPolicyRelations = relations(supportSlaPolicy, ({ one }) => ({
+  company: one(company, { fields: [supportSlaPolicy.companyId], references: [company.id] }),
+}))
+
+export const pushSubscriptionRelations = relations(pushSubscription, ({ one }) => ({
+  user: one(user, { fields: [pushSubscription.userId], references: [user.id] }),
+}))
+
+export const leadSourceRelations = relations(leadSource, ({ one, many }) => ({
+  company: one(company, { fields: [leadSource.companyId], references: [company.id] }),
+  leads: many(lead),
+}))
+
+export const leadRelations = relations(lead, ({ one }) => ({
+  source: one(leadSource, { fields: [lead.sourceId], references: [leadSource.id] }),
+  convertedContact: one(contact, { fields: [lead.convertedContactId], references: [contact.id] }),
+  company: one(company, { fields: [lead.companyId], references: [company.id] }),
+}))
+
+export const roofReportRelations = relations(roofReport, ({ one }) => ({
+  company: one(company, { fields: [roofReport.companyId], references: [company.id] }),
+  contact: one(contact, { fields: [roofReport.contactId], references: [contact.id] }),
+}))
+
+// ─── Twomiah Ads — A/B experiments ─────────────────────────────────────────
+// Each experiment tests variants of a landing page against ad traffic.
+// We record one row per visitor assignment + one per conversion event.
+export const adsExperiment = pgTable('ads_experiment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  path: text('path').notNull(),
+  status: text('status').notNull().default('draft'),
+  variants: json('variants').notNull().default([]),
+  winnerKey: text('winner_key'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ads_experiment_company_status_idx').on(t.companyId, t.status),
+])
+
+export const adsExperimentAssignment = pgTable('ads_experiment_assignment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  experimentId: text('experiment_id').notNull().references(() => adsExperiment.id, { onDelete: 'cascade' }),
+  variantKey: text('variant_key').notNull(),
+  visitorId: text('visitor_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ads_exp_assignment_exp_idx').on(t.experimentId, t.variantKey),
+  index('ads_exp_assignment_visitor_idx').on(t.experimentId, t.visitorId),
+])
+
+export const adsExperimentConversion = pgTable('ads_experiment_conversion', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  experimentId: text('experiment_id').notNull().references(() => adsExperiment.id, { onDelete: 'cascade' }),
+  variantKey: text('variant_key').notNull(),
+  visitorId: text('visitor_id').notNull(),
+  eventType: text('event_type').notNull().default('lead'),
+  targetId: text('target_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('ads_exp_conversion_exp_idx').on(t.experimentId, t.variantKey),
+])
+
+// ==================== SALON / BARBER (Twomiah Salon) ====================
+// The retention archetype (see crm-vet): the money is in getting the client back
+// in the chair on cadence, so the shape is service catalog -> appointment ->
+// service record (the formula) -> rebooking reminder.
+//
+// Deliberately NO "patient" equivalent: in a salon the client IS the contact.
+// A 1:1 profile hangs off contact instead, so the shared contact table is not
+// forked (keep shared shared — the parked crm-automotive is what drift costs).
+
+// What the salon sells. rebookIntervalDays is the retention engine's input:
+// colour ~42d, cut ~56d, so "due" is computed from the last service record
+// rather than stored, which means changing the interval re-times every client.
+export const serviceMenu = pgTable('service_menu', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  category: text('category').default('hair').notNull(),   // hair/colour/nails/skin/massage/waxing/other
+  description: text('description'),
+  durationMin: integer('duration_min').default(60).notNull(),
+  price: decimal('price', { precision: 10, scale: 2 }),
+  priceIsFrom: boolean('price_is_from').default(false).notNull(), // "from $250" — colour is rarely fixed
+  rebookIntervalDays: integer('rebook_interval_days'),
+  requiresPatchTest: boolean('requires_patch_test').default(false).notNull(),
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('service_menu_company_id_idx').on(t.companyId),
+])
+
+// One row per client (1:1 with contact). Allergy + patch-test dates are the
+// safety record a colour salon actually needs.
+export const clientProfile = pgTable('client_profile', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  preferredStylistId: text('preferred_stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  hairType: text('hair_type'),
+  scalpNotes: text('scalp_notes'),
+  allergies: text('allergies'),
+  patchTestAt: date('patch_test_at'),
+  preferences: text('preferences'),                      // drinks, chat/quiet, parking
+  pronouns: text('pronouns'),
+  birthday: date('birthday'),                            // birthday offers are a real rebooking lever
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('client_profile_company_id_idx').on(t.companyId),
+  uniqueIndex('client_profile_contact_id_key').on(t.contactId),
+])
+
+export const appointment = pgTable('appointment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contactId: text('contact_id').references(() => contact.id, { onDelete: 'set null' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
+  status: text('status').default('scheduled').notNull(), // scheduled/confirmed/checked_in/in_chair/completed/no_show/cancelled
+  station: text('station'),                              // chair / room
+  startTime: timestamp('start_time').notNull(),
+  endTime: timestamp('end_time'),
+  checkedInAt: timestamp('checked_in_at'),
+  quotedPrice: decimal('quoted_price', { precision: 10, scale: 2 }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('appointment_company_id_idx').on(t.companyId),
+  index('appointment_contact_id_idx').on(t.contactId),
+  index('appointment_start_idx').on(t.startTime),
+])
+
+// The formula log — the salon's equivalent of the clinical record, and the
+// reason a client cannot casually leave. Also what makes "due for rebooking"
+// computable, via serviceId -> serviceMenu.rebookIntervalDays.
+export const serviceRecord = pgTable('service_record', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  appointmentId: text('appointment_id').references(() => appointment.id, { onDelete: 'set null' }),
+  stylistId: text('stylist_id').references(() => user.id, { onDelete: 'set null' }),
+  serviceId: text('service_id').references(() => serviceMenu.id, { onDelete: 'set null' }),
+  performedAt: timestamp('performed_at').defaultNow().notNull(),
+  formula: json('formula').default([]).notNull(),        // [{product, shade, parts}] — repeatable next visit
+  developerVolume: text('developer_volume'),
+  processingMin: integer('processing_min'),
+  productsUsed: text('products_used'),
+  result: text('result'),
+  photoBefore: text('photo_before'),
+  photoAfter: text('photo_after'),
+  priceCharged: decimal('price_charged', { precision: 10, scale: 2 }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('service_record_company_id_idx').on(t.companyId),
+  index('service_record_contact_id_idx').on(t.contactId),
+  index('service_record_performed_idx').on(t.performedAt),
+])
+
+// Memberships/packages — the salon read of vet's wellness plan. Either a
+// recurring membership or a prepaid block of visits, so creditsTotal is
+// nullable (null = unlimited/recurring).
+export const membershipPlan = pgTable('membership_plan', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  description: text('description'),
+  price: decimal('price', { precision: 10, scale: 2 }),
+  billingCycle: text('billing_cycle').default('monthly').notNull(), // monthly/annual/one_time
+  creditsTotal: integer('credits_total'),
+  includedServices: json('included_services').default([]).notNull(), // serviceMenu ids
+  active: boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('membership_plan_company_id_idx').on(t.companyId),
+])
+
+export const membershipEnrollment = pgTable('membership_enrollment', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  planId: text('plan_id').notNull().references(() => membershipPlan.id, { onDelete: 'cascade' }),
+  contactId: text('contact_id').notNull().references(() => contact.id, { onDelete: 'cascade' }),
+  status: text('status').default('active').notNull(),    // active/paused/cancelled
+  creditsRemaining: integer('credits_remaining'),
+  startDate: date('start_date'),
+  renewsAt: date('renews_at'),
+  cancelledAt: timestamp('cancelled_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('membership_enrollment_company_id_idx').on(t.companyId),
+  index('membership_enrollment_contact_id_idx').on(t.contactId),
+])
+
+
+// -- Google Business Profile connection (single row; factory-brokered OAuth) --
+export const gbpConnection = pgTable('gbp_connection', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  externalEmail: text('external_email'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at'),
+  accountName: text('account_name'),
+  locationName: text('location_name'),
+  locationTitle: text('location_title'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})

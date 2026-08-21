@@ -116,12 +116,14 @@ function getProductName(industry?: string, products?: string[]): string {
   if (industry === 'automotive') return 'Drive'
   if (verticalFor(industry) === 'rv') return 'Roam'
   if (verticalFor(industry) === 'veterinary') return 'Vet'
+  if (verticalFor(industry) === 'salon') return 'Salon'
   if (industry === 'field_service' || industry === 'hvac' || industry === 'plumbing' || industry === 'electrical') return 'Wrench'
   if (products?.includes('crm-fieldservice')) return 'Wrench'
   if (products?.includes('crm-homecare')) return 'Care'
   if (products?.includes('crm-automotive')) return 'Drive'
   if (products?.includes('crm-rv')) return 'Roam'
   if (products?.includes('crm-vet')) return 'Vet'
+  if (products?.includes('crm-salon')) return 'Salon'
   return 'Build'
 }
 

@@ -797,6 +797,7 @@ export async function deployCustomer(
   const isDispensary = vertical === 'dispensary'
   const isRv = vertical === 'rv' // RV + powersports dealership CRM
   const isVet = vertical === 'veterinary' // veterinary practice CRM
+  const isSalon = vertical === 'salon' // salon / barber / spa CRM
   const isStore = vertical === 'store' // e-commerce: crm-store back-office + website-store storefront
   const results: DeployResult = { success: false, status: 'starting', steps: [], services: {}, errors: [] }
 
@@ -1068,9 +1069,9 @@ export async function deployCustomer(
           backendEnvVars.push({ key: 'SUPABASE_SERVICE_ROLE_KEY', value: supabaseProject.serviceRoleKey })
         }
 
-        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isStore ? slug + '-shop-api' : slug + '-api'
-        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isStore ? slug + '-shop' : slug + '-crm'
-        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isStore ? 'crm-store' : 'crm'
+        const crmApiName = isHomeCare ? slug + '-care-api' : isFieldService ? slug + '-wrench-api' : isAutomotive ? slug + '-drive-api' : isRoofing ? slug + '-roof-api' : isLandscaping ? slug + '-landscape-api' : isDispensary ? slug + '-leaf-api' : isRv ? slug + '-rv-api' : isVet ? slug + '-vet-api' : isSalon ? slug + '-salon-api' : isStore ? slug + '-shop-api' : slug + '-api'
+        const crmFrontName = isHomeCare ? slug + '-care' : isFieldService ? slug + '-wrench' : isAutomotive ? slug + '-drive' : isRoofing ? slug + '-roof' : isLandscaping ? slug + '-landscape' : isDispensary ? slug + '-leaf' : isRv ? slug + '-rv' : isVet ? slug + '-vet' : isSalon ? slug + '-salon' : isStore ? slug + '-shop' : slug + '-crm'
+        const crmRootDir = isHomeCare ? 'crm-homecare' : isFieldService ? 'crm-fieldservice' : isAutomotive ? 'crm-automotive' : isRoofing ? 'crm-roof' : isLandscaping ? 'crm-landscaping' : isDispensary ? 'crm-dispensary' : isRv ? 'crm-rv' : isVet ? 'crm-vet' : isSalon ? 'crm-salon' : isStore ? 'crm-store' : 'crm'
 
         // crm-store needs its own back-office URL for the merchant-facing webhook
         // setup screen. STOREFRONT_ORIGIN/URL are set later (Step 7) once the

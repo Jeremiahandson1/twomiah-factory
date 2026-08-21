@@ -1,0 +1,278 @@
+import { useRef, useState, useEffect } from 'react';
+import { Eraser, Check, X } from 'lucide-react';
+
+interface SignaturePadProps {
+  onSave: (dataUrl: string) => void;
+  onCancel?: () => void;
+  width?: number;
+  height?: number;
+  penColor?: string;
+  backgroundColor?: string;
+}
+
+/**
+ * Signature Pad Component
+ *
+ * Usage:
+ *   <SignaturePad onSave={(dataUrl) => console.log(dataUrl)} />
+ */
+export default function SignaturePad({
+  onSave,
+  onCancel,
+  width = 500,
+  height = 200,
+  penColor = '#000000',
+  backgroundColor = '#ffffff',
+}: SignaturePadProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSignature, setHasSignature] = useState(false);
+  const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.fillStyle = backgroundColor;
+    context.fillRect(0, 0, width, height);
+    context.strokeStyle = penColor;
+    context.lineWidth = 2;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    setCtx(context);
+  }, [width, height, penColor, backgroundColor]);
+
+  const getPosition = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): { x: number; y: number } => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    if ('touches' in e && e.touches) {
+      return {
+        x: (e.touches[0].clientX - rect.left) * scaleX,
+        y: (e.touches[0].clientY - rect.top) * scaleY,
+      };
+    }
+    const mouseEvent = e as React.MouseEvent<HTMLCanvasElement>;
+    return {
+      x: (mouseEvent.clientX - rect.left) * scaleX,
+      y: (mouseEvent.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): void => {
+    e.preventDefault();
+    if (!ctx) return;
+    const pos = getPosition(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    setIsDrawing(true);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>): void => {
+    if (!isDrawing || !ctx) return;
+    e.preventDefault();
+    const pos = getPosition(e);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    setHasSignature(true);
+  };
+
+  const stopDrawing = (): void => {
+    if (isDrawing && ctx) {
+      ctx.closePath();
+      setIsDrawing(false);
+    }
+  };
+
+  const clear = (): void => {
+    if (!ctx) return;
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+    ctx.strokeStyle = penColor;
+    setHasSignature(false);
+  };
+
+  const save = (): void => {
+    if (!hasSignature) {
+      alert('Please sign before saving.');
+      return;
+    }
+    const dataUrl = canvasRef.current?.toDataURL('image/png');
+    if (dataUrl) onSave(dataUrl);
+  };
+
+  return (
+    <div className="inline-block w-full">
+      <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white text-gray-900">
+        <canvas
+          ref={canvasRef}
+          width={width}
+          height={height}
+          className="touch-none cursor-crosshair"
+          style={{ width: '100%', maxWidth: width, height: 'auto', aspectRatio: `${width}/${height}` }}
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
+        />
+        <div className="border-t border-gray-300 px-4 py-2 bg-gray-50 flex items-center justify-between text-gray-900">
+          <span className="text-xs text-gray-400">✕ Sign above this line</span>
+          <span className="text-xs text-gray-400">{new Date().toLocaleDateString()}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mt-3">
+        <button
+          type="button"
+          onClick={clear}
+          className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg"
+        >
+          <Eraser className="w-4 h-4" />
+          Clear
+        </button>
+        <div className="flex-1" />
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={save}
+          disabled={!hasSignature}
+          className="flex items-center gap-1 px-4 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+        >
+          <Check className="w-4 h-4" />
+          Accept & Sign
+        </button>
+      </div>
+    </div>
+  );
+}
+
+interface SignatureDisplayProps {
+  signature: string | null;
+  signedBy?: string;
+  signedAt?: string;
+  className?: string;
+}
+
+/**
+ * Display a saved signature
+ */
+export function SignatureDisplay({ signature, signedBy, signedAt, className = '' }: SignatureDisplayProps) {
+  if (!signature) return null;
+
+  return (
+    <div className={`${className}`}>
+      <div className="border border-green-200 rounded-lg overflow-hidden bg-green-50 p-3">
+        <img src={signature} alt="Signature" className="max-h-20" />
+        <div className="mt-2 text-sm text-gray-600">
+          <p className="font-medium">{signedBy}</p>
+          <p className="text-xs text-gray-500">{signedAt ? new Date(signedAt).toLocaleString() : ''}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface SignatureData {
+  signature: string;
+  signedBy: string;
+  signedAt: string;
+  consent: boolean;
+}
+
+interface SignatureModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (data: SignatureData) => void;
+  title?: string;
+  signerName?: string;
+}
+
+/**
+ * Signature modal for inline signing
+ */
+export function SignatureModal({ isOpen, onClose, onSave, title = 'Sign Document', signerName = '' }: SignatureModalProps) {
+  const [name, setName] = useState(signerName);
+  const [consent, setConsent] = useState(false);
+
+  useEffect(() => {
+    setName(signerName);
+  }, [signerName]);
+
+  useEffect(() => {
+    if (isOpen) setConsent(false);
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSave = (signatureData: string): void => {
+    if (!name.trim()) {
+      alert('Please enter your name.');
+      return;
+    }
+    if (!consent) {
+      alert('Please agree to sign electronically before continuing.');
+      return;
+    }
+    onSave({
+      signature: signatureData,
+      signedBy: name.trim(),
+      signedAt: new Date().toISOString(),
+      consent: true,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative min-h-screen flex items-center justify-center p-4">
+        <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">{title}</h2>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
+              placeholder="Enter your full name"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"
+            />
+          </div>
+
+          <label className="mb-4 flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConsent(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+            />
+            <span className="text-xs text-gray-600">
+              I agree that my electronic signature is the legal equivalent of my handwritten signature. <span className="text-red-500">*</span>
+            </span>
+          </label>
+
+          <SignaturePad onSave={handleSave} onCancel={onClose} width={450} height={150} />
+
+        </div>
+      </div>
+    </div>
+  );
+}
