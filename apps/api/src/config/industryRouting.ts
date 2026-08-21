@@ -30,6 +30,7 @@ export type CrmTemplate =
   | 'crm-rv'
   | 'crm-vet'
   | 'crm-salon'
+  | 'crm-restaurant'
   | 'crm-store'
 
 export type PremiumWebsiteTemplate =
@@ -67,6 +68,7 @@ export type Vertical =
   | 'rv'
   | 'veterinary'
   | 'salon'
+  | 'events'
   | 'store'
 
 // ─── Industry sets per vertical ─────────────────────────────────────
@@ -109,9 +111,28 @@ export const FIELDSERVICE_INDUSTRIES = new Set([
 ])
 
 export const SHOWCASE_INDUSTRIES = new Set([
-  'restaurant', 'hospitality', 'hotel', 'cafe',
+  'hospitality', 'hotel',
   'fitness', 'gym', 'yoga',
-  'events', 'wedding', 'catering', 'photography',
+  'wedding', 'photography',
+])
+
+// Restaurants, caterers and event venues — scoped to the PRIVATE EVENTS side
+// of the business (enquiry -> booking -> deposit -> banquet event order), which
+// is where the money and the admin pain are. Deliberately NOT a POS or a
+// covers/table-turn system.
+//
+// 'restaurant' / 'catering' / 'events' used to sit in SHOWCASE_INDUSTRIES and
+// so got the generic contractor CRM ("jobs", "quotes", "crews"); 'bakery',
+// 'bar', 'brewery', 'caterer', 'venue' and 'banquet' weren't listed anywhere
+// and fell through to the contractor fallback outright — website included.
+// They all keep a showcase-style WEBSITE; only the CRM changes.
+export const EVENTS_INDUSTRIES = new Set([
+  'restaurant', 'restaurants', 'cafe', 'coffee_shop', 'bistro', 'brasserie',
+  'bar', 'wine_bar', 'cocktail_bar', 'pub', 'brewery', 'taproom', 'winery', 'distillery',
+  'bakery', 'patisserie', 'deli',
+  'catering', 'caterer', 'catering_company', 'private_chef',
+  'events', 'event_venue', 'venue', 'banquet', 'banquet_hall', 'private_events',
+  'function_room', 'event_space', 'wedding_venue',
 ])
 
 // Salons, barbershops, nail/lash/brow bars, day spas. The retention
@@ -239,6 +260,9 @@ export function verticalFor(industry: string | undefined | null): Vertical {
   // Salon must check BEFORE showcase: a salon still gets the showcase-style
   // website, but it gets its own CRM rather than the contractor base.
   if (SALON_INDUSTRIES.has(i)) return 'salon'
+  // Events must check BEFORE showcase for the same reason as salon: a
+  // restaurant still gets the showcase-style website, but its own CRM.
+  if (EVENTS_INDUSTRIES.has(i)) return 'events'
   if (SHOWCASE_INDUSTRIES.has(i)) return 'showcase'
   // Explicit contractor list + the empty/other fallback both land here.
   // Showcase doesn't get the fallback — it's the most specialized vertical
@@ -257,6 +281,7 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
     case 'rv':           return 'crm-rv'
     case 'veterinary':   return 'crm-vet'
     case 'salon':        return 'crm-salon'
+    case 'events':       return 'crm-restaurant'
     case 'store':        return 'crm-store'
     // Remaining showcase verticals (restaurants, gyms, photographers) don't
     // have a dedicated CRM template yet — most don't need full job/quote
@@ -282,6 +307,10 @@ export function premiumWebsiteTemplateFor(industry: string | undefined | null): 
   // (and the composer's salon recipe) is already the right look for them, and
   // there is no website-premium-salon dir to route to.
   if (v === 'salon') return 'website-premium-showcase'
+  // Restaurants and venues are a CRM-only vertical on the website side: the
+  // showcase template (and the composer's restaurant recipes) is already the
+  // right look, and there is no website-premium-events dir to route to.
+  if (v === 'events') return 'website-premium-showcase'
   // Store uses the dedicated website-store storefront (not a premium marketing
   // site) — this fallback only guards against a nonexistent template dir.
   if (v === 'store') return 'website-premium-contractor'
@@ -310,6 +339,8 @@ export function legacyWebsiteTemplateFor(industry: string | undefined | null): L
     veterinary:   'website-general' as LegacyWebsiteTemplate,
     // Salons keep the showcase site; only the CRM is salon-specific.
     salon:        'website-showcase',
+    // Same for restaurants and venues.
+    events:       'website-showcase',
     // E-commerce storefront (Next.js). The generator ladder routes here.
     store:        'website-store',
   }
@@ -337,6 +368,7 @@ export function crmServiceSuffixFor(industry: string | undefined | null): string
     case 'rv':           return 'rv'   // {slug}-rv-api.onrender.com
     case 'veterinary':   return 'vet'  // {slug}-vet-api.onrender.com
     case 'salon':        return 'salon' // {slug}-salon-api.onrender.com
+    case 'events':       return 'events' // {slug}-events-api.onrender.com
     case 'store':        return 'shop' // {slug}-shop-api.onrender.com
     case 'showcase':     return ''     // shares the contractor base CRM
     case 'foodtruck':    return ''     // shares the contractor base CRM
@@ -376,6 +408,7 @@ const LAYOUT_MODE_BY_VERTICAL: Record<Vertical, LayoutMode> = {
   rv: 'multi-page',
   veterinary: 'multi-page',
   salon: 'multi-page',
+  events: 'multi-page',
   store: 'multi-page',
 }
 

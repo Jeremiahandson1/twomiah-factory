@@ -68,6 +68,13 @@ const CRM_REGISTRY = [
     { id: 'rebooking_reminders', name: 'Rebooking & Recall', description: 'Who is due back, who has lapsed, whose birthday is coming — with bulk texting', core: true },
     { id: 'salon_memberships', name: 'Memberships & Packages', description: 'Recurring memberships and prepaid visit packages', core: false },
   ]},
+  { category: 'Private Events & Catering', features: [
+    { id: 'event_bookings', name: 'Events', description: 'Enquiry-to-confirmed pipeline and calendar with double-book protection', core: true },
+    { id: 'event_spaces', name: 'Spaces', description: 'Rooms with capacities, minimum spend and hire fees', core: true },
+    { id: 'catering_menus', name: 'Catering Menus', description: 'Per-head packages with courses, choices and guest minimums', core: true },
+    { id: 'banquet_orders', name: 'Run of Show / BEO', description: 'Printable banquet event order for the kitchen and floor', core: true },
+    { id: 'event_deposits', name: 'Deposits & Balances', description: 'Staged payment schedule with overdue tracking', core: true },
+  ]},
   { category: 'Construction', features: [
     { id: 'projects', name: 'Projects', description: 'Multi-phase project management', core: false },
     { id: 'rfis', name: 'RFIs', description: 'Request for information tracking', core: false },
@@ -324,6 +331,7 @@ const AUTOMOTIVE_INDUSTRIES = new Set(['automotive'])
 const RV_INDUSTRIES = new Set(['rv'])
 const VET_INDUSTRIES = new Set(['veterinary'])
 const SALON_INDUSTRIES = new Set(['salon', 'hair_salon', 'barber', 'barbershop', 'nail_salon', 'spa', 'day_spa', 'med_spa', 'beauty', 'beauty_salon', 'esthetician', 'lash', 'brow_bar', 'waxing'])
+const EVENTS_INDUSTRIES = new Set(['restaurant', 'cafe', 'bar', 'pub', 'brewery', 'bakery', 'catering', 'caterer', 'events', 'event_venue', 'venue', 'banquet', 'private_events', 'wedding_venue'])
 const ROOFING_INDUSTRIES = new Set(['roofing'])
 
 const DISPENSARY_INDUSTRIES = new Set(['dispensary'])
@@ -336,6 +344,7 @@ const TEMPLATE_CATEGORIES: Record<string, Set<string>> = {
   'crm-rv': new Set(['Core', 'RV / Powersports', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-vet': new Set(['Core', 'Veterinary', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-salon': new Set(['Core', 'Salon & Barber', 'Finance', 'Communication', 'Marketing', 'Advanced']),
+  'crm-restaurant': new Set(['Core', 'Private Events & Catering', 'Finance', 'Communication', 'Marketing', 'Advanced']),
   'crm-dispensary': new Set(['Core', 'Finance', 'Communication', 'Marketing', 'Advanced']),
 }
 
@@ -347,6 +356,7 @@ function getTemplateFromIndustry(industry?: string): string {
   if (RV_INDUSTRIES.has(industry)) return 'crm-rv'
   if (VET_INDUSTRIES.has(industry)) return 'crm-vet'
   if (SALON_INDUSTRIES.has(industry)) return 'crm-salon'
+  if (EVENTS_INDUSTRIES.has(industry)) return 'crm-restaurant'
   if (DISPENSARY_INDUSTRIES.has(industry)) return 'crm-dispensary'
   return 'crm'
 }
