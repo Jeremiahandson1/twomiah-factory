@@ -341,19 +341,61 @@ export async function handleWebhook(event: Stripe.Event) {
 async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
   const { invoice_id, booking_id } = paymentIntent.metadata
 
-  // Booking deposit: confirm the booking and the job it created.
+  // Booking deposit: confirm the booking — with the late-payment guard.
   if (booking_id) {
     const paidAmount = paymentIntent.amount / 100
+    const found = await db.execute(sql`
+      SELECT status, deposit_status, job_id FROM online_booking WHERE id = ${booking_id} LIMIT 1
+    `)
+    const bk = (found.rows?.[0] as any) || null
+    if (!bk) {
+      console.warn('[Stripe] Deposit paid for an unknown booking:', booking_id)
+      return { handled: false }
+    }
+
+    // A payment can land AFTER the hold expired and the slot was released.
+    // Resurrect only when the exact window is still clear and in the future —
+    // otherwise refund, so nobody pays for a slot that no longer exists.
+    if (bk.status === 'cancelled' || bk.deposit_status === 'expired') {
+      let slotFree = false
+      if (bk.job_id) {
+        const clash = await db.execute(sql`
+          SELECT (j.scheduled_date > NOW()) AS in_future,
+            EXISTS (
+              SELECT 1 FROM job x
+              WHERE x.company_id = j.company_id AND x.id != j.id
+                AND x.status != 'cancelled'
+                AND x.scheduled_date IS NOT NULL
+                AND x.scheduled_date < j.scheduled_date + (COALESCE(j.estimated_hours, 1) * interval '1 hour')
+                AND x.scheduled_date + (COALESCE(x.estimated_hours, 1) * interval '1 hour') > j.scheduled_date
+            ) AS taken
+          FROM job j WHERE j.id = ${bk.job_id} LIMIT 1
+        `)
+        const c = (clash.rows?.[0] as any) || null
+        slotFree = !!c && c.in_future === true && c.taken === false
+      }
+      if (!slotFree) {
+        try {
+          await stripe!.refunds.create({ payment_intent: paymentIntent.id })
+        } catch (err: any) {
+          // A Stripe retry of this webhook hits an already-refunded intent —
+          // that is success, not failure. Anything else must surface so the
+          // delivery fails and Stripe retries.
+          if (!/already.*refund/i.test(err?.message || '')) throw err
+        }
+        await db.execute(sql`UPDATE online_booking SET deposit_status = 'refunded', updated_at = NOW() WHERE id = ${booking_id}`)
+        console.log('[Stripe] Late deposit on an expired hold — auto-refunded:', booking_id, paidAmount)
+        return { handled: true, booking_id, refunded: true }
+      }
+      await db.execute(sql`UPDATE job SET status = 'scheduled', updated_at = NOW() WHERE id = ${bk.job_id}`)
+      console.log('[Stripe] Late deposit but the slot is still free — booking resurrected:', booking_id)
+    }
+
     await db.execute(sql`
       UPDATE online_booking
       SET deposit_status = 'paid', deposit_paid_at = NOW(), status = 'confirmed', updated_at = NOW()
       WHERE id = ${booking_id}
     `)
-    const bookingRow = await db.execute(sql`SELECT job_id FROM online_booking WHERE id = ${booking_id} LIMIT 1`)
-    const jobId = ((bookingRow.rows?.[0] as any) || {}).job_id
-    if (jobId) {
-      await db.execute(sql`UPDATE job SET status = 'scheduled', updated_at = NOW() WHERE id = ${jobId}`)
-    }
     console.log('[Stripe] Booking deposit paid:', booking_id, paidAmount)
     return { handled: true, booking_id }
   }
