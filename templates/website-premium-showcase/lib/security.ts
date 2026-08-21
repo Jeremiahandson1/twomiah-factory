@@ -19,13 +19,20 @@ export function secureHeaders(): MiddlewareHandler {
     await next()
     const h = c.res.headers
     if (!h.has('Content-Security-Policy')) {
+      // When the /book page embeds the CRM's booking widget (salon tenants,
+      // CRM_BOOKING_WIDGET=1), the widget script loads from the CRM origin and
+      // its slot/booking calls XHR back to it — both blocked by a 'self'-only
+      // policy. Allow exactly that one origin, and only when embed mode is on.
+      const crmOrigin = process.env.CRM_BOOKING_WIDGET === '1' && process.env.CRM_API_URL
+        ? ' ' + process.env.CRM_API_URL.replace(/\/+$/, '')
+        : ''
       h.set('Content-Security-Policy', [
         "default-src 'self'",
         "img-src 'self' data: https:",
         "font-src 'self' https://fonts.gstatic.com data:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "script-src 'self' 'unsafe-inline'",
-        "connect-src 'self'",
+        "script-src 'self' 'unsafe-inline'" + crmOrigin,
+        "connect-src 'self'" + crmOrigin,
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'",
