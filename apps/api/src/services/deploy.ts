@@ -58,6 +58,25 @@ async function ensureStripeWebhookEndpoint(secretKey: string, webhookUrl: string
   }
 }
 
+/** Delete every webhook endpoint registered for a URL (cleanup on slug mismatch). */
+async function deleteStripeWebhookEndpoints(secretKey: string, webhookUrl: string): Promise<void> {
+  try {
+    const res = await fetchWithTimeout('https://api.stripe.com/v1/webhook_endpoints?limit=100', {
+      headers: { Authorization: 'Bearer ' + secretKey },
+    })
+    const list = await res.json() as any
+    for (const ep of list?.data || []) {
+      if (ep.url === webhookUrl) {
+        await fetchWithTimeout('https://api.stripe.com/v1/webhook_endpoints/' + ep.id, {
+          method: 'DELETE', headers: { Authorization: 'Bearer ' + secretKey },
+        })
+      }
+    }
+  } catch (e: any) {
+    console.warn('[Deploy] Stripe webhook cleanup failed:', e?.message || e)
+  }
+}
+
 function renderHeaders(): Record<string, string> {
   return {
     'Authorization': 'Bearer ' + process.env.RENDER_API_KEY,
@@ -1108,6 +1127,23 @@ export async function deployCustomer(
         // crm-store needs its own back-office URL for the merchant-facing webhook
         // setup screen. STOREFRONT_ORIGIN/URL are set later (Step 7) once the
         // storefront service exists.
+        // Register the tenant's Stripe webhook endpoint BEFORE the service is
+        // created, so the signing secret rides in the FIRST deploy's env — an
+        // env var written after creation only applies from the NEXT deploy,
+        // which left first-boot webhooks verifying against an empty key.
+        let autoWebhookUrl: string | null = null
+        if (integrations?.stripe?.secretKey && !integrations.stripe.webhookSecret) {
+          autoWebhookUrl = 'https://' + crmApiName + '.onrender.com/api/stripe/webhook'
+          const wh = await ensureStripeWebhookEndpoint(integrations.stripe.secretKey, autoWebhookUrl)
+          if (wh.secret) {
+            backendEnvVars.push({ key: 'STRIPE_WEBHOOK_SECRET', value: wh.secret })
+            console.log('[Deploy] Stripe webhook endpoint registered:', wh.endpointId)
+          } else {
+            autoWebhookUrl = null
+            console.warn('[Deploy] Stripe webhook auto-registration skipped:', wh.error)
+          }
+        }
+
         if (isStore) {
           backendEnvVars.push({ key: 'BACKEND_URL', value: 'https://' + crmApiName + '.onrender.com' })
           // From address for the store's transactional order emails (verified domain).
@@ -1180,18 +1216,21 @@ export async function deployCustomer(
           }
         }
 
-        // A CRM holding Stripe keys but no webhook endpoint can take cards
-        // yet never hear the result — deposits sit pending forever. When no
-        // hand-configured webhook secret exists, register the endpoint in the
-        // tenant's own Stripe account and inject the returned signing secret.
-        if (backendSvc.id && integrations?.stripe?.secretKey && !integrations.stripe.webhookSecret) {
+        // Rare: Render assigned a different slug than requested, so the
+        // pre-registered webhook points at a URL that will never exist.
+        // Re-register against the real URL, replace the secret, and trigger
+        // one more deploy so the running instance verifies with the new key.
+        if (autoWebhookUrl && backendSvc.id && actualApiSlug !== crmApiName && integrations?.stripe?.secretKey) {
+          await deleteStripeWebhookEndpoints(integrations.stripe.secretKey, autoWebhookUrl)
           const wh = await ensureStripeWebhookEndpoint(integrations.stripe.secretKey, backendUrl + '/api/stripe/webhook')
           if (wh.secret) {
-            const okWh = await updateRenderEnvVars(backendSvc.id, [{ key: 'STRIPE_WEBHOOK_SECRET', value: wh.secret }])
-            if (okWh) console.log('[Deploy] Stripe webhook endpoint registered:', wh.endpointId)
-            else console.warn('[Deploy] Stripe webhook registered but the env write failed:', wh.endpointId)
+            await updateRenderEnvVars(backendSvc.id, [{ key: 'STRIPE_WEBHOOK_SECRET', value: wh.secret }])
+            await fetchWithTimeout(RENDER_API + '/services/' + backendSvc.id + '/deploys', {
+              method: 'POST', headers: renderHeaders(), body: JSON.stringify({}),
+            })
+            console.log('[Deploy] Stripe webhook re-registered for the actual slug:', wh.endpointId)
           } else {
-            console.warn('[Deploy] Stripe webhook auto-registration skipped:', wh.error)
+            console.warn('[Deploy] Stripe webhook re-registration failed:', wh.error)
           }
         }
         results.steps.push({ step: 'render_frontend', status: 'ok', note: 'served by backend' })
