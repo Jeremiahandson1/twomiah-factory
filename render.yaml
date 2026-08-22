@@ -111,6 +111,32 @@ services:
         sync: false
       - key: STAFF_NOTIFY_EMAIL
         sync: false
+      # The keys below enable the weekly booking/deposit LIVE proof
+      # (test-booking-deposit-e2e.ts): one throwaway salon tenant through the
+      # real pipeline, a test-card deposit, the auto-registered webhook flip,
+      # then hard-delete. Without them the step logs SKIPPED and the matrix
+      # still runs. STRIPE keys here MUST be sk_test_/pk_test_ — the script
+      # refuses live keys.
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_OWNER_ID
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_ORG
+        sync: false
+      - key: GITHUB_USER
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
 
   # ─── Cleanup Cron Job ────────────────────────────────────────────────────────
   - type: cron
