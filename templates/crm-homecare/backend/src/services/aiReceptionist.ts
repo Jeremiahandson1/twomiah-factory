@@ -404,42 +404,17 @@ async function sendSMS(to: string, body: string) {
 }
 
 async function sendEmail(to: string, subject: string, body: string) {
-  if (!SENDGRID_API_KEY || !SENDGRID_FROM_EMAIL) {
-    console.log('[AIReceptionist] SendGrid not configured — skipping email')
-    return
-  }
-
+  // Route through the tenant's shared email service (Resend on every real
+  // deploy). The old direct SendGrid call was a silent no-op on every tenant
+  // (SENDGRID_API_KEY is never set) — these notifications never sent at all.
   try {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SENDGRID_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: SENDGRID_FROM_EMAIL },
-        subject,
-        content: [{ type: 'text/plain', value: body }],
-      }),
-    })
-
-    if (!response.ok) {
-      console.error('[AIReceptionist] Email send failed:', response.status)
-    }
-  } catch (err: any) {
-    console.error('[AIReceptionist] Email error:', err.message)
+    const { sendRaw } = await import('./email.ts')
+    const result = await sendRaw({ to, subject, html: `<pre style="font-family:inherit;white-space:pre-wrap">${body}</pre>` })
+    if (!result.success) console.error('[AIReceptionist] Notification email failed')
+  } catch (error) {
+    console.error('[AIReceptionist] Failed to send email:', error)
   }
 }
-
-// --- Twilio Recording Webhook Pipeline ---
-
-/**
- * Process a Twilio recording webhook:
- * 1. Download + transcribe recording via Whisper
- * 2. Summarize + generate smart reply via GPT-4o-mini
- * 3. Evaluate rules and trigger auto-replies
- */
 export async function processRecordingWebhook(agencyId: string, payload: {
   CallSid: string
   RecordingUrl: string

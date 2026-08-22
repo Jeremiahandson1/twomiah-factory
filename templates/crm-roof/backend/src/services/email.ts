@@ -563,5 +563,21 @@ const emailService = {
   sendDailyDigest: (to: string, data: Record<string, unknown>) => send(to, 'dailyDigest', data),
 };
 
+// Free-form send used by services that build their own body (AI Receptionist
+// notifications). Same transporter/provider as the templated send().
+async function sendRaw(
+  { to, subject, html, fromName, fromEmail }: { to: string; subject: string; html: string; fromName?: string; fromEmail?: string },
+): Promise<{ success: boolean; messageId?: string; dev?: boolean }> {
+  const from = { name: fromName || FROM_NAME, address: fromEmail || FROM_EMAIL }
+
+  if (!transporter) {
+    console.log('EMAIL (dev mode, no provider configured) ->', to, '|', subject)
+    return { success: true, dev: true }
+  }
+
+  const result = await transporter.sendMail({ from, to, subject, html })
+  return { success: true, messageId: result.messageId }
+}
+
 export default emailService;
-export { emailService, send, templates };
+export { emailService, send, sendRaw, templates };
