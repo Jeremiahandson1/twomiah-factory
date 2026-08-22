@@ -16,8 +16,17 @@
   // reservations — a salon saying "Find a table" reads as a template bug.
   // Defaults keep the original restaurant behavior.
   var partyLabel = data.partyLabel || 'Party'
-  var guestNoun = data.guestNoun || 'guest'
-  var guestNounPlural = data.guestNounPlural || (guestNoun + 's')
+  // guestNoun arrives as a string OR (from AI-composed pages) as
+  // { singular, plural } — accept both, never render [object Object].
+  var gn = data.guestNoun
+  var guestNoun, guestNounPlural
+  if (gn && typeof gn === 'object') {
+    guestNoun = typeof gn.singular === 'string' ? gn.singular : 'guest'
+    guestNounPlural = typeof gn.plural === 'string' ? gn.plural : guestNoun + 's'
+  } else {
+    guestNoun = typeof gn === 'string' && gn ? gn : 'guest'
+    guestNounPlural = typeof data.guestNounPlural === 'string' && data.guestNounPlural ? data.guestNounPlural : guestNoun + 's'
+  }
   var submitLabel = data.submitLabel || 'Find a table'
   var times = Array.isArray(data.times) && data.times.length ? data.times
     : ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30']

@@ -268,7 +268,7 @@ export const SECTION_SCHEMA = {
   reservation: {
     widget: {
       required: ['heading'],
-      optional: ['intro', 'partySizes', 'maxLeadDays', 'note', 'bookingPath', 'partyLabel', 'guestNoun', 'submitLabel', 'times', 'defaultTime'],
+      optional: ['intro', 'partySizes', 'maxLeadDays', 'note', 'bookingPath', 'partyLabel', 'guestNoun', 'guestNounPlural', 'submitLabel', 'times', 'defaultTime'],
       use_when: 'sit-down restaurants, boutique hotels, salons that want a party-size + date + time picker that deep-links into Twomiah Bookings. Customer fills party-size/date/time on the home page, click → Bookings page with values pre-filled. Better than a generic "book a table" button — sets the right expectation that booking is the next step. DEFAULTS ARE RESTAURANT-FLAVORED ("Party", "guests", "Find a table", 5-8:30 PM dinner slots) — any non-restaurant use MUST override: submitLabel (e.g. "Book my appointment"), times as 24h "HH:MM" strings spanning the business\'s real hours, and partySizes/guestNoun where "guests" reads wrong.',
     },
     cta: {
@@ -1372,8 +1372,8 @@ The conversion engine is online booking.
    chair is empty is unrecoverable. Lead with booking, services second.
    The widget's DEFAULTS are restaurant vocabulary — a salon MUST override:
    submitLabel: "Book my appointment" (or "Book my cut" for barbers),
-   partySizes: [1, 2, 3] with guestNoun "person"/"people" (or omit the
-   party concept's plural entirely with guestNoun "guest"), and times as
+   partySizes: [1, 2, 3] with guestNoun: "person" and guestNounPlural:
+   "people" (two separate PLAIN STRING props — never an object), and times as
    24h "HH:MM" strings covering the salon's actual open hours (e.g.
    ["09:00","10:00",...,"17:00"]), defaultTime mid-morning. NEVER let
    "Find a table" or dinner-hour slots render on a salon.
