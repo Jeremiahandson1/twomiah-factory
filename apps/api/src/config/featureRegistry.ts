@@ -29,6 +29,10 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   // Construction
   { id: 'projects', name: 'Projects', description: 'Multi-phase project management', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'rfis', name: 'RFIs', description: 'Request for information tracking', category: 'Construction', core: false, templates: ['crm'] },
+  // The pages and backend route have always shipped (SubmittalsPage.tsx,
+  // routes/submittals.ts) but no registry entry existed, so the sidebar gate
+  // could never open and the feature was invisible to sales.
+  { id: 'submittals', name: 'Submittals', description: 'Product submittal and approval workflow tracking', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'change_orders', name: 'Change Orders', description: 'Change order management', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'punch_lists', name: 'Punch Lists', description: 'Punch list tracking', category: 'Construction', core: false, templates: ['crm'] },
   { id: 'daily_logs', name: 'Daily Logs', description: 'Field daily log reports', category: 'Construction', core: false, templates: ['crm'] },
@@ -44,7 +48,7 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'online_booking', name: 'Online Booking', description: 'Customer self-scheduling', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-salon'] },
   { id: 'service_dispatch', name: 'Service Dispatch', description: 'Real-time dispatch board', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
   { id: 'service_agreements', name: 'Service Agreements', description: 'Maintenance agreement management', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping'] },
-  { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
+  { id: 'warranties', name: 'Warranties', description: 'Warranty tracking', category: 'Service Trade', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-rv'] },
   { id: 'recurring_routes', name: 'Recurring Route Board', description: 'Weekly mow routes grouped into per-day crew routes', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'area_pricing', name: 'Area-Based Pricing', description: 'Price services by measured property square footage', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
   { id: 'snow_billing', name: 'Snow & Ice Billing', description: 'Per-push, per-event, per-inch, and seasonal snow billing', category: 'Landscaping', core: false, templates: ['crm-landscaping'] },
@@ -114,6 +118,9 @@ export const FEATURE_REGISTRY: FeatureDef[] = [
   { id: 'online_payments', name: 'Online Payments', description: 'Stripe payment processing — deposits and payments by card or ACH', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
   { id: 'expense_tracking', name: 'Expense Tracking', description: 'Expense logging and receipts', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
   { id: 'job_costing', name: 'Job Costing', description: 'Detailed job cost analysis', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping'] },
+  { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job — sent, acknowledged, received, billed', category: 'Finance', core: false, templates: ['crm'] },
+  { id: 'vendor_bills', name: 'Bills & Payables', description: 'Vendor bills with due dates, payments, and committed-vs-billed job rollups', category: 'Finance', core: false, templates: ['crm'] },
+  { id: 'vendor_portal', name: 'Vendor Portal', description: 'Subs and suppliers acknowledge POs and submit invoices through a private link', category: 'Communication', core: false, templates: ['crm'] },
   { id: 'consumer_financing', name: 'Consumer Financing', description: 'F&I lender pre-qualification and finance offers on the deal', category: 'Finance', core: false, templates: ['crm', 'crm-rv'] },
   { id: 'quickbooks', name: 'QuickBooks', description: 'QuickBooks sync — we integrate accounting, we do not replace it', category: 'Finance', core: false, templates: ['crm', 'crm-fieldservice', 'crm-landscaping', 'crm-homecare', 'crm-roof', 'crm-rv', 'crm-vet', 'crm-salon', 'crm-restaurant'] },
 

@@ -390,6 +390,120 @@ export const expense = pgTable('expense', {
   index('expense_job_id_idx').on(t.jobId),
 ])
 
+// ==================== PROCUREMENT ====================
+// NOTE: 'purchase_order' (further down) is the INVENTORY restock PO —
+// free-text vendor, warehouse locations, received quantities. These tables
+// are JOB procurement / accounts payable: vendor contacts, job commitments,
+// the vendor portal, and bills. Deliberately separate models.
+// Purchase orders + vendor bills (accounts payable). A PO is what we COMMIT
+// to spend with a vendor; a bill is what the vendor actually CHARGES us.
+// Bills reference their PO when one exists but stand alone for ad-hoc spend.
+
+export const jobPurchaseOrder = pgTable('job_purchase_order', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  number: text('number').notNull(),
+  // draft -> sent -> acknowledged | declined -> received -> billed; cancelled anywhere
+  status: text('status').default('draft').notNull(),
+  issueDate: timestamp('issue_date').defaultNow().notNull(),
+  expectedDate: timestamp('expected_date'),
+  shipTo: text('ship_to'),
+  subtotal: decimal('subtotal', { precision: 12, scale: 2 }).default('0').notNull(),
+  taxRate: decimal('tax_rate', { precision: 5, scale: 2 }).default('0').notNull(),
+  taxAmount: decimal('tax_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  notes: text('notes'),
+  vendorAcknowledgedAt: timestamp('vendor_acknowledged_at'),
+  vendorDeclinedReason: text('vendor_declined_reason'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  vendorId: text('vendor_id').references(() => contact.id, { onDelete: 'set null' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('job_purchase_order_company_id_idx').on(t.companyId),
+  index('job_purchase_order_vendor_id_idx').on(t.vendorId),
+  index('job_purchase_order_job_id_idx').on(t.jobId),
+])
+
+export const jobPurchaseOrderLine = pgTable('job_purchase_order_line', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  description: text('description').notNull(),
+  quantity: decimal('quantity', { precision: 12, scale: 2 }).default('1').notNull(),
+  unitCost: decimal('unit_cost', { precision: 12, scale: 2 }).default('0').notNull(),
+  total: decimal('total', { precision: 12, scale: 2 }).default('0').notNull(),
+  sortOrder: integer('sort_order').default(0).notNull(),
+
+  purchaseOrderId: text('purchase_order_id').notNull().references(() => jobPurchaseOrder.id, { onDelete: 'cascade' }),
+}, (t) => [
+  index('job_purchase_order_line_po_idx').on(t.purchaseOrderId),
+])
+
+export const vendorBill = pgTable('vendor_bill', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  // The vendor's own invoice number — not ours, so no generated sequence.
+  number: text('number'),
+  status: text('status').default('open').notNull(), // open | partial | paid | void
+  billDate: timestamp('bill_date').defaultNow().notNull(),
+  dueDate: timestamp('due_date'),
+  amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+  amountPaid: decimal('amount_paid', { precision: 12, scale: 2 }).default('0').notNull(),
+  paidAt: timestamp('paid_at'),
+  fileUrl: text('file_url'),
+  notes: text('notes'),
+  source: text('source').default('manual').notNull(), // manual | vendor_portal
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  companyId: text('company_id').notNull().references(() => company.id, { onDelete: 'cascade' }),
+  vendorId: text('vendor_id').references(() => contact.id, { onDelete: 'set null' }),
+  projectId: text('project_id').references(() => project.id, { onDelete: 'set null' }),
+  jobId: text('job_id').references(() => job.id, { onDelete: 'set null' }),
+  purchaseOrderId: text('purchase_order_id').references(() => jobPurchaseOrder.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('vendor_bill_company_id_idx').on(t.companyId),
+  index('vendor_bill_vendor_id_idx').on(t.vendorId),
+  index('vendor_bill_job_id_idx').on(t.jobId),
+])
+
+// ==================== DOCUMENT VERSIONS & PLAN MARKUP ====================
+// The document row always points at the CURRENT file; each superseded file
+// becomes a version row, so a plan revision never silently overwrites history.
+
+export const documentVersion = pgTable('document_version', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  versionNumber: integer('version_number').notNull(),
+  filename: text('filename').notNull(),
+  originalName: text('original_name').notNull(),
+  mimeType: text('mime_type'),
+  size: integer('size'),
+  path: text('path').notNull(),
+  url: text('url').notNull(),
+  note: text('note'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  uploadedById: text('uploaded_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('document_version_document_id_idx').on(t.documentId),
+])
+
+export const planMarkup = pgTable('plan_markup', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  name: text('name').default('Markup').notNull(),
+  // Annotation JSON: [{ kind: 'rect'|'line'|'pen'|'pin', points/coords, color, note? }]
+  data: text('data').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+
+  documentId: text('document_id').notNull().references(() => document.id, { onDelete: 'cascade' }),
+  createdById: text('created_by_id').references(() => user.id, { onDelete: 'set null' }),
+}, (t) => [
+  index('plan_markup_document_id_idx').on(t.documentId),
+])
+
 // ==================== CONSTRUCTION ====================
 
 export const dailyLog = pgTable('daily_log', {

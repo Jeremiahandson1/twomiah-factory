@@ -245,6 +245,13 @@ class ApiClient {
     uploadMultiple: (formData: FormData) => this.request('/api/documents/bulk', { method: 'POST', body: formData }),
     update: (id: string, data: unknown) => this.update('/api/documents', id, data),
     delete: (id: string) => this.delete('/api/documents', id),
+    versions: (id: string) => this.get(`/api/documents/${id}/versions`),
+    uploadVersion: (id: string, formData: FormData) => this.request(`/api/documents/${id}/versions`, { method: 'POST', body: formData }),
+    restoreVersion: (id: string, versionId: string) => this.request(`/api/documents/${id}/versions/${versionId}/restore`, { method: 'POST' }),
+    markups: (id: string) => this.get(`/api/documents/${id}/markups`),
+    createMarkup: (id: string, data: unknown) => this.request(`/api/documents/${id}/markups`, { method: 'POST', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }),
+    updateMarkup: (id: string, markupId: string, data: unknown) => this.request(`/api/documents/${id}/markups/${markupId}`, { method: 'PUT', body: JSON.stringify(data), headers: { 'Content-Type': 'application/json' } }),
+    deleteMarkup: (id: string, markupId: string) => this.request(`/api/documents/${id}/markups/${markupId}`, { method: 'DELETE' }),
   };
 
   // Time
@@ -265,6 +272,37 @@ class ApiClient {
     update: (id: string, data: unknown) => this.update('/api/expenses', id, data),
     delete: (id: string) => this.delete('/api/expenses', id),
     reimburse: (id: string) => this.action('/api/expenses', id, 'reimburse'),
+  };
+
+  // Purchase Orders (job procurement)
+  purchaseOrders = {
+    list: (params?: ListParams) => this.get('/api/purchase-orders', params),
+    summary: () => this.get('/api/purchase-orders/summary'),
+    get: (id: string) => this.getOne('/api/purchase-orders', id),
+    create: (data: unknown) => this.create('/api/purchase-orders', data),
+    update: (id: string, data: unknown) => this.update('/api/purchase-orders', id, data),
+    delete: (id: string) => this.delete('/api/purchase-orders', id),
+    send: (id: string) => this.action('/api/purchase-orders', id, 'send'),
+    receive: (id: string) => this.action('/api/purchase-orders', id, 'receive'),
+    cancel: (id: string) => this.action('/api/purchase-orders', id, 'cancel'),
+    reopen: (id: string) => this.action('/api/purchase-orders', id, 'reopen'),
+  };
+
+  // Vendor bills (accounts payable)
+  bills = {
+    list: (params?: ListParams) => this.get('/api/bills', params),
+    summary: () => this.get('/api/bills/summary'),
+    jobSummary: (jobId: string) => this.get(`/api/bills/summary/job/${jobId}`),
+    create: (data: unknown) => this.create('/api/bills', data),
+    update: (id: string, data: unknown) => this.update('/api/bills', id, data),
+    delete: (id: string) => this.delete('/api/bills', id),
+    recordPayment: (id: string, amount: number) => this.action('/api/bills', id, 'record-payment', { amount }),
+    void: (id: string) => this.action('/api/bills', id, 'void'),
+  };
+
+  // Vendor portal (owner side)
+  vendorPortal = {
+    invite: (contactId: string) => this.request(`/api/vendor-portal/contacts/${contactId}/invite`, { method: 'POST' }),
   };
 
   // RFIs

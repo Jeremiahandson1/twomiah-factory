@@ -34,6 +34,9 @@ import quotesRoutes from './routes/quotes.ts'
 import invoicesRoutes from './routes/invoices.ts'
 import timeRoutes from './routes/time.ts'
 import expensesRoutes from './routes/expenses.ts'
+import purchaseOrdersRoutes from './routes/purchaseOrders.ts'
+import billsRoutes from './routes/bills.ts'
+import vendorPortalRoutes from './routes/vendorPortal.ts'
 import rfisRoutes from './routes/rfis.ts'
 import submittalsRoutes from './routes/submittals.ts'
 import lienWaiversRoutes from './routes/lienWaivers.ts'
@@ -178,6 +181,9 @@ app.route('/api/quotes', quotesRoutes)
 app.route('/api/invoices', invoicesRoutes)
 app.route('/api/time', timeRoutes)
 app.route('/api/expenses', expensesRoutes)
+app.route('/api/purchase-orders', purchaseOrdersRoutes)
+app.route('/api/bills', billsRoutes)
+app.route('/api/vendor-portal', vendorPortalRoutes)
 app.route('/api/rfis', rfisRoutes)
 app.route('/api/submittals', submittalsRoutes)
 app.route('/api/lien-waivers', lienWaiversRoutes)

@@ -18,4 +18,11 @@ const logger = winston.createLogger({
   transports: [new winston.transports.Console()],
 })
 
+// Same class of bug: documents.ts calls `logger.audit(event, userId, companyId,
+// meta)`, which winston doesn't have either — every document upload/delete
+// 500'd AFTER the file was already stored. Log it as info; the real audit
+// trail is services/audit.ts, which those routes also call.
+;(logger as any).audit = (event: string, userId: any, companyId: any, meta: Record<string, any> = {}) =>
+  logger.info(`[audit] ${event}`, { userId, companyId, ...meta })
+
 export default logger

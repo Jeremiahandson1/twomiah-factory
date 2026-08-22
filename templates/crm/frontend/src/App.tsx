@@ -32,6 +32,9 @@ import InvoicesPage from './pages/InvoicesPage';
 import SchedulePage from './pages/SchedulePage';
 import TimePage from './pages/TimePage';
 import ExpensesPage from './pages/ExpensesPage';
+import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
+import BillsPage from './pages/BillsPage';
+import VendorPortalPage from './pages/VendorPortalPage';
 import TeamPage from './pages/TeamPage';
 import RFIsPage from './pages/RFIsPage';
 import ChangeOrdersPage from './pages/ChangeOrdersPage';
@@ -171,6 +174,8 @@ function App() {
                     <Route path="schedule" element={<SchedulePage />} />
                     <Route path="time" element={<TimePage />} />
                     <Route path="expenses" element={<ExpensesPage />} />
+                    <Route path="purchase-orders" element={<PurchaseOrdersPage />} />
+                    <Route path="bills" element={<BillsPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
                     <Route path="rfis" element={<RFIsPage />} />
@@ -230,6 +235,7 @@ function App() {
                   </Route>
 
                   {/* Client Portal (public, token-based auth) */}
+                  <Route path="/vendor/:token" element={<VendorPortalPage />} />
                   <Route path="/portal/:token" element={<PortalProvider><PortalLayout /></PortalProvider>}>
                     <Route index element={<PortalDashboard />} />
                     <Route path="projects" element={<PortalProjects />} />

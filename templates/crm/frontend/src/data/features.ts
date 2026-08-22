@@ -163,6 +163,9 @@ export const FEATURE_CATEGORIES = [
     description: 'Job costing and financial tracking',
     features: [
       { id: 'job_costing', name: 'Job Costing', description: 'Track all costs against jobs for profitability' },
+      { id: 'purchase_orders', name: 'Purchase Orders', description: 'Commit spend with vendors per job and track it to delivery' },
+      { id: 'vendor_bills', name: 'Bills & Payables', description: 'Track vendor bills, due dates, and payments against jobs' },
+      { id: 'vendor_portal', name: 'Vendor Portal', description: 'Vendors acknowledge POs and submit invoices through a private link' },
       { id: 'profit_bar', name: 'Job Profit Bar / Margin View', description: 'Visual profit margin display on each job' },
       { id: 'material_costs', name: 'Material Cost Tracking', description: 'Track material costs per job' },
       { id: 'labor_costs', name: 'Labor Cost Tracking', description: 'Track labor costs per job from time entries' },

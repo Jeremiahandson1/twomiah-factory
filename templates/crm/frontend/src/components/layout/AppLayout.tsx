@@ -7,7 +7,7 @@ import {
   ChevronDown, Building, User, FolderOpen, Package, Truck, Warehouse,
   Wrench, Megaphone, CreditCard, Repeat, Scissors, ListTodo,
   MessageSquare, BarChart3, Star, ShieldCheck, Phone, Sun, Moon, Monitor, LifeBuoy,
-  Inbox, ExternalLink, Bot, Calculator, FileBarChart
+  Inbox, ExternalLink, Bot, Calculator, FileBarChart, ShoppingCart, Wallet
 , Mail, CalendarCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,6 +38,8 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { to: '/crm/schedule', icon: Calendar, label: 'Schedule' },
   { to: '/crm/time', icon: Clock, label: 'Time' },
   { to: '/crm/expenses', icon: DollarSign, label: 'Expenses' },
+  { to: '/crm/purchase-orders', icon: ShoppingCart, label: 'Purchase Orders', features: ['purchase_orders'] },
+  { to: '/crm/bills', icon: Wallet, label: 'Bills', features: ['vendor_bills'] },
   { to: '/crm/documents', icon: FolderOpen, label: 'Documents' },
   { to: '/crm/team', icon: Users, label: 'Team' },
   { to: '/crm/projects', icon: FolderKanban, label: 'Projects', features: ['projects'] },

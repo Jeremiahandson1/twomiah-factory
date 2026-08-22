@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Upload, File, Image, FileText, Download, Trash2, Eye, X, FolderOpen } from 'lucide-react';
+import { Plus, Upload, File, Image, FileText, Download, Trash2, Eye, X, FolderOpen, History, PenTool } from 'lucide-react';
+import { DocumentHistoryModal, PlanMarkupModal } from './documentsExtras/DocumentExtrasModals';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, PageHeader, Button } from '../components/ui/DataTable';
@@ -41,6 +42,8 @@ export default function DocumentsPage() {
   const [uploadForm, setUploadForm] = useState<UploadForm>({ name: '', type: 'general', projectId: '', description: '' });
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewDoc, setPreviewDoc] = useState<Record<string, unknown> | null>(null);
+  const [historyDoc, setHistoryDoc] = useState<Record<string, unknown> | null>(null);
+  const [markupDoc, setMarkupDoc] = useState<Record<string, unknown> | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Record<string, unknown> | null>(null);
 
@@ -252,6 +255,8 @@ export default function DocumentsPage() {
               show: (doc: Record<string, unknown>) => (doc.mimeType as string)?.startsWith('image/') || (doc.mimeType as string)?.includes('pdf')
             },
             { label: 'Download', icon: Download, onClick: handleDownload },
+            { label: 'Versions', icon: History, onClick: (doc: Record<string, unknown>) => setHistoryDoc(doc) },
+            { label: 'Markup', icon: PenTool, onClick: (doc: Record<string, unknown>) => setMarkupDoc(doc) },
             { label: 'Delete', icon: Trash2, onClick: (doc: Record<string, unknown>) => { setToDelete(doc); setDeleteOpen(true); }, className: 'text-red-600' },
           ]}
         />
@@ -341,6 +346,9 @@ export default function DocumentsPage() {
           </div>
         </div>
       )}
+
+      {historyDoc && <DocumentHistoryModal doc={historyDoc} onClose={() => setHistoryDoc(null)} onChanged={load} />}
+      {markupDoc && <PlanMarkupModal doc={markupDoc} onClose={() => setMarkupDoc(null)} />}
 
       {/* Delete Modal */}
       <ConfirmModal

@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import path from 'path'
 import { db } from '../../db/index.ts'
-import { document, project, contact, user } from '../../db/schema.ts'
+import { document, documentVersion, planMarkup, project, contact, user } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import fileService from '../services/fileUpload.ts'
@@ -308,6 +308,172 @@ app.get('/:id/download', async (c) => {
       'X-Content-Type-Options': 'nosniff',
     },
   })
+})
+
+// ==================== VERSION HISTORY ====================
+// The document row always points at the CURRENT file. Uploading a new
+// version snapshots the outgoing file first, so a plan revision never
+// silently destroys the sheet a sub already built from.
+
+async function ownedDocument(c: any) {
+  const currentUser = c.get('user') as any
+  const [doc] = await db.select().from(document)
+    .where(and(eq(document.id, c.req.param('id')), eq(document.companyId, currentUser.companyId))).limit(1)
+  return doc || null
+}
+
+app.get('/:id/versions', async (c) => {
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  const versions = await db.select().from(documentVersion)
+    .where(eq(documentVersion.documentId, doc.id)).orderBy(desc(documentVersion.versionNumber))
+  return c.json({ data: versions, currentVersion: versions.length + 1 })
+})
+
+app.post('/:id/versions', async (c) => {
+  const currentUser = c.get('user') as any
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+
+  const body = await c.req.parseBody()
+  const file = body['file'] as File | undefined
+  if (!file || !(file instanceof File)) return c.json({ error: 'No file uploaded' }, 400)
+
+  let uploaded
+  try {
+    uploaded = await fileService.saveFile(file, currentUser.companyId, 'documents')
+  } catch (err: any) {
+    return c.json({ error: err.message }, 400)
+  }
+
+  const [{ value: existingCount }] = await db.select({ value: count() }).from(documentVersion)
+    .where(eq(documentVersion.documentId, doc.id))
+
+  // snapshot the outgoing file, then point the document at the new one
+  await db.insert(documentVersion).values({
+    documentId: doc.id,
+    versionNumber: Number(existingCount) + 1,
+    filename: doc.filename,
+    originalName: doc.originalName,
+    mimeType: doc.mimeType,
+    size: doc.size,
+    path: doc.path,
+    url: doc.url,
+    note: (body['note'] as string) || null,
+    uploadedById: currentUser.id,
+  })
+  const [updated] = await db.update(document).set({
+    filename: uploaded.filename,
+    originalName: uploaded.originalname,
+    mimeType: uploaded.mimetype,
+    size: uploaded.size,
+    path: uploaded.path,
+    url: uploaded.url,
+    updatedAt: new Date(),
+  }).where(eq(document.id, doc.id)).returning()
+  return c.json(updated, 201)
+})
+
+app.post('/:id/versions/:versionId/restore', async (c) => {
+  const currentUser = c.get('user') as any
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  const [version] = await db.select().from(documentVersion)
+    .where(and(eq(documentVersion.id, c.req.param('versionId')), eq(documentVersion.documentId, doc.id))).limit(1)
+  if (!version) return c.json({ error: 'Version not found' }, 404)
+
+  const [{ value: existingCount }] = await db.select({ value: count() }).from(documentVersion)
+    .where(eq(documentVersion.documentId, doc.id))
+  // the current file becomes a version too, so a restore is always reversible
+  await db.insert(documentVersion).values({
+    documentId: doc.id,
+    versionNumber: Number(existingCount) + 1,
+    filename: doc.filename,
+    originalName: doc.originalName,
+    mimeType: doc.mimeType,
+    size: doc.size,
+    path: doc.path,
+    url: doc.url,
+    note: `Superseded by restore of v${version.versionNumber}`,
+    uploadedById: currentUser.id,
+  })
+  const [updated] = await db.update(document).set({
+    filename: version.filename,
+    originalName: version.originalName,
+    mimeType: version.mimeType,
+    size: version.size,
+    path: version.path,
+    url: version.url,
+    updatedAt: new Date(),
+  }).where(eq(document.id, doc.id)).returning()
+  return c.json(updated)
+})
+
+app.get('/:id/versions/:versionId/download', async (c) => {
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  const [version] = await db.select().from(documentVersion)
+    .where(and(eq(documentVersion.id, c.req.param('versionId')), eq(documentVersion.documentId, doc.id))).limit(1)
+  if (!version) return c.json({ error: 'Version not found' }, 404)
+  const obj = await fileService.getObject(version.path)
+  if (!obj) return c.json({ error: 'File not found' }, 404)
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': version.mimeType || obj.contentType || 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${version.originalName || path.basename(version.path)}"`,
+      'Content-Length': String(obj.body.byteLength),
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
+})
+
+// ==================== PLAN MARKUP ====================
+// Annotation layers over a plan/photo. The drawing itself is client-side;
+// the server stores the annotation JSON per named layer.
+
+app.get('/:id/markups', async (c) => {
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  const markups = await db.select().from(planMarkup)
+    .where(eq(planMarkup.documentId, doc.id)).orderBy(desc(planMarkup.updatedAt))
+  return c.json({ data: markups })
+})
+
+app.post('/:id/markups', async (c) => {
+  const currentUser = c.get('user') as any
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  const body = ((await c.req.json().catch(() => null)) ?? {}) as any
+  if (typeof body.data !== 'string' || !body.data.length) return c.json({ error: 'Markup data is required' }, 400)
+  const [markup] = await db.insert(planMarkup).values({
+    documentId: doc.id,
+    name: (typeof body.name === 'string' && body.name.trim()) || 'Markup',
+    data: body.data,
+    createdById: currentUser.id,
+  }).returning()
+  return c.json(markup, 201)
+})
+
+app.put('/:id/markups/:markupId', async (c) => {
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  const body = ((await c.req.json().catch(() => null)) ?? {}) as any
+  const update: Record<string, any> = { updatedAt: new Date() }
+  if (typeof body.data === 'string' && body.data.length) update.data = body.data
+  if (typeof body.name === 'string' && body.name.trim()) update.name = body.name.trim()
+  const [updated] = await db.update(planMarkup).set(update)
+    .where(and(eq(planMarkup.id, c.req.param('markupId')), eq(planMarkup.documentId, doc.id))).returning()
+  if (!updated) return c.json({ error: 'Markup not found' }, 404)
+  return c.json(updated)
+})
+
+app.delete('/:id/markups/:markupId', async (c) => {
+  const doc = await ownedDocument(c)
+  if (!doc) return c.json({ error: 'Document not found' }, 404)
+  const deleted = await db.delete(planMarkup)
+    .where(and(eq(planMarkup.id, c.req.param('markupId')), eq(planMarkup.documentId, doc.id))).returning()
+  if (!deleted.length) return c.json({ error: 'Markup not found' }, 404)
+  return c.body(null, 204)
 })
 
 export default app

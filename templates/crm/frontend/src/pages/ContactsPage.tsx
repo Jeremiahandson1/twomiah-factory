@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, UserCheck, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, UserCheck, Search, Handshake } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
 import { DataTable, StatusBadge, PageHeader, Button } from '../components/ui/DataTable';
@@ -225,6 +225,12 @@ export default function ContactsPage() {
 
   const actions = [
     { label: 'Edit', icon: Edit, onClick: openEditModal },
+    { label: 'Invite to vendor portal', icon: Handshake, onClick: async (row: Record<string, unknown>) => {
+      try {
+        await api.vendorPortal.invite(row.id as string);
+        toast.success('Vendor portal invite sent — they can acknowledge POs and submit invoices');
+      } catch (err) { toast.error((err as Error).message); }
+    } },
     { label: 'Delete', icon: Trash2, onClick: (row: Record<string, unknown>) => { setContactToDelete(row); setDeleteModalOpen(true); }, className: 'text-red-600' },
   ];
 
