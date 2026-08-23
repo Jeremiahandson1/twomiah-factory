@@ -68,7 +68,9 @@ export class PrintfulProvider implements SupplierProvider {
 
   async validateVariantRef(ref: string): Promise<{ name: string }> {
     if (!/^\d+$/.test(ref.trim())) throw new Error('Printful sync variant id must be a number')
-    const result = await this.call('GET', '/store/variants/@' + ref.trim())
+    // No @ prefix: '@' addresses Printful's EXTERNAL-id namespace; the ref we
+    // store IS the numeric sync variant id.
+    const result = await this.call('GET', '/store/variants/' + ref.trim())
     const name = result?.sync_variant?.name || result?.name
     if (!name) throw new Error('Printful did not recognize that sync variant')
     return { name }
@@ -77,7 +79,8 @@ export class PrintfulProvider implements SupplierProvider {
   async placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
     const a = input.address as any
     const order = await this.call('POST', '/orders', {
-      external_id: input.externalId,
+      // Printful caps external_id at 32 chars; a hyphenless UUID is exactly 32.
+      external_id: input.externalId.replace(/-/g, '').slice(0, 32),
       // Draft in test mode; confirmed (charged + sent to production) in live.
       confirm: this.creds.mode === 'live',
       recipient: {
