@@ -4,7 +4,12 @@
 
 const QBO_AUTH_ENDPOINT = 'https://appcenter.intuit.com/connect/oauth2'
 const QBO_TOKEN_ENDPOINT = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer'
-const QBO_API_BASE = 'https://quickbooks.api.intuit.com/v3'
+// QBO_SANDBOX=1 points API calls at Intuit's sandbox companies (dev keys).
+// The auth/token endpoints are identical in both environments — only the
+// accounting API host differs.
+const QBO_API_BASE = process.env.QBO_SANDBOX === '1'
+  ? 'https://sandbox-quickbooks.api.intuit.com/v3'
+  : 'https://quickbooks.api.intuit.com/v3'
 
 function getClientId(): string {
   const id = process.env.QBO_CLIENT_ID
