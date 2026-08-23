@@ -72,7 +72,11 @@ export async function exchangeCodeForTokens(code: string, realmId: string): Prom
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`QBO token exchange failed (${res.status}): ${text}`)
+    // intuit_tid is Intuit's per-request trace id — logging it lets their
+    // support find the exact request when troubleshooting.
+    const tid = res.headers.get('intuit_tid')
+    console.error('[QBO] token exchange failed', { status: res.status, intuit_tid: tid, body: text.slice(0, 500) })
+    throw new Error(`QBO token exchange failed (${res.status}, intuit_tid=${tid}): ${text}`)
   }
 
   const data = await res.json()
@@ -107,7 +111,9 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`QBO token refresh failed (${res.status}): ${text}`)
+    const tid = res.headers.get('intuit_tid')
+    console.error('[QBO] token refresh failed', { status: res.status, intuit_tid: tid, body: text.slice(0, 500) })
+    throw new Error(`QBO token refresh failed (${res.status}, intuit_tid=${tid}): ${text}`)
   }
 
   const data = await res.json()
@@ -135,7 +141,9 @@ export async function getCompanyInfo(accessToken: string, realmId: string): Prom
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`QBO company info request failed (${res.status}): ${text}`)
+    const tid = res.headers.get('intuit_tid')
+    console.error('[QBO] company info request failed', { status: res.status, intuit_tid: tid, body: text.slice(0, 500) })
+    throw new Error(`QBO company info request failed (${res.status}, intuit_tid=${tid}): ${text}`)
   }
 
   const data = await res.json()
