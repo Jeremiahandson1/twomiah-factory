@@ -91,8 +91,8 @@ const FIELDSERVICE_TIERS = [
 const ROOF_TIERS = [
   { id: 'starter', name: 'Starter', monthlyPrice: 49, annualPrice: 39, users: { included: 2, max: 2 }, features: ['Lead intake', 'Job tracking', 'Quotes & invoices', 'Payments', 'Customer portal', 'Documents', 'Mobile app'] },
   { id: 'pro', name: 'Pro', monthlyPrice: 149, annualPrice: 119, users: { included: 5, max: 10, additionalPrice: 29 }, highlight: true, features: ['Everything in Starter', 'Good-Better-Best pricing', 'Pricebook', 'Measurement reports (3/mo)', 'Review requests', 'Two-way SMS', 'Photos & before/after galleries', 'QuickBooks sync', 'Showcase website included'] },
-  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', 'Instant estimator on website', '10 measurement reports/mo', 'Insurance workflow + adjuster directory', 'Consumer financing', 'Materials management', 'Crews', 'Job costing', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
-  { id: 'storm', name: 'Storm', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Unlimited measurement reports', 'Storm lead generation', 'Full insurance workflow + supplements', 'Depreciation recovery tracking', 'Door-knock canvassing tool', 'Multi-crew dispatch', 'AI receptionist', 'Estimator + service area pages on website'] },
+  { id: 'business', name: 'Business', monthlyPrice: 299, annualPrice: 239, users: { included: 15, max: 25, additionalPrice: 29 }, features: ['Everything in Pro', '10 measurement reports/mo', 'Insurance workflow + adjuster directory', 'Consumer financing', 'Materials management', 'Crews', 'Job costing', 'Call tracking', 'Advanced reporting', 'Book Jobs website included'] },
+  { id: 'storm', name: 'Storm', monthlyPrice: 599, annualPrice: 479, users: { included: 20, max: 50, additionalPrice: 29 }, features: ['Everything in Business', 'Unlimited measurement reports', 'Storm lead generation', 'Full insurance workflow + supplements', 'Depreciation recovery tracking', 'Door-knock canvassing tool', 'Multi-crew dispatch', 'AI receptionist', 'Service area pages on website'] },
   { id: 'enterprise', name: 'Enterprise', monthlyPrice: 199, annualPrice: 159, perUser: true, users: { min: 10, max: null }, features: ['Unlimited everything', 'White-label + custom domain', 'SSO', 'API access', 'Priority support', 'Dedicated account manager', 'Custom integrations', 'SLA & uptime guarantee'] },
 ]
 
@@ -108,7 +108,6 @@ const HOMECARE_TIERS = [
 const CRM_BUNDLES = [
   { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
   { id: 'exterior_visualizer', name: 'Exterior Visualizer', price: 59, description: 'AI-powered exterior design visualization for customers' },
-  { id: 'instant_estimator', name: 'Instant Roof Estimator', price: 79, description: 'Google Solar-powered instant roof estimates with lead capture' },
   { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
   { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
   { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
@@ -139,7 +138,6 @@ const FIELDSERVICE_BUNDLES = [
 const ROOF_BUNDLES = [
   { id: 'pricebook', name: 'Pricebook', price: 49, description: 'Flat-rate pricing, good/better/best proposals' },
   { id: 'exterior_visualizer', name: 'Exterior Visualizer', price: 59, description: 'AI-powered exterior design visualization for customers' },
-  { id: 'instant_estimator', name: 'Instant Roof Estimator', price: 79, description: 'Google Solar-powered instant roof estimates with lead capture' },
   { id: 'sms', name: 'SMS Communication', price: 39, description: 'Two-way texting with customers' },
   { id: 'gps_field', name: 'GPS & Field', price: 49, description: 'Track techs, optimize routes' },
   { id: 'inventory', name: 'Inventory Management', price: 49, description: 'Track parts across locations' },
