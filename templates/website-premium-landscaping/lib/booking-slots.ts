@@ -175,6 +175,12 @@ export function generateSlots(args: {
         for (const [key, windows] of rulesByCrew) rulesByCrew.set(key, cutWindow(windows))
       } else if (rulesByCrew.has(bk.assignedUserId)) {
         rulesByCrew.set(bk.assignedUserId, cutWindow(rulesByCrew.get(bk.assignedUserId)!))
+      } else if (rulesByCrew.has(null)) {
+        // Solo-operator case: availability uses the null wildcard crew, but
+        // busy blocks (especially external calendar events) arrive tagged
+        // with the real user's id. Without this, a solo operator's Google
+        // Calendar events never blocked their bookable slots.
+        rulesByCrew.set(null, cutWindow(rulesByCrew.get(null)!))
       }
     }
   }

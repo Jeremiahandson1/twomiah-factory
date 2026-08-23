@@ -318,3 +318,29 @@ describe('pickCrewForSlot', () => {
     expect(pickCrewForSlot([])).toBe(null)
   })
 })
+
+// Regression: a solo operator's availability uses the null wildcard crew,
+// but external calendar busy events arrive tagged with the real user id.
+// Before the fix those events never blocked anything.
+test('external busy tagged with an unknown user id still blocks wildcard-crew slots', () => {
+  const HOUR = 60
+  const wildcardRule = { userId: null, dayOfWeek: 1, startMinute: 9 * HOUR, endMinute: 17 * HOUR, isActive: true }
+  const slots = generateSlots({
+    dayOfWeek: 1,
+    service: { durationMinutes: 60, bufferBeforeMinutes: 0, bufferAfterMinutes: 0, slotGranularityMinutes: 30 },
+    rules: [wildcardRule],
+    blackouts: [],
+    existingBookings: [
+      // e.g. a Google Calendar event for the connected admin, 2-3 PM
+      { assignedUserId: 'some-real-user-uuid', startMinute: 14 * HOUR, endMinute: 15 * HOUR, status: 'confirmed' },
+    ],
+  })
+  const starts = slots.map(s => s.startMinute)
+  // 13:30, 14:00, 14:30 all overlap the busy hour for a 60-min service
+  expect(starts).not.toContain(13 * HOUR + 30)
+  expect(starts).not.toContain(14 * HOUR)
+  expect(starts).not.toContain(14 * HOUR + 30)
+  // 13:00 and 15:00 are fine
+  expect(starts).toContain(13 * HOUR)
+  expect(starts).toContain(15 * HOUR)
+})
