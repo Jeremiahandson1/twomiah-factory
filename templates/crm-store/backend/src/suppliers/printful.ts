@@ -22,10 +22,39 @@ export class PrintfulProvider implements SupplierProvider {
   readonly name = 'printful' as const
   constructor(private creds: SupplierCredentials) {}
 
+  // Store-scoped tokens address "the" store implicitly; ACCOUNT-level tokens
+  // must name one via X-PF-Store-Id or every store endpoint 400s. Discover
+  // the account's store lazily and cache it. null = store-scoped token.
+  private storeId: string | null | undefined = undefined
+
+  private async resolveStoreId(): Promise<string | null> {
+    if (this.storeId !== undefined) return this.storeId
+    const res = await fetch(BASE + '/stores', {
+      headers: { 'Authorization': `Bearer ${this.creds.apiKey}` },
+    })
+    const data: any = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      // Store-scoped tokens are forbidden from /stores — no header needed.
+      this.storeId = null
+      return null
+    }
+    const stores = Array.isArray(data?.result) ? data.result : []
+    if (stores.length === 0) {
+      throw new Error('Your Printful account has no store yet — create one (Manual order platform / API) in the Printful dashboard first')
+    }
+    this.storeId = String(stores[0].id)
+    return this.storeId
+  }
+
   private async call(method: string, path: string, body?: unknown): Promise<any> {
+    const storeId = await this.resolveStoreId()
     const res = await fetch(BASE + path, {
       method,
-      headers: { 'Authorization': `Bearer ${this.creds.apiKey}`, 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${this.creds.apiKey}`,
+        'Content-Type': 'application/json',
+        ...(storeId ? { 'X-PF-Store-Id': storeId } : {}),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     })
     const data: any = await res.json().catch(() => ({}))

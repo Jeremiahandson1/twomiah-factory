@@ -56,11 +56,35 @@ export class CjProvider implements SupplierProvider {
     return { name }
   }
 
+  // A retry after a timeout (or any double-forward) hits CJ's duplicate
+  // guard even though the first attempt succeeded. Instead of surfacing an
+  // error on an order that EXISTS, find it by our order number and adopt it.
+  private async findByOrderNumber(orderNumber: string): Promise<{ orderId: string; amount: number | null } | null> {
+    for (let page = 1; page <= 3; page++) {
+      const data = await this.call('GET', `/shopping/order/list?pageNum=${page}&pageSize=50`)
+      const rows = data?.list || []
+      const hit = rows.find((r: any) => r.orderNum === orderNumber)
+      if (hit) return { orderId: String(hit.orderId), amount: typeof hit.orderAmount === 'number' ? hit.orderAmount : null }
+      if (rows.length < 50) break
+    }
+    return null
+  }
+
   async placeOrder(input: PlaceOrderInput): Promise<PlaceOrderResult> {
     const a = input.address as any
-    const data = await this.call('POST', '/shopping/order/createOrderV2', {
+    let data: any
+    try {
+      data = await this.call('POST', '/shopping/order/createOrderV2', {
       orderNumber: input.externalId,
+      // Required by CJ's createOrderV2 even though their docs mark it
+      // optional-looking: the origin warehouse country and a logistics
+      // channel. CN + CJPacket is CJ's default fulfilment path; both are
+      // env-overridable for merchants using US warehouses.
+      fromCountryCode: process.env.CJ_FROM_COUNTRY || 'CN',
+      logisticName: process.env.CJ_LOGISTIC_NAME || 'CJPacket Ordinary',
+      payType: 2,  // balance payment — order waits unpaid in CJ until the merchant pays from their wallet
       shippingCountryCode: a?.country || a?.countryCode || 'US',
+      shippingCountry: a?.country || a?.countryCode || 'US',
       shippingProvince: a?.state || a?.stateCode || '',
       shippingCity: a?.city || '',
       shippingAddress: [a?.line1 || a?.address1 || '', a?.line2 || a?.address2 || ''].filter(Boolean).join(', '),
@@ -69,7 +93,13 @@ export class CjProvider implements SupplierProvider {
       shippingPhone: input.phone || '',
       remark: 'Twomiah store order ' + input.externalId,
       products: input.items.map(it => ({ vid: it.supplierVariantRef, quantity: it.quantity })),
-    })
+      })
+    } catch (err: any) {
+      if (!/exist|duplicate/i.test(err?.message || '')) throw err
+      const existing = await this.findByOrderNumber(input.externalId)
+      if (!existing) throw err
+      return { supplierOrderId: existing.orderId, costCents: existing.amount != null ? Math.round(existing.amount * 100) : null }
+    }
     const id = data?.orderId || data
     if (!id) throw new Error('CJ did not return an order id')
     const cost = typeof data?.orderAmount === 'number' ? Math.round(data.orderAmount * 100) : null
