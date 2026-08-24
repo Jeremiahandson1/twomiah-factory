@@ -237,6 +237,11 @@ export default function SignupPage() {
           setError('Phone number is required');
           return false;
         }
+        // Require an actual phone number, not arbitrary text (M-11).
+        if ((formData.phone.match(/\d/g) || []).length < 10 || !/^[\d\s()+.\-]+$/.test(formData.phone)) {
+          setError('Enter a valid phone number');
+          return false;
+        }
         return true;
 
       case 2:

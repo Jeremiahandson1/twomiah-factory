@@ -12,16 +12,21 @@ import { createId } from '@paralleldrive/cuid2'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Strip HTML tags from free-text so a stored <script> payload can never reach an
+// un-escaped render path (a PDF quote, an email, a partner feed) — M-05. These
+// fields never legitimately contain markup.
+const noTags = z.string().transform(s => s.replace(/<[^>]*>/g, '')).optional()
+
 const unitSchema = z.object({
   category: z.string().min(1),
   vin: z.string().min(1).max(17).optional(),
   stockNumber: z.string().optional(),
   year: z.number().int().min(1900).max(2030).optional(),
-  make: z.string().optional(),
-  modelName: z.string().optional(),
-  trim: z.string().optional(),
-  exteriorColor: z.string().optional(),
-  interiorColor: z.string().optional(),
+  make: noTags,
+  modelName: noTags,
+  trim: noTags,
+  exteriorColor: noTags,
+  interiorColor: noTags,
   mileage: z.number().int().min(0).optional(),
   status: z.enum(['available', 'sold', 'pending', 'on_order', 'in_service']).default('available'),
   // Money fields are decimal-as-string; reject negatives (M-01: listedPrice "-500"
@@ -32,7 +37,7 @@ const unitSchema = z.object({
   cost: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
   photos: z.array(z.string()).optional(),
   floorplanImg: z.string().optional(),
-  description: z.string().optional(),
+  description: noTags,
   features: z.array(z.string()).optional(),
   condition: z.enum(['new', 'used', 'consignment']).optional(),
   // RV-specific
