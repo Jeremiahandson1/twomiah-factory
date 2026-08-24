@@ -212,6 +212,27 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
     }
   };
 
+  const handleReactivate = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/clients/${client.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ isActive: true }),
+      });
+      if (!response.ok) throw new Error('Failed to reactivate client');
+      setMessage('Client reactivated.');
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+      }, 1000);
+    } catch (error) {
+      setMessage('Error: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!isOpen || !client) return null;
 
   const tabs = [
@@ -855,7 +876,17 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
             <button type="button" className="btn btn-secondary" onClick={onClose} disabled={loading}>
               Cancel
             </button>
-            {!deleteConfirm ? (
+            {client.isActive === false ? (
+              <button
+                type="button"
+                className="btn btn-success"
+                onClick={handleReactivate}
+                disabled={loading}
+                style={{ marginLeft: 'auto' }}
+              >
+                ♻️ Reactivate Client
+              </button>
+            ) : !deleteConfirm ? (
               <button
                 type="button"
                 className="btn btn-danger"

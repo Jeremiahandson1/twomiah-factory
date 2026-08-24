@@ -97,6 +97,7 @@ const ClientsManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterReferral, setFilterReferral] = useState('');
   const [filterCareType, setFilterCareType] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
   // Listen for window resize
@@ -225,8 +226,11 @@ const ClientsManagement = () => {
     
     const matchesReferral = !filterReferral || client.referredById === filterReferral;
     const matchesCareType = !filterCareType || client.careTypeId === filterCareType;
-    
-    return matchesSearch && matchesReferral && matchesCareType;
+    // Deactivated ("deleted") clients are hidden from the active roster unless
+    // the user opts in, so a soft-deleted client no longer reads as active.
+    const matchesActive = showInactive || client.isActive !== false;
+
+    return matchesSearch && matchesReferral && matchesCareType && matchesActive;
   });
 
   return (
@@ -419,6 +423,10 @@ const ClientsManagement = () => {
               {careTypes.map(ct => (<option key={ct.id} value={ct.id}>{ct.name}</option>))}
             </select>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: '#555' }}>
+            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+            Show deactivated clients
+          </label>
         </div>
       </div>
 
@@ -451,7 +459,7 @@ const ClientsManagement = () => {
             </thead>
             <tbody>
               {filteredClients.map(client => (
-                <tr key={client.id}>
+                <tr key={client.id} style={client.isActive === false ? { opacity: 0.55 } : undefined}>
                   <td>
                     <strong>{client.firstName} {client.lastName}</strong>
                     {client.dateOfBirth && (<small style={{ display: 'block', color: '#666' }}>DOB: {new Date(client.dateOfBirth).toLocaleDateString()}</small>)}
@@ -460,7 +468,13 @@ const ClientsManagement = () => {
                   <td><AddressLink address={client.address} city={client.city} state={client.state} zip={client.zip} /></td>
                   <td>{client.isPrivatePay ? (<span className="text-muted">-</span>) : (getReferralSourceName(client.referredById))}</td>
                   <td>{getCareTypeName(client.careTypeId)}</td>
-                  <td>{client.isPrivatePay ? (<span className="badge badge-info">Private Pay</span>) : (<span className="badge badge-success">Referred</span>)}</td>
+                  <td>
+                    {client.isActive === false
+                      ? (<span className="badge badge-danger">Deactivated</span>)
+                      : client.isPrivatePay
+                        ? (<span className="badge badge-info">Private Pay</span>)
+                        : (<span className="badge badge-success">Referred</span>)}
+                  </td>
                   <td><button className="btn btn-sm btn-primary" onClick={() => handleViewClient(client)}>✏️ Edit</button></td>
                 </tr>
               ))}
