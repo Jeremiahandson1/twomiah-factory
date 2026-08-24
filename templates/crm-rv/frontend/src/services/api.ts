@@ -10,7 +10,7 @@ class ApiClient {
   readonly baseUrl: string;
   private accessToken: string | null;
   private refreshToken: string | null;
-  private _refreshPromise: Promise<boolean> | null;
+  private _refreshPromise: Promise<'ok' | 'revoked' | 'retry'> | null;
 
   constructor() {
     this.baseUrl = API_URL;
@@ -51,13 +51,20 @@ class ApiClient {
           this._refreshPromise = this.refreshAccessToken().finally(() => { this._refreshPromise = null; });
         }
         const refreshed = await this._refreshPromise;
-        if (refreshed) {
+        if (refreshed === 'ok') {
           headers.Authorization = `Bearer ${this.accessToken}`;
           return fetch(url, { ...options, headers }).then(r => this.handleResponse<T>(r));
-        } else {
+        } else if (refreshed === 'revoked') {
+          // Genuine revocation — the only case that should end the session.
           this.clearTokens();
           window.dispatchEvent(new CustomEvent('auth:expired'));
           throw new Error('Session expired');
+        } else {
+          // Transient (429 / 5xx / network). Keep the refresh token so a throttle
+          // can't log the user out permanently (C-03); surface a soft error.
+          const e: ApiError = new Error('Service is busy — please try again in a moment');
+          e.status = 429;
+          throw e;
         }
       }
 
@@ -83,22 +90,30 @@ class ApiClient {
     return data as T;
   }
 
-  async refreshAccessToken(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: this.refreshToken }),
-      });
+  // 'ok' = refreshed; 'revoked' = session genuinely dead (401/403) → log out;
+  // 'retry' = transient (429/5xx/network) → keep the token, do NOT log out.
+  async refreshAccessToken(): Promise<'ok' | 'revoked' | 'retry'> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: this.refreshToken }),
+        });
 
-      if (!response.ok) return false;
-
-      const data = await response.json();
-      this.setTokens(data.accessToken, data.refreshToken);
-      return true;
-    } catch {
-      return false;
+        if (response.ok) {
+          const data = await response.json();
+          this.setTokens(data.accessToken, data.refreshToken);
+          return 'ok';
+        }
+        if (response.status === 401 || response.status === 403) return 'revoked';
+        // 429 or 5xx — back off and retry rather than discarding the token.
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+      } catch {
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+      }
     }
+    return 'retry';
   }
 
   // Auth

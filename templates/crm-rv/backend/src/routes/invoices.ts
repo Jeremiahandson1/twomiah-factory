@@ -24,8 +24,11 @@ const invoiceSchema = z.object({
 
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
   const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  const total = subtotal + taxAmount - discount
+  // Discount applies BEFORE tax — the customer must not be taxed on money they
+  // never paid (H-06). Guard against a discount larger than the subtotal.
+  const taxable = Math.max(0, subtotal - discount)
+  const taxAmount = taxable * (taxRate / 100)
+  const total = taxable + taxAmount
   return { subtotal, taxAmount, total, balance: total }
 }
 
@@ -88,13 +91,21 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
 
 app.get('/stats', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
-  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
+  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid, dueDate: invoice.dueDate }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
   const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0 }
+  const today = new Date(); today.setHours(0, 0, 0, 0)
   invoices.forEach(inv => {
-    stats[inv.status] = (stats[inv.status] || 0) + 1
+    const balance = Number(inv.total) - Number(inv.amountPaid)
+    // Overdue is DERIVED from the due date and the balance, in one place, so the
+    // three screens can't disagree and a stale stored flag can't lie (H-07).
+    const isOverdue = balance > 0.005 && inv.dueDate != null && new Date(inv.dueDate) < today && inv.status !== 'paid' && inv.status !== 'cancelled'
+    if (isOverdue) stats.overdue += 1
+    else stats[inv.status] = (stats[inv.status] || 0) + 1
     stats.totalAmount += Number(inv.total)
-    stats.outstanding += Number(inv.total) - Number(inv.amountPaid)
-    if (inv.status === 'paid') stats.paidAmount += Number(inv.total)
+    // paidAmount and outstanding derive from the SAME base (amountPaid) so they
+    // always reconcile, even after a correction.
+    stats.paidAmount += Number(inv.amountPaid)
+    stats.outstanding += balance
   })
   return c.json(stats)
 })
@@ -120,6 +131,12 @@ app.get('/:id', requirePermission('invoices:read'), async (c) => {
 app.post('/', requirePermission('invoices:create'), async (c) => {
   const currentUser = c.get('user') as any
   const data = invoiceSchema.parse(await c.req.json())
+  // An invoice is issued now, so a due date in the past is a typo, not a valid
+  // "already overdue" invoice (H-07 saw a due date 8 days before issue).
+  if (data.dueDate) {
+    const due = new Date(data.dueDate); const today = new Date(); today.setHours(0, 0, 0, 0)
+    if (due < today) return c.json({ error: 'Due date cannot be before the issue date' }, 400)
+  }
   const { lineItems, ...invoiceData } = data
   const totals = calcTotals(lineItems, data.taxRate, data.discount)
 

@@ -23,13 +23,14 @@ app.get('/stats', async (c) => {
     try { return await fn() } catch { return fallback }
   }
 
-  const [contactRows, unitsByStatus, unitsByCategory, openLeadRows, leadsThisMonthRows, closedWonRows, openRoRows, rosThisMonthRows, revenueRows] = await Promise.all([
+  const [contactRows, unitsByStatus, unitsByCategory, openLeadRows, leadsThisMonthRows, closedWonRows, closedLostRows, openRoRows, rosThisMonthRows, revenueRows] = await Promise.all([
     safe(() => db.select({ value: count() }).from(contact).where(eq(contact.companyId, companyId)), [{ value: 0 }]),
     safe(() => db.select({ status: unit.status, c: count() }).from(unit).where(eq(unit.companyId, companyId)).groupBy(unit.status), [] as { status: string; c: number }[]),
     safe(() => db.select({ category: unit.category, c: count() }).from(unit).where(eq(unit.companyId, companyId)).groupBy(unit.category), [] as { category: string; c: number }[]),
     safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), sql`${salesLead.stage} NOT IN ('closed_won', 'closed_lost')`)), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), gte(salesLead.createdAt, startOfMonth), lt(salesLead.createdAt, startOfNextMonth))), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), eq(salesLead.stage, 'closed_won'), gte(salesLead.closedAt, startOfMonth), lt(salesLead.closedAt, startOfNextMonth))), [{ value: 0 }]),
+    safe(() => db.select({ value: count() }).from(salesLead).where(and(eq(salesLead.companyId, companyId), eq(salesLead.stage, 'closed_lost'), gte(salesLead.closedAt, startOfMonth), lt(salesLead.closedAt, startOfNextMonth))), [{ value: 0 }]),
     // Open ROs = work not finished. Exclude 'ready' (done, awaiting pickup) + 'closed'.
     safe(() => db.select({ value: count() }).from(repairOrder).where(and(eq(repairOrder.companyId, companyId), sql`${repairOrder.status} NOT IN ('ready', 'closed')`)), [{ value: 0 }]),
     safe(() => db.select({ value: count() }).from(repairOrder).where(and(eq(repairOrder.companyId, companyId), gte(repairOrder.createdAt, startOfMonth), lt(repairOrder.createdAt, startOfNextMonth))), [{ value: 0 }]),
@@ -41,7 +42,13 @@ app.get('/stats', async (c) => {
   const totalUnits = unitsByStatus.reduce((s, u) => s + Number(u.c), 0)
   const leadsThisMonth = leadsThisMonthRows[0]?.value ?? 0
   const closedWonThisMonth = closedWonRows[0]?.value ?? 0
-  const closeRate = leadsThisMonth > 0 ? Math.round((closedWonThisMonth / leadsThisMonth) * 1000) / 10 : 0
+  const closedLostThisMonth = closedLostRows[0]?.value ?? 0
+  // Close rate = won / decided (won + lost) this month, so it measures a cohort
+  // against itself and can't exceed 100% (was won ÷ leads-created = 200%, H-05).
+  const decidedThisMonth = Number(closedWonThisMonth) + Number(closedLostThisMonth)
+  const closeRate = decidedThisMonth > 0
+    ? Math.min(100, Math.round((Number(closedWonThisMonth) / decidedThisMonth) * 1000) / 10)
+    : 0
   const revenueThisMonth = revenueRows.reduce((s: number, r: any) => s + Number(r.amt || 0), 0)
 
   return c.json({
