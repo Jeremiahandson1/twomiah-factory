@@ -139,6 +139,43 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization', 'x-portal-token'],
 }))
 
+// ── camelCase → snake_case response bridge ──────────────────────────────────
+// This frontend was ported from the CVHC home-care app, which speaks snake_case
+// (raw SQL columns). This backend uses Drizzle and returns camelCase, so ~1,700
+// snake_case field reads (client/caregiver names, dropdown labels, ADLs, meds,
+// etc.) came back undefined — the single defect behind most of the "blank
+// dropdown / blank label" blockers. Rather than rewrite every screen, we add a
+// snake_case alias for every camelCase key on the way out, so screens on EITHER
+// convention resolve. Responses only — request bodies are never touched, so
+// writes/validation are unaffected.
+const camelToSnake = (k: string) => k.replace(/([A-Z])/g, '_$1').toLowerCase()
+function addSnakeAliases(value: any): any {
+  if (Array.isArray(value)) return value.map(addSnakeAliases)
+  if (value && typeof value === 'object') {
+    const out: any = {}
+    for (const [k, v] of Object.entries(value)) {
+      const nv = addSnakeAliases(v)
+      out[k] = nv
+      const snake = camelToSnake(k)
+      if (snake !== k && !(snake in value)) out[snake] = nv
+    }
+    return out
+  }
+  return value
+}
+
+app.use('/api/*', async (c, next) => {
+  await next()
+  const ct = c.res.headers.get('content-type') || ''
+  if (!ct.includes('application/json')) return
+  try {
+    const body = await c.res.json()
+    const headers = new Headers(c.res.headers)
+    headers.delete('content-length')
+    c.res = new Response(JSON.stringify(addSnakeAliases(body)), { status: c.res.status, headers })
+  } catch { /* not JSON / body already consumed — leave the response as-is */ }
+})
+
 // Simple in-memory rate limiter
 function createRateLimiter(windowMs: number, max: number) {
   const hits = new Map<string, { count: number; resetAt: number }>()
