@@ -118,11 +118,19 @@ function App() {
             <ToastProvider>
               <SocketProvider>
                 <Routes>
-                  {/* Public marketing pages */}
-                  <Route path="/pricing" element={<PricingPage />} />
-                  <Route path="/signup" element={<SignupPage />} />
-                  <Route path="/signup/success" element={<SignupSuccessPage />} />
-                  <Route path="/self-hosted" element={<SelfHostedPurchasePage />} />
+                  {/* Public marketing / reseller pages — these belong to the sales
+                      site, not a deployed dealership. On a tenant they leaked the
+                      vendor's "Own {tenant} forever" storefront and a home-services
+                      pricing catalog (H-11/H-12), so they only render when the
+                      marketing build explicitly opts in. */}
+                  {import.meta.env.VITE_ENABLE_PUBLIC_MARKETING === 'true' && (
+                    <>
+                      <Route path="/pricing" element={<PricingPage />} />
+                      <Route path="/signup" element={<SignupPage />} />
+                      <Route path="/signup/success" element={<SignupSuccessPage />} />
+                      <Route path="/self-hosted" element={<SelfHostedPurchasePage />} />
+                    </>
+                  )}
 
                   {/* Public auth routes */}
                   <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />

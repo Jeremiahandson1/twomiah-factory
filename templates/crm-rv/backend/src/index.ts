@@ -136,20 +136,31 @@ function createRateLimiter(windowMs: number, max: number) {
   return async (c: Context, next: Next) => {
     const key = c.req.header('x-forwarded-for') || 'unknown'
     const now = Date.now()
-    const entry = hits.get(key)
+    let entry = hits.get(key)
     if (!entry || now > entry.resetAt) {
-      hits.set(key, { count: 1, resetAt: now + windowMs })
+      entry = { count: 1, resetAt: now + windowMs }
+      hits.set(key, entry)
     } else {
       entry.count++
-      if (entry.count > max) {
-        return c.json({ error: 'Too many requests, please try again later' }, 429)
-      }
+    }
+    const remaining = Math.max(0, max - entry.count)
+    const resetSecs = Math.max(1, Math.ceil((entry.resetAt - now) / 1000))
+    // Always advertise the limit so clients can back off intelligently (C-04).
+    c.header('RateLimit-Limit', String(max))
+    c.header('RateLimit-Remaining', String(remaining))
+    c.header('RateLimit-Reset', String(resetSecs))
+    if (entry.count > max) {
+      c.header('Retry-After', String(resetSecs))
+      return c.json({ error: 'Too many requests, please try again later' }, 429)
     }
     await next()
   }
 }
 
-app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 100 : 1000))
+// A single CRM screen fires several calls, so the per-IP ceiling must clear a
+// normal working session — 100/15min took the tenant offline (C-04). Auth
+// endpoints keep their tight limits below.
+app.use('/api/*', createRateLimiter(15 * 60 * 1000, process.env.NODE_ENV === 'production' ? 1000 : 5000))
 app.use('/api/auth/login', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/register', createRateLimiter(15 * 60 * 1000, 20))
 app.use('/api/auth/forgot-password', createRateLimiter(15 * 60 * 1000, 20))
