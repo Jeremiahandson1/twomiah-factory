@@ -31,7 +31,11 @@ export default function SchedulePage() {
     return d;
   });
 
-  const getJobsForDay = (date) => jobs.filter(j => j.scheduledDate && new Date(j.scheduledDate).toDateString() === date.toDateString());
+  // scheduledDate is a calendar date stored at UTC midnight; converting it
+  // through local time rolls it back a day in western timezones, drawing jobs on
+  // the wrong day. Compare on the UTC date portion instead.
+  const localKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const getJobsForDay = (date) => jobs.filter(j => j.scheduledDate && String(j.scheduledDate).slice(0, 10) === localKey(date));
 
   return (
     <div>

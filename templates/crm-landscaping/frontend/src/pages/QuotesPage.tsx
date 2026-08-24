@@ -103,7 +103,7 @@ export default function QuotesPage() {
     { key: 'name', label: 'Name', render: (v, r) => <div><p className="font-medium">{v}</p>{r.contact && <p className="text-sm text-gray-500">{r.contact.name}</p>}</div> },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', render: (v) => `$${Number(v).toLocaleString()}` },
-    { key: 'expiryDate', label: 'Expires', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'expiryDate', label: 'Expires', render: (v) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();
