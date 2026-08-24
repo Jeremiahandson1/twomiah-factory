@@ -275,7 +275,13 @@ pub.post('/checkout', async (c) => {
   // Create a pending order FIRST so a webhook (or the success page) can reconcile
   // by provider session id. Idempotency is guaranteed by the unique
   // (provider, provider_session_id) index; abandoned checkouts stay 'pending'.
+  // Assign the order number at CREATION, not at payment — an abandoned/pending
+  // order should still be traceable by number. It's deterministic from the id,
+  // so finalizeOrder recomputes the identical value (no conflict).
+  const orderId = crypto.randomUUID()
   const [order] = await db.insert(orders).values({
+    id: orderId,
+    orderNumber: `ORD-${orderId.split('-')[0].toUpperCase()}`,
     provider: provider.name,
     providerSessionId: `pending_${crypto.randomUUID()}`, // replaced with real id below
     status: 'pending',

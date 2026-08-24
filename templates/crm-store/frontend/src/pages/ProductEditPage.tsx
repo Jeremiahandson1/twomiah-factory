@@ -105,11 +105,16 @@ export default function ProductEditPage() {
 
       {isNew ? (
         <p className="text-sm text-gray-500">Save the product first, then add variants (prices) and photos.</p>
-      ) : (
+      ) : product ? (
         <>
-          <VariantsSection product={product!} onChange={reloadProduct} />
-          <ImagesSection product={product!} onChange={reloadProduct} />
+          <VariantsSection product={product} onChange={reloadProduct} />
+          <ImagesSection product={product} onChange={reloadProduct} />
         </>
+      ) : (
+        // After the "add product" redirect the detail hasn't loaded yet — show a
+        // spinner instead of rendering the sections against a null product
+        // (which read product.variants / product.images and white-screened).
+        <div className="flex justify-center py-10"><div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-t-primary-500" /></div>
       )}
     </div>
   )
@@ -131,15 +136,6 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
       }).catch(() => {})
     }).catch(() => {})
   }, [])
-  const saveSupplierRef = async (v: ProductVariant, ref: string) => {
-    const prev = supplierMap[v.id]?.ref || ''
-    if (ref.trim() === prev) return
-    try {
-      const res: any = await api.setVariantSupplierRef(v.id, ref.trim())
-      if (res?.cleared) { const m = { ...supplierMap }; delete m[v.id]; setSupplierMap(m); toast('Supplier link removed') }
-      else { setSupplierMap({ ...supplierMap, [v.id]: { ref: ref.trim(), name: res?.name || null } }); toast('Linked: ' + (res?.name || ref)) }
-    } catch (e: any) { toast(e?.message || 'Supplier did not recognize that item', 'error') }
-  }
   const { toast } = useToast()
   const [adding, setAdding] = useState(false)
   const blank = { sku: '', name: 'Default', price: '', inventory: '' }
@@ -156,8 +152,29 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
     } catch (e: any) { toast(e?.message || 'Could not add variant', 'error') }
   }
   const del = async (v: ProductVariant) => { if (!confirm(`Delete variant ${v.sku}?`)) return; await api.deleteVariant(v.id); onChange() }
-  const updatePrice = async (v: ProductVariant, dollars: string) => { await api.updateVariant(v.id, { priceCents: dollarsToCents(dollars) }); onChange() }
-  const updateInv = async (v: ProductVariant, qty: string) => { await api.updateVariant(v.id, { inventoryQty: qty === '' ? null : Number(qty) }); onChange() }
+
+  // Save a whole row at once, awaiting each call and surfacing errors. The old
+  // per-field onBlur saves lost edits silently: a blur that didn't fire (or
+  // raced the "Save changes" button click / a re-render) dropped the value with
+  // no error, and merchants couldn't set up dropshipping through the UI.
+  const saveRow = async (v: ProductVariant, next: { price: string; inv: string; ref: string }) => {
+    try {
+      await api.updateVariant(v.id, {
+        priceCents: dollarsToCents(next.price),
+        inventoryQty: next.inv === '' ? null : Number(next.inv),
+      })
+      if (supplierConnected && next.ref.trim() !== (supplierMap[v.id]?.ref || '')) {
+        const res: any = await api.setVariantSupplierRef(v.id, next.ref.trim())
+        if (res?.cleared) { const m = { ...supplierMap }; delete m[v.id]; setSupplierMap(m) }
+        else setSupplierMap({ ...supplierMap, [v.id]: { ref: next.ref.trim(), name: res?.name || null } })
+      }
+      toast('Variant saved')
+      onChange()
+    } catch (e: any) {
+      toast(e?.message || 'Could not save variant', 'error')
+      throw e
+    }
+  }
 
   return (
     <div className="card p-5">
@@ -165,24 +182,18 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
         <h2 className="font-semibold text-gray-900">Variants & pricing</h2>
         {!adding && <button onClick={() => setAdding(true)} className="btn-secondary text-xs"><Plus className="h-3 w-3" /> Add variant</button>}
       </div>
-      {product.variants.length === 0 && !adding && <p className="text-sm text-gray-500">Add at least one variant so the product can be sold.</p>}
+      {(product.variants || []).length === 0 && !adding && <p className="text-sm text-gray-500">Add at least one variant so the product can be sold.</p>}
       <div className="space-y-2">
-        {product.variants.map((v) => (
-          <div key={v.id} className="flex items-center gap-2 text-sm">
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-gray-900 truncate">{v.name}</div>
-              <div className="text-xs text-gray-400">{v.sku}</div>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-gray-400">$</span>
-              <input className="input w-24 py-1" defaultValue={centsToDollars(v.priceCents)} onBlur={(e) => updatePrice(v, e.target.value)} />
-            </div>
-            <input className="input w-20 py-1" placeholder="∞" defaultValue={v.inventoryQty ?? ''} onBlur={(e) => updateInv(v, e.target.value)} title="Inventory (blank = untracked)" />
-            {supplierConnected && (
-              <input className="input w-32 py-1" placeholder="Supplier item id" defaultValue={supplierMap[v.id]?.ref ?? ''} onBlur={(e) => saveSupplierRef(v, e.target.value)} title={supplierMap[v.id]?.name || 'Supplier item id (Printful sync variant / CJ vid). Blank = not dropshipped.'} />
-            )}
-            <button onClick={() => del(v)} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-          </div>
+        {(product.variants || []).map((v) => (
+          <VariantRow
+            key={v.id}
+            v={v}
+            supplierConnected={supplierConnected}
+            supplierRef={supplierMap[v.id]?.ref ?? ''}
+            supplierName={supplierMap[v.id]?.name ?? null}
+            onSave={(next) => saveRow(v, next)}
+            onDelete={() => del(v)}
+          />
         ))}
       </div>
       {adding && (
@@ -201,6 +212,54 @@ function VariantsSection({ product, onChange }: { product: Product; onChange: ()
   )
 }
 
+// One editable variant row: controlled inputs + an explicit Save that only
+// lights up when something changed. Replaces the old blur-to-save inputs.
+function VariantRow({ v, supplierConnected, supplierRef, supplierName, onSave, onDelete }: {
+  v: ProductVariant
+  supplierConnected: boolean
+  supplierRef: string
+  supplierName: string | null
+  onSave: (next: { price: string; inv: string; ref: string }) => Promise<void>
+  onDelete: () => void
+}) {
+  const [price, setPrice] = useState(centsToDollars(v.priceCents))
+  const [inv, setInv] = useState<string>(v.inventoryQty == null ? '' : String(v.inventoryQty))
+  const [ref, setRef] = useState(supplierRef)
+  const [saving, setSaving] = useState(false)
+
+  // Re-sync when the underlying variant changes (e.g. after a reload).
+  useEffect(() => { setPrice(centsToDollars(v.priceCents)); setInv(v.inventoryQty == null ? '' : String(v.inventoryQty)) }, [v.priceCents, v.inventoryQty])
+  useEffect(() => { setRef(supplierRef) }, [supplierRef])
+
+  const dirty = price !== centsToDollars(v.priceCents)
+    || inv !== (v.inventoryQty == null ? '' : String(v.inventoryQty))
+    || (supplierConnected && ref.trim() !== supplierRef)
+
+  const save = async () => {
+    setSaving(true)
+    try { await onSave({ price, inv, ref }) } catch { /* toast already shown */ } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-gray-900 truncate">{v.name}</div>
+        <div className="text-xs text-gray-400">{v.sku}</div>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-gray-400">$</span>
+        <input className="input w-24 py-1" value={price} onChange={(e) => setPrice(e.target.value)} />
+      </div>
+      <input className="input w-20 py-1" placeholder="∞" value={inv} onChange={(e) => setInv(e.target.value)} title="Inventory (blank = untracked)" />
+      {supplierConnected && (
+        <input className="input w-32 py-1" placeholder="Supplier item id" value={ref} onChange={(e) => setRef(e.target.value)} title={supplierName || 'Supplier item id (Printful sync variant / CJ vid). Blank = not dropshipped.'} />
+      )}
+      <button onClick={save} disabled={!dirty || saving} className="btn-primary text-xs px-2 py-1 disabled:opacity-40">{saving ? '…' : 'Save'}</button>
+      <button onClick={onDelete} className="text-gray-300 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
+    </div>
+  )
+}
+
 // ── Images ───────────────────────────────────────────────────────────────────
 function ImagesSection({ product, onChange }: { product: Product; onChange: () => void }) {
   const { toast } = useToast()
@@ -211,7 +270,7 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
 
   const add = async () => {
     try {
-      await api.addImage(product.id, { url, isPrimary: product.images.length === 0 })
+      await api.addImage(product.id, { url, isPrimary: (product.images || []).length === 0 })
       setUrl(''); onChange(); toast('Image added')
     } catch (e: any) { toast(e?.message || 'Could not add image', 'error') }
   }
@@ -240,7 +299,7 @@ function ImagesSection({ product, onChange }: { product: Product; onChange: () =
     <div className="card p-5">
       <h2 className="font-semibold text-gray-900 mb-3">Photos</h2>
       <div className="flex flex-wrap gap-3 mb-3">
-        {product.images.map((img) => (
+        {(product.images || []).map((img) => (
           <div key={img.id} className="relative group h-24 w-24 rounded-lg overflow-hidden border">
             <img src={img.url} alt={img.alt || ''} className="h-full w-full object-cover" />
             {img.isPrimary && <span className="absolute top-1 left-1 rounded bg-primary-500 px-1 text-[10px] text-white">Primary</span>}
