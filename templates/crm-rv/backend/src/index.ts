@@ -113,6 +113,26 @@ const app = new Hono()
 
 app.use('*', secureHeaders({
   crossOriginResourcePolicy: 'cross-origin',
+  // Define an explicit CSP (M-07). Kept permissive enough not to break the SPA,
+  // the same-origin API/websocket, Google Fonts or the Stripe SDK, while still
+  // shutting off plugins and framing by other origins.
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    scriptSrc: ["'self'", "'unsafe-inline'", 'https://js.stripe.com'],
+    styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+    fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+    imgSrc: ["'self'", 'data:', 'https:'],
+    connectSrc: ["'self'", 'https:', 'wss:'],
+    frameSrc: ["'self'", 'https://js.stripe.com', 'https://hooks.stripe.com'],
+    objectSrc: ["'none'"],
+    baseUri: ["'self'"],
+    frameAncestors: ["'self'"],
+  },
+  permissionsPolicy: {
+    geolocation: [],
+    camera: [],
+    microphone: [],
+  },
 }))
 
 // CORS — restrict to frontend origin in production
@@ -503,6 +523,11 @@ if (hasFrontendBuild) {
 
   // SPA fallback: serve index.html for all non-API GET requests
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
+
+  // Unmatched API routes must return a JSON 404, not the SPA's index.html with a
+  // 200 (M-04) — otherwise a typo'd/retired endpoint looks like success and blows
+  // up later inside JSON.parse. This sits after all real /api routes are mounted.
+  app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
 
   // Register known SPA route prefixes explicitly before the catch-all
   // so they are matched deterministically and never fall through to notFound

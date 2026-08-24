@@ -116,6 +116,15 @@ app.post('/', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = unitSchema.parse(await c.req.json())
 
+  // The stock number is the physical tag staff search by — duplicates make
+  // lookup ambiguous (M-02). Reject a stock number already in use.
+  if (body.stockNumber && String(body.stockNumber).trim()) {
+    const [dupe] = await db.select({ id: unit.id }).from(unit)
+      .where(and(eq(unit.companyId, currentUser.companyId), eq(unit.stockNumber, body.stockNumber)))
+      .limit(1)
+    if (dupe) return c.json({ error: `Stock number "${body.stockNumber}" is already in use` }, 409)
+  }
+
   const [created] = await db.insert(unit).values({
     id: createId(),
     ...body,

@@ -38,7 +38,7 @@ app.post('/signup', async (c) => {
     firstName: z.string().min(1),
     lastName: z.string().min(1),
     email: z.string().email(),
-    password: z.string().min(8),
+    password: z.string().min(8, 'Password must be at least 8 characters').regex(/(?=.*[A-Za-z])(?=.*\d)/, 'Password must include at least one letter and one number'),
 
     // Plan
     plan: z.enum(['starter', 'pro', 'business', 'construction', 'enterprise']),
@@ -162,7 +162,7 @@ app.post('/register', async (c) => {
   // eslint-disable-next-line no-unreachable
   const registerSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(8),
+    password: z.string().min(8, 'Password must be at least 8 characters').regex(/(?=.*[A-Za-z])(?=.*\d)/, 'Password must include at least one letter and one number'),
     firstName: z.string().min(1),
     lastName: z.string().min(1),
     companyName: z.string().min(1),
@@ -366,7 +366,7 @@ app.post('/forgot-password', async (c) => {
 
 // Reset password
 app.post('/reset-password', async (c) => {
-  const resetSchema = z.object({ token: z.string(), password: z.string().min(8) })
+  const resetSchema = z.object({ token: z.string(), password: z.string().min(8, 'Password must be at least 8 characters').regex(/(?=.*[A-Za-z])(?=.*\d)/, 'Password must include at least one letter and one number') })
   const data = resetSchema.parse(await c.req.json())
 
   const [foundUser] = await db.select().from(user).where(and(eq(user.resetToken, data.token), gt(user.resetTokenExp, new Date()))).limit(1)
