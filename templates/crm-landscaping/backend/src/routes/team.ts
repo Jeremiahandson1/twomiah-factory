@@ -43,6 +43,11 @@ app.post('/', requirePermission('team:create'), async (c) => {
   const tBody = await c.req.json()
   if (tBody.email && typeof tBody.email === 'string') tBody.email = tBody.email.toLowerCase().trim()
   const data = schema.parse(tBody)
+  if (data.email) {
+    const [dupe] = await db.select({ id: teamMember.id }).from(teamMember)
+      .where(and(eq(teamMember.companyId, user.companyId), eq(teamMember.email, data.email))).limit(1)
+    if (dupe) return c.json({ error: 'A team member with that email already exists' }, 409)
+  }
   const [member] = await db.insert(teamMember).values({
     ...data,
     hireDate: data.hireDate ? new Date(data.hireDate) : null,
@@ -52,21 +57,35 @@ app.post('/', requirePermission('team:create'), async (c) => {
 })
 
 app.put('/:id', requirePermission('team:update'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
   const tuBody = await c.req.json()
   if (tuBody.email && typeof tuBody.email === 'string') tuBody.email = tuBody.email.toLowerCase().trim()
   const data = schema.partial().parse(tuBody)
+
+  // Scope by companyId — an id alone must never reach another tenant's row.
+  const [existing] = await db.select({ id: teamMember.id }).from(teamMember)
+    .where(and(eq(teamMember.id, id), eq(teamMember.companyId, user.companyId))).limit(1)
+  if (!existing) return c.json({ error: 'Team member not found' }, 404)
+
+  if (data.email) {
+    const [dupe] = await db.select({ id: teamMember.id }).from(teamMember)
+      .where(and(eq(teamMember.companyId, user.companyId), eq(teamMember.email, data.email))).limit(1)
+    if (dupe && dupe.id !== id) return c.json({ error: 'A team member with that email already exists' }, 409)
+  }
+
   const [member] = await db.update(teamMember).set({
     ...data,
     hireDate: data.hireDate ? new Date(data.hireDate) : undefined,
     updatedAt: new Date(),
-  }).where(eq(teamMember.id, id)).returning()
+  }).where(and(eq(teamMember.id, id), eq(teamMember.companyId, user.companyId))).returning()
   return c.json(member)
 })
 
 app.delete('/:id', requirePermission('team:delete'), async (c) => {
+  const user = c.get('user') as any
   const id = c.req.param('id')
-  await db.delete(teamMember).where(eq(teamMember.id, id))
+  await db.delete(teamMember).where(and(eq(teamMember.id, id), eq(teamMember.companyId, user.companyId)))
   return c.json(null, 204)
 })
 
