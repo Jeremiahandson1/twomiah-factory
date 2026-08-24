@@ -554,8 +554,8 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
       <div className="page-header">
         <h2>💰 Billing & Invoicing</h2>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-primary" onClick={() => setShowGenerateForm(!showGenerateForm)}>📄 New Invoice</button>
-          <button className="btn btn-primary" onClick={() => setShowManualForm(!showManualForm)}>✏️ Manual Invoice</button>
+          <button className="btn btn-primary" onClick={() => { setShowGenerateForm(v => !v); setShowManualForm(false); }}>📄 New Invoice</button>
+          <button className="btn btn-primary" onClick={() => { setShowManualForm(v => !v); setShowGenerateForm(false); }}>✏️ Manual Invoice</button>
           <button className="btn btn-secondary" onClick={() => setShowBatchForm(!showBatchForm)}>📋 Batch Generate</button>
           <button className="btn btn-secondary" onClick={handleExportCSV}>📥 Export CSV</button>
           <button className="btn btn-secondary" onClick={handleExportEVV}>📤 EVV Export</button>
@@ -1535,7 +1535,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                   </div>
                   <div className="invoice-date-row">
                     <span className="invoice-date-label">Due Date :</span>
-                    <span className="invoice-date-value">{formatDate(selectedInvoice.created_at, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                    <span className="invoice-date-value">{formatDate(selectedInvoice.payment_due_date || selectedInvoice.billing_period_end || selectedInvoice.created_at, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                   </div>
                 </div>
               </div>
@@ -1579,7 +1579,7 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
                         </div>
                       </td>
                       <td>{selectedInvoice.total_hours?.toFixed(2) || '0.00'}</td>
-                      <td>{selectedInvoice.line_items?.[0]?.rate?.toFixed(2) || '33.00'}</td>
+                      <td>{selectedInvoice.line_items?.[0]?.rate ? parseFloat(selectedInvoice.line_items[0].rate).toFixed(2) : '—'}</td>
                       <td>{parseFloat(selectedInvoice.total).toFixed(2)}</td>
                     </tr>
                   )}

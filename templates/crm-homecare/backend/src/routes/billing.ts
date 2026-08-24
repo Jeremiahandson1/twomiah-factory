@@ -97,9 +97,22 @@ app.get('/invoices/:id', async (c) => {
     .leftJoin(users, eq(invoiceLineItems.caregiverId, users.id))
     .where(eq(invoiceLineItems.invoiceId, id))
 
+  // Compute total billable hours across line items so the printable invoice
+  // shows real hours instead of 0.00 (M-07).
+  const totalHours = lineItems.reduce((s, li) => s + Number((li.lineItem as any).hours || 0), 0)
+
   return c.json({
     ...row.invoice,
     client: row.client,
+    // Flat client fields so the printable invoice's Bill To (which reads
+    // first_name/last_name/address/…) isn't blank (M-07).
+    firstName: row.client?.firstName,
+    lastName: row.client?.lastName,
+    address: row.client?.address,
+    city: row.client?.city,
+    state: row.client?.state,
+    zip: row.client?.zip,
+    totalHours: Number(totalHours.toFixed(2)),
     lineItems: lineItems.map(li => ({
       ...li.lineItem,
       caregiver: { firstName: li.caregiverFirstName, lastName: li.caregiverLastName },
