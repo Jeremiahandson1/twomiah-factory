@@ -8,12 +8,19 @@ import { authenticate } from '../middleware/auth.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Accept normal phone punctuation, but require at least 7 actual digits so
+// "abcdefg" / "not-a-phone" can't be saved as a phone number.
+const phoneField = z.string().optional().refine(
+  (v) => !v || (/^[0-9+()\-.\s]+$/.test(v) && v.replace(/\D/g, '').length >= 7),
+  { message: 'Enter a valid phone number' },
+)
+
 const contactSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email().optional(),
-  phone: z.string().optional(),
-  mobilePhone: z.string().optional(),
+  phone: phoneField,
+  mobilePhone: phoneField,
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),

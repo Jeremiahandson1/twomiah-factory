@@ -124,12 +124,14 @@ export default function MaterialsPage() {
                       className="border-b last:border-0 hover:bg-gray-50 cursor-pointer"
                     >
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
-                        {order.jobNumber || (order.jobId ? `ROOF-${String(order.jobId).padStart(4, '0')}` : '—')}
+                        {/* jobNumber is the real "ROOF-0005"; never glue the raw
+                            record id onto a "ROOF-" prefix as a fallback. */}
+                        {order.jobNumber || '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-900">{order.supplier || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_COLORS[order.status] || 'bg-gray-100 text-gray-600'}`}>
-                          {formatStatus(order.status)}
+                          {formatStatus(order.status) || 'Ordered'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600 text-xs">

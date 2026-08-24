@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { material } from '../../db/schema.ts'
+import { material, job } from '../../db/schema.ts'
 import { eq, and, desc, count } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
@@ -30,7 +30,8 @@ const materialSchema = z.object({
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const supplier = c.req.query('supplier')
-  const orderStatus = c.req.query('orderStatus')
+  // The UI sends ?status=; the column is orderStatus. Accept either.
+  const orderStatus = c.req.query('orderStatus') || c.req.query('status')
   const jobId = c.req.query('jobId')
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
@@ -41,10 +42,16 @@ app.get('/', async (c) => {
   if (jobId) conditions.push(eq(material.jobId, jobId))
 
   const where = and(...conditions)
-  const [data, [{ value: total }]] = await Promise.all([
-    db.select().from(material).where(where).orderBy(desc(material.createdAt)).offset((page - 1) * limit).limit(limit),
+  const [rows, [{ value: total }]] = await Promise.all([
+    db.select({ material, jobNumber: job.jobNumber }).from(material)
+      .leftJoin(job, eq(material.jobId, job.id))
+      .where(where).orderBy(desc(material.createdAt)).offset((page - 1) * limit).limit(limit),
     db.select({ value: count() }).from(material).where(where),
   ])
+
+  // Surface the real job number (not the raw id) and expose orderStatus as
+  // `status` too, which is what the list reads.
+  const data = rows.map((r: any) => ({ ...r.material, jobNumber: r.jobNumber, status: r.material.orderStatus }))
 
   return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
 })

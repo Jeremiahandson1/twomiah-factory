@@ -303,7 +303,12 @@ app.onError((err, c) => {
   logger.error('Unhandled error', { message: err.message, stack: err.stack, path: c.req.path, method: c.req.method })
 
   if (err.name === 'ZodError') {
-    return c.json({ error: 'Validation error', details: (err as any).issues }, 400)
+    // Name the offending field in the message so the UI can show something
+    // useful instead of a bare "Validation error".
+    const issues = (err as any).issues || []
+    const first = issues[0] || {}
+    const where = Array.isArray(first.path) && first.path.length ? first.path.join('.') + ': ' : ''
+    return c.json({ error: where + (first.message || 'Validation error'), details: issues }, 400)
   }
 
   return c.json({ error: 'Internal server error' }, 500)
