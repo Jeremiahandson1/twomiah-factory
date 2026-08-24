@@ -4,40 +4,42 @@ import { Building, User, CreditCard, Check, ArrowLeft, ArrowRight, Loader2, Eye,
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// Plan data (matches pricing config)
+// Plan data — pricing model v2 (seat-tiered, every feature included). Must match
+// pages/public/PricingPage.tsx and backend/src/config/pricing.ts.
 const PLANS = {
   starter: {
     id: 'starter',
     name: 'Starter',
-    price: 49,
-    priceAnnual: 39,
-    description: 'Everything you need to run a service business',
-    users: 2,
+    price: 99,
+    priceAnnual: 79,
+    description: 'Up to 10 seats — every feature included',
+    users: 10,
   },
-  pro: {
-    id: 'pro',
-    name: 'Pro',
-    price: 149,
+  team: {
+    id: 'team',
+    name: 'Team',
+    price: 139,
     priceAnnual: 119,
-    description: 'Scale your field operations',
-    users: 5,
+    description: '11–25 seats',
+    users: 25,
     popular: true,
   },
   business: {
     id: 'business',
     name: 'Business',
-    price: 299,
-    priceAnnual: 239,
-    description: 'Run your entire operation',
-    users: 15,
+    price: 199,
+    priceAnnual: 169,
+    description: '26–50 seats',
+    users: 50,
   },
-  construction: {
-    id: 'construction',
-    name: 'Construction',
-    price: 599,
-    priceAnnual: 479,
-    description: 'Complete construction management',
-    users: 20,
+  enterprise: {
+    id: 'enterprise',
+    name: 'Enterprise',
+    price: 0,
+    priceAnnual: 0,
+    custom: true,
+    description: '50+ seats — dedicated infrastructure',
+    users: 50,
   },
 };
 
@@ -73,7 +75,10 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   
   // Form state
-  const [selectedPlan, setSelectedPlan] = useState(searchParams.get('plan') || 'pro');
+  const [selectedPlan, setSelectedPlan] = useState(() => {
+    const p = searchParams.get('plan');
+    return p && (PLANS as any)[p] ? p : 'team';
+  });
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [formData, setFormData] = useState({
     companyName: '',
@@ -276,7 +281,7 @@ export default function SignupPage() {
     }
   };
 
-  const plan = PLANS[selectedPlan];
+  const plan = PLANS[selectedPlan] || PLANS.team;
   const price = billingCycle === 'annual' ? plan?.priceAnnual : plan?.price;
 
   return (
@@ -443,10 +448,16 @@ function PlanSelection({ selectedPlan, setSelectedPlan, billingCycle, setBilling
               )}
               <h3 className="text-lg font-bold text-gray-900 mt-1">{plan.name}</h3>
               <div className="mt-2">
-                <span className="text-2xl font-bold text-gray-900">${price}</span>
-                <span className="text-gray-500">/mo</span>
+                {plan.custom ? (
+                  <span className="text-2xl font-bold text-gray-900">Custom</span>
+                ) : (
+                  <>
+                    <span className="text-2xl font-bold text-gray-900">${price}</span>
+                    <span className="text-gray-500">/mo</span>
+                  </>
+                )}
               </div>
-              <p className="text-sm text-gray-500 mt-1">{plan.users} users included</p>
+              <p className="text-sm text-gray-500 mt-1">{plan.custom ? `${plan.users}+ seats` : `Up to ${plan.users} seats`}</p>
               <p className="text-sm text-gray-600 mt-2">{plan.description}</p>
               <div className="mt-3 flex items-center justify-center">
                 <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
@@ -685,15 +696,15 @@ function PaymentStep({ plan, price, billingCycle, onStartTrial, onSubscribe, loa
         <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
         <div className="flex justify-between items-center mb-2">
           <span className="text-gray-600">{plan.name} Plan</span>
-          <span className="font-medium">${price}/mo</span>
+          <span className="font-medium">{plan.custom ? 'Custom' : `$${price}/mo`}</span>
         </div>
         <div className="flex justify-between items-center mb-2">
           <span className="text-gray-600">Billing Cycle</span>
           <span className="font-medium capitalize">{billingCycle}</span>
         </div>
         <div className="flex justify-between items-center mb-2">
-          <span className="text-gray-600">Users Included</span>
-          <span className="font-medium">{plan.users}</span>
+          <span className="text-gray-600">Seats</span>
+          <span className="font-medium">{plan.custom ? `${plan.users}+` : `Up to ${plan.users}`}</span>
         </div>
         <hr className="my-4" />
         <div className="flex justify-between items-center">

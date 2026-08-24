@@ -6,15 +6,15 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// Pricing model v2 (seat-tiered). Matches the public pricing + signup pages.
 const PLANS = {
-  starter: { id: 'starter', name: 'Starter', price: 49, priceAnnual: 39, users: 2 },
-  pro: { id: 'pro', name: 'Pro', price: 149, priceAnnual: 119, users: 5 },
-  business: { id: 'business', name: 'Business', price: 299, priceAnnual: 239, users: 15 },
-  construction: { id: 'construction', name: 'Construction', price: 599, priceAnnual: 479, users: 20 },
-  enterprise: { id: 'enterprise', name: 'Enterprise', price: 199, priceAnnual: 159, perUser: true },
+  starter: { id: 'starter', name: 'Starter', price: 99, priceAnnual: 79, users: 10 },
+  team: { id: 'team', name: 'Team', price: 139, priceAnnual: 119, users: 25 },
+  business: { id: 'business', name: 'Business', price: 199, priceAnnual: 169, users: 50 },
+  enterprise: { id: 'enterprise', name: 'Enterprise', price: 0, priceAnnual: 0, custom: true, users: 50 },
 };
 
-const PLAN_ORDER = ['starter', 'pro', 'business', 'construction', 'enterprise'];
+const PLAN_ORDER = ['starter', 'team', 'business', 'enterprise'];
 
 export default function BillingSettingsPage() {
   const [loading, setLoading] = useState(true);
