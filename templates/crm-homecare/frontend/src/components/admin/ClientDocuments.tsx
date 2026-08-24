@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDate } from '../../utils/date';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -356,8 +357,8 @@ export default function ClientDocuments() {
                     <div style={{ fontSize: '0.8rem', color: '#718096', marginTop: '2px' }}>
                       {doc.clientFirstName} {doc.clientLastName} ·{' '}
                       {doc.status === 'signed' && doc.signedAt
-                        ? `signed ${new Date(doc.signedAt).toLocaleDateString()} by ${doc.signedBy}`
-                        : `sent ${new Date(doc.sentAt).toLocaleDateString()}`}
+                        ? `signed ${formatDate(doc.signedAt)} by ${doc.signedBy}`
+                        : `sent ${formatDate(doc.sentAt)}`}
                     </div>
                   </div>
                   <span style={{ background: badge.bg, color: badge.color, borderRadius: '999px', padding: '0.25rem 0.7rem', fontSize: '0.78rem', fontWeight: 600, whiteSpace: 'nowrap' }}>

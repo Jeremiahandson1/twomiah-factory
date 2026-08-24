@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import EditClientModal from './EditClientModal';
 import { useAuth } from '../../contexts/AuthContext';
+import { formatDate } from '../../utils/date';
 
 // AddressLink component - opens Google Maps
 const AddressLink = ({ address, city, state, zip }) => {
@@ -33,7 +34,7 @@ const ClientCard = ({ client, getReferralSourceName, getCareTypeName, onEdit }) 
         <strong style={{ fontSize: '1.1rem' }}>{client.firstName} {client.lastName}</strong>
         {client.dateOfBirth && (
           <div style={{ color: '#666', fontSize: '0.85rem' }}>
-            DOB: {new Date(client.dateOfBirth).toLocaleDateString()}
+            DOB: {formatDate(client.dateOfBirth)}
           </div>
         )}
       </div>
@@ -261,7 +262,7 @@ const ClientsManagement = () => {
               </div>
               <div className="form-group">
                 <label>Date of Birth</label>
-                <input type="date" value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} />
+                <input type="date" max={new Date().toISOString().split('T')[0]} value={formData.dateOfBirth} onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>Gender</label>
@@ -274,7 +275,7 @@ const ClientsManagement = () => {
               </div>
               <div className="form-group">
                 <label>Phone</label>
-                <input type="tel" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
+                <input type="tel" inputMode="tel" maxLength={20} pattern="[0-9()+\-.\s]{7,20}" title="Enter a valid phone number" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>Email</label>
@@ -363,11 +364,11 @@ const ClientsManagement = () => {
                 onChange={(e) => setFormData({ ...formData, weeklyAuthorizedUnits: e.target.value })} 
                 placeholder="e.g., 80 units"
               />
-              {formData.weeklyAuthorizedUnits && (
-                <div style={{ 
-                  marginTop: '0.5rem', 
-                  padding: '0.5rem', 
-                  background: '#E0F2FE', 
+              {formData.weeklyAuthorizedUnits && parseFloat(formData.weeklyAuthorizedUnits) >= 0 && (
+                <div style={{
+                  marginTop: '0.5rem',
+                  padding: '0.5rem',
+                  background: '#E0F2FE',
                   borderRadius: '4px',
                   fontSize: '0.9rem',
                   color: '#0369A1'
@@ -462,7 +463,7 @@ const ClientsManagement = () => {
                 <tr key={client.id} style={client.isActive === false ? { opacity: 0.55 } : undefined}>
                   <td>
                     <strong>{client.firstName} {client.lastName}</strong>
-                    {client.dateOfBirth && (<small style={{ display: 'block', color: '#666' }}>DOB: {new Date(client.dateOfBirth).toLocaleDateString()}</small>)}
+                    {client.dateOfBirth && (<small style={{ display: 'block', color: '#666' }}>DOB: {formatDate(client.dateOfBirth)}</small>)}
                   </td>
                   <td><a href={`tel:${client.phone}`}>{client.phone || 'N/A'}</a></td>
                   <td><AddressLink address={client.address} city={client.city} state={client.state} zip={client.zip} /></td>

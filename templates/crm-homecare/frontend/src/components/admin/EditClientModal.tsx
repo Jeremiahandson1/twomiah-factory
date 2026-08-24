@@ -2,12 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../../config';
 import { useAuth } from '../../contexts/AuthContext';
-
-const formatDateForInput = (dateString) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  return date.toISOString().split('T')[0];
-};
+import { formatDateForInput } from '../../utils/date';
 
 const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen, onClose, onSuccess }) => {
   const { token } = useAuth();
@@ -393,6 +388,7 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
                   <label>Date of Birth</label>
                   <input
                     type="date"
+                    max={new Date().toISOString().split('T')[0]}
                     value={formData.dateOfBirth}
                     onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                   />
