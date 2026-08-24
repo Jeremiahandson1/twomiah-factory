@@ -57,7 +57,11 @@ app.post('/', async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
 
-  if (!body.incidentType || !body.description || !body.date) {
+  // The form posts `incidentDate`; accept it as an alias for `date` so a fully
+  // completed incident isn't rejected. (Incident reports are legally mandatory.)
+  const date = body.date ?? body.incidentDate
+
+  if (!body.incidentType || !body.description || !date) {
     return c.json({ error: 'incidentType, description, and date are required' }, 400)
   }
 
@@ -68,7 +72,7 @@ app.post('/', async (c) => {
       caregiverId: body.caregiverId,
       incidentType: body.incidentType,
       severity: body.severity || 'low',
-      date: body.date,
+      date: date,
       description: body.description,
       involvedParties: body.involvedParties,
       actionTaken: body.actionTaken,

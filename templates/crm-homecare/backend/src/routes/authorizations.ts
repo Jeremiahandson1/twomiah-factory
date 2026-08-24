@@ -61,10 +61,24 @@ app.get('/', async (c) => {
 })
 
 // POST /
+// The form posts authorizationNumber / authorizedUnits / referralSourceId, but
+// the columns are authNumber / unitsAuthorized / payerId — so the values fell on
+// the floor and the row saved as "Unknown / 0". Map the aliases through.
+function normalizeAuth(body: any) {
+  const v = { ...body }
+  if (body.authNumber == null && body.authorizationNumber != null) v.authNumber = body.authorizationNumber
+  if (body.unitsAuthorized == null && body.authorizedUnits != null) v.unitsAuthorized = body.authorizedUnits
+  if (body.payerId == null && body.referralSourceId != null) v.payerId = body.referralSourceId
+  delete v.authorizationNumber
+  delete v.authorizedUnits
+  delete v.referralSourceId
+  return v
+}
+
 app.post('/', async (c) => {
   const body = await c.req.json()
   const user = c.get('user') as any
-  const [auth] = await db.insert(authorizations).values({ ...body, createdById: user.userId }).returning()
+  const [auth] = await db.insert(authorizations).values({ ...normalizeAuth(body), createdById: user.userId }).returning()
   return c.json(auth, 201)
 })
 
@@ -72,7 +86,7 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
-  const [auth] = await db.update(authorizations).set({ ...body, updatedAt: new Date() }).where(eq(authorizations.id, id)).returning()
+  const [auth] = await db.update(authorizations).set({ ...normalizeAuth(body), updatedAt: new Date() }).where(eq(authorizations.id, id)).returning()
   return c.json(auth)
 })
 
