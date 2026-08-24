@@ -46,7 +46,7 @@ const CRM_TIERS: Tier[] = [
     monthly: 99,
     annual: 990,
     blurb: 'Everything included, for a small crew.',
-    features: ['Every feature included — nothing locked', 'Up to 10 users', 'Jobs, scheduling, quotes, invoices & payments', 'Customer portal + mobile app'],
+    features: ['Every feature included — nothing locked', 'Website included', 'Up to 10 users', 'Jobs, scheduling, quotes, invoices & payments', 'Customer portal + mobile app'],
   },
   {
     id: 'team',
@@ -167,7 +167,7 @@ export default function PricingPage() {
       <section className="max-w-7xl mx-auto px-4 py-12">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900">CRM Plans</h2>
-          <p className="text-gray-600 mt-2 text-lg">Same product on every plan. The only difference is how many seats you get.</p>
+          <p className="text-gray-600 mt-2 text-lg">Every plan includes a website and every feature — you only pick by how many seats you need.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {CRM_TIERS.map((tier) => {
