@@ -86,8 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isAuthenticated = !!user;
-  const isAdmin = user?.role === 'admin';
-  const isManager = ['admin', 'manager'].includes(user?.role ?? '');
+  // 'owner' outranks 'admin' — treat it as admin-or-higher, otherwise the
+  // account owner is locked out of admin-gated UI like Settings › Features.
+  const isAdmin = user?.role === 'admin' || user?.role === 'owner';
+  const isManager = ['owner', 'admin', 'manager'].includes(user?.role ?? '');
 
   const getToken = useCallback(() => localStorage.getItem('accessToken'), []);
 

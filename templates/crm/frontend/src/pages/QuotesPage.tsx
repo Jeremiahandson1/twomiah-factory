@@ -72,9 +72,11 @@ export default function QuotesPage() {
   const openEdit = (item: Record<string, unknown>) => { setEditing(item); setForm({ name: item.name as string, contactId: (item.contactId as string) || '', projectId: (item.projectId as string) || '', expiryDate: (item.expiryDate as string)?.split('T')[0] || '', taxRate: Number(item.taxRate), discount: Number(item.discount), notes: (item.notes as string) || '', terms: (item.terms as string) || '', lineItems: (item.lineItems as LineItem[])?.length ? (item.lineItems as LineItem[]).map((li: LineItem) => ({ description: li.description, quantity: Number(li.quantity), unitPrice: Number(li.unitPrice) })) : [{ description: '', quantity: 1, unitPrice: 0 }] }); setModalOpen(true); };
 
   const calcTotals = () => {
-    const subtotal = form.lineItems.reduce((s: number, li: LineItem) => s + (li.quantity * li.unitPrice), 0);
-    const taxAmount = subtotal * (form.taxRate / 100);
-    return { subtotal, taxAmount, total: subtotal + taxAmount - form.discount };
+    // Mirror the backend: round to cents and tax the post-discount amount.
+    const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const subtotal = round2(form.lineItems.reduce((s: number, li: LineItem) => s + (li.quantity * li.unitPrice), 0));
+    const taxAmount = round2(Math.max(0, subtotal - form.discount) * (form.taxRate / 100));
+    return { subtotal, taxAmount, total: round2(subtotal - form.discount + taxAmount) };
   };
 
   const handleSave = async () => {
@@ -104,7 +106,7 @@ export default function QuotesPage() {
     { key: 'name', label: 'Name', render: (v: unknown, r: Record<string, unknown>) => <div><p className="font-medium">{v as string}</p>{!!r.contact && <p className="text-sm text-gray-500">{(r.contact as Record<string, unknown>).name as string}</p>}</div> },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
     { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString()}` },
-    { key: 'expiryDate', label: 'Expires', render: (v: unknown) => v ? new Date(v as string).toLocaleDateString() : '-' },
+    { key: 'expiryDate', label: 'Expires', render: (v: unknown) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();

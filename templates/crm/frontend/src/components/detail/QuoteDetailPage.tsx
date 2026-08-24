@@ -237,7 +237,7 @@ export default function QuoteDetailPage() {
               {quote.expiryDate && (
                 <div>
                   <p className="text-gray-500">Valid Until</p>
-                  <p className={new Date(quote.expiryDate) < new Date() ? 'text-red-600' : ''}>{new Date(quote.expiryDate).toLocaleDateString()}</p>
+                  <p className={new Date(String(quote.expiryDate).split('T')[0] + 'T00:00:00') < new Date() ? 'text-red-600' : ''}>{new Date(String(quote.expiryDate).split('T')[0] + 'T00:00:00').toLocaleDateString()}</p>
                 </div>
               )}
               <div>

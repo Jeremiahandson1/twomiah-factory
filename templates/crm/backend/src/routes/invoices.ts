@@ -2,13 +2,24 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { invoice, invoiceLineItem, contact, project, quote, payment, company } from '../../db/schema.ts'
-import { eq, and, count, desc, asc } from 'drizzle-orm'
+import { eq, and, count, desc, asc, lt, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// "Overdue" is derived, not stored — an invoice that's been billed but not
+// fully paid and is past its due date. Computing it at read time means it's
+// always current without a background job flipping statuses.
+const OPEN_STATUSES = ['sent', 'viewed', 'partial']
+const isOverdue = (inv: { status: string; dueDate: Date | string | null; total: any; amountPaid: any }) => {
+  if (!OPEN_STATUSES.includes(inv.status) || !inv.dueDate) return false
+  if (Number(inv.total) - Number(inv.amountPaid) <= 0.005) return false
+  return new Date(inv.dueDate) < new Date()
+}
+const deriveStatus = (inv: any) => (isOverdue(inv) ? 'overdue' : inv.status)
 
 const lineItemSchema = z.object({ description: z.string().min(1), quantity: z.number().default(1), unitPrice: z.number().default(0) })
 const invoiceSchema = z.object({
@@ -22,10 +33,14 @@ const invoiceSchema = z.object({
   lineItems: z.array(lineItemSchema).default([]),
 })
 
+// Round to whole cents to avoid $330.949-style totals, and tax the
+// post-discount amount (the common US convention for an order-level discount).
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  const total = subtotal + taxAmount - discount
+  const subtotal = round2(items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
+  const taxable = Math.max(0, subtotal - discount)
+  const taxAmount = round2(taxable * (taxRate / 100))
+  const total = round2(subtotal - discount + taxAmount)
   return { subtotal, taxAmount, total, balance: total }
 }
 
@@ -37,7 +52,13 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
   const limit = +(c.req.query('limit') || '50')
 
   const conditions = [eq(invoice.companyId, currentUser.companyId)]
-  if (status) conditions.push(eq(invoice.status, status))
+  // 'overdue' isn't a stored status — translate the filter to "open + past due".
+  if (status === 'overdue') {
+    conditions.push(inArray(invoice.status, OPEN_STATUSES))
+    conditions.push(lt(invoice.dueDate, new Date()))
+  } else if (status) {
+    conditions.push(eq(invoice.status, status))
+  }
   if (contactId) conditions.push(eq(invoice.contactId, contactId))
 
   const where = and(...conditions)
@@ -78,6 +99,7 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
 
   const dataWithRelations = data.map(inv => ({
     ...inv,
+    status: deriveStatus(inv),
     contact: inv.contactId ? contactMap[inv.contactId] || null : null,
     lineItems: lineItemMap[inv.id] || [],
     payments: paymentMap[inv.id] || [],
@@ -88,12 +110,18 @@ app.get('/', requirePermission('invoices:read'), async (c) => {
 
 app.get('/stats', requirePermission('invoices:read'), async (c) => {
   const currentUser = c.get('user') as any
-  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
+  const invoices = await db.select({ status: invoice.status, total: invoice.total, amountPaid: invoice.amountPaid, dueDate: invoice.dueDate }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
   const stats: Record<string, number> = { total: invoices.length, draft: 0, sent: 0, paid: 0, overdue: 0, totalAmount: 0, paidAmount: 0, outstanding: 0 }
   invoices.forEach(inv => {
-    stats[inv.status] = (stats[inv.status] || 0) + 1
+    const s = deriveStatus(inv)
+    stats[s] = (stats[s] || 0) + 1
     stats.totalAmount += Number(inv.total)
-    stats.outstanding += Number(inv.total) - Number(inv.amountPaid)
+    // Outstanding = what customers still owe on BILLED invoices. A draft isn't
+    // billed, and a credit (over-payment) on one invoice must not net off
+    // another, so floor each invoice's balance at zero.
+    if (inv.status !== 'draft' && inv.status !== 'paid') {
+      stats.outstanding += Math.max(0, Number(inv.total) - Number(inv.amountPaid))
+    }
     if (inv.status === 'paid') stats.paidAmount += Number(inv.total)
   })
   return c.json(stats)
@@ -114,7 +142,7 @@ app.get('/:id', requirePermission('invoices:read'), async (c) => {
     db.select().from(payment).where(eq(payment.invoiceId, id)).orderBy(desc(payment.paidAt)),
   ])
 
-  return c.json({ ...foundInvoice, contact: invoiceContact[0] || null, project: invoiceProject[0] || null, quote: invoiceQuote[0] || null, lineItems, payments })
+  return c.json({ ...foundInvoice, status: deriveStatus(foundInvoice), contact: invoiceContact[0] || null, project: invoiceProject[0] || null, quote: invoiceQuote[0] || null, lineItems, payments })
 })
 
 app.post('/', requirePermission('invoices:create'), async (c) => {

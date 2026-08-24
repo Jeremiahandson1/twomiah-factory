@@ -61,7 +61,7 @@ export default function ImportPage() {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const previewData = await api.upload(`/import/preview/${selectedType}`, formData);
+      const previewData = await api.upload(`/api/import/preview/${selectedType}`, formData);
       setPreview(previewData as PreviewData);
     } catch (err: unknown) {
       setError((err as Error).message || 'Failed to preview file');
@@ -83,7 +83,7 @@ export default function ImportPage() {
         formData.append(key, String(value));
       });
 
-      const result = await api.upload(`/import/${selectedType}`, formData);
+      const result = await api.upload(`/api/import/${selectedType}`, formData);
       setResults(result as ImportResults);
     } catch (err: unknown) {
       setError((err as Error).message || 'Import failed');
@@ -93,7 +93,7 @@ export default function ImportPage() {
   };
 
   const handleDownloadTemplate = () => {
-    window.open(`${(api as unknown as Record<string, string>).baseUrl || ''}/import/template/${selectedType}`, '_blank');
+    window.open(`${(api as unknown as Record<string, string>).baseUrl || ''}/api/import/template/${selectedType}`, '_blank');
   };
 
   const resetImport = () => {

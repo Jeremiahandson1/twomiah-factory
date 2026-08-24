@@ -75,7 +75,7 @@ export default function InvoicesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const calcTotals = () => { const subtotal = form.lineItems.reduce((s: number, li: LineItem) => s + (li.quantity * li.unitPrice), 0); const taxAmount = subtotal * (form.taxRate / 100); return { subtotal, taxAmount, total: subtotal + taxAmount - form.discount }; };
+  const calcTotals = () => { const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100; const subtotal = round2(form.lineItems.reduce((s: number, li: LineItem) => s + (li.quantity * li.unitPrice), 0)); const taxAmount = round2(Math.max(0, subtotal - form.discount) * (form.taxRate / 100)); return { subtotal, taxAmount, total: round2(subtotal - form.discount + taxAmount) }; };
 
   const handleSave = async () => {
     setSaving(true);

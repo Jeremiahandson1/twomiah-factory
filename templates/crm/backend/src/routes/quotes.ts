@@ -25,10 +25,14 @@ const quoteSchema = z.object({
   status: z.enum(['draft', 'sent', 'approved', 'rejected', 'expired']).optional(),
 })
 
+// Round to whole cents to avoid $330.949-style totals, and tax the
+// post-discount amount (the common US convention for an order-level discount).
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  return { subtotal, taxAmount, total: subtotal + taxAmount - discount }
+  const subtotal = round2(items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
+  const taxable = Math.max(0, subtotal - discount)
+  const taxAmount = round2(taxable * (taxRate / 100))
+  return { subtotal, taxAmount, total: round2(subtotal - discount + taxAmount) }
 }
 
 app.get('/', async (c) => {
@@ -220,6 +224,10 @@ app.post('/:id/convert-to-invoice', async (c) => {
   const quoteItems = await db.select().from(quoteLineItem).where(eq(quoteLineItem.quoteId, id))
   const [{ value: cnt }] = await db.select({ value: count() }).from(invoice).where(eq(invoice.companyId, currentUser.companyId))
 
+  // Give the new invoice a due date (net-30 from today) — without one it could
+  // never go overdue and the invoice showed no due date at all.
+  const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
   const [newInvoice] = await db.insert(invoice).values({
     number: `INV-${String(Number(cnt) + 1).padStart(5, '0')}`,
     contactId: foundQuote.contactId,
@@ -231,6 +239,7 @@ app.post('/:id/convert-to-invoice', async (c) => {
     discount: foundQuote.discount,
     total: foundQuote.total,
     amountPaid: '0',
+    dueDate,
     notes: foundQuote.notes,
     terms: foundQuote.terms,
     companyId: currentUser.companyId,
