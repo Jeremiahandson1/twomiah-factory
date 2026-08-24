@@ -125,7 +125,12 @@ app.post('/sources', requirePermission('contacts:create'), async (c) => {
   const currentUser = c.get('user') as any
   const body = await c.req.json()
   const inboundEmail = `leads+${currentUser.companyId.slice(0, 8)}-${body.platform}@inbound.twomiah.com`
-  const webhookUrl = `${c.req.url.replace(/\/api\/leads\/sources$/, '')}/api/leads/inbound/webhook/${body.platform}`
+  // Inbound leads carry PHI (names, phones, care needs) — never hand out a
+  // cleartext http:// endpoint. Prefer the configured public URL, and force https.
+  const base = (process.env.FRONTEND_URL || process.env.PUBLIC_URL || c.req.url.replace(/\/api\/leads\/sources$/, ''))
+    .replace(/^http:\/\//, 'https://')
+    .replace(/\/+$/, '')
+  const webhookUrl = `${base}/api/leads/inbound/webhook/${body.platform}`
 
   const [source] = await db.insert(leadSource).values({
     id: createId(),

@@ -79,6 +79,7 @@ const NAV_SECTIONS = [
       { id: 'care-plans', label: 'Care Plans', icon: '❤️' },
       { id: 'lead-inbox', label: 'Lead Inbox', icon: '📥' },
       { id: 'lead-sources', label: 'Lead Sources', icon: '🔗' },
+      { id: 'ads', label: 'Paid Ads', icon: '📣' },
       { id: 'contact-twomiah', label: 'Contact Twomiah', icon: '🛟' },
     ]
   },

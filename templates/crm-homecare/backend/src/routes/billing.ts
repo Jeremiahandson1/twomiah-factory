@@ -62,6 +62,13 @@ app.get('/invoices', async (c) => {
   const invoicesResult = rows.map(r => ({
     ...r.invoice,
     client: { firstName: r.clientFirstName, lastName: r.clientLastName },
+    // Flat aliases so pickers that read client_first_name/last_name or
+    // first_name/last_name (New Claim dropdown, billing dropdowns) show the
+    // client name, not a blank.
+    clientFirstName: r.clientFirstName,
+    clientLastName: r.clientLastName,
+    firstName: r.clientFirstName,
+    lastName: r.clientLastName,
     lineItems: lineItemsByInvoice[r.invoice.id] || [],
   }))
 

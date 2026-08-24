@@ -67,11 +67,13 @@ const ClaimsManagement = () => {
 
   const loadInvoices = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/billing/invoices?status=pending`, {
+      const res = await fetch(`${API_BASE_URL}/api/billing/invoices`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setInvoices(Array.isArray(data) ? data : []);
+      // Billing returns a { invoices, total } envelope — reading it as a bare
+      // array left the New Claim invoice picker permanently empty (H-13).
+      setInvoices(Array.isArray(data) ? data : (data.invoices || []));
     } catch (error) {
       console.error('Failed to load invoices:', error);
     }
