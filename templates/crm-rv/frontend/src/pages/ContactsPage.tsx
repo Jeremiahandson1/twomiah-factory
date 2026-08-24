@@ -199,7 +199,7 @@ export default function ContactsPage() {
       label: 'Name',
       render: (val: unknown, row: Record<string, unknown>) => (
         <div>
-          <p className="font-medium text-gray-900">{val as string}</p>
+          <p className="font-medium text-gray-900 dark:text-gray-100">{val as string}</p>
           {!!row.company && <p className="text-sm text-gray-500">{row.company as string}</p>}
         </div>
       ),
@@ -252,11 +252,11 @@ export default function ContactsPage() {
               key={type.value}
               onClick={() => setTypeFilter(typeFilter === type.value ? '' : type.value)}
               className={`p-4 rounded-lg border transition-colors ${
-                typeFilter === type.value ? 'border-orange-500 bg-orange-50' : 'bg-white hover:border-gray-300'
+                typeFilter === type.value ? 'border-orange-500 bg-orange-50 dark:bg-orange-950' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-gray-300'
               }`}
             >
-              <p className="text-2xl font-bold text-gray-900">{(stats[type.value] as number) || 0}</p>
-              <p className="text-sm text-gray-500">{type.label}s</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{(stats[type.value] as number) || 0}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{type.label}s</p>
             </button>
           ))}
         </div>
