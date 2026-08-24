@@ -11,13 +11,20 @@ import audit from '../services/audit.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// Allow normal phone punctuation but require at least 7 real digits, so
+// "abc" can't be saved as a phone number.
+const phoneField = z.string().optional().refine(
+  (v) => !v || (/^[0-9+()\-.\s]+$/.test(v) && v.replace(/\D/g, '').length >= 7),
+  { message: 'Enter a valid phone number' },
+)
+
 const contactSchema = z.object({
   name: z.string().min(1),
   type: z.enum(['lead', 'client', 'subcontractor', 'vendor']).default('lead'),
   company: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
-  mobile: z.string().optional(),
+  phone: phoneField,
+  mobile: phoneField,
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),

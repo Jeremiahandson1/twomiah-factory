@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { job, project, contact, user, timeEntry, equipment, jobPhoto } from '../../db/schema.ts'
-import { eq, and, gte, lt, count, asc, desc } from 'drizzle-orm'
+import { eq, and, gte, lt, count, asc, desc, ilike, or } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import storage from '../services/storage.ts'
@@ -40,6 +40,7 @@ app.get('/', async (c) => {
   const status = c.req.query('status')
   const projectId = c.req.query('projectId')
   const assignedToId = c.req.query('assignedToId')
+  const search = c.req.query('search')
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
 
@@ -47,6 +48,12 @@ app.get('/', async (c) => {
   if (status) conditions.push(eq(job.status, status))
   if (projectId) conditions.push(eq(job.projectId, projectId))
   if (assignedToId) conditions.push(eq(job.assignedToId, assignedToId))
+  // The list search box was posting ?search= but the server ignored it, so the
+  // list never filtered. Match (case-insensitively) title / number / address.
+  if (search) {
+    const p = `%${search}%`
+    conditions.push(or(ilike(job.title, p), ilike(job.number, p), ilike(job.address, p))!)
+  }
 
   const where = and(...conditions)
   const [data, [{ value: total }]] = await Promise.all([

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { quote, quoteLineItem, contact, project, invoice, invoiceLineItem, company, job, equipment, site } from '../../db/schema.ts'
-import { eq, and, count, desc, asc } from 'drizzle-orm'
+import { eq, and, count, desc, asc, ilike, or } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { emitToCompany, EVENTS } from '../services/socket.ts'
 import { sendSMS } from '../services/sms.ts'
@@ -39,12 +39,18 @@ app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
   const contactId = c.req.query('contactId')
+  const search = c.req.query('search')
   const page = +(c.req.query('page') || '1')
   const limit = +(c.req.query('limit') || '50')
 
   const conditions = [eq(quote.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(quote.status, status))
   if (contactId) conditions.push(eq(quote.contactId, contactId))
+  // Was ignored server-side — match the quote number/name case-insensitively.
+  if (search) {
+    const p = `%${search}%`
+    conditions.push(or(ilike(quote.number, p), ilike(quote.name, p))!)
+  }
 
   const where = and(...conditions)
   const [data, [{ value: total }]] = await Promise.all([
