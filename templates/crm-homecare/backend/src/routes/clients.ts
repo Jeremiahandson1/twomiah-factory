@@ -249,12 +249,15 @@ app.post('/', requireAdmin, async (c) => {
   if (emergencyContacts?.length) {
     ecRows = await db
       .insert(clientEmergencyContacts)
-      .values(emergencyContacts.map((ec: any) => ({
+      // `phone` is NOT NULL — a name-only contact (no phone yet) sent null and
+      // 500'd the whole client create. Default missing phone/relationship to ''
+      // so next-of-kin still saves; drop entries with no name.
+      .values(emergencyContacts.filter((ec: any) => ec.name && String(ec.name).trim()).map((ec: any) => ({
         clientId: client.id,
         name: ec.name,
-        relationship: ec.relationship,
-        phone: ec.phone,
-        email: ec.email,
+        relationship: ec.relationship || '',
+        phone: ec.phone || '',
+        email: ec.email || null,
         isPrimary: ec.isPrimary ?? false,
       })))
       .returning()

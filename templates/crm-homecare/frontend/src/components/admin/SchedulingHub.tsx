@@ -1039,7 +1039,7 @@ const SchedulingHub = () => {
                 <div className='card'>
                   <h3 style={{ margin: '0 0 0.75rem' }}>👥 Caregiver Hours</h3>
                   <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                    {coverageData.caregivers.map(cg => (
+                    {(coverageData.caregivers || []).map(cg => (
                       <div key={cg.id} style={{ padding: '0.6rem', borderBottom: '1px solid #eee', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div style={{ flex: 1 }}><div style={{ fontWeight: '600', fontSize: '0.88rem' }}>{cg.name}</div><div style={{ fontSize: '0.78rem', color: '#666' }}>{parseFloat(cg.scheduledHours || 0).toFixed(2)}h / {cg.maxHours}h</div></div>
                         <div style={{ width: '90px' }}><div style={{ height: '7px', background: '#E5E7EB', borderRadius: '4px', overflow: 'hidden' }}><div style={{ width: `${Math.min(cg.utilizationPercent, 100)}%`, height: '100%', background: cg.utilizationPercent > 100 ? '#DC2626' : cg.utilizationPercent > 80 ? '#F59E0B' : '#10B981' }} /></div></div>
@@ -1050,13 +1050,13 @@ const SchedulingHub = () => {
                 </div>
                 <div className='card'>
                   <h3 style={{ margin: '0 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    ⚠️ Under-Scheduled {coverageData.underScheduledClients.length > 0 && <span style={bge('#FEE2E2', '#DC2626')}>{coverageData.underScheduledClients.length}</span>}
+                    ⚠️ Under-Scheduled {(coverageData.underScheduledClients || []).length > 0 && <span style={bge('#FEE2E2', '#DC2626')}>{(coverageData.underScheduledClients || []).length}</span>}
                   </h3>
-                  {coverageData.underScheduledClients.length === 0 ? (
+                  {(coverageData.underScheduledClients || []).length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '2rem', color: '#059669' }}>✅ All clients fully scheduled!</div>
                   ) : (
                     <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                      {coverageData.underScheduledClients.map(cl => (
+                      {(coverageData.underScheduledClients || []).map(cl => (
                         <div key={cl.id} style={{ padding: '0.6rem', borderBottom: '1px solid #eee', background: '#FEF2F2' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div><div style={{ fontWeight: '600', fontSize: '0.88rem' }}>{cl.name}</div><div style={{ fontSize: '0.78rem', color: '#666' }}>{cl.scheduledUnits}/{cl.authorizedUnits} units</div></div>
