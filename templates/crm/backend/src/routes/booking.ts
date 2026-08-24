@@ -168,6 +168,14 @@ app.put('/services/:id', async (c) => {
   return c.json({ success: true })
 })
 
+app.delete('/services/:id', async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const removed = await booking.deleteBookableService(id, user.companyId)
+  if (!removed) return c.json({ error: 'Service not found' }, 404)
+  return c.json({ success: true })
+})
+
 app.get('/', async (c) => {
   const user = c.get('user') as any
   const { status, page = '1', limit = '50' } = c.req.query() as any

@@ -163,6 +163,24 @@ export async function updateBookableService(serviceId: string, companyId: string
   }
 }
 
+/**
+ * Delete a bookable service. Existing bookings keep their own service_id
+ * reference; this only removes it from the catalog. Scoped to the company.
+ * Returns true if a row was removed.
+ */
+export async function deleteBookableService(serviceId: string, companyId: string): Promise<boolean> {
+  // online_booking.service_id is a RESTRICT FK — detach past bookings from the
+  // service first (keeping the bookings themselves) so the delete can't 500.
+  await db.execute(sql`
+    UPDATE online_booking SET service_id = NULL, updated_at = NOW()
+    WHERE service_id = ${serviceId} AND company_id = ${companyId}
+  `);
+  const result = await db.execute(sql`
+    DELETE FROM bookable_service WHERE id = ${serviceId} AND company_id = ${companyId} RETURNING id
+  `);
+  return (((result as any).rows || result) as any[]).length > 0;
+}
+
 // ============================================
 // AVAILABILITY
 // ============================================
@@ -304,6 +322,12 @@ export async function getAvailableDates(companyId: string, days = 30) {
     ? JSON.parse(settings.working_hours)
     : settings.working_hours;
 
+  // Respect the lead time so we don't offer a date whose slots are all already
+  // filtered out (e.g. "today" when there's a 1-day lead) — that dead date was
+  // being handed back as the first selectable option.
+  const leadTimeHours = settings.lead_time_hours || 24;
+  const cutoff = new Date(Date.now() + leadTimeHours * 60 * 60 * 1000);
+
   for (let i = 0; i < Math.min(days, maxDaysOut); i++) {
     const date = new Date(today);
     date.setDate(date.getDate() + i);
@@ -312,6 +336,13 @@ export async function getAvailableDates(companyId: string, days = 30) {
     const daySettings = workingHours[dayOfWeek];
 
     if (daySettings?.enabled) {
+      // Only offer the day if its working window still ends at/after the cutoff,
+      // i.e. at least one slot on it is bookable.
+      const [endH, endM] = String(daySettings.end || '17:00').split(':').map(Number);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(endH || 17, endM || 0, 0, 0);
+      if (dayEnd < cutoff) continue;
+
       dates.push({
         date: date.toISOString().split('T')[0],
         dayOfWeek,
@@ -535,7 +566,11 @@ export function getEmbedCode(_companyId: string, companySlug: string): string {
   // The global is TwomiahBooking, not one built from the company name — a
   // business name with a space in it produced invalid JavaScript. apiUrl is
   // explicit so the widget still reaches the CRM from the customer's own site.
-  const host = (process.env.FRONTEND_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
+  // The widget JS is served by THIS service, so its own live origin
+  // (RENDER_EXTERNAL_URL) is the one host guaranteed to resolve. A stale/renamed
+  // FRONTEND_URL produced a dead <script src>, so use the real service URL first
+  // and fall back to the configured one.
+  const host = (process.env.RENDER_EXTERNAL_URL || process.env.FRONTEND_URL || process.env.BACKEND_URL || '').replace(/\/$/, '');
   return `<!-- {{COMPANY_NAME}} Online Booking Widget -->
 <div id="{{COMPANY_SLUG}}-booking"></div>
 <script src="${host}/booking-widget.js"></script>
@@ -554,6 +589,7 @@ export default {
   getBookableServices,
   createBookableService,
   updateBookableService,
+  deleteBookableService,
   getAvailableSlots,
   getAvailableDates,
   createBooking,

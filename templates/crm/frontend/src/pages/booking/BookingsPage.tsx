@@ -107,6 +107,17 @@ export default function BookingsPage() {
     }
   };
 
+  const deleteService = async (s: BookableService) => {
+    if (!s.id || !confirm(`Delete "${s.name}"? This removes it from what customers can book.`)) return;
+    try {
+      await api.delete(`/api/booking/services/${s.id}`);
+      toast.success('Service deleted');
+      load();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not delete service');
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -223,7 +234,10 @@ export default function BookingsPage() {
                     {s.active === false && <span className="text-red-500">Inactive</span>}
                   </div>
                 </div>
-                <button onClick={() => setEditing(s)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Edit</button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => setEditing(s)} className="px-3 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Edit</button>
+                  <button onClick={() => deleteService(s)} className="px-3 py-1.5 text-sm border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Delete</button>
+                </div>
               </div>
             );
           })}
