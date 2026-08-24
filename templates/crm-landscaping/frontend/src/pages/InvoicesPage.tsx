@@ -77,8 +77,15 @@ export default function InvoicesPage() {
     { key: 'contact', label: 'Client', render: (v) => v?.name || '-' },
     { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
     { key: 'total', label: 'Total', render: (v) => `$${Number(v).toLocaleString()}` },
-    { key: 'balance', label: 'Balance', render: (v) => Number(v) > 0 ? <span className="text-orange-600 font-medium">${Number(v).toLocaleString()}</span> : <span className="text-green-600">Paid</span> },
-    { key: 'dueDate', label: 'Due', render: (v) => v ? new Date(v).toLocaleDateString() : '-' },
+    { key: 'balance', label: 'Balance', render: (_v, row) => {
+      // Compute the balance from total − amountPaid; the row's own `balance`
+      // field isn't populated, so reading it showed "Paid" on unpaid invoices.
+      const bal = Number(row.total) - Number(row.amountPaid || 0);
+      return bal > 0.005
+        ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        : <span className="text-green-600">Paid</span>;
+    } },
+    { key: 'dueDate', label: 'Due', render: (v) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
   ];
 
   const { subtotal, taxAmount, total } = calcTotals();

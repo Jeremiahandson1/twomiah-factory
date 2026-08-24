@@ -51,12 +51,14 @@ app.get('/conversations', async (c) => {
   const status = c.req.query('status')
   const unreadOnly = c.req.query('unreadOnly')
   const searchQuery = c.req.query('search')
+  const contactId = c.req.query('contactId')
   const page = c.req.query('page')
   const limit = c.req.query('limit')
   const data = await sms.getConversations(user.companyId, {
     status,
     unreadOnly: unreadOnly === 'true',
     search: searchQuery,
+    contactId,
     page: parseInt(page!) || 1,
     limit: parseInt(limit!) || 50,
   })
