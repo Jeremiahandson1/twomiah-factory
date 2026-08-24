@@ -149,10 +149,14 @@ export default function CustomerPortal() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {([
+              // The events dashboard endpoint returns {contacts, pipeline, events,
+              // payments} — the portal read contractor shapes (jobs/quotes/invoices)
+              // that don't exist here, so every tile read 0 (H-05). Map to the real
+              // shape.
               { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Upcoming Events', value: (stats.events as Record<string, unknown>)?.upcoming30 ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Enquiries', value: (stats.pipeline as Record<string, unknown>)?.enquiry ?? 0, icon: FileText, color: 'amber' },
+              { label: 'Outstanding', value: `$${Number((stats.payments as Record<string, unknown>)?.outstanding ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
@@ -185,16 +189,18 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Business CRM</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Events CRM</h3>
             <p className="text-sm text-slate-500">
-              Contacts, jobs, quotes, invoices, scheduling, and more
+              Enquiries, spaces, catering, run of show, deposits, and more
             </p>
           </div>
 
-          {/* Website - if website product was included */}
-          {(products.includes('website') || siteUrl) && (
+          {/* Website — only when the website product was purchased AND a real URL
+              exists. Showing it off a seeded company.website linked a domain that
+              doesn't resolve (M-09). */}
+          {products.includes('website') && siteUrl && (
             <a
-              href={siteUrl || '#'}
+              href={siteUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
@@ -287,34 +293,42 @@ export default function CustomerPortal() {
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
-            {(activity?.recentJobs?.length || activity?.recentQuotes?.length || activity?.recentInvoices?.length) ? (
+            {(() => {
+              // The events activity endpoint returns newEnquiries/upcomingEvents/
+              // duePayments — the portal read recentJobs/recentQuotes and so always
+              // showed "No recent activity" despite real bookings (H-05).
+              const act = activity as Record<string, any> | null;
+              const upcoming = act?.upcomingEvents || [];
+              const enquiries = act?.newEnquiries || [];
+              return (upcoming.length || enquiries.length) ? (
               <>
-                {(activity?.recentJobs || []).slice(0, 3).map((item: Record<string, unknown>) => (
+                {upcoming.slice(0, 3).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-sm text-slate-700">Job: {(item.title as string) || (item.number as string)} — {((item.status as string)?.replace('_', ' ')) || 'pending'}</span>
+                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-sm text-slate-700">Event: {(item.name as string) || 'Untitled'}{item.clientName ? ` — ${item.clientName}` : ''}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? new Date(item.updatedAt as string).toLocaleDateString() : ''}
+                      {item.eventDate ? new Date((item.eventDate as string) + 'T12:00:00').toLocaleDateString() : ''}
                     </span>
                   </div>
                 ))}
-                {(activity?.recentQuotes || []).slice(0, 2).map((item: Record<string, unknown>) => (
+                {enquiries.slice(0, 2).map((item: Record<string, unknown>) => (
                   <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
                     <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-sm text-slate-700">Quote: {(item.name as string) || (item.number as string)} — ${Number(item.total || 0).toLocaleString()}</span>
+                    <span className="text-sm text-slate-700">Enquiry: {(item.name as string) || 'Untitled'}{item.clientName ? ` — ${item.clientName}` : ''}</span>
                     <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? new Date(item.updatedAt as string).toLocaleDateString() : ''}
+                      {item.eventDate ? new Date((item.eventDate as string) + 'T12:00:00').toLocaleDateString() : ''}
                     </span>
                   </div>
                 ))}
               </>
-            ) : (
+              ) : (
               <div className="px-6 py-8 text-center">
                 <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm text-slate-500">No recent activity</p>
-                <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
+                <p className="text-xs text-slate-400 mt-1">Get started by adding an enquiry or event</p>
               </div>
-            )}
+              );
+            })()}
           </div>
         </div>
 
