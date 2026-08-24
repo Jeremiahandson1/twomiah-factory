@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Send, Check, X, FileText, Wrench, MapPinned, Briefcase } from 'lucide-react';
 import api from '../services/api';
@@ -11,6 +11,7 @@ const statuses = ['draft', 'sent', 'viewed', 'approved', 'declined', 'rejected',
 export default function QuotesPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
     const [data, setData] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -67,6 +68,23 @@ export default function QuotesPage() {
     else { setCustomerEquipment([]); setCustomerSites([]); }
     setModalOpen(true);
   };
+
+  // Honour ?edit=<id> from the quote detail page's Edit button (previously
+  // ignored, so Edit just dropped you on the list).
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(`/api/quotes/${editId}`);
+        if (!cancelled) openEdit(res?.data || res);
+      } catch { /* ignore */ }
+      setSearchParams({}, { replace: true });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const calcTotals = () => {
     const subtotal = form.lineItems.reduce((s, li) => s + (li.quantity * li.unitPrice), 0);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, UserCheck, Search } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -31,6 +31,7 @@ const initialFormData = {
 export default function ContactsPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [contacts, setContacts] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +103,24 @@ export default function ContactsPage() {
     });
     setModalOpen(true);
   };
+
+  // The detail page's Edit button links here with ?edit=<id>. Honour it by
+  // fetching that contact and opening the edit modal (previously the param was
+  // ignored, so Edit appeared to do nothing).
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(`/api/contacts/${editId}`);
+        if (!cancelled) openEditModal(res?.data || res);
+      } catch { /* contact not found — ignore */ }
+      setSearchParams({}, { replace: true });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleSave = async () => {
     if (!formData.name.trim()) {

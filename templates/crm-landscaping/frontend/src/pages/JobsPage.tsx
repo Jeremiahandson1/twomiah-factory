@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Play, CheckCircle, Wrench, MapPinned } from 'lucide-react';
 import api from '../services/api';
@@ -13,6 +13,7 @@ const initialForm = { title: '', description: '', status: 'scheduled', priority:
 export default function JobsPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
     const [data, setData] = useState([]);
   const [projects, setProjects] = useState([]);
   const [contacts, setContacts] = useState([]);
@@ -73,6 +74,22 @@ export default function JobsPage() {
     else { setCustomerEquipment([]); setCustomerSites([]); }
     setModalOpen(true);
   };
+
+  // Honour ?edit=<id> from the service-call detail page's Edit button.
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get(`/api/jobs/${editId}`);
+        if (!cancelled) openEdit(res?.data || res);
+      } catch { /* ignore */ }
+      setSearchParams({}, { replace: true });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleSave = async () => {
     if (!form.title.trim()) { toast.error('Title is required'); return; }
