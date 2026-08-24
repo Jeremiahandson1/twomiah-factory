@@ -39,8 +39,9 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
         city: client.city || '',
         state: client.state || '{{STATE}}',
         zip: client.zip || '',
-        // Billing/Referral
-        referralSourceId: client.referral_source_id || '',
+        // Billing/Referral (backend field is referredById -> referred_by_id;
+        // the older referral_source_id alias never existed, so it read blank)
+        referralSourceId: client.referral_source_id || client.referred_by_id || client.referredById || '',
         careTypeId: client.care_type_id || '',
         isPrivatePay: client.is_private_pay || false,
         privatePayRate: client.private_pay_rate || '',
@@ -91,6 +92,27 @@ const EditClientModal = ({ client, referralSources = [], careTypes = [], isOpen,
           }
         })
         .catch(() => setPortalStatus('not_invited'));
+
+      // Emergency contacts live in a separate table (not on the list row), so
+      // pull the full client and patch the primary contact into the form —
+      // otherwise the Emergency Contact fields always opened blank.
+      fetch(`${API_BASE_URL}/api/clients/${client.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(r => r.json())
+        .then(detail => {
+          const contacts = detail?.emergencyContacts || [];
+          const ec = contacts.find((x: any) => x.isPrimary ?? x.is_primary) || contacts[0];
+          if (ec) {
+            setFormData(prev => ({
+              ...prev,
+              emergencyContactName: ec.name || '',
+              emergencyContactPhone: ec.phone || '',
+              emergencyContactRelationship: ec.relationship || '',
+            }));
+          }
+        })
+        .catch(() => { /* best-effort */ });
     }
   }, [client, isOpen]);
 
