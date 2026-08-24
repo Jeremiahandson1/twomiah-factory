@@ -32,7 +32,7 @@ const INTEGRATIONS: Integration[] = [
     guideSteps: [
       'Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)',
       'Go to DNS settings for your domain',
-      'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM URL',
+      `Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to: ${typeof window !== 'undefined' ? window.location.hostname : 'your CRM URL'}`,
       'Save changes — DNS propagation can take up to 24 hours',
     ],
   },
@@ -152,6 +152,7 @@ export default function OnboardingWizard() {
   const { company, updateCompany } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [nameError, setNameError] = useState('');
 
   // Company profile form state — pre-filled from factory data
   const [profile, setProfile] = useState({
@@ -202,6 +203,13 @@ export default function OnboardingWizard() {
   };
 
   const handleNext = () => {
+    // H-10: Company Name is required — don't let step 1 advance (and later save)
+    // with it blank, which used to overwrite the real company name with "".
+    if (currentStep === 0 && !profile.name?.trim()) {
+      setNameError('Company name is required.');
+      return;
+    }
+    setNameError('');
     if (currentStep < STEPS.length - 1) setCurrentStep(prev => prev + 1);
   };
 
@@ -213,7 +221,9 @@ export default function OnboardingWizard() {
     setSaving(true);
     try {
       const profileUpdate: Record<string, any> = {
-        name: profile.name, phone: profile.phone, email: profile.email,
+        // Never overwrite the real company name with an empty value (H-10).
+        name: profile.name?.trim() || company?.name || '',
+        phone: profile.phone, email: profile.email,
         address: profile.address, city: profile.city, state: profile.state, zip: profile.zip,
       };
       if (profile.website) profileUpdate.website = profile.website;
@@ -307,6 +317,9 @@ export default function OnboardingWizard() {
       {/* Navigation — hidden on the Branded Email step, which ships its own Back/Save controls */}
       {currentStep !== 2 && (
       <div className="border-t dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-4">
+        {nameError && (
+          <div className="max-w-2xl mx-auto mb-2 text-sm text-red-600 dark:text-red-400">{nameError}</div>
+        )}
         <div className="max-w-2xl mx-auto flex justify-between">
           {currentStep > 0 ? (
             <button onClick={handleBack} className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
