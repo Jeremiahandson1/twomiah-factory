@@ -28,7 +28,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-100 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{'{{COMPANY_NAME}}'}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{"{{COMPANY_NAME}}"}</h1>
           <p className="mt-2 text-gray-600">Sign in to your account</p>
         </div>
 
@@ -79,9 +79,8 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center text-sm">
-            <span className="text-gray-600">Don't have an account? </span>
-            <Link to="/register" className="text-orange-500 hover:text-orange-600 font-medium">
-              Sign up
+            <Link to="/forgot-password" className="text-gray-500 hover:text-gray-700 font-medium">
+              Forgot password?
             </Link>
           </div>
 

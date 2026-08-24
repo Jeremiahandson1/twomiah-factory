@@ -9,7 +9,6 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Pages
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CustomerPortal from './pages/CustomerPortal';
@@ -149,7 +148,6 @@ function App() {
 
                   {/* Public auth routes */}
                   <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-                  <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
                   <Route path="/forgot-password" element={<PublicRoute><ForgotPasswordPage /></PublicRoute>} />
                   <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
 

@@ -29,14 +29,14 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
   return (
     <div className="login-container">
       <div className="login-card">
-        <h1>{{COMPANY_NAME}}</h1>
-        <p>Home Care CRM</p>
+        <h1>{"{{COMPANY_NAME}}"}</h1>
+        <p>Sign in to your account</p>
 
         {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="email">Email</label>
             <input
               id="email"
               type="email"

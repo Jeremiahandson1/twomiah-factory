@@ -94,6 +94,11 @@ const refreshSchema = z.object({
 });
 
 app.post('/refresh', async (c) => {
+  // No refresh-token ROTATION here. The DB stores a single refresh token;
+  // rotating it on every access-token refresh races with concurrent
+  // requests and multiple tabs — the loser presents a now-stale token,
+  // gets 401, and is logged out mid-work. Issue a fresh access token and
+  // keep the same refresh token (still expires on its own 7d clock).
   const body = parseBody(refreshSchema, await c.req.json());
 
   try {

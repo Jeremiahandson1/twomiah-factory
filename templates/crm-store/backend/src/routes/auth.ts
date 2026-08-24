@@ -40,6 +40,11 @@ auth.post('/login', async (c) => {
 })
 
 auth.post('/refresh', async (c) => {
+  // No refresh-token ROTATION here. The DB stores a single refresh token;
+  // rotating it on every access-token refresh races with concurrent
+  // requests and multiple tabs — the loser presents a now-stale token,
+  // gets 401, and is logged out mid-work. Issue a fresh access token and
+  // keep the same refresh token (still expires on its own 7d clock).
   const body = await c.req.json().catch(() => null)
   const token = body?.refreshToken
   if (!token) return c.json({ error: 'No refresh token' }, 400)
@@ -51,8 +56,7 @@ auth.post('/refresh', async (c) => {
       return c.json({ error: 'Invalid refresh token' }, 401)
     }
     const tokens = generateTokens(u.id, u.email, u.role)
-    await db.update(users).set({ refreshToken: tokens.refreshToken }).where(eq(users.id, u.id))
-    return c.json(tokens)
+    return c.json({ accessToken: tokens.accessToken, refreshToken: token })
   } catch {
     return c.json({ error: 'Invalid refresh token' }, 401)
   }
