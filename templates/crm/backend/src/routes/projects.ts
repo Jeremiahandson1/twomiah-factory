@@ -21,7 +21,9 @@ const projectSchema = z.object({
   endDate: z.string().optional(),
   estimatedValue: z.number().optional(),
   budget: z.number().optional(),
-  contactId: z.string().optional(),
+  // An unselected client dropdown posts contactId:"" — coerce it to undefined
+  // so it doesn't hit the contact FK and throw a 500.
+  contactId: z.string().optional().transform(v => (v === '' ? undefined : v)),
   notes: z.string().optional(),
 })
 

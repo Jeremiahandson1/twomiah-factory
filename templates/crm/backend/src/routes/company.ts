@@ -9,11 +9,20 @@ import { authenticate, requireAdmin } from '../middleware/auth.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
+// The Twilio auth token is a live credential and must never ship to a browser
+// (every logged-in user, any role, would receive it). Strip it from any company
+// row we return — it's write-only from the client's point of view. The account
+// SID and stripe customer id are identifiers, not secrets, so they stay.
+const sanitizeCompany = <T extends Record<string, any>>(row: T): Omit<T, 'twilioAuthToken'> => {
+  const { twilioAuthToken, ...safe } = row
+  return safe
+}
+
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const [result] = await db.select().from(company).where(eq(company.id, currentUser.companyId)).limit(1)
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(result)
+  return c.json(sanitizeCompany(result))
 })
 
 app.put('/', requireAdmin, async (c) => {
@@ -26,7 +35,7 @@ app.put('/', requireAdmin, async (c) => {
   const data = schema.parse(body)
   const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(result)
+  return c.json(sanitizeCompany(result))
 })
 
 app.put('/features', requireAdmin, async (c) => {
@@ -42,7 +51,7 @@ app.put('/features', requireAdmin, async (c) => {
   }
   const [result] = await db.update(company).set({ enabledFeatures: features, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
-  return c.json(result)
+  return c.json(sanitizeCompany(result))
 })
 
 // User management

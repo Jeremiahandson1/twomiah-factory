@@ -49,8 +49,14 @@ app.get('/', async (c) => {
     db.select({ value: count() }).from(document).where(where),
   ])
 
+  // Flatten the document columns up to the row level so list consumers can read
+  // row.name / row.size / row.createdAt directly (they previously read the
+  // wrapper and got undefined → blank rows dated "Invalid Date"). Relations stay
+  // nested under project/contact/uploadedBy.
+  const flatDocuments = documents.map((r: any) => ({ ...r.document, project: r.project, contact: r.contact, uploadedBy: r.uploadedBy }))
+
   return c.json({
-    data: documents,
+    data: flatDocuments,
     pagination: {
       page: pageNum,
       limit: limitNum,

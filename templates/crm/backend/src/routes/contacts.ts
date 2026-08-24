@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact, project, quote, invoice } from '../../db/schema.ts'
+import { contact, project, quote, invoice, job } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -112,6 +112,25 @@ app.delete('/:id', requirePermission('contacts:delete'), async (c) => {
 
   const [existing] = await db.select().from(contact).where(and(eq(contact.id, id), eq(contact.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Contact not found' }, 404)
+
+  // Don't let a delete silently orphan financial/work records — their FKs are
+  // ON DELETE SET NULL, so the invoice/quote/job would survive with a blank
+  // client. Block it and name what's attached so the user can reassign first.
+  const [[{ value: invCount }], [{ value: quoteCount }], [{ value: jobCount }], [{ value: projCount }]] = await Promise.all([
+    db.select({ value: count() }).from(invoice).where(eq(invoice.contactId, id)),
+    db.select({ value: count() }).from(quote).where(eq(quote.contactId, id)),
+    db.select({ value: count() }).from(job).where(eq(job.contactId, id)),
+    db.select({ value: count() }).from(project).where(eq(project.contactId, id)),
+  ])
+  const attached = [
+    Number(invCount) && `${invCount} invoice${Number(invCount) === 1 ? '' : 's'}`,
+    Number(quoteCount) && `${quoteCount} quote${Number(quoteCount) === 1 ? '' : 's'}`,
+    Number(jobCount) && `${jobCount} job${Number(jobCount) === 1 ? '' : 's'}`,
+    Number(projCount) && `${projCount} project${Number(projCount) === 1 ? '' : 's'}`,
+  ].filter(Boolean)
+  if (attached.length) {
+    return c.json({ error: `This contact still has ${attached.join(', ')} attached. Reassign or remove them before deleting the contact.` }, 409)
+  }
 
   await db.delete(contact).where(eq(contact.id, id))
   emitToCompany(currentUser.companyId, EVENTS.CONTACT_DELETED, { id })

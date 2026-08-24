@@ -37,9 +37,9 @@ const s3 = new S3Client({
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE as string) || 10 * 1024 * 1024 // 10MB
 const ALLOWED_MIMES: Record<string, string[]> = {
   image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
   spreadsheet: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
-  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'],
+  all: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/plain'],
 }
 
 /** True when R2 credentials are present and uploads/reads can succeed. */
@@ -82,8 +82,11 @@ export async function saveFile(
   allowedTypes = 'all'
 ): Promise<UploadedFile> {
   const mimes = ALLOWED_MIMES[allowedTypes] || ALLOWED_MIMES.all
-  if (!mimes.includes(file.type)) {
-    throw new Error(`Invalid file type: ${file.type}. Allowed: ${allowedTypes}`)
+  // Browsers append parameters to the MIME type (e.g. "text/plain;charset=utf-8").
+  // Compare on the base type so a valid file isn't rejected over its charset.
+  const baseType = (file.type || '').split(';')[0].trim().toLowerCase()
+  if (!mimes.includes(baseType)) {
+    throw new Error(`Unsupported file type${file.type ? ` (${baseType || file.type})` : ''}. Allowed: images, PDF, Word, Excel, CSV and text files.`)
   }
   if (file.size > MAX_FILE_SIZE) {
     throw new Error(`File too large. Max size: ${MAX_FILE_SIZE / 1024 / 1024}MB`)
