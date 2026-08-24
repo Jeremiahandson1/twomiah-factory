@@ -45,6 +45,48 @@ app.get('/', async (c) => {
   return c.json({ claims: result, total })
 })
 
+// GET /api/claims/reports/summary — aging + status rollup for the claims dashboard
+// (the dashboard called this and 404'd, so its figures always read $0).
+app.get('/reports/summary', async (c) => {
+  const rows = await db.select({
+    status: claims.status,
+    billedAmount: claims.billedAmount,
+    paidAmount: claims.paidAmount,
+    serviceDate: claims.serviceDate,
+  }).from(claims)
+
+  const num = (v: any) => Number(v || 0)
+  const byStatus: Record<string, { count: number; billed: number; paid: number }> = {}
+  const aging = { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 }
+  const now = Date.now()
+
+  for (const r of rows) {
+    const s = r.status || 'pending'
+    if (!byStatus[s]) byStatus[s] = { count: 0, billed: 0, paid: 0 }
+    byStatus[s].count++
+    byStatus[s].billed += num(r.billedAmount)
+    byStatus[s].paid += num(r.paidAmount)
+
+    if (s !== 'paid' && s !== 'denied' && r.serviceDate) {
+      const days = Math.floor((now - new Date(r.serviceDate).getTime()) / 86400000)
+      const bucket = days <= 30 ? '0-30' : days <= 60 ? '31-60' : days <= 90 ? '61-90' : '90+'
+      aging[bucket] += num(r.billedAmount) - num(r.paidAmount)
+    }
+  }
+
+  const totalBilled = rows.reduce((s, r) => s + num(r.billedAmount), 0)
+  const totalPaid = rows.reduce((s, r) => s + num(r.paidAmount), 0)
+
+  return c.json({
+    totalClaims: rows.length,
+    totalBilled: Number(totalBilled.toFixed(2)),
+    totalPaid: Number(totalPaid.toFixed(2)),
+    outstanding: Number((totalBilled - totalPaid).toFixed(2)),
+    byStatus,
+    aging,
+  })
+})
+
 app.post('/', async (c) => {
   const body = await c.req.json()
   const [claim] = await db.insert(claims).values(body).returning()

@@ -143,6 +143,27 @@ app.get('/caregivers', async (c) => {
   })))
 })
 
+// GET /api/users/caregivers/:id — single caregiver summary for the profile page.
+// The profile header fetched this and 404'd (only the /caregivers LIST existed),
+// leaving the page blank with an "Inactive" badge on active caregivers.
+app.get('/caregivers/:id', async (c) => {
+  const id = c.req.param('id')
+  const [user] = await db.select({
+    id: users.id, firstName: users.firstName, lastName: users.lastName,
+    email: users.email, phone: users.phone, isActive: users.isActive, role: users.role,
+    address: users.address, city: users.city, state: users.state, zip: users.zip,
+    createdAt: users.createdAt,
+  }).from(users).where(eq(users.id, id)).limit(1)
+  if (!user) return c.json({ error: 'Caregiver not found' }, 404)
+
+  const [{ value: activeClients }] = await db
+    .select({ value: count() })
+    .from(clientAssignments)
+    .where(and(eq(clientAssignments.caregiverId, id), eq(clientAssignments.status, 'active')))
+
+  return c.json(toSnake({ ...user, activeClients: Number(activeClients) }))
+})
+
 // GET /api/users/admins — list users with role=admin
 // MUST be before /:id
 app.get('/admins', async (c) => {
@@ -262,7 +283,20 @@ app.get('/:id', async (c) => {
 // POST /api/caregivers
 app.post('/', requireAdmin, async (c) => {
   const { password = 'Welcome1!', profile, ...data } = await c.req.json()
-  const passwordHash = await Bun.password.hash(password, 'bcrypt')
+
+  // H-01: this is a login into a PHI system — enforce a real password minimum.
+  if (String(password).length < 8) {
+    return c.json({ error: 'Password must be at least 8 characters' }, 400)
+  }
+  // H-11: return usable 400/409 instead of a bare 500 on missing/duplicate email.
+  if (!data.firstName || !data.lastName || !data.email) {
+    return c.json({ error: 'First name, last name and email are required' }, 400)
+  }
+  const email = String(data.email).toLowerCase().trim()
+  const [dupe] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1)
+  if (dupe) return c.json({ error: 'A user with that email already exists' }, 409)
+
+  const passwordHash = await Bun.password.hash(String(password), 'bcrypt')
 
   const [caregiver] = await db
     .insert(users)
@@ -422,14 +456,17 @@ app.post('/:id/background-checks', requireAdmin, async (c) => {
 // /caregivers and /admins routes moved above /:id to prevent wildcard param conflict
 
 // PUT /api/users/:id/reset-password
-app.put('/:id/reset-password', requireAdmin, async (c) => {
+// PUT/POST /:id/reset-password — the UI calls both shapes across screens.
+const resetUserPassword = async (c: any) => {
   const id = c.req.param('id')
   const { password } = await c.req.json()
   if (!password || password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400)
   const passwordHash = await Bun.password.hash(password, 'bcrypt')
   await db.update(users).set({ passwordHash, updatedAt: new Date() }).where(eq(users.id, id))
   return c.json({ success: true })
-})
+}
+app.put('/:id/reset-password', requireAdmin, resetUserPassword)
+app.post('/:id/reset-password', requireAdmin, resetUserPassword)
 
 // POST /api/users/convert-to-admin
 app.post('/convert-to-admin', requireAdmin, async (c) => {

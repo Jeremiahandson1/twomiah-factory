@@ -21,8 +21,9 @@ app.get('/:id', async (c) => {
   return c.json(row)
 })
 
-// PUT /api/caregiver-profile/:id — upsert by caregiverId
-app.put('/:id', async (c) => {
+// PUT/PATCH /api/caregiver-profile/:id — upsert by caregiverId
+// (the profile editor calls PATCH; keep PUT for existing callers)
+const upsertProfile = async (c: any) => {
   const caregiverId = c.req.param('id')
   const body = await c.req.json()
 
@@ -82,6 +83,8 @@ app.put('/:id', async (c) => {
 
     return c.json(row, 201)
   }
-})
+}
+app.put('/:id', upsertProfile)
+app.patch('/:id', upsertProfile)
 
 export default app

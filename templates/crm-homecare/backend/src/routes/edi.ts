@@ -2,9 +2,9 @@ import { Hono } from 'hono'
 import { db } from '../../db/index.ts'
 import {
   ediBatches, referralSources, claims, clients, users,
-  caregiverProfiles, authorizations, evvVisits, agencies,
+  caregiverProfiles, authorizations, evvVisits, agencies, serviceCodes,
 } from '../../db/schema.ts'
-import { eq, count, desc, sql } from 'drizzle-orm'
+import { eq, count, desc, sql, asc } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 import { generate837P, getProviderInfo } from '../services/edi837Generator.ts'
 import { routeClaim } from '../services/payerRouter.ts'
@@ -12,6 +12,13 @@ import { generateMidasExport, generateIRISExport, generateHMOExport } from '../s
 
 const app = new Hono()
 app.use('*', authenticate, requireAdmin)
+
+// GET /api/edi/service-codes — HCPCS/service codes for claims setup
+// (the EDI setup screen called this and 404'd).
+app.get('/service-codes', async (c) => {
+  const rows = await db.select().from(serviceCodes).orderBy(asc(serviceCodes.code))
+  return c.json(rows)
+})
 
 app.get('/batches', async (c) => {
   const rows = await db.select({

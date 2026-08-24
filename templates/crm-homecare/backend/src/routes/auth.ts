@@ -1,10 +1,10 @@
 import { Hono } from 'hono'
 
 import jwt from 'jsonwebtoken'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
 import { users, caregiverProfiles, agencies } from '../../db/schema.ts'
-import { authenticate, logAuthEvent } from '../middleware/auth.ts'
+import { authenticate, requireAdmin, logAuthEvent } from '../middleware/auth.ts'
 
 const app = new Hono()
 
@@ -119,6 +119,15 @@ app.get('/me', authenticate, async (c) => {
   const [agency] = await db.select().from(agencies).limit(1)
 
   return c.json({ ...user, profile: profile || null, company: agency ? { id: agency.id, name: agency.name, slug: agency.slug, logo: agency.logo, primaryColor: agency.primaryColor, phone: agency.phone, email: agency.email, address: agency.address, city: agency.city, state: agency.state, zip: agency.zip, website: agency.website, vertical: 'homecare' } : { vertical: 'homecare', name: 'Agency' } })
+})
+
+// GET /api/auth/users — user list for "View As" impersonation (was 404 → empty)
+app.get('/users', authenticate, requireAdmin, async (c) => {
+  const rows = await db.select({
+    id: users.id, firstName: users.firstName, lastName: users.lastName,
+    email: users.email, role: users.role, isActive: users.isActive,
+  }).from(users).where(eq(users.isActive, true)).orderBy(asc(users.lastName))
+  return c.json(rows)
 })
 
 // PUT /api/auth/change-password

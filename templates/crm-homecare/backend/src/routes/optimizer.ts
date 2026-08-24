@@ -1,12 +1,29 @@
 import { Hono } from 'hono'
 import { eq, and, gte, lte, or, isNull, sql, sum } from 'drizzle-orm'
 import { db } from '../../db/index.ts'
-import { clients, clientAssignments, users, timeEntries, schedules } from '../../db/schema.ts'
+import { clients, clientAssignments, users, timeEntries, schedules, geofenceSettings } from '../../db/schema.ts'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
 app.use('*', requireAdmin)
+
+// GET /geofence — per-client geofence settings (mounted at /api/route-optimizer).
+// The geofence config screen called this and 404'd.
+app.get('/geofence', async (c) => {
+  const rows = await db.select({
+    settings: geofenceSettings,
+    clientFirstName: clients.firstName,
+    clientLastName: clients.lastName,
+  })
+    .from(geofenceSettings)
+    .leftJoin(clients, eq(geofenceSettings.clientId, clients.id))
+
+  return c.json(rows.map(r => ({
+    ...r.settings,
+    client: { firstName: r.clientFirstName, lastName: r.clientLastName },
+  })))
+})
 
 // Company-level efficiency analysis
 app.get('/company', async (c) => {

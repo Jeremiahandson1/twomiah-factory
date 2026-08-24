@@ -1,10 +1,42 @@
 import { Hono } from 'hono'
 import path from 'path'
 import fs from 'fs'
+import { db } from '../../db/index.ts'
+import { clientDocuments, clients } from '../../db/schema.ts'
+import { eq, desc } from 'drizzle-orm'
 import { authenticate, requireAdmin } from '../middleware/auth.ts'
 
 const app = new Hono()
 app.use('*', authenticate)
+
+// GET /api/documents — the Document Management screen listed nothing because no
+// list endpoint existed (404 → perpetual empty). Surface the real client
+// documents that have been sent/signed so the screen shows genuine records.
+app.get('/', async (c) => {
+  const { entityType } = c.req.query()
+  if (entityType && entityType !== 'client') return c.json([])
+
+  const rows = await db.select({
+    doc: clientDocuments,
+    clientFirstName: clients.firstName,
+    clientLastName: clients.lastName,
+  })
+    .from(clientDocuments)
+    .leftJoin(clients, eq(clientDocuments.clientId, clients.id))
+    .orderBy(desc(clientDocuments.sentAt))
+
+  return c.json(rows.map(r => ({
+    id: r.doc.id,
+    entity_type: 'client',
+    entity_id: r.doc.clientId,
+    entity_name: `${r.clientFirstName || ''} ${r.clientLastName || ''}`.trim(),
+    title: r.doc.title,
+    filename: r.doc.title,
+    status: r.doc.status,
+    created_at: r.doc.sentAt,
+    signed_at: r.doc.signedAt,
+  })))
+})
 
 const uploadsDir = process.env.UPLOAD_DIR || './uploads'
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true })

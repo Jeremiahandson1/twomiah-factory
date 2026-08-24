@@ -75,14 +75,41 @@ app.get('/submissions', async (c) => {
 app.post('/submissions', async (c) => {
   const user = c.get('user') as any
   const body = await c.req.json()
+
+  // A submission must be attached to someone and a template — the form let you
+  // submit empty with no client, storing an orphaned row (clientId: null).
+  if (!body.templateId) return c.json({ error: 'A form template is required' }, 400)
+  const clientId = body.clientId ?? (body.entityType === 'client' ? body.entityId : null)
+  if (!clientId) return c.json({ error: 'Please select a client for this form' }, 400)
+
+  // Backfill templateName/category from the template so rows don't render blank.
+  let templateName = body.templateName
+  if (!templateName) {
+    const [tpl] = await db.select({ name: formTemplates.name }).from(formTemplates).where(eq(formTemplates.id, body.templateId)).limit(1)
+    templateName = tpl?.name || null
+  }
+
   const [submission] = await db.insert(formSubmissions).values({
     ...body,
+    clientId,
+    templateName,
+    entityType: body.entityType || 'client',
+    entityId: body.entityId || clientId,
     submittedById: user.userId,
     submittedByName: `${user.firstName} ${user.lastName}`,
     status: body.signature ? 'signed' : 'submitted',
     signedAt: body.signature ? new Date() : null,
   }).returning()
   return c.json(submission, 201)
+})
+
+// DELETE /api/forms/submissions/:id
+app.delete('/submissions/:id', requireAdmin, async (c) => {
+  const id = c.req.param('id')
+  const [existing] = await db.select({ id: formSubmissions.id }).from(formSubmissions).where(eq(formSubmissions.id, id)).limit(1)
+  if (!existing) return c.json({ error: 'Submission not found' }, 404)
+  await db.delete(formSubmissions).where(eq(formSubmissions.id, id))
+  return c.json({ message: 'Submission deleted' })
 })
 
 export default app
