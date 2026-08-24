@@ -32,9 +32,14 @@ class ApiClient {
     try {
       const response = await fetch(url, { ...options, headers });
 
-      // Handle 401 - try to refresh token
+      // Handle 401 - try to refresh token. Serialise concurrent refreshes: a
+      // page firing several requests at once would otherwise race the refresh,
+      // one loses with the now-stale token, and the app logs everyone out.
       if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
-        const refreshed = await this.refreshAccessToken();
+        if (!this._refreshPromise) {
+          this._refreshPromise = this.refreshAccessToken().finally(() => { this._refreshPromise = null; });
+        }
+        const refreshed = await this._refreshPromise;
         if (refreshed) {
           headers.Authorization = `Bearer ${this.accessToken}`;
           return fetch(url, { ...options, headers }).then(r => this.handleResponse(r));

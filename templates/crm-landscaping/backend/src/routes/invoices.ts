@@ -93,7 +93,11 @@ app.get('/stats', requirePermission('invoices:read'), async (c) => {
   invoices.forEach(inv => {
     stats[inv.status] = (stats[inv.status] || 0) + 1
     stats.totalAmount += Number(inv.total)
-    stats.outstanding += Number(inv.total) - Number(inv.amountPaid)
+    // Outstanding = what's still owed on BILLED invoices; a draft isn't billed,
+    // and a credit balance must not net off another invoice, so floor at zero.
+    if (inv.status !== 'draft' && inv.status !== 'paid') {
+      stats.outstanding += Math.max(0, Number(inv.total) - Number(inv.amountPaid))
+    }
     if (inv.status === 'paid') stats.paidAmount += Number(inv.total)
   })
   return c.json(stats)

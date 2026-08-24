@@ -22,7 +22,12 @@ const jobSchema = z.object({
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
-  estimatedHours: z.number().optional(),
+  // The edit form submits "" when Estimated Hours is left blank; coerce it to
+  // undefined (not a ZodError/500) and reject negatives.
+  estimatedHours: z.preprocess(
+    v => (v === '' || v === null ? undefined : v),
+    z.number().min(0, 'Estimated hours cannot be negative').optional(),
+  ),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),

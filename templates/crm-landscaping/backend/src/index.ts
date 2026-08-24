@@ -298,6 +298,11 @@ if (hasFrontendBuild) {
     return next()
   })
 
+  // An unmatched /api/* request must 404 in JSON, not fall through to the SPA
+  // catch-all below (which would return index.html with a 200 and let a client
+  // mistake HTML for a successful JSON response).
+  app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+
   // SPA fallback: serve index.html for all non-API GET requests
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
   app.get('*', (c) => c.html(indexHtml))
