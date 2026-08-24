@@ -237,12 +237,25 @@ export default function BillingSettingsPage() {
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Current Plan</h2>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-3xl font-bold text-gray-900">{currentPlan.name}</span>
-              {isTrialing && <span className="bg-yellow-100 text-yellow-700 text-sm px-2 py-1 rounded-full">Trial</span>}
-              {isCanceled && <span className="bg-red-100 text-red-700 text-sm px-2 py-1 rounded-full">Canceling</span>}
-            </div>
-            <p className="text-gray-500 mt-1">${currentPlan.perUser ? `${currentPlan.price}/user` : currentPlan.price}/mo · {currentPlan.users} users</p>
+            {subscription ? (
+              <>
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-3xl font-bold text-gray-900">{currentPlan.name}</span>
+                  {isTrialing && <span className="bg-yellow-100 text-yellow-700 text-sm px-2 py-1 rounded-full">Trial</span>}
+                  {isCanceled && <span className="bg-red-100 text-red-700 text-sm px-2 py-1 rounded-full">Canceling</span>}
+                </div>
+                <p className="text-gray-500 mt-1">${currentPlan.perUser ? `${currentPlan.price}/user` : currentPlan.price}/mo · {currentPlan.users} users</p>
+              </>
+            ) : (
+              <>
+                {/* Don't present Starter as the current plan when the account has
+                    no subscription at all — that read as a plan they were on. */}
+                <div className="flex items-center gap-3 mt-2">
+                  <span className="text-3xl font-bold text-gray-900">No active plan</span>
+                </div>
+                <p className="text-gray-500 mt-1">Choose a plan to get started.</p>
+              </>
+            )}
           </div>
           <button onClick={() => setShowPlanModal(true)} className="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 flex items-center gap-2">
             Change Plan <ChevronRight className="w-4 h-4" />
