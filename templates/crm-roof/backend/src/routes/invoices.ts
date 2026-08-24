@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { invoice, contact, job } from '../../db/schema.ts'
-import { eq, and, desc, count, sql } from 'drizzle-orm'
+import { eq, and, ne, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -33,6 +33,7 @@ const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: n
 app.get('/', async (c) => {
   const currentUser = c.get('user') as any
   const status = c.req.query('status')
+  const unpaid = c.req.query('unpaid')
   const jobId = c.req.query('jobId')
   const contactId = c.req.query('contactId')
   const page = +(c.req.query('page') || '1')
@@ -40,6 +41,9 @@ app.get('/', async (c) => {
 
   const conditions: any[] = [eq(invoice.companyId, currentUser.companyId)]
   if (status) conditions.push(eq(invoice.status, status))
+  // The Unpaid tab passes unpaid=true; without handling it here the tab showed
+  // every invoice, so a just-paid one kept sitting in Unpaid.
+  if (unpaid === 'true') conditions.push(ne(invoice.status, 'paid'))
   if (jobId) conditions.push(eq(invoice.jobId, jobId))
   if (contactId) conditions.push(eq(invoice.contactId, contactId))
 

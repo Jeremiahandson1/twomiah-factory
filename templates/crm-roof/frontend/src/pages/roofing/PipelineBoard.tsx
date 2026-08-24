@@ -142,6 +142,14 @@ export default function PipelineBoard() {
     const job = jobs.find((j) => String(j.id) === String(jobId));
     if (!job || job.status === targetStage) return;
 
+    // Moving a job backwards (e.g. an Invoiced job dropped back to Lead) is
+    // almost always a mis-drop — confirm first, since forward moves are silent.
+    const fromIdx = STAGES.indexOf(job.status || 'lead');
+    const toIdx = STAGES.indexOf(targetStage);
+    if (fromIdx > -1 && toIdx > -1 && toIdx < fromIdx) {
+      if (!confirm(`Move this job backward from ${STAGE_LABELS[job.status] || job.status} to ${STAGE_LABELS[targetStage] || targetStage}?`)) return;
+    }
+
     // Optimistic update
     setJobs((prev) =>
       prev.map((j) => (String(j.id) === String(jobId) ? { ...j, status: targetStage, stageEnteredAt: new Date().toISOString() } : j))

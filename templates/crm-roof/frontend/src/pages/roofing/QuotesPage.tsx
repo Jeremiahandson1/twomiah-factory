@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Plus, Send, Check, X, ChevronLeft, ChevronRight, FileText, Trash2, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -22,7 +21,6 @@ const emptyLine = { description: '', quantity: 1, unitPrice: 0 };
 export default function QuotesPage() {
   const { token } = useAuth();
   const toast = useToast();
-  const navigate = useNavigate();
 
   const [quotes, setQuotes] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
@@ -168,10 +166,12 @@ export default function QuotesPage() {
                 ) : (
                   quotes.map((q) => (
                     <tr key={q.id} className="border-b last:border-0 hover:bg-gray-50">
-                      <td
-                        className="px-4 py-3 font-mono text-xs font-semibold text-blue-600 cursor-pointer hover:underline"
-                        onClick={() => navigate(`/crm/quotes/${q.id}`)}
-                      >
+                      {/* No quote-detail route exists, so the number is plain
+                          text — clicking it used to navigate to a dead route and
+                          eject the user out of the CRM to "/". Row actions
+                          (send / approve / convert / certificate) live to the
+                          right. */}
+                      <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
                         {q.quoteNumber || `Q-${String(q.id).padStart(4, '0')}`}
                       </td>
                       <td className="px-4 py-3 text-gray-900">{q.contact ? `${q.contact.firstName || ''} ${q.contact.lastName || ''}`.trim() : q.contactName || '—'}</td>
