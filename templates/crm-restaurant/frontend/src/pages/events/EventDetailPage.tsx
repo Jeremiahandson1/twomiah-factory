@@ -158,6 +158,12 @@ export default function EventDetailPage() {
   const minSpend = Number(space?.minimumSpend || 0);
   const belowMinimum = minSpend > 0 && Number(totals.menuTotal || 0) < minSpend;
 
+  // Warn when the guest count exceeds the room — 200 guests in a 55-standing room
+  // saved silently before (M-02). A warning, not a hard block, mirrors the
+  // below-minimum banner (some events legitimately push a room's limit).
+  const capacity = Math.max(Number(space?.standingCapacity || 0), Number(space?.seatedCapacity || 0));
+  const overCapacity = capacity > 0 && heads > capacity;
+
   const tabs: { id: Tab; label: string; icon: React.ReactNode; count: number }[] = [
     { id: 'menu', label: 'Food & Beverage', icon: <UtensilsCrossed className="w-4 h-4" />, count: menu.length },
     { id: 'runsheet', label: 'Run of Show', icon: <Clock className="w-4 h-4" />, count: timeline.length },
@@ -216,6 +222,18 @@ export default function EventDetailPage() {
               <p className="text-sm">
                 {space?.name} has a {money2(minSpend)} minimum. This event is at {money2(totals.menuTotal)} —
                 {' '}{money2(minSpend - Number(totals.menuTotal || 0))} short.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {overCapacity && (
+          <div className="mt-4 flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Over capacity</p>
+              <p className="text-sm">
+                {space?.name} holds {capacity} guests. This event is set to {heads} — {heads - capacity} over.
               </p>
             </div>
           </div>
