@@ -145,6 +145,12 @@ export default function ContactsPage() {
       toast.error('Name is required');
       return;
     }
+    // A phone number must actually be a number, not arbitrary text (M-11).
+    if (formData.phone && formData.phone.trim() &&
+        ((formData.phone.match(/\d/g) || []).length < 7 || !/^[\d\s()+.\-]+$/.test(formData.phone))) {
+      toast.error('Enter a valid phone number');
+      return;
+    }
 
     setSaving(true);
     try {

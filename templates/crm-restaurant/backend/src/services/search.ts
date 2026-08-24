@@ -6,7 +6,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi } from '../../db/schema.ts'
+import { contact, project, job, quote, invoice, document, teamMember, rfi, event, eventSpace, menuPackage } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
 
 interface SearchResult {
@@ -37,7 +37,9 @@ export async function globalSearch(
   const perType = Math.ceil(limit / 6)
   const pattern = `%${searchTerm}%`
 
-  const searchTypes = types || ['contact', 'project', 'job', 'quote', 'invoice', 'document']
+  // Index the venue-side entities this business actually books, not just the
+  // contractor set — events/spaces/menus were missing from the palette (H-03).
+  const searchTypes = types || ['contact', 'event', 'space', 'menu', 'quote', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
 
@@ -213,6 +215,56 @@ export async function globalSearch(
             description: item.mimeType || '',
             url: `/documents/${item.id}`,
             icon: 'file',
+          }))
+        )
+    )
+  }
+
+  // Events (enquiry → confirmed bookings)
+  if (searchTypes.includes('event')) {
+    searches.push(
+      db
+        .select({ id: event.id, name: event.name, status: event.status, eventDate: event.eventDate })
+        .from(event)
+        .where(and(eq(event.companyId, companyId), or(ilike(event.name, pattern), ilike(event.notes, pattern))))
+        .orderBy(desc(event.updatedAt))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'event', subtype: item.status, id: item.id, name: item.name || 'Untitled event',
+            description: item.eventDate ? String(item.eventDate) : '', url: `/events/${item.id}`, icon: 'calendar',
+          }))
+        )
+    )
+  }
+
+  // Spaces
+  if (searchTypes.includes('space')) {
+    searches.push(
+      db
+        .select({ id: eventSpace.id, name: eventSpace.name })
+        .from(eventSpace)
+        .where(and(eq(eventSpace.companyId, companyId), ilike(eventSpace.name, pattern)))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'space', subtype: null, id: item.id, name: item.name, description: 'Space', url: `/spaces`, icon: 'map-pin',
+          }))
+        )
+    )
+  }
+
+  // Catering menu packages
+  if (searchTypes.includes('menu')) {
+    searches.push(
+      db
+        .select({ id: menuPackage.id, name: menuPackage.name })
+        .from(menuPackage)
+        .where(and(eq(menuPackage.companyId, companyId), ilike(menuPackage.name, pattern)))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'menu', subtype: null, id: item.id, name: item.name, description: 'Catering package', url: `/menus`, icon: 'utensils',
           }))
         )
     )
