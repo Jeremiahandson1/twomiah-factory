@@ -69,6 +69,9 @@ export default function QuotesPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Consistent currency formatting (2 decimals + thousands separators) so the
+  // modal matches the list, which used toLocaleString.
+  const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const subtotal = form.lineItems.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
   const tax = subtotal * (form.taxRate / 100);
   const grandTotal = subtotal + tax;
@@ -353,7 +356,7 @@ export default function QuotesPage() {
                             type="number"
                             min={1}
                             value={li.quantity}
-                            onChange={(e) => updateLine(idx, 'quantity', Number(e.target.value))}
+                            onChange={(e) => updateLine(idx, 'quantity', Math.max(1, Number(e.target.value) || 1))}
                             className="w-full text-sm border rounded px-2 py-1.5"
                           />
                         </td>
@@ -363,12 +366,12 @@ export default function QuotesPage() {
                             min={0}
                             step={0.01}
                             value={li.unitPrice}
-                            onChange={(e) => updateLine(idx, 'unitPrice', Number(e.target.value))}
+                            onChange={(e) => updateLine(idx, 'unitPrice', Math.max(0, Number(e.target.value) || 0))}
                             className="w-full text-sm border rounded px-2 py-1.5"
                           />
                         </td>
                         <td className="py-1 text-right text-gray-700 font-medium">
-                          ${(li.quantity * li.unitPrice).toFixed(2)}
+                          ${money(li.quantity * li.unitPrice)}
                         </td>
                         <td className="py-1 pl-1">
                           {form.lineItems.length > 1 && (
@@ -387,7 +390,7 @@ export default function QuotesPage() {
               {/* Totals */}
               <div className="flex justify-end">
                 <div className="w-64 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${money(subtotal)}</span></div>
                   <div className="flex justify-between items-center">
                     <span className="text-gray-500">Tax (%)</span>
                     <input
@@ -399,8 +402,8 @@ export default function QuotesPage() {
                       className="w-16 text-sm border rounded px-2 py-1 text-right"
                     />
                   </div>
-                  {tax > 0 && <div className="flex justify-between"><span className="text-gray-500">Tax amount</span><span>${tax.toFixed(2)}</span></div>}
-                  <div className="flex justify-between font-bold border-t pt-1"><span>Total</span><span>${grandTotal.toFixed(2)}</span></div>
+                  {tax > 0 && <div className="flex justify-between"><span className="text-gray-500">Tax amount</span><span>${money(tax)}</span></div>}
+                  <div className="flex justify-between font-bold border-t pt-1"><span>Total</span><span>${money(grandTotal)}</span></div>
                 </div>
               </div>
 

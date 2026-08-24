@@ -98,7 +98,7 @@ export default function OnboardingWizard() {
               <p className="text-gray-600 mb-6">Head to the pipeline and start working leads. Email addresses, features, and integrations live in Settings whenever you need them.</p>
               {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
               <button onClick={handleComplete} disabled={saving} className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 rounded-lg">
-                {saving ? 'Saving…' : 'Go to Dashboard'} <Rocket className="w-4 h-4" />
+                {saving ? 'Saving…' : 'Go to your CRM'} <Rocket className="w-4 h-4" />
               </button>
             </div>
           )}
