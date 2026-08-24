@@ -27,6 +27,29 @@ function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETC
   return fetch(url, { ...options, signal: AbortSignal.timeout(timeout) })
 }
 
+// Generation-level guard against schema drift. Every CRM/pricing tenant DB is
+// reconciled to its Drizzle schema on boot: run the recorded migrations, then
+// `drizzle-kit push` to add any tables/columns the hand-maintained migrations
+// drifted behind (that drift is what made whole modules 500 across crm-dispensary,
+// crm-rv, etc.). `schema.ts` is a strict superset of the DB in these templates, so
+// push is additive — it creates missing tables/columns and drops nothing.
+//
+// Two gotchas learned from the premium-site boot loop: `drizzle-kit push` exits 0
+// even on a connection failure, so success is confirmed by matching its stdout
+// ("Changes applied" / "No changes detected"), not the exit code; and `for … do`
+// takes a space (not a semicolon) before the first command. Runs from the backend
+// rootDir where drizzle.config.ts lives. Non-fatal: if push never verifies the app
+// still boots (working modules stay up) rather than bricking the whole deploy.
+function dbReconcileStep(): string {
+  return (
+    'for i in 1 2 3 4 5; do ' +
+      'OUT=$(bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
+      'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +
+      'echo "[boot] drizzle push not verified (attempt $i), retrying in 8s"; sleep 8; ' +
+    'done'
+  )
+}
+
 /**
  * Register the tenant's Stripe webhook endpoint in THEIR Stripe account so
  * payment results (deposits, invoice payments, checkout) actually reach the
@@ -1170,7 +1193,7 @@ export async function deployCustomer(
         // Single service: backend builds frontend and serves it (no CDN cache issues)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const backendBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" VITE_GOOGLE_MAPS_API_KEY="$GOOGLE_MAPS_API_KEY" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
-        const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
+        const backendStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && ' + dbReconcileStep() + ' && bun db/seed.ts && bun src/index.ts'
         const backend = await createRenderWebService({
           name: crmApiName, repoFullName: repo.full_name, rootDir: crmRootDir + '/backend',
           buildCommand: backendBuild,
@@ -1277,7 +1300,7 @@ export async function deployCustomer(
         await findAndDeleteRenderService(pricingApiName)
         const bunSetup = 'curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH'
         const pricingBuild = bunSetup + ' && cd ../frontend && bun install --no-verify && VITE_API_URL="" bun run build && cp -r dist ../backend/frontend-dist && cd ../backend && bun install --no-verify'
-        const pricingStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && bun db/seed.ts && bun src/index.ts'
+        const pricingStart = 'export PATH=$HOME/.bun/bin:$PATH && bun db/migrate.ts && ' + dbReconcileStep() + ' && bun db/seed.ts && bun src/index.ts'
         const pricingEnvVars = [
           { key: 'NODE_ENV', value: 'production' },
           { key: 'JWT_SECRET', value: jwtSecret },
