@@ -106,7 +106,9 @@ const CaregiverManagement = ({ onViewProfile, onViewHistory }) => {
   const loadData = async () => {
     try {
       const [cgRes, ctRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/caregivers`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        // isActive=all so deactivated caregivers still load — otherwise the
+        // Inactive filter finds nothing and a deactivated aide is unreachable.
+        fetch(`${API_BASE_URL}/api/caregivers?isActive=all`, { headers: { 'Authorization': `Bearer ${token}` } }),
         fetch(`${API_BASE_URL}/api/care-types`, { headers: { 'Authorization': `Bearer ${token}` } })
       ]);
       const cgData = await cgRes.json();
