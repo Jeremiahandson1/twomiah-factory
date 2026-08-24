@@ -33,7 +33,7 @@ const EmergencyCoverage = () => {
       const reports = await reportsRes.json();
       const clientList = await clientsRes.json();
       setMissReports(Array.isArray(reports) ? reports : []);
-      setClients(Array.isArray(clientList) ? clientList : []);
+      setClients(Array.isArray(clientList) ? clientList : (clientList.clients || []));
     } catch (e) {
       toast('Failed to load data', 'error');
     } finally {

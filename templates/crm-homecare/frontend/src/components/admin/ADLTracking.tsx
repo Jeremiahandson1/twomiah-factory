@@ -61,7 +61,7 @@ const ADLTracking = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      setClients(Array.isArray(data) ? data.filter(c => c.status === 'active') : []);
+      setClients(Array.isArray(data) ? data.filter(c => c.status === 'active') : (data.clients || []).filter(c => c.status === 'active'));
     } catch (error) {
       console.error('Failed to load clients:', error);
     }

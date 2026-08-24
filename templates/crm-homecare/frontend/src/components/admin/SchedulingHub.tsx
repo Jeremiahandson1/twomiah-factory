@@ -169,8 +169,8 @@ const SchedulingHub = () => {
         api('/api/caregivers'), api('/api/clients'),
         api('/api/care-types').catch(() => []), api('/api/prospects').catch(() => [])
       ]);
-      setCaregivers(Array.isArray(cg) ? cg : []);
-      setClients(Array.isArray(cl) ? cl : []);
+      setCaregivers(Array.isArray(cg) ? cg : (cg.caregivers || []));
+      setClients(Array.isArray(cl) ? cl : (cl.clients || []));
       setCareTypes(Array.isArray(ct) ? ct : []);
       setProspects(Array.isArray(pr) ? pr : []);
     } catch (e) { console.error('Failed to load data:', e); }

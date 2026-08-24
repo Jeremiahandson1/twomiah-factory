@@ -90,8 +90,8 @@ const RouteOptimizer = () => {
       ]);
       const cgData = await cgRes.json();
       const clData = await clRes.json();
-      setCaregivers(Array.isArray(cgData) ? cgData : []);
-      setClients(Array.isArray(clData) ? clData : []);
+      setCaregivers(Array.isArray(cgData) ? cgData : (cgData.caregivers || []));
+      setClients(Array.isArray(clData) ? clData : (clData.clients || []));
     } catch (e) {
       console.error('Load error:', e);
     } finally {

@@ -44,11 +44,11 @@ const ScheduleCalendar = () => {
       }
       if (clientsRes.ok) {
         const clientsData = await clientsRes.json();
-        setClients(Array.isArray(clientsData) ? clientsData : []);
+        setClients(Array.isArray(clientsData) ? clientsData : (clientsData.clients || []));
       }
       if (caregiversRes.ok) {
         const caregiversData = await caregiversRes.json();
-        setCaregivers(Array.isArray(caregiversData) ? caregiversData : []);
+        setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
       }
     } catch (error) {
       console.error('Failed to load data:', error);

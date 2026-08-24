@@ -163,7 +163,7 @@ const BillingDashboard = () => {
       
       try {
         const caregiversData = await caregiversRes.json();
-        setCaregivers(Array.isArray(caregiversData) ? caregiversData : []);
+        setCaregivers(Array.isArray(caregiversData) ? caregiversData : (caregiversData.caregivers || []));
       } catch (e) { setCaregivers([]); }
 
       // Try loading optional endpoints

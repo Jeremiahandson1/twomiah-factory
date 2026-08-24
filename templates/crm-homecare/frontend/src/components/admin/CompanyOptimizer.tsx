@@ -61,8 +61,8 @@ const CompanyOptimizer = () => {
     Promise.all([api('/api/matching/capabilities'), api('/api/caregivers'), api('/api/clients')])
       .then(([caps, cgs, cls]) => {
         setCapabilities(caps);
-        setCaregivers(Array.isArray(cgs) ? cgs : []);
-        setClients(Array.isArray(cls) ? cls.filter(c => c.is_active !== false) : []);
+        setCaregivers(Array.isArray(cgs) ? cgs : (cgs.caregivers || []));
+        setClients(Array.isArray(cls) ? cls.filter(c => c.is_active !== false) : (cls.clients || []).filter(c => c.is_active !== false));
       }).catch(console.error).finally(() => setLoading(false));
   }, []);
 
