@@ -17,6 +17,24 @@ export default function QuoteDetailPage() {
   const [error, setError] = useState(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  // Opening /api/quotes/:id/pdf as a plain link sends no auth header, so the tab
+  // rendered {"error":"No token provided"}. Fetch it WITH the token and hand the
+  // new tab a blob instead. Open the tab before the await so the popup blocker
+  // doesn't kill it.
+  const openPdf = async () => {
+    const win = window.open('', '_blank');
+    try {
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('token') || '';
+      const res = await fetch(api.quotes.downloadPdf(id), { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      const url = URL.createObjectURL(await res.blob());
+      if (win) win.location.href = url; else window.open(url, '_blank');
+    } catch {
+      win?.close();
+      toast.error('Could not open the PDF');
+    }
+  };
+
   useEffect(() => { loadQuote(); }, [id]);
 
   const loadQuote = async () => {
@@ -134,9 +152,9 @@ export default function QuoteDetailPage() {
               <Copy className="w-4 h-4" /> Create Invoice
             </button>
           )}
-          <a href={api.quotes.downloadPdf(id)} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
+          <button onClick={openPdf} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
             <Download className="w-4 h-4" /> PDF
-          </a>
+          </button>
           {['draft', 'sent'].includes(quote.status) && (
             <Link to={`/crm/quotes?edit=${id}`} className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 flex items-center gap-2">
               <Edit className="w-4 h-4" /> Edit
