@@ -284,6 +284,15 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
   }
   if (!name) return c.json({ error: 'name or packageId is required' }, 400)
 
+  // Reject negative money/quantities — a -$50 line was accepted and subtracted
+  // from the total (H-01).
+  if (unitPrice !== null && unitPrice !== undefined && (!Number.isFinite(Number(unitPrice)) || Number(unitPrice) < 0)) {
+    return c.json({ error: 'Unit price cannot be negative' }, 400)
+  }
+  if (body.quantity !== undefined && body.quantity !== null && (!Number.isFinite(Number(body.quantity)) || Number(body.quantity) < 0)) {
+    return c.json({ error: 'Quantity cannot be negative' }, 400)
+  }
+
   const [created] = await db.insert(eventMenuItem).values({
     id: createId(),
     eventId,
@@ -418,6 +427,21 @@ app.post('/:id/payments', requirePermission('contacts:update'), async (c) => {
   if (!ev) return c.json({ error: 'Event not found' }, 404)
   if (body.amount === undefined || body.amount === null || body.amount === '') {
     return c.json({ error: 'amount is required' }, 400)
+  }
+  // Money must be a positive number and can't exceed what's still owed — an
+  // unchecked $999,999 against a $2,332 event flipped outstanding negative (H-01).
+  const amt = Number(body.amount)
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return c.json({ error: 'Amount must be a positive number' }, 400)
+  }
+  const { menuTotal, paid } = await loadTotals(currentUser.companyId, eventId)
+  // Total commitment = the menu, or the quoted total if the menu isn't built yet
+  // (so a deposit can still be scheduled at enquiry). Fall back to a sanity
+  // ceiling only when there's no total at all.
+  const totalDue = Math.max(Number(menuTotal), Number(ev.quotedTotal || 0))
+  const remaining = totalDue > 0 ? totalDue - Number(paid) : 10_000_000
+  if (amt > remaining + 0.005) {
+    return c.json({ error: `Payment exceeds the balance due — ${remaining.toFixed(2)} remaining` }, 400)
   }
 
   const [created] = await db.insert(eventPayment).values({
