@@ -56,7 +56,7 @@ app.get('/', requirePermission('contacts:read'), async (c) => {
 app.get('/stats', requirePermission('contacts:read'), async (c) => {
   const currentUser = c.get('user') as any
   const contacts = await db.select({ type: contact.type }).from(contact).where(eq(contact.companyId, currentUser.companyId))
-  const stats: Record<string, number> = { total: contacts.length, lead: 0, client: 0, subcontractor: 0, vendor: 0 }
+  const stats: Record<string, number> = { total: contacts.length, lead: 0, customer: 0, client: 0, vendor: 0 }
   contacts.forEach(ct => stats[ct.type] = (stats[ct.type] || 0) + 1)
   return c.json(stats)
 })

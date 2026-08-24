@@ -24,8 +24,8 @@ interface ContactForm {
 interface ContactStats {
   total: number;
   lead?: number;
+  customer?: number;
   client?: number;
-  subcontractor?: number;
   vendor?: number;
   [key: string]: unknown;
 }
@@ -37,10 +37,13 @@ interface PaginationData {
   totalPages: number;
 }
 
+// A dealership's contacts are leads, customers and vendors — the enum must cover
+// the `customer` records the API actually stores (8 of 12 were uncounted and
+// unfilterable, H-03). `client` is kept so the "convert lead" flow still resolves.
 const contactTypes = [
   { value: 'lead', label: 'Lead' },
+  { value: 'customer', label: 'Customer' },
   { value: 'client', label: 'Client' },
-  { value: 'subcontractor', label: 'Subcontractor' },
   { value: 'vendor', label: 'Vendor' },
 ];
 
