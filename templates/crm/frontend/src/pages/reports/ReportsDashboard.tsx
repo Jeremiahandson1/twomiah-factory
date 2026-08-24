@@ -70,12 +70,16 @@ export default function ReportsDashboard() {
     loadData();
   }, [dateRange]);
 
+  // Show enough months of trend to cover the selected range (the chart used to
+  // be pinned to 6 months regardless of the picker).
+  const monthsForRange = ({ '7': 3, '30': 3, '90': 6, '365': 12 } as Record<string, number>)[dateRange] || 6;
+
   const loadData = async () => {
     setLoading(true);
     try {
       const [dashboard, monthly, customers, team] = await Promise.all([
         api.get('/api/reports/dashboard'),
-        api.get('/api/reports/revenue/monthly?months=6'),
+        api.get(`/api/reports/revenue/monthly?months=${monthsForRange}`),
         api.get('/api/reports/revenue/customers?limit=5'),
         api.get('/api/reports/team'),
       ]);
@@ -119,7 +123,7 @@ export default function ReportsDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
-          <p className="text-gray-500">Last {dateRange} days overview</p>
+          <p className="text-gray-500">{({ '7': 'Last 7 days', '30': 'Last 30 days', '90': 'Last 90 days', '365': 'Last year' } as Record<string, string>)[dateRange] || `Last ${dateRange} days`} overview</p>
         </div>
         <select
           value={dateRange}
@@ -374,7 +378,10 @@ function RevenueChart({ data }: RevenueChartProps) {
               />
             </div>
             <span className="text-xs text-gray-500">
-              {new Date(month.month + '-01').toLocaleDateString('en-US', { month: 'short' })}
+              {/* Parse at local midnight — "2026-08-01" as UTC rolls back to Jul
+                  in western timezones, which dropped the current month off the
+                  axis and shifted every label one month early. */}
+              {new Date(month.month + '-01T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
             </span>
           </div>
         ))}

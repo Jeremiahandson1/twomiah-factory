@@ -86,6 +86,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
 export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
+  const [notifOpen, setNotifOpen] = useState<boolean>(false);
   const { user, company, logout, hasFeature } = useAuth();
   const { connected } = useSocket();
   const { theme, setTheme, isDark } = useTheme();
@@ -274,12 +275,27 @@ export default function AppLayout() {
               </button>
 
               {/* Notifications */}
-              <button
-                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg relative"
-                aria-label="Notifications"
-              >
-                <Bell className="w-5 h-5 text-gray-600 dark:text-slate-300" />
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setNotifOpen((v) => !v)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg relative"
+                  aria-label="Notifications"
+                  aria-haspopup="dialog"
+                  aria-expanded={notifOpen}
+                >
+                  <Bell className="w-5 h-5 text-gray-600 dark:text-slate-300" />
+                </button>
+                {notifOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setNotifOpen(false)} />
+                    <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 z-20 p-6 text-center">
+                      <Bell className="w-6 h-6 text-gray-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm font-medium text-gray-700 dark:text-slate-200">You're all caught up</p>
+                      <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">No new notifications</p>
+                    </div>
+                  </>
+                )}
+              </div>
 
               {/* User menu */}
               <div className="relative">

@@ -127,6 +127,9 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                     <td className="px-4 py-3">
                       <div className="relative">
                         <button
+                          aria-label="Row actions"
+                          aria-haspopup="menu"
+                          aria-expanded={openMenu === (row as Record<string, unknown>).id}
                           onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                             e.stopPropagation();
                             const rowId = (row as Record<string, unknown>).id as string | number;
