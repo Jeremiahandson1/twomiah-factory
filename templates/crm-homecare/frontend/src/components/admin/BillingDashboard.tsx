@@ -371,15 +371,20 @@ const handleDeleteInvoice = async (invoiceId, invoiceNumber) => {
 };
   const handleMarkPaid = async (invoiceId) => {
     try {
-      await fetch(`${API_BASE_URL}/api/billing/invoices/${invoiceId}/payment-status`, {
+      const res = await fetch(`${API_BASE_URL}/api/billing/invoices/${invoiceId}/payment-status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ status: 'paid', paymentDate: new Date() })
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to mark invoice paid');
+      }
       loadData();
       if (selectedInvoice?.id === invoiceId) {
         setSelectedInvoice({ ...selectedInvoice, payment_status: 'paid' });
       }
+      toast('Invoice marked paid');
     } catch (error) {
       toast('Failed: ' + error.message, 'error');
     }

@@ -33,14 +33,37 @@ export default function CommunicationLog({ entityType, entityId, entityName, com
   const [editId, setEditId] = useState(null);
   const [msg, setMsg] = useState('');
 
+  // Standalone mode (no entity passed in) needs a contact picker, otherwise every
+  // entry posts entityId: null and the API rejects it with a 400.
+  const standalone = !entityId;
+  const [entities, setEntities] = useState([]);
+  const [picked, setPicked] = useState(entityId ? { type: entityType, id: entityId, name: entityName } : null);
+  const effType = picked?.type;
+  const effId = picked?.id;
+
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
+  const loadEntities = async () => {
+    try {
+      const [cRes, cgRes] = await Promise.all([
+        fetch(`${API}/api/clients`, { headers }),
+        fetch(`${API}/api/users/caregivers`, { headers }),
+      ]);
+      const cData = await cRes.json();
+      const cgData = await cgRes.json();
+      const clients = (Array.isArray(cData) ? cData : (cData.clients || [])).map(x => ({ type: 'client', id: x.id, name: `${x.first_name || x.firstName || ''} ${x.last_name || x.lastName || ''}`.trim() }));
+      const caregivers = (Array.isArray(cgData) ? cgData : (cgData.caregivers || [])).map(x => ({ type: 'caregiver', id: x.id, name: `${x.first_name || x.firstName || ''} ${x.last_name || x.lastName || ''}`.trim() + ' (caregiver)' }));
+      setEntities([...clients, ...caregivers]);
+    } catch (e) { console.error(e); }
+  };
+
   const load = async () => {
+    if (!effId) { setLogs([]); setLoading(false); return; }
     setLoading(true);
     try {
       const params = new URLSearchParams({ limit: 100 });
       if (filterType) params.set('type', filterType);
-      const r = await fetch(`${API}/api/communication-log/${entityType}/${entityId}?${params}`, { headers });
+      const r = await fetch(`${API}/api/communication-log/${effType}/${effId}?${params}`, { headers });
       const logsData = await r.json();
       setLogs(Array.isArray(logsData) ? logsData : (logsData.entries || logsData.data || []));
     } catch (e) { console.error(e); }
@@ -52,28 +75,34 @@ export default function CommunicationLog({ entityType, entityId, entityName, com
       const r = await fetch(`${API}/api/communication-log/follow-ups/pending`, { headers });
       const data = await r.json();
       const followUpList = Array.isArray(data) ? data : (data.data || []);
-      setFollowUps(followUpList.filter(f => f.entity_id === entityId));
+      setFollowUps(followUpList.filter(f => f.entity_id === effId));
     } catch (e) {}
   };
 
-  useEffect(() => { load(); loadFollowUps(); }, [entityId, filterType]);
+  useEffect(() => { if (standalone) loadEntities(); }, []);
+  useEffect(() => { load(); loadFollowUps(); }, [effId, filterType]);
 
   const flash = (m) => { setMsg(m); setTimeout(() => setMsg(''), 3000); };
 
   const save = async () => {
     if (!form.body.trim()) return;
+    if (!editId && !effId) { flash('Pick a client or caregiver first'); return; }
     setSaving(true);
     try {
       const url = editId ? `${API}/api/communication-log/${editId}` : `${API}/api/communication-log`;
       const method = editId ? 'PUT' : 'POST';
-      const body = editId ? { body: form.body, subject: form.subject } : { entityType, entityId, ...form };
-      await fetch(url, { method, headers, body: JSON.stringify(body) });
+      const body = editId ? { body: form.body, subject: form.subject } : { entityType: effType, entityId: effId, ...form };
+      const r = await fetch(url, { method, headers, body: JSON.stringify(body) });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save');
+      }
       flash(editId ? 'Updated' : 'Entry saved');
       setForm({ logType: 'note', direction: 'internal', subject: '', body: '', followUpDate: '' });
       setEditId(null);
       setShowForm(false);
       load();
-    } catch (e) { flash('Error saving'); }
+    } catch (e) { flash(e.message || 'Error saving'); }
     setSaving(false);
   };
 
@@ -135,6 +164,25 @@ export default function CommunicationLog({ entityType, entityId, entityName, com
           </button>
         </div>
       </div>
+
+      {/* Contact picker (standalone mode) */}
+      {standalone && (
+        <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '10px', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, marginBottom: '0.3rem', color: '#374151' }}>Contact (client or caregiver)</label>
+          <select
+            value={picked ? `${picked.type}:${picked.id}` : ''}
+            onChange={e => {
+              const v = e.target.value;
+              if (!v) { setPicked(null); return; }
+              const ent = entities.find(x => `${x.type}:${x.id}` === v);
+              setPicked(ent || null);
+            }}
+            style={{ width: '100%', maxWidth: '420px', padding: '0.5rem', borderRadius: '6px', border: '1px solid #D1D5DB', fontSize: '0.9rem' }}>
+            <option value=''>Select a client or caregiver…</option>
+            {entities.map(x => <option key={`${x.type}:${x.id}`} value={`${x.type}:${x.id}`}>{x.name}</option>)}
+          </select>
+        </div>
+      )}
 
       {/* Pending follow-ups banner */}
       {followUps.length > 0 && (

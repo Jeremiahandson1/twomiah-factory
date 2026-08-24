@@ -45,8 +45,11 @@ export default function NoShowAlerts() {
     setChecking(true);
     try {
       const r = await fetch(`${API}/api/no-show/run-check`, { method: 'POST', headers: h });
+      if (!r.ok) throw new Error('Check failed');
       const data = await r.json();
-      flash(`✓ Check complete — ${data.alerts} new alert${data.alerts !== 1 ? 's' : ''} created (${data.checked} shifts checked)`);
+      const created = data.alerts_created ?? data.alerts ?? 0;
+      const checked = data.checked ?? 0;
+      flash(`✓ Check complete — ${created} new alert${created !== 1 ? 's' : ''} created (${checked} shifts checked)`);
       load();
     } catch (e) { flash('Check failed', false); }
     setChecking(false);
@@ -54,10 +57,11 @@ export default function NoShowAlerts() {
 
   const resolve = async (id, status) => {
     try {
-      await fetch(`${API}/api/no-show/alerts/${id}/resolve`, {
+      const r = await fetch(`${API}/api/no-show/alerts/${id}/resolve`, {
         method: 'PUT', headers: h,
         body: JSON.stringify({ resolutionNote: resolveNote, status })
       });
+      if (!r.ok) throw new Error('Failed to resolve');
       flash('Resolved');
       setResolveModal(null);
       setResolveNote('');
@@ -68,7 +72,7 @@ export default function NoShowAlerts() {
   const saveConfig = async () => {
     setSavingConfig(true);
     try {
-      await fetch(`${API}/api/no-show/config`, {
+      const r = await fetch(`${API}/api/no-show/config`, {
         method: 'PUT', headers: h,
         body: JSON.stringify({
           graceMinutes: config.grace_minutes,
@@ -80,6 +84,7 @@ export default function NoShowAlerts() {
           isActive: config.is_active
         })
       });
+      if (!r.ok) throw new Error('Failed to save settings');
       flash('Settings saved');
     } catch (e) { flash('Error saving', false); }
     setSavingConfig(false);
@@ -230,7 +235,7 @@ export default function NoShowAlerts() {
           <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', background: '#EFF6FF', borderRadius: '8px', border: '1px solid #BFDBFE' }}>
             <div style={{ fontWeight: 700, color: '#1E40AF', fontSize: '0.88rem', marginBottom: '0.35rem' }}>💡 How it works</div>
             <div style={{ fontSize: '0.82rem', color: '#374151', lineHeight: 1.6 }}>
-              Click "Run Check Now" anytime to scan all shifts that should have started in the last 4 hours. For fully automated checks, set up a cron job calling <code style={{ background: '#DBEAFE', padding: '0.1rem 0.3rem', borderRadius: '3px' }}>POST /api/no-show/run-check</code> every 15–30 minutes.
+              Click "Run Check Now" anytime to scan all shifts that should have started in the last 4 hours. Automated background checks run on a schedule — you don't need to set anything up.
             </div>
           </div>
         </div>

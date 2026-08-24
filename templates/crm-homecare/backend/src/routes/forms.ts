@@ -65,6 +65,10 @@ app.get('/submissions', async (c) => {
 
   const formatted = rows.map(({ tplName, tplCategory, submitterFirstName, submitterLastName, ...rest }) => ({
     ...rest,
+    // Flat aliases so the submissions table shows the real form name/category
+    // instead of a blank name and a "general" fallback (L-07).
+    templateName: rest.templateName || tplName || null,
+    category: tplCategory || 'general',
     template: tplName ? { name: tplName, category: tplCategory } : null,
     submittedBy: submitterFirstName ? { firstName: submitterFirstName, lastName: submitterLastName } : null,
   }))

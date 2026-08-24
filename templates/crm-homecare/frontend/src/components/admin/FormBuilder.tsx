@@ -81,6 +81,16 @@ export default function FormBuilder() {
     flash('Deactivated'); load();
   };
 
+  const deleteSubmission = async (id) => {
+    if (!confirm('Delete this submission?')) return;
+    try {
+      const r = await fetch(`${API}/api/forms/submissions/${id}`, { method: 'DELETE', headers: h });
+      if (!r.ok) throw new Error('Failed to delete');
+      flash('Submission deleted');
+      load();
+    } catch (e) { flash(e.message || 'Failed to delete', false); }
+  };
+
   // Field editing
   const addField = () => {
     const field = { id: genId(), type: 'text', label: '', required: false, options: [] };
@@ -113,15 +123,25 @@ export default function FormBuilder() {
     const [saving, setSaving] = useState(false);
 
     const submit = async () => {
+      // H-09: enforce a subject and the template's required fields client-side
+      // (the backend also rejects these now, but don't claim success on a 400).
+      if (!entityId) { flash(`Select a ${entityType} for this form`, false); return; }
+      const missing = (template.fields || []).filter(f => f.required && !String(formData[f.id] ?? '').trim());
+      if (missing.length > 0) { flash(`Please complete: ${missing.map(f => f.label).join(', ')}`, false); return; }
+
       setSaving(true);
       try {
-        await fetch(`${API}/api/forms/submissions`, {
+        const r = await fetch(`${API}/api/forms/submissions`, {
           method: 'POST', headers: h,
-          body: JSON.stringify({ templateId: template.id, entityType, entityId: entityId || null, data: formData, status: 'submitted', signature: template.requires_signature ? signature : undefined })
+          body: JSON.stringify({ templateId: template.id, entityType, entityId, clientId: entityType === 'client' ? entityId : null, data: formData, status: 'submitted', signature: template.requires_signature ? signature : undefined })
         });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to submit form');
+        }
         flash('Form submitted');
         onClose(); load();
-      } catch (e) { flash('Error submitting', false); }
+      } catch (e) { flash(e.message || 'Error submitting', false); }
       setSaving(false);
     };
 
@@ -383,7 +403,7 @@ export default function FormBuilder() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '2px solid #E5E7EB' }}>
-                {['Form','Category','Attached To','Submitted By','Date','Status'].map(h => (
+                {['Form','Category','Attached To','Submitted By','Date','Status',''].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '0.65rem 0.85rem', fontWeight: 700, color: '#374151', fontSize: '0.82rem' }}>{h}</th>
                 ))}
               </tr>
@@ -398,6 +418,10 @@ export default function FormBuilder() {
                   <td style={{ padding: '0.65rem 0.85rem', color: '#6B7280' }}>{new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                   <td style={{ padding: '0.65rem 0.85rem' }}>
                     <span style={{ background: s.status === 'signed' ? '#D1FAE5' : '#EFF6FF', color: s.status === 'signed' ? '#065F46' : '#1D4ED8', padding: '0.15rem 0.5rem', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}>{s.status}</span>
+                  </td>
+                  <td style={{ padding: '0.65rem 0.85rem' }}>
+                    <button onClick={() => deleteSubmission(s.id)} title='Delete submission'
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', fontSize: '0.9rem' }}>🗑</button>
                   </td>
                 </tr>
               ))}
