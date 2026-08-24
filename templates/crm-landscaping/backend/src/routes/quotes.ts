@@ -29,10 +29,13 @@ const quoteSchema = z.object({
   status: z.enum(['draft', 'sent', 'approved', 'rejected', 'expired']).optional(),
 })
 
+// Round to whole cents and tax the post-discount amount (the common US
+// convention for an order-level discount).
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
-  const taxAmount = subtotal * (taxRate / 100)
-  return { subtotal, taxAmount, total: subtotal + taxAmount - discount }
+  const subtotal = round2(items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
+  const taxAmount = round2(Math.max(0, subtotal - discount) * (taxRate / 100))
+  return { subtotal, taxAmount, total: round2(subtotal - discount + taxAmount) }
 }
 
 app.get('/', async (c) => {

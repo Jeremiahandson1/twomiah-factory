@@ -42,7 +42,7 @@ export default function InvoicesPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const calcTotals = () => { const subtotal = form.lineItems.reduce((s, li) => s + (li.quantity * li.unitPrice), 0); const taxAmount = subtotal * (form.taxRate / 100); return { subtotal, taxAmount, total: subtotal + taxAmount - form.discount }; };
+  const calcTotals = () => { const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100; const subtotal = round2(form.lineItems.reduce((s, li) => s + (li.quantity * li.unitPrice), 0)); const taxAmount = round2(Math.max(0, subtotal - form.discount) * (form.taxRate / 100)); return { subtotal, taxAmount, total: round2(subtotal - form.discount + taxAmount) }; };
 
   const handleSave = async () => {
     setSaving(true);
@@ -124,7 +124,16 @@ export default function InvoicesPage() {
             <div><label className="block text-sm font-medium mb-1">Tax Rate (%)</label><input type="number" value={form.taxRate} onChange={(e) => setForm({...form, taxRate: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
             <div><label className="block text-sm font-medium mb-1">Discount ($)</label><input type="number" value={form.discount} onChange={(e) => setForm({...form, discount: Number(e.target.value)})} className="w-full px-3 py-2 border rounded-lg" /></div>
           </div>
-          <div className="bg-gray-50 p-4 rounded-lg text-right"><p className="text-lg font-bold">Total: ${total.toLocaleString()}</p></div>
+          <div className="bg-gray-50 p-4 rounded-lg space-y-1 text-sm">
+            {(() => { const money = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }); return (
+              <>
+                <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span>${money(subtotal)}</span></div>
+                {form.discount > 0 && <div className="flex justify-between"><span className="text-gray-500">Discount</span><span className="text-green-600">-${money(form.discount)}</span></div>}
+                {taxAmount > 0 && <div className="flex justify-between"><span className="text-gray-500">Tax</span><span>${money(taxAmount)}</span></div>}
+                <div className="flex justify-between font-bold text-base border-t pt-1"><span>Total</span><span>${money(total)}</span></div>
+              </>
+            ); })()}
+          </div>
         </div>
         <div className="flex justify-end gap-3 mt-6"><button onClick={() => setModalOpen(false)} className="px-4 py-2 hover:bg-gray-100 rounded-lg">Cancel</button><Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</Button></div>
       </Modal>
