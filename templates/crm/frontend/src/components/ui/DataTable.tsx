@@ -108,11 +108,21 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                   className={`hover:bg-gray-50 dark:hover:bg-slate-800 ${onRowClick ? 'cursor-pointer' : ''}`}
                   onClick={() => onRowClick?.(row)}
                 >
-                  {columns.map((col) => (
+                  {columns.map((col) => {
+                    const raw = (row as Record<string, unknown>)[col.key];
+                    return (
                     <td key={col.key} className={`px-4 py-3 text-gray-700 dark:text-slate-300 ${col.cellClassName || ''}`}>
-                      {col.render ? col.render((row as Record<string, unknown>)[col.key], row) : (row as Record<string, unknown>)[col.key] as React.ReactNode}
+                      {col.render
+                        ? col.render(raw, row)
+                        : (
+                          // Cap plain values so one pathological entry (e.g. a
+                          // 5,000-char name) can't push every other column
+                          // off-screen. Full value stays available on hover.
+                          <div className="max-w-xs truncate" title={typeof raw === 'string' ? raw : undefined}>{raw as React.ReactNode}</div>
+                        )}
                     </td>
-                  ))}
+                    );
+                  })}
                   {actions && (
                     <td className="px-4 py-3">
                       <div className="relative">
