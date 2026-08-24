@@ -157,6 +157,31 @@ app.get('/admins', async (c) => {
   return c.json({ users: rows, total, page: parseInt(page), pages: Math.ceil(total / parseInt(limit)) })
 })
 
+// POST /api/users/admins — create an office/admin user (no caregiver records)
+app.post('/admins', requireAdmin, async (c) => {
+  const { firstName, lastName, email, phone, password = 'Welcome1!', role } = await c.req.json()
+  if (!firstName || !lastName || !email) {
+    return c.json({ error: 'firstName, lastName and email are required' }, 400)
+  }
+  if (String(password).length < 8) {
+    return c.json({ error: 'Password must be at least 8 characters' }, 400)
+  }
+  const normalizedEmail = String(email).toLowerCase().trim()
+  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, normalizedEmail)).limit(1)
+  if (existing) return c.json({ error: 'A user with that email already exists' }, 409)
+
+  const passwordHash = await Bun.password.hash(String(password), 'bcrypt')
+  const [user] = await db.insert(users).values({
+    firstName, lastName, email: normalizedEmail, phone: phone || null,
+    passwordHash,
+    role: role === 'owner' ? 'owner' : 'admin',
+  }).returning({
+    id: users.id, firstName: users.firstName, lastName: users.lastName,
+    email: users.email, phone: users.phone, role: users.role, isActive: users.isActive,
+  })
+  return c.json(user, 201)
+})
+
 // GET /api/caregivers/:id
 app.get('/:id', async (c) => {
   const id = c.req.param('id')

@@ -63,6 +63,7 @@ import EVVDashboard from './admin/EVVDashboard';
 import LeadInboxPage from '../pages/leads/LeadInboxPage';
 import ContactSupportPage from '../pages/support/ContactSupportPage';
 import ClientDocuments from './admin/ClientDocuments';
+import UserManagement from './admin/UserManagement';
 import LeadSourcesPage from '../pages/leads/LeadSourcesPage';
 import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from '../shared';
 
@@ -148,6 +149,12 @@ const NAV_SECTIONS = [
       { id: 'email-inbox', label: 'Email Inbox', icon: '📨' },
       { id: 'notifications', label: 'Notifications', icon: '📬' },
       { id: 'ai-receptionist', label: 'AI Receptionist', icon: '🤖' },
+    ]
+  },
+  {
+    id: 'settings', label: 'Settings', icon: '⚙️',
+    items: [
+      { id: 'user-management', label: 'Users & Access', icon: '👤' },
     ]
   },
 ];
@@ -338,6 +345,7 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
       case 'payers-service-codes': return <PayersServiceCodes />;
       case 'authorizations': return <AuthorizationsManagement />;
       case 'evv': return <EVVDashboard />;
+      case 'user-management': return <UserManagement />;
       default: return <DashboardOverview summary={summary} onNavigate={handlePageClick} />;
     }
   };
