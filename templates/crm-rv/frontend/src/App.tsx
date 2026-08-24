@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import CustomerPortal from './pages/CustomerPortal';
+import NotFoundPage from './pages/NotFoundPage';
 import PricingPage from './pages/public/PricingPage';
 import SignupPage from './pages/public/SignupPage';
 import SignupSuccessPage from './pages/public/SignupSuccessPage';
@@ -226,7 +227,7 @@ function App() {
                   </Route>
 
                   {/* Catch all */}
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </SocketProvider>
             </ToastProvider>

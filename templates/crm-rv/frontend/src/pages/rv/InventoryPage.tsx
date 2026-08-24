@@ -810,9 +810,10 @@ function UnitFormModal({ unit, onSave, onClose }: UnitFormModalProps) {
               {textField('make', 'Make')}
               {textField('modelName', 'Model')}
               {textField('trim', 'Trim')}
+              {/* Same order as the Inventory status filter (L-05) */}
               {selectField('status', 'Status', [
-                { value: 'available', label: 'Available' }, { value: 'sold', label: 'Sold' },
-                { value: 'pending', label: 'Pending' }, { value: 'on_order', label: 'On Order' },
+                { value: 'available', label: 'Available' }, { value: 'pending', label: 'Pending' },
+                { value: 'sold', label: 'Sold' }, { value: 'on_order', label: 'On Order' },
                 { value: 'in_service', label: 'In Service' },
               ])}
               {textField('exteriorColor', 'Exterior Color')}

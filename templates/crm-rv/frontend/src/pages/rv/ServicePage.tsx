@@ -30,6 +30,7 @@ interface RoRow {
     customerUnitInfo?: string | null;
     advisorName?: string | null;
     estimatedTotal?: string | null;
+    actualTotal?: string | null;
     services?: string[] | null;
     notes?: string | null;
     writeUpDate?: string | null;
@@ -114,7 +115,7 @@ export default function ServicePage() {
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Customer</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Unit</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Advisor</th>
-                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Est. Total</th>
+                <th className="text-right px-4 py-3 text-sm font-medium text-gray-500">Total</th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
               </tr>
             </thead>
@@ -126,7 +127,14 @@ export default function ServicePage() {
                   <td className="px-4 py-3 text-sm text-gray-600">{unitDesc(row)}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{row.ro.advisorName || '—'}</td>
                   <td className="px-4 py-3 text-sm text-right text-gray-900">
-                    {row.ro.estimatedTotal ? `$${Number(row.ro.estimatedTotal).toLocaleString()}` : '—'}
+                    {/* Once billed, show the actual — the customer paid the actual,
+                        not the estimate (M-14). Label estimates so the two aren't
+                        confused. */}
+                    {row.ro.actualTotal
+                      ? `$${Number(row.ro.actualTotal).toLocaleString()}`
+                      : row.ro.estimatedTotal
+                        ? <span className="text-gray-500">${Number(row.ro.estimatedTotal).toLocaleString()} <span className="text-xs">est</span></span>
+                        : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <select

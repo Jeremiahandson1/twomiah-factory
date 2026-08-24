@@ -32,7 +32,7 @@ const INTEGRATIONS: Integration[] = [
     guideSteps: [
       'Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)',
       'Go to DNS settings for your domain',
-      'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM URL',
+      `Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to: ${typeof window !== 'undefined' ? window.location.hostname : 'your CRM URL'}`,
       'Save changes — DNS propagation can take up to 24 hours',
     ],
   },
@@ -250,6 +250,24 @@ export default function OnboardingWizard() {
     }
   };
 
+  // M-08: the wizard was a hard gate with no exit — mark setup complete and let the
+  // user into the CRM. They can finish configuring from Settings any time.
+  const handleSkip = async () => {
+    setSaving(true);
+    try {
+      const currentSettings = (company?.settings && typeof company.settings === 'object') ? company.settings : {};
+      const updated = await api.company.update({
+        settings: { ...currentSettings, onboardingComplete: true, onboardingSkipped: true, onboardingCompletedAt: new Date().toISOString() },
+      });
+      updateCompany(updated);
+      navigate('/crm', { replace: true });
+    } catch (err) {
+      console.error('Failed to skip onboarding:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const progressPercent = ((currentStep + 1) / STEPS.length) * 100;
 
   return (
@@ -260,6 +278,11 @@ export default function OnboardingWizard() {
           className="h-full bg-orange-500 transition-all duration-500 ease-out rounded-r-full"
           style={{ width: `${progressPercent}%` }}
         />
+      </div>
+      <div className="flex justify-end px-4 pt-3">
+        <button onClick={handleSkip} disabled={saving} className="text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 underline">
+          Skip setup for now
+        </button>
       </div>
 
       {/* Step indicators */}
