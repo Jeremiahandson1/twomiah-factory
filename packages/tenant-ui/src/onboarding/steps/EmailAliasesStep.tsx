@@ -14,16 +14,32 @@ interface Props {
 function getToken(): string { try { return localStorage.getItem('token') || localStorage.getItem('accessToken') || '' } catch { return '' } }
 function authHeaders() { return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } }
 
+// Persist the step's inputs so leaving and returning (Back → forward) doesn't
+// wipe them. Scoped to the product so different onboardings don't collide.
+function ss(key: string, product: string): string { try { return sessionStorage.getItem(`onb_${product}_${key}`) || '' } catch { return '' } }
+function ssSet(key: string, product: string, val: string) { try { sessionStorage.setItem(`onb_${product}_${key}`, val) } catch {} }
+
 export function EmailAliasesStep({ productId, onBack, onNext }: Props): React.ReactElement {
   const defaults = getAliasDefaultsForProduct(productId)
-  const [checked, setChecked] = useState<Set<string>>(new Set(defaults))
-  const [extraAliases, setExtraAliases] = useState<string[]>([])
+  const [checked, setChecked] = useState<Set<string>>(() => {
+    const saved = ss('checked', productId)
+    return saved ? new Set(JSON.parse(saved)) : new Set(defaults)
+  })
+  const [extraAliases, setExtraAliases] = useState<string[]>(() => {
+    const saved = ss('extra', productId)
+    return saved ? JSON.parse(saved) : []
+  })
   const [newAlias, setNewAlias] = useState('')
-  const [forwardTo, setForwardTo] = useState('')
+  const [forwardTo, setForwardTo] = useState<string>(() => ss('forwardTo', productId))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  // Pre-fill forward-to with company.email when we have it
+  // Persist inputs on change.
+  React.useEffect(() => { ssSet('forwardTo', productId, forwardTo) }, [forwardTo, productId])
+  React.useEffect(() => { ssSet('extra', productId, JSON.stringify(extraAliases)) }, [extraAliases, productId])
+  React.useEffect(() => { ssSet('checked', productId, JSON.stringify([...checked])) }, [checked, productId])
+
+  // Pre-fill forward-to with company.email when we have it (and nothing saved)
   React.useEffect(() => {
     fetch('/api/company', { headers: authHeaders() }).then(r => r.json()).then(d => {
       if (d?.email && !forwardTo) setForwardTo(d.email)
@@ -33,7 +49,9 @@ export function EmailAliasesStep({ productId, onBack, onNext }: Props): React.Re
   async function saveAndContinue() {
     setSaving(true); setError('')
     try {
-      if (!forwardTo || !forwardTo.includes('@')) throw new Error('Enter a forwarding email')
+      // Distinguish an empty field from a malformed one so the message is useful.
+      if (!forwardTo.trim()) throw new Error('Enter a forwarding email')
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forwardTo.trim())) throw new Error('Enter a valid email address (e.g. you@yourbusiness.com)')
       const allAliases = [...checked, ...extraAliases]
       // POST each alias sequentially — order doesn't matter, errors on one don't block others
       const results = await Promise.allSettled(allAliases.map(localPart =>
@@ -42,9 +60,11 @@ export function EmailAliasesStep({ productId, onBack, onNext }: Props): React.Re
           body: JSON.stringify({ localPart, routingMode: 'forward', forwardTo, enabled: true }),
         }).then(async r => { if (!r.ok && r.status !== 409) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Failed: ' + localPart) } })
       ))
-      const failed = results.filter(r => r.status === 'rejected')
+      const failed = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
       if (failed.length && failed.length === allAliases.length) {
-        throw new Error('All aliases failed to save. Likely no domain connected yet — you can add them later from Settings.')
+        // Surface the actual server error rather than guessing a cause (a 401
+        // was being reported as "no domain connected yet").
+        throw new Error(failed[0]?.reason?.message || 'Could not save the aliases. Please try again.')
       }
       onNext()
     } catch (err: any) { setError(err.message) }
