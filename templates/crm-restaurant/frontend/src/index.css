@@ -12,6 +12,22 @@
     @apply dark:bg-slate-950 dark:text-slate-100;
   }
 
+  /* Dark mode was half-applied: the page went dark but white cards stayed white,
+     so any value on them with no explicit color inherited the body's light text
+     and vanished (H-04). White surfaces always carry dark text; explicit text-*
+     utilities still win since this is @layer base. */
+  .bg-white,
+  .card {
+    @apply text-gray-900;
+  }
+
+  /* Page titles sit on the page background, not a card — in dark mode a
+     text-gray-900 heading rendered dark-on-dark and vanished (H-04). Keep h1
+     light in dark mode; explicit dark:text-* on a heading still wins. */
+  h1 {
+    @apply dark:text-white;
+  }
+
   input,
   select,
   textarea {

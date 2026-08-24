@@ -13,6 +13,24 @@ export const errorHandler = (err: Error, c: Context) => {
     const where = Array.isArray(first.path) && first.path.length ? first.path.join('.') + ': ' : ''
     return c.json({ error: where + (first.message || 'Invalid input') }, 400)
   }
+
+  // Postgres constraint violations are the user's bad input, not a server fault.
+  // Routes that don't pre-validate (e.g. a negative team rate, a malformed value)
+  // surfaced these as an opaque 500 the form couldn't show (B-02). Map the common
+  // codes to a 4xx with a usable message.
+  const pgCode = (err as any).code as string | undefined
+  if (typeof pgCode === 'string') {
+    switch (pgCode) {
+      case '23502': return c.json({ error: 'A required field is missing' }, 400)
+      case '23505': return c.json({ error: 'That value is already in use' }, 409)
+      case '22P02':
+      case '22003':
+      case '22007':
+      case '23514': return c.json({ error: 'Invalid input — please check the values entered' }, 400)
+      case '23503': return c.json({ error: 'Referenced record does not exist' }, 400)
+    }
+  }
+
   const status = (err as any).status || (err as any).statusCode || 500
   const message = err.message || 'Internal server error'
 
