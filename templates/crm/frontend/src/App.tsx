@@ -74,10 +74,7 @@ import LeadSourcesPage from './pages/leads/LeadSourcesPage';
 import HelpPage from './pages/help/HelpPage';
 import AdsPage from './pages/ads/AdsPage';
 import PricebookTrialPage from './pages/PricebookTrialPage';
-import EstimatorTrialPage from './pages/EstimatorTrialPage';
-import EstimatorSettingsPage from './pages/settings/EstimatorSettingsPage';
 import FeaturesSettingsPage from './pages/settings/FeaturesSettingsPage';
-import EstimatorPage from './pages/EstimatorPage';
 import RoofReportsPage from './pages/roofReports/RoofReportsPage';
 import RoofReportDetail from './pages/roofReports/RoofReportDetail';
 import OnboardingWizard from './pages/OnboardingWizard';
@@ -199,7 +196,6 @@ function App() {
                     <Route path="settings/integrations" element={<IntegrationsPage />} />
                     <Route path="settings/migration" element={<MigrationPage />} />
                     <Route path="settings/import" element={<ImportPage />} />
-                    <Route path="settings/estimator" element={<EstimatorSettingsPage />} />
                     <Route path="settings/features" element={<FeaturesSettingsPage />} />
                     <Route path="fleet" element={<FleetPage />} />
                     <Route path="inventory" element={<InventoryPage />} />
@@ -225,10 +221,8 @@ function App() {
                     <Route path="support" element={<SupportPage />} />
                     <Route path="ads" element={<AdsPage />} />
                     <Route path="pricebook-trial" element={<PricebookTrialPage />} />
-                    <Route path="estimator" element={<EstimatorPage />} />
                     <Route path="roof-reports" element={<RoofReportsPage />} />
                     <Route path="roof-reports/:id" element={<RoofReportDetail />} />
-                    <Route path="estimator-trial" element={<EstimatorTrialPage />} />
                     <Route path="help" element={<HelpPage />} />
                   </Route>
 

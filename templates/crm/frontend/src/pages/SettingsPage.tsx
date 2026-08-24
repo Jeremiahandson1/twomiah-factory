@@ -4,7 +4,7 @@ import { useToast } from '../contexts/ToastContext';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import type { Company } from '../types';
-import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, Calculator, ToggleLeft, AtSign, Globe, Inbox } from 'lucide-react';
+import { Building2, User, Lock, Users, CreditCard, Plug, Upload, ArrowRightLeft, ToggleLeft, AtSign, Globe, Inbox } from 'lucide-react';
 import { Button } from '../components/ui/DataTable';
 
 interface CompanyForm {
@@ -165,9 +165,6 @@ export default function SettingsPage() {
             </button>
             <button onClick={() => navigate('/crm/settings/import')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
               <Upload className="w-5 h-5" />Import from CSV
-            </button>
-            <button onClick={() => navigate('/crm/settings/estimator')} className="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-left hover:bg-gray-100">
-              <Calculator className="w-5 h-5" />Instant Estimator
             </button>
           </div>
         </div>
