@@ -18,6 +18,18 @@
     @apply text-gray-900 dark:text-slate-100;
   }
 
+  /* Dark-mode fallback for form fields. Many inputs hardcode `bg-white
+     border-gray-300` inline, which beats the bare element rule above and left
+     them glaring white on the dark theme. `.dark input` (element+class) outranks
+     a lone `.bg-white`, so these apply — while any input that sets its own
+     `dark:` utilities (two classes) still wins over this. Checkboxes/radios keep
+     their own styling. */
+  .dark input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+  .dark select,
+  .dark textarea {
+    @apply bg-slate-800 border-slate-600 text-slate-100 placeholder-slate-500;
+  }
+
   ::-webkit-scrollbar {
     width: 8px;
     height: 8px;

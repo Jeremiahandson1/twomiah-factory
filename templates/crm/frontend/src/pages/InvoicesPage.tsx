@@ -109,8 +109,8 @@ export default function InvoicesPage() {
     { key: 'number', label: 'Number', render: (v: unknown) => <span className="font-mono text-sm">{v as string}</span> },
     { key: 'contact', label: 'Client', render: (v: unknown) => (v as Record<string, unknown>)?.name as string || '-' },
     { key: 'status', label: 'Status', render: (v: unknown) => <StatusBadge status={v as string} /> },
-    { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString()}` },
-    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { const bal = Number(r.total) - Number(v || 0); return bal > 0 ? <span className="text-orange-600 font-medium">${bal.toLocaleString()}</span> : <span className="text-green-600">Paid</span>; } },
+    { key: 'total', label: 'Total', render: (v: unknown) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+    { key: 'amountPaid', label: 'Balance', render: (v: unknown, r: Record<string, unknown>) => { const bal = Number(r.total) - Number(v || 0); return bal > 0.005 ? <span className="text-orange-600 font-medium">${bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> : <span className="text-green-600">Paid</span>; } },
     { key: 'dueDate', label: 'Due', render: (v: unknown) => v ? new Date(String(v).split('T')[0] + 'T00:00:00').toLocaleDateString() : '-' },
   ];
 
