@@ -225,7 +225,7 @@ export default function ContactsPage() {
 
   const actions = [
     { label: 'Edit', icon: Edit, onClick: openEditModal },
-    { label: 'Invite to vendor portal', icon: Handshake, onClick: async (row: Record<string, unknown>) => {
+    { label: 'Invite to vendor portal', icon: Handshake, show: (row: Record<string, unknown>) => row.type === 'vendor', onClick: async (row: Record<string, unknown>) => {
       try {
         await api.vendorPortal.invite(row.id as string);
         toast.success('Vendor portal invite sent — they can acknowledge POs and submit invoices');
@@ -325,6 +325,8 @@ export default function ContactsPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
             <input
               type="text"
+              required
+              aria-required="true"
               value={formData.name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-gray-900"

@@ -8,7 +8,7 @@ import { authenticate } from '../middleware/auth.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
-const projectSchema = z.object({
+const projectFields = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   status: z.enum(['planning', 'active', 'on_hold', 'completed', 'cancelled']).default('planning'),
@@ -19,12 +19,21 @@ const projectSchema = z.object({
   zip: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
-  estimatedValue: z.number().optional(),
-  budget: z.number().optional(),
+  estimatedValue: z.number().min(0, 'Estimated value cannot be negative').optional(),
+  budget: z.number().min(0, 'Budget cannot be negative').optional(),
   // An unselected client dropdown posts contactId:"" — coerce it to undefined
   // so it doesn't hit the contact FK and throw a 500.
   contactId: z.string().optional().transform(v => (v === '' ? undefined : v)),
   notes: z.string().optional(),
+})
+
+// Cross-field rule lives on the create schema. Updates use projectFields.partial()
+// (a ZodEffects can't be made partial), which is fine — a partial update rarely
+// carries both dates to compare.
+const dateOrderCheck = (d: { startDate?: string; endDate?: string }) =>
+  !d.startDate || !d.endDate || new Date(d.endDate) >= new Date(d.startDate)
+const projectSchema = projectFields.refine(dateOrderCheck, {
+  message: 'End date must be on or after the start date', path: ['endDate'],
 })
 
 app.get('/', async (c) => {
@@ -109,7 +118,7 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = projectSchema.partial().parse(await c.req.json())
+  const data = projectFields.partial().parse(await c.req.json())
 
   const [existing] = await db.select().from(project).where(and(eq(project.id, id), eq(project.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Project not found' }, 404)

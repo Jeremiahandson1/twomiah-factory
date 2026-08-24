@@ -19,7 +19,7 @@ const jobSchema = z.object({
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
-  estimatedHours: z.number().optional(),
+  estimatedHours: z.number().min(0, 'Estimated hours cannot be negative').optional(),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),

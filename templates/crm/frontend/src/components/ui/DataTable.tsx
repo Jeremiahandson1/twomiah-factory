@@ -130,7 +130,7 @@ export function DataTable<T extends Record<string, unknown> = Record<string, unk
                           <>
                             <div className="fixed inset-0 z-10" onClick={() => setOpenMenu(null)} />
                             <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-lg shadow-lg border dark:border-slate-700 z-20 py-1">
-                              {actions.map((action, idx) => (
+                              {actions.filter((action) => !action.show || action.show(row)).map((action, idx) => (
                                 <button
                                   key={idx}
                                   onClick={(e: React.MouseEvent<HTMLButtonElement>) => {

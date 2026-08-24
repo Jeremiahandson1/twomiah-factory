@@ -443,6 +443,12 @@ if (hasFrontendBuild) {
   // SPA fallback: serve index.html for all non-API GET requests
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
 
+  // An unmatched /api/* request must 404 in JSON — NOT fall through to the SPA
+  // catch-all below, which would hand back index.html with a 200 and let a
+  // client mistake HTML for a successful JSON response (that's how a missing
+  // /api prefix silently "worked").
+  app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
+
   // Register known SPA route prefixes explicitly before the catch-all
   // so they are matched deterministically and never fall through to notFound
   app.get('/admin/*', (c) => c.html(indexHtml))
@@ -453,6 +459,7 @@ if (hasFrontendBuild) {
 
   // Catch any non-GET requests to SPA routes that slip through
   app.notFound((c) => {
+    if (c.req.path.startsWith('/api/')) return c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
     if (c.req.method === 'GET') return c.html(indexHtml)
     return c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
   })
