@@ -35,6 +35,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, [checkAuth]);
 
+  // M-05: the app is built on raw fetch(), so an expired session used to leave
+  // every screen silently empty (401s with no redirect). Wrap fetch once so any
+  // authenticated /api 401 triggers a session re-check. Crucially we do NOT clear
+  // tokens here — that would clobber the api service's own 401→refresh flow.
+  // Instead we let that flow settle, then verify via getMe: if it still fails the
+  // session is genuinely dead and we return the user to login.
+  useEffect(() => {
+    const orig = window.fetch;
+    let checking = false;
+    window.fetch = async (...args: any[]) => {
+      const res = await orig(...args);
+      try {
+        const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
+        const isAuthEndpoint = /\/api\/auth\//.test(url);
+        if (res.status === 401 && url.includes('/api/') && !isAuthEndpoint && api.accessToken && !checking) {
+          checking = true;
+          setTimeout(async () => {
+            try {
+              await api.getMe();   // routes through api.request → refresh if possible
+              checking = false;    // session refreshed and valid — carry on
+            } catch {
+              api.clearTokens();
+              setUser(null);
+              setCompany(null);
+              window.location.href = '/';
+            }
+          }, 400);
+        }
+      } catch { /* never let the wrapper break a request */ }
+      return res;
+    };
+    return () => { window.fetch = orig; };
+  }, []);
+
   const login = async (email: string, password: string) => {
     setError(null);
     try {

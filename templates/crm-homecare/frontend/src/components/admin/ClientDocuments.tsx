@@ -75,6 +75,12 @@ export default function ClientDocuments() {
   useEffect(() => { loadAll(); loadClients(); }, []);
 
   const sendDocument = async () => {
+    // M-08: don't let placeholder boilerplate go out for signature.
+    const tpl = templates.find(t => t.id === sendTemplateId);
+    if (tpl && /REPLACE THIS TEXT|YOUR AGENCY'?S OWN/i.test(tpl.body || '')) {
+      setError('This template still contains placeholder text. Edit it under the Templates tab before sending.');
+      return;
+    }
     setBusy(true);
     setError('');
     setNotice('');

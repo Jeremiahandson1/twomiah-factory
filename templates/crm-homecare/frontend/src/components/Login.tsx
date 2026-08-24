@@ -7,6 +7,7 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -104,6 +105,21 @@ const Login = ({ onLogin }: { onLogin?: (token: string, user: any) => void }) =>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <p style={{ textAlign: 'center', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+          <button
+            type="button"
+            onClick={() => setShowForgot(v => !v)}
+            style={{ background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', padding: 0 }}
+          >
+            Forgot password?
+          </button>
+        </p>
+        {showForgot && (
+          <p style={{ textAlign: 'center', fontSize: '0.82rem', color: '#6B7280', margin: '0.25rem 0 0' }}>
+            Ask your agency administrator to reset it from <strong>Settings › Users &amp; Access</strong>.
+          </p>
+        )}
 
         <p className="login-footer">
           HIPAA-compliant system. Authorized personnel only.
