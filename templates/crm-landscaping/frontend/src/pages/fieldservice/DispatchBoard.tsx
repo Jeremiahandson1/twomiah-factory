@@ -50,10 +50,15 @@ export default function DispatchBoard() {
     try {
       const [jobsRes, techsRes] = await Promise.all([
         api.get(`/api/jobs?date=${selectedDate}&limit=200`),
-        api.get('/api/team?role=technician&limit=100'),
+        // Assignable technicians are login USERS (job.assignedToId references
+        // user.id), not the crew-roster team_member table which is empty on a
+        // fresh tenant and carries different ids. /api/company/users is a bare
+        // array including the owner.
+        api.get('/api/company/users'),
       ]);
       setJobs(jobsRes.data || jobsRes || []);
-      setTechs(techsRes.data || techsRes || []);
+      const users = Array.isArray(techsRes) ? techsRes : techsRes.data || [];
+      setTechs(users.filter((u) => u.isActive !== false));
     } catch (error) {
       console.error('Failed to load dispatch data:', error);
       toast.error('Failed to load dispatch board');
@@ -68,7 +73,7 @@ export default function DispatchBoard() {
 
   const handleAssign = async (jobId, techId) => {
     try {
-      await api.put(`/api/jobs/${jobId}`, { assignedTo: techId, status: 'scheduled' });
+      await api.put(`/api/jobs/${jobId}`, { assignedToId: techId, status: 'scheduled' });
       toast.success('Technician assigned');
       loadData();
     } catch (error) {
@@ -333,7 +338,7 @@ function DispatchCard({ job, techs, onAssign, onStatusChange }) {
         {/* Assign Dropdown */}
         {job.status !== 'completed' && (
           <select
-            value={job.assignedTo || ''}
+            value={job.assignedToId || ''}
             onChange={(e) => {
               if (e.target.value) onAssign(job.id, e.target.value);
             }}
