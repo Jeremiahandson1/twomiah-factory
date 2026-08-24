@@ -50,8 +50,8 @@ const productSchema = z.object({
   cbdPercent: z.number().min(0).max(100).optional(),
   weight: z.number().optional(),
   weightUnit: z.enum(['g', 'oz', 'mg', 'ml', 'each']).default('g'),
-  price: z.number().min(0),
-  costPrice: z.number().min(0).optional(),
+  price: z.number().min(0).max(1_000_000),
+  costPrice: z.number().min(0).max(1_000_000).optional(),
   taxCategory: z.enum(['cannabis', 'non_cannabis']).default('cannabis'),
   trackInventory: z.boolean().default(true),
   stockQuantity: z.number().int().min(0).default(0),
@@ -110,6 +110,20 @@ app.get('/', async (c) => {
   ])
 
   return c.json({ data, pagination: { page, limit, total: Number(total), pages: Math.ceil(Number(total) / limit) } })
+})
+
+// GET /low-stock — products at or below their low-stock threshold (dashboard used
+// this and got a 404). MUST be before /:id so it isn't captured as an id.
+app.get('/low-stock', async (c) => {
+  const currentUser = c.get('user') as any
+  const data = await db.select().from(product)
+    .where(and(
+      eq(product.companyId, currentUser.companyId),
+      eq(product.active, true),
+      sql`${product.stockQuantity} <= ${product.lowStockThreshold}`,
+    ))
+    .orderBy(asc(product.stockQuantity))
+  return c.json({ data })
 })
 
 // Get single product

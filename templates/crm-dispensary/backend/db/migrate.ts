@@ -20,6 +20,31 @@ for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
   }
 }
 
+// Reconcile the database to schema.ts. The hand-maintained SQL migrations drifted
+// badly behind the Drizzle schema — ~50 tables (locations, batches, metrc, labels,
+// kiosk, delivery, compliance, …) were never created, and existing tables like
+// cash_sessions were missing newer columns (register, opening_amount, opened_by_id).
+// That drift is exactly what made ~20 endpoints (and the whole POS/register path)
+// return 500 "relation/column does not exist". schema.ts is a strict superset of the
+// DB, so `push` is purely additive here — it creates the missing tables/columns and
+// never drops anything. This also stops the drift recurring as the schema evolves.
+for (let attempt = 1; attempt <= 3; attempt++) {
+  try {
+    console.log(`[migrate] Reconciling schema (push) attempt ${attempt}/3...`)
+    execSync('bun x drizzle-kit push --force', { stdio: 'inherit' })
+    console.log('[migrate] Schema reconciled')
+    break
+  } catch (err: any) {
+    if (attempt === 3) {
+      // Non-fatal: let the app boot (working modules still serve) and surface the
+      // failure loudly rather than bricking the entire deploy on a push hiccup.
+      console.error('[migrate] Schema reconcile (push) failed — some modules may 500 until this succeeds')
+    } else {
+      await new Promise(r => setTimeout(r, RETRY_DELAY_MS))
+    }
+  }
+}
+
 // Safety net: ensure all schema columns exist even if a migration was recorded
 // before its file was present. Uses IF NOT EXISTS so it's safe to re-run.
 const ENSURE_COLUMNS_SQL = `

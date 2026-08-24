@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { order, orderItem, product, contact } from '../../db/schema.ts'
+import { order, orderItem, product, contact, company } from '../../db/schema.ts'
 import { eq, and, gte, lte, desc, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requireRole } from '../middleware/permissions.ts'
@@ -150,8 +150,18 @@ app.post('/', async (c) => {
     .reduce((sum, i) => sum + Number(i.lineTotal), 0)
   const nonCannabisSubtotal = subtotal - cannabisSubtotal
 
+  // Sales tax uses the rate configured in Settings (company.taxRate, a percent
+  // like "8.5") so the register charges what the operator set — not a hardcoded
+  // constant that disagreed with Settings. Excise stays a cannabis-specific rate.
+  const [companyRow] = await db.select({ taxRate: company.taxRate }).from(company)
+    .where(eq(company.id, currentUser.companyId)).limit(1)
+  const configuredSalesRate = companyRow?.taxRate != null && companyRow.taxRate !== ''
+    ? Number(companyRow.taxRate) / 100
+    : SALES_TAX_RATE
+  const salesRate = Number.isFinite(configuredSalesRate) ? configuredSalesRate : SALES_TAX_RATE
+
   const exciseTax = cannabisSubtotal * CANNABIS_TAX_RATE
-  const salesTax = subtotal * SALES_TAX_RATE
+  const salesTax = subtotal * salesRate
   const totalTax = exciseTax + salesTax
 
   // Apply discounts and loyalty

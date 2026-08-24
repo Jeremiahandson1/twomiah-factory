@@ -180,9 +180,12 @@ export default function ProductsPage() {
       render: (val: number) => <span className="font-medium text-gray-900">${Number(val || 0).toFixed(2)}</span>,
     },
     {
-      key: 'stock',
+      key: 'stockQuantity',
       label: 'Stock',
-      render: (val: number) => <span className={getStockColor(val || 0)}>{val ?? 0}</span>,
+      render: (val: number, row: any) => {
+        const stock = val ?? row?.stockQuantity ?? row?.stock ?? 0;
+        return <span className={getStockColor(stock)}>{stock}</span>;
+      },
     },
   ];
 

@@ -18,12 +18,15 @@ app.get('/', async (c) => {
 
 app.put('/', requireAdmin, async (c) => {
   const currentUser = c.get('user') as any
-  const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), settings: z.record(z.any()).optional() })
+  const schema = z.object({ name: z.string().min(1).optional(), email: z.string().email().optional(), phone: z.string().optional(), address: z.string().optional(), city: z.string().optional(), state: z.string().optional(), zip: z.string().optional(), logo: z.string().optional(), primaryColor: z.string().optional(), website: z.string().optional(), licenseNumber: z.string().optional(), taxRate: z.union([z.string(), z.number()]).optional(), settings: z.record(z.any()).optional() })
   // .catch: a missing or malformed body must not throw past validation into a
   // 500 — the caller gets a 400 that names the problem instead.
   const body = (await c.req.json().catch(() => null)) ?? ({} as any)
   if (typeof body.email === 'string') { body.email = body.email.toLowerCase().trim(); if (!body.email) delete body.email }
-  const data = schema.parse(body)
+  const data = schema.parse(body) as any
+  // tax_rate is a text column — the Settings form saved it but the schema dropped
+  // it, so Settings/company/POS disagreed on the rate. Persist it as a string.
+  if (data.taxRate !== undefined) data.taxRate = String(data.taxRate)
   const [result] = await db.update(company).set({ ...data, updatedAt: new Date() }).where(eq(company.id, currentUser.companyId)).returning()
   if (!result) return c.json({ error: 'Company not found' }, 404)
   return c.json(result)
