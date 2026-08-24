@@ -165,7 +165,12 @@ const ALL_ITEMS = NAV_SECTIONS.flatMap(s => s.items);
 
 const AdminDashboard = ({ onLogout, onImpersonate }) => {
   const { user, token, company } = useAuth();
-  const [currentPage, setCurrentPage] = useState('dashboard');
+  // M-04: seed the section from the URL hash so sections are deep-linkable and
+  // the browser back button works, instead of the URL never changing.
+  const [currentPage, setCurrentPage] = useState(() => {
+    const h = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
+    return h || 'dashboard';
+  });
   const trialExpired = isTrialExpired(company);
   const [showHelp, setShowHelp] = useState(false);
   const [showImpersonation, setShowImpersonation] = useState(false);
@@ -256,9 +261,22 @@ const AdminDashboard = ({ onLogout, onImpersonate }) => {
 
   const handlePageClick = (page) => {
     setCurrentPage(page);
+    if (typeof window !== 'undefined' && window.location.hash.replace(/^#/, '') !== page) {
+      window.location.hash = page;
+    }
     setShowSearch(false);
     setSearchQuery('');
   };
+
+  // Keep section state in sync with the URL hash (back/forward, deep links).
+  useEffect(() => {
+    const onHashChange = () => {
+      const h = window.location.hash.replace(/^#/, '');
+      if (h) setCurrentPage(h);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   const toggleSection = (sectionId) => {
     setCollapsedSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
