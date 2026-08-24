@@ -71,6 +71,10 @@ app.post('/claims', async (c) => {
     body: `Insurance claim filed with ${data.insuranceCompany} — Claim #${data.claimNumber}`,
   })
 
+  // Mirror the claim number onto the job so both screens agree from the start.
+  await db.update(job).set({ claimNumber: data.claimNumber, updatedAt: new Date() })
+    .where(and(eq(job.id, data.jobId), eq(job.companyId, currentUser.companyId)))
+
   return c.json(claim, 201)
 })
 
@@ -129,6 +133,13 @@ app.put('/claims/:id', async (c) => {
   }
 
   await db.update(insuranceClaim).set(updates).where(eq(insuranceClaim.id, id))
+
+  // Keep the job's own claimNumber in sync with the claim record — otherwise the
+  // job page and the claim page show two different claim numbers for one job.
+  if (data.claimNumber !== undefined && claim.jobId) {
+    await db.update(job).set({ claimNumber: data.claimNumber || null, updatedAt: new Date() })
+      .where(and(eq(job.id, claim.jobId), eq(job.companyId, currentUser.companyId)))
+  }
 
   const [updated] = await db.select().from(insuranceClaim).where(eq(insuranceClaim.id, id)).limit(1)
   return c.json(updated)

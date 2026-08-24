@@ -173,7 +173,7 @@ export default function MeasurementsPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Measurements</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} reports</p>
+            <p className="text-sm text-gray-500 mt-0.5">{total} {total === 1 ? 'report' : 'reports'}</p>
           </div>
           <div className="flex items-center gap-3">
             {/* Credits badge */}

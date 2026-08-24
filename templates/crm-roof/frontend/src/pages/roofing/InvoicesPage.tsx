@@ -159,7 +159,7 @@ export default function InvoicesPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Invoices</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{total} invoices</p>
+            <p className="text-sm text-gray-500 mt-0.5">{total} {total === 1 ? 'invoice' : 'invoices'}</p>
           </div>
           <button
             onClick={() => {
