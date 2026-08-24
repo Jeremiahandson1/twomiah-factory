@@ -132,6 +132,50 @@ app.patch('/invoices/:id/status', async (c) => {
   return c.json(invoice)
 })
 
+// PUT /invoices/:id/payment-status — the shape the frontend actually calls.
+// (Older PATCH /:id/status kept above for back-compat.) Marks paid/partial,
+// coerces the payment date to a date-only string, and stamps amountPaid.
+app.put('/invoices/:id/payment-status', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  const status = body.status || body.paymentStatus
+  if (!status) return c.json({ error: 'status is required' }, 400)
+
+  const [current] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1)
+  if (!current) return c.json({ error: 'Invoice not found' }, 404)
+
+  const toDateOnly = (v: any) => {
+    if (!v) return undefined
+    const d = new Date(v)
+    return isNaN(d.getTime()) ? undefined : d.toISOString().slice(0, 10)
+  }
+
+  const updates: any = { paymentStatus: status, updatedAt: new Date() }
+  if (status === 'paid') {
+    updates.paymentDate = toDateOnly(body.paymentDate) ?? new Date().toISOString().slice(0, 10)
+    updates.amountPaid = current.total
+  } else if (body.amountPaid != null) {
+    updates.amountPaid = String(body.amountPaid)
+    updates.paymentDate = toDateOnly(body.paymentDate)
+  }
+
+  const [invoice] = await db.update(invoices).set(updates).where(eq(invoices.id, id)).returning()
+  return c.json(invoice)
+})
+
+// DELETE /invoices/:id — remove the invoice and its dependent rows
+app.delete('/invoices/:id', async (c) => {
+  const id = c.req.param('id')
+  const [existing] = await db.select().from(invoices).where(eq(invoices.id, id)).limit(1)
+  if (!existing) return c.json({ error: 'Invoice not found' }, 404)
+
+  await db.delete(invoicePayments).where(eq(invoicePayments.invoiceId, id))
+  await db.delete(invoiceAdjustments).where(eq(invoiceAdjustments.invoiceId, id))
+  await db.delete(invoiceLineItems).where(eq(invoiceLineItems.invoiceId, id))
+  await db.delete(invoices).where(eq(invoices.id, id))
+  return c.json({ message: 'Invoice deleted' })
+})
+
 // ── GENERATE INVOICE FROM TIME ENTRIES ───────────────────────────
 
 app.post('/invoices/generate', async (c) => {
@@ -160,13 +204,25 @@ app.post('/invoices/generate', async (c) => {
 
   const rate = assignment?.payRate ? Number(assignment.payRate) : 25.00
 
+  // Prefer denormalized billable/duration minutes, but fall back to the actual
+  // clocked start→end span so completed visits are never billed at $0 just
+  // because durationMinutes was never backfilled.
+  const minutesFor = (e: any) => {
+    if (e.entry.billableMinutes) return e.entry.billableMinutes
+    if (e.entry.durationMinutes) return e.entry.durationMinutes
+    if (e.entry.startTime && e.entry.endTime) {
+      return Math.max(0, Math.round((new Date(e.entry.endTime).getTime() - new Date(e.entry.startTime).getTime()) / 60000))
+    }
+    return 0
+  }
+
   const lineItemsData = entries.map(e => ({
     caregiverId: e.entry.caregiverId,
     timeEntryId: e.entry.id,
     description: `${e.caregiverFirstName} ${e.caregiverLastName} - Care Visit`,
-    hours: Number(((e.entry.billableMinutes || e.entry.durationMinutes || 0) / 60).toFixed(2)),
+    hours: Number((minutesFor(e) / 60).toFixed(2)),
     rate: Number(rate),
-    amount: Number((((e.entry.billableMinutes || e.entry.durationMinutes || 0) / 60) * Number(rate)).toFixed(2)),
+    amount: Number(((minutesFor(e) / 60) * Number(rate)).toFixed(2)),
   }))
 
   const subtotal = lineItemsData.reduce((s, l) => s + Number(l.amount), 0)
