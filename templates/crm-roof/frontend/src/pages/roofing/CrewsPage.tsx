@@ -10,17 +10,35 @@ export default function CrewsPage() {
   const [crews, setCrews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    name: '',
-    foremanName: '',
-    foremanPhone: '',
-    crewSize: '',
-    isSubcontractor: false,
-    notes: '',
-  });
+  const emptyForm = { name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false, notes: '' };
+  const [form, setForm] = useState(emptyForm);
 
   const headers = { Authorization: `Bearer ${token}` };
+
+  const openCreate = () => { setEditingId(null); setForm(emptyForm); setModalOpen(true); };
+  const openEdit = (crew: any) => {
+    setEditingId(crew.id);
+    setForm({
+      name: crew.name || '', foremanName: crew.foremanName || '', foremanPhone: crew.foremanPhone || '',
+      crewSize: crew.size != null ? String(crew.size) : (crew.crewSize != null ? String(crew.crewSize) : ''),
+      isSubcontractor: !!crew.isSubcontractor, notes: crew.notes || '',
+    });
+    setModalOpen(true);
+  };
+
+  const deleteCrew = async (crew: any) => {
+    if (!confirm(`Delete crew "${crew.name}"? This can't be undone.`)) return;
+    try {
+      const res = await fetch(`/api/crews/${crew.id}`, { method: 'DELETE', headers });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.error || 'Could not delete crew'); }
+      toast.success('Crew deleted');
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to delete crew');
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -40,19 +58,19 @@ export default function CrewsPage() {
     if (!form.name.trim()) { toast.error('Crew name is required'); return; }
     setSaving(true);
     try {
-      const res = await fetch('/api/crews', {
-        method: 'POST',
+      const res = await fetch(editingId ? `/api/crews/${editingId}` : '/api/crews', {
+        method: editingId ? 'PUT' : 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, size: form.crewSize ? Number(form.crewSize) : null }),
       });
-      if (!res.ok) throw new Error();
-      const crew = await res.json();
-      setCrews((prev) => [...prev, crew]);
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err?.error || 'Could not save crew'); }
       setModalOpen(false);
-      setForm({ name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false, notes: '' });
-      toast.success('Crew created');
-    } catch {
-      toast.error('Failed to create crew');
+      setForm(emptyForm);
+      setEditingId(null);
+      toast.success(editingId ? 'Crew updated' : 'Crew created');
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to save crew');
     } finally {
       setSaving(false);
     }
@@ -75,7 +93,7 @@ export default function CrewsPage() {
             <p className="text-sm text-gray-500 mt-0.5">{crews.length} crews</p>
           </div>
           <button
-            onClick={() => { setForm({ name: '', foremanName: '', foremanPhone: '', crewSize: '', isSubcontractor: false, notes: '' }); setModalOpen(true); }}
+            onClick={openCreate}
             className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4" /> Add Crew
@@ -96,6 +114,10 @@ export default function CrewsPage() {
                       <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Subcontractor</span>
                     )}
                   </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => openEdit(crew)} className="px-2 py-0.5 text-xs font-medium border border-gray-200 rounded text-gray-700 hover:bg-gray-50">Edit</button>
+                  <button onClick={() => deleteCrew(crew)} className="px-2 py-0.5 text-xs font-medium border border-red-200 text-red-600 rounded hover:bg-red-50">Delete</button>
                 </div>
               </div>
 
@@ -139,7 +161,7 @@ export default function CrewsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setModalOpen(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900">Add Crew</h2>
+              <h2 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Crew' : 'Add Crew'}</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
@@ -171,7 +193,7 @@ export default function CrewsPage() {
             <div className="flex justify-end gap-2 mt-6">
               <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
               <button onClick={handleCreate} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                {saving ? 'Creating...' : 'Create Crew'}
+                {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Crew'}
               </button>
             </div>
           </div>

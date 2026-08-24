@@ -23,6 +23,7 @@ export default function ContactsPage() {
   const [togglingPortal, setTogglingPortal] = useState(false);
   const emptyForm = { firstName: '', lastName: '', email: '', phone: '', address: '', city: '', state: '', zip: '' };
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
@@ -116,7 +117,19 @@ export default function ContactsPage() {
     }
   };
 
-  const createContact = async () => {
+  const openCreate = () => { setEditingId(null); setForm(emptyForm); setShowCreate(true); };
+
+  const openEdit = (c: any) => {
+    setEditingId(c.id);
+    setForm({
+      firstName: c.firstName || '', lastName: c.lastName || '', email: c.email || '',
+      phone: c.phone || '', address: c.address || '', city: c.city || '',
+      state: c.state || '', zip: c.zip || '',
+    });
+    setShowCreate(true);
+  };
+
+  const saveContact = async () => {
     if (!form.firstName.trim() || !form.lastName.trim()) {
       toast.error('First and last name are required');
       return;
@@ -125,8 +138,9 @@ export default function ContactsPage() {
     try {
       const payload: Record<string, string> = {};
       Object.entries(form).forEach(([k, v]) => { if (String(v).trim()) payload[k] = String(v).trim(); });
-      const res = await fetch('/api/contacts', {
-        method: 'POST',
+      // Edit an existing contact with PUT, create a new one with POST.
+      const res = await fetch(editingId ? `/api/contacts/${editingId}` : '/api/contacts', {
+        method: editingId ? 'PUT' : 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -134,16 +148,33 @@ export default function ContactsPage() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error || 'Could not save contact');
       }
-      const created = await res.json();
-      toast.success('Contact added');
+      const saved = await res.json();
+      toast.success(editingId ? 'Contact updated' : 'Contact added');
       setShowCreate(false);
       setForm(emptyForm);
+      setEditingId(null);
       await load();
-      selectContact(created);
+      selectContact(saved);
     } catch (e: any) {
-      toast.error(e?.message || 'Failed to add contact');
+      toast.error(e?.message || 'Failed to save contact');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const deleteContact = async (c: any) => {
+    if (!confirm(`Delete ${c.firstName} ${c.lastName}? This can't be undone.`)) return;
+    try {
+      const res = await fetch(`/api/contacts/${c.id}`, { method: 'DELETE', headers });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Could not delete contact');
+      }
+      toast.success('Contact deleted');
+      setSelected(null);
+      load();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to delete contact');
     }
   };
 
@@ -155,7 +186,7 @@ export default function ContactsPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
           <button
-            onClick={() => { setForm(emptyForm); setShowCreate(true); }}
+            onClick={openCreate}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg"
           >
             <Plus className="w-4 h-4" /> Add Contact
@@ -232,9 +263,13 @@ export default function ContactsPage() {
                         {selected.name || `${selected.firstName || ''} ${selected.lastName || ''}`.trim()}
                       </h2>
                     </div>
-                    <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">
-                      <X className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEdit(selected)} className="px-2.5 py-1 text-xs font-medium border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50">Edit</button>
+                      <button onClick={() => deleteContact(selected)} className="px-2.5 py-1 text-xs font-medium border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Delete</button>
+                      <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 ml-1">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -380,7 +415,7 @@ export default function ContactsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !saving && setShowCreate(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">New Contact</h2>
+              <h2 className="text-lg font-bold text-gray-900">{editingId ? 'Edit Contact' : 'New Contact'}</h2>
               <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="px-6 py-5 grid grid-cols-2 gap-4">
@@ -403,8 +438,8 @@ export default function ContactsPage() {
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button onClick={() => setShowCreate(false)} disabled={saving} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900">Cancel</button>
-              <button onClick={createContact} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
-                {saving ? 'Saving…' : 'Create Contact'}
+              <button onClick={saveContact} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg">
+                {saving ? 'Saving…' : editingId ? 'Save Changes' : 'Create Contact'}
               </button>
             </div>
           </div>
