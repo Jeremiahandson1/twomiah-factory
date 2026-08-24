@@ -12,6 +12,15 @@
     @apply dark:bg-slate-950 dark:text-slate-100;
   }
 
+  /* White surfaces are always light, so their text must stay dark even in dark
+     mode. Without this, any value with no explicit color inherits the body's
+     light (slate-100) text and disappears on the white card — that was the deal
+     desk, the buyer's order and the payment matrix going invisible (C-05).
+     This lives in @layer base, so explicit text-* utilities still win. */
+  .bg-white {
+    @apply text-gray-900;
+  }
+
   input,
   select,
   textarea {

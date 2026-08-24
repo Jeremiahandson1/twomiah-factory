@@ -170,7 +170,7 @@ export default function DealDeskModal({ lead, onClose, onSaved }: DealDeskModalP
     <div className="fixed inset-0 z-50 overflow-y-auto">
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div className="relative min-h-screen flex items-start justify-center p-4 py-8">
-        <div className="relative bg-white rounded-xl shadow-xl max-w-2xl w-full p-6">
+        <div className="relative bg-white text-gray-900 rounded-xl shadow-xl max-w-2xl w-full p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <Calculator className="w-5 h-5 text-orange-500" /> Deal Desk

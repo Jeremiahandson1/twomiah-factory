@@ -45,7 +45,7 @@ export default function DeskingPage() {
         <div><h1 className="text-2xl font-bold">Desking</h1><p className="text-sm text-gray-500">Structure the deal — out-the-door price, trade, fees, tax, and the payment matrix.</p></div>
       </div>
 
-      <div className="bg-white rounded-xl border shadow-sm p-4 mt-4">
+      <div className="bg-white text-gray-900 rounded-xl border shadow-sm p-4 mt-4">
         <label className="text-xs font-medium text-gray-600">Deal / customer</label>
         <select value={leadId} onChange={(e) => pick(e.target.value)} className="mt-1 block w-full p-2 border rounded-lg text-sm">
           <option value="">Select a lead…</option>
@@ -54,7 +54,7 @@ export default function DeskingPage() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-4 mt-4">
-        <div className="bg-white rounded-xl border shadow-sm p-4 space-y-2.5">
+        <div className="bg-white text-gray-900 rounded-xl border shadow-sm p-4 space-y-2.5">
           <div className="text-sm font-semibold text-gray-700 mb-1">Deal inputs</div>
           {inputs.map(([label, key]) => (
             <label key={key} className="flex items-center justify-between text-sm"><span className="text-gray-600">{label}</span>
@@ -65,7 +65,7 @@ export default function DeskingPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border shadow-sm p-4">
+          <div className="bg-white text-gray-900 rounded-xl border shadow-sm p-4">
             <div className="text-sm font-semibold text-gray-700 mb-2">Buyer's order</div>
             <div className="text-sm divide-y">
               {otdRows.map(([l, v]) => (<div key={l} className="flex justify-between py-1.5"><span className="text-gray-600">{l}</span><span>{money(v)}</span></div>))}
@@ -77,7 +77,7 @@ export default function DeskingPage() {
             {lead && <a href={`/crm/fi?lead=${leadId}`} className="mt-3 inline-block text-xs text-blue-700 hover:underline">Send to F&I →</a>}
           </div>
 
-          <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div className="bg-white text-gray-900 rounded-xl border shadow-sm overflow-hidden">
             <div className="px-4 py-2 border-b text-sm font-semibold text-gray-700">Monthly payment</div>
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 text-gray-500"><tr><th className="px-4 py-2 text-left font-semibold">Term</th>{[6.99, 9.99, 12.99].map((a) => <th key={a} className="px-4 py-2 text-right font-semibold">{a}%</th>)}</tr></thead>
