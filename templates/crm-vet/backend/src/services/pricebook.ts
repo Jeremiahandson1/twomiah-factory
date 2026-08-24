@@ -260,6 +260,37 @@ export async function duplicateItem(itemId: string, companyId: string) {
   })
 }
 
+/**
+ * Delete item — hard delete, scoped to the company. Good-Better-Best and
+ * material child rows cascade off the item's FK. Quote/invoice lines snapshot
+ * their own price, so removing a catalog item doesn't rewrite past documents.
+ * Returns true if a row was removed.
+ */
+export async function deleteItem(itemId: string, companyId: string): Promise<boolean> {
+  const rows = await db.delete(pricebookItem)
+    .where(and(eq(pricebookItem.id, itemId), eq(pricebookItem.companyId, companyId)))
+    .returning({ id: pricebookItem.id })
+  return rows.length > 0
+}
+
+/**
+ * Delete category — scoped to the company. Refuses if the category still has
+ * items (their category_id FK has no cascade, so the delete would otherwise
+ * throw a raw DB error). Child categories re-parent to null automatically.
+ */
+export async function deleteCategory(categoryId: string, companyId: string): Promise<boolean> {
+  const [own] = await db.select({ id: pricebookCategory.id }).from(pricebookCategory)
+    .where(and(eq(pricebookCategory.id, categoryId), eq(pricebookCategory.companyId, companyId))).limit(1)
+  if (!own) return false
+  const [{ value: itemCount }] = await db.select({ value: count() }).from(pricebookItem)
+    .where(and(eq(pricebookItem.categoryId, categoryId), eq(pricebookItem.companyId, companyId)))
+  if (Number(itemCount) > 0) {
+    throw new Error('This category still has items. Move or delete them before deleting the category.')
+  }
+  await db.delete(pricebookCategory).where(and(eq(pricebookCategory.id, categoryId), eq(pricebookCategory.companyId, companyId)))
+  return true
+}
+
 // ============================================
 // GOOD-BETTER-BEST OPTIONS
 // ============================================
@@ -478,6 +509,8 @@ export default {
   getItems,
   getItem,
   updateItem,
+  deleteItem,
+  deleteCategory,
   duplicateItem,
   setGoodBetterBest,
   getGoodBetterBest,

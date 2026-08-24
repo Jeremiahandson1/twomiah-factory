@@ -116,6 +116,28 @@ app.post('/items/:id/duplicate', requirePermission('pricebook:create'), async (c
   return c.json(item, 201)
 })
 
+// Delete item
+app.delete('/items/:id', requirePermission('pricebook:update'), async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  const removed = await pricebook.deleteItem(id, user.companyId)
+  if (!removed) return c.json({ error: 'Item not found' }, 404)
+  return c.json({ success: true })
+})
+
+// Delete category
+app.delete('/categories/:id', requirePermission('pricebook:update'), async (c) => {
+  const user = c.get('user') as any
+  const id = c.req.param('id')
+  try {
+    const removed = await pricebook.deleteCategory(id, user.companyId)
+    if (!removed) return c.json({ error: 'Category not found' }, 404)
+    return c.json({ success: true })
+  } catch (e: any) {
+    return c.json({ error: e?.message || 'Could not delete category' }, 409)
+  }
+})
+
 // ============================================
 // GOOD-BETTER-BEST
 // ============================================

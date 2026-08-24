@@ -136,14 +136,24 @@ function createRateLimiter(windowMs: number, max: number) {
   return async (c: Context, next: Next) => {
     const key = c.req.header('x-forwarded-for') || 'unknown'
     const now = Date.now()
-    const entry = hits.get(key)
+    let entry = hits.get(key)
     if (!entry || now > entry.resetAt) {
-      hits.set(key, { count: 1, resetAt: now + windowMs })
+      entry = { count: 1, resetAt: now + windowMs }
+      hits.set(key, entry)
     } else {
       entry.count++
-      if (entry.count > max) {
-        return c.json({ error: 'Too many requests, please try again later' }, 429)
-      }
+    }
+
+    // Standard rate-limit headers so clients can self-throttle / back off
+    // instead of hammering blindly. resetAt is exposed as seconds-until-reset.
+    const resetSecs = Math.max(0, Math.ceil((entry.resetAt - now) / 1000))
+    c.header('RateLimit-Limit', String(max))
+    c.header('RateLimit-Remaining', String(Math.max(0, max - entry.count)))
+    c.header('RateLimit-Reset', String(resetSecs))
+
+    if (entry.count > max) {
+      c.header('Retry-After', String(resetSecs))
+      return c.json({ error: 'Too many requests, please try again later' }, 429)
     }
     await next()
   }

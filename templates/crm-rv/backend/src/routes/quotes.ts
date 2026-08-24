@@ -20,6 +20,9 @@ const quoteSchema = z.object({
   notes: z.string().optional(),
   terms: z.string().optional(),
   lineItems: z.array(lineItemSchema).default([]),
+  // status was omitted here, so quoteSchema.partial().parse() silently DROPPED it
+  // from PUT bodies — a quote could never leave 'draft' through the app.
+  status: z.enum(['draft', 'sent', 'approved', 'rejected', 'expired']).optional(),
 })
 
 const calcTotals = (items: { quantity: number; unitPrice: number }[], taxRate: number, discount: number) => {

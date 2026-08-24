@@ -6,7 +6,7 @@
  */
 
 import { db } from '../../db/index.ts'
-import { contact, project, job, quote, invoice, document, teamMember, rfi } from '../../db/schema.ts'
+import { contact, project, job, quote, invoice, document, teamMember, rfi, patient } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc, asc, sql } from 'drizzle-orm'
 
 interface SearchResult {
@@ -37,9 +37,43 @@ export async function globalSearch(
   const perType = Math.ceil(limit / 6)
   const pattern = `%${searchTerm}%`
 
-  const searchTypes = types || ['contact', 'project', 'job', 'quote', 'invoice', 'document']
+  // 'patient' (pets) is the primary thing a clinic searches by — it was
+  // missing from the default set, so ⌘K "Luna" returned nothing.
+  const searchTypes = types || ['patient', 'contact', 'quote', 'invoice', 'document']
 
   const searches: Promise<SearchResult[]>[] = []
+
+  // Patients (pets)
+  if (searchTypes.includes('patient')) {
+    searches.push(
+      db
+        .select({ id: patient.id, name: patient.name, species: patient.species, breed: patient.breed, microchip: patient.microchip })
+        .from(patient)
+        .where(
+          and(
+            eq(patient.companyId, companyId),
+            or(
+              ilike(patient.name, pattern),
+              ilike(patient.breed, pattern),
+              ilike(patient.microchip, pattern)
+            )
+          )
+        )
+        .orderBy(desc(patient.updatedAt))
+        .limit(perType)
+        .then((items) =>
+          items.map((item) => ({
+            type: 'patient',
+            subtype: item.species,
+            id: item.id,
+            name: item.name,
+            description: [item.species, item.breed].filter(Boolean).join(' · '),
+            url: `/patients/${item.id}`,
+            icon: 'paw',
+          }))
+        )
+    )
+  }
 
   // Contacts
   if (searchTypes.includes('contact')) {

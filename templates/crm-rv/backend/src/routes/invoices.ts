@@ -225,6 +225,13 @@ app.post('/:id/payments', requirePermission('invoices:update'), async (c) => {
   const [foundInvoice] = await db.select().from(invoice).where(and(eq(invoice.id, id), eq(invoice.companyId, currentUser.companyId))).limit(1)
   if (!foundInvoice) return c.json({ error: 'Invoice not found' }, 404)
 
+  // Reject overpayment: recording more than the balance due poisons
+  // amountPaid and every report built on it (collection rate, revenue).
+  const balanceDue = Number(foundInvoice.total) - Number(foundInvoice.amountPaid)
+  if (data.amount > balanceDue + 0.005) {
+    return c.json({ error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }, 400)
+  }
+
   const [newPayment] = await db.insert(payment).values({ ...data, amount: data.amount.toString(), invoiceId: id }).returning()
 
   const newAmountPaid = Number(foundInvoice.amountPaid) + data.amount
