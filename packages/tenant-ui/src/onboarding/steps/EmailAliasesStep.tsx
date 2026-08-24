@@ -108,7 +108,7 @@ export function EmailAliasesStep({ productId, onBack, onNext }: Props): React.Re
       <div className="mb-6 flex items-end gap-2">
         <div className="flex-1">
           <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1">Add another</label>
-          <input type="text" value={newAlias} onChange={e => setNewAlias(e.target.value)} placeholder="billing" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+          <input type="text" value={newAlias} onChange={e => { setNewAlias(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '')); setError(''); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra(); } }} placeholder="billing" className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
         </div>
         <button onClick={addExtra} className="px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-md text-sm">Add</button>
       </div>

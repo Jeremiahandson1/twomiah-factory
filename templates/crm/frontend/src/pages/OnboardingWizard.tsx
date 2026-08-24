@@ -32,7 +32,7 @@ const INTEGRATIONS: Integration[] = [
     guideSteps: [
       'Log into your domain registrar (GoDaddy, Namecheap, Cloudflare, etc.)',
       'Go to DNS settings for your domain',
-      'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM URL',
+      'Add a CNAME record pointing your subdomain (e.g. crm.yourdomain.com) to your CRM’s current hostname (the address shown in your browser bar while signed in)',
       'Save changes — DNS propagation can take up to 24 hours',
     ],
   },
@@ -102,7 +102,7 @@ const INTEGRATIONS: Integration[] = [
     description: 'Accept credit card payments on invoices and through the customer portal.',
     category: 'payments',
     guideSteps: [
-      'Go to Settings > Payments in your CRM',
+      'Go to Settings > Integrations in your CRM',
       'Click "Connect Stripe" to create or link your Stripe account',
       'Complete the Stripe onboarding (takes 5-10 minutes)',
       'Once connected, customers can pay invoices online',
