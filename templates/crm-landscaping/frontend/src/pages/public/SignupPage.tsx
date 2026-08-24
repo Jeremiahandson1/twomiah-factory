@@ -375,16 +375,19 @@ export default function SignupPage() {
 
         {step < 3 && (
           <div className="flex justify-between mt-6">
-            <button
-              onClick={handleBack}
-              disabled={step === 0}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium ${
-                step === 0 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </button>
+            {/* No Back on the first step — it had nowhere to go. Keep an empty
+                spacer so Next stays right-aligned. */}
+            {step === 0 ? (
+              <span />
+            ) : (
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-2 px-6 py-3 rounded-lg font-medium text-gray-700 hover:bg-gray-100"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
             
             <button
               onClick={handleNext}

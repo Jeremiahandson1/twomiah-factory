@@ -57,7 +57,14 @@ export default function CustomerPortal() {
   }
   
   const products = settings.products || ['crm']; // default: CRM always available
-  const siteUrl = settings.siteUrl || null;
+  // Normalise the website URL (protocol + a real dotted host) so a typo or an
+  // unset value doesn't render as a live "View website" link that dead-ends.
+  const normalizeUrl = (u) => {
+    if (!u || typeof u !== 'string' || !u.trim()) return null;
+    const withProto = /^https?:\/\//i.test(u.trim()) ? u.trim() : `https://${u.trim()}`;
+    try { const parsed = new URL(withProto); return parsed.hostname.includes('.') ? parsed.href.replace(/\/$/, '') : null; } catch { return null; }
+  };
+  const siteUrl = normalizeUrl(settings.siteUrl);
   const cmsUrl = settings.cmsUrl || null;
 
   const handleLogout = async () => {
@@ -157,24 +164,33 @@ export default function CustomerPortal() {
 
           {/* Website - if website product was included */}
           {(products.includes('website') || siteUrl) && (
-            <a
-              href={siteUrl || '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
-            >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-                  <Globe className="w-6 h-6 text-emerald-600" />
+            siteUrl ? (
+              <a
+                href={siteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-500" />
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <Globe className="w-6 h-6 text-emerald-600" />
+                  </div>
+                  <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
                 </div>
-                <ExternalLink className="w-5 h-5 text-slate-300 group-hover:text-slate-500 transition-all" />
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
+                <p className="text-sm text-slate-500">View your public-facing website</p>
+              </a>
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 p-6 relative overflow-hidden opacity-75">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-slate-300" />
+                <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center mb-4">
+                  <Globe className="w-6 h-6 text-slate-400" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
+                <p className="text-sm text-slate-500">Your website address hasn’t been set yet — add it in Settings.</p>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 mb-1">Live Website</h3>
-              <p className="text-sm text-slate-500">
-                View your public-facing website
-              </p>
-            </a>
+            )
           )}
 
           {/* CMS - if cms product was included */}

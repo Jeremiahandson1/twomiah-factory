@@ -20,6 +20,7 @@ export default function QuotesPage() {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState(null);
   const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -33,6 +34,7 @@ export default function QuotesPage() {
     try {
       const params = { page, limit: 25 };
       if (statusFilter) params.status = statusFilter;
+      if (search) params.search = search;
       const [res, contRes, projRes] = await Promise.all([api.quotes.list(params), api.contacts.list({ limit: 100 }), api.projects.list({ limit: 100 })]);
       setData(res.data);
       setPagination(res.pagination);
@@ -40,9 +42,10 @@ export default function QuotesPage() {
       setProjects(projRes.data);
     } catch (err) { toast.error('Failed to load quotes'); }
     finally { setLoading(false); }
-  }, [page, statusFilter]);
+  }, [page, statusFilter, search]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [statusFilter, search]);
 
   const loadCustomerEquipment = async (contactId) => {
     if (!contactId) { setCustomerEquipment([]); return; }
@@ -129,7 +132,13 @@ export default function QuotesPage() {
   return (
     <div>
       <PageHeader title="Quotes" action={<Button onClick={openCreate}><Plus className="w-4 h-4 mr-2 inline"/>New Quote</Button>} />
-      <div className="mb-4"><select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-4 py-2 border rounded-lg"><option value="">All Status</option>{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+      <div className="mb-4 flex items-center gap-3 flex-wrap">
+        <div className="relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search quotes..." className="pl-9 pr-4 py-2 border rounded-lg w-64" />
+        </div>
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className="px-4 py-2 border rounded-lg"><option value="">All Status</option>{statuses.map(s => <option key={s} value={s}>{s}</option>)}</select>
+      </div>
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage} onRowClick={(row) => navigate(`/crm/quotes/${row.id}`)} actions={[
         { label: 'Edit', icon: Edit, onClick: openEdit },
         { label: 'Send', icon: Send, onClick: handleSend },
