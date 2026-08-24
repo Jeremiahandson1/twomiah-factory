@@ -19,7 +19,7 @@ import {
   invoice,
   invoiceLineItem,
 } from '../../db/schema.ts';
-import { eq, and, lte, gte, count, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, lte, gte, count, asc, desc, sql, inArray } from 'drizzle-orm';
 
 // ============================================
 // AGREEMENT PLANS (Templates)
@@ -328,7 +328,9 @@ export async function getUpcomingVisits(companyId: string, { days = 30 }: { days
     .where(and(
       eq(agreementVisit.status, 'scheduled'),
       lte(agreementVisit.scheduledDate, endDate),
-      sql`${agreementVisit.agreementId} = ANY(${agreementIds})`,
+      // Use inArray, not a raw "= ANY(${jsArray})" — the array didn't serialise
+      // cleanly into the SQL template and 500'd the upcoming-visits endpoint.
+      inArray(agreementVisit.agreementId, agreementIds),
     ))
     .orderBy(asc(agreementVisit.scheduledDate));
 
