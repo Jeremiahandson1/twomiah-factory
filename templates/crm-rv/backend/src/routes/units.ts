@@ -24,10 +24,12 @@ const unitSchema = z.object({
   interiorColor: z.string().optional(),
   mileage: z.number().int().min(0).optional(),
   status: z.enum(['available', 'sold', 'pending', 'on_order', 'in_service']).default('available'),
-  msrp: z.string().optional(),
-  listedPrice: z.string().optional(),
-  internetPrice: z.string().optional(),
-  cost: z.string().optional(),
+  // Money fields are decimal-as-string; reject negatives (M-01: listedPrice "-500"
+  // was accepted and syndicated) and non-numeric junk.
+  msrp: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
+  listedPrice: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
+  internetPrice: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
+  cost: z.string().refine(v => v === '' || (!isNaN(Number(v)) && Number(v) >= 0), 'Must be a non-negative amount').optional(),
   photos: z.array(z.string()).optional(),
   floorplanImg: z.string().optional(),
   description: z.string().optional(),

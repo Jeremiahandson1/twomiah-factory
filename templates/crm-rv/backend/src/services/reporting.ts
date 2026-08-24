@@ -89,15 +89,9 @@ export async function getRevenueByMonth(companyId: string, { months = 12 }: { mo
   startDate.setHours(0, 0, 0, 0)
 
   const invoices = await db
-    .select({ total: invoice.total, createdAt: invoice.createdAt })
+    .select({ total: invoice.total, amountPaid: invoice.amountPaid, createdAt: invoice.createdAt, paidAt: invoice.paidAt })
     .from(invoice)
     .where(and(eq(invoice.companyId, companyId), gte(invoice.createdAt, startDate)))
-
-  const payments = await db
-    .select({ amount: payment.amount, paidAt: payment.paidAt })
-    .from(payment)
-    .innerJoin(invoice, eq(payment.invoiceId, invoice.id))
-    .where(and(eq(invoice.companyId, companyId), gte(payment.paidAt, startDate)))
 
   // Group by month
   const monthlyData: Record<string, { month: string; invoiced: number; collected: number }> = {}
@@ -109,18 +103,19 @@ export async function getRevenueByMonth(companyId: string, { months = 12 }: { mo
     monthlyData[key] = { month: key, invoiced: 0, collected: 0 }
   }
 
-  invoices.forEach((inv) => {
-    const key = `${inv.createdAt.getFullYear()}-${String(inv.createdAt.getMonth() + 1).padStart(2, '0')}`
-    if (monthlyData[key]) {
-      monthlyData[key].invoiced += Number(inv.total)
-    }
-  })
+  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
-  payments.forEach((pay) => {
-    if (!pay.paidAt) return
-    const key = `${pay.paidAt.getFullYear()}-${String(pay.paidAt.getMonth() + 1).padStart(2, '0')}`
-    if (monthlyData[key]) {
-      monthlyData[key].collected += Number(pay.amount)
+  invoices.forEach((inv) => {
+    const key = monthKey(inv.createdAt)
+    if (monthlyData[key]) monthlyData[key].invoiced += Number(inv.total)
+
+    // Collected derives from amountPaid (the source of truth used everywhere else)
+    // attributed to the paid month — the separate payment table was empty for
+    // invoices marked paid directly, so collected always read 0 (H-01).
+    const paid = Number(inv.amountPaid)
+    if (paid > 0) {
+      const paidKey = monthKey(inv.paidAt || inv.createdAt)
+      if (monthlyData[paidKey]) monthlyData[paidKey].collected += paid
     }
   })
 
