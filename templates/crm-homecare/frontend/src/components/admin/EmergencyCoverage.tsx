@@ -78,29 +78,41 @@ const EmergencyCoverage = () => {
     );
     if (!ok) return;
 
+    // Coverage is assigned against a specific call-out (absence). A manual
+    // availability search has no absence to attach to, so the request 400'd while
+    // the UI still claimed success — assign from a "Called Out" report instead.
+    if (!selectedReport?.id) {
+      toast('Pick a "Called Out" report above, then assign coverage for it.', 'error');
+      return;
+    }
+
     try {
-      const form = selectedReport ? {
+      const form = {
         date: selectedReport.date?.split('T')[0] || searchForm.date,
         startTime: selectedReport.start_time || searchForm.startTime,
         endTime: selectedReport.end_time || searchForm.endTime,
         clientId: selectedReport.client_id || searchForm.clientId,
-      } : searchForm;
+      };
 
-      await fetch(`${API_BASE_URL}/api/emergency/assign-coverage`, {
+      const res = await fetch(`${API_BASE_URL}/api/emergency/assign-coverage`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          absenceId: selectedReport?.id,
+          absenceId: selectedReport.id,
           caregiverId: caregiver.id,
           ...form,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to assign coverage');
+      }
       toast(`Coverage assigned to ${caregiver.first_name} ${caregiver.last_name}. They have been notified.`, 'success');
       loadData();
       setAvailableCaregivers([]);
       setSelectedReport(null);
     } catch (e) {
-      toast('Failed to assign coverage', 'error');
+      toast(e.message || 'Failed to assign coverage', 'error');
     }
   };
 

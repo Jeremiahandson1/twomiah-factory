@@ -254,10 +254,13 @@ body {
 }
 
 .stat-card h3 {
-    color: var(--color-text-light);
+    /* L-01: was --color-text-light on a light gradient (~1.6:1, unreadable).
+       Use a dark slate for a comfortable contrast on the tile. */
+    color: #334155;
     font-size: 0.8rem;
-    font-weight: 600;
+    font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.02em;
     margin-bottom: 0.5rem;
 }
 
