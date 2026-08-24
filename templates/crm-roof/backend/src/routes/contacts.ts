@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { contact, job, smsMessage, company } from '../../db/schema.ts'
-import { eq, and, desc, like, or, count } from 'drizzle-orm'
+import { eq, and, desc, like, ilike, or, count, sql } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 
 const app = new Hono()
@@ -34,12 +34,15 @@ app.get('/', async (c) => {
 
   if (search) {
     const searchPattern = `%${search}%`
+    // Case-INsensitive, and match a full "First Last" string against the
+    // concatenated name so searching "Robert Johnson" finds the contact.
     conditions.push(
       or(
-        like(contact.firstName, searchPattern),
-        like(contact.lastName, searchPattern),
-        like(contact.email, searchPattern),
-        like(contact.phone, searchPattern),
+        ilike(contact.firstName, searchPattern),
+        ilike(contact.lastName, searchPattern),
+        ilike(contact.email, searchPattern),
+        ilike(contact.phone, searchPattern),
+        sql`lower(${contact.firstName} || ' ' || ${contact.lastName}) like lower(${searchPattern})`,
       )!
     )
   }

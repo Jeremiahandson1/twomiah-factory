@@ -208,7 +208,7 @@ class ApiClient {
     update: (id, data) => this.update('/api/invoices', id, data),
     delete: (id) => this.delete('/api/invoices', id),
     send: (id) => this.action('/api/invoices', id, 'send'),
-    recordPayment: (id, data) => this.request(`/api/invoices/${id}/payments`, { method: 'POST', body: JSON.stringify(data) }),
+    recordPayment: (id, data) => this.request(`/api/invoices/${id}/payment`, { method: 'POST', body: JSON.stringify(data) }),
     downloadPdf: (id) => `${this.baseUrl}/api/invoices/${id}/pdf`,
   };
 

@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
 import { job, contact, crew, measurementReport, jobPhoto, jobNote, quote, invoice, smsMessage, company } from '../../db/schema.ts'
-import { eq, and, desc, asc, like, or, count, sql } from 'drizzle-orm'
+import { eq, and, desc, asc, like, ilike, or, count, sql, inArray } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { uploadFile, deleteFile, keyFromMediaUrl } from '../services/storage.ts'
 import { createId } from '@paralleldrive/cuid2'
@@ -93,11 +93,24 @@ app.get('/', async (c) => {
 
   if (search) {
     const searchPattern = `%${search}%`
+    // Case-INsensitive (ilike, not like) and matches the homeowner's name too —
+    // looking a job up by contact name is how a roofer finds it. Resolve the
+    // matching contacts first, then include jobs pointing at them.
+    const nameMatches = await db.select({ id: contact.id }).from(contact).where(and(
+      eq(contact.companyId, currentUser.companyId),
+      or(
+        ilike(contact.firstName, searchPattern),
+        ilike(contact.lastName, searchPattern),
+        sql`lower(${contact.firstName} || ' ' || ${contact.lastName}) like lower(${searchPattern})`,
+      ),
+    ))
+    const matchIds = nameMatches.map((r) => r.id)
     conditions.push(
       or(
-        like(job.jobNumber, searchPattern),
-        like(job.propertyAddress, searchPattern),
-        like(job.notes, searchPattern),
+        ilike(job.jobNumber, searchPattern),
+        ilike(job.propertyAddress, searchPattern),
+        ilike(job.notes, searchPattern),
+        ...(matchIds.length ? [inArray(job.contactId, matchIds)] : []),
       )!
     )
   }

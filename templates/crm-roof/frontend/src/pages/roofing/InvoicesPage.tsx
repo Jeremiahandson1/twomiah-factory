@@ -133,17 +133,21 @@ export default function InvoicesPage() {
   const recordPayment = async () => {
     if (!paymentInvoice || !payment.amount) return;
     try {
-      const res = await fetch(`/api/invoices/${paymentInvoice.id}/payments`, {
+      // Backend route is /payment (singular); /payments 404'd silently.
+      const res = await fetch(`/api/invoices/${paymentInvoice.id}/payment`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payment, amount: Number(payment.amount) }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || 'Failed to record payment');
+      }
       toast.success('Payment recorded');
       setPaymentOpen(false);
       load();
-    } catch {
-      toast.error('Failed to record payment');
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to record payment');
     }
   };
 

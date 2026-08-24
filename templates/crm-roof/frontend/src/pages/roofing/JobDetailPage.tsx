@@ -125,7 +125,9 @@ export default function JobDetailPage() {
   const updateAssignment = async (field: string, value: string) => {
     try {
       const res = await fetch(`/api/jobs/${id}`, {
-        method: 'PATCH',
+        // Backend implements PUT, not PATCH — PATCH 404'd and assignment
+        // silently reverted to "Unassigned".
+        method: 'PUT',
         headers: { ...headers, 'Content-Type': 'application/json' },
         body: JSON.stringify({ [field]: value || null }),
       });
@@ -206,7 +208,8 @@ export default function JobDetailPage() {
       const res = await fetch(`/api/jobs/${id}/notes`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: noteText }),
+        // API expects { body }, not { text } — the mismatch 400'd every note.
+        body: JSON.stringify({ body: noteText }),
       });
       if (!res.ok) throw new Error();
       const note = await res.json();
@@ -590,7 +593,7 @@ export default function JobDetailPage() {
                 {notes.length === 0 && <p className="text-sm text-gray-400">No notes yet</p>}
                 {notes.map((note, i) => (
                   <div key={note.id || i} className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-sm text-gray-900">{note.text || note.content}</p>
+                    <p className="text-sm text-gray-900">{note.body || note.text || note.content}</p>
                     <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-400">
                       {note.authorName && <span>{note.authorName}</span>}
                       {note.createdAt && <span>{new Date(note.createdAt).toLocaleString()}</span>}
@@ -630,7 +633,7 @@ export default function JobDetailPage() {
                     <div key={event.id || i} className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 flex-shrink-0" />
                       <div>
-                        <p className="text-sm text-gray-900">{event.description || event.message}</p>
+                        <p className="text-sm text-gray-900">{event.body || event.description || event.message}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {event.createdAt ? new Date(event.createdAt).toLocaleString() : ''}
                           {event.userName && ` — ${event.userName}`}

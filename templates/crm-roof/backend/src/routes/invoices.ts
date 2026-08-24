@@ -211,6 +211,13 @@ app.post('/:id/payment', async (c) => {
     .limit(1)
   if (!existing) return c.json({ error: 'Invoice not found' }, 404)
 
+  // Don't accept a payment larger than what's owed (a fat-fingered 999,999 on
+  // an $8,400 invoice went straight through).
+  const balanceDue = Number(existing.total) - Number(existing.amountPaid)
+  if (data.amount > balanceDue + 0.005) {
+    return c.json({ error: `Payment exceeds the balance due — $${balanceDue.toFixed(2)} remaining` }, 400)
+  }
+
   const newAmountPaid = Number(existing.amountPaid) + data.amount
   const newBalance = Number(existing.total) - newAmountPaid
   const isPaidInFull = newBalance <= 0
