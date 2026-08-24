@@ -483,7 +483,7 @@ const AddMemberForm = ({ clients, onSubmit, onCancel }) => {
           required
         >
           <option value="">Select Client</option>
-          {clients.filter(c => c.status === 'active').map(c => (
+          {clients.filter(c => c.is_active !== false).map(c => (
             <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>
           ))}
         </select>
