@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import ErrorBoundary from '../common/ErrorBoundary';
 import { 
   Menu, X, Home, Users, FolderKanban, Briefcase, FileText, Receipt,
   Calendar, Clock, DollarSign, FileQuestion, ClipboardList, CheckSquare,
@@ -366,9 +367,13 @@ export default function AppLayout() {
         {/* Trial countdown banner — only renders when within 7 days of expiry */}
         <TrialBanner />
 
-        {/* Page Content */}
+        {/* Page Content — a per-route error boundary so a single crashed page
+            keeps the sidebar/header usable and clears itself on navigation,
+            instead of one crash breaking every subsequent page until reload. */}
         <main id="main-content" className="p-4 lg:p-6" tabIndex={-1}>
-          <Outlet />
+          <ErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>

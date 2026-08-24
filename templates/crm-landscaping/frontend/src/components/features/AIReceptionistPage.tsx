@@ -74,7 +74,9 @@ function AutoReplyForm({ item, onSave, onClose }: any) {
 }
 
 export function AIReceptionistPage() {
-  const { instance } = useOutletContext<any>();
+  // This page is mounted without an outlet context, so useOutletContext() is
+  // undefined — destructuring it directly crashed the whole page on load.
+  const { instance } = (useOutletContext<any>() as any) || {};
   const { token } = useAuth();
   const [rules, setRules] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>({ isEnabled: false, businessHoursStart: '09:00', businessHoursEnd: '17:00', greetingText: '' });

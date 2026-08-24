@@ -4,11 +4,21 @@ import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 class ErrorBoundary extends React.Component<any, any> {
   constructor(props: any) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null, errorInfo: null, lastKey: props.resetKey };
   }
 
   static getDerivedStateFromError(error: any) {
     return { hasError: true, error };
+  }
+
+  // Clear the error when the reset key changes (e.g. the route). Without this a
+  // single crashed page left every subsequent page showing "Something went
+  // wrong" until a full reload.
+  static getDerivedStateFromProps(props: any, state: any) {
+    if (props.resetKey !== state.lastKey) {
+      return { hasError: false, error: null, errorInfo: null, lastKey: props.resetKey };
+    }
+    return null;
   }
 
   componentDidCatch(error: any, errorInfo: any) {
