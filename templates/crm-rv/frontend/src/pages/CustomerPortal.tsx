@@ -149,10 +149,13 @@ export default function CustomerPortal() {
         {stats && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
             {([
+              // The RV dashboard endpoint returns {contacts, inventory, sales, service}
+              // — the portal used to read contractor shapes (jobs/quotes/invoices) that
+              // don't exist here, so every tile read 0 (H-04). Map to the real shape.
               { label: 'Contacts', value: stats.contacts ?? 0, icon: Users, color: 'blue' },
-              { label: 'Open Jobs', value: (stats.jobs as Record<string, unknown>)?.today ?? 0, icon: Briefcase, color: 'emerald' },
-              { label: 'Pending Quotes', value: (stats.quotes as Record<string, unknown>)?.pending ?? 0, icon: FileText, color: 'amber' },
-              { label: 'Outstanding', value: `$${((stats.invoices as Record<string, unknown>)?.outstandingValue as number ?? 0).toLocaleString()}`, icon: DollarSign, color: 'green' },
+              { label: 'Inventory', value: (stats.inventory as Record<string, unknown>)?.total ?? 0, icon: Briefcase, color: 'emerald' },
+              { label: 'Open Leads', value: (stats.sales as Record<string, unknown>)?.openLeads ?? 0, icon: FileText, color: 'amber' },
+              { label: 'Open ROs', value: (stats.service as Record<string, unknown>)?.openRepairOrders ?? 0, icon: DollarSign, color: 'green' },
             ] as unknown as StatCard[]).map((stat) => (
               <div key={stat.label} className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className={`w-8 h-8 rounded-lg bg-${stat.color}-50 flex items-center justify-center mb-2`}>
@@ -185,16 +188,18 @@ export default function CustomerPortal() {
               </div>
               <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">Business CRM</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">Dealership CRM</h3>
             <p className="text-sm text-slate-500">
-              Contacts, jobs, quotes, invoices, scheduling, and more
+              Inventory, leads, deals, service, invoices, and more
             </p>
           </div>
 
-          {/* Website - if website product was included */}
-          {(products.includes('website') || siteUrl) && (
+          {/* Website - only when the website product was actually purchased AND a
+              real site URL exists. Showing it off a seeded company.website linked to
+              a domain that doesn't resolve (H-09). */}
+          {products.includes('website') && siteUrl && (
             <a
-              href={siteUrl || '#'}
+              href={siteUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="bg-white rounded-xl border border-slate-200 p-6 cursor-pointer hover:border-slate-300 hover:shadow-md transition-all group relative overflow-hidden block"
@@ -213,8 +218,8 @@ export default function CustomerPortal() {
             </a>
           )}
 
-          {/* CMS - if cms product was included */}
-          {(products.includes('cms') || cmsUrl) && (
+          {/* CMS - only when the CMS product was actually purchased and has a URL */}
+          {products.includes('cms') && (cmsUrl || siteUrl) && (
             <a
               href={cmsUrl || (siteUrl ? `${siteUrl}/admin` : '#')}
               target="_blank"
@@ -260,34 +265,47 @@ export default function CustomerPortal() {
             <h3 className="font-semibold text-slate-900">Recent Activity</h3>
           </div>
           <div className="divide-y divide-slate-100">
-            {(activity?.recentJobs?.length || activity?.recentQuotes?.length || activity?.recentInvoices?.length) ? (
-              <>
-                {(activity?.recentJobs || []).slice(0, 3).map((item: Record<string, unknown>) => (
-                  <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-blue-400" />
-                    <span className="text-sm text-slate-700">Job: {(item.title as string) || (item.number as string)} — {((item.status as string)?.replace('_', ' ')) || 'pending'}</span>
-                    <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? new Date(item.updatedAt as string).toLocaleDateString() : ''}
-                    </span>
-                  </div>
-                ))}
-                {(activity?.recentQuotes || []).slice(0, 2).map((item: Record<string, unknown>) => (
-                  <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="text-sm text-slate-700">Quote: {(item.name as string) || (item.number as string)} — ${Number(item.total || 0).toLocaleString()}</span>
-                    <span className="text-xs text-slate-400 ml-auto">
-                      {item.updatedAt ? new Date(item.updatedAt as string).toLocaleDateString() : ''}
-                    </span>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <div className="px-6 py-8 text-center">
-                <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">No recent activity</p>
-                <p className="text-xs text-slate-400 mt-1">Get started by adding contacts and jobs</p>
-              </div>
-            )}
+            {(() => {
+              // The RV recent-activity endpoint returns recentUnits/recentLeads/
+              // recentRepairOrders — the portal read recentJobs/recentQuotes and so
+              // always showed "No recent activity" despite real data (H-04).
+              const act = activity as Record<string, any> | null;
+              const units = act?.recentUnits || [];
+              const leads = act?.recentLeads || [];
+              const ros = act?.recentRepairOrders || [];
+              const when = (v: unknown) => v ? new Date(v as string).toLocaleDateString() : '';
+              return (units.length || leads.length || ros.length) ? (
+                <>
+                  {units.slice(0, 2).map((item: Record<string, unknown>) => (
+                    <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                      <span className="text-sm text-slate-700">Unit: {[item.year, item.make, item.modelName].filter(Boolean).join(' ')} — {(item.status as string)?.replace('_', ' ') || 'in stock'}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt)}</span>
+                    </div>
+                  ))}
+                  {leads.slice(0, 2).map((item: Record<string, unknown>) => (
+                    <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-amber-400" />
+                      <span className="text-sm text-slate-700">Lead: {(item.source as string) || 'walk-in'} — {(item.stage as string)?.replace(/_/g, ' ') || 'new'}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt)}</span>
+                    </div>
+                  ))}
+                  {ros.slice(0, 2).map((item: Record<string, unknown>) => (
+                    <div key={item.id as string} className="px-6 py-3 flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span className="text-sm text-slate-700">RO: {(item.roNumber as string) || (item.id as string)} — {(item.status as string)?.replace(/_/g, ' ') || 'open'}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{when(item.updatedAt)}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="px-6 py-8 text-center">
+                  <Clock className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">No recent activity</p>
+                  <p className="text-xs text-slate-400 mt-1">Get started by adding inventory and leads</p>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
