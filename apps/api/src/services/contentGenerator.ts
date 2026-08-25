@@ -174,8 +174,10 @@ function loadContentPack(industry: string): any | null {
 
 export async function generateWebsiteContent(input: ContentGenerationInput): Promise<GeneratedContent> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  // 12K-token generation — cap well under the SDK's 10-min default so a degraded
-  // API call fails fast enough to retry instead of stalling the intake
+  // 32K-token ceiling — the full payload (homepage + product categories + posts
+  // + privacy/terms HTML) truncated at 12K and failed JSON.parse ("unterminated
+  // string"); matches the premium composer's budget. Still under the SDK's 10-min
+  // default so a degraded call fails fast enough to retry.
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 300_000, maxRetries: 2 })
 
   const location = [input.location.city, input.location.state].filter(Boolean).join(', ') || 'your area'
@@ -185,10 +187,21 @@ export async function generateWebsiteContent(input: ContentGenerationInput): Pro
   const serviceAreas = [input.location.city, ...nearbyCities].filter(Boolean)
   const now = new Date().toISOString()
 
-  // Load industry content pack
-  const pack = loadContentPack(input.businessType)
+  // Store / e-commerce sites are not service businesses — the whole content
+  // model changes (products not services, shop CTAs not quote requests, national
+  // shipping not local service area). Detect early so we skip the service
+  // content packs and steer the prompt.
+  const { verticalFor } = await import('../config/industryRouting')
+  const isStore = verticalFor(input.businessType) === 'store'
+
+  // Load industry content pack — but NOT for a store: the packs are all
+  // service-business content (contractor is the fallback), and injecting
+  // contractor services/FAQ fights the store guidance below.
+  const pack = isStore ? null : loadContentPack(input.businessType)
   if (pack) {
     console.log('[ContentGenerator] Using content pack for:', pack.vertical || input.businessType)
+  } else if (isStore) {
+    console.log('[ContentGenerator] Store vertical — skipping service content pack')
   }
 
   // Build the prompt — use content pack if available, otherwise generate from scratch
@@ -214,7 +227,18 @@ FAQ FROM PACK (use these as-is, just customize company name/location):
 ${JSON.stringify((pack.faq || []).slice(0, 6), null, 2)}
 ` : ''
 
-  const prompt = `You are customizing website content for a specific business.${pack ? ' You have industry-specific content to work from — adapt it, don\'t start from scratch.' : ' Generate unique, professional, SEO-optimized content.'}
+  const storeGuidance = isStore ? `
+THIS IS AN ONLINE STORE (e-commerce), NOT a service business. Adapt everything:
+- Hero: a real point of view about WHO this store is for and why it's different — not "quality products, delivered". primaryButtonText "Shop Now", primaryButtonLink "/shop"; secondaryButtonText "Our Story", secondaryButtonLink "/about". Never "Get a quote" or "#contact".
+- "services" are PRODUCT CATEGORIES the store sells (derive from the product list) — named as things a shopper browses ("Feeders", "Hummingbird feeders", "Life-list journals"), each with a shopper-facing description of what's in it and who it's for. They are NOT services performed.
+- trustBadges: fast shipping, easy 30-day returns, secure checkout, curated selection — never "licensed & insured" or "free estimates".
+- ctaSection: drive to the shop ("Start your collection", "Shop the starter kit"), primaryButtonLink "/shop".
+- aboutSection: the brand story — why this store exists and who it serves.
+- Blog posts: buying guides / how-tos for the niche (e.g. "Your first 10 backyard birds", "Seed vs suet").
+- Do NOT use local-service framing ("serving [city]", "your area") — an online store ships nationally.
+` : ''
+
+  const prompt = `You are customizing website content for a specific business.${pack ? ' You have industry-specific content to work from — adapt it, don\'t start from scratch.' : ' Generate unique, professional, SEO-optimized content.'}${storeGuidance}
 
 BUSINESS DETAILS:
 - Name: ${input.businessName}
@@ -254,7 +278,7 @@ Return ONLY valid JSON with this structure:
 
   const message = await anthropic.messages.create({
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
-    max_tokens: 12000,
+    max_tokens: 32000,
     messages: [{ role: 'user', content: prompt }],
   })
 
@@ -272,7 +296,7 @@ Return ONLY valid JSON with this structure:
     console.warn('[ContentGenerator] First parse failed, retrying...')
     const retry = await anthropic.messages.create({
       model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
-      max_tokens: 12000,
+      max_tokens: 32000,
       messages: [
         { role: 'user', content: prompt },
         { role: 'assistant', content: raw },
@@ -295,7 +319,9 @@ Return ONLY valid JSON with this structure:
     let pool: string[] = []
     try {
       const { searchStockPhotosForBusiness } = await import('./unsplashPlus')
-      const photos = await searchStockPhotosForBusiness(input.businessType, input.services?.[0], input.location?.city)
+      // Pass the full product/description context (not just services[0]) so the
+      // Pexels query derivation returns on-theme, per-category imagery.
+      const photos = await searchStockPhotosForBusiness(input.businessType, input.services, input.location?.city, input.description, input.businessName)
       pool = (photos || []).map((p: any) => p.url).filter(Boolean)
     } catch { /* unsplash not configured / failed — fall back to the library */ }
     const { getServiceImage } = await import('../config/serviceImageLibrary')

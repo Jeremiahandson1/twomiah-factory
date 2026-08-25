@@ -296,6 +296,36 @@ export function crmTemplateFor(industry: string | undefined | null): CrmTemplate
   }
 }
 
+/**
+ * The deploy product bundle for an industry, derived from its vertical — the
+ * single source of truth so checkout and staff-deploy never hardcode products
+ * and the storefront/back-office pairing can't drift from the templates.
+ *
+ * - store   → shop back-office (crm-store, -shop-api) + storefront (website-store)
+ * - other   → premium marketing site (website-premium + cms)
+ *
+ * `base` preserves any products already on the tenant; conflicting flags are
+ * reconciled so a store never carries website-premium and a marketing site
+ * never silently drops it.
+ */
+export function deployProductsForVertical(
+  industry: string | undefined | null,
+  base: string[] = [],
+): string[] {
+  const set = new Set(base)
+  if (verticalFor(industry) === 'store') {
+    set.add('crm')      // crm-store back-office → {slug}-shop-api
+    set.add('website')  // website-store storefront → {slug}-site
+    set.delete('website-premium')
+    set.delete('cms')
+  } else {
+    set.add('website')
+    set.add('website-premium')
+    set.add('cms')
+  }
+  return Array.from(set)
+}
+
 export function premiumWebsiteTemplateFor(industry: string | undefined | null): PremiumWebsiteTemplate {
   const v = verticalFor(industry)
   // Both verticals used to fall back to the contractor site, so a vet clinic

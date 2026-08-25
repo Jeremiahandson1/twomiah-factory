@@ -15,7 +15,7 @@ import { searchStockPhotosForBusiness, trackDownload as trackUnsplashDownload } 
 import { type FactoryApp, rateLimit, checkCronSecret, checkFactoryKey, UUID_RE, DOMAIN_RE, parseJsonBody } from './shared'
 import { runDeploy, triggerAutoDeploy } from './deploy'
 import { getDefaultFeaturesForTemplate } from '../../config/featureRegistry'
-import { crmTemplateFor } from '../../config/industryRouting'
+import { crmTemplateFor, deployProductsForVertical } from '../../config/industryRouting'
 
 export function registerIntakeRoutes(factory: FactoryApp) {
 // ─── Inbound Email Router (SendGrid Inbound Parse → tenant CRM) ──────────────
@@ -2015,15 +2015,13 @@ factory.post('/public/intake/:id/checkout-premium', rateLimit(60 * 60 * 1000, 10
       return c.json({ error: 'Preview must be composed before checkout.' }, 422)
     }
 
-    // Mark products so the eventual deploy picks the website-premium
-    // template. Note: 'website' MUST stay in products — the generator's
-    // premium branch is INSIDE `if (products.includes('website'))`, so
-    // dropping 'website' would skip the entire website pipeline.
-    const productsSet = new Set<string>(Array.isArray(tenant.products) ? tenant.products : [])
-    productsSet.add('website')
-    productsSet.add('website-premium')
-    productsSet.add('cms')
-    const products = Array.from(productsSet)
+    // Mark products for the eventual deploy — VERTICAL-DRIVEN, not hardcoded.
+    // A store deploys its storefront (website-store) + shop back-office
+    // (crm-store); every other vertical gets a premium marketing site
+    // (website-premium + cms). Single source of truth: deployProductsForVertical.
+    // Note: 'website' MUST stay in products either way — the generator's website
+    // pipeline is gated on `products.includes('website')`.
+    const products = deployProductsForVertical(tenant.industry, Array.isArray(tenant.products) ? tenant.products : [])
     if (JSON.stringify(products) !== JSON.stringify(tenant.products || [])) {
       await supabase.from('tenants').update({ products }).eq('id', id)
     }

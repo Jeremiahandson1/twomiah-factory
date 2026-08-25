@@ -460,6 +460,37 @@ export async function runDeploy(tenant: any, job: any, options: { region?: strin
       config.features = { ...config.features, crm: tenant.features }
     }
 
+    // Store storefront content: website-store otherwise deploys the template's
+    // skeleton copy ("Quality products, delivered"). Compose real content
+    // (hero, product categories, on-theme imagery) from the intake so the
+    // deployed storefront matches the brand. Non-blocking — a compose failure
+    // deploys the skeleton rather than failing the whole deploy.
+    try {
+      const { verticalFor } = await import('../../config/industryRouting')
+      const wantsWebsite = (config.products || []).includes('website')
+      if (verticalFor(tenant.industry) === 'store' && wantsWebsite && !config.content?.aiGenerated) {
+        const intake = tenant.intake_data?.intake || {}
+        const { generateWebsiteContent } = await import('../../services/contentGenerator')
+        const aiGenerated = await generateWebsiteContent({
+          businessName: tenant.name,
+          businessType: tenant.industry,
+          location: { city: tenant.city || intake.city || '', state: tenant.state || intake.state || '', stateFull: intake.stateFull || '' },
+          services: Array.isArray(intake.services) ? intake.services : [],
+          description: intake.description || tenant.notes || '',
+          serviceRegion: intake.serviceRegion,
+          nearbyCities: intake.nearbyCities || [],
+          phone: tenant.phone || intake.phone,
+          email: tenant.admin_email || tenant.email,
+          ownerName: intake.ownerName,
+          domain: tenant.domain || undefined,
+        })
+        config.content = { ...config.content, aiGenerated }
+        console.log('[Deploy] Composed store storefront content for', tenant.slug)
+      }
+    } catch (e: any) {
+      console.warn('[Deploy] Store content compose failed (non-blocking, deploying skeleton):', e?.message)
+    }
+
     console.log('[Deploy] Regenerating fresh zip for', tenant.slug)
     const genResult = await generate(config)
     const OUTPUT_DIR = process.env.FACTORY_OUTPUT_DIR || path.resolve(process.cwd(), '..', '..', 'generated')
