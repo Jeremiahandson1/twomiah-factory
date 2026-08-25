@@ -724,9 +724,9 @@ function MenuLineModal({ eventId, heads, onSave, onClose }: { eventId: string; h
               </option>
             ))}
           </select>
-          {selected?.minGuests && heads > 0 && heads < selected.minGuests && (
+          {selected?.minGuests && Number(form.quantity || 0) > 0 && Number(form.quantity) < selected.minGuests && (
             <p className="text-xs text-amber-700 mt-1">
-              This package needs {selected.minGuests} guests and the event has {heads} — it will be rejected.
+              Heads up: this package's minimum is {selected.minGuests} guests and you've entered {form.quantity}. You can still add it — the minimum is advisory.
             </p>
           )}
         </div>

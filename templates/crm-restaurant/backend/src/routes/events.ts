@@ -276,11 +276,11 @@ app.post('/:id/menu', requirePermission('contacts:update'), async (c) => {
     if (!name) name = pkg.name
     if (unitPrice === null || unitPrice === undefined) unitPrice = pkg.pricePerPerson
     if (!('perPerson' in body)) perPerson = true
-    // A package below its minimum is a pricing mistake, not a preference.
-    const heads = body.quantity ?? ev.guestCountFinal ?? ev.guestCount ?? 0
-    if (pkg.minGuests && perPerson && heads && heads < pkg.minGuests) {
-      return c.json({ error: `"${pkg.name}" has a ${pkg.minGuests}-guest minimum (this event has ${heads})` }, 400)
-    }
+    // The package minimum is advisory, not a hard wall: a coordinator must be able
+    // to add the line at the quantity they actually typed (it was rejecting any
+    // number below the minimum — e.g. 5 on a min-25 package — and blocking the
+    // package entirely on any event smaller than the minimum). The below-minimum
+    // state is surfaced as a warning banner on the event instead of a 400.
   }
   if (!name) return c.json({ error: 'name or packageId is required' }, 400)
 
