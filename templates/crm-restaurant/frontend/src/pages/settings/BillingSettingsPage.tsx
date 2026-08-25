@@ -3,6 +3,7 @@ import {
   CreditCard, Check, ArrowRight, Loader2, AlertTriangle,
   Plus, Package, Calendar, Receipt, X, ChevronRight
 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -60,6 +61,7 @@ interface AddonData {
 }
 
 export default function BillingSettingsPage() {
+  const { hasFeature } = useAuth();
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -317,7 +319,11 @@ export default function BillingSettingsPage() {
           <div className="grid md:grid-cols-3 gap-6">
             <UsageBar label="Users" current={usage.users?.current || 0} limit={usage.users?.limit} />
             <UsageBar label="Contacts" current={usage.contacts?.current || 0} limit={usage.contacts?.limit} />
-            <UsageBar label="Jobs (monthly)" current={usage.jobs?.current || 0} limit={usage.jobs?.limit} />
+            {/* "Jobs (monthly)" is a field-service meter — hide it where jobs
+                aren't a thing (an events venue), rather than showing 0 forever. */}
+            {hasFeature('jobs') && (
+              <UsageBar label="Jobs (monthly)" current={usage.jobs?.current || 0} limit={usage.jobs?.limit} />
+            )}
           </div>
         </div>
       )}

@@ -5,6 +5,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ImportType {
   id: string;
@@ -35,6 +36,12 @@ const IMPORT_TYPES: ImportType[] = [
 ];
 
 export default function ImportPage() {
+  const { hasFeature } = useAuth();
+  // Only offer import types this tenant actually has — an events venue doesn't
+  // import Projects or Jobs (H-02). Contacts/products/invoices are generic.
+  const importTypes = IMPORT_TYPES.filter((t) =>
+    (t.id !== 'projects' || hasFeature('projects')) && (t.id !== 'jobs' || hasFeature('jobs'))
+  );
   const [selectedType, setSelectedType] = useState<string>('contacts');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewData | null>(null);
@@ -115,7 +122,7 @@ export default function ImportPage() {
       <div className="bg-white rounded-xl border p-6">
         <h2 className="font-semibold text-gray-900 mb-4">What do you want to import?</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {IMPORT_TYPES.map((type: ImportType) => {
+          {importTypes.map((type: ImportType) => {
             const Icon = type.icon;
             return (
               <button
@@ -333,7 +340,7 @@ export default function ImportPage() {
               href={`/${selectedType}`}
               className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-center"
             >
-              View {IMPORT_TYPES.find((t: ImportType) => t.id === selectedType)?.label}
+              View {importTypes.find((t: ImportType) => t.id === selectedType)?.label}
             </a>
           </div>
         </div>
