@@ -260,7 +260,7 @@ RULES:
 - Icon values must be one of: ${ICON_OPTIONS.join(', ')}
 ${pack ? '- Stay true to the content pack\'s tone and technical accuracy' : '- Each service must have unique, detailed content'}
 
-Return ONLY valid JSON with this structure:
+Call the emit_website_content tool with the content in exactly this structure:
 {
   "homepage": {
     "hero": { "tagline": "3-6 WORD BADGE", "title": "HEADLINE with city", "subtitle": "TAGLINE", "description": "2-3 sentences", "primaryButtonText": "CTA", "primaryButtonLink": "#contact", "secondaryButtonText": "SECONDARY", "secondaryButtonLink": "/services" },
@@ -270,44 +270,45 @@ Return ONLY valid JSON with this structure:
   },
   "services": [{ "id": "slug", "name": "Name", "title": "Title", "slug": "slug", "shortDescription": "One sentence", "description": "2-3 sentences with ${input.businessName} and ${region}", "icon": "ICON", "features": ["f1","f2","f3","f4","f5"], "links": [], "seoTitle": "Service | ${input.businessName}", "seoDescription": "SEO desc", "visible": true, "order": 1 }],
   "settings": { "defaultMetaTitle": "${input.businessName} - ${input.location.city} ${input.businessType}", "defaultMetaDescription": "150 char SEO desc" },
-  "posts": [{ "id": "blog1", "title": "TITLE", "slug": "slug", "excerpt": "2 sentences", "content": "FULL 400-800 WORD ARTICLE with ## headings", "published": true, "category": "CAT", "tags": ["t1","t2"], "seoTitle": "Title | ${input.businessName}", "seoDescription": "SEO desc", "author": "${input.ownerName || input.businessName}" }],
-  "pages": {
-    "privacy-policy": { "id": "privacy-policy", "title": "Privacy Policy", "slug": "privacy-policy", "content": "FULL PRIVACY POLICY HTML for ${input.businessName} in ${location}", "seoTitle": "Privacy Policy | ${input.businessName}", "published": true },
-    "terms-of-service": { "id": "terms-of-service", "title": "Terms of Service", "slug": "terms-of-service", "content": "FULL TERMS HTML for ${input.businessName} in ${location}, governed by ${input.location.stateFull || input.location.state} law", "seoTitle": "Terms | ${input.businessName}", "published": true }
+  "posts": [{ "id": "blog1", "title": "TITLE", "slug": "slug", "excerpt": "2 sentences", "content": "FULL 400-800 WORD ARTICLE with ## headings", "published": true, "category": "CAT", "tags": ["t1","t2"], "seoTitle": "Title | ${input.businessName}", "seoDescription": "SEO desc", "author": "${input.ownerName || input.businessName}" }]
+}
+Do NOT generate privacy-policy or terms-of-service pages — the template ships its own legal boilerplate.`
+
+  // Structured output via a forced tool call. The API returns the tool input as
+  // already-valid JSON, so a long HTML/prose field with a stray unescaped quote
+  // can no longer break JSON.parse — that was the real cause of the "first parse
+  // failed, retrying" reroll (stop_reason was end_turn, not truncation; the model
+  // just emitted one invalid character in a 38K-char hand-written JSON blob).
+  const CONTENT_TOOL = {
+    name: 'emit_website_content',
+    description: 'Return the fully composed website content for this business.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        homepage: { type: 'object' as const },
+        services: { type: 'array' as const },
+        settings: { type: 'object' as const },
+        posts: { type: 'array' as const },
+      },
+      required: ['homepage', 'services'],
+    },
   }
-}`
 
   const message = await anthropic.messages.create({
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
     max_tokens: 32000,
+    tools: [CONTENT_TOOL as any],
+    tool_choice: { type: 'tool', name: 'emit_website_content' } as any,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const textBlock = message.content.find((b: any) => b.type === 'text')
-  if (!textBlock) throw new Error('AI returned no text content')
-
-  const raw = (textBlock as any).text.trim()
-  const cleaned = raw.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-
-  let parsed: any
-  try {
-    parsed = JSON.parse(cleaned)
-  } catch {
-    // Retry once on parse failure
-    console.warn('[ContentGenerator] First parse failed, retrying...')
-    const retry = await anthropic.messages.create({
-      model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6',
-      max_tokens: 32000,
-      messages: [
-        { role: 'user', content: prompt },
-        { role: 'assistant', content: raw },
-        { role: 'user', content: 'Your previous response was not valid JSON. Please return ONLY valid JSON with no markdown wrapping, no trailing commas, and no comments.' },
-      ],
-    })
-    const retryBlock = retry.content.find((b: any) => b.type === 'text')
-    if (!retryBlock) throw new Error('AI retry returned no text content')
-    const retryRaw = (retryBlock as any).text.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-    parsed = JSON.parse(retryRaw)
+  let parsed: any = (message.content || []).find((b: any) => b.type === 'tool_use')?.input
+  if (!parsed || typeof parsed !== 'object') {
+    // Defensive fallback for any endpoint that answers as text instead of a tool call.
+    const textBlock = (message.content || []).find((b: any) => b.type === 'text')
+    const raw = ((textBlock as any)?.text || '').trim().replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+    if (!raw) throw new Error('AI returned neither tool_use nor text content')
+    parsed = JSON.parse(raw)
   }
 
   // Fill in defaults and normalize the response
@@ -364,7 +365,15 @@ function normalizeContent(
   serviceAreas: string[],
   now: string
 ): GeneratedContent {
-  const homepage = parsed.homepage || {}
+  // Tool-use guarantees valid JSON, but a loose tool schema is guidance, not
+  // enforcement — the model can still hand back a field as the wrong TYPE (e.g.
+  // posts/pages as a string). Coerce every field to its expected shape here so a
+  // mis-typed field degrades gracefully instead of throwing (.map is not a function).
+  const isObj = (v: any) => v && typeof v === 'object' && !Array.isArray(v)
+  const homepage = isObj(parsed.homepage) ? parsed.homepage : {}
+  const servicesIn: any[] = Array.isArray(parsed.services) ? parsed.services : []
+  const postsIn: any[] = Array.isArray(parsed.posts) ? parsed.posts : []
+  const settingsIn: any = isObj(parsed.settings) ? parsed.settings : {}
   const hero = homepage.hero || {}
   const phone = input.phone || ''
   const phoneRaw = phone.replace(/\D/g, '')
@@ -418,7 +427,7 @@ function normalizeContent(
         image: '',
       },
     },
-    services: (parsed.services || []).map((s: any, i: number) => ({
+    services: servicesIn.filter((s: any) => s && typeof s === 'object').map((s: any, i: number) => ({
       id: s.id || 'service-' + (i + 1),
       name: s.name || 'Service ' + (i + 1),
       title: s.title || s.name || '',
@@ -435,12 +444,12 @@ function normalizeContent(
       order: i + 1,
     })),
     settings: {
-      defaultMetaTitle: parsed.settings?.defaultMetaTitle || (verticalFor(input.businessType) === 'store'
+      defaultMetaTitle: settingsIn.defaultMetaTitle || (verticalFor(input.businessType) === 'store'
         ? input.businessName + ' — Online Store'
         : input.businessName + ' - ' + input.location.city + ' ' + input.businessType),
-      defaultMetaDescription: parsed.settings?.defaultMetaDescription || '',
+      defaultMetaDescription: settingsIn.defaultMetaDescription || '',
     },
-    posts: (parsed.posts || []).map((p: any, i: number) => ({
+    posts: postsIn.filter((p: any) => p && typeof p === 'object').map((p: any, i: number) => ({
       id: p.id || 'blog' + (i + 1),
       title: p.title || '',
       slug: p.slug || 'post-' + (i + 1),
@@ -468,7 +477,12 @@ function normalizePages(
   now: string
 ): Record<string, GeneratedPage> {
   const result: Record<string, GeneratedPage> = {}
+  // Only accept a proper object map. A stray string/array (a model can still
+  // mis-type a tool field) would otherwise iterate character-by-character into
+  // garbage pages — return {} so the template's own legal boilerplate stands.
+  if (!pages || typeof pages !== 'object' || Array.isArray(pages)) return result
   for (const [slug, page] of Object.entries(pages as Record<string, any>)) {
+    if (!page || typeof page !== 'object') continue
     result[slug] = {
       id: page.id || slug,
       title: page.title || slug.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),

@@ -1227,7 +1227,10 @@ function injectWizardContent(websiteDir: string, config: GenerateConfig) {
       }
 
       // Write AI-generated pages (privacy policy, terms, etc.)
-      if (ai.pages && Object.keys(ai.pages).length > 0) {
+      // Guard the type: a stray string/array here would spread char-by-char into
+      // pages.json. The composer no longer generates pages (templates ship legal
+      // boilerplate), but stay defensive against any other content source.
+      if (ai.pages && typeof ai.pages === 'object' && !Array.isArray(ai.pages) && Object.keys(ai.pages).length > 0) {
         const pagesFile = path.join(dataDir, 'pages.json')
         const existing = fs.existsSync(pagesFile)
           ? JSON.parse(fs.readFileSync(pagesFile, 'utf8'))
