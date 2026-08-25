@@ -250,6 +250,26 @@ export default function OnboardingWizard() {
     }
   };
 
+  // B-03: step 3 (Branded Email) can't be finished on its default settings — the
+  // alias save fails and offers no Skip, dead-ending a new customer. Give a
+  // wizard-level escape that marks setup complete and drops them into the CRM;
+  // they can finish branded email later from Settings.
+  const handleSkip = async () => {
+    setSaving(true);
+    try {
+      const currentSettings = (company?.settings && typeof company.settings === 'object') ? company.settings : {};
+      const updated = await api.company.update({
+        settings: { ...currentSettings, onboardingComplete: true, onboardingSkipped: true, onboardingCompletedAt: new Date().toISOString() },
+      });
+      updateCompany(updated);
+      navigate('/crm', { replace: true });
+    } catch (err) {
+      console.error('Failed to skip onboarding:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const progressPercent = ((currentStep + 1) / STEPS.length) * 100;
 
   return (
@@ -260,6 +280,11 @@ export default function OnboardingWizard() {
           className="h-full bg-orange-500 transition-all duration-500 ease-out rounded-r-full"
           style={{ width: `${progressPercent}%` }}
         />
+      </div>
+      <div className="flex justify-end px-4 pt-3">
+        <button onClick={handleSkip} disabled={saving} className="text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 underline">
+          Skip setup for now
+        </button>
       </div>
 
       {/* Step indicators */}

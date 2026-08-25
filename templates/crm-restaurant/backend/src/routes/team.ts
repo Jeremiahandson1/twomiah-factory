@@ -9,7 +9,7 @@ import { requirePermission, requireRole } from '../middleware/permissions.ts'
 const app = new Hono()
 app.use('*', authenticate)
 
-const schema = z.object({ name: z.string().min(1), email: z.string().email().optional(), phone: z.string().optional(), role: z.string().optional(), department: z.string().optional(), hireDate: z.string().optional(), hourlyRate: z.number().optional(), active: z.boolean().default(true), skills: z.array(z.string()).optional(), notes: z.string().optional() })
+const schema = z.object({ name: z.string().min(1), email: z.string().email().optional(), phone: z.string().optional(), role: z.string().optional(), department: z.string().optional(), hireDate: z.string().optional(), hourlyRate: z.number().min(0, 'Hourly rate cannot be negative').optional(), active: z.boolean().default(true), skills: z.array(z.string()).optional(), notes: z.string().optional() })
 
 app.get('/', requirePermission('team:read'), async (c) => {
   const { active, department, page = '1', limit = '50' } = c.req.query() as any
