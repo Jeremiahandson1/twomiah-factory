@@ -25,12 +25,18 @@ async function main() {
     console.log('Created store settings')
   }
 
-  // ── Owner login (always re-hash so credentials match the generated password) ──
+  // ── Owner login ──
+  // Seed runs on EVERY boot, so it must never overwrite the owner's password:
+  // doing so reset a merchant's chosen password to the generation-time value on
+  // every restart/redeploy (and silently changed the login when a tenant was
+  // regenerated without the original password). Set the hash only when creating
+  // the owner; for an existing owner just keep role/active and leave the
+  // password they own. Password recovery is the Forgot-password flow.
   const passwordHash = '{{HASHED_DEFAULT_PASSWORD}}' // bcrypt hash injected at generation — plaintext never touches the repo
   const [existingUser] = await db.select().from(users).where(eq(users.email, '{{ADMIN_EMAIL}}')).limit(1)
   if (existingUser) {
-    await db.update(users).set({ passwordHash, role: 'owner', isActive: true }).where(eq(users.id, existingUser.id))
-    console.log('Updated owner login')
+    await db.update(users).set({ role: 'owner', isActive: true }).where(eq(users.id, existingUser.id))
+    console.log('Owner login present — password left as the owner set it')
   } else {
     await db.insert(users).values({
       email: '{{ADMIN_EMAIL}}',
