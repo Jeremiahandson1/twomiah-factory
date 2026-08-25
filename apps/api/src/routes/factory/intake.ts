@@ -1013,6 +1013,12 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
       trackUnsplashDownload(p.unsplashId).catch(() => {})
     }
 
+    // Persist photo credits NOW, while the live-image registry is warm from
+    // this same request's Pexels fetch. The render path runs later (possibly on
+    // another instance with an empty registry), so it must read these back
+    // rather than recompute — otherwise Pexels photos render uncredited.
+    ;(composed as any)._photoCredits = heroCreditsForUrls(collectImageUrls(composed))
+
     const generatedAt = new Date().toISOString()
     const { error: saveErr } = await supabase
       .from('tenants')
@@ -1214,11 +1220,12 @@ async function renderPremiumPreviewPage(id: string, slug: string, c: any) {
     // same intake field). Accent is NOT passed: checkout doesn't forward it
     // either, so the preview must show the generator's default accent.
     primaryColor: intake.branding?.primaryColor,
-    // Photo credits for curated-library images on this page. The customer
-    // approves this preview before paying, so it has to show what the live
-    // site will show — including the attribution the Pexels API Guidelines
-    // require wherever one of their photos appears.
-    photoCredits: heroCreditsForUrls(collectImageUrls(sectionsToRender)),
+    // Photo credits for curated-library AND live Pexels images on this page.
+    // Prefer the credits persisted at compose time (when the live-image registry
+    // was warm); fall back to recomputing for older previews composed before
+    // credits were stored.
+    photoCredits: (composed as any)._photoCredits
+      || heroCreditsForUrls(collectImageUrls(sectionsToRender)),
   }
 
   const previewBasePath = `/api/v1/factory/public/intake/${id}/preview-premium`
