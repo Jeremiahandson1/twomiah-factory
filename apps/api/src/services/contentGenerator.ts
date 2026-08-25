@@ -5,6 +5,8 @@
  * Produces: homepage, services, settings (partial), posts, pages content.
  */
 
+import { verticalFor } from '../config/industryRouting'
+
 export interface ContentGenerationInput {
   businessName: string
   businessType: string
@@ -191,7 +193,6 @@ export async function generateWebsiteContent(input: ContentGenerationInput): Pro
   // model changes (products not services, shop CTAs not quote requests, national
   // shipping not local service area). Detect early so we skip the service
   // content packs and steer the prompt.
-  const { verticalFor } = await import('../config/industryRouting')
   const isStore = verticalFor(input.businessType) === 'store'
 
   // Load industry content pack — but NOT for a store: the packs are all
@@ -434,7 +435,9 @@ function normalizeContent(
       order: i + 1,
     })),
     settings: {
-      defaultMetaTitle: parsed.settings?.defaultMetaTitle || input.businessName + ' - ' + input.location.city + ' ' + input.businessType,
+      defaultMetaTitle: parsed.settings?.defaultMetaTitle || (verticalFor(input.businessType) === 'store'
+        ? input.businessName + ' — Online Store'
+        : input.businessName + ' - ' + input.location.city + ' ' + input.businessType),
       defaultMetaDescription: parsed.settings?.defaultMetaDescription || '',
     },
     posts: (parsed.posts || []).map((p: any, i: number) => ({
@@ -577,7 +580,9 @@ export function validateGeneratedContent(
     if (w < 300) warnings.push('post "' + (p.title || 'untitled') + '" is short (' + w + ' words; target 400-800)')
   })
 
-  if (city) {
+  // Local-SEO city anchoring applies to businesses that serve a place. A store
+  // ships nationally, so a missing city in the meta is correct, not a warning.
+  if (city && verticalFor(input.businessType) !== 'store') {
     const mt = String(c.settings?.defaultMetaTitle || '').toLowerCase()
     const md = String(c.settings?.defaultMetaDescription || '').toLowerCase()
     if (mt && !mt.includes(city.toLowerCase())) warnings.push('Meta title missing city "' + city + '" (local SEO)')
