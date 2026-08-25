@@ -41,9 +41,16 @@ function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = FETC
 // rootDir where drizzle.config.ts lives. Non-fatal: if push never verifies the app
 // still boots (working modules stay up) rather than bricking the whole deploy.
 function dbReconcileStep(): string {
+  // `timeout 45` bounds each push so a HANG can never block boot. drizzle-kit 0.28
+  // renders an interactive "Is X created or renamed?" prompt on any rename
+  // ambiguity (e.g. contractor's ads_experiment vs the dropped quickbooks_connection)
+  // and, in Render's non-TTY, spins on "Pulling schema…" forever — `--force` and
+  // piped stdin do NOT answer it. With the timeout, a hung push is killed, the loop
+  // retries, and boot proceeds to seed+start on the migrated schema. Where push has
+  // no ambiguity (most verticals) it completes in seconds and reconciles as before.
   return (
     'for i in 1 2 3 4 5; do ' +
-      'OUT=$(bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
+      'OUT=$(timeout 45 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
       'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +
       'echo "[boot] drizzle push not verified (attempt $i), retrying in 8s"; sleep 8; ' +
     'done'
@@ -1502,7 +1509,8 @@ export async function deployCustomer(
           'export PATH=$HOME/.bun/bin:$PATH; ' +
           'PUSH_OK=false; ' +
           'for i in $(seq 1 60); do ' +
-            'OUT=$(bunx drizzle-kit push --force 2>&1); ' +
+            // timeout bounds a hung push (drizzle rename prompt) — see dbReconcileStep.
+            'OUT=$(timeout 45 bunx drizzle-kit push --force 2>&1); ' +
             'echo "$OUT"; ' +
             'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] push verified on attempt $i"; PUSH_OK=true; break; fi; ' +
             'echo "[boot] push attempt $i did not verify (likely DB not ready), retrying in 10s"; ' +
