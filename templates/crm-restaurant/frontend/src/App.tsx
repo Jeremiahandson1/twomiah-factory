@@ -126,6 +126,16 @@ function OnboardingGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Scope contractor/construction modules out of a tenant that doesn't have them: if
+// the feature isn't enabled, a direct URL to the route bounces to the dashboard
+// instead of rendering a module from a different product (H-02). The nav already
+// hides these; this closes the direct-URL / stale-link path.
+function FeatureGate({ feature, children }: { feature: string; children: React.ReactNode }) {
+  const { hasFeature } = useAuth();
+  if (!hasFeature(feature)) return <Navigate to="/crm" replace />;
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -157,12 +167,12 @@ function App() {
                     <Route index element={<EventsDashboardPage />} />
                     <Route path="contacts" element={<ContactsPage />} />
                     <Route path="contacts/:id" element={<ContactDetailPage />} />
-                    <Route path="projects" element={<ProjectsPage />} />
-                    <Route path="projects/:id" element={<ProjectDetailPage />} />
-                    <Route path="jobs" element={<JobsPage />} />
-                    <Route path="jobs/:id" element={<JobDetailPage />} />
-                    <Route path="quotes" element={<QuotesPage />} />
-                    <Route path="quotes/:id" element={<QuoteDetailPage />} />
+                    <Route path="projects" element={<FeatureGate feature="projects"><ProjectsPage /></FeatureGate>} />
+                    <Route path="projects/:id" element={<FeatureGate feature="projects"><ProjectDetailPage /></FeatureGate>} />
+                    <Route path="jobs" element={<FeatureGate feature="jobs"><JobsPage /></FeatureGate>} />
+                    <Route path="jobs/:id" element={<FeatureGate feature="jobs"><JobDetailPage /></FeatureGate>} />
+                    <Route path="quotes" element={<FeatureGate feature="quotes"><QuotesPage /></FeatureGate>} />
+                    <Route path="quotes/:id" element={<FeatureGate feature="quotes"><QuoteDetailPage /></FeatureGate>} />
                     <Route path="invoices" element={<InvoicesPage />} />
                     <Route path="invoices/:id" element={<InvoiceDetailPage />} />
                     <Route path="schedule" element={<SchedulePage />} />
@@ -170,17 +180,17 @@ function App() {
                     <Route path="expenses" element={<ExpensesPage />} />
                     <Route path="documents" element={<DocumentsPage />} />
                     <Route path="team" element={<TeamPage />} />
-                    <Route path="rfis" element={<RFIsPage />} />
-                    <Route path="submittals" element={<SubmittalsPage />} />
-                    <Route path="lien-waivers" element={<LienWaiversPage />} />
-                    <Route path="draw-schedules" element={<DrawSchedulesPage />} />
-                    <Route path="aia-forms" element={<AiaFormsPage />} />
-                    <Route path="gantt" element={<GanttChartsPage />} />
-                    <Route path="change-orders" element={<ChangeOrdersPage />} />
-                    <Route path="punch-lists" element={<PunchListsPage />} />
-                    <Route path="daily-logs" element={<DailyLogsPage />} />
-                    <Route path="inspections" element={<InspectionsPage />} />
-                    <Route path="bids" element={<BidsPage />} />
+                    <Route path="rfis" element={<FeatureGate feature="rfis"><RFIsPage /></FeatureGate>} />
+                    <Route path="submittals" element={<FeatureGate feature="submittals"><SubmittalsPage /></FeatureGate>} />
+                    <Route path="lien-waivers" element={<FeatureGate feature="lien_waivers"><LienWaiversPage /></FeatureGate>} />
+                    <Route path="draw-schedules" element={<FeatureGate feature="draw_schedules"><DrawSchedulesPage /></FeatureGate>} />
+                    <Route path="aia-forms" element={<FeatureGate feature="aia_forms"><AiaFormsPage /></FeatureGate>} />
+                    <Route path="gantt" element={<FeatureGate feature="gantt_charts"><GanttChartsPage /></FeatureGate>} />
+                    <Route path="change-orders" element={<FeatureGate feature="change_orders"><ChangeOrdersPage /></FeatureGate>} />
+                    <Route path="punch-lists" element={<FeatureGate feature="punch_lists"><PunchListsPage /></FeatureGate>} />
+                    <Route path="daily-logs" element={<FeatureGate feature="daily_logs"><DailyLogsPage /></FeatureGate>} />
+                    <Route path="inspections" element={<FeatureGate feature="inspections"><InspectionsPage /></FeatureGate>} />
+                    <Route path="bids" element={<FeatureGate feature="bid_management"><BidsPage /></FeatureGate>} />
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="contact-support" element={<ContactSupportPage />} />
                     <Route path="paywall" element={<PaywallPage />} />
@@ -207,11 +217,11 @@ function App() {
                     <Route path="recurring" element={<RecurringListPage />} />
                     <Route path="recurring/new" element={<RecurringForm />} />
                     <Route path="recurring/:id/edit" element={<RecurringForm />} />
-                    <Route path="takeoffs" element={<TakeoffsPage />} />
+                    <Route path="takeoffs" element={<FeatureGate feature="takeoff_tools"><TakeoffsPage /></FeatureGate>} />
                     <Route path="tasks" element={<TasksPage />} />
                     <Route path="messages" element={<MessagesPage />} />
-                    <Route path="reports" element={<ReportsDashboard />} />
-                    <Route path="selections" element={<SelectionsPage />} />
+                    <Route path="reports" element={<FeatureGate feature="reports"><ReportsDashboard /></FeatureGate>} />
+                    <Route path="selections" element={<FeatureGate feature="selections"><SelectionsPage /></FeatureGate>} />
                     <Route path="reviews" element={<ReviewsPage />} />
                     <Route path="leads" element={<LeadInboxPage />} />
                     <Route path="lead-sources" element={<LeadSourcesPage />} />
