@@ -187,4 +187,27 @@ app.post('/invoices', async (c) => {
   return c.json(results)
 })
 
+// Import events / spaces / menu packages (venue vertical) — the CSV importer had
+// no way to bring in a venue's core data (H-02).
+const venueImport = (handler: 'importEvents' | 'importSpaces' | 'importMenus', entity: string) =>
+  async (c: any) => {
+    const user = c.get('user') as any
+    const formData = await c.req.formData()
+    const file = formData.get('file') as File | null
+    if (!file) return c.json({ error: 'No file uploaded' }, 400)
+    const csvContent = await file.text()
+    const options = {
+      dryRun: formData.get('dryRun') === 'true',
+      skipDuplicates: formData.get('skipDuplicates') !== 'false',
+      createContacts: formData.get('createMissingContacts') !== 'false',
+    }
+    const results = await (importService as any)[handler](csvContent, user.companyId, options)
+    audit.log({ action: 'IMPORT', entity, metadata: { imported: results.imported, skipped: results.skipped }, userId: user.userId, companyId: user.companyId })
+    return c.json(results)
+  }
+
+app.post('/events', venueImport('importEvents', 'events'))
+app.post('/spaces', venueImport('importSpaces', 'spaces'))
+app.post('/menus', venueImport('importMenus', 'menus'))
+
 export default app

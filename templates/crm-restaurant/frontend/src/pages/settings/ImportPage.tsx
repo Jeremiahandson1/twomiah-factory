@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import {
   Upload, Download, FileText, Check, X, AlertCircle,
   Loader2, Users, FolderKanban, Briefcase, Package,
-  Receipt,
+  Receipt, CalendarCheck, DoorOpen, UtensilsCrossed,
 } from 'lucide-react';
 import api from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
@@ -33,15 +33,23 @@ const IMPORT_TYPES: ImportType[] = [
   { id: 'jobs', label: 'Jobs', icon: Briefcase, description: 'Import work orders and jobs' },
   { id: 'products', label: 'Products/Services', icon: Package, description: 'Import products and service items' },
   { id: 'invoices', label: 'Invoices', icon: Receipt, description: 'Import invoices and open balances from Jobber, HousecallPro or QuickBooks' },
+  { id: 'events', label: 'Events', icon: CalendarCheck, description: 'Import bookings, enquiries, and confirmed events' },
+  { id: 'spaces', label: 'Spaces', icon: DoorOpen, description: 'Import event spaces and their capacities' },
+  { id: 'menus', label: 'Menu Packages', icon: UtensilsCrossed, description: 'Import per-person menu and catering packages' },
 ];
 
 export default function ImportPage() {
   const { hasFeature } = useAuth();
-  // Only offer import types this tenant actually has — an events venue doesn't
-  // import Projects or Jobs (H-02). Contacts/products/invoices are generic.
-  const importTypes = IMPORT_TYPES.filter((t) =>
-    (t.id !== 'projects' || hasFeature('projects')) && (t.id !== 'jobs' || hasFeature('jobs'))
-  );
+  // Only offer import types this tenant actually has — an events venue imports
+  // Events/Spaces/Menus, not Projects or Jobs (H-02). Contacts/products/invoices
+  // are generic to every vertical.
+  const isEvents = hasFeature('event_bookings');
+  const importTypes = IMPORT_TYPES.filter((t) => {
+    if (t.id === 'projects') return hasFeature('projects');
+    if (t.id === 'jobs') return hasFeature('jobs');
+    if (t.id === 'events' || t.id === 'spaces' || t.id === 'menus') return isEvents;
+    return true;
+  });
   const [selectedType, setSelectedType] = useState<string>('contacts');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<PreviewData | null>(null);
@@ -337,7 +345,7 @@ export default function ImportPage() {
               Import More
             </button>
             <a
-              href={`/${selectedType}`}
+              href={`/crm/${selectedType}`}
               className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 text-center"
             >
               View {importTypes.find((t: ImportType) => t.id === selectedType)?.label}

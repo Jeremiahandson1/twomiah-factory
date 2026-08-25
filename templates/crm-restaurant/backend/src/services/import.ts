@@ -10,7 +10,7 @@
 
 import { parse } from 'csv-parse/sync'
 import { db } from '../../db/index.ts'
-import { contact, project, job, user, pricebookItem, invoice, invoiceLineItem, payment } from '../../db/schema.ts'
+import { contact, project, job, user, pricebookItem, invoice, invoiceLineItem, payment, event, eventSpace, menuPackage } from '../../db/schema.ts'
 import { eq, and, or, ilike, desc } from 'drizzle-orm'
 
 /**
@@ -883,6 +883,197 @@ export async function importInvoices(
   return results
 }
 
+// ============================================
+// EVENTS / SPACES / MENUS IMPORT (venue vertical)
+// ============================================
+
+const EVENT_COLUMN_MAP = {
+  name: ['name', 'event_name', 'title', 'booking'],
+  eventType: ['type', 'event_type', 'category'],
+  status: ['status', 'stage'],
+  eventDate: ['date', 'event_date', 'booking_date'],
+  startTime: ['start', 'start_time', 'from'],
+  endTime: ['end', 'end_time', 'to'],
+  guestCount: ['guests', 'guest_count', 'covers', 'pax', 'headcount'],
+  quotedTotal: ['quote', 'quoted_total', 'total', 'value'],
+  depositRequired: ['deposit', 'deposit_required'],
+  space: ['space', 'room', 'venue_space'],
+  dietaryRequirements: ['dietary', 'dietary_requirements', 'allergies'],
+  notes: ['notes', 'details', 'comments'],
+  contactName: ['contact', 'contact_name', 'customer', 'client', 'host'],
+  contactEmail: ['email', 'contact_email', 'customer_email'],
+}
+
+function mapEventStatus(status: string | null): string {
+  if (!status) return 'enquiry'
+  const s = status.toLowerCase()
+  if (s.includes('confirm') || s.includes('booked')) return 'confirmed'
+  if (s.includes('tentative') || s.includes('hold') || s.includes('pencil')) return 'tentative'
+  if (s.includes('complete') || s.includes('done')) return 'completed'
+  if (s.includes('lost')) return 'lost'
+  if (s.includes('cancel')) return 'cancelled'
+  return 'enquiry'
+}
+
+export async function importEvents(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
+  const { dryRun = false, createContacts = true } = options
+  const records = parseCSV(csvContent)
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+
+  for (let i = 0; i < records.length; i++) {
+    const row = normalizeColumns(records[i])
+    const lineNum = i + 2
+    try {
+      const name = getValue(row, ...EVENT_COLUMN_MAP.name)
+      if (!name) { results.errors.push({ line: lineNum, error: 'Event name is required' }); results.skipped++; continue }
+      const eventDateVal = parseDate(getValue(row, ...EVENT_COLUMN_MAP.eventDate))
+      if (!eventDateVal) { results.errors.push({ line: lineNum, error: 'Event date is required (YYYY-MM-DD)' }); results.skipped++; continue }
+
+      // Resolve (or create) the client contact.
+      let contactId: string | null = null
+      const contactName = getValue(row, ...EVENT_COLUMN_MAP.contactName)
+      const contactEmail = getValue(row, ...EVENT_COLUMN_MAP.contactEmail)
+      if (contactName || contactEmail) {
+        const conds = []
+        if (contactEmail) conds.push(eq(contact.email, contactEmail))
+        if (contactName) conds.push(eq(contact.name, contactName))
+        const [existing] = await db.select({ id: contact.id }).from(contact)
+          .where(and(eq(contact.companyId, companyId), or(...conds))).limit(1)
+        if (existing) contactId = existing.id
+        else if (createContacts && !dryRun) {
+          const [nc] = await db.insert(contact).values({ companyId, name: contactName || contactEmail!, email: contactEmail, type: 'customer' }).returning()
+          contactId = nc.id
+        }
+      }
+
+      // Resolve the space by name (optional).
+      let spaceId: string | null = null
+      const spaceName = getValue(row, ...EVENT_COLUMN_MAP.space)
+      if (spaceName) {
+        const [sp] = await db.select({ id: eventSpace.id }).from(eventSpace)
+          .where(and(eq(eventSpace.companyId, companyId), ilike(eventSpace.name, spaceName))).limit(1)
+        if (sp) spaceId = sp.id
+      }
+
+      const guests = getValue(row, ...EVENT_COLUMN_MAP.guestCount)
+      const eventData = {
+        companyId,
+        name,
+        eventType: getValue(row, ...EVENT_COLUMN_MAP.eventType) || 'private_dining',
+        status: mapEventStatus(getValue(row, ...EVENT_COLUMN_MAP.status)),
+        eventDate: eventDateVal,
+        startTime: getValue(row, ...EVENT_COLUMN_MAP.startTime),
+        endTime: getValue(row, ...EVENT_COLUMN_MAP.endTime),
+        guestCount: guests ? parseInt(guests, 10) || null : null,
+        quotedTotal: parseDecimal(getValue(row, ...EVENT_COLUMN_MAP.quotedTotal))?.toString() ?? null,
+        depositRequired: parseDecimal(getValue(row, ...EVENT_COLUMN_MAP.depositRequired))?.toString() ?? null,
+        dietaryRequirements: getValue(row, ...EVENT_COLUMN_MAP.dietaryRequirements),
+        notes: getValue(row, ...EVENT_COLUMN_MAP.notes),
+        contactId,
+        spaceId,
+      }
+
+      if (!dryRun) {
+        const [created] = await db.insert(event).values(eventData).returning()
+        results.records.push({ line: lineNum, id: created.id, name: created.name })
+      } else {
+        results.records.push({ line: lineNum, data: eventData })
+      }
+      results.imported++
+    } catch (error: any) {
+      results.errors.push({ line: lineNum, error: error.message }); results.skipped++
+    }
+  }
+  return results
+}
+
+const SPACE_COLUMN_MAP = {
+  name: ['name', 'space_name', 'room', 'room_name'],
+  description: ['description', 'details'],
+  seatedCapacity: ['seated', 'seated_capacity', 'seats'],
+  standingCapacity: ['standing', 'standing_capacity', 'capacity'],
+  minimumSpend: ['minimum_spend', 'min_spend', 'minimum'],
+  hireFee: ['hire_fee', 'hire', 'room_hire', 'fee'],
+}
+
+export async function importSpaces(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
+  const { dryRun = false } = options
+  const records = parseCSV(csvContent)
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+  for (let i = 0; i < records.length; i++) {
+    const row = normalizeColumns(records[i])
+    const lineNum = i + 2
+    try {
+      const name = getValue(row, ...SPACE_COLUMN_MAP.name)
+      if (!name) { results.errors.push({ line: lineNum, error: 'Space name is required' }); results.skipped++; continue }
+      const seated = getValue(row, ...SPACE_COLUMN_MAP.seatedCapacity)
+      const standing = getValue(row, ...SPACE_COLUMN_MAP.standingCapacity)
+      const spaceData = {
+        companyId,
+        name,
+        description: getValue(row, ...SPACE_COLUMN_MAP.description),
+        seatedCapacity: seated ? parseInt(seated, 10) || null : null,
+        standingCapacity: standing ? parseInt(standing, 10) || null : null,
+        minimumSpend: parseDecimal(getValue(row, ...SPACE_COLUMN_MAP.minimumSpend))?.toString() ?? null,
+        hireFee: parseDecimal(getValue(row, ...SPACE_COLUMN_MAP.hireFee))?.toString() ?? null,
+      }
+      if (!dryRun) {
+        const [created] = await db.insert(eventSpace).values(spaceData).returning()
+        results.records.push({ line: lineNum, id: created.id, name: created.name })
+      } else {
+        results.records.push({ line: lineNum, data: spaceData })
+      }
+      results.imported++
+    } catch (error: any) {
+      results.errors.push({ line: lineNum, error: error.message }); results.skipped++
+    }
+  }
+  return results
+}
+
+const MENU_COLUMN_MAP = {
+  name: ['name', 'package', 'package_name', 'menu'],
+  description: ['description', 'details'],
+  category: ['category', 'type'],
+  pricePerPerson: ['price', 'price_per_person', 'per_head', 'pp', 'cost'],
+  minGuests: ['min_guests', 'minimum', 'min'],
+  dietaryNotes: ['dietary', 'dietary_notes', 'allergens'],
+}
+
+export async function importMenus(csvContent: string, companyId: string, options: ImportOptions = {}): Promise<ImportResults> {
+  const { dryRun = false } = options
+  const records = parseCSV(csvContent)
+  const results: ImportResults = { imported: 0, skipped: 0, errors: [], records: [] }
+  for (let i = 0; i < records.length; i++) {
+    const row = normalizeColumns(records[i])
+    const lineNum = i + 2
+    try {
+      const name = getValue(row, ...MENU_COLUMN_MAP.name)
+      if (!name) { results.errors.push({ line: lineNum, error: 'Package name is required' }); results.skipped++; continue }
+      const minG = getValue(row, ...MENU_COLUMN_MAP.minGuests)
+      const menuData = {
+        companyId,
+        name,
+        description: getValue(row, ...MENU_COLUMN_MAP.description),
+        category: getValue(row, ...MENU_COLUMN_MAP.category) || 'dinner',
+        pricePerPerson: parseDecimal(getValue(row, ...MENU_COLUMN_MAP.pricePerPerson))?.toString() ?? null,
+        minGuests: minG ? parseInt(minG, 10) || null : null,
+        dietaryNotes: getValue(row, ...MENU_COLUMN_MAP.dietaryNotes),
+      }
+      if (!dryRun) {
+        const [created] = await db.insert(menuPackage).values(menuData).returning()
+        results.records.push({ line: lineNum, id: created.id, name: created.name })
+      } else {
+        results.records.push({ line: lineNum, data: menuData })
+      }
+      results.imported++
+    } catch (error: any) {
+      results.errors.push({ line: lineNum, error: error.message }); results.skipped++
+    }
+  }
+  return results
+}
+
 export function validateCSV(csvContent: string, type: string) {
   try {
     const records = parseCSV(csvContent)
@@ -901,9 +1092,13 @@ export function validateCSV(csvContent: string, type: string) {
       jobs: JOB_COLUMN_MAP.title,
       products: PRODUCT_COLUMN_MAP.name,
       invoices: INVOICE_COLUMN_MAP.total,
+      events: EVENT_COLUMN_MAP.name,
+      spaces: SPACE_COLUMN_MAP.name,
+      menus: MENU_COLUMN_MAP.name,
     }
 
     const required = requiredMap[type]
+    if (!required) return { valid: false, error: `Unknown import type: ${type}` }
     const hasRequired = required.some(col =>
       columns.some(c => c.includes(col.replace(/_/g, '')))
     )
@@ -937,6 +1132,9 @@ export function getTemplate(type: string): string {
     jobs: 'Title,Number,Type,Status,Priority,Scheduled Date,Address,City,State,Zip,Notes,Project,Contact,Assigned To\nHVAC Installation,JOB-001,installation,scheduled,high,2024-02-01,789 Pine St,Chicago,IL,60602,Bring extra filters,New Office Build,Jane Doe,john@company.com',
     products: 'Name,SKU,Type,Price,Unit,Category,Description,Taxable\nStandard Labor,LAB-001,service,75.00,hour,Labor,Standard hourly rate,yes\nPVC Pipe 4in,MAT-001,product,12.50,foot,Materials,4 inch PVC pipe,yes',
     invoices: 'Invoice Number,Customer,Customer Email,Invoice Date,Due Date,Status,Item,Quantity,Unit Price,Line Total,Subtotal,Tax,Total,Amount Paid,Balance,Notes\nINV-1001,Jane Doe,jane@client.com,2026-01-15,2026-02-14,sent,Service call,1,150.00,150.00,150.00,12.38,162.38,0,162.38,Imported from previous system\nINV-1001,Jane Doe,jane@client.com,2026-01-15,2026-02-14,sent,Parts,2,25.00,50.00,150.00,12.38,162.38,0,162.38,',
+    events: 'Name,Type,Status,Date,Start,End,Guests,Quote,Deposit,Space,Contact,Email,Dietary,Notes\nSmith Wedding,wedding,confirmed,2026-09-12,17:00,23:00,120,8500,2000,The Terrace,Jane Smith,jane@example.com,2 vegan / 1 GF,Ceremony on the lawn',
+    spaces: 'Name,Description,Seated,Standing,Minimum Spend,Hire Fee\nThe Terrace,Garden room with terrace access,30,55,2000,500\nThe Cellar,Private below-stairs dining,24,30,1500,350',
+    menus: 'Name,Description,Category,Price Per Person,Min Guests,Dietary Notes\nCanape Reception,Six seasonal canapes,reception,32.00,25,Vegan option available\nThree-Course Set,Plated three courses,plated,68.00,10,GF & vegan on request',
   }
 
   return templates[type] || ''
@@ -948,6 +1146,9 @@ export default {
   importJobs,
   importProducts,
   importInvoices,
+  importEvents,
+  importSpaces,
+  importMenus,
   validateCSV,
   previewImport: validateCSV,
   getTemplate,
