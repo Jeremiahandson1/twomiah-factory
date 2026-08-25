@@ -32,6 +32,10 @@ factory.use('*', async (c, next) => {
     || c.req.path.includes('/stripe/webhook')
     || c.req.path.includes('/internal/')
     || c.req.path.includes('/calendar/')
+    // GBP OAuth broker (/gbp/google/auth + /gbp/google/callback): Google redirects
+    // the user here with no Supabase JWT, exactly like the calendar flow above.
+    // Without this, Connect Google 401'd with "Missing Authorization header".
+    || c.req.path.includes('/gbp/google/')
     || c.req.path.includes('/download/')
     || c.req.path.includes('/deploy/stream')
     || c.req.path.endsWith('/cleanup')
