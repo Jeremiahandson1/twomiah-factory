@@ -5,6 +5,7 @@ import {
   LucideIcon
 } from 'lucide-react';
 import api from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface DashboardData {
   revenue: {
@@ -59,8 +60,11 @@ interface TeamMember {
 }
 
 export default function ReportsDashboard() {
+  const { hasFeature } = useAuth();
+  const isEvents = hasFeature('event_bookings');
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [eventStats, setEventStats] = useState<any>(null);
   const [monthlyRevenue, setMonthlyRevenue] = useState<MonthlyRevenueItem[]>([]);
   const [topCustomers, setTopCustomers] = useState<CustomerItem[]>([]);
   const [teamData, setTeamData] = useState<TeamMember[]>([]);
@@ -73,14 +77,17 @@ export default function ReportsDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [dashboard, monthly, customers, team] = await Promise.all([
+      const [dashboard, monthly, customers, team, events] = await Promise.all([
         api.get('/api/reports/dashboard'),
         api.get('/api/reports/revenue/monthly?months=6'),
         api.get('/api/reports/revenue/customers?limit=5'),
         api.get('/api/reports/team'),
+        // An events venue reports on bookings, not jobs — pull the events pipeline.
+        api.get('/api/dashboard/stats').catch(() => null),
       ]);
 
       setData(dashboard || null);
+      setEventStats(events || null);
       setMonthlyRevenue(Array.isArray(monthly) ? monthly : []);
       setTopCustomers(Array.isArray(customers) ? customers : []);
       setTeamData(Array.isArray(team) ? team : []);
@@ -152,22 +159,43 @@ export default function ReportsDashboard() {
           color="orange"
           alert={revenue.overdueCount > 0}
         />
-        <MetricCard
-          title="Jobs Completed"
-          value={jobs.completed}
-          subtitle={`${jobs.total} total jobs`}
-          icon={Briefcase}
-          color="blue"
-          trend={jobs.completionRate}
-          trendLabel="completion rate"
-        />
-        <MetricCard
-          title="Quote Conversion"
-          value={`${quotes.conversionRate}%`}
-          subtitle={`${quotes.approved} of ${quotes.total} approved`}
-          icon={FileText}
-          color="purple"
-        />
+        {isEvents ? (
+          <>
+            <MetricCard
+              title="Confirmed Events"
+              value={eventStats?.pipeline?.confirmed ?? 0}
+              subtitle={`$${Number(eventStats?.events?.bookedValue ?? 0).toLocaleString()} booked`}
+              icon={CheckCircle}
+              color="blue"
+            />
+            <MetricCard
+              title="Enquiries"
+              value={eventStats?.pipeline?.enquiry ?? 0}
+              subtitle={`${eventStats?.events?.upcoming30 ?? 0} upcoming (30d)`}
+              icon={Calendar}
+              color="purple"
+            />
+          </>
+        ) : (
+          <>
+            <MetricCard
+              title="Jobs Completed"
+              value={jobs.completed}
+              subtitle={`${jobs.total} total jobs`}
+              icon={Briefcase}
+              color="blue"
+              trend={jobs.completionRate}
+              trendLabel="completion rate"
+            />
+            <MetricCard
+              title="Quote Conversion"
+              value={`${quotes.conversionRate}%`}
+              subtitle={`${quotes.approved} of ${quotes.total} approved`}
+              icon={FileText}
+              color="purple"
+            />
+          </>
+        )}
       </div>
 
       {/* Charts Row */}
@@ -178,10 +206,10 @@ export default function ReportsDashboard() {
           <RevenueChart data={monthlyRevenue} />
         </div>
 
-        {/* Job Status */}
+        {/* Job Status / Events Pipeline */}
         <div className="bg-white rounded-xl border p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Job Status</h3>
-          <JobStatusChart jobs={jobs} />
+          <h3 className="font-semibold text-gray-900 mb-4">{isEvents ? 'Events Pipeline' : 'Job Status'}</h3>
+          {isEvents ? <EventsPipelineChart pipeline={eventStats?.pipeline || {}} /> : <JobStatusChart jobs={jobs} />}
         </div>
       </div>
 
@@ -374,7 +402,7 @@ function RevenueChart({ data }: RevenueChartProps) {
               />
             </div>
             <span className="text-xs text-gray-500">
-              {new Date(month.month + '-01').toLocaleDateString('en-US', { month: 'short' })}
+              {new Date(month.month + '-01T12:00:00').toLocaleDateString('en-US', { month: 'short' })}
             </span>
           </div>
         ))}
@@ -388,6 +416,43 @@ function RevenueChart({ data }: RevenueChartProps) {
           <div className="w-3 h-3 bg-green-500 rounded" />
           <span className="text-xs text-gray-500">Collected</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Events pipeline breakdown for venues (replaces the contractor Job Status chart).
+function EventsPipelineChart({ pipeline }: { pipeline: Record<string, number> }) {
+  const stages: { key: string; label: string; color: string }[] = [
+    { key: 'enquiry', label: 'Enquiry', color: 'bg-blue-500' },
+    { key: 'tentative', label: 'Tentative', color: 'bg-yellow-500' },
+    { key: 'confirmed', label: 'Confirmed', color: 'bg-green-500' },
+    { key: 'completed', label: 'Completed', color: 'bg-teal-500' },
+    { key: 'lost', label: 'Lost', color: 'bg-gray-400' },
+    { key: 'cancelled', label: 'Cancelled', color: 'bg-gray-300' },
+  ];
+  const total = stages.reduce((s, st) => s + (Number(pipeline[st.key]) || 0), 0) || 1;
+  return (
+    <div className="space-y-4">
+      <div className="h-4 bg-gray-100 rounded-full overflow-hidden flex">
+        {stages.map((st) => {
+          const count = Number(pipeline[st.key]) || 0;
+          const percent = (count / total) * 100;
+          return percent > 0 ? (
+            <div key={st.key} className={`${st.color} transition-all`} style={{ width: `${percent}%` }} title={`${st.label}: ${count}`} />
+          ) : null;
+        })}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {stages.map((st) => (
+          <div key={st.key} className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded ${st.color}`} />
+              <span className="text-sm text-gray-600">{st.label}</span>
+            </div>
+            <span className="text-sm font-medium text-gray-900">{Number(pipeline[st.key]) || 0}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
