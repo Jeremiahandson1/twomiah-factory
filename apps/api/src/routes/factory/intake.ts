@@ -982,8 +982,10 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
     // unchanged until you subscribe.
     const stockPhotos = await searchStockPhotosForBusiness(
       intake.businessType,
-      Array.isArray(intake.services) && intake.services.length > 0 ? intake.services[0] : undefined,
-      intake.city
+      intake.services,
+      intake.city,
+      intake.description,
+      intake.businessName,
     )
 
     const composed = await composeSite({
@@ -1797,8 +1799,10 @@ async function autoComposeForNewIntake(tenantId: string): Promise<void> {
 
   const stockPhotos = await searchStockPhotosForBusiness(
     intake.businessType,
-    Array.isArray(intake.services) && intake.services.length > 0 ? intake.services[0] : undefined,
+    intake.services,
     intake.city,
+    intake.description,
+    intake.businessName,
   ).catch(() => [])
 
   const composed = await composeSite({

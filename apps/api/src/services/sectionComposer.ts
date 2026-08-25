@@ -605,6 +605,38 @@ const PAGE_RECIPES = {
   },
 } as const
 
+// Store / dropship / e-commerce. A store sells PRODUCTS, not services — so no
+// "services" page. The catalog + cart live in the CRM storefront; this
+// marketing site frames the brand, shows what's stocked, teaches with guides
+// (the content-commerce engine that pulls organic traffic), and pushes to shop.
+const STORE_PAGE_RECIPES = {
+  home: {
+    purpose: 'Front door for a store. Stake out who this store is for, lead with the hero product/starter bundle, show "what we stock" as product categories, tease the guides, answer buying questions, push to shop.',
+    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
+    required_sequence: '1 hero (the store\'s point of view + a "shop" CTA), then 1 services (framed as PRODUCT CATEGORIES / "what we stock" — each item a category a shopper browses, never a chore or a service), optional 1 gallery, ADD 1 faq (shipping, returns, gifting, "is this for beginners?"), close with 1 cta ("Shop the ..." / "Start with the ... kit")',
+  },
+  shop: {
+    purpose: 'The browsing surface — product categories and hero bundles for people ready to buy. Links out to the live storefront catalog.',
+    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
+    required_sequence: 'optional 1 hero (lighter), 1 services (the full product-category list, the more-detailed variant), optional 1 gallery, close with 1 cta',
+  },
+  guides: {
+    purpose: 'Content-commerce: how-to guides and buying advice that pull organic search traffic and make first-time buyers confident. The niche-authority page.',
+    allowed_types: ['hero', 'services', 'gallery', 'faq', 'cta'],
+    required_sequence: 'optional 1 hero (copy-led), 1 services (framed as GUIDE / ARTICLE TOPICS for this niche — concrete titles a beginner would search, e.g. "Your first 10 backyard birds", "Seed vs suet: what to fill it with"), optional 1 faq, close with 1 cta',
+  },
+  about: {
+    purpose: 'Brand story — why this store exists and who it is for. The voice page.',
+    allowed_types: ['about', 'team', 'testimonials', 'cta'],
+    required_sequence: '1 about/story, optional 1 team/grid, optional 1 testimonials block (only with real quotes), close with 1 cta',
+  },
+  contact: {
+    purpose: 'Support + wholesale/press contact. Form + response promise — not a sales page.',
+    allowed_types: ['hero', 'contact', 'faq'],
+    required_sequence: 'optional 1 hero (short, copy-only), 1 contact/form-info, optional 1 faq',
+  },
+} as const
+
 // Contractor (general, remodeling, kitchen, bath, deck, fence, concrete,
 // masonry, tile, flooring, framing, drywall, cabinet). Portfolio is the
 // conversion engine — "look at this kitchen we did" beats any copy. Trust
@@ -1180,6 +1212,10 @@ function buildSitePrompt(input: ComposerInput): string {
   // Falls AFTER the others so a "kitchen" intake routes here, but a businessType
   // with the word "kitchen" in a cafe context ("kitchen cafe") routes to cafe.
   const contractor = /\b(contractor|general[_\s\-]?contractor|construction|remodeling|remodeler|siding|home[_\s\-]?improvement|kitchen|kitchen[_\s\-]?remodeling|kitchen[_\s\-]?design|kitchen[_\s\-]?installation|bath[_\s\-]?remodeling|bathroom[_\s\-]?remodeling|deck[_\s\-]?builder|fence[_\s\-]?installation|drywall|flooring|framing|concrete|masonry|tile[_\s\-]?installer|cabinet[_\s\-]?maker)\b/i.test(businessType)
+  // Store LAST among the specific matchers (before contractor/generic): the
+  // trade verticals above already claim "coffee shop"→cafe, "barbershop"→salon,
+  // "vape shop"→store is fine. Catches dropshipping / e-commerce / online store.
+  const store = /\b(store|shop|dropship|dropshipping|drop[_\s\-]?ship|e-?commerce|ecommerce|online[_\s\-]?store|online[_\s\-]?shop|retail|boutique|apparel|merch|goods|marketplace)\b/i.test(businessType)
   const recipes: Record<string, { purpose: string; allowed_types: readonly string[]; required_sequence: string }> = ft
     ? FOODTRUCK_PAGE_RECIPES
     : vet
@@ -1210,7 +1246,9 @@ function buildSitePrompt(input: ComposerInput): string {
                           ? EVENTS_PAGE_RECIPES
                           : contractor
                             ? CONTRACTOR_PAGE_RECIPES
-                            : PAGE_RECIPES
+                            : store
+                              ? STORE_PAGE_RECIPES
+                              : PAGE_RECIPES
 
   const recipesSummary = Object.entries(recipes).map(([page, recipe]) =>
     `- ${page}: ${recipe.purpose}\n    allowed types: ${recipe.allowed_types.join(', ')}\n    sequence: ${recipe.required_sequence}`
@@ -2102,6 +2140,11 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
   const isHotel = /\b(hotel|boutique[_\s\-]?hotel|b[_\s\-]?and[_\s\-]?b|b&b|bandb|bnb|bed[_\s\-]?and[_\s\-]?breakfast|inn|lodge|motel|vacation[_\s\-]?rental|short[_\s\-]?term[_\s\-]?rental|airbnb|guest[_\s\-]?house|cabin[_\s\-]?rental)\b/i.test(businessTypeIn)
   const isEvents = /\b(event[_\s\-]?venue|wedding[_\s\-]?venue|banquet[_\s\-]?hall|banquet|venue|party[_\s\-]?venue|corporate[_\s\-]?venue|reception[_\s\-]?hall|barn[_\s\-]?venue|events)\b/i.test(businessTypeIn)
   const isContractor = /\b(contractor|general[_\s\-]?contractor|construction|remodeling|remodeler|siding|home[_\s\-]?improvement|kitchen|kitchen[_\s\-]?remodeling|kitchen[_\s\-]?design|kitchen[_\s\-]?installation|bath[_\s\-]?remodeling|bathroom[_\s\-]?remodeling|deck[_\s\-]?builder|fence[_\s\-]?installation|drywall|flooring|framing|concrete|masonry|tile[_\s\-]?installer|cabinet[_\s\-]?maker)\b/i.test(businessTypeIn)
+  // Store LAST (before generic), matching the buildSitePrompt recipe chain — the
+  // two selections are kept in sync by hand. Without this, a store's composed
+  // pages get sanitized back to the generic home/services/about/contact set even
+  // though the prompt used STORE_PAGE_RECIPES.
+  const isStore = /\b(store|shop|dropship|dropshipping|drop[_\s\-]?ship|e-?commerce|ecommerce|online[_\s\-]?store|online[_\s\-]?shop|retail|boutique|apparel|merch|goods|marketplace)\b/i.test(businessTypeIn)
   const expectedPages: string[] = isFoodTruck
     ? Object.keys(FOODTRUCK_PAGE_RECIPES)
     : isDispensary
@@ -2128,7 +2171,9 @@ export async function composeSite(input: ComposerInput): Promise<SiteResult> {
                           ? Object.keys(EVENTS_PAGE_RECIPES)
                           : isContractor
                             ? Object.keys(CONTRACTOR_PAGE_RECIPES)
-                            : Object.keys(PAGE_RECIPES)
+                            : isStore
+                              ? Object.keys(STORE_PAGE_RECIPES)
+                              : Object.keys(PAGE_RECIPES)
 
   let pages = parsed.pages || {}
   const sanitizeAll = (src: any): Record<string, Section[]> => {

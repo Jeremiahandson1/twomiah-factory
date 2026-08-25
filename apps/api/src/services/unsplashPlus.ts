@@ -112,16 +112,33 @@ async function searchOne(query: string, opts: SearchOpts = {}): Promise<StockPho
  */
 export async function searchStockPhotosForBusiness(
   businessType: string,
-  primaryService: string | undefined,
-  city: string | undefined
+  services: string | string[] | undefined,
+  city: string | undefined,
+  description?: string,
+  businessName?: string,
 ): Promise<StockPhoto[]> {
-  if (!isConfigured()) return []
+  const svcArr = Array.isArray(services) ? services.filter(Boolean) : services ? [services] : []
 
+  // Unsplash+ not subscribed → source tier-2 live from Pexels (free commercial
+  // license; attribution is registered so the composed page credits it). Scoped
+  // to verticals WITHOUT a curated hero set (stores/dropship → 'generic', plus
+  // empty groups like dispensary) so the hand-picked, eye-verified library still
+  // wins for the established trades — this only fills the gap, never overrides.
+  if (!isConfigured()) {
+    const { pickHeroGroup, HERO_LIBRARY } = await import('../config/heroLibrary.ts')
+    const group = pickHeroGroup(businessType)
+    const hasCurated = group !== 'generic' && (HERO_LIBRARY[group]?.length || 0) > 0
+    if (hasCurated) return []
+    const { searchPexelsStock } = await import('./pexelsStock.ts')
+    return searchPexelsStock({ businessType, services: svcArr, description, businessName })
+  }
+
+  const primaryService = svcArr[0]
   const heroQuery   = [businessType, city].filter(Boolean).join(' ').trim() || 'business'
   const teamQuery   = (businessType || 'professional') + ' team'
   const serviceQuery = (primaryService || businessType || 'service').trim()
 
-  const [heroes, team, services] = await Promise.all([
+  const [heroes, team, serviceShots] = await Promise.all([
     searchOne(heroQuery,   { perPage: 8, orientation: 'landscape', tag: 'hero' }),
     searchOne(teamQuery,   { perPage: 8, orientation: 'portrait',  tag: 'team' }),
     searchOne(serviceQuery,{ perPage: 8, orientation: 'landscape', tag: 'services' }),
@@ -130,7 +147,7 @@ export async function searchStockPhotosForBusiness(
   // Dedupe by unsplashId — same photo can match multiple queries
   const seen = new Set<string>()
   const out: StockPhoto[] = []
-  for (const p of [...heroes, ...team, ...services]) {
+  for (const p of [...heroes, ...team, ...serviceShots]) {
     if (!seen.has(p.unsplashId)) {
       seen.add(p.unsplashId)
       out.push(p)

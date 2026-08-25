@@ -147,9 +147,31 @@ export function getHeroLibrary(businessType: string): Array<{ url: string; tag: 
 }
 
 
-/** Map a served hero-library URL back to its manifest entry.
- *  Returns null for anything that is not ours (customer uploads, stock). */
+// ─── Live stock registry (tier 2) ───────────────────────────────────────────
+// Images fetched live from a stock API (Pexels) during a compose are not in the
+// static manifest, but the Pexels Guidelines still require crediting the
+// photographer + linking back. The fetcher registers each photo's attribution
+// here keyed by its (query-stripped) URL, and the same URL-driven credit path
+// that serves the curated library then covers live photos too. Process-lifetime
+// cache of PUBLIC attribution only — no tenant data — so cross-request reuse is
+// fine and the same URL always maps to the same photographer.
+const liveImageRegistry = new Map<string, HeroImage>()
+
+function cleanUrl(url: string): string { return (url || '').split(/[?#]/)[0] }
+
+/** Record a live-sourced photo's attribution so credits + collection see it. */
+export function registerLiveImage(url: string, image: HeroImage): void {
+  const clean = cleanUrl(url)
+  if (!clean || liveImageRegistry.has(clean)) return
+  if (liveImageRegistry.size >= 10_000) liveImageRegistry.clear() // simple bound
+  liveImageRegistry.set(clean, image)
+}
+
+/** Map a served URL back to its manifest entry OR a registered live photo.
+ *  Returns null for anything that is not ours (customer uploads, unknown). */
 export function heroImageForUrl(url: string): { group: string; image: HeroImage } | null {
+  const live = liveImageRegistry.get(cleanUrl(url))
+  if (live) return { group: live.source || 'live', image: live }
   const m = /\/hero-library\/([^/]+)\/([^/?#]+)/.exec(url || '')
   if (!m) return null
   const [, group, file] = m
@@ -217,10 +239,11 @@ export function heroCreditsForUrls(urls: Array<string | null | undefined>): Phot
   return [...byPhotographer.values()]
 }
 
-/** Every image URL inside an arbitrary composed-content object. */
+/** Every creditable image URL inside an arbitrary composed-content object —
+ *  curated library photos AND live-registered stock photos (Pexels). */
 export function collectImageUrls(value: unknown, found: string[] = []): string[] {
   if (typeof value === 'string') {
-    if (/^https?:\/\//.test(value) && /\/hero-library\//.test(value)) found.push(value)
+    if (/^https?:\/\//.test(value) && (/\/hero-library\//.test(value) || liveImageRegistry.has(cleanUrl(value)))) found.push(value)
     return found
   }
   if (Array.isArray(value)) {
