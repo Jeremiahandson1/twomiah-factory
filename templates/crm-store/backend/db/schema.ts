@@ -321,3 +321,19 @@ export const inboundMessage = pgTable('inbound_message', {
   rawHeaders: text('raw_headers'),
   receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('inbound_message_received_at_idx').on(t.receivedAt)])
+
+// -- Google Business Profile connection (reviews inbox). One listing per tenant
+// in V1. OAuth brokered by the factory; tokens forwarded via X-Factory-Key to
+// /api/internal/gbp/store-tokens. Logic lives in packages/tenant-backend/gbp.ts.
+export const gbpConnection = pgTable('gbp_connection', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  externalEmail: text('external_email'),
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  accountName: text('account_name'),
+  locationName: text('location_name'),
+  locationTitle: text('location_title'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})

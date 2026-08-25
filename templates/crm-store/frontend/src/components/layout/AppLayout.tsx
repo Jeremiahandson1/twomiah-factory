@@ -13,6 +13,7 @@ const NAV = [
   { to: '/suppliers', label: 'Suppliers', icon: Truck },
   { to: '/shipping', label: 'Shipping', icon: Package },
   { to: '/reviews', label: 'Reviews', icon: Star },
+  { to: '/google-reviews', label: 'Google Reviews', icon: Star },
   { to: '/email', label: 'Email', icon: Mail },
   { to: '/settings', label: 'Settings', icon: Settings },
 

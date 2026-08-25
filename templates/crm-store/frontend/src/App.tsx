@@ -21,7 +21,7 @@ import OnboardingWizard from './pages/OnboardingWizard'
 import ContactSupportPage from './pages/support/ContactSupportPage'
 import { useEffect, useState } from 'react'
 import api from './services/api'
-import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage } from './shared'
+import { EmailAliasesPage, EmailDomainPage, InboundMessagesPage, GbpReviewsPage } from './shared'
 
 function Protected({ children }: { children: JSX.Element }) {
   const { isAuthenticated, loading } = useAuth()
@@ -79,6 +79,7 @@ export default function App() {
               <Route path="payments" element={<PaymentsPage />} />
               <Route path="suppliers" element={<SuppliersPage />} />
               <Route path="reviews" element={<ReviewsPage />} />
+              <Route path="google-reviews" element={<GbpReviewsPage />} />
               <Route path="shipping" element={<ShippingPage />} />
               <Route path="discounts" element={<DiscountsPage />} />
               <Route path="settings" element={<SettingsPage />} />

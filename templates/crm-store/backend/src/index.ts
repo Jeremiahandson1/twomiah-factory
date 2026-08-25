@@ -22,6 +22,7 @@ import paymentAdminRoutes from './routes/payments.ts'
 import emailAliasesRoutes from './routes/emailAliases.ts'
 import companyShimRoutes from './routes/company.ts'
 import onboardingRoutes from './routes/onboarding.ts'
+import gbpRoutes, { gbpInternal } from './routes/gbp.ts'
 import supplierRoutes from './suppliers/routes.ts'
 import inboundParseRoutes from './routes/inboundParse.ts'
 import inboundMessagesRoutes from './routes/inboundMessages.ts'
@@ -86,6 +87,8 @@ app.route('/api/admin/payments', paymentAdminRoutes)
 app.route('/api/email-aliases', emailAliasesRoutes)
 app.route('/api/company', companyShimRoutes)
 app.route('/api/onboarding', onboardingRoutes)
+app.route('/api/gbp', gbpRoutes)
+app.route('/api/internal/gbp', gbpInternal)
 app.route('/api/admin/suppliers', supplierRoutes)
 app.route('/api/internal/inbound-email', inboundParseRoutes)
 app.route('/api/inbound-messages', inboundMessagesRoutes)
