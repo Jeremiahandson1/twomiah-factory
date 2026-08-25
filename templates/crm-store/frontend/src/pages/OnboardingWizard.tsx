@@ -13,11 +13,19 @@ import { EmailAliasesStep } from '../shared'
 
 const STEPS = ['Welcome', 'Payments', 'First Product', 'Branded Email', 'All Set!']
 
+const STEP_KEY = 'storeOnboardingStep'
+
 export default function OnboardingWizard() {
-  const [currentStep, setCurrentStep] = useState(0)
+  // Persist progress: closing the tab mid-setup used to drop you back to step 1.
+  const [currentStep, setCurrentStep] = useState<number>(() => {
+    const saved = Number(localStorage.getItem(STEP_KEY))
+    return Number.isInteger(saved) && saved >= 0 && saved <= STEPS.length - 1 ? saved : 0
+  })
   const [storeName, setStoreName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => { localStorage.setItem(STEP_KEY, String(currentStep)) }, [currentStep])
 
   useEffect(() => {
     api.getSettings().then(s => { if (s?.companyName) setStoreName(s.companyName) }).catch(() => {})
@@ -28,6 +36,7 @@ export default function OnboardingWizard() {
     setError('')
     try {
       await api.completeOnboarding()
+      localStorage.removeItem(STEP_KEY)
       // Full reload on purpose — the OnboardingGate re-fetches settings on mount.
       window.location.assign('/')
     } catch (err: any) {
@@ -120,6 +129,17 @@ export default function OnboardingWizard() {
               {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
               <button onClick={handleComplete} disabled={saving} className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-lg">
                 {saving ? 'Saving…' : 'Go to Dashboard'} <Rocket className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Escape hatch — nobody should be locked out of their own admin while
+              they finish setup. Skipping marks onboarding done; every step can be
+              revisited from Settings. */}
+          {currentStep < 4 && (
+            <div className="text-center mt-6">
+              <button onClick={handleComplete} disabled={saving} className="text-sm text-gray-500 hover:text-gray-700 underline disabled:opacity-50">
+                {saving ? 'Saving…' : "Skip setup for now — I'll finish from Settings later"}
               </button>
             </div>
           )}

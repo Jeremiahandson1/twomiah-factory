@@ -110,11 +110,18 @@ if (hasFrontendBuild) {
   app.use('/favicon.ico', serveStatic({ root: relRoot }))
   app.use('/favicon.png', serveStatic({ root: relRoot }))
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
-  app.get('*', (c) => c.html(indexHtml))
+  // Never let an unknown /api route fall through to the SPA shell. A typo'd or
+  // removed endpoint must be a clean 404 JSON — returning 200 + <!DOCTYPE html>
+  // makes any client doing res.json() throw a parse error and hides the bug.
+  app.get('*', (c) =>
+    c.req.path.startsWith('/api/')
+      ? c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404)
+      : c.html(indexHtml))
   logger.info('Serving admin SPA from ' + FRONTEND_DIST)
-} else {
-  app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
 }
+// Non-GET methods (and the no-build case) never serve the SPA — unmatched
+// routes get a JSON 404 rather than Hono's plain-text default.
+app.notFound((c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
 
 // Stale-cart sweep: checkouts that were started but never paid linger as
 // 'pending'. Cancel any older than 24h so the orders list + revenue stats stay
