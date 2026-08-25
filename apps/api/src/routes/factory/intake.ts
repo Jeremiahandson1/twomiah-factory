@@ -1053,6 +1053,7 @@ factory.post('/intake/:id/preview-premium', requireRole('owner', 'admin', 'edito
 
 const PREMIUM_PAGE_TITLES: Record<string, string> = {
   home: 'Home', about: 'About', services: 'Services', contact: 'Contact',
+  shop: 'Shop', guides: 'Guides',
   menu: 'Menu', schedule: 'Schedule', catering: 'Catering',
   strains: 'Strains', deals: 'Deals', visit: 'Visit',
   quote: 'Estimator', storm: 'Storm damage', projects: 'Projects',
@@ -1076,6 +1077,8 @@ const PREMIUM_PAGE_TITLES: Record<string, string> = {
 // human-readable label for the food truck / dispensary / etc.
 const PREMIUM_PAGE_NAV_LABEL: Record<string, string> = {
   menu: 'Menu',
+  shop: 'Shop',
+  guides: 'Guides',
   services: 'Services',
   schedule: 'Find us',
   catering: 'Catering',
@@ -1116,7 +1119,7 @@ function buildPremiumNav(
   // Stable per-vertical order: the thing they sell first (menu/services/
   // strains), then secondary funnels (find us/catering/deals/visit), then
   // about.
-  const order = ['emergency', 'menu', 'services', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'about']
+  const order = ['emergency', 'menu', 'shop', 'guides', 'services', 'rooms', 'venue', 'find-care', 'classes', 'packages', 'quote', 'pricing', 'reservations', 'private-dining', 'strains', 'caregivers', 'coverage', 'projects', 'storm', 'schedule', 'amenities', 'local', 'vendors', 'stylists', 'trainers', 'catering', 'deals', 'gallery', 'visit', 'about']
   const present = new Set(pageSlugs)
   const out: Array<{ label: string; href: string }> = []
   for (const slug of order) {
