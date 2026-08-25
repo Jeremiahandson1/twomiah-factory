@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { db } from '../../db/index.ts'
-import { contact, project, quote, invoice } from '../../db/schema.ts'
+import { contact, project, quote, invoice, event } from '../../db/schema.ts'
 import { eq, and, or, ilike, count, desc } from 'drizzle-orm'
 import { authenticate } from '../middleware/auth.ts'
 import { requirePermission } from '../middleware/permissions.ts'
@@ -69,13 +69,16 @@ app.get('/:id', requirePermission('contacts:read'), async (c) => {
   if (!foundContact) return c.json({ error: 'Contact not found' }, 404)
 
   // Fetch related data separately
-  const [projects, quotes, invoices] = await Promise.all([
+  const [projects, quotes, invoices, events] = await Promise.all([
     db.select({ id: project.id, name: project.name, status: project.status }).from(project).where(eq(project.contactId, id)),
     db.select({ id: quote.id, number: quote.number, total: quote.total, status: quote.status }).from(quote).where(eq(quote.contactId, id)),
     db.select({ id: invoice.id, number: invoice.number, total: invoice.total, amountPaid: invoice.amountPaid, status: invoice.status }).from(invoice).where(eq(invoice.contactId, id)),
+    // Include the contact's events so the events contact-detail can count/list them
+    // (H-02: a contact with two events counted them nowhere).
+    db.select({ id: event.id, name: event.name, status: event.status, eventDate: event.eventDate }).from(event).where(eq(event.contactId, id)),
   ])
 
-  return c.json({ ...foundContact, projects, quotes, invoices })
+  return c.json({ ...foundContact, projects, quotes, invoices, events })
 })
 
 app.post('/', requirePermission('contacts:create'), async (c) => {

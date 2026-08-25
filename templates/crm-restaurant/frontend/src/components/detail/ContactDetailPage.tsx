@@ -304,8 +304,36 @@ export default function ContactDetailPage() {
             </div>
           )}
 
+          {/* Related Events */}
+          {hasFeature('event_bookings') && (((contact as any).events?.length ?? 0) > 0) && (
+            <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h2 className="font-semibold text-gray-900">Events</h2>
+                <span className="text-sm text-gray-500">{(contact as any).events.length}</span>
+              </div>
+              <div className="divide-y">
+                {(contact as any).events.map((ev: any) => (
+                  <Link
+                    key={ev.id}
+                    to={`/crm/events/${ev.id}`}
+                    className="p-4 flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="font-medium text-gray-900">{ev.name || 'Untitled event'}</p>
+                        <p className="text-sm text-gray-500">{ev.eventDate ? new Date(ev.eventDate + 'T12:00:00').toLocaleDateString() : ''}</p>
+                      </div>
+                    </div>
+                    <StatusBadge status={ev.status} />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Related Projects */}
-          {(contact.projects?.length ?? 0) > 0 && (
+          {hasFeature('projects') && (contact.projects?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Projects</h2>
@@ -333,7 +361,7 @@ export default function ContactDetailPage() {
           )}
 
           {/* Related Quotes */}
-          {(contact.quotes?.length ?? 0) > 0 && (
+          {hasFeature('quotes') && (contact.quotes?.length ?? 0) > 0 && (
             <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm">
               <div className="p-4 border-b flex items-center justify-between">
                 <h2 className="font-semibold text-gray-900">Quotes</h2>
@@ -370,18 +398,33 @@ export default function ContactDetailPage() {
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Summary</h2>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Projects</span>
-                <span className="font-medium">{contact.projects?.length || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Quotes</span>
-                <span className="font-medium">{contact.quotes?.length || 0}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Invoices</span>
-                <span className="font-medium">{contact.invoices?.length || 0}</span>
-              </div>
+              {/* Only count what this tenant actually has — an events venue doesn't
+                  have Projects or Quotes, so those rows (which read 0 forever)
+                  are hidden (H-02). Events get their own row. */}
+              {hasFeature('event_bookings') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Events</span>
+                  <span className="font-medium">{(contact as any).events?.length || 0}</span>
+                </div>
+              )}
+              {hasFeature('projects') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Projects</span>
+                  <span className="font-medium">{contact.projects?.length || 0}</span>
+                </div>
+              )}
+              {hasFeature('quotes') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Quotes</span>
+                  <span className="font-medium">{contact.quotes?.length || 0}</span>
+                </div>
+              )}
+              {hasFeature('invoices') && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-500">Invoices</span>
+                  <span className="font-medium">{contact.invoices?.length || 0}</span>
+                </div>
+              )}
               {contact.source && (
                 <div className="flex items-center justify-between">
                   <span className="text-gray-500">Source</span>
@@ -412,27 +455,45 @@ export default function ContactDetailPage() {
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm p-6">
             <h2 className="font-semibold text-gray-900 mb-4">Quick Actions</h2>
             <div className="space-y-2">
-              <Link
-                to={`/crm/quotes?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
-              >
-                <FileText className="w-4 h-4 text-gray-500" />
-                Create Quote
-              </Link>
-              <Link
-                to={`/crm/jobs?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
-              >
-                <Briefcase className="w-4 h-4 text-gray-500" />
-                Schedule Job
-              </Link>
-              <Link
-                to={`/crm/invoices?contactId=${id}`}
-                className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
-              >
-                <Receipt className="w-4 h-4 text-gray-500" />
-                Create Invoice
-              </Link>
+              {/* Actions follow the tenant's enabled features — an events venue has
+                  no Jobs or Quotes, so those don't show; it gets Create Event
+                  instead (H-02: there was no way to create an event from a contact). */}
+              {hasFeature('event_bookings') && (
+                <Link
+                  to={`/crm/events?contactId=${id}`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  Create Event
+                </Link>
+              )}
+              {hasFeature('quotes') && (
+                <Link
+                  to={`/crm/quotes?contactId=${id}`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  Create Quote
+                </Link>
+              )}
+              {hasFeature('jobs') && (
+                <Link
+                  to={`/crm/jobs?contactId=${id}`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                >
+                  <Briefcase className="w-4 h-4 text-gray-500" />
+                  Schedule Job
+                </Link>
+              )}
+              {hasFeature('invoices') && (
+                <Link
+                  to={`/crm/invoices?contactId=${id}`}
+                  className="w-full px-4 py-2 text-left bg-gray-50 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                >
+                  <Receipt className="w-4 h-4 text-gray-500" />
+                  Create Invoice
+                </Link>
+              )}
               {hasFeature('instant_estimator') && contact.address && (
                 <button
                   onClick={purchaseRoofReport}

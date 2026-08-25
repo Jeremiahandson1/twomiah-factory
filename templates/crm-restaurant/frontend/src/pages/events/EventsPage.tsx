@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Loader2, X, CalendarDays, Users, DoorOpen, LayoutGrid, List } from 'lucide-react';
 import api from '../../services/api';
 import ClientPicker from '../../components/events/ClientPicker';
@@ -72,6 +72,13 @@ export default function EventsPage() {
   const [search, setSearch] = useState<string>('');
   const [view, setView] = useState<View>('pipeline');
   const [showForm, setShowForm] = useState<boolean>(false);
+  // "Create Event" from a contact lands here with ?contactId= — open the form
+  // pre-selected on that contact (H-02: you can now create an event from a contact).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const contactIdParam = searchParams.get('contactId') || '';
+  useEffect(() => {
+    if (contactIdParam) setShowForm(true);
+  }, [contactIdParam]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -145,7 +152,7 @@ export default function EventsPage() {
       )}
 
       {showForm && (
-        <NewEventModal onSave={() => { setShowForm(false); load(); }} onClose={() => setShowForm(false)} />
+        <NewEventModal initialContactId={contactIdParam} onSave={() => { setShowForm(false); if (contactIdParam) setSearchParams({}); load(); }} onClose={() => { setShowForm(false); if (contactIdParam) setSearchParams({}); }} />
       )}
     </div>
   );
@@ -242,11 +249,11 @@ function ListView({ events }: { events: EventRow[] }) {
 
 interface SpaceOption { id: string; name?: string; seatedCapacity?: number; standingCapacity?: number }
 
-function NewEventModal({ onSave, onClose }: { onSave: () => void; onClose: () => void }) {
+function NewEventModal({ onSave, onClose, initialContactId }: { onSave: () => void; onClose: () => void; initialContactId?: string }) {
   const [saving, setSaving] = useState(false);
   const [spaces, setSpaces] = useState<SpaceOption[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [contactId, setContactId] = useState<string>('');
+  const [contactId, setContactId] = useState<string>(initialContactId || '');
   const [form, setForm] = useState({
     name: '', eventType: 'private_dining', eventDate: '', startTime: '', endTime: '',
     guestCount: '', spaceId: '', coordinatorId: '', source: '', notes: '',
