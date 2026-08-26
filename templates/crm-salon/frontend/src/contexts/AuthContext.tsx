@@ -18,15 +18,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    try {
-      const data = await api.getMe() as Record<string, unknown>;
-      setUser(data.user as User);
-      setCompany(data.company as Company);
-    } catch (err) {
-      console.error('Auth check failed:', err);
-      api.clearTokens();
-    } finally {
-      setLoading(false);
+    // Retry once on a transient failure (timeout / network / server waking up)
+    // before giving up — a cold start or a brief stall should not end the session.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const data = await api.getMe() as Record<string, unknown>;
+        setUser(data.user as User);
+        setCompany(data.company as Company);
+        setError(null);
+        setLoading(false);
+        return;
+      } catch (err) {
+        const status = (err as { status?: number })?.status;
+        const isTransient = (err as { isTransient?: boolean })?.isTransient === true || status === 0 || (typeof status === 'number' && status >= 500);
+        if (isTransient) {
+          console.warn(`Auth check transient failure (attempt ${attempt + 1}):`, err);
+          if (attempt === 0) continue; // retry once
+          setError('Could not reach the server. Your session is preserved — retrying shortly.');
+          setLoading(false);
+          return;
+        }
+        console.error('Auth check failed (session invalid):', err);
+        api.clearTokens();
+        setUser(null);
+        setCompany(null);
+        setLoading(false);
+        return;
+      }
     }
   }, []);
 
