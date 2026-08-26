@@ -91,8 +91,8 @@ function generateDailyData(days: number) {
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(now)
     date.setDate(date.getDate() - i)
-    const impressions = Math.floor(800 + Math.random() * 1200)
-    const clicks = Math.floor(impressions * (0.02 + Math.random() * 0.04))
+    const impressions = 0
+    const clicks = 0
     data.push({
       date: date.toISOString().split('T')[0],
       impressions,
@@ -102,97 +102,9 @@ function generateDailyData(days: number) {
   return data
 }
 
-const MOCK_CAMPAIGNS = [
-  {
-    id: 'camp_1',
-    name: 'Google Search — Emergency Services',
-    platform: 'google',
-    status: 'active',
-    impressions: 24500,
-    clicks: 980,
-    spend: 1247.50,
-    leads: 42,
-    budget: 2000,
-    startDate: '2026-02-01',
-    ads: [
-      { id: 'ad_1', headline: '24/7 Emergency Plumbing', body: 'Licensed & insured. Same-day service. Call now for a free estimate!', imageUrl: null, cta: 'Call Now', status: 'active' },
-      { id: 'ad_2', headline: 'Fast AC Repair Near You', body: 'Top-rated HVAC service. No overtime charges. Book online today.', imageUrl: null, cta: 'Book Now', status: 'active' },
-    ],
-  },
-  {
-    id: 'camp_2',
-    name: 'Meta — Kitchen Remodel Leads',
-    platform: 'meta',
-    status: 'active',
-    impressions: 18200,
-    clicks: 546,
-    spend: 892.30,
-    leads: 28,
-    budget: 1500,
-    startDate: '2026-02-10',
-    ads: [
-      { id: 'ad_3', headline: 'Dream Kitchen Awaits', body: 'Transform your kitchen with our award-winning design team. Free consultations this month.', imageUrl: null, cta: 'Get Free Quote', status: 'active' },
-      { id: 'ad_4', headline: 'Kitchen Remodel — 0% Financing', body: 'Beautiful kitchens, affordable payments. See our portfolio of 500+ completed projects.', imageUrl: null, cta: 'See Portfolio', status: 'paused' },
-    ],
-  },
-  {
-    id: 'camp_3',
-    name: 'Google Local Services',
-    platform: 'google',
-    status: 'paused',
-    impressions: 8400,
-    clicks: 252,
-    spend: 445.00,
-    leads: 15,
-    budget: 1000,
-    startDate: '2026-01-15',
-    ads: [
-      { id: 'ad_5', headline: 'Trusted Local Contractor', body: 'Google Guaranteed. 5-star rated. Serving the greater metro area.', imageUrl: null, cta: 'Get Quote', status: 'paused' },
-    ],
-  },
-  {
-    id: 'camp_4',
-    name: 'Meta — Spring Promotion',
-    platform: 'meta',
-    status: 'draft',
-    impressions: 0,
-    clicks: 0,
-    spend: 0,
-    leads: 0,
-    budget: 800,
-    startDate: '2026-03-15',
-    ads: [
-      { id: 'ad_6', headline: 'Spring Special: 15% Off', body: 'Book your spring project now and save. Limited time offer.', imageUrl: null, cta: 'Claim Offer', status: 'draft' },
-    ],
-  },
-]
+const MOCK_CAMPAIGNS: any[] = []
 
-const MOCK_PENDING_APPROVALS = [
-  {
-    id: 'pending_1',
-    campaignId: 'camp_2',
-    campaignName: 'Meta — Kitchen Remodel Leads',
-    platform: 'meta',
-    headline: 'Luxury Kitchen Makeover — Free 3D Design',
-    body: 'See your dream kitchen before construction begins. Our 3D visualization tool lets you preview every detail. Schedule your free design consultation today.',
-    imageUrl: null,
-    cta: 'Book Consultation',
-    createdAt: '2026-03-07T14:30:00Z',
-    status: 'pending',
-  },
-  {
-    id: 'pending_2',
-    campaignId: 'camp_1',
-    campaignName: 'Google Search — Emergency Services',
-    platform: 'google',
-    headline: 'Water Heater Install — Same Day',
-    body: 'Professional water heater installation. Licensed plumbers, warranty included. Emergency service available.',
-    imageUrl: null,
-    cta: 'Call Now',
-    createdAt: '2026-03-08T09:15:00Z',
-    status: 'pending',
-  },
-]
+const MOCK_PENDING_APPROVALS: any[] = []
 
 // In-memory store for approvals/rejections (mock — replace with DB later)
 const approvalStore = new Map<string, { status: string; feedback?: string }>()

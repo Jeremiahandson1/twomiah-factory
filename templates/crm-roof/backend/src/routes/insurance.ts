@@ -66,7 +66,7 @@ app.post('/claims', async (c) => {
     companyId: currentUser.companyId,
     jobId: data.jobId,
     claimId: claim.id,
-    userId: currentUser.id,
+    userId: currentUser.userId,
     activityType: 'status_change',
     body: `Insurance claim filed with ${data.insuranceCompany} — Claim #${data.claimNumber}`,
   })
@@ -182,7 +182,7 @@ app.post('/claims/:id/status', async (c) => {
     companyId: currentUser.companyId,
     jobId: claim.jobId,
     claimId: claim.id,
-    userId: currentUser.id,
+    userId: currentUser.userId,
     activityType: 'status_change',
     body: `${statusLabels[status] || status}${note ? ` — ${note}` : ''}`,
   })
@@ -299,7 +299,7 @@ app.post('/supplements/:id/submit', async (c) => {
     companyId: currentUser.companyId,
     jobId: sup.jobId,
     claimId: sup.claimId,
-    userId: currentUser.id,
+    userId: currentUser.userId,
     activityType: 'supplement',
     body: `Supplement ${sup.supplementNumber} submitted — $${Number(sup.totalAmount).toLocaleString()} — ${sup.reason}`,
   })
@@ -344,7 +344,7 @@ app.post('/supplements/:id/approve', async (c) => {
     companyId: currentUser.companyId,
     jobId: sup.jobId,
     claimId: sup.claimId,
-    userId: currentUser.id,
+    userId: currentUser.userId,
     activityType: 'approval',
     body: `Supplement ${sup.supplementNumber} approved — $${Number(approvedAmount).toLocaleString()}`,
   })
@@ -377,7 +377,7 @@ app.post('/supplements/:id/deny', async (c) => {
     companyId: currentUser.companyId,
     jobId: sup.jobId,
     claimId: sup.claimId,
-    userId: currentUser.id,
+    userId: currentUser.userId,
     activityType: 'denial',
     body: `Supplement ${sup.supplementNumber} denied — ${denialReason}`,
   })
@@ -476,7 +476,7 @@ app.post('/claims/:claimId/activity', async (c) => {
     companyId: currentUser.companyId,
     jobId: claim.jobId,
     claimId,
-    userId: currentUser.id,
+    userId: currentUser.userId,
     activityType: data.activityType,
     body: data.body,
     metadata: data.metadata || null,
@@ -530,7 +530,7 @@ app.post('/claims/:claimId/xactimate-export', async (c) => {
       companyId: currentUser.companyId,
       jobId: claim.jobId,
       claimId,
-      userId: currentUser.id,
+      userId: currentUser.userId,
       activityType: 'xactimate_export',
       body: 'Xactimate scope document generated',
     })

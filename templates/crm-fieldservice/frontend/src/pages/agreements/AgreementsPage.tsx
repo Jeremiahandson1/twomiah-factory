@@ -357,7 +357,7 @@ function AgreementRow({ agreement, onView, onRenew, onChanged }) {
         <AutopayToggle agreement={agreement} onChanged={onChanged} />
       </td>
       <td className="px-4 py-3 text-right font-medium">
-        ${Number(agreement.price).toFixed(2)}
+        ${(Number(agreement.price) || 0).toFixed(2)}
         <span className="text-xs text-gray-500 ml-1">/{agreement.billingFrequency}</span>
       </td>
       <td className="px-4 py-3">
@@ -402,7 +402,7 @@ function PlansTab({ plans, onEdit, onRefresh }) {
           </div>
 
           <div className="text-3xl font-bold text-gray-900 mb-4">
-            ${Number(plan.price).toFixed(0)}
+            ${(Number(plan.price) || 0).toFixed(0)}
             <span className="text-base font-normal text-gray-500">/{plan.billingFrequency}</span>
           </div>
 
@@ -777,7 +777,7 @@ function AgreementFormModal({ agreement, plans, onSave, onClose }) {
                 <option value="">Select plan...</option>
                 {plans.filter(p => p.active).map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.name} - ${Number(p.price).toFixed(0)}/{p.billingFrequency}
+                    {p.name} - ${(Number(p.price) || 0).toFixed(0)}/{p.billingFrequency}
                   </option>
                 ))}
               </select>

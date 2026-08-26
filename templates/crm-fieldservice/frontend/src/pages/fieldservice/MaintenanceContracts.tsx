@@ -422,7 +422,7 @@ function ContractFormModal({ contract, onSave, onClose }) {
                   <option value="">Select a plan...</option>
                   {plans.map(p => (
                     <option key={p.id} value={p.id}>
-                      {p.name} - ${Number(p.price).toFixed(0)}/{p.billingFrequency}
+                      {p.name} - ${(Number(p.price) || 0).toFixed(0)}/{p.billingFrequency}
                     </option>
                   ))}
                 </select>
