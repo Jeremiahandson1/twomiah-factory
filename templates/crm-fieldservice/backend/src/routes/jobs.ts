@@ -22,7 +22,12 @@ const jobSchema = z.object({
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
   scheduledDate: z.string().optional(),
   scheduledTime: z.string().optional(),
-  estimatedHours: z.number().optional(),
+  // Accept the decimal string the API returns ("4.00") as well as a number —
+  // the edit form posts the value straight back, so a bare z.number() 400'd.
+  estimatedHours: z.preprocess(
+    v => (v === '' || v === null || v === undefined ? undefined : v),
+    z.coerce.number().min(0).optional()
+  ),
   address: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -163,7 +168,12 @@ app.post('/', async (c) => {
 app.put('/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = jobSchema.partial().parse(await c.req.json())
+  // The edit form posts back the exact values the API returned, including null
+  // for empty relations (projectId, siteId, …). Optional string fields reject
+  // null, so map null → undefined (clearing a field uses '' here, not null).
+  const rawBody = await c.req.json()
+  const cleanedBody = Object.fromEntries(Object.entries(rawBody).map(([k, v]) => [k, v === null ? undefined : v]))
+  const data = jobSchema.partial().parse(cleanedBody)
 
   const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)

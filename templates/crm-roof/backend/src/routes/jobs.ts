@@ -51,24 +51,24 @@ const jobSchema = z.object({
   assignedSalesRepId: z.string().optional().transform(v => v === '' ? undefined : v),
   assignedCrewId: z.string().optional().transform(v => v === '' ? undefined : v),
   status: z.string().optional(),
-  roofAge: z.number().optional(),
+  roofAge: z.coerce.number().optional(),
   roofType: z.string().optional(),
-  stories: z.number().optional(),
+  stories: z.coerce.number().optional(),
   claimNumber: z.string().optional(),
   insuranceCompany: z.string().optional(),
   adjusterName: z.string().optional(),
   adjusterPhone: z.string().optional(),
   dateOfLoss: z.string().optional(),
-  deductible: z.number().optional(),
-  rcv: z.number().optional(),
-  acv: z.number().optional(),
+  deductible: z.coerce.number().optional(),
+  rcv: z.coerce.number().optional(),
+  acv: z.coerce.number().optional(),
   approvedScope: z.string().optional(),
-  estimatedRevenue: z.number().optional(),
+  estimatedRevenue: z.coerce.number().optional(),
   inspectionDate: z.string().optional(),
   inspectionNotes: z.string().optional(),
   installDate: z.string().optional(),
   installEndDate: z.string().optional(),
-  totalSquares: z.number().optional(),
+  totalSquares: z.coerce.number().optional(),
   source: z.string().optional(),
   priority: z.string().optional(),
   notes: z.string().optional(),
@@ -212,7 +212,12 @@ app.get('/:id', async (c) => {
 app.put('/:id', async (c) => {
   const currentUser = c.get('user') as any
   const id = c.req.param('id')
-  const data = jobSchema.partial().parse(await c.req.json())
+  // The edit form posts back the exact values the API returned, including null
+  // for empty relations. Optional string fields reject null, so map null →
+  // undefined (clearing a field uses '' here, not null).
+  const rawBody = await c.req.json()
+  const cleanedBody = Object.fromEntries(Object.entries(rawBody).map(([k, v]) => [k, v === null ? undefined : v]))
+  const data = jobSchema.partial().parse(cleanedBody)
 
   const [existing] = await db.select().from(job).where(and(eq(job.id, id), eq(job.companyId, currentUser.companyId))).limit(1)
   if (!existing) return c.json({ error: 'Job not found' }, 404)

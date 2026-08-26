@@ -233,13 +233,17 @@ export async function getConversations(
     status = 'active',
     unreadOnly = false,
     search,
+    contactId,
     page = 1,
     limit = 50,
-  }: { status?: string; unreadOnly?: boolean; search?: string; page?: number; limit?: number } = {}
+  }: { status?: string; unreadOnly?: boolean; search?: string; contactId?: string; page?: number; limit?: number } = {}
 ) {
   const conditions: any[] = [eq(smsConversation.companyId, companyId)]
   if (status) conditions.push(eq(smsConversation.status, status))
   if (unreadOnly) conditions.push(gt(smsConversation.unreadCount, 0))
+  // Scope to a single contact when requested — without this, the contact
+  // Messages panel showed the company's first conversation for EVERY contact.
+  if (contactId) conditions.push(eq(smsConversation.contactId, contactId))
 
   // Search is more complex with join; skip for simple implementation
   const where = and(...conditions)
