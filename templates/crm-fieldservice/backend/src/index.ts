@@ -421,6 +421,9 @@ if (hasFrontendBuild) {
 
   // SPA fallback: serve index.html for all non-API GET requests
   const indexHtml = fs.readFileSync(path.join(FRONTEND_DIST, 'index.html'), 'utf8')
+  // An unmatched /api/* request must 404 in JSON — NOT fall through to the SPA
+  // catch-all, which would hand back index.html with a 200 and break res.json().
+  app.all('/api/*', (c) => c.json({ error: `Route not found: ${c.req.method} ${c.req.path}` }, 404))
   app.get('*', (c) => c.html(indexHtml))
   logger.info('Serving frontend from ' + FRONTEND_DIST)
 } else {
