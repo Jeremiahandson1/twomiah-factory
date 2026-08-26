@@ -19,7 +19,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!api.hasToken) { setLoading(false); return }
     api.getMe()
       .then(setUser)
-      .catch(() => api.clearTokens())
+      .catch((err) => {
+        const e = err as { status?: number; isTransient?: boolean }
+        const isTransient = e?.isTransient === true || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500)
+        // A stall/timeout is the server being unreachable, not the session being
+        // invalid — keep the token so a retry recovers instead of forcing login.
+        if (isTransient) console.warn('Auth check transient failure — session preserved:', err)
+        else api.clearTokens()
+      })
       .finally(() => setLoading(false))
   }, [])
 
