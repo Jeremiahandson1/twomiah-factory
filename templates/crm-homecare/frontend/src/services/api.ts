@@ -1,5 +1,28 @@
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+// A hung backend used to leave requests pending forever ("Saving…" with no
+// error). Abort after this long so the UI surfaces a real, retryable error.
+// Generous enough to survive a Render cold start, short enough to not hang.
+const DEFAULT_TIMEOUT_MS = 45000;
+function makeTransientError(message) {
+  const err = new Error(message);
+  err.status = 0;
+  err.isTransient = true;
+  return err;
+}
+async function fetchWithTimeout(url, init, timeoutMs = DEFAULT_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (controller.signal.aborted) throw makeTransientError('Request timed out — the server may be waking up. Please try again.');
+    throw makeTransientError('Could not reach the server. Check your connection and try again.');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 class ApiClient {
   baseUrl: string;
   accessToken: string | null;
@@ -37,14 +60,14 @@ class ApiClient {
     };
 
     try {
-      const response = await fetch(url, { ...options, headers });
+      const response = await fetchWithTimeout(url, { ...options, headers });
 
       // Handle 401 — try to refresh token
       if (response.status === 401 && this.refreshToken && !endpoint.includes('/auth/refresh')) {
         const refreshed = await this.refreshAccessToken();
         if (refreshed) {
           headers.Authorization = `Bearer ${this.accessToken}`;
-          return fetch(url, { ...options, headers }).then(r => this.handleResponse(r));
+          return fetchWithTimeout(url, { ...options, headers }).then(r => this.handleResponse(r));
         } else {
           this.clearTokens();
           window.location.href = '/login';
@@ -76,7 +99,7 @@ class ApiClient {
 
   async refreshAccessToken(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
+      const response = await fetchWithTimeout(`${this.baseUrl}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken: this.refreshToken }),

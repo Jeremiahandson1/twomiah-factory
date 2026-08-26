@@ -22,8 +22,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user);
       setCompany(data.company);
     } catch (err) {
-      console.error('Auth check failed:', err);
-      api.clearTokens();
+      const e = err as any;
+      const isTransient = e?.isTransient === true || e?.status === 0 || (typeof e?.status === 'number' && e.status >= 500);
+      if (isTransient) {
+        // Server unreachable, not the session invalid — keep the token so a
+        // refresh/retry recovers instead of forcing a re-login.
+        console.warn('Auth check transient failure — session preserved:', err);
+      } else {
+        console.error('Auth check failed (session invalid):', err);
+        api.clearTokens();
+      }
     } finally {
       setLoading(false);
     }
