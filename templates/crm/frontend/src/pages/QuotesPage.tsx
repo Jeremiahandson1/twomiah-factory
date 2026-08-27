@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit, Trash2, Search, Send, Check, X, FileText, Briefcase } from 'lucide-react';
 import api from '../services/api';
@@ -37,6 +37,19 @@ const statuses = ['draft', 'sent', 'viewed', 'approved', 'rejected', 'expired'];
 export default function QuotesPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Detail pages link here as /crm/quotes?edit=<id>. Open that record's edit
+  // modal (fetched by id, so pagination doesn't matter), then clear the param.
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    api.quotes.get(editId).then((item: unknown) => { if (!cancelled && item) openEdit(item as Record<string, unknown>); }).catch(() => {});
+    searchParams.delete('edit');
+    setSearchParams(searchParams, { replace: true });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [projects, setProjects] = useState<Record<string, unknown>[]>([]);

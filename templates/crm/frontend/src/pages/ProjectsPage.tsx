@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, Search } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -37,6 +38,20 @@ const initialForm: ProjectForm = { name: '', description: '', status: 'planning'
 
 export default function ProjectsPage() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Detail pages link here as /crm/projects?edit=<id>. Open that record's edit
+  // modal (fetched by id), then clear the param.
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    api.projects.get(editId).then((item: unknown) => { if (!cancelled && item) openEdit(item as Record<string, unknown>); }).catch(() => {});
+    searchParams.delete('edit');
+    setSearchParams(searchParams, { replace: true });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +127,7 @@ export default function ProjectsPage() {
         </select>
       </div>
       <DataTable data={data} columns={columns} loading={loading} pagination={pagination} onPageChange={setPage}
+        onRowClick={(row: Record<string, unknown>) => navigate(`/crm/projects/${row.id}`)}
         actions={[{ label: 'Edit', icon: Edit, onClick: openEdit }, { label: 'Delete', icon: Trash2, onClick: (r: Record<string, unknown>) => { setToDelete(r); setDeleteOpen(true); }, className: 'text-red-600' }]} />
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Project' : 'New Project'} size="lg">
         <div className="grid md:grid-cols-2 gap-4">

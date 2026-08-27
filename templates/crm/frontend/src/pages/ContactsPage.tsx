@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Edit, Trash2, UserCheck, Search, Handshake } from 'lucide-react';
 import api from '../services/api';
 import { useToast } from '../contexts/ToastContext';
@@ -62,6 +62,7 @@ const initialFormData: ContactForm = {
 export default function ContactsPage() {
   const toast = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [contacts, setContacts] = useState<Record<string, unknown>[]>([]);
   const [stats, setStats] = useState<ContactStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -139,6 +140,22 @@ export default function ContactsPage() {
     });
     setModalOpen(true);
   };
+
+  // Detail pages link here as /crm/contacts?edit=<id> to edit a record. Open the
+  // edit modal for that id (fetched directly, so it works regardless of which
+  // list page the record is on), then clear the param.
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (!editId) return;
+    let cancelled = false;
+    api.contacts.get(editId).then((contact) => {
+      if (!cancelled && contact) openEditModal(contact as Record<string, unknown>);
+    }).catch(() => {});
+    searchParams.delete('edit');
+    setSearchParams(searchParams, { replace: true });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
