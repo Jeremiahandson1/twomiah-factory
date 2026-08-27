@@ -47,6 +47,10 @@ const ENSURE = [
   `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS total numeric`,
   `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS next_run_date timestamp`,
   `ALTER TABLE recurring_invoice ADD COLUMN IF NOT EXISTS auto_send boolean DEFAULT false`,
+  // Schema-managed column that drizzle-kit push should add but often can't
+  // (the pull phase is slow on a cold free-tier DB and gets killed by the boot
+  // timeout). Ensure it directly so /api/reviews stops 500ing.
+  `ALTER TABLE review_request ADD COLUMN IF NOT EXISTS job_id text`,
 ]
 for (const stmt of ENSURE) {
   try { await db.execute(sql.raw(stmt)) }

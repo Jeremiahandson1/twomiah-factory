@@ -54,7 +54,7 @@ function dbReconcileStep(): string {
     // partially reconciled — e.g. review_request.job_id never added).
     'bun run db/prune-legacy.ts 2>&1 | head -20 || echo "[boot] prune-legacy skipped"; ' +
     'for i in 1 2 3 4 5; do ' +
-      'OUT=$(timeout 45 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
+      'OUT=$(timeout 180 bunx drizzle-kit push --force 2>&1); echo "$OUT"; ' +
       'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] schema reconciled to drizzle schema"; break; fi; ' +
       'echo "[boot] drizzle push not verified (attempt $i), retrying in 8s"; sleep 8; ' +
     'done'
@@ -1514,7 +1514,7 @@ export async function deployCustomer(
           'PUSH_OK=false; ' +
           'for i in $(seq 1 60); do ' +
             // timeout bounds a hung push (drizzle rename prompt) — see dbReconcileStep.
-            'OUT=$(timeout 45 bunx drizzle-kit push --force 2>&1); ' +
+            'OUT=$(timeout 180 bunx drizzle-kit push --force 2>&1); ' +
             'echo "$OUT"; ' +
             'if echo "$OUT" | grep -qE "Changes applied|No changes detected|Nothing to migrate"; then echo "[boot] push verified on attempt $i"; PUSH_OK=true; break; fi; ' +
             'echo "[boot] push attempt $i did not verify (likely DB not ready), retrying in 10s"; ' +
